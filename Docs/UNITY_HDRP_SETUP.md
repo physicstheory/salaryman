@@ -247,6 +247,12 @@ Nothing in the pipeline depends on the stand-in assets.
 
 ## 11. Troubleshooting
 
+**Game view says "Display 1 No cameras rendering".**
+The scene has no enabled camera tagged MainCamera. The build now finds one, adopts an untagged
+camera if there is one, or creates a camera outright. To do it by hand: GameObject > Camera, set
+its Tag to MainCamera, aim the scene view where you want and use GameObject > Align With View,
+then add a Konto Free Camera component and raise the camera's far clip plane to 10000.
+
 **Everything is magenta.** The terrain material did not resolve. Check Graphics settings point at
 an HDRP asset, then re-run the build. Stand-in tree materials fall back to `Standard` if `HDRP/Lit`
 is not found, which also means HDRP is not active.

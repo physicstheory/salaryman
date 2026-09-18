@@ -215,22 +215,19 @@ namespace SalaryMan.World.EditorTools
             Vector3 camPos = new Vector3(camXZ.x, Mathf.Max(ground + 60f, 420f), camXZ.y);
             Vector3 target = new Vector3(lookAt.x, data.SampleHeight(lookAt.x, lookAt.y) + 200f, lookAt.y);
 
-            var existing = GameObject.Find("Konto Viewpoint");
-            if (existing != null) UnityEngine.Object.DestroyImmediate(existing);
+            var stale = GameObject.Find("Konto Viewpoint");
+            if (stale != null) UnityEngine.Object.DestroyImmediate(stale);
 
-            var go = new GameObject("Konto Viewpoint");
-            go.transform.position = camPos;
-            go.transform.rotation = Quaternion.LookRotation((target - camPos).normalized, Vector3.up);
-            go.AddComponent<KontoFreeCamera>();
+            Camera cam = KontoSceneUtil.EnsureMainCamera();
+            Quaternion look = Quaternion.LookRotation((target - camPos).normalized, Vector3.up);
 
-            Camera cam = Camera.main;
-            if (cam != null)
-            {
-                cam.transform.position = camPos;
-                cam.transform.rotation = go.transform.rotation;
-                if (cam.GetComponent<KontoFreeCamera>() == null) cam.gameObject.AddComponent<KontoFreeCamera>();
-                UnityEngine.Object.DestroyImmediate(go);
-            }
+            cam.transform.position = camPos;
+            cam.transform.rotation = look;
+            // Far enough to see the far side of the island from a summit.
+            cam.nearClipPlane = 0.25f;
+            cam.farClipPlane = Mathf.Max(cam.farClipPlane, settings.WorldSize.magnitude * 1.1f);
+            if (cam.GetComponent<KontoFreeCamera>() == null) cam.gameObject.AddComponent<KontoFreeCamera>();
+            EditorUtility.SetDirty(cam.gameObject);
 
             // Frame it in the scene view too, so the result is visible immediately.
             if (SceneView.lastActiveSceneView != null)

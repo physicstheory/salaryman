@@ -196,11 +196,17 @@ namespace SalaryMan.World.EditorTools
             camGo.transform.localPosition = new Vector3(0f, 1.64f, 0f);
             walker.cameraPivot = camGo.transform;
 
-            if (Camera.main != null)
+            Camera cam = KontoSceneUtil.EnsureMainCamera();
+            if (cam != null)
             {
-                Camera.main.transform.SetParent(camGo.transform, false);
-                Camera.main.transform.localPosition = Vector3.zero;
-                Camera.main.transform.localRotation = Quaternion.identity;
+                // The walker owns the camera from here: parent it to the eyes.
+                var freeCam = cam.GetComponent<KontoFreeCamera>();
+                if (freeCam != null) Object.DestroyImmediate(freeCam);
+
+                cam.transform.SetParent(camGo.transform, false);
+                cam.transform.localPosition = Vector3.zero;
+                cam.transform.localRotation = Quaternion.identity;
+                cam.nearClipPlane = 0.15f;
             }
 
             // Drop the walker onto the terrain under the scene view camera.

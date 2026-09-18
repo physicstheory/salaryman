@@ -449,7 +449,7 @@ namespace SalaryMan.World.EditorTools
 
         static void ConfigureMainCamera(KontoWorldSettings settings)
         {
-            Camera cam = Camera.main;
+            Camera cam = KontoSceneUtil.EnsureMainCamera();
             if (cam == null) return;
 
             cam.nearClipPlane = 0.25f;
