@@ -46,10 +46,14 @@ namespace SalaryMan.World.EditorTools
         {
             if (settings == null) { Debug.LogError("[Konto] No world settings asset."); return; }
 
+            // Tracked so a failure says which step died rather than just throwing from nowhere.
+            string step = "starting up";
+
             try
             {
                 if ((steps & KontoBuildSteps.ConfigureHdrp) != 0)
                 {
+                    step = "configuring the HDRP asset";
                     EditorUtility.DisplayProgressBar("Building Konto", "Configuring the HDRP asset", 0.02f);
                     KontoHdrpAssetConfigurator.Configure();
                 }
@@ -57,6 +61,7 @@ namespace SalaryMan.World.EditorTools
                 TerrainLayer[] layers = null;
                 if ((steps & KontoBuildSteps.GroundTextures) != 0)
                 {
+                    step = "generating ground textures";
                     EditorUtility.DisplayProgressBar("Building Konto", "Generating ground textures", 0.06f);
                     layers = KontoTextureFactory.CreateOrUpdateLayers(settings.seed, regenerateArt);
                 }
@@ -64,6 +69,7 @@ namespace SalaryMan.World.EditorTools
                 KontoFoliageLibrary foliage = null;
                 if ((steps & KontoBuildSteps.Foliage) != 0)
                 {
+                    step = "generating stand-in vegetation";
                     EditorUtility.DisplayProgressBar("Building Konto", "Generating stand-in vegetation", 0.12f);
                     foliage = KontoFoliageFactory.CreateOrUpdateLibrary(settings.seed, regenerateArt);
                 }
@@ -71,6 +77,7 @@ namespace SalaryMan.World.EditorTools
                 KontoWorldData data = null;
                 if ((steps & (KontoBuildSteps.Terrain | KontoBuildSteps.Water | KontoBuildSteps.SpawnPoint)) != 0)
                 {
+                    step = "generating the island";
                     data = KontoWorldGenerator.Generate(settings, (msg, t) =>
                         EditorUtility.DisplayProgressBar("Building Konto", msg, 0.15f + t * 0.45f));
                     LastBuild = data;
@@ -78,6 +85,7 @@ namespace SalaryMan.World.EditorTools
 
                 if ((steps & KontoBuildSteps.Terrain) != 0 && data != null)
                 {
+                    step = "building terrain tiles";
                     if (layers == null) layers = LoadExistingLayers();
                     if (foliage == null) foliage = AssetDatabase.LoadAssetAtPath<KontoFoliageLibrary>(KontoAssetPaths.Settings + "/KontoFoliageLibrary.asset");
                     BuildTerrain(data, layers, foliage);
@@ -85,26 +93,35 @@ namespace SalaryMan.World.EditorTools
 
                 if ((steps & KontoBuildSteps.Water) != 0 && data != null)
                 {
+                    step = "building water";
                     EditorUtility.DisplayProgressBar("Building Konto", "Filling the sea and the lakes", 0.88f);
                     KontoWaterFactory.Build(data);
                 }
 
                 if ((steps & KontoBuildSteps.Environment) != 0)
                 {
+                    step = "building sky, fog and lighting";
                     EditorUtility.DisplayProgressBar("Building Konto", "Building sky, fog and lighting", 0.93f);
                     KontoEnvironmentFactory.Build(settings, rebuildProfiles);
                 }
 
                 if ((steps & KontoBuildSteps.SpawnPoint) != 0 && data != null)
                 {
+                    step = "placing the viewpoint";
                     EditorUtility.DisplayProgressBar("Building Konto", "Placing the viewpoint", 0.97f);
                     PlaceViewpoint(data);
                 }
 
+                step = "saving";
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
                 EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
                 Debug.Log("[Konto] Build complete.");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError("[Konto] Build failed while " + step + ".\n" + e.GetType().Name + ": " + e.Message + "\n" + e.StackTrace);
+                throw;
             }
             finally
             {

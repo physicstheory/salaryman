@@ -53,9 +53,13 @@ namespace SalaryMan.World.EditorTools
             var specs = BuildSpecs();
             var layers = new TerrainLayer[specs.Length];
 
+            // Deliberately NOT wrapped in StartAssetEditing/StopAssetEditing. Inside that block
+            // the importer is paused, so AssetImporter.GetAtPath returns null and the texture
+            // import settings never get applied, and newly created assets can come back null
+            // from LoadAssetAtPath afterwards. Null terrain layers then blow up inside
+            // TerrainData. The batching is not worth it for eight layers.
             try
             {
-                AssetDatabase.StartAssetEditing();
                 for (int i = 0; i < specs.Length; i++)
                 {
                     var spec = specs[i];
@@ -65,15 +69,23 @@ namespace SalaryMan.World.EditorTools
             }
             finally
             {
-                AssetDatabase.StopAssetEditing();
                 EditorUtility.ClearProgressBar();
                 AssetDatabase.SaveAssets();
                 AssetDatabase.Refresh();
             }
 
-            // Reload through the database so the importer settings are applied to what we return.
+            // Reload through the database so we hand back the imported assets, and make sure
+            // every slot is actually filled before anything downstream trusts the array.
             for (int i = 0; i < specs.Length; i++)
-                layers[i] = AssetDatabase.LoadAssetAtPath<TerrainLayer>(LayerPath(specs[i].name));
+            {
+                if (layers[i] == null) layers[i] = AssetDatabase.LoadAssetAtPath<TerrainLayer>(LayerPath(specs[i].name));
+                if (layers[i] != null) continue;
+
+                Debug.LogError("[Konto] Terrain layer '" + specs[i].name + "' could not be created at "
+                    + LayerPath(specs[i].name) + ". Terrain will be built without ground textures. "
+                    + "Check that Assets/SalaryMan/World/Generated is writable.");
+                return null;
+            }
 
             return layers;
         }

@@ -55,10 +55,11 @@ namespace SalaryMan.World
 
                 ApplyHeights(data, td, origin);
 
-                if (options.layers != null && options.layers.Length > 0)
+                var layers = SanitiseLayers(options.layers);
+                if (layers != null)
                 {
-                    td.terrainLayers = options.layers;
-                    PaintSplatmaps(data, td, origin, options.layers.Length);
+                    td.terrainLayers = layers;
+                    PaintSplatmaps(data, td, origin, layers.Length);
                 }
 
                 if (options.paintDetails && options.foliage != null && options.foliage.HasAnyDetail())
@@ -85,6 +86,23 @@ namespace SalaryMan.World
             StitchNeighbours(terrains, s.tilesX, s.tilesZ);
             if (progress != null) progress("Terrain complete", 1f);
             return terrains;
+        }
+
+        /// <summary>
+        /// Terrain layers must all be present: a null entry in the array throws inside
+        /// TerrainData, and a half-built set would paint the wrong surfaces onto the world.
+        /// </summary>
+        static TerrainLayer[] SanitiseLayers(TerrainLayer[] layers)
+        {
+            if (layers == null || layers.Length == 0) return null;
+            for (int i = 0; i < layers.Length; i++)
+            {
+                if (layers[i] != null) continue;
+                Debug.LogWarning("[Konto] Terrain layer " + i + " is missing, so the terrain is being built untextured. "
+                    + "Re-run the build with 'Generate ground textures' ticked.");
+                return null;
+            }
+            return layers;
         }
 
         static void ConfigureTerrain(Terrain terrain, KontoWorldSettings s, Material material)
@@ -182,6 +200,7 @@ namespace SalaryMan.World
             var s = data.Settings;
             var entries = new List<DetailEntry>();
             var protos = new List<DetailPrototype>();
+            if (foliage.details == null) return;
 
             for (int i = 0; i < foliage.details.Length; i++)
             {
@@ -264,6 +283,7 @@ namespace SalaryMan.World
             var prototypeOfSpecies = new int[foliage.trees.Length];
             for (int i = 0; i < prototypeOfSpecies.Length; i++) prototypeOfSpecies[i] = -1;
 
+            if (foliage.trees == null) return;
             for (int i = 0; i < foliage.trees.Length; i++)
             {
                 var t = foliage.trees[i];
@@ -400,6 +420,7 @@ namespace SalaryMan.World
             }
 
             var entry = foliage.trees[Mathf.Clamp(idx, 0, foliage.trees.Length - 1)];
+            if (entry == null) return;
             float scale = Mathf.Lerp(entry.minScale, entry.maxScale, r1);
             // Trees are shorter and scrubbier near the tree line and on the wind hammered coast.
             float stress = Mathf.Clamp01((sample.Height - (s.treeLine - 260f)) / 260f);

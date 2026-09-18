@@ -168,7 +168,8 @@ namespace SalaryMan.World.EditorTools
         static void EnsureTree(KontoFoliageLibrary lib, KontoTreeSpecies species, Mesh mesh, Material bark, Material leaf, bool force)
         {
             int index = (int)species;
-            if (lib.trees == null || index >= lib.trees.Length) return;
+            if (lib.trees == null || index < 0 || index >= lib.trees.Length) return;
+            if (lib.trees[index] == null) lib.trees[index] = new TreeSpeciesEntry { name = species.ToString() };
 
             string meshPath = KontoAssetPaths.Meshes + "/" + mesh.name + ".asset";
             string prefabPath = KontoAssetPaths.Prefabs + "/" + mesh.name + ".prefab";
@@ -214,7 +215,8 @@ namespace SalaryMan.World.EditorTools
 
         static void EnsureDetail(KontoFoliageLibrary lib, int index, string assetName, Color baseColor, Color tipColor, int blades, float bend, int seed, bool force)
         {
-            if (lib.details == null || index >= lib.details.Length) return;
+            if (lib.details == null || index < 0 || index >= lib.details.Length) return;
+            if (lib.details[index] == null) lib.details[index] = new DetailEntry { name = assetName };
             var tex = KontoTextureFactory.CreateGrassTexture(assetName, baseColor, tipColor, blades, bend, seed, force);
             lib.details[index].billboardTexture = tex;
         }
