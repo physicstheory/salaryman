@@ -254,6 +254,17 @@ is not found, which also means HDRP is not active.
 **The sea is a flat grey plane.** HDRP Water is not enabled. Run **Configure HDRP Asset**, then
 rebuild water. The console says which path it took.
 
+**"Cascade Shadow Atlasing has failed, only one directional light can cast shadows at a time."**
+Two or more directional lights in the scene have shadows on. HDRP supports exactly one. The build
+now switches off any directional light that is not Konto's sun or moon — including the one the
+HDRP template scene ships with — and says so in the console. If you added one yourself, set its
+**Shadows** to **No Shadows**, or delete it. The moon does not cast shadows by default, and the
+sun and moon are never enabled at the same time; if you turn on `moonCastsShadows` on
+`KontoTimeOfDay`, the handover at dusk still keeps exactly one of them active.
+
+Note that a leftover template sun also means *double daylight*, so it is worth clearing even
+beyond the warning.
+
 **The screen is white or black.** Auto exposure has not converged, or you changed exposure to
 Fixed. Select the `Sky and Fog Volume`, find Exposure, and confirm the mode is Automatic.
 

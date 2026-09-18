@@ -42,6 +42,11 @@ namespace SalaryMan.World
         [Tooltip("Full moon illumination, in lux. The real value is about 0.25.")]
         public float moonIntensity = 0.32f;
         public float moonTemperature = 4200f;
+        [Tooltip("Let the moon cast shadows. HDRP supports exactly one shadow casting directional light, so the moon only ever gets them while the sun is below the horizon. Off by default: at 0.3 lux the shadows are barely visible and they still cost an atlas slot.")]
+        public bool moonCastsShadows = false;
+
+        [Tooltip("Sun altitude in degrees at which the sun hands over to the moon. Exactly one of the two is ever enabled, which is what keeps HDRP's cascade shadow atlas happy.")]
+        public float handoverAltitude = -0.6f;
 
         [Header("Night grade (optional)")]
         [Tooltip("A volume whose weight is raised after dark. Use it for a cooler grade, higher fog and a different exposure.")]
@@ -93,7 +98,9 @@ namespace SalaryMan.World
                 float lux = Mathf.Lerp(horizonIntensity, middayIntensity, Mathf.Pow(shaped, 0.75f));
                 float kelvin = Mathf.Lerp(horizonTemperature, middayTemperature, Mathf.Pow(shaped, 0.55f));
 
-                bool sunUp = altitude > -3f;
+                // HDRP allows exactly one active directional light to cast shadows, so the sun
+                // and the moon are strictly mutually exclusive rather than overlapping at dusk.
+                bool sunUp = altitude > handoverAltitude;
                 if (sun.enabled != sunUp) sun.enabled = sunUp;
                 sun.useColorTemperature = true;
                 sun.colorTemperature = kelvin;
@@ -106,10 +113,14 @@ namespace SalaryMan.World
                 // Keep the moon roughly opposite the sun; good enough for a game, and it means
                 // there is always some light to read the landscape by at night.
                 moon.transform.rotation = Quaternion.Euler(-altitude, azimuth + 180f, 0f);
-                bool moonUp = altitude < 2f;
+                bool moonUp = altitude <= handoverAltitude;
                 if (moon.enabled != moonUp) moon.enabled = moonUp;
                 moon.useColorTemperature = true;
                 moon.colorTemperature = moonTemperature;
+
+                LightShadows wanted = moonCastsShadows ? LightShadows.Soft : LightShadows.None;
+                if (moon.shadows != wanted) moon.shadows = wanted;
+
                 float fade = Mathf.Clamp01(Mathf.InverseLerp(4f, -6f, altitude));
                 HdrpReflection.SetPhysicalIntensity(moon, moonIntensity * fade, "Lux");
             }

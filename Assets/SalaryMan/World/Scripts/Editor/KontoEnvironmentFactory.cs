@@ -29,6 +29,7 @@ namespace SalaryMan.World.EditorTools
             Light moon = FindOrCreateLight(root.transform, "Moon", -40f, 310f);
             ConfigureSun(sun);
             ConfigureMoon(moon);
+            StandDownOtherDirectionalLights(sun, moon);
 
             VolumeProfile baseProfile = BuildBaseProfile(rebuildProfiles);
             Volume skyVolume = FindOrCreateVolume(root.transform, "Sky and Fog Volume", 0f);
@@ -86,12 +87,45 @@ namespace SalaryMan.World.EditorTools
         static void ConfigureMoon(Light moon)
         {
             HdrpReflection.EnsureLightData(moon);
-            moon.shadows = LightShadows.Soft;
+            // No shadows from the moon by default. HDRP supports one shadow casting directional
+            // light at a time, and KontoTimeOfDay manages the handover; see moonCastsShadows.
+            moon.shadows = LightShadows.None;
             moon.useColorTemperature = true;
             moon.colorTemperature = 4200f;
             HdrpReflection.SetPhysicalIntensity(moon, 0.3f, "Lux");
             HdrpReflection.SetLightProperty(moon, "angularDiameter", 0.5f);
             HdrpReflection.SetLightProperty(moon, "interactsWithSky", false);
+        }
+
+        /// <summary>
+        /// Switches off any other directional light in the scene. HDRP can only atlas cascade
+        /// shadows for one directional light at a time, and the HDRP template scene ships with
+        /// its own sun, so leaving it in place gives you the atlasing error and double daylight.
+        /// </summary>
+        static void StandDownOtherDirectionalLights(Light sun, Light moon)
+        {
+            var lights = Object.FindObjectsByType<Light>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var disabled = new List<string>();
+
+            foreach (var light in lights)
+            {
+                if (light == null || light == sun || light == moon) continue;
+                if (light.type != LightType.Directional) continue;
+                if (!light.enabled && light.shadows == LightShadows.None) continue;
+
+                Undo.RecordObject(light, "Stand down rival directional light");
+                light.shadows = LightShadows.None;
+                light.enabled = false;
+                EditorUtility.SetDirty(light);
+                disabled.Add(light.gameObject.name);
+            }
+
+            if (disabled.Count > 0)
+            {
+                Debug.Log("[Konto] Switched off " + disabled.Count + " other directional light(s) so the sun owns the shadow atlas: "
+                    + string.Join(", ", disabled.ToArray())
+                    + ". HDRP only supports one shadow casting directional light. Delete them if you do not want them back.");
+            }
         }
 
         // ---------------------------------------------------------------- volumes
