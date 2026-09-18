@@ -1,0 +1,45 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# Never commit generated world assets: they are large, binary, and rebuildable from the seed.
+Assets/SalaryMan/World/Generated/
+Assets/SalaryMan/World/Generated.meta
+
+# Asset meta files for folders Unity has not created yet are noise
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Build outputs
+*.apk
+*.aab
+*.unitypackage
+*.app
+ExportedObj/
+crashlytics-build.properties
+sysinfo.txt
+
+# IDE
+.vs/
+.idea/
+.vscode/
+*.csproj
+*.unityproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.booproj
+*.svd
+
+# OS
+.DS_Store
+Thumbs.db
