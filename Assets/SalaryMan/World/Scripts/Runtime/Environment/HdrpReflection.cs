@@ -41,6 +41,20 @@ namespace SalaryMan.World
             return found;
         }
 
+        /// <summary>
+        /// True if this type can actually be instantiated as a volume component. HDRP keeps
+        /// legacy and abstract classes around under names that look right, and handing one of
+        /// those to VolumeProfile.Add makes CreateInstance return null, which HDRP then
+        /// dereferences.
+        /// </summary>
+        static bool IsUsableVolumeComponent(Type t)
+        {
+            return t != null
+                && !t.IsAbstract
+                && !t.IsGenericTypeDefinition
+                && typeof(VolumeComponent).IsAssignableFrom(t);
+        }
+
         public static bool IsHdrpAvailable
         {
             get { return FindType("HDRenderPipelineAsset") != null; }
@@ -48,20 +62,39 @@ namespace SalaryMan.World
 
         // ---------------------------------------------------------------- volumes
 
-        /// <summary>Adds (or fetches) a volume component on a profile by type name.</summary>
-        public static VolumeComponent AddVolumeComponent(VolumeProfile profile, string typeName)
+        /// <summary>
+        /// Adds (or fetches) a volume component on a profile. Several components have been
+        /// renamed across HDRP versions, so more than one name can be given: the first that
+        /// resolves to a real, instantiable volume component wins.
+        /// </summary>
+        public static VolumeComponent AddVolumeComponent(VolumeProfile profile, params string[] typeNames)
         {
-            if (profile == null) return null;
-            Type t = FindType(typeName);
-            if (t == null)
+            if (profile == null || typeNames == null || typeNames.Length == 0) return null;
+
+            foreach (string typeName in typeNames)
             {
-                Warn("Volume component type '" + typeName + "' not found on this HDRP version.");
-                return null;
+                Type t = FindType(typeName);
+                if (!IsUsableVolumeComponent(t)) continue;
+
+                VolumeComponent existing;
+                if (profile.TryGet(t, out existing) && existing != null) return existing;
+
+                try
+                {
+                    var added = profile.Add(t, false);
+                    if (added != null) return added;
+                    Warn("VolumeProfile.Add returned nothing for '" + typeName + "'.");
+                }
+                catch (Exception e)
+                {
+                    // Never let one unavailable component take the whole build down with it.
+                    Warn("Could not add '" + typeName + "': " + e.GetType().Name + " " + e.Message);
+                }
             }
 
-            VolumeComponent existing;
-            if (profile.TryGet(t, out existing) && existing != null) return existing;
-            return profile.Add(t, false);
+            Warn("No usable volume component found for: " + string.Join(", ", typeNames)
+                + ". That feature is skipped on this HDRP version.");
+            return null;
         }
 
         /// <summary>

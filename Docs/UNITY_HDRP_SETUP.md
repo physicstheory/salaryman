@@ -275,6 +275,13 @@ function and are stitched with `SetNeighbors`. If you see one, check every tile 
 **No trees.** The foliage library has no prefabs assigned. Re-run the build with *Generate
 stand-in trees* ticked, or assign your own.
 
+**NullReferenceException inside `VolumeProfile.Add`.**
+A volume component name resolved to a class HDRP keeps around but cannot instantiate, usually a
+renamed or legacy one. The reflection layer now checks that a type is a concrete `VolumeComponent`
+before handing it over, takes the first usable name from a list of alternatives, and logs and
+skips anything it cannot add. If you see "No usable volume component found for: X", that feature
+is simply off on your HDRP version and the rest of the lighting is unaffected.
+
 **Warnings like "Fog has no parameter 'enableVolumetric'".** Expected. That is the reflection layer
 probing for parameter names across HDRP versions. It set the one that exists on yours.
 

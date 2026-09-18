@@ -154,15 +154,18 @@ namespace SalaryMan.World.EditorTools
                 profile = ScriptableObject.CreateInstance<VolumeProfile>();
                 AssetDatabase.CreateAsset(profile, path);
             }
-            else
+            else if (profile.components != null)
             {
-                // Clear it out so a rebuild does not stack duplicate overrides.
+                // Clear it out so a rebuild does not stack duplicate overrides. Null entries do
+                // turn up here if an earlier build failed part way through writing the profile.
                 var components = new List<VolumeComponent>(profile.components);
                 foreach (var c in components)
                 {
+                    if (c == null) continue;
                     profile.Remove(c.GetType());
                     Object.DestroyImmediate(c, true);
                 }
+                profile.components.RemoveAll(c => c == null);
                 profile.isDirty = true;
             }
             return profile;
@@ -172,7 +175,8 @@ namespace SalaryMan.World.EditorTools
         static VolumeProfile BuildBaseProfile(bool rebuild)
         {
             var profile = LoadOrCreateProfile("Konto_Environment_Base", rebuild);
-            if (profile.components.Count > 0 && !rebuild) return profile;
+            if (profile == null) return null;
+            if (profile.components != null && profile.components.Count > 0 && !rebuild) return profile;
 
             // --- sky -------------------------------------------------------------------
             var visualEnv = HdrpReflection.AddVolumeComponent(profile, "VisualEnvironment");
@@ -196,7 +200,7 @@ namespace SalaryMan.World.EditorTools
             HdrpReflection.SetParameter(sky, "renderingMode", "Default");
 
             // --- fog -------------------------------------------------------------------
-            var fog = HdrpReflection.AddVolumeComponent(profile, "Fog");
+            var fog = HdrpReflection.AddVolumeComponent(profile, "Fog", "VolumetricFog");
             HdrpReflection.SetParameter(fog, "enabled", true);
             HdrpReflection.SetParameter(fog, "colorMode", "SkyColor");
             HdrpReflection.SetParameter(fog, "tint", new Color(0.86f, 0.90f, 0.96f));
@@ -251,16 +255,18 @@ namespace SalaryMan.World.EditorTools
             HdrpReflection.SetParameter(contact, "length", 0.18f);
             HdrpReflection.SetParameter(contact, "opacity", 0.8f);
 
-            var micro = HdrpReflection.AddVolumeComponent(profile, "MicroShadowing");
+            var micro = HdrpReflection.AddVolumeComponent(profile, "MicroShadowing", "MicroShadows");
             HdrpReflection.SetParameter(micro, "enable", true);
             HdrpReflection.SetParameter(micro, "opacity", 0.55f);
 
-            var ao = HdrpReflection.AddVolumeComponent(profile, "AmbientOcclusion");
+            // Renamed across HDRP versions, and the old name survives as a class that cannot be
+            // instantiated, so both are offered and the first usable one is taken.
+            var ao = HdrpReflection.AddVolumeComponent(profile, "ScreenSpaceAmbientOcclusion", "AmbientOcclusion");
             HdrpReflection.SetParameter(ao, "intensity", 0.55f);
             HdrpReflection.SetParameter(ao, "radius", 1.6f);
             HdrpReflection.SetParameter(ao, "directLightingStrength", 0.25f);
 
-            var ssr = HdrpReflection.AddVolumeComponent(profile, "ScreenSpaceReflection");
+            var ssr = HdrpReflection.AddVolumeComponent(profile, "ScreenSpaceReflection", "ScreenSpaceReflections");
             HdrpReflection.SetParameter(ssr, "enabled", true);
             HdrpReflection.SetParameter(ssr, "minSmoothness", 0.5f);
             HdrpReflection.SetParameter(ssr, "smoothnessFadeStart", 0.6f);
@@ -345,7 +351,8 @@ namespace SalaryMan.World.EditorTools
         static KontoWeatherState MakeState(KontoWeatherType type, bool rebuild, float windSpeed, float turbulence, float wetness, float likelihood)
         {
             var profile = LoadOrCreateProfile("Konto_Weather_" + type, rebuild);
-            if (rebuild || profile.components.Count == 0) FillWeatherProfile(profile, type);
+            if (profile != null && (rebuild || profile.components == null || profile.components.Count == 0))
+                FillWeatherProfile(profile, type);
 
             return new KontoWeatherState
             {
@@ -364,7 +371,7 @@ namespace SalaryMan.World.EditorTools
         /// </summary>
         static void FillWeatherProfile(VolumeProfile profile, KontoWeatherType type)
         {
-            var fog = HdrpReflection.AddVolumeComponent(profile, "Fog");
+            var fog = HdrpReflection.AddVolumeComponent(profile, "Fog", "VolumetricFog");
             var clouds = HdrpReflection.AddVolumeComponent(profile, "VolumetricClouds");
             var color = HdrpReflection.AddVolumeComponent(profile, "ColorAdjustments");
 
