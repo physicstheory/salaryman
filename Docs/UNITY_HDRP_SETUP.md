@@ -1,8 +1,9 @@
 # Konto — setup guide for Unity 6 HDRP
 
-This is the base environment for **Salary Man**: the island of Konto, a compressed replica of
-Honshu, with no cities or buildings. Everything here is generated: the landform, the ground
-surfacing, the vegetation, the water and the lighting.
+This is the world of **Salary Man**: the island of Konto, a compressed replica of Honshu, and the
+space its capital occupies on it. Everything here is generated: the landform, the ground surfacing,
+the vegetation, the water, the lighting, and the city's wards, streets, railways and building plots.
+No buildings are placed — see **[CITY_TOKONTO.md](CITY_TOKONTO.md)** for how to put them on it.
 
 Follow it top to bottom the first time. It takes about fifteen minutes plus build time.
 
@@ -83,7 +84,9 @@ If you would rather do it by hand: select your HDRP Asset, and in **Rendering** 
 1. Open **Tools → SalaryMan → Konto World Builder**.
 2. Press **Create default settings asset** if the settings field is empty. This writes
    `Assets/SalaryMan/World/Settings/KontoWorldSettings.asset` with the Honshu-derived layout.
-3. Leave every step ticked and press **Build Konto**.
+3. Leave every step ticked and press **Build Konto**. The **city** step is one of them: it plans
+   Tokonto and Mizuho and hands over their plots. Untick *Also drop in the grey massing blockout*
+   if you would rather see the bare ground.
 
 Expected time on a modern desktop, at default settings (12288 × 10240 m, 30 tiles, 1.1M droplets):
 
@@ -105,14 +108,18 @@ Unity will look frozen during erosion. It is not; the progress bar updates betwe
 When it finishes you will have:
 
 ```
-Konto World          12 terrain tiles, stitched
+Konto World          30 terrain tiles, stitched
 Konto Water          ocean, lakes, river ribbons
+Konto Cities         Tokonto and Mizuho: ward anchors, reserved site markers,
+                     moat water, and the grey massing blockout
 Konto Environment    sun, moon, sky/fog volume, weather, wind
-Konto Viewpoint      or your Main Camera, placed to look at the island
+Main Camera          placed out over the bay, looking back at the city
 ```
 
 and, on disk, `Assets/SalaryMan/World/Generated/` holding the terrain data, textures, terrain
-layers, meshes, prefabs, materials and volume profiles.
+layers, meshes, prefabs, materials and volume profiles, plus
+`Assets/SalaryMan/World/Settings/KontoCityLayout_TKT.asset` — the city plan, which is what you
+address plots through later.
 
 **Save the scene now.** Generated TerrainData lives as assets, but the scene objects that
 reference them do not exist until you save.
@@ -135,8 +142,11 @@ Things worth flying to, in the default seed:
 - **The Konto Alps**, the high range through the middle third, with the sharpest crests.
 - **Aokami Caldera** near the north east tip, filled to a lake.
 - **The ria coast** along the first quarter of the ocean side: drowned V-shaped inlets.
-- **The Kanmei Plain**, the big flat alluvial plain on the ocean side at about 60% along. This is
-  where the capital will go.
+- **Tokonto**, on the Kanmei Plain at about 65% along the ocean side: the graded platform, the bay,
+  the reclaimed islands, the moated palace park and the expressway viaduct. Fly it at 300 m first,
+  then walk a street.
+- **Mizuho**, in a mountain basin on the snowy side at about 48% along — the village the story
+  starts in, four kilometres from the capital over the range.
 - **Any valley floor at about 200–400 m** — that is where the rice terraces are cut.
 
 ---
