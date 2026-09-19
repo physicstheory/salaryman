@@ -29,6 +29,14 @@ namespace SalaryMan.World
         Signage,            // shop signs and box lanterns
         Concrete,           // podiums, plinths, kerbs, retaining, stair cores
 
+        // People. Skin and hair are fixed; the two cloth slots are tinted per pedestrian
+        // through a MaterialPropertyBlock on their own submesh, which is what makes a crowd
+        // look like a crowd rather than a hundred copies of one man.
+        Skin,
+        Hair,
+        ClothTop,           // jacket, shirt, blouse, coat
+        ClothBottom,        // trousers, skirt, shoes, bag
+
         // Traffic. Car paint is tinted per vehicle through a MaterialPropertyBlock, so one
         // material covers every car on the road in every colour.
         CarPaint,

@@ -231,6 +231,12 @@ namespace SalaryMan.World
                 new Spec { surface = CitySurface.Signage,      name = "Signage",      tileMetresX = 2.4f, tileMetresY = 2.4f, heightScale = 0.6f },
                 new Spec { surface = CitySurface.Concrete,     name = "Concrete",     tileMetresX = 5f, tileMetresY = 5f, heightScale = 1.0f },
 
+                // People.
+                new Spec { surface = CitySurface.Skin,        name = "Skin",        tileMetresX = 0.4f, tileMetresY = 0.4f, heightScale = 0.4f, uniform = true },
+                new Spec { surface = CitySurface.Hair,        name = "Hair",        tileMetresX = 0.3f, tileMetresY = 0.3f, heightScale = 0.8f, uniform = true },
+                new Spec { surface = CitySurface.ClothTop,    name = "ClothTop",    tileMetresX = 0.5f, tileMetresY = 0.5f, heightScale = 0.7f, uniform = true },
+                new Spec { surface = CitySurface.ClothBottom, name = "ClothBottom", tileMetresX = 0.5f, tileMetresY = 0.5f, heightScale = 0.7f, uniform = true },
+
                 // Traffic. Car paint is white here and tinted per vehicle at runtime, so one
                 // material carries every colour on the road.
                 new Spec { surface = CitySurface.CarPaint, name = "CarPaint", tileMetresX = 2f, tileMetresY = 2f, heightScale = 0.3f, uniform = true },
@@ -269,6 +275,10 @@ namespace SalaryMan.World
                 case CitySurface.TrimMetal: PaintAnodised(c); break;
                 case CitySurface.DarkMetal: PaintPaintedSteel(c); break;
                 case CitySurface.Signage: PaintSignage(c); break;
+                case CitySurface.Skin: PaintFlat(c, new Color(0.78f, 0.62f, 0.52f), 0.58f, 0.7f); break;
+                case CitySurface.Hair: PaintFlat(c, new Color(0.085f, 0.075f, 0.072f), 0.42f, 1.6f); break;
+                case CitySurface.ClothTop: PaintCloth(c, 4f); break;
+                case CitySurface.ClothBottom: PaintCloth(c, 5f); break;
                 case CitySurface.CarPaint: PaintCarPaint(c); break;
                 case CitySurface.CarGlass: PaintCarGlass(c); break;
                 case CitySurface.CarTrim: PaintCarTrim(c); break;
@@ -759,6 +769,45 @@ namespace SalaryMan.World
                 }
             }
             c.Grain(0.04f, 8f, c.Seed + 73);
+        }
+
+        // ------------------------------------------------------------------ people
+
+        /// <summary>A plain surface with a little break-up. Skin and hair.</summary>
+        static void PaintFlat(Canvas c, Color col, float rough, float bump)
+        {
+            c.Rect(0f, 0f, 1f, 1f, col, 0.6f, rough, 0f);
+            int n = c.Size;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                int i = y * n + x;
+                float g = KontoNoise.FbmTiled(x / (float)n * 12f, y / (float)n * 12f, c.Seed + 17, 3, 12);
+                c.Albedo[i] = Tint(col, 1f + g * 0.10f);
+                c.Height[i] = 0.6f + g * 0.04f * bump;
+                c.Rough[i] = Mathf.Clamp01(rough - g * 0.08f);
+            }
+        }
+
+        /// <summary>
+        /// Cloth, white, so it can be tinted per pedestrian. What is baked in is the weave and
+        /// the way fabric scatters: no specular to speak of, and a soft normal.
+        /// </summary>
+        static void PaintCloth(Canvas c, float weave)
+        {
+            c.Rect(0f, 0f, 1f, 1f, Color.white, 0.6f, 0.86f, 0f);
+            int n = c.Size;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                int i = y * n + x;
+                float u = x / (float)n * 90f * weave, v = y / (float)n * 90f * weave;
+                float w = Mathf.Sin(u * Mathf.PI) * Mathf.Sin(v * Mathf.PI);
+                float g = KontoNoise.FbmTiled(x / (float)n * 8f, y / (float)n * 8f, c.Seed + 19, 3, 8);
+                c.Height[i] = 0.6f + w * 0.03f + g * 0.03f;
+                c.Albedo[i] = Tint(Color.white, 0.93f + w * 0.05f + g * 0.06f);
+                c.Rough[i] = Mathf.Clamp01(0.86f - g * 0.06f);
+            }
         }
 
         // ------------------------------------------------------------------ traffic
