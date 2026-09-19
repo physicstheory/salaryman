@@ -17,8 +17,8 @@ starts in, on the far side of the range.
 |---|---|
 | Footprint | about **6.8 × 2.8 km**, wrapped around its bay |
 | Wards | 18 – 22, each named, each with its own character and street grid |
-| Blocks | ~150 |
-| Reserved plots | ~560, about **2 km² of building ground** |
+| Blocks | ~350 |
+| Reserved plots | ~1,700, about **2.5 km² of building ground** |
 | Roads | ~76 km, including an elevated expressway loop |
 | Railways | ~51 km: a commuter loop, six radial lines, a shinkansen viaduct, a freight spur |
 | Stations | ~13, one of them a fourteen-platform terminus |
@@ -181,8 +181,8 @@ says so in the log.
 Two numbers to watch in the log:
 
 ```
-[Konto] Tokonto blocks: 140 laid out, rejected 1827 outside the ward, 629 outside the city,
-        30 on reserved ground, 211 on ground too steep or wet, 101 under a road or railway.
+[Konto] Tokonto blocks: 324 laid out, rejected 2293 outside the ward, 796 outside the city,
+        47 on reserved ground, 350 on ground too steep or wet, 41 under a road or railway.
 ```
 
 If a city comes out thin, that line says which test threw the blocks away, and therefore what to
@@ -198,8 +198,31 @@ viaducts and bridges — so the city can be driven through, lit, and judged from
 before any art exists. Heights come from each plot's floor allowance with a deterministic wobble,
 so it has a skyline.
 
+Plots whose kind is a shophouse, a mid-rise, an apartment block or an office have their frontage
+split into two to five narrower buildings of differing height, because a shopping street is a run
+of party walls and not one slab, and that rhythm is most of what the eye reads in close.
+
 **It is meant to be deleted.** `Konto City → Delete the grey massing blockout`, or just delete the
 `Blockout` object under each city. Everything else in the hierarchy is scaffolding to build on.
+
+---
+
+## Soti Tower
+
+The one exception to "no buildings". Soti's head office is the thing the whole story walks into,
+so it is modelled rather than massed, in `Runtime/City/SotiTower.cs`.
+
+The form is taken from the **Ping An International Finance Centre** in Shenzhen: a square plan with
+deeply chamfered corners, a shaft that tapers the whole way up, and eight stainless steel
+mega-columns standing proud of the glass that run the full height and close over the roof into the
+claw, with a short mast above. 592 m to the tip, 116 floors, 65 m across at the podium roof
+tapering to about 45 m at the shaft top.
+
+`ReserveLandmarks()` gives it the **whole block**: the rest of that block's plots become open
+ground, so it stands in its own plaza the way Ping An does, and the plot is widened if the block
+is smaller than the podium. `SotiTower.Build()` lofts the curtain wall through 76 rings and
+extrudes a tapering blade on each of the eight plan corners; submesh 0 is the glass and submesh 1
+is the steel, so one renderer carries both materials.
 
 ---
 

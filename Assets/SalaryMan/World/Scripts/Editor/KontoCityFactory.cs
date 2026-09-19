@@ -221,26 +221,27 @@ namespace SalaryMan.World.EditorTools
             group.transform.SetParent(parent, true);
 
             Material massing = BlockoutMaterial("Konto_Blockout_Massing", new Color(0.62f, 0.62f, 0.60f), 0.18f);
-            Material accent = BlockoutMaterial("Konto_Blockout_Landmark", new Color(0.80f, 0.55f, 0.32f), 0.35f);
             Material deck = BlockoutMaterial("Konto_Blockout_Deck", new Color(0.44f, 0.44f, 0.46f), 0.22f);
 
             // One mesh per ward, so the scene stays light and a ward can be hidden or deleted.
             for (int w = 0; w < layout.wards.Count; w++)
             {
                 var builder = new BoxMesh();
-                var landmarkBuilder = new BoxMesh();
 
                 for (int i = 0; i < layout.plots.Count; i++)
                 {
                     var plot = layout.plots[i];
                     if (plot.ward != w) continue;
-                    AddPlotMassing(plot, plot.kind == PlotKind.Landmark ? landmarkBuilder : builder);
+                    // The landmark is modelled, not massed: see CreateSotiTower below.
+                    if (plot.kind == PlotKind.Landmark) continue;
+                    AddPlotMassing(plot, builder);
                 }
 
                 var ward = layout.wards[w];
                 AddMeshObject(group.transform, builder, massing, layout, ward.name + " massing", "Massing_" + layout.code + "_" + w);
-                AddMeshObject(group.transform, landmarkBuilder, accent, layout, ward.name + " landmark", "Landmark_" + layout.code + "_" + w);
             }
+
+            CreateSotiTower(layout, group.transform);
 
             // Viaducts and bridges: these carry nothing on the ground, so without a deck they
             // are invisible, and the expressway loop is half the character of the city.
@@ -270,6 +271,19 @@ namespace SalaryMan.World.EditorTools
             AddMeshObject(group.transform, structures, deck, layout, "Viaducts and bridges", "Structures_" + layout.code);
         }
 
+        /// <summary>Metres of street frontage one building takes, or 0 to keep the plot whole.</summary>
+        static float FrontageUnit(PlotKind kind)
+        {
+            switch (kind)
+            {
+                case PlotKind.Shophouse: return 9.5f;
+                case PlotKind.MidRise: return 13f;
+                case PlotKind.Apartment: return 15f;
+                case PlotKind.Office: return 21f;
+                default: return 0f;
+            }
+        }
+
         static void AddPlotMassing(in CityPlot plot, BoxMesh mesh)
         {
             switch (plot.kind)
@@ -290,9 +304,9 @@ namespace SalaryMan.World.EditorTools
             if (plot.kind == PlotKind.HouseCluster)
             {
                 // A block of low rise houses, not one slab.
-                float spacing = 13f;
-                int nx = Mathf.Clamp(Mathf.FloorToInt(plot.size.x / spacing), 1, 5);
-                int nz = Mathf.Clamp(Mathf.FloorToInt(plot.size.y / spacing), 1, 5);
+                float spacing = 9.5f;
+                int nx = Mathf.Clamp(Mathf.FloorToInt(plot.size.x / spacing), 1, 6);
+                int nz = Mathf.Clamp(Mathf.FloorToInt(plot.size.y / spacing), 1, 6);
                 float cellX = plot.size.x / nx;
                 float cellZ = plot.size.y / nz;
 
@@ -302,9 +316,9 @@ namespace SalaryMan.World.EditorTools
                     float hx = -plot.size.x * 0.5f + cellX * (ix + 0.5f);
                     float hz = -plot.size.y * 0.5f + cellZ * (iz + 0.5f);
                     float hr = KontoNoise.White(9187, Mathf.RoundToInt(plot.center.x) + ix, Mathf.RoundToInt(plot.center.y) + iz);
-                    if (hr > 0.88f) continue;   // a gap, a garden, a car port
+                    if (hr > 0.91f) continue;   // a gap, a garden, a car port
                     float height = Mathf.Lerp(5.5f, plot.maxHeight, hr * 0.7f);
-                    Vector2 footprint = new Vector2(cellX * 0.72f, cellZ * 0.72f);
+                    Vector2 footprint = new Vector2(cellX * 0.78f, cellZ * 0.78f);
                     mesh.AddBox(LocalToWorld(plot, new Vector2(hx, hz)), footprint, plot.rotation, plot.groundY, height);
                 }
                 return;
@@ -314,6 +328,33 @@ namespace SalaryMan.World.EditorTools
             Vector2 size = new Vector2(Mathf.Max(3f, plot.size.x - setback * 2f), Mathf.Max(3f, plot.size.y - setback * 2f));
             float top = plot.maxHeight * Mathf.Lerp(0.55f, 1f, r);
             if (plot.kind == PlotKind.Landmark) top = plot.maxHeight;
+
+            // A shopping street is a run of narrow buildings sharing party walls, not one
+            // slab. Splitting the frontage is what gives the blockout a rhythm in close.
+            float unit = FrontageUnit(plot.kind);
+            if (unit > 0f)
+            {
+                bool alongX = size.x >= size.y;
+                float frontage = alongX ? size.x : size.y;
+                int parts = Mathf.Clamp(Mathf.RoundToInt(frontage / unit), 1, 5);
+                if (parts > 1)
+                {
+                    float width = frontage / parts;
+                    for (int k = 0; k < parts; k++)
+                    {
+                        float along = -frontage * 0.5f + width * (k + 0.5f);
+                        Vector2 local = alongX ? new Vector2(along, 0f) : new Vector2(0f, along);
+                        float kr = KontoNoise.White(9311,
+                            Mathf.RoundToInt(plot.center.x) + k, Mathf.RoundToInt(plot.center.y) - k);
+                        Vector2 unitSize = alongX
+                            ? new Vector2(width * 0.97f, size.y)
+                            : new Vector2(size.x, width * 0.97f);
+                        mesh.AddBox(LocalToWorld(plot, local), unitSize, plot.rotation, plot.groundY,
+                            Mathf.Max(3.2f, top * Mathf.Lerp(0.62f, 1.12f, kr)));
+                    }
+                    return;
+                }
+            }
 
             mesh.AddBox(new Vector2(plot.center.x, plot.center.y), size, plot.rotation, plot.groundY, top);
 
@@ -360,6 +401,43 @@ namespace SalaryMan.World.EditorTools
                 float pierHeight = Mathf.Max(3f, y - thickness);
                 mesh.AddBox(mid, new Vector2(halfWidth * 0.55f, halfWidth * 0.55f), yaw, y - thickness - pierHeight, pierHeight);
             }
+        }
+
+        /// <summary>
+        /// Drops the modelled Soti Tower onto the landmark plot. Everything else in the
+        /// blockout is a box; this one building is the skyline, so it is worth the mesh.
+        /// </summary>
+        static void CreateSotiTower(CityLayout layout, Transform parent)
+        {
+            int id = -1;
+            for (int i = 0; i < layout.plots.Count; i++)
+            {
+                if (layout.plots[i].kind != PlotKind.Landmark) continue;
+                id = i;
+                break;
+            }
+            if (id < 0) return;
+
+            var plot = layout.plots[id];
+            var mesh = SotiTower.Build("SotiTower_" + layout.code);
+            string path = string.Format("{0}/Konto_SotiTower_{1}.asset", KontoAssetPaths.Meshes, layout.code);
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (existing != null) AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(mesh, path);
+
+            var go = new GameObject("Soti Tower");
+            go.transform.SetParent(parent, true);
+            go.transform.position = plot.WorldPosition;
+            go.transform.rotation = plot.WorldRotation;
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterials = new[]
+            {
+                BlockoutMaterial("Konto_SotiTower_Glass", new Color(0.20f, 0.27f, 0.31f), 0.86f),
+                BlockoutMaterial("Konto_SotiTower_Steel", new Color(0.70f, 0.74f, 0.78f), 0.72f),
+            };
+            go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            GameObjectUtility.SetStaticEditorFlags(go, StaticEditorFlags.ContributeGI | StaticEditorFlags.OccluderStatic);
         }
 
         static void AddMeshObject(Transform parent, BoxMesh builder, Material material, CityLayout layout, string name, string assetName)

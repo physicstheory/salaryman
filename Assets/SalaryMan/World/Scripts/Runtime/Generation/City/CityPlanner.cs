@@ -1162,6 +1162,14 @@ namespace SalaryMan.World
 
             int[] _rejects = new int[6];
 
+            static readonly float[] ShrinkSteps = { 0.84f, 0.70f, 0.56f, 0.44f, 0.34f };
+            static readonly Vector2[] ShrinkOffsets =
+            {
+                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(-1f, 0f),
+                new Vector2(0f, 1f), new Vector2(0f, -1f), new Vector2(1f, 1f),
+                new Vector2(-1f, -1f), new Vector2(1f, -1f), new Vector2(-1f, 1f),
+            };
+
             void BuildWardGrid(int wardIndex, CityWard ward, Rect wardBounds, int plotCap)
             {
                 var profile = DistrictProfiles.Get(ward.kind);
@@ -1204,13 +1212,24 @@ namespace SalaryMan.World
                     if (_claimed.BlocksRect(center, size, grid.Yaw, 0f))
                     {
                         bool recovered = false;
-                        for (int attempt = 0; attempt < 2 && !recovered; attempt++)
+                        for (int attempt = 0; attempt < ShrinkSteps.Length && !recovered; attempt++)
                         {
-                            Vector2 smaller = size * (attempt == 0 ? 0.68f : 0.45f);
-                            if (smaller.x < 13f || smaller.y < 13f) break;
-                            if (_claimed.BlocksRect(center, smaller, grid.Yaw, 0f)) continue;
-                            size = smaller;
-                            recovered = true;
+                            Vector2 smaller = size * ShrinkSteps[attempt];
+                            if (smaller.x < 11f || smaller.y < 11f) break;
+                            // Try the middle of the block first, then nudged toward each corner:
+                            // a road taking one edge still leaves a parcel against the far side.
+                            for (int o = 0; o < ShrinkOffsets.Length && !recovered; o++)
+                            {
+                                Vector2 local = new Vector2(
+                                    ShrinkOffsets[o].x * (size.x - smaller.x) * 0.5f,
+                                    ShrinkOffsets[o].y * (size.y - smaller.y) * 0.5f);
+                                Vector2 moved = CityGeom.FromRectLocal(local, center, grid.Yaw);
+                                if (_claimed.BlocksRect(moved, smaller, grid.Yaw, 0f)) continue;
+                                if (!BlockGroundIsUsable(moved, smaller, grid.Yaw)) continue;
+                                center = moved;
+                                size = smaller;
+                                recovered = true;
+                            }
                         }
                         if (!recovered) { _rejects[4]++; continue; }
                     }
@@ -1287,14 +1306,14 @@ namespace SalaryMan.World
                 float shortest = Mathf.Min(size.x, size.y);
 
                 // A block barely bigger than one parcel is one parcel.
-                if (shortest < target * 1.75f)
+                if (shortest < target * 1.35f)
                 {
                     PlotKind kind = KindFor(ward.kind, profile, coreness, size.x * size.y, true, r);
                     AddPlot(wardIndex, blockId, 0, center, size, yaw, kind, FloorsFor(profile, kind, coreness, size.x * size.y, r), true);
                     return;
                 }
 
-                float depth = Mathf.Clamp(target * 1.15f, 11f, shortest * 0.44f);
+                float depth = Mathf.Clamp(target * 1.05f, 9f, shortest * 0.42f);
                 Vector2 ax, az;
                 CityGeom.Axes(yaw, out ax, out az);
                 int index = 0;
@@ -1320,7 +1339,7 @@ namespace SalaryMan.World
 
                 // Whatever is left in the middle of the block.
                 Vector2 inner = new Vector2(size.x - depth * 2f, size.y - depth * 2f);
-                if (inner.x >= 22f && inner.y >= 22f)
+                if (inner.x >= 16f && inner.y >= 16f)
                 {
                     float rr = Hash01(blockId * 211, 29);
                     PlotKind kind = rr < 0.45f ? PlotKind.Parking : KindFor(ward.kind, profile, coreness * 0.8f, inner.x * inner.y, false, rr);
@@ -1338,7 +1357,7 @@ namespace SalaryMan.World
                 float depth, float target, float coreness, bool alongX, int sign)
             {
                 float frontageSpan = (alongX ? size.x : size.y) - depth * 2f;
-                if (frontageSpan < target * 0.8f) return index;
+                if (frontageSpan < target * 0.5f) return index;
 
                 int count = Mathf.Max(1, Mathf.RoundToInt(frontageSpan / target));
                 float width = frontageSpan / count;
@@ -1524,8 +1543,34 @@ namespace SalaryMan.World
                         int id = best[k];
                         var plot = _layout.plots[id];
                         plot.kind = k == 0 ? PlotKind.Landmark : PlotKind.Tower;
-                        plot.maxFloors = k == 0 ? 58 : Mathf.Max(plot.maxFloors, 38);
-                        plot.maxHeight = plot.maxFloors * FloorHeight(plot.kind);
+                        plot.maxFloors = k == 0 ? SotiTower.Floors : Mathf.Max(plot.maxFloors, 38);
+                        plot.maxHeight = k == 0 ? SotiTower.Height : plot.maxFloors * FloorHeight(plot.kind);
+
+                        if (k == 0)
+                        {
+                            // Soti takes the whole block. Ping An stands in its own plaza and
+                            // so does this: the rest of the block becomes open ground rather
+                            // than a row of neighbours the tower would overhang.
+                            if (plot.block >= 0 && plot.block < _layout.blocks.Count)
+                            {
+                                var blk = _layout.blocks[plot.block];
+                                for (int q = 0; q < _layout.plots.Count; q++)
+                                {
+                                    if (q == id || _layout.plots[q].block != plot.block) continue;
+                                    var sib = _layout.plots[q];
+                                    sib.kind = PlotKind.ParkSpace;
+                                    sib.maxFloors = 1;
+                                    sib.maxHeight = 0f;
+                                    _layout.plots[q] = sib;
+                                }
+                                plot.center = blk.center;
+                                plot.size = blk.size * 0.94f;
+                                plot.rotation = blk.rotation;
+                            }
+                            float need = SotiTower.BaseHalfWidth * SotiTower.PodiumSpread;
+                            if (plot.size.x < need || plot.size.y < need)
+                                plot.size = new Vector2(Mathf.Max(plot.size.x, need), Mathf.Max(plot.size.y, need));
+                        }
                         _layout.plots[id] = plot;
 
                         _layout.reservations.Add(new CityReservation

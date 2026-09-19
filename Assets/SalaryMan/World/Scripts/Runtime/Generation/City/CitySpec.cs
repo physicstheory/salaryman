@@ -161,42 +161,42 @@ namespace SalaryMan.World
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.CoreBusiness, parcels = ParcelMode.Individual,
-                blockSpacingMin = 115f, blockSpacingMax = 165f, plotSizeMin = 48f, plotSizeMax = 92f,
+                blockSpacingMin = 96f, blockSpacingMax = 132f, plotSizeMin = 34f, plotSizeMax = 64f,
                 gridRegularity = 0.92f, minFloors = 14, maxFloors = 54, openSpaceShare = 0.10f,
                 streetWidth = 16f, wardShare = 0.7f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.StationFront, parcels = ParcelMode.Individual,
-                blockSpacingMin = 68f, blockSpacingMax = 105f, plotSizeMin = 18f, plotSizeMax = 44f,
+                blockSpacingMin = 58f, blockSpacingMax = 86f, plotSizeMin = 14f, plotSizeMax = 32f,
                 gridRegularity = 0.62f, minFloors = 5, maxFloors = 22, openSpaceShare = 0.07f,
                 streetWidth = 11f, wardShare = 0.8f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Retail, parcels = ParcelMode.Individual,
-                blockSpacingMin = 72f, blockSpacingMax = 112f, plotSizeMin = 16f, plotSizeMax = 38f,
+                blockSpacingMin = 58f, blockSpacingMax = 88f, plotSizeMin = 12f, plotSizeMax = 28f,
                 gridRegularity = 0.7f, minFloors = 3, maxFloors = 12, openSpaceShare = 0.05f,
                 streetWidth = 10f, wardShare = 1.1f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Nightlife, parcels = ParcelMode.Individual,
-                blockSpacingMin = 48f, blockSpacingMax = 76f, plotSizeMin = 9f, plotSizeMax = 20f,
+                blockSpacingMin = 40f, blockSpacingMax = 62f, plotSizeMin = 7f, plotSizeMax = 15f,
                 gridRegularity = 0.45f, minFloors = 3, maxFloors = 9, openSpaceShare = 0.02f,
                 streetWidth = 6.5f, wardShare = 0.5f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Office, parcels = ParcelMode.Individual,
-                blockSpacingMin = 88f, blockSpacingMax = 130f, plotSizeMin = 30f, plotSizeMax = 58f,
+                blockSpacingMin = 72f, blockSpacingMax = 104f, plotSizeMin = 22f, plotSizeMax = 42f,
                 gridRegularity = 0.82f, minFloors = 6, maxFloors = 18, openSpaceShare = 0.08f,
                 streetWidth = 13f, wardShare = 1.2f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Civic, parcels = ParcelMode.Individual,
-                blockSpacingMin = 130f, blockSpacingMax = 190f, plotSizeMin = 60f, plotSizeMax = 120f,
+                blockSpacingMin = 110f, blockSpacingMax = 158f, plotSizeMin = 44f, plotSizeMax = 86f,
                 gridRegularity = 0.88f, minFloors = 3, maxFloors = 11, openSpaceShare = 0.26f,
                 streetWidth = 15f, wardShare = 0.5f,
             });
@@ -210,49 +210,49 @@ namespace SalaryMan.World
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Apartments, parcels = ParcelMode.Individual,
-                blockSpacingMin = 82f, blockSpacingMax = 125f, plotSizeMin = 26f, plotSizeMax = 52f,
+                blockSpacingMin = 68f, blockSpacingMax = 100f, plotSizeMin = 20f, plotSizeMax = 38f,
                 gridRegularity = 0.7f, minFloors = 4, maxFloors = 14, openSpaceShare = 0.12f,
                 streetWidth = 9.5f, wardShare = 1.5f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Residential, parcels = ParcelMode.Block,
-                blockSpacingMin = 56f, blockSpacingMax = 92f, plotSizeMin = 40f, plotSizeMax = 80f,
+                blockSpacingMin = 48f, blockSpacingMax = 76f, plotSizeMin = 34f, plotSizeMax = 62f,
                 gridRegularity = 0.5f, minFloors = 2, maxFloors = 4, openSpaceShare = 0.09f,
                 streetWidth = 6f, wardShare = 2.4f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Suburb, parcels = ParcelMode.Block,
-                blockSpacingMin = 76f, blockSpacingMax = 130f, plotSizeMin = 55f, plotSizeMax = 110f,
+                blockSpacingMin = 64f, blockSpacingMax = 104f, plotSizeMin = 46f, plotSizeMax = 88f,
                 gridRegularity = 0.42f, minFloors = 1, maxFloors = 3, openSpaceShare = 0.14f,
                 streetWidth = 6.5f, wardShare = 2.0f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Industrial, parcels = ParcelMode.Individual,
-                blockSpacingMin = 130f, blockSpacingMax = 200f, plotSizeMin = 55f, plotSizeMax = 130f,
+                blockSpacingMin = 112f, blockSpacingMax = 168f, plotSizeMin = 44f, plotSizeMax = 104f,
                 gridRegularity = 0.8f, minFloors = 1, maxFloors = 4, openSpaceShare = 0.08f,
                 streetWidth = 12f, wardShare = 1.0f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Port, parcels = ParcelMode.Individual,
-                blockSpacingMin = 170f, blockSpacingMax = 260f, plotSizeMin = 70f, plotSizeMax = 180f,
+                blockSpacingMin = 150f, blockSpacingMax = 220f, plotSizeMin = 56f, plotSizeMax = 144f,
                 gridRegularity = 0.9f, minFloors = 1, maxFloors = 3, openSpaceShare = 0.1f,
                 streetWidth = 14f, wardShare = 0.7f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Reclaimed, parcels = ParcelMode.Individual,
-                blockSpacingMin = 150f, blockSpacingMax = 230f, plotSizeMin = 60f, plotSizeMax = 150f,
+                blockSpacingMin = 120f, blockSpacingMax = 180f, plotSizeMin = 44f, plotSizeMax = 104f,
                 gridRegularity = 0.96f, minFloors = 3, maxFloors = 30, openSpaceShare = 0.22f,
                 streetWidth = 16f, wardShare = 0.8f,
             });
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.University, parcels = ParcelMode.Individual,
-                blockSpacingMin = 150f, blockSpacingMax = 210f, plotSizeMin = 55f, plotSizeMax = 120f,
+                blockSpacingMin = 130f, blockSpacingMax = 180f, plotSizeMin = 44f, plotSizeMax = 96f,
                 gridRegularity = 0.75f, minFloors = 3, maxFloors = 9, openSpaceShare = 0.34f,
                 streetWidth = 9f, wardShare = 0.45f,
             });
@@ -280,7 +280,7 @@ namespace SalaryMan.World
             Add(list, new DistrictProfile
             {
                 kind = DistrictKind.Waterfront, parcels = ParcelMode.Individual,
-                blockSpacingMin = 92f, blockSpacingMax = 140f, plotSizeMin = 30f, plotSizeMax = 70f,
+                blockSpacingMin = 76f, blockSpacingMax = 112f, plotSizeMin = 22f, plotSizeMax = 50f,
                 gridRegularity = 0.78f, minFloors = 2, maxFloors = 12, openSpaceShare = 0.2f,
                 streetWidth = 12f, wardShare = 0.6f,
             });

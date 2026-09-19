@@ -42,12 +42,36 @@ EOF
 Flying, **F** drops him on the ground below where you are looking. Walking, **F** puts the camera
 back. Click any reserved site in the right hand panel to fly to it.
 
+## Soti Tower
+
+The one building in the city that is modelled rather than massed. It is taken from the Ping An
+International Finance Centre in Shenzhen: a square plan with deeply chamfered corners, a shaft
+that tapers the whole way up, and eight stainless steel mega-columns standing proud of the glass
+that run the full height and close over the roof into the claw, with a short mast above.
+592 m to the tip, 116 floors, and it takes a whole block so it stands in its own plaza.
+
+`SOTI` at the top of the tower section holds the proportions; `buildSotiTower()` lofts the
+curtain wall through 76 rings and extrudes a blade on each of the eight plan corners.
+
 ## seiko.glb
 
-Exported from the Meshy `.blend`: decimated from 68,716 to 24,050 triangles, textures resized from
-2048 to 1024 and re-encoded as JPEG, 858 KB in total.
+Exported from the Meshy `.blend`: decimated from 68,716 to 27,486 triangles, textures resized from
+2048 to 1024 and re-encoded as JPEG, 1.4 MB in total.
 
-The mesh has **no armature**, so his limbs cannot move — walking gives him a stride bob and a lean
-and nothing else. Rig him (Mixamo will do it from the exported FBX in about a minute) and the
-glTF's animations will come through the same loader; `updateWalk` is where the clip would be
-driven from.
+**Rigged, with three clips.** Mixamo is an interactive Adobe service and could not be reached from
+the machine this was built on, so the rig was authored in Blender instead and does the same job: a
+21 bone humanoid skeleton (hips, spine, chest, neck, head, shoulders, arms and hands, legs, feet
+and toes) placed from measurements of the mesh, skinned with bone heat weights, carrying:
+
+| clip | length | what it is |
+|---|---|---|
+| `Idle` | 3.2 s | breathing, weight settled on the right leg, hands in his pockets |
+| `Walk` | 1.07 s | heel strike and roll through the foot, pelvis bob, shoulders counter-rotating |
+| `Run` | 0.8 s | forward lean, airborne phase, hands out of the pockets and driving |
+
+The source mesh is modelled standing with both hands in his trouser pockets, so `Idle` and `Walk`
+keep them there — it is what a salaryman on a platform actually looks like — and only `Run` pulls
+the arms out.
+
+`updateSeikoClip()` picks the clip from his speed and crossfades over about a fifth of a second,
+scaling the clip's playback rate by speed over `WALK_SPEED` / `RUN_SPEED` so his feet do not skate.

@@ -553,23 +553,23 @@ const SITES = [
 
 // ---------------------------------------------------------------- district rules
 const D = {
-  Core: { plots: "unit", spacing: [115, 165], size: [48, 92], street: 16, floors: [14, 48], open: 0.10, alleys: false },
-  Station: { plots: "unit", spacing: [68, 105], size: [18, 44], street: 11, floors: [5, 22], open: 0.07, alleys: true },
-  Retail: { plots: "unit", spacing: [72, 112], size: [16, 38], street: 10, floors: [3, 12], open: 0.05, alleys: true },
-  Night: { plots: "unit", spacing: [48, 76], size: [9, 20], street: 6.5, floors: [3, 9], open: 0.02, alleys: true },
-  Office: { plots: "unit", spacing: [88, 130], size: [30, 58], street: 13, floors: [6, 18], open: 0.08, alleys: false },
-  Civic: { plots: "unit", spacing: [130, 190], size: [60, 120], street: 15, floors: [3, 11], open: 0.26, alleys: false },
+  Core: { plots: "unit", spacing: [96, 132], size: [34, 64], street: 16, floors: [14, 48], open: 0.10, alleys: false },
+  Station: { plots: "unit", spacing: [58, 86], size: [14, 32], street: 11, floors: [5, 22], open: 0.07, alleys: true },
+  Retail: { plots: "unit", spacing: [58, 88], size: [12, 28], street: 10, floors: [3, 12], open: 0.05, alleys: true },
+  Night: { plots: "unit", spacing: [40, 62], size: [7, 15], street: 6.5, floors: [3, 9], open: 0.02, alleys: true },
+  Office: { plots: "unit", spacing: [72, 104], size: [22, 42], street: 13, floors: [6, 18], open: 0.08, alleys: false },
+  Civic: { plots: "unit", spacing: [110, 158], size: [44, 86], street: 15, floors: [3, 11], open: 0.26, alleys: false },
   Palace: { plots: "block", spacing: [220, 300], size: [120, 220], street: 8, floors: [1, 2], open: 0.92, alleys: false },
-  Mansion: { plots: "unit", spacing: [82, 125], size: [26, 52], street: 9.5, floors: [4, 14], open: 0.12, alleys: true },
-  House: { plots: "block", spacing: [56, 92], size: [40, 80], street: 6, floors: [2, 4], open: 0.09, alleys: true },
-  Suburb: { plots: "block", spacing: [76, 130], size: [55, 110], street: 6.5, floors: [1, 3], open: 0.14, alleys: false },
-  Works: { plots: "unit", spacing: [130, 200], size: [55, 130], street: 12, floors: [1, 4], open: 0.08, alleys: false },
-  Port: { plots: "unit", spacing: [170, 260], size: [70, 180], street: 14, floors: [1, 3], open: 0.10, alleys: false },
-  Fill: { plots: "unit", spacing: [150, 230], size: [60, 150], street: 16, floors: [3, 28], open: 0.22, alleys: false },
-  Campus: { plots: "unit", spacing: [150, 210], size: [55, 120], street: 9, floors: [3, 9], open: 0.34, alleys: false },
+  Mansion: { plots: "unit", spacing: [68, 100], size: [20, 38], street: 9.5, floors: [4, 14], open: 0.12, alleys: true },
+  House: { plots: "block", spacing: [48, 76], size: [34, 62], street: 6, floors: [2, 4], open: 0.09, alleys: true },
+  Suburb: { plots: "block", spacing: [64, 104], size: [46, 88], street: 6.5, floors: [1, 3], open: 0.14, alleys: false },
+  Works: { plots: "unit", spacing: [112, 168], size: [44, 104], street: 12, floors: [1, 4], open: 0.08, alleys: false },
+  Port: { plots: "unit", spacing: [150, 220], size: [56, 144], street: 14, floors: [1, 3], open: 0.10, alleys: false },
+  Fill: { plots: "unit", spacing: [120, 180], size: [44, 104], street: 16, floors: [3, 28], open: 0.22, alleys: false },
+  Campus: { plots: "unit", spacing: [130, 180], size: [44, 96], street: 9, floors: [3, 9], open: 0.34, alleys: false },
   Park: { plots: "block", spacing: [180, 260], size: [110, 200], street: 7, floors: [1, 2], open: 0.88, alleys: false },
   Shrine: { plots: "block", spacing: [150, 210], size: [80, 150], street: 7, floors: [1, 2], open: 0.78, alleys: false },
-  Water: { plots: "unit", spacing: [92, 140], size: [30, 70], street: 12, floors: [2, 12], open: 0.20, alleys: false }
+  Water: { plots: "unit", spacing: [76, 112], size: [22, 50], street: 12, floors: [2, 12], open: 0.20, alleys: false }
 };
 const WARD_NAMES = {
   Core: ["Marukane", "Tokura", "Shinmei"],
@@ -1043,6 +1043,16 @@ function makeWorld(seed, report) {
       return Math.hypot((r - l) / (2 * d), (v - u) / (2 * d));
     },
     idx: idx, grid: { x: GRID_X, z: GRID_Z, cell: CELL }
+  };
+  // The made ground of a city is drawn as a sheet 0.7 m over the terrain, so
+  // anything that walks has to stand on that sheet and not on the soil below.
+  world.surfaceY = (px, pz) => {
+    let lift = 0;
+    for (let i = 0; i < world.cities.length; i++) {
+      const f = world.cities[i].footprint;
+      if (f) lift = Math.max(lift, clamp01((f(px, pz) - 0.10) / 0.22));
+    }
+    return sampleField(height, px, pz) + CITY_LIFT * lift;
   };
 
   // ---- the cities -------------------------------------------------------
@@ -1519,7 +1529,7 @@ function planCity(world, F, seed, report, progressBase) {
     }
   })();
 
-  const PLOT_CAP = 4200;
+  const PLOT_CAP = 16000;
   L.wards.forEach((ward, wi) => {
     if (L.plots.length >= PLOT_CAP) return;
     const prof = D[ward.kind] || D.House;
@@ -1559,11 +1569,20 @@ function planCity(world, F, seed, report, progressBase) {
           // An arterial clipping a corner means a smaller block set back from the
           // road, not no block at all. Cities are full of these offcuts.
           let recovered = false;
-          for (let a = 0; a < 2 && !recovered; a++) {
-            const sm = [size[0] * (a ? 0.45 : 0.68), size[1] * (a ? 0.45 : 0.68)];
-            if (sm[0] < 13 || sm[1] < 13) break;
-            if (blockedRect(cx, cz, sm[0], sm[1], ward.yaw)) continue;
-            size = sm; recovered = true;
+          const SHRINK = [0.84, 0.70, 0.56, 0.44, 0.34];
+          for (let a = 0; a < SHRINK.length && !recovered; a++) {
+            const sm = [size[0] * SHRINK[a], size[1] * SHRINK[a]];
+            if (sm[0] < 11 || sm[1] < 11) break;
+            // Try the middle first, then nudged toward each corner: an arterial
+            // cutting one edge leaves a usable parcel against the far side.
+            const off = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]];
+            for (let o = 0; o < off.length && !recovered; o++) {
+              const lx = off[o][0] * (size[0] - sm[0]) * 0.5, lz = off[o][1] * (size[1] - sm[1]) * 0.5;
+              const wc = fromRectLocal(lx, lz, cx, cz, ward.yaw);
+              if (blockedRect(wc[0], wc[1], sm[0], sm[1], ward.yaw)) continue;
+              if (!groundUsable(wc[0], wc[1], sm, ward.yaw)) continue;
+              bk.centre = wc; size = sm; recovered = true;
+            }
           }
           if (!recovered) continue;
         }
@@ -1610,11 +1629,11 @@ function planCity(world, F, seed, report, progressBase) {
     }
     const target = lerp(prof.size[0], prof.size[1], r);
     const shortest = Math.min(size[0], size[1]);
-    if (shortest < target * 1.75) {
+    if (shortest < target * 1.35) {
       addPlot(wi, blockId, 0, centre, size, yaw, kindFor(ward.kind, prof, coreness, size[0] * size[1], r), floorsFor(prof, coreness, size[0] * size[1], r), blockNo);
       return;
     }
-    const depth = clamp(target * 1.15, 11, shortest * 0.44);
+    const depth = clamp(target * 1.05, 9, shortest * 0.42);
     const rad = yaw * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
     const ax = [cs, -sn], az = [sn, cs];
     let index = 0;
@@ -1630,7 +1649,7 @@ function planCity(world, F, seed, report, progressBase) {
     [[true, 1], [true, -1], [false, 1], [false, -1]].forEach(cfg => {
       const alongX = cfg[0], sign = cfg[1];
       const span = (alongX ? size[0] : size[1]) - depth * 2;
-      if (span < target * 0.8) return;
+      if (span < target * 0.5) return;
       const count = Math.max(1, Math.round(span / target));
       const width = span / count;
       const offset = (alongX ? size[1] : size[0]) * 0.5 - depth * 0.5;
@@ -1646,7 +1665,7 @@ function planCity(world, F, seed, report, progressBase) {
       }
     });
     const inner = [size[0] - depth * 2, size[1] - depth * 2];
-    if (inner[0] >= 22 && inner[1] >= 22) {
+    if (inner[0] >= 16 && inner[1] >= 16) {
       const rr = h01(blockId * 211, 29);
       addPlot(wi, blockId, index++, centre, inner, yaw,
         rr < 0.45 ? "parking" : kindFor(ward.kind, prof, coreness * 0.8, inner[0] * inner[1], rr),
@@ -1823,6 +1842,21 @@ function planCity(world, F, seed, report, progressBase) {
       p.kind = i === 0 ? "landmark" : "tower";
       p.floors = names[i][2];
       p.height = p.floors * floorHeight("tower");
+      if (i === 0) {
+        // Soti takes a superblock: the rest of its block is cleared so the
+        // tower stands in its own plaza, the way Ping An does in Shenzhen.
+        const blk = L.blocks[p.block];
+        if (blk) {
+          L.plots = L.plots.filter(q => q.block !== p.block || q === p);
+          p.centre = [blk.centre[0], blk.centre[1]];
+          p.size = [blk.size[0] * 0.94, blk.size[1] * 0.94];
+          p.yaw = blk.yaw;
+          p.index = 0;
+          p.groundY = world.sampleHeight(p.centre[0], p.centre[1]);
+        }
+        p.floors = SOTI.floors;
+        p.height = SOTI.height;
+      }
       L.sites.push({ name: names[i][0], note: names[i][1], at: [p.centre[0], p.groundY, p.centre[1]], plot: p });
     }
   }
@@ -1915,7 +1949,7 @@ function terrainColour(world, x, z, out) {
     c = SURFACE.rock;
   } else if (h > treeLine) {
     c = SURFACE.scree;
-  } else if (h < 3.2 && slopeDeg < 20) {
+  } else if (h < 1.8 && slopeDeg < 20) {
     c = SURFACE.sand;
   } else if (world.river[i] > 0.4) {
     c = SURFACE.gravel;
@@ -1931,13 +1965,17 @@ function terrainColour(world, x, z, out) {
 
   // Ground under the city is engineered: concrete, not soil.
   const u = world.urban[i];
-  const tint = 0.46 + fbm(x * 0.7, z * 0.7, 4001, 2) * 0.05;
+  const tint = 0.42 + fbm(x * 0.7, z * 0.7, 4001, 2) * 0.05;
   out[0] = lerp(c[0], tint, u * 0.85);
   out[1] = lerp(c[1], tint, u * 0.85);
   out[2] = lerp(c[2], tint * 1.02, u * 0.85);
   // Cheap ambient shading so the relief reads without waiting on lights.
   const shade = 0.72 + 0.28 * clamp01(1 - slope * 1.6);
-  out[0] *= shade; out[1] *= shade; out[2] *= shade;
+  // The palette above is written the way a paint chip reads, so it has to be
+  // taken out of sRGB: vertex colours go to the shader as linear light.
+  out[0] = Math.pow(out[0] * shade, 2.2);
+  out[1] = Math.pow(out[1] * shade, 2.2);
+  out[2] = Math.pow(out[2] * shade, 2.2);
 }
 
 // The city's own surfaces are drawn, not sampled: the streets land exactly in
@@ -1958,9 +1996,40 @@ function paintCity(world, city, size) {
   const Z = pz => (pz - z0) * S;
 
   const C = {
-    fill: "#847f75", lot: "#767268", asphalt: "#2e2f33", footway: "#928d84",
-    park: "#3f5130", water: "#1b3b46", ballast: "#57544c", plaza: "#9a958b"
+    ground: "#615d55", fill: "#726e64", lot: "#67635b", asphalt: "#26272b", footway: "#7b776f",
+    park: "#36452a", water: "#16323c", ballast: "#4a483f", plaza: "#837f76"
   };
+
+  // The city footprint, as a soft mask. Everything inside it is made ground:
+  // without this the blocks sit on raw hillside and the city reads as a model
+  // village dropped on a map.
+  const mw = 224, mh = Math.max(32, Math.round(224 * aspect));
+  const mc = document.createElement("canvas");
+  mc.width = mw; mc.height = mh;
+  {
+    const mg = mc.getContext("2d");
+    const img = mg.createImageData(mw, mh);
+    for (let my = 0; my < mh; my++) {
+      for (let mx = 0; mx < mw; mx++) {
+        const px = x0 + (mx + 0.5) / mw * w, pz = z0 + (my + 0.5) / mh * h;
+        const a = clamp01((city.footprint(px, pz) - 0.10) / 0.22);
+        const o = (my * mw + mx) * 4;
+        img.data[o] = 255; img.data[o + 1] = 255; img.data[o + 2] = 255;
+        img.data[o + 3] = Math.round(a * 255);
+      }
+    }
+    mg.putImageData(img, 0, 0);
+  }
+  {
+    const bc = document.createElement("canvas");
+    bc.width = cv.width; bc.height = cv.height;
+    const bg = bc.getContext("2d");
+    bg.fillStyle = C.ground;
+    bg.fillRect(0, 0, bc.width, bc.height);
+    bg.globalCompositeOperation = "destination-in";
+    bg.drawImage(mc, 0, 0, bc.width, bc.height);
+    g.drawImage(bc, 0, 0);
+  }
 
   // Made ground under everything.
   city.fills.forEach(f => {
@@ -2013,21 +2082,6 @@ function paintCity(world, city, size) {
   });
 
   // Mask the street layer by where the city actually is, then lay it down.
-  const mw = 224, mh = Math.max(32, Math.round(224 * aspect));
-  const mc = document.createElement("canvas");
-  mc.width = mw; mc.height = mh;
-  const mg = mc.getContext("2d");
-  const img = mg.createImageData(mw, mh);
-  for (let my = 0; my < mh; my++) {
-    for (let mx = 0; mx < mw; mx++) {
-      const px = x0 + (mx + 0.5) / mw * w, pz = z0 + (my + 0.5) / mh * h;
-      const a = clamp01((city.footprint(px, pz) - 0.10) / 0.22);
-      const o = (my * mw + mx) * 4;
-      img.data[o] = 255; img.data[o + 1] = 255; img.data[o + 2] = 255;
-      img.data[o + 3] = Math.round(a * 255);
-    }
-  }
-  mg.putImageData(img, 0, 0);
   sg.globalCompositeOperation = "destination-in";
   sg.imageSmoothingEnabled = true;
   sg.drawImage(mc, 0, 0, sc.width, sc.height);
@@ -2344,6 +2398,142 @@ function facadeMaterials(style) {
   return facadeCache[style];
 }
 
+// ============================================================================
+// SOTI TOWER
+// Modelled on the Ping An International Finance Centre in Shenzhen: a square
+// plan with deeply chamfered corners, a shaft that tapers the whole way up,
+// and eight stainless mega-columns that run the full height and close over the
+// roof into the claw, with the mast above that.
+// ============================================================================
+const SOTI = {
+  height: 592,        // metres to the tip of the mast
+  shaft: 520,         // the office shaft
+  crown: 578,         // where the claw closes
+  base: 32.5,         // half width at the podium roof
+  taperTop: 0.70,
+  floors: 116,
+  podium: 26          // metres
+};
+
+function sotiProfile(y) {
+  // half width, corner chamfer, and how far the fins stand off the glass
+  if (y <= SOTI.shaft) {
+    const t = clamp01(y / SOTI.shaft);
+    const a = SOTI.base * lerp(1, SOTI.taperTop, Math.pow(t, 0.94));
+    return { a: a, c: a * lerp(0.30, 0.45, t), fin: lerp(3.2, 2.2, t), thick: lerp(2.1, 1.5, t) };
+  }
+  const u = clamp01((y - SOTI.shaft) / (SOTI.crown - SOTI.shaft));
+  const a0 = SOTI.base * SOTI.taperTop;
+  const a = a0 * lerp(1, 0.10, Math.pow(u, 2.2));
+  return { a: a, c: a * 0.46, fin: lerp(2.2, 0.6, Math.pow(u, 1.8)), thick: lerp(1.5, 0.5, Math.pow(u, 1.8)) };
+}
+
+// A square with the corners cut off, walked anticlockwise in plan.
+function sotiSection(a, c) {
+  return [
+    [a - c, a], [a, a - c], [a, -(a - c)], [a - c, -a],
+    [-(a - c), -a], [-a, -(a - c)], [-a, a - c], [-(a - c), a]
+  ];
+}
+
+function buildSotiTower(plot) {
+  const group = new THREE.Group();
+  const LV = 76;
+  const top = SOTI.crown;
+  const rings = [];
+  for (let i = 0; i <= LV; i++) {
+    const y = top * i / LV;
+    const pr = sotiProfile(y);
+    rings.push({ y: y, pts: sotiSection(pr.a, pr.c), fin: pr.fin, thick: pr.thick });
+  }
+
+  // ---- curtain wall: a lofted shell, UV'd so one texture tile is one bay
+  const pos = [], uv = [];
+  const BAY = 3.6, FLOOR = 4.05;
+  for (let i = 0; i < LV; i++) {
+    const lo = rings[i], hi = rings[i + 1];
+    let run = 0;
+    for (let e = 0; e < 8; e++) {
+      const a0 = lo.pts[e], a1 = lo.pts[(e + 1) % 8];
+      const b0 = hi.pts[e], b1 = hi.pts[(e + 1) % 8];
+      const len = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]);
+      const u0 = run / BAY, u1 = (run + len) / BAY;
+      run += len;
+      const v0 = lo.y / FLOOR, v1 = hi.y / FLOOR;
+      const P = [[a0[0], lo.y, a0[1]], [a1[0], lo.y, a1[1]], [b1[0], hi.y, b1[1]], [b0[0], hi.y, b0[1]]];
+      const T = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+      [0, 2, 1, 0, 3, 2].forEach(k => { pos.push(P[k][0], P[k][1], P[k][2]); uv.push(T[k][0], T[k][1]); });
+    }
+  }
+  // cap the crown
+  const cap = rings[LV];
+  for (let e = 1; e < 7; e++) {
+    const q = [cap.pts[0], cap.pts[e], cap.pts[e + 1]];
+    q.forEach(v => { pos.push(v[0], cap.y, v[1]); uv.push(v[0] * 0.2, v[1] * 0.2); });
+  }
+  const shell = new THREE.BufferGeometry();
+  shell.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  shell.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  shell.computeVertexNormals();
+  const glass = new THREE.MeshLambertMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide });
+  const shellMesh = new THREE.Mesh(shell, glass);
+  shellMesh.castShadow = shellMesh.receiveShadow = true;
+  group.add(shellMesh);
+
+  // ---- the eight mega-columns, as tapering blades on the chamfer corners
+  const fpos = [];
+  function finQuad(A, B, C, Dv) {
+    [A, C, B, A, Dv, C].forEach(v => fpos.push(v[0], v[1], v[2]));
+  }
+  for (let e = 0; e < 8; e++) {
+    for (let i = 0; i < LV; i++) {
+      const lo = rings[i], hi = rings[i + 1];
+      const sec = [lo, hi].map(r => {
+        const v = r.pts[e];
+        const n = Math.hypot(v[0], v[1]) || 1;
+        const nx = v[0] / n, nz = v[1] / n;
+        const tx = -nz * r.thick, tz = nx * r.thick;
+        return {
+          L: [v[0] + tx, r.y, v[1] + tz],
+          R: [v[0] - tx, r.y, v[1] - tz],
+          T: [v[0] + nx * r.fin, r.y, v[1] + nz * r.fin]
+        };
+      });
+      finQuad(sec[0].L, sec[0].T, sec[1].T, sec[1].L);
+      finQuad(sec[0].T, sec[0].R, sec[1].R, sec[1].T);
+      finQuad(sec[0].R, sec[0].L, sec[1].L, sec[1].R);
+    }
+  }
+  const finGeo = new THREE.BufferGeometry();
+  finGeo.setAttribute("position", new THREE.Float32BufferAttribute(fpos, 3));
+  finGeo.computeVertexNormals();
+  const steel = new THREE.MeshPhongMaterial({ color: 0xb4bec6, specular: 0x8f9aa3, shininess: 86, side: THREE.DoubleSide });
+  const fins = new THREE.Mesh(finGeo, steel);
+  fins.castShadow = true;
+  group.add(fins);
+
+  // ---- the mast
+  const mastH = SOTI.height - SOTI.crown;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 1.5, mastH, 8, 1), steel);
+  mast.position.y = SOTI.crown + mastH * 0.5;
+  mast.castShadow = true;
+  group.add(mast);
+
+  // ---- the podium the plaza runs into
+  const pw = SOTI.base * 2.36;
+  const podTex = facadeTexture("glass");
+  podTex.repeat.set(Math.round(pw / BAY), Math.round(SOTI.podium / FLOOR));
+  const pod = new THREE.Mesh(new THREE.BoxGeometry(pw, SOTI.podium, pw),
+    new THREE.MeshLambertMaterial({ map: podTex }));
+  pod.position.y = SOTI.podium * 0.5;
+  pod.castShadow = pod.receiveShadow = true;
+  group.add(pod);
+
+  group.position.set(plot.centre[0], plot.groundY, plot.centre[1]);
+  group.rotation.y = plot.yaw * Math.PI / 180;
+  return group;
+}
+
 function facadeStyleFor(kind) {
   switch (kind) {
     case "landmark": case "tower": return "glass";
@@ -2483,14 +2673,60 @@ function insideBuilding(px, pz, radius) {
 // ============================================================================
 // SCENE
 // ============================================================================
+const CITY_LIFT = 0.7;        // metres the painted city ground sits over the terrain
 let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
+let sunLight = null, skyDome = null;
+const sunDir = new THREE.Vector3(-0.46, 0.50, 0.55).normalize();
+const HORIZON = 0xc2d0d9;
+const SHADOW_SPAN = 320;      // metres of ground the sun shadow map covers
+
+// A gradient dome rather than a flat clear colour: the horizon has to wash out
+// into the fog or the island looks like it is sitting on a painted backdrop.
+function makeSky() {
+  const mat = new THREE.ShaderMaterial({
+    side: THREE.BackSide, depthWrite: false, fog: false,
+    uniforms: {
+      zenith: { value: new THREE.Color(0x3d78b4) },
+      horizon: { value: new THREE.Color(HORIZON) },
+      glow: { value: new THREE.Color(0xffeccd) },
+      sunDir: { value: sunDir }
+    },
+    vertexShader: [
+      "varying vec3 vDir;",
+      "void main() {",
+      "  vDir = position;",
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);",
+      "}"
+    ].join("\n"),
+    fragmentShader: [
+      "uniform vec3 zenith; uniform vec3 horizon; uniform vec3 glow; uniform vec3 sunDir;",
+      "varying vec3 vDir;",
+      "void main() {",
+      "  vec3 d = normalize(vDir);",
+      "  vec3 col = mix(horizon, zenith, pow(clamp(d.y, 0.0, 1.0), 0.52));",
+      "  float s = max(dot(d, normalize(sunDir)), 0.0);",
+      "  col += glow * pow(s, 620.0) * 1.4;",       // the disc
+      "  col += glow * pow(s, 6.0) * 0.16;",        // the haze around it
+      "  col = mix(col, horizon, smoothstep(0.14, -0.06, d.y));",
+      "  gl_FragColor = vec4(col, 1.0);",
+      "}"
+    ].join("\n")
+  });
+  skyDome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
+  skyDome.scale.setScalar(26000);
+  skyDome.frustumCulled = false;
+  skyDome.renderOrder = -1;
+  return skyDome;
+}
 const solids = [];          // building footprints, for walking into
 let solidGrid = null;
 let clock = 0;
 const player = {
   mode: "fly", obj: null, proc: null, glb: null, usingGlb: false, placed: false,
-  pos: new THREE.Vector3(), yaw: 0, targetYaw: 0, speed: 0
+  pos: new THREE.Vector3(), yaw: 0, targetYaw: 0, speed: 0,
+  mixer: null, clips: null, action: null, clipName: ""
 };
+const WALK_SPEED = 1.65, RUN_SPEED = 4.7;   // metres per second the clips were timed to
 const keys = Object.create(null);
 let yaw = 0, pitch = -0.18, speed = 260;
 const camPos = new THREE.Vector3();
@@ -2509,6 +2745,10 @@ function initThree() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(stage.clientWidth, stage.clientHeight);
   renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.appendChild(renderer.domElement);
 
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
@@ -2617,12 +2857,27 @@ function clearScene() {
 function buildScene(w) {
   if (!scene) {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xb9c6cd);
-    scene.fog = new THREE.Fog(0xb9c6cd, 3200, 15000);
-    const sun = new THREE.DirectionalLight(0xfff7ec, 0.86);
-    sun.position.set(-0.45, 0.72, 0.52).multiplyScalar(1000);
+    scene.fog = new THREE.Fog(HORIZON, 2600, 16000);
+
+    // Mid afternoon, the sun off the south-west shoulder, so everything the
+    // city is made of gets a lit face and a shaded one.
+    sunDir.set(-0.46, 0.50, 0.55).normalize();
+    const sun = new THREE.DirectionalLight(0xfff2dd, 0.80);
+    sun.position.copy(sunDir).multiplyScalar(2400);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.bias = -0.0007;
+    sun.shadow.normalBias = 0.5;
+    const sc = sun.shadow.camera;
+    sc.near = 20; sc.far = 2400;
+    sc.left = -SHADOW_SPAN; sc.right = SHADOW_SPAN;
+    sc.top = SHADOW_SPAN; sc.bottom = -SHADOW_SPAN;
+    sc.updateProjectionMatrix();
     scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0xcfe0ee, 0x37352c, 0.42));
+    scene.add(sun.target);
+    sunLight = sun;
+    scene.add(new THREE.HemisphereLight(0xa8c6e0, 0x3a382f, 0.42));
+    scene.add(makeSky());
   }
   clearScene();
   solids.length = 0;
@@ -2649,6 +2904,7 @@ function buildScene(w) {
   geo.setAttribute("color", new THREE.BufferAttribute(colours, 3));
   geo.computeVertexNormals();
   const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  terrain.receiveShadow = true;
   terrain.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
   root.add(terrain);
 
@@ -2675,7 +2931,7 @@ function buildScene(w) {
     for (let i = 0; i < op.count; i++) {
       const px = op.getX(i) + paint.x0 + paint.w * 0.5;
       const pz = op.getZ(i) + paint.z0 + paint.h * 0.5;
-      op.setY(i, w.sampleHeight(px, pz) + 0.7);
+      op.setY(i, w.sampleHeight(px, pz) + CITY_LIFT);
     }
     og.computeVertexNormals();
     const overlayMat = new THREE.MeshLambertMaterial({
@@ -2696,30 +2952,68 @@ function buildScene(w) {
     };
     overlayMat.customProgramCacheKey = () => "konto-ground";
     const overlay = new THREE.Mesh(og, overlayMat);
+    overlay.receiveShadow = true;
     overlay.position.set(paint.x0 + paint.w * 0.5, 0, paint.z0 + paint.h * 0.5);
     root.add(overlay);
 
     // ---- massing: one instanced box soup for the whole city
     const boxes = [];
+    const trees = [];
+    let sotiPlot = null;
     city.plots.forEach(p => {
-      if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) return;
+      if (p.kind === "landmark") { sotiPlot = p; return; }
+      if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) {
+        if (p.kind === "park" || p.kind === "shrine") {
+          const n = clamp(Math.round(p.size[0] * p.size[1] / 230), 3, 90);
+          for (let k = 0; k < n; k++) {
+            const a = rnd(Math.round(p.centre[0]) + k, Math.round(p.centre[1]), 6131);
+            const b = rnd(Math.round(p.centre[1]) + k, Math.round(p.centre[0]), 6133);
+            const lx = (a - 0.5) * p.size[0] * 0.88, lz = (b - 0.5) * p.size[1] * 0.88;
+            const wc = fromRectLocal(lx, lz, p.centre[0], p.centre[1], p.yaw);
+            trees.push({ c: wc, y: world.sampleHeight(wc[0], wc[1]), s: lerp(0.75, 1.5, rnd(k, 3, 6137)) });
+          }
+        }
+        return;
+      }
       const r = rnd(Math.round(p.centre[0]), Math.round(p.centre[1]), 9173) ;
       if (p.kind === "houses") {
-        const nx = clamp(Math.floor(p.size[0] / 13), 1, 4), nz = clamp(Math.floor(p.size[1] / 13), 1, 4);
+        const nx = clamp(Math.floor(p.size[0] / 9.5), 1, 6), nz = clamp(Math.floor(p.size[1] / 9.5), 1, 6);
         for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
           const hr = rnd(Math.round(p.centre[0]) + ix, Math.round(p.centre[1]) + iz, 9187);
-          if (hr > 0.86) continue;
+          if (hr > 0.91) continue;
           const cellX = p.size[0] / nx, cellZ = p.size[1] / nz;
           const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5), -p.size[1] * 0.5 + cellZ * (iz + 0.5)];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
-          boxes.push({ c: wc, size: [cellX * 0.72, cellZ * 0.72], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), style: "houses" });
+          boxes.push({ c: wc, size: [cellX * 0.78, cellZ * 0.78], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), style: "houses" });
         }
         return;
       }
       const setback = p.kind === "shop" ? 0.6 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
       const size = [Math.max(3, p.size[0] - setback * 2), Math.max(3, p.size[1] - setback * 2)];
       const top = p.kind === "landmark" ? p.height : p.height * lerp(0.55, 1, r);
-      boxes.push({ c: p.centre, size: size, yaw: p.yaw, y: p.groundY, h: top, style: facadeStyleFor(p.kind), landmark: p.kind === "landmark" });
+      const style = facadeStyleFor(p.kind);
+      // A shopping street is a run of narrow buildings sharing party walls, not
+      // one slab. Split the frontage so the skyline in close has a rhythm.
+      const SPLIT = { shop: 9.5, midrise: 13, flats: 15, office: 21 };
+      const unit = SPLIT[p.kind];
+      const alongX = size[0] >= size[1];
+      const frontage = alongX ? size[0] : size[1];
+      const parts = unit ? clamp(Math.round(frontage / unit), 1, 5) : 1;
+      if (parts > 1) {
+        const w = frontage / parts;
+        for (let k = 0; k < parts; k++) {
+          const along = -frontage * 0.5 + w * (k + 0.5);
+          const lx = alongX ? along : 0, lz = alongX ? 0 : along;
+          const wc = fromRectLocal(lx, lz, p.centre[0], p.centre[1], p.yaw);
+          const kr = rnd(Math.round(p.centre[0]) + k, Math.round(p.centre[1]) - k, 9311);
+          boxes.push({
+            c: wc, size: alongX ? [w * 0.97, size[1]] : [size[0], w * 0.97],
+            yaw: p.yaw, y: p.groundY, h: Math.max(3.2, top * lerp(0.62, 1.12, kr)), style: style
+          });
+        }
+      } else {
+        boxes.push({ c: p.centre, size: size, yaw: p.yaw, y: p.groundY, h: top, style: style, landmark: p.kind === "landmark" });
+      }
       // Towers get a setback shoulder, which is what makes a skyline read.
       if ((p.kind === "tower" || p.kind === "landmark") && top > 45) {
         const r2 = rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9179);
@@ -2794,8 +3088,48 @@ function buildScene(w) {
         inst.instanceMatrix.needsUpdate = true;
         if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
         inst.frustumCulled = false;
+        inst.castShadow = true;
+        inst.receiveShadow = true;
         root.add(inst);
       });
+    }
+
+    // Soti Tower, the one building in the city that is modelled and not massed.
+    if (sotiPlot) {
+      root.add(buildSotiTower(sotiPlot));
+      const w = SOTI.base * 2.36;
+      solids.push({ c: sotiPlot.centre, size: [w, w], yaw: sotiPlot.yaw, y: sotiPlot.groundY, h: SOTI.height });
+    }
+
+    // Street trees and park planting.
+    if (trees.length) {
+      const trunkGeo = new THREE.CylinderGeometry(0.16, 0.22, 1, 5, 1, true);
+      trunkGeo.translate(0, 0.5, 0);
+      const crownGeo = new THREE.IcosahedronGeometry(1, 0);
+      crownGeo.scale(1, 1.15, 1);
+      crownGeo.translate(0, 1, 0);
+      const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3b2c });
+      const crownMat = new THREE.MeshLambertMaterial({ color: 0x3f5c33, flatShading: true });
+      const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
+      const crowns = new THREE.InstancedMesh(crownGeo, crownMat, trees.length);
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
+      trees.forEach((t, i) => {
+        const h = 6.2 * t.s;
+        m.compose(new THREE.Vector3(t.c[0], t.y, t.c[1]), q, new THREE.Vector3(1, h * 0.52, 1));
+        trunks.setMatrixAt(i, m);
+        m.compose(new THREE.Vector3(t.c[0], t.y + h * 0.42, t.c[1]), q,
+          new THREE.Vector3(h * 0.30, h * 0.30, h * 0.30));
+        crowns.setMatrixAt(i, m);
+        const g = 0.82 + rnd(i, 7, 6141) * 0.36;
+        col.setRGB(g * 0.92, g, g * 0.78);
+        crowns.setColorAt(i, col);
+      });
+      trunks.instanceMatrix.needsUpdate = true;
+      crowns.instanceMatrix.needsUpdate = true;
+      if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
+      trunks.frustumCulled = crowns.frustumCulled = false;
+      trunks.castShadow = crowns.castShadow = true;
+      root.add(trunks); root.add(crowns);
     }
 
     // Moat water.
@@ -2843,20 +3177,74 @@ function aimAt(target) {
 // If a glTF of the real mesh is sitting next to this page, use it. Opened straight
 // off disk a browser will refuse to fetch it (file:// is not an origin), and the
 // built-in figure above stands in instead — serve the folder over http to see him.
+//
+// The file carries a skeleton and three clips, Idle / Walk / Run, which are
+// crossfaded on how fast he is actually moving.
 const SEIKO_FACING = Math.PI;     // the exported mesh faces -Z; turn it to face +Z
+
+function seikoLoaded(gltf) {
+  const inner = new THREE.Group();
+  gltf.scene.rotation.y = SEIKO_FACING;
+  inner.add(gltf.scene);
+  inner.traverse(o => {
+    if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
+  });
+
+  if (gltf.animations && gltf.animations.length) {
+    const mixer = new THREE.AnimationMixer(gltf.scene);
+    const clips = {};
+    gltf.animations.forEach(clip => {
+      const key = clip.name.replace(/[^A-Za-z]/g, "").toLowerCase();
+      const act = mixer.clipAction(clip);
+      act.loop = THREE.LoopRepeat;
+      act.clampWhenFinished = false;
+      clips[key] = act;
+    });
+    player.mixer = mixer;
+    player.clips = clips;
+    player.action = null;
+    player.clipName = "";
+    playSeikoClip("idle", 0);
+  }
+  adoptSeiko(fitSeiko(inner));
+}
+
+// Crossfade rather than cut: a hard switch between a walk and a run pops the
+// hips, and the pop is the first thing the eye catches.
+function playSeikoClip(name, fade) {
+  if (!player.clips) return;
+  const next = player.clips[name];
+  if (!next || player.clipName === name) return;
+  next.enabled = true;
+  next.setEffectiveWeight(1);
+  next.reset();
+  if (player.action && fade > 0) player.action.crossFadeTo(next, fade, true);
+  else if (player.action) player.action.stop();
+  next.play();
+  player.action = next;
+  player.clipName = name;
+}
+
+function updateSeikoClip(dt) {
+  if (!player.mixer) return;
+  const sp = player.speed;
+  if (sp < 0.12) {
+    playSeikoClip("idle", 0.25);
+    if (player.action) player.action.setEffectiveTimeScale(1);
+  } else if (sp < WALK_SPEED * 1.6) {
+    playSeikoClip("walk", 0.22);
+    if (player.action) player.action.setEffectiveTimeScale(clamp(sp / WALK_SPEED, 0.55, 1.5));
+  } else {
+    playSeikoClip("run", 0.20);
+    if (player.action) player.action.setEffectiveTimeScale(clamp(sp / RUN_SPEED, 0.62, 1.45));
+  }
+  player.mixer.update(dt);
+}
 
 function loadSeikoModel(url) {
   if (typeof THREE.GLTFLoader !== "function") return;
   let loader;
   try { loader = new THREE.GLTFLoader(); } catch (e) { return; }
-
-  const onLoad = gltf => {
-    const inner = new THREE.Group();
-    gltf.scene.rotation.y = SEIKO_FACING;
-    inner.add(gltf.scene);
-    inner.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
-    adoptSeiko(fitSeiko(inner));
-  };
 
   // Carried inside the page when there is nowhere to fetch from.
   if (typeof window.SEIKO_GLB_B64 === "string" && window.SEIKO_GLB_B64.length > 64) {
@@ -2864,18 +3252,13 @@ function loadSeikoModel(url) {
       const bin = atob(window.SEIKO_GLB_B64);
       const buf = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      loader.parse(buf.buffer, "", onLoad, () => {});
+      loader.parse(buf.buffer, "", seikoLoaded, () => {});
       return;
     } catch (e) { /* fall through to fetching it */ }
   }
 
-  loader.load(url, gltf => {
-    const inner = new THREE.Group();
-    gltf.scene.rotation.y = SEIKO_FACING;
-    inner.add(gltf.scene);
-    inner.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
-    adoptSeiko(fitSeiko(inner));
-  }, undefined, () => { /* no model beside the page: the built-in figure stands in */ });
+  loader.load(url, seikoLoaded, undefined,
+    () => { /* no model beside the page: the built-in figure stands in */ });
 }
 
 function adoptSeiko(fitted) {
@@ -2923,7 +3306,7 @@ function fitSeiko(object3d) {
 function placeSeiko(pos) {
   if (!player.obj) return;
   player.pos.copy(pos);
-  player.pos.y = world.sampleHeight(player.pos.x, player.pos.z);
+  player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
   player.obj.position.copy(player.pos);
   player.speed = 0;
 }
@@ -2975,7 +3358,7 @@ function updateWalk(dt) {
     // Slide along a wall rather than sticking to it.
     if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
   }
-  player.pos.y = world.sampleHeight(player.pos.x, player.pos.z);
+  player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
 
   // Turn toward where he is going, by the shorter way round.
   let d = player.targetYaw - player.yaw;
@@ -2986,10 +3369,11 @@ function updateWalk(dt) {
   player.obj.position.copy(player.pos);
   player.obj.rotation.y = player.yaw;
   if (player.usingGlb) {
-    // No skeleton in the mesh, so he gets a stride bob and a lean, nothing more.
-    const stride = clamp01(player.speed / 4.6);
-    player.obj.position.y += Math.abs(Math.sin(clock * lerp(5.2, 10.5, stride))) * 0.045 * stride;
-    player.obj.rotation.x = stride * 0.06;
+    if (player.mixer) updateSeikoClip(dt);
+    else {
+      const stride = clamp01(player.speed / RUN_SPEED);
+      player.obj.position.y += Math.abs(Math.sin(clock * lerp(5.2, 10.5, stride))) * 0.045 * stride;
+    }
   } else {
     animateSeiko(player.obj, player.speed, clock);
   }
@@ -2999,15 +3383,33 @@ function updateWalk(dt) {
   const dist = lerp(4.6, 7.0, clamp01(player.speed / 4.7));
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   const want = head.clone().sub(dir.clone().multiplyScalar(dist));
-  const ground = world.sampleHeight(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
+  const ground = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
   want.y = Math.max(want.y, ground + 1.3);
   camPos.lerp(want, 1 - Math.pow(0.0008, dt));
   camera.position.copy(camPos);
   camera.lookAt(head);
 }
 
+function followSun() {
+  if (skyDome) skyDome.position.copy(camera.position);
+  if (!sunLight) return;
+  // Park the shadow frustum a little ahead of the camera, snapped to texels so
+  // the edges do not crawl while you move.
+  const ahead = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)).multiplyScalar(SHADOW_SPAN * 0.45);
+  const t = camera.position.clone().add(ahead);
+  const texel = (SHADOW_SPAN * 2) / sunLight.shadow.mapSize.x;
+  t.x = Math.round(t.x / texel) * texel;
+  t.z = Math.round(t.z / texel) * texel;
+  t.y = world ? world.sampleHeight(clamp(t.x, 0, WORLD_X), clamp(t.z, 0, WORLD_Z)) : 0;
+  sunLight.target.position.copy(t);
+  sunLight.target.updateMatrixWorld();
+  sunLight.position.copy(t).add(sunDir.clone().multiplyScalar(1200));
+  sunLight.updateMatrixWorld();
+}
+
 function tick(dt) {
   clock += dt;
+  followSun();
   if (player.mode === "walk" && player.obj) {
     updateWalk(dt);
     renderer.render(scene, camera);

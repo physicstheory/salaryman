@@ -82,15 +82,18 @@ space, not as buildings:
   and made ground, feathered back into open country at the edges.
 - **18 – 22 named wards**, each with its own character, its own block size and **its own street grid
   at its own angle** — which is most of why a Japanese city map reads the way it does.
-- **~150 blocks and ~560 reserved building plots**, every one fronting a street and **graded dead
-  flat at a known height**, so a building dropped on a plot needs no fitting.
+- **~350 blocks and ~1,700 reserved building plots**, every one fronting a street and **graded dead
+  flat at a known height**, so a building dropped on a plot needs no fitting. A road clipping the
+  corner of a block shaves the block rather than deleting it, which is what keeps the centre dense.
 - **Roads**: an elevated expressway loop, ring roads, seven radial arterials that follow the easiest
   ground, local streets and alleys, and a waterfront promenade.
 - **Railways**: a commuter loop around the core, six radial lines out to the suburbs and the
   villages, a shinkansen viaduct, a freight spur to the docks, two subway lines, and ~13 stations
   including a fourteen-platform terminus.
 - **A moated palace park** at the centre, with the business district against it.
-- **Reserved sites** for the buildings the story needs, starting with **Soti Tower**.
+- **Reserved sites** for the buildings the story needs, starting with **Soti Tower** — which is
+  modelled rather than reserved: 592 m, taken from the Ping An International Finance Centre in
+  Shenzhen, standing on a whole block of its own.
 - **Bridges** reserved wherever a road or a line crosses water.
 - An optional **grey massing blockout** so the whole thing can be driven through and lit before any
   art exists — and then deleted.
@@ -102,6 +105,22 @@ Everything is deterministic from one seed.
 
 Full detail, and how to place buildings on it later:
 **[Docs/CITY_TOKONTO.md](Docs/CITY_TOKONTO.md)**.
+
+---
+
+## Run it in a browser first
+
+`Web/konto.html` is the same generator ported to Three.js in a single file: the island, the
+erosion, the rivers, Tōkonto's wards, streets, railways and plots, the textured massing, Soti
+Tower, and **Seiko Shigu** — rigged, with idle, walk and run cycles — who you can walk around it.
+Serve the folder and open the page; nothing to install.
+
+```
+python3 -m http.server 8000 --directory Web    # then open http://localhost:8000/konto.html
+```
+
+It is a preview of the plan, not the game: the Unity build is where the world actually gets made.
+See **[Web/README.md](Web/README.md)**.
 
 ---
 
@@ -151,6 +170,7 @@ Assets/SalaryMan/World/Scripts/
     UrbanRaster.cs            the per city rasters: graded height, influence, surface
     CityGrading.cs            the civil engineering: platform, streets, plots, rail beds, moat
   Runtime/City/
+    SotiTower.cs              the one modelled building: Soti's head office, Ping An's form
     KontoCityLayoutAsset.cs   the plan as an asset, with lookup and one-line building placement
     KontoCityRoot.cs          the scene's handle on a city, and its gizmos
     CityPlotMarker.cs         a marker sitting on a reserved plot
@@ -168,7 +188,7 @@ Assets/SalaryMan/World/Scripts/
     KontoWorldBuilderWindow.cs  the build window and menu items
     KontoWorldBuilder.cs        build orchestration and asset saving
     KontoCityWindow.cs          find a ward, find a plot, drop a building on it
-    KontoCityFactory.cs         city hierarchy, markers, moat water, massing blockout
+    KontoCityFactory.cs         city hierarchy, markers, moat water, massing blockout, Soti Tower
     KontoTextureFactory.cs      procedural tiling ground textures and terrain layers
     KontoFoliageFactory.cs      stand-in trees, grass billboards, materials
     KontoMeshBuilder.cs         procedural mesh primitives
@@ -180,6 +200,13 @@ Assets/SalaryMan/World/Scripts/
     KontoCharacterFactory.cs    builds the rig: capsule, movement, camera, layers
     KontoProjectSettingsUtil.cs creates layers, installs gamepad axes
     KontoSceneUtil.cs           makes sure the scene has a usable camera
+
+Tools/
+  rig_seiko.py                Blender: rigs and animates the character mesh into Web/seiko.glb
+
+Web/
+  konto.html                  the whole generator, in a browser, in one file
+  seiko.glb                   Seiko Shigu, rigged, with idle / walk / run
 ```
 
 Character setup, Blender export settings and the full control map:
