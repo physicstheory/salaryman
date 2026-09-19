@@ -28,8 +28,7 @@ namespace SalaryMan.World.EditorTools
 
         public static GameObject Build(bool placeOnTerrain = true)
         {
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
-            if (model == null)
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath) == null)
             {
                 Debug.LogWarning("[Konto] " + ModelPath + " is not in the project, so no character was placed. "
                     + "Run Tools/rig_seiko.py in Blender to make it, or drop your own model in and use "
@@ -37,7 +36,19 @@ namespace SalaryMan.World.EditorTools
                 return null;
             }
 
+            // Settings first, then load. The first run always reimports — that is the run where
+            // the loop flags get set — and a reimport destroys any reference taken before it, so
+            // a model loaded up front would come back destroyed and the character would silently
+            // not be built until the second press.
             ConfigureImport();
+            var model = AssetDatabase.LoadAssetAtPath<GameObject>(ModelPath);
+            if (model == null)
+            {
+                Debug.LogWarning("[Konto] " + ModelPath + " did not survive its reimport. Reimport it by "
+                    + "hand (right click > Reimport) and run Tools > SalaryMan > Put Seiko In The Scene.");
+                return null;
+            }
+
             var controller = BuildController();
 
             var rig = KontoCharacterFactory.Build(new KontoCharacterFactory.Options
