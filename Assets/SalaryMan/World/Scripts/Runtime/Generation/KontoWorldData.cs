@@ -17,6 +17,7 @@ namespace SalaryMan.World
         public Field2D Height;        // metres, working resolution
         public Field2D Slope;         // gradient magnitude, working resolution
         public Field2D TerraceMask;   // 0..1, where rice terraces are cut
+        public UrbanLayer Urban;      // the cities, and the ground they stand on
 
         public Vector2 WorldSize { get { return Settings.WorldSize; } }
 
@@ -39,6 +40,12 @@ namespace SalaryMan.World
             float slope = Slope.SampleBilinear(u, v);
             var s = Settings;
 
+            // Inside a city the ground is whatever the engineers left: plots graded flat, streets
+            // on a smooth running profile, quays, embankments and made ground.
+            float urbanWeight = 0f;
+            float urbanPad = 0f;
+            if (Urban != null && Urban.Any) Urban.Pad(worldX, worldZ, out urbanPad, out urbanWeight);
+
             // Rough ground stays rough, flat ground stays flat. Adding the same amount of noise
             // everywhere is what makes procedural terrain read as fake.
             float rough = 0.22f + 0.78f * Mathf.Clamp01(slope / 0.55f);
@@ -46,11 +53,12 @@ namespace SalaryMan.World
 
             float detail = KontoNoise.Fbm(worldX / s.detailNoiseSize, worldZ / s.detailNoiseSize, s.seed + 15013, 4) * s.detailNoiseAmplitude;
             float micro  = KontoNoise.Fbm(worldX / s.microNoiseSize,  worldZ / s.microNoiseSize,  s.seed + 15053, 3) * s.microNoiseAmplitude;
-            h += (detail + micro) * rough * Mathf.Lerp(0.35f, 1f, aboveWater);
+            // Engineered ground is smooth: tarmac and concrete do not have hummocks in them.
+            h += (detail + micro) * rough * Mathf.Lerp(0.35f, 1f, aboveWater) * (1f - urbanWeight * 0.92f);
 
-            if (s.buildRiceTerraces && s.terraceStrength > 0f)
+            if (s.buildRiceTerraces && s.terraceStrength > 0f && urbanWeight < 0.5f)
             {
-                float mask = TerraceMask.SampleBilinear(u, v);
+                float mask = TerraceMask.SampleBilinear(u, v) * (1f - urbanWeight);
                 if (mask > 0.01f && h < s.terraceMaxAltitude + 40f)
                 {
                     float step = Mathf.Max(0.3f, s.terraceStepHeight);
@@ -63,7 +71,32 @@ namespace SalaryMan.World
                 }
             }
 
+            if (urbanWeight > 0.001f) h = Mathf.Lerp(h, urbanPad, urbanWeight);
             return h;
+        }
+
+        /// <summary>What the ground is made of at a point inside a city, or None out in the country.</summary>
+        public UrbanSurface SampleUrbanSurface(float worldX, float worldZ)
+        {
+            if (Urban == null || !Urban.Any) return UrbanSurface.None;
+            return Urban.Surface(worldX, worldZ);
+        }
+
+        /// <summary>0 out in the country, 1 on fully engineered city ground.</summary>
+        public float SampleUrban(float worldX, float worldZ)
+        {
+            if (Urban == null || !Urban.Any) return 0f;
+            return Urban.Weight(worldX, worldZ);
+        }
+
+        /// <summary>The plan of the first city built, or null if there is none.</summary>
+        public CityLayout PrimaryCity
+        {
+            get
+            {
+                if (Urban == null || Urban.Cities.Count == 0) return null;
+                return Urban.Cities[0].Layout;
+            }
         }
 
         public float SampleSlope(float worldX, float worldZ)

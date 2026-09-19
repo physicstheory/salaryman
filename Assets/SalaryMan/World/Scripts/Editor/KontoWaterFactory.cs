@@ -111,6 +111,51 @@ namespace SalaryMan.World.EditorTools
             HdrpReflection.SetMember(water, "underWater", true);
         }
 
+        /// <summary>
+        /// A single rectangle of water at a fixed height: a palace moat, a canal, a dock basin.
+        /// Uses the HDRP water system where it is available and a transparent plane where it is
+        /// not, so the city reads correctly either way.
+        /// </summary>
+        public static GameObject CreateWaterQuad(Transform parent, string name, Vector3 position,
+            Vector2 size, float yawDegrees, bool calm)
+        {
+            Type waterType = HdrpReflection.FindType("WaterSurface");
+            if (waterType == null)
+            {
+                var plane = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                plane.name = name + " (fallback plane)";
+                plane.transform.SetParent(parent, false);
+                plane.transform.position = position;
+                plane.transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+                // Unity's plane primitive is ten units across.
+                plane.transform.localScale = new Vector3(Mathf.Max(1f, size.x) * 0.1f, 1f, Mathf.Max(1f, size.y) * 0.1f);
+                plane.GetComponent<MeshRenderer>().sharedMaterial = FallbackMaterial();
+                UnityEngine.Object.DestroyImmediate(plane.GetComponent<Collider>());
+                return plane;
+            }
+
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.position = position;
+            go.transform.rotation = Quaternion.Euler(0f, yawDegrees, 0f);
+
+            var water = go.AddComponent(waterType);
+            HdrpReflection.SetMember(water, "surfaceType", "OceanSeaLake");
+            HdrpReflection.SetMember(water, "geometryType", "Quad");
+            HdrpReflection.SetMember(water, "quadSize", new Vector2(Mathf.Max(2f, size.x), Mathf.Max(2f, size.y)));
+            HdrpReflection.SetMember(water, "repetitionSize", calm ? 25f : 75f);
+            HdrpReflection.SetMember(water, "largeWindSpeed", calm ? 2f : 5f);
+            HdrpReflection.SetMember(water, "largeChaos", 0.3f);
+            HdrpReflection.SetMember(water, "ripplesWindSpeed", calm ? 2.5f : 4f);
+            // Still, dark, slightly green: a moat that has not been dredged since 1868.
+            HdrpReflection.SetMember(water, "scatteringColor", new Color(0.012f, 0.045f, 0.040f));
+            HdrpReflection.SetMember(water, "refractionColor", new Color(0.025f, 0.075f, 0.070f));
+            HdrpReflection.SetMember(water, "absorptionDistance", 1.6f);
+            HdrpReflection.SetMember(water, "foam", false);
+            HdrpReflection.SetMember(water, "underWater", false);
+            return go;
+        }
+
         // ---------------------------------------------------------------- fallback
 
         static Material FallbackMaterial()

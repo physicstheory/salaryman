@@ -75,13 +75,21 @@ namespace SalaryMan.World
         public string name = "Plain";
         public float alongT = 0.6f;
         public float lateral = 0.8f;
+        [Tooltip("Fallback radius in metres, used when the two extents below are left at zero.")]
         public float radius = 1400f;
+        [Tooltip("Half extent along the coast, in metres. Real coastal plains are long and shallow, not round: this is what keeps the mountains close behind the city.")]
+        public float alongRadius = 0f;
+        [Tooltip("Half extent measured across the island, in metres.")]
+        public float lateralRadius = 0f;
         [Tooltip("Rise per metre inland. Real alluvial plains run about 1:300 to 1:1000.")]
         public float gradient = 0.004f;
         [Tooltip("Elevation the plain is allowed to reach before it merges back into the hills.")]
         public float maxHeight = 70f;
         [Tooltip("Width of the diluvial terrace step at the back of the plain, in metres.")]
         public float terraceBlend = 500f;
+
+        public float AlongExtent { get { return alongRadius > 1f ? alongRadius : radius; } }
+        public float LateralExtent { get { return lateralRadius > 1f ? lateralRadius : radius; } }
     }
 
     [CreateAssetMenu(fileName = "KontoWorldSettings", menuName = "SalaryMan/Konto World Settings", order = 0)]
@@ -92,9 +100,9 @@ namespace SalaryMan.World
 
         [Header("World layout")]
         [Tooltip("Terrain tiles across X.")]
-        public int tilesX = 4;
+        public int tilesX = 6;
         [Tooltip("Terrain tiles across Z.")]
-        public int tilesZ = 3;
+        public int tilesZ = 5;
         [Tooltip("Size of one terrain tile in metres.")]
         public float tileSize = 2048f;
         [Tooltip("Heightmap resolution per tile. Must be 2^n + 1. 1025 over a 2048 m tile is 2 m per sample.")]
@@ -106,39 +114,39 @@ namespace SalaryMan.World
 
         [Header("Vertical range")]
         [Tooltip("Highest point on the island in metres. Konto is a compressed Honshu, so peaks are lower than Fuji but slopes are steeper.")]
-        public float maxHeight = 1450f;
+        public float maxHeight = 1520f;
         [Tooltip("How far the sea bed drops below sea level, in metres. Terrain objects are placed at -seaDepth.")]
-        public float seaDepth = 120f;
+        public float seaDepth = 140f;
 
         [Header("Generation resolution")]
-        [Tooltip("Longest side of the working raster used for erosion and hydrology. Higher is slower but carves finer valleys. 2048 is a good balance.")]
-        public int workingResolution = 2048;
+        [Tooltip("Longest side of the working raster used for erosion and hydrology. Higher is slower but carves finer valleys. 2560 over a 12 km island is about 5 m per cell.")]
+        public int workingResolution = 2560;
 
         [Header("Island shape")]
         [Tooltip("Control points of the island arc in normalised world space (0..1). Konto follows Honshu: a long north east limb, a bend at the central rift, then a south west limb.")]
         public List<Vector2> arcPoints = new List<Vector2>
         {
-            new Vector2(0.055f, 0.145f),
-            new Vector2(0.195f, 0.285f),
-            new Vector2(0.360f, 0.400f),
-            new Vector2(0.530f, 0.475f),
-            new Vector2(0.700f, 0.585f),
-            new Vector2(0.885f, 0.790f),
+            new Vector2(0.055f, 0.150f),
+            new Vector2(0.200f, 0.290f),
+            new Vector2(0.365f, 0.405f),
+            new Vector2(0.530f, 0.480f),
+            new Vector2(0.690f, 0.570f),
+            new Vector2(0.860f, 0.760f),
         };
-        [Tooltip("Island half width at each arc point, in metres.")]
-        public List<float> arcHalfWidths = new List<float> { 620f, 1180f, 1420f, 1260f, 1050f, 720f };
+        [Tooltip("Island half width at each arc point, in metres. The island bulges toward the south west: that bulge is the Kanto analogue, and it is the only place wide enough to hold the capital and still have mountains behind it.")]
+        public List<float> arcHalfWidths = new List<float> { 900f, 1850f, 2400f, 3000f, 3400f, 1400f };
 
         [Tooltip("Amplitude of the large scale wobble applied to the coastline, in metres.")]
-        public float coastNoiseAmplitude = 260f;
-        public float coastNoiseSize = 2600f;
+        public float coastNoiseAmplitude = 320f;
+        public float coastNoiseSize = 3200f;
         [Tooltip("Where the drowned ria coast starts and ends along the arc, on the ocean side. This is the Sanriku analogue: deep V shaped inlets cut into a steep coast.")]
         public Vector2 riaCoastRange = new Vector2(0.02f, 0.30f);
-        public float riaDepth = 520f;
-        public float riaSpacing = 620f;
+        public float riaDepth = 700f;
+        public float riaSpacing = 820f;
         [Tooltip("The sheltered side has long smooth sandy arcs and dune ridges instead of inlets.")]
         public float duneCoastSmoothing = 0.65f;
         [Tooltip("Width of the shallow continental shelf before the sea bed drops away, in metres.")]
-        public float shelfWidth = 900f;
+        public float shelfWidth = 1100f;
         [Tooltip("Chance of small offshore islets forming near the coast.")]
         [Range(0f, 1f)] public float isletDensity = 0.35f;
 
@@ -149,8 +157,8 @@ namespace SalaryMan.World
         public List<CoastalPlainSpec> plains = new List<CoastalPlainSpec>();
 
         [Tooltip("Amplitude of the dissected low hill country that covers the ground between the ranges. This is the satoyama layer, in metres.")]
-        public float hillCountryHeight = 170f;
-        public float hillCountryFeatureSize = 640f;
+        public float hillCountryHeight = 185f;
+        public float hillCountryFeatureSize = 760f;
 
         [Header("Thermal erosion")]
         [Tooltip("Repose angle in degrees. Material steeper than this slides downhill. Japanese slopes sit high, around 33 - 38 degrees.")]
@@ -159,7 +167,7 @@ namespace SalaryMan.World
 
         [Header("Hydraulic erosion")]
         [Tooltip("Number of rain droplets simulated. This is what produces the dense, finely branched valley networks Japan is known for.")]
-        public int erosionDroplets = 900000;
+        public int erosionDroplets = 1100000;
         [Range(4, 128)] public int dropletLifetime = 56;
         [Range(0f, 1f)] public float inertia = 0.045f;
         public float sedimentCapacity = 3.4f;
@@ -172,8 +180,8 @@ namespace SalaryMan.World
         public float minSedimentCapacitySlope = 0.008f;
 
         [Header("Hydrology")]
-        [Tooltip("Flow accumulation (in cells) above which a channel is carved.")]
-        public float riverThreshold = 900f;
+        [Tooltip("Catchment area, in square kilometres, above which a watercourse is carved. This is a real quantity rather than a cell count, so it means the same thing at any working resolution: 0.45 km² gives the dense but not ditch-ridden network of a wet, steep country.")]
+        public float riverCatchmentKm2 = 0.30f;
         [Tooltip("Maximum depth a main channel is cut below the surrounding land, in metres.")]
         public float riverMaxCarve = 22f;
         [Tooltip("Maximum half width of a main channel, in metres.")]
@@ -192,8 +200,8 @@ namespace SalaryMan.World
         [Tooltip("Height of a single terrace step, in metres.")]
         public float terraceStepHeight = 1.9f;
         [Range(0f, 1f)] public float terraceStrength = 0.72f;
-        [Tooltip("Terraces cluster near valley floors. This is the flow accumulation above which terracing is allowed.")]
-        public float terraceMinFlow = 45f;
+        [Tooltip("Terraces cluster near valley floors. This is the catchment area, in square kilometres, above which terracing is allowed.")]
+        public float terraceMinCatchmentKm2 = 0.02f;
 
         [Header("Surface detail")]
         [Tooltip("Fine relief added when the working raster is upsampled to terrain resolution, in metres.")]
@@ -206,11 +214,11 @@ namespace SalaryMan.World
         [Tooltip("Height below which the shore turns to sand and shingle, in metres.")]
         public float beachHeight = 3.2f;
         [Tooltip("Tree line in metres. Central Honshu sits near 2500 m; Konto is compressed, so this is lower.")]
-        public float treeLine = 1080f;
+        public float treeLine = 1120f;
         [Tooltip("Height at which permanent snow starts, in metres.")]
-        public float snowLine = 1180f;
+        public float snowLine = 1230f;
         [Tooltip("Extra snow, in metres of elevation equivalent, on the Sea of Konto side. The north west coast of Honshu is one of the snowiest inhabited places on earth.")]
-        public float snowySideBonus = 190f;
+        public float snowySideBonus = 200f;
         [Tooltip("Slope in degrees above which bare rock shows through the soil.")]
         public float rockSlopeAngle = 38f;
 
@@ -223,14 +231,40 @@ namespace SalaryMan.World
         [Tooltip("Row spacing inside a plantation block, in metres. Real sugi stands are planted at 2 - 4 m; larger values here cost far fewer instances.")]
         public float plantationRowSpacing = 5.5f;
         [Tooltip("Hard cap on tree instances per terrain tile. Excess candidates are thinned evenly.")]
-        public int maxTreesPerTile = 55000;
+        public int maxTreesPerTile = 48000;
         [Range(0f, 1f)] public float grassDensity = 1f;
+
+        [Header("Cities")]
+        [Tooltip("Plan and grade the cities. Turn this off to build the bare landscape.")]
+        public bool buildCities = true;
+        [Tooltip("Metres per cell of the city rasters. A street is eight metres wide, so this has to be fine: 2 m is right, 1 m is four times the memory.")]
+        public float urbanCellSize = 2f;
+        [Tooltip("Hard cap on reserved plots per city, so a mis-set district cannot generate a million parcels.")]
+        public int maxCityPlots = 26000;
+        [Tooltip("Every city and village on the island. The first one is the capital.")]
+        public List<UrbanSiteSpec> cities = new List<UrbanSiteSpec>();
 
         /// <summary>Total world size in metres.</summary>
         public Vector2 WorldSize { get { return new Vector2(tilesX * tileSize, tilesZ * tileSize); } }
 
         /// <summary>Full vertical span of a terrain object, sea bed to summit.</summary>
         public float TerrainHeightSpan { get { return seaDepth + maxHeight; } }
+
+        /// <summary>Area of one working raster cell in square metres.</summary>
+        public float WorkingCellArea
+        {
+            get
+            {
+                float cell = WorldSize.x / Mathf.Max(1, WorkingWidth - 1);
+                return cell * cell;
+            }
+        }
+
+        /// <summary>Flow accumulation, in cells, that corresponds to a catchment of this many square kilometres.</summary>
+        public float CatchmentCells(float squareKilometres)
+        {
+            return Mathf.Max(8f, squareKilometres * 1000000f / Mathf.Max(1f, WorkingCellArea));
+        }
 
         public int WorkingWidth
         {
@@ -267,29 +301,31 @@ namespace SalaryMan.World
                 {
                     // Ou Mountains analogue: the long, moderate backbone of the north east limb.
                     name = "Okami Backbone", alongStart = 0.00f, alongEnd = 0.44f, lateralOffset = -0.02f,
-                    halfWidth = 760f, peakHeight = 830f, ridgeSharpness = 1.05f, octaves = 6,
-                    featureSize = 1750f, ruggedness = 0.68f, crestWander = 480f
+                    halfWidth = 1050f, peakHeight = 880f, ridgeSharpness = 1.05f, octaves = 6,
+                    featureSize = 2300f, ruggedness = 0.68f, crestWander = 620f
                 },
                 new MountainRangeSpec
                 {
                     // Hida / Kiso / Akaishi analogue: the high, glacially sharpened Konto Alps.
-                    name = "Konto Alps", alongStart = 0.33f, alongEnd = 0.60f, lateralOffset = -0.08f,
-                    halfWidth = 830f, peakHeight = 1450f, ridgeSharpness = 1.55f, octaves = 7,
-                    featureSize = 1350f, ruggedness = 0.95f, crestWander = 360f
+                    // These are the mountains you see at the end of every street in the capital.
+                    name = "Konto Alps", alongStart = 0.33f, alongEnd = 0.62f, lateralOffset = -0.06f,
+                    halfWidth = 1150f, peakHeight = 1520f, ridgeSharpness = 1.55f, octaves = 7,
+                    featureSize = 1800f, ruggedness = 0.95f, crestWander = 470f
                 },
                 new MountainRangeSpec
                 {
                     // Chugoku analogue: an old, worn, rounded range on the south west limb.
-                    name = "Nishiyama Uplands", alongStart = 0.60f, alongEnd = 1.00f, lateralOffset = 0.04f,
-                    halfWidth = 700f, peakHeight = 610f, ridgeSharpness = 0.8f, octaves = 6,
-                    featureSize = 1900f, ruggedness = 0.42f, crestWander = 540f
+                    name = "Nishiyama Uplands", alongStart = 0.62f, alongEnd = 1.00f, lateralOffset = 0.05f,
+                    halfWidth = 950f, peakHeight = 640f, ridgeSharpness = 0.8f, octaves = 6,
+                    featureSize = 2500f, ruggedness = 0.42f, crestWander = 700f
                 },
                 new MountainRangeSpec
                 {
-                    // Kanto / Tanzawa style coastal hill ranges between the spine and the ocean.
-                    name = "Ocean Side Hills", alongStart = 0.08f, alongEnd = 0.94f, lateralOffset = 0.52f,
-                    halfWidth = 520f, peakHeight = 285f, ridgeSharpness = 0.85f, octaves = 6,
-                    featureSize = 980f, ruggedness = 0.5f, crestWander = 620f
+                    // Tama / Tanzawa analogue: the low dissected hills immediately behind the
+                    // capital. The western wards climb into them and stop.
+                    name = "Ocean Side Hills", alongStart = 0.08f, alongEnd = 0.94f, lateralOffset = 0.34f,
+                    halfWidth = 720f, peakHeight = 330f, ridgeSharpness = 0.85f, octaves = 6,
+                    featureSize = 1300f, ruggedness = 0.5f, crestWander = 820f
                 },
             };
 
@@ -297,48 +333,124 @@ namespace SalaryMan.World
             {
                 new VolcanoSpec
                 {
-                    // Fuji analogue: a young, isolated, near symmetrical cone standing clear of the range.
-                    name = "Kogane-san", alongT = 0.485f, lateral = 0.42f, baseRadius = 1650f, height = 1330f,
-                    concavity = 2.05f, craterRadius = 120f, craterDepth = 95f, rillDepth = 15f, rillCount = 38
+                    // Fuji analogue: a young, isolated, near symmetrical cone standing clear of
+                    // the range, three kilometres inland of the capital and visible from it.
+                    name = "Kogane-san", alongT = 0.450f, lateral = 0.44f, baseRadius = 2300f, height = 1400f,
+                    concavity = 2.05f, craterRadius = 150f, craterDepth = 110f, rillDepth = 16f, rillCount = 38
                 },
                 new VolcanoSpec
                 {
                     // Bandai / Chokai analogue sitting on the backbone.
-                    name = "Shirotake", alongT = 0.285f, lateral = -0.30f, baseRadius = 980f, height = 760f,
-                    concavity = 1.85f, craterRadius = 95f, craterDepth = 70f, rillDepth = 18f, rillCount = 26
+                    name = "Shirotake", alongT = 0.285f, lateral = -0.30f, baseRadius = 1350f, height = 800f,
+                    concavity = 1.85f, craterRadius = 130f, craterDepth = 85f, rillDepth = 18f, rillCount = 26
                 },
                 new VolcanoSpec
                 {
                     // Towada analogue: a collapsed caldera that will fill to become a deep lake.
-                    name = "Aokami Caldera", alongT = 0.115f, lateral = 0.06f, baseRadius = 1020f, height = 520f,
-                    concavity = 1.6f, craterRadius = 430f, craterDepth = 330f, rillDepth = 10f, rillCount = 22,
+                    name = "Aokami Caldera", alongT = 0.115f, lateral = 0.06f, baseRadius = 1400f, height = 560f,
+                    concavity = 1.6f, craterRadius = 600f, craterDepth = 400f, rillDepth = 10f, rillCount = 22,
                     caldera = true
                 },
                 new VolcanoSpec
                 {
-                    name = "Asagiri-dake", alongT = 0.675f, lateral = -0.44f, baseRadius = 720f, height = 540f,
-                    concavity = 1.95f, craterRadius = 70f, craterDepth = 55f, rillDepth = 12f, rillCount = 24
+                    name = "Asagiri-dake", alongT = 0.695f, lateral = -0.44f, baseRadius = 1000f, height = 580f,
+                    concavity = 1.95f, craterRadius = 95f, craterDepth = 65f, rillDepth = 12f, rillCount = 24
                 },
             };
 
             basins = new List<BasinSpec>
             {
-                new BasinSpec { name = "Suwa Basin",  alongT = 0.415f, lateral = -0.16f, radius = 560f, floorHeight = 430f, rimBlend = 400f },
-                new BasinSpec { name = "Aizuno Basin",alongT = 0.230f, lateral =  0.18f, radius = 610f, floorHeight = 245f, rimBlend = 430f },
-                new BasinSpec { name = "Kofu Basin",  alongT = 0.552f, lateral =  0.22f, radius = 520f, floorHeight = 300f, rimBlend = 380f },
-                new BasinSpec { name = "Zenko Basin", alongT = 0.345f, lateral = -0.34f, radius = 450f, floorHeight = 360f, rimBlend = 340f },
+                new BasinSpec { name = "Suwa Basin",   alongT = 0.415f, lateral = -0.16f, radius = 800f, floorHeight = 440f, rimBlend = 550f },
+                new BasinSpec { name = "Aizuno Basin", alongT = 0.230f, lateral =  0.18f, radius = 860f, floorHeight = 250f, rimBlend = 600f },
+                // The basin the player comes from: a flat valley floor ringed by steep walls, on
+                // the snowy side of the mountains, four kilometres from the capital and a world
+                // away from it.
+                new BasinSpec { name = "Mizuho Basin", alongT = 0.485f, lateral = -0.14f, radius = 820f, floorHeight = 430f, rimBlend = 560f },
+                new BasinSpec { name = "Zenko Basin",  alongT = 0.345f, lateral = -0.34f, radius = 650f, floorHeight = 370f, rimBlend = 480f },
             };
 
             plains = new List<CoastalPlainSpec>
             {
-                // Kanto analogue: the big one, where the capital will go.
-                new CoastalPlainSpec { name = "Kanmei Plain", alongT = 0.615f, lateral = 0.86f, radius = 1550f, gradient = 0.0035f, maxHeight = 75f, terraceBlend = 560f },
+                // Kanto analogue: the big one, and the only ground on the island wide enough for
+                // the capital. Long along the coast, shallow inland, so the hills stay close.
+                new CoastalPlainSpec
+                {
+                    name = "Kanmei Plain", alongT = 0.655f, lateral = 0.78f,
+                    alongRadius = 3700f, lateralRadius = 1450f,
+                    gradient = 0.0028f, maxHeight = 90f, terraceBlend = 800f
+                },
                 // Echigo analogue on the snowy side.
-                new CoastalPlainSpec { name = "Etsuno Plain", alongT = 0.300f, lateral = -0.88f, radius = 980f, gradient = 0.0042f, maxHeight = 55f, terraceBlend = 420f },
+                new CoastalPlainSpec
+                {
+                    name = "Etsuno Plain", alongT = 0.300f, lateral = -0.88f,
+                    alongRadius = 1900f, lateralRadius = 850f,
+                    gradient = 0.0042f, maxHeight = 60f, terraceBlend = 520f
+                },
                 // Nobi analogue.
-                new CoastalPlainSpec { name = "Obi Plain",    alongT = 0.745f, lateral = 0.78f, radius = 880f, gradient = 0.0045f, maxHeight = 58f, terraceBlend = 400f },
+                new CoastalPlainSpec
+                {
+                    name = "Obi Plain", alongT = 0.780f, lateral = 0.80f,
+                    alongRadius = 1500f, lateralRadius = 700f,
+                    gradient = 0.0045f, maxHeight = 62f, terraceBlend = 480f
+                },
                 // Sendai analogue on the ria coast.
-                new CoastalPlainSpec { name = "Sendo Plain",  alongT = 0.155f, lateral = 0.74f, radius = 620f, gradient = 0.0050f, maxHeight = 48f, terraceBlend = 340f },
+                new CoastalPlainSpec
+                {
+                    name = "Sendo Plain", alongT = 0.155f, lateral = 0.74f,
+                    alongRadius = 1100f, lateralRadius = 600f,
+                    gradient = 0.0050f, maxHeight = 50f, terraceBlend = 400f
+                },
+            };
+
+            cities = new List<UrbanSiteSpec>
+            {
+                // Tokonto: the capital, on the Kanmei Plain, wrapped around its bay with the
+                // hills at its back and Kogane-san on the horizon. Roughly six kilometres of
+                // coast by two and a half inland.
+                new UrbanSiteSpec
+                {
+                    name = "Tokonto", code = "TKT", capital = true,
+                    // lateral 0.90 puts the anchor about 300 m inland of the coast, so the
+                    // footprint runs from the waterfront back into the foothills.
+                    alongT = 0.655f, lateral = 0.90f,
+                    alongRadius = 3400f, inlandRadius = 1380f,
+                    coreRadius = 760f, coreOffset = new Vector2(-260f, 760f),
+                    outlineNoise = 420f, wardCount = 22,
+                    maxPlatformSlope = 0.085f, maxBuildSlope = 0.34f, maxBuildAltitude = 340f,
+                    gradingSmoothRadius = 55f, gradingFeather = 190f,
+                    reclaimHeight = 4.2f, reclaimBay = true, leveeHeight = 4.5f,
+                    palaceGardens = true, palaceRadius = 470f, moatWidth = 58f, airport = false,
+                    radialCount = 7, ringCount = 3, expressway = true,
+                    railRadialCount = 6, railLoop = true, shinkansen = true,
+                    bay = new BaySpec
+                    {
+                        // The head of the bay sits just inland of the natural coastline and the
+                        // rest of it reaches out to sea, which is what makes a bay rather than a
+                        // flooded city.
+                        carve = true, alongOffset = 250f, inlandReach = -180f,
+                        halfWidth = 1700f, depth = 1500f, enclosure = 0.62f,
+                        shoreNoise = 190f, waterDistance = 560f,
+                    },
+                },
+                // Mizuho: the village the story starts in. Rice terraces, one shrine, one
+                // station, and a bus that goes to the city twice a day.
+                new UrbanSiteSpec
+                {
+                    name = "Mizuho", code = "MZH", capital = false,
+                    alongT = 0.485f, lateral = -0.14f,
+                    alongRadius = 470f, inlandRadius = 340f,
+                    coreRadius = 95f, coreOffset = new Vector2(0f, 20f),
+                    outlineNoise = 110f, wardCount = 4,
+                    // A village follows its valley rather than levelling it, so it tolerates much
+                    // steeper ground than a city does, and it sits hundreds of metres up.
+                    maxPlatformSlope = 0.17f, maxBuildSlope = 0.52f, maxBuildAltitude = 780f,
+                    gradingSmoothRadius = 40f, gradingFeather = 120f,
+                    reclaimHeight = 0f, reclaimBay = false, leveeHeight = 2.5f,
+                    palaceGardens = false, palaceRadius = 0f, moatWidth = 0f, airport = false,
+                    radialCount = 3, ringCount = 1, expressway = false,
+                    railRadialCount = 0, railLoop = false, shinkansen = false,
+                    bay = new BaySpec { carve = false },
+                },
             };
         }
 

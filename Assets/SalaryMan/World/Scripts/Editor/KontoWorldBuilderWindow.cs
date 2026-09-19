@@ -18,6 +18,8 @@ namespace SalaryMan.World.EditorTools
         bool _stepWater = true;
         bool _stepEnvironment = true;
         bool _stepViewpoint = true;
+        bool _stepCity = true;
+        bool _cityBlockout = true;
 
         [MenuItem("Tools/SalaryMan/Konto World Builder", false, 0)]
         public static void Open()
@@ -42,7 +44,8 @@ namespace SalaryMan.World.EditorTools
                 "Generates the base landscape of Konto: an island arc modelled on Honshu, with " +
                 "a mountain backbone, a volcanic front, intermontane basins, coastal alluvial " +
                 "plains, a ria coast on the ocean side and a dune coast on the sheltered side. " +
-                "No cities or buildings; those come later.", MessageType.None);
+                "Then it reserves the ground for Tokonto on the Kanmei Plain: wards, roads, " +
+                "railways and every building plot, graded flat and waiting for buildings.", MessageType.None);
 
             EditorGUILayout.Space();
             _settings = (KontoWorldSettings)EditorGUILayout.ObjectField("World settings", _settings, typeof(KontoWorldSettings), false);
@@ -66,6 +69,13 @@ namespace SalaryMan.World.EditorTools
             _stepTerrain = EditorGUILayout.ToggleLeft("Generate the island and build terrain tiles", _stepTerrain);
             _stepWater = EditorGUILayout.ToggleLeft("Build the sea and the lakes", _stepWater);
             _stepEnvironment = EditorGUILayout.ToggleLeft("Build sky, fog, clouds and lighting", _stepEnvironment);
+            _stepCity = EditorGUILayout.ToggleLeft("Hand over the city plans, markers and water", _stepCity);
+            using (new EditorGUI.DisabledScope(!_stepCity))
+            {
+                EditorGUI.indentLevel++;
+                _cityBlockout = EditorGUILayout.ToggleLeft("Also drop in the grey massing blockout", _cityBlockout);
+                EditorGUI.indentLevel--;
+            }
             _stepViewpoint = EditorGUILayout.ToggleLeft("Place a fly camera looking at the island", _stepViewpoint);
 
             EditorGUILayout.Space();
@@ -78,14 +88,17 @@ namespace SalaryMan.World.EditorTools
                 GUI.backgroundColor = new Color(0.62f, 0.82f, 0.62f);
                 if (GUILayout.Button("Build Konto", GUILayout.Height(40f)))
                 {
+                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
                     KontoWorldBuilder.BuildAll(_settings, SelectedSteps(), _rebuildProfiles, _regenerateArt);
                 }
                 GUI.backgroundColor = Color.white;
 
                 EditorGUILayout.Space();
-                if (GUILayout.Button("Regenerate terrain only (keeps art and lighting)"))
+                if (GUILayout.Button("Regenerate terrain and city only (keeps art and lighting)"))
                 {
-                    KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water | KontoBuildSteps.SpawnPoint, false, false);
+                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+                    KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water
+                        | KontoBuildSteps.City | KontoBuildSteps.SpawnPoint, false, false);
                 }
                 if (GUILayout.Button("Rebuild lighting and sky only"))
                 {
@@ -96,7 +109,9 @@ namespace SalaryMan.World.EditorTools
                     Undo.RecordObject(_settings, "New Konto seed");
                     _settings.seed = Random.Range(1, int.MaxValue);
                     EditorUtility.SetDirty(_settings);
-                    KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water | KontoBuildSteps.SpawnPoint, false, false);
+                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+                    KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water
+                        | KontoBuildSteps.City | KontoBuildSteps.SpawnPoint, false, false);
                 }
 
                 EditorGUILayout.Space();
@@ -114,6 +129,7 @@ namespace SalaryMan.World.EditorTools
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Quick actions", EditorStyles.boldLabel);
+            if (GUILayout.Button("Open the city window")) KontoCityWindow.Open();
             if (GUILayout.Button("Select the settings asset")) Selection.activeObject = _settings;
             if (GUILayout.Button("Reset the settings to the Konto defaults"))
             {
@@ -140,6 +156,17 @@ namespace SalaryMan.World.EditorTools
             EditorGUILayout.LabelField("Working raster", string.Format("{0} x {1}", _settings.WorkingWidth, _settings.WorkingHeight));
             EditorGUILayout.LabelField("Highest ground", string.Format("{0:0} m", _settings.maxHeight));
             EditorGUILayout.LabelField("Erosion droplets", string.Format("{0:n0}", _settings.erosionDroplets));
+
+            if (_settings.buildCities && _settings.cities != null)
+            {
+                for (int i = 0; i < _settings.cities.Count; i++)
+                {
+                    var city = _settings.cities[i];
+                    if (city == null) continue;
+                    EditorGUILayout.LabelField(city.name, string.Format("{0:0.0} x {1:0.0} km, {2} wards, {3:0.0} km² of ground",
+                        city.alongRadius * 2f / 1000f, city.inlandRadius * 2f / 1000f, city.wardCount, city.FootprintAreaKm2));
+                }
+            }
             EditorGUI.indentLevel--;
 
             if (metresPerSample > 4f)
@@ -157,6 +184,7 @@ namespace SalaryMan.World.EditorTools
             if (_stepTerrain) steps |= KontoBuildSteps.Terrain;
             if (_stepWater) steps |= KontoBuildSteps.Water;
             if (_stepEnvironment) steps |= KontoBuildSteps.Environment;
+            if (_stepCity) steps |= KontoBuildSteps.City;
             if (_stepViewpoint) steps |= KontoBuildSteps.SpawnPoint;
             return steps;
         }

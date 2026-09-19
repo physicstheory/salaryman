@@ -32,6 +32,7 @@ namespace SalaryMan.World
 
                         float c = h.Data[idx];
                         float total = 0f;
+                        float largest = 0f;
                         float d0 = 0f, d1 = 0f, d2 = 0f, d3 = 0f;
 
                         float n0 = c - h.Data[idx - 1];
@@ -39,14 +40,19 @@ namespace SalaryMan.World
                         float n2 = c - h.Data[idx - w];
                         float n3 = c - h.Data[idx + w];
 
-                        if (n0 > maxDelta) { d0 = n0 - maxDelta; total += d0; }
-                        if (n1 > maxDelta) { d1 = n1 - maxDelta; total += d1; }
-                        if (n2 > maxDelta) { d2 = n2 - maxDelta; total += d2; }
-                        if (n3 > maxDelta) { d3 = n3 - maxDelta; total += d3; }
+                        if (n0 > maxDelta) { d0 = n0 - maxDelta; total += d0; if (d0 > largest) largest = d0; }
+                        if (n1 > maxDelta) { d1 = n1 - maxDelta; total += d1; if (d1 > largest) largest = d1; }
+                        if (n2 > maxDelta) { d2 = n2 - maxDelta; total += d2; if (d2 > largest) largest = d2; }
+                        if (n3 > maxDelta) { d3 = n3 - maxDelta; total += d3; if (d3 > largest) largest = d3; }
                         if (total <= 0f) continue;
 
-                        // Move half the excess each iteration; repeated passes converge on the repose angle.
-                        float move = total * 0.5f;
+                        // Move half of the STEEPEST excess, not half of the sum of all four.
+                        // Summing them lets a spike surrounded by low ground shed four times its
+                        // own excess in one pass: it ends up below its neighbours, they dump it
+                        // back next pass, and the oscillation doubles every iteration until the
+                        // heightfield is meaningless. Half the largest excess can never overshoot
+                        // past the repose angle, so the pass converges instead of exploding.
+                        float move = largest * 0.5f;
                         float scale = move / total;
 
                         delta[idx] -= move;

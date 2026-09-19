@@ -15,6 +15,7 @@ namespace SalaryMan.World
         {
             rowAngle = 0f;
             if (cfg.plantationShare <= 0f) return false;
+            if (s.Urban > 0.25f) return false;
             if (s.Height > 720f || s.SlopeDegrees > 33f) return false;
             if (s.Terrace > 0.2f || s.River > 0.2f) return false;
 
@@ -34,6 +35,27 @@ namespace SalaryMan.World
         /// </summary>
         public static float CanopyDensity(KontoWorldSettings cfg, in SurfaceSample s)
         {
+            // The city first: nothing grows through tarmac, and a park is planted, not wild.
+            if (s.Urban > 0.1f)
+            {
+                switch (s.UrbanGround)
+                {
+                    case UrbanSurface.Asphalt:
+                    case UrbanSurface.Sidewalk:
+                    case UrbanSurface.Plaza:
+                    case UrbanSurface.Lot:
+                    case UrbanSurface.RailBed:
+                    case UrbanSurface.Water:
+                        return 0f;
+                    case UrbanSurface.Park:
+                        // Park trees: planted in loose stands, thinner than a forest.
+                        return 0.45f * s.Urban * (1f - KontoNoise.SmoothStep(20f, 34f, s.SlopeDegrees));
+                    case UrbanSurface.Fill:
+                        return 0f;
+                }
+                if (s.Urban > 0.75f) return 0.05f;
+            }
+
             if (s.Land < 0.985f) return 0f;
             if (s.Height < 2.2f) return 0f;
             if (s.River > 0.3f) return 0f;
@@ -59,8 +81,10 @@ namespace SalaryMan.World
 
             // A windbreak strip of pine right on the shore, then open sand.
             float shore = KontoNoise.SmoothStep(18f, 90f, s.CoastDistance);
+            // Thins out through the city fringe: allotments, gardens, scrub behind the estates.
+            float urban = 1f - Mathf.Clamp01(s.Urban * 1.15f);
 
-            return Mathf.Clamp01(alt * steep * open * farmland * shore);
+            return Mathf.Clamp01(alt * steep * open * farmland * shore * urban);
         }
 
         /// <summary>Picks a species for a point, given two independent 0..1 random values.</summary>
@@ -104,6 +128,22 @@ namespace SalaryMan.World
         {
             for (int i = 0; i < cover.Length; i++) cover[i] = 0f;
             if (s.Land < 0.98f || s.Height < 1.6f) return;
+
+            // Hard city surfaces carry nothing; parks and waste ground carry grass.
+            if (s.Urban > 0.1f)
+            {
+                switch (s.UrbanGround)
+                {
+                    case UrbanSurface.Asphalt:
+                    case UrbanSurface.Sidewalk:
+                    case UrbanSurface.Plaza:
+                    case UrbanSurface.Lot:
+                    case UrbanSurface.Fill:
+                    case UrbanSurface.RailBed:
+                    case UrbanSurface.Water:
+                        return;
+                }
+            }
             if (s.SlopeDegrees > 38f) return;
             if (s.Height > cfg.treeLine) return;
 

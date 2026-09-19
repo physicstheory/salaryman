@@ -17,7 +17,8 @@ namespace SalaryMan.World.EditorTools
         Water = 1 << 4,
         Environment = 1 << 5,
         SpawnPoint = 1 << 6,
-        All = ConfigureHdrp | GroundTextures | Foliage | Terrain | Water | Environment | SpawnPoint,
+        City = 1 << 7,
+        All = ConfigureHdrp | GroundTextures | Foliage | Terrain | Water | Environment | SpawnPoint | City,
     }
 
     /// <summary>Runs the whole world build from the editor and saves everything it generates as assets.</summary>
@@ -26,6 +27,9 @@ namespace SalaryMan.World.EditorTools
         public const string WorldRootName = "Konto World";
 
         public static KontoWorldData LastBuild { get; private set; }
+
+        /// <summary>Whether the city build also drops in the grey massing blockout.</summary>
+        public static bool BuildCityBlockout = true;
 
         public static KontoWorldSettings LoadOrCreateSettings()
         {
@@ -75,7 +79,7 @@ namespace SalaryMan.World.EditorTools
                 }
 
                 KontoWorldData data = null;
-                if ((steps & (KontoBuildSteps.Terrain | KontoBuildSteps.Water | KontoBuildSteps.SpawnPoint)) != 0)
+                if ((steps & (KontoBuildSteps.Terrain | KontoBuildSteps.Water | KontoBuildSteps.SpawnPoint | KontoBuildSteps.City)) != 0)
                 {
                     step = "generating the island";
                     data = KontoWorldGenerator.Generate(settings, (msg, t) =>
@@ -89,6 +93,13 @@ namespace SalaryMan.World.EditorTools
                     if (layers == null) layers = LoadExistingLayers();
                     if (foliage == null) foliage = AssetDatabase.LoadAssetAtPath<KontoFoliageLibrary>(KontoAssetPaths.Settings + "/KontoFoliageLibrary.asset");
                     BuildTerrain(data, layers, foliage);
+                }
+
+                if ((steps & KontoBuildSteps.City) != 0 && data != null)
+                {
+                    step = "putting the cities into the scene";
+                    EditorUtility.DisplayProgressBar("Building Konto", "Handing over the city plans", 0.86f);
+                    KontoCityFactory.Build(data, BuildCityBlockout);
                 }
 
                 if ((steps & KontoBuildSteps.Water) != 0 && data != null)
@@ -135,7 +146,8 @@ namespace SalaryMan.World.EditorTools
             if (guids == null || guids.Length == 0) return null;
 
             // Keep the canonical order; the splatmap weights are indexed by it.
-            string[] order = { "Sand", "RiverGravel", "PaddySoil", "Meadow", "ForestFloor", "Rock", "Scree", "Snow" };
+            // This order is the splatmap layer order, and KontoLayer indexes into it.
+            string[] order = { "Sand", "RiverGravel", "PaddySoil", "Meadow", "ForestFloor", "Rock", "Scree", "Snow", "Asphalt", "Concrete", "Paving" };
             var result = new List<TerrainLayer>();
             foreach (string name in order)
             {
@@ -190,30 +202,45 @@ namespace SalaryMan.World.EditorTools
         }
 
         /// <summary>
-        /// Drops a fly camera somewhere worth looking from: high on the main range, facing the
-        /// volcano if there is one, so the first thing you see after a build is the island.
+        /// Drops a fly camera somewhere worth looking from. If there is a city, that is out over
+        /// its bay looking back at the skyline with the mountains behind it, because that is the
+        /// shot the whole world is built for. Failing that, the main volcano.
         /// </summary>
         static void PlaceViewpoint(KontoWorldData data)
         {
             var settings = data.Settings;
             Vector2 lookAt;
-            if (settings.volcanoes != null && settings.volcanoes.Count > 0)
+            Vector2 camXZ;
+            float camHeight;
+
+            var city = data.PrimaryCity;
+            if (city != null && city.plots.Count > 0)
+            {
+                lookAt = city.coreCenter;
+                // Stand off seaward, which is the opposite way from the island's axis.
+                Vector2 seaward = -city.inlandAxis;
+                camXZ = lookAt + seaward * (city.inlandRadius + 1500f) + city.alongAxis * 400f;
+                camHeight = 340f;
+            }
+            else if (settings.volcanoes != null && settings.volcanoes.Count > 0)
             {
                 var v = settings.volcanoes[0];
                 lookAt = data.Land.Arc.AnchorToWorld(v.alongT, v.lateral);
+                camXZ = lookAt + new Vector2(1600f, -1500f);
+                camHeight = 420f;
             }
             else
             {
                 lookAt = new Vector2(settings.WorldSize.x * 0.5f, settings.WorldSize.y * 0.5f);
+                camXZ = lookAt + new Vector2(1600f, -1500f);
+                camHeight = 420f;
             }
 
-            // Stand off to the south east, out over the water, and look back at the island.
-            Vector2 camXZ = lookAt + new Vector2(1600f, -1500f);
             camXZ.x = Mathf.Clamp(camXZ.x, 100f, settings.WorldSize.x - 100f);
             camXZ.y = Mathf.Clamp(camXZ.y, 100f, settings.WorldSize.y - 100f);
             float ground = data.SampleHeight(camXZ.x, camXZ.y);
-            Vector3 camPos = new Vector3(camXZ.x, Mathf.Max(ground + 60f, 420f), camXZ.y);
-            Vector3 target = new Vector3(lookAt.x, data.SampleHeight(lookAt.x, lookAt.y) + 200f, lookAt.y);
+            Vector3 camPos = new Vector3(camXZ.x, Mathf.Max(ground + 60f, camHeight), camXZ.y);
+            Vector3 target = new Vector3(lookAt.x, data.SampleHeight(lookAt.x, lookAt.y) + 120f, lookAt.y);
 
             var stale = GameObject.Find("Konto Viewpoint");
             if (stale != null) UnityEngine.Object.DestroyImmediate(stale);
@@ -232,7 +259,7 @@ namespace SalaryMan.World.EditorTools
             // Frame it in the scene view too, so the result is visible immediately.
             if (SceneView.lastActiveSceneView != null)
             {
-                SceneView.lastActiveSceneView.LookAt(target, Quaternion.LookRotation((target - camPos).normalized, Vector3.up), 2200f);
+                SceneView.lastActiveSceneView.LookAt(target, Quaternion.LookRotation((target - camPos).normalized, Vector3.up), 2600f);
             }
         }
 
@@ -245,6 +272,7 @@ namespace SalaryMan.World.EditorTools
         public static void ClearEverything(bool deleteAssets)
         {
             ClearWorldRoot();
+            KontoCityFactory.Clear();
             var water = GameObject.Find(KontoWaterFactory.RootName);
             if (water != null) UnityEngine.Object.DestroyImmediate(water);
             var env = GameObject.Find(KontoEnvironmentFactory.RootName);

@@ -36,6 +36,26 @@ namespace SalaryMan.World
     {
         const float ShoreBlend = 90f;   // metres over which the shoreline mask fades
 
+        struct BayEntry
+        {
+            public CityFrame Frame;
+            public BaySpec Bay;
+        }
+
+        /// <summary>Every city bay that needs cutting out of the coastline.</summary>
+        static BayEntry[] CollectBays(KontoWorldSettings s, IslandArc arc)
+        {
+            if (!s.buildCities || s.cities == null) return new BayEntry[0];
+            var list = new System.Collections.Generic.List<BayEntry>();
+            for (int i = 0; i < s.cities.Count; i++)
+            {
+                var site = s.cities[i];
+                if (site == null || site.bay == null || !site.bay.carve) continue;
+                list.Add(new BayEntry { Frame = CityFrame.Build(arc, site), Bay = site.bay });
+            }
+            return list.ToArray();
+        }
+
         public static LandmassContext BuildContext(KontoWorldSettings s, int width, int height)
         {
             var ctx = new LandmassContext
@@ -54,6 +74,8 @@ namespace SalaryMan.World
 
             var arc = ctx.Arc;
             int seed = s.seed;
+            var bays = CollectBays(s, arc);
+            float arcLength = arc.TotalLength;
 
             Parallel.For(0, height, y =>
             {
@@ -67,6 +89,14 @@ namespace SalaryMan.World
 
                     float effectiveHalfWidth = EffectiveHalfWidth(s, arc, t, lateral, w, seed);
                     float inland = effectiveHalfWidth - Mathf.Abs(lateral);
+
+                    // City bays are cut here, before anything else happens, so the shelf, the
+                    // beaches, the erosion and the rivers all treat a bay as ordinary coast.
+                    for (int b = 0; b < bays.Length; b++)
+                    {
+                        Vector2 local = bays[b].Frame.ArcLocal(t, lateral, arcLength);
+                        inland = CityBay.ApplyToCoastDistance(bays[b].Bay, inland, local, w, seed);
+                    }
 
                     // Offshore islets: shards of the drowned ridge that never quite sank.
                     if (inland < 0f && inland > -420f && s.isletDensity > 0f)
@@ -177,6 +207,7 @@ namespace SalaryMan.World
             ApplyBasins(ctx, h);
             ApplyCoastalPlains(ctx, h);
             ApplyVolcanoes(ctx, h);
+            ApplySettlementTerraces(ctx, h);
             return h;
         }
 
@@ -265,6 +296,10 @@ namespace SalaryMan.World
 
                         float floor = b.floorHeight + KontoNoise.Fbm(wp.x / 300f, wp.y / 300f, s.seed + 1451, 3) * 4.5f;
                         float flattened = KontoNoise.SmoothMin(h[x, y], floor, 55f);
+                        // Where the ground already sits at the floor height the smooth minimum
+                        // digs a sump tens of metres deep, and the drainage pass then fills the
+                        // whole basin with a lake. Hold it to the floor it was asked for.
+                        flattened = Mathf.Max(flattened, Mathf.Min(h[x, y], floor - 1.5f));
                         h[x, y] = Mathf.Lerp(h[x, y], flattened, wgt);
                     }
                 });
@@ -279,12 +314,18 @@ namespace SalaryMan.World
         {
             var s = ctx.Settings;
             if (s.plains == null) return;
+            float arcLength = ctx.Arc.TotalLength;
 
             foreach (var p in s.plains)
             {
-                if (p == null || p.radius <= 1f) continue;
+                if (p == null) continue;
+                float alongExtent = Mathf.Max(60f, p.AlongExtent);
+                float lateralExtent = Mathf.Max(60f, p.LateralExtent);
+
                 Vector2 center = ctx.Arc.AnchorToWorld(p.alongT, p.lateral);
-                float outer = p.radius + p.terraceBlend;
+                float anchorLateral = p.lateral * ctx.Arc.HalfWidthAt(p.alongT);
+                float blendFrac = p.terraceBlend / Mathf.Sqrt(alongExtent * lateralExtent);
+                float outer = Mathf.Max(alongExtent, lateralExtent) + p.terraceBlend;
                 RectInt rect = WorldRect(ctx, center, outer);
 
                 Parallel.For(rect.yMin, rect.yMax, y =>
@@ -293,17 +334,117 @@ namespace SalaryMan.World
                     {
                         if (ctx.LandMask[x, y] <= 0.001f) continue;
                         Vector2 wp = ctx.CellToWorld(x, y);
-                        float d = Vector2.Distance(wp, center);
-                        d *= 1f + KontoNoise.Fbm(wp.x / 520f, wp.y / 520f, s.seed + 2203, 3) * 0.2f;
-                        float wgt = 1f - KontoNoise.SmoothStep(p.radius * 0.72f, outer, d);
+
+                        // Measured in the island's own frame, so the plain runs along the coast
+                        // instead of biting a circle out of the mountains behind it.
+                        float du = (ctx.ArcT[x, y] - p.alongT) * arcLength / alongExtent;
+                        float dv = (ctx.ArcLateral[x, y] - anchorLateral) / lateralExtent;
+                        float d = Mathf.Sqrt(du * du + dv * dv);
+                        d *= 1f + KontoNoise.Fbm(wp.x / 520f, wp.y / 520f, s.seed + 2203, 3) * 0.18f;
+
+                        float wgt = 1f - KontoNoise.SmoothStep(0.74f, 1f + blendFrac, d);
                         if (wgt <= 0.001f) continue;
 
                         float inland = Mathf.Max(0f, ctx.CoastDistance[x, y]);
-                        float target = Mathf.Min(p.maxHeight, 0.8f + inland * p.gradient);
+                        // Starting the plain at 1.6 m rather than 0.8 m keeps the first couple of
+                        // hundred metres inland above the tide instead of half under it, which is
+                        // what the city's waterfront wards have to stand on.
+                        float target = Mathf.Min(p.maxHeight, 1.6f + inland * p.gradient);
                         target += KontoNoise.Fbm(wp.x / 260f, wp.y / 260f, s.seed + 2311, 3) * 1.6f;
 
                         float flattened = KontoNoise.SmoothMin(h[x, y], target, 28f);
+                        // Same trap as the basins, and on a plain this flat it is the difference
+                        // between a coastal plain and a drowned one: the smooth minimum can push
+                        // the whole shoreline several metres under water.
+                        float lowest = Mathf.Lerp(-1.5f, 0.7f, ctx.LandMask[x, y]);
+                        flattened = Mathf.Max(flattened, Mathf.Min(h[x, y], lowest));
                         h[x, y] = Mathf.Lerp(h[x, y], flattened, wgt);
+                    }
+                });
+            }
+        }
+
+        /// <summary>
+        /// Cuts a buildable terrace under every settlement, before any erosion runs.
+        ///
+        /// This is the one place where the city is allowed to change the landscape rather than
+        /// the other way round, and it has to be: a town needs somewhere flat and dry to stand,
+        /// and leaving that to chance means the capital comes out as forty blocks scattered over
+        /// a hillside. Every real settlement in Japan stands on ground like this - an alluvial
+        /// terrace, a fan, a reclaimed delta - and the terrace is tilted downhill so the water
+        /// still runs off it instead of ponding into a lake.
+        /// </summary>
+        static void ApplySettlementTerraces(LandmassContext ctx, Field2D h)
+        {
+            var s = ctx.Settings;
+            if (!s.buildCities || s.cities == null) return;
+
+            foreach (var site in s.cities)
+            {
+                if (site == null) continue;
+                var frame = CityFrame.Build(ctx.Arc, site);
+                float alongR = Mathf.Max(80f, site.alongRadius);
+                float inlandR = Mathf.Max(80f, site.inlandRadius);
+                Vector2 centre = frame.ToWorld(site.coreOffset);
+
+                // The floor is taken from the lower third of the ground inside the outline: a
+                // terrace sits at the valley floor, not at the average of the valley walls.
+                var samples = new System.Collections.Generic.List<float>();
+                for (int i = 0; i < 26; i++)
+                for (int k = 0; k < 26; k++)
+                {
+                    float u = (i / 25f - 0.5f) * 2f;
+                    float v = (k / 25f - 0.5f) * 2f;
+                    if (u * u + v * v > 1f) continue;
+                    Vector2 p = frame.ToWorld(site.coreOffset + new Vector2(u * alongR, v * inlandR));
+                    if (p.x < 0f || p.y < 0f || p.x > ctx.WorldSize.x || p.y > ctx.WorldSize.y) continue;
+                    float e = SampleWorld(ctx, h, p);
+                    if (e < 0.3f) continue;              // the sea is not part of the terrace
+                    samples.Add(e);
+                }
+                if (samples.Count < 16) continue;
+                samples.Sort();
+                float floor = Mathf.Max(2.2f, samples[Mathf.Clamp(Mathf.RoundToInt(samples.Count * 0.30f), 0, samples.Count - 1)]);
+
+                // Which way the water runs off, measured at the scale of the whole settlement.
+                float step = Mathf.Max(alongR, inlandR) * 0.8f;
+                float gx = SampleWorld(ctx, h, centre + new Vector2(step, 0f)) - SampleWorld(ctx, h, centre - new Vector2(step, 0f));
+                float gy = SampleWorld(ctx, h, centre + new Vector2(0f, step)) - SampleWorld(ctx, h, centre - new Vector2(0f, step));
+                Vector2 drain = new Vector2(-gx, -gy);
+                drain = drain.sqrMagnitude < 1e-4f ? -frame.Inland : drain.normalized;
+                const float grade = 0.008f;            // about 1:125, a real alluvial gradient
+
+                float outer = Mathf.Max(alongR, inlandR) + 500f;
+                RectInt rect = WorldRect(ctx, centre, outer);
+
+                Parallel.For(rect.yMin, rect.yMax, y =>
+                {
+                    for (int x = rect.xMin; x < rect.xMax; x++)
+                    {
+                        if (ctx.LandMask[x, y] <= 0.05f) continue;     // never fill in the sea
+                        Vector2 wp = ctx.CellToWorld(x, y);
+                        Vector2 local = frame.ToLocal(wp) - site.coreOffset;
+
+                        float du = local.x / alongR;
+                        float dv = local.y / inlandR;
+                        float d = Mathf.Sqrt(du * du + dv * dv);
+                        d *= 1f + KontoNoise.Fbm(wp.x / 460f, wp.y / 460f, s.seed + 2707, 3) * 0.12f;
+
+                        float wgt = 1f - KontoNoise.SmoothStep(0.80f, 1.12f, d);
+                        if (wgt <= 0.001f) continue;
+
+                        float target = floor + Vector2.Dot(wp - centre, drain) * grade;
+                        target = Mathf.Max(target, 1.4f);
+                        target += KontoNoise.Fbm(wp.x / 210f, wp.y / 210f, s.seed + 2711, 3) * 1.1f;
+
+                        float current = h[x, y];
+                        float flattened = KontoNoise.SmoothMin(current, target, 34f);
+                        flattened = Mathf.Max(flattened, Mathf.Min(current, target - 2.5f));
+                        // Hollows shallower than a house get filled in, the way a terrace is made.
+                        if (flattened < target - 0.5f && flattened > target - 9f)
+                            flattened = Mathf.Lerp(flattened, target, 0.75f);
+
+                        h[x, y] = Mathf.Lerp(current, flattened, wgt);
                     }
                 });
             }
@@ -349,7 +490,13 @@ namespace SalaryMan.World
                                      * KontoNoise.SmoothStep(0.06f, 0.55f, rn) * (1f - KontoNoise.SmoothStep(0.85f, 1.05f, rn));
                         cone -= rill;
 
-                        float target = baseElev + cone;
+                        // The cone has to grow out of the ground at THIS point, not out of the
+                        // ground at its summit. Taking the summit's elevation across the whole
+                        // edifice turns everything inside the base radius into a plateau, which
+                        // on a coastal plain means a two kilometre wide table where a city was
+                        // supposed to go.
+                        float pedestal = Mathf.Lerp(h[x, y], baseElev, 1f - rn);
+                        float target = pedestal + cone;
 
                         if (v.craterRadius > 1f && r < v.craterRadius * 1.6f)
                         {
@@ -366,7 +513,12 @@ namespace SalaryMan.World
                             }
                         }
 
-                        h[x, y] = KontoNoise.SmoothMax(h[x, y], target, 70f);
+                        // Smoothing is needed where the cone is thick and would otherwise crease
+                        // into the hills, but at the rim it has to be off: a smooth maximum of two
+                        // equal values sits above both of them, and that would ring the volcano
+                        // with a raised lip tens of metres high.
+                        float blend = 70f * (1f - rn) * (1f - rn);
+                        h[x, y] = KontoNoise.SmoothMax(h[x, y], target, blend);
                     }
                 });
             }

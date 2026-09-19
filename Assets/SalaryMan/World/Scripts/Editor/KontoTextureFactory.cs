@@ -30,6 +30,7 @@ namespace SalaryMan.World.EditorTools
             public float aoStrength;
             public float speckle;           // pebbles and stones, via cellular noise
             public float strata;            // horizontal banding, for rock
+            public float slabs;             // paving slab joints
         }
 
         static LayerSpec[] BuildSpecs()
@@ -44,6 +45,11 @@ namespace SalaryMan.World.EditorTools
                 new LayerSpec { name = "Rock",        baseColor = new Color(0.34f, 0.33f, 0.32f), variantColor = new Color(0.23f, 0.22f, 0.22f), tileSize = 7.0f,  grain = 0.35f, featureScale = 1.6f, bumpHeight = 1.60f, smoothMin = 0.14f, smoothMax = 0.42f, aoStrength = 0.75f, speckle = 0.25f, strata = 0.55f },
                 new LayerSpec { name = "Scree",       baseColor = new Color(0.45f, 0.43f, 0.42f), variantColor = new Color(0.31f, 0.30f, 0.30f), tileSize = 4.0f,  grain = 0.45f, featureScale = 2.4f, bumpHeight = 1.20f, smoothMin = 0.10f, smoothMax = 0.34f, aoStrength = 0.65f, speckle = 0.95f, strata = 0f },
                 new LayerSpec { name = "Snow",        baseColor = new Color(0.86f, 0.89f, 0.94f), variantColor = new Color(0.74f, 0.80f, 0.90f), tileSize = 6.0f,  grain = 0.18f, featureScale = 1.8f, bumpHeight = 0.40f, smoothMin = 0.18f, smoothMax = 0.55f, aoStrength = 0.20f, speckle = 0.06f, strata = 0f },
+                // The city surfaces. Japanese asphalt is dark and very smooth, the concrete is
+                // pale and patched, and the footways are laid in slabs.
+                new LayerSpec { name = "Asphalt",     baseColor = new Color(0.115f, 0.115f, 0.120f), variantColor = new Color(0.165f, 0.165f, 0.170f), tileSize = 8.0f, grain = 0.22f, featureScale = 2.0f, bumpHeight = 0.22f, smoothMin = 0.18f, smoothMax = 0.52f, aoStrength = 0.18f, speckle = 0.30f, strata = 0f },
+                new LayerSpec { name = "Concrete",    baseColor = new Color(0.475f, 0.470f, 0.455f), variantColor = new Color(0.395f, 0.390f, 0.380f), tileSize = 6.0f, grain = 0.18f, featureScale = 2.4f, bumpHeight = 0.20f, smoothMin = 0.12f, smoothMax = 0.38f, aoStrength = 0.25f, speckle = 0.10f, strata = 0f },
+                new LayerSpec { name = "Paving",      baseColor = new Color(0.555f, 0.545f, 0.525f), variantColor = new Color(0.455f, 0.450f, 0.440f), tileSize = 3.0f, grain = 0.16f, featureScale = 1.6f, bumpHeight = 0.55f, smoothMin = 0.14f, smoothMax = 0.42f, aoStrength = 0.45f, speckle = 0.05f, strata = 0f, slabs = 0.55f },
             };
         }
 
@@ -57,7 +63,7 @@ namespace SalaryMan.World.EditorTools
             // the importer is paused, so AssetImporter.GetAtPath returns null and the texture
             // import settings never get applied, and newly created assets can come back null
             // from LoadAssetAtPath afterwards. Null terrain layers then blow up inside
-            // TerrainData. The batching is not worth it for eight layers.
+            // TerrainData. The batching is not worth it for a handful of layers.
             try
             {
                 for (int i = 0; i < specs.Length; i++)
@@ -163,6 +169,15 @@ namespace SalaryMan.World.EditorTools
                     // a rock texture read as rock rather than as generic noise.
                     float band = Mathf.Sin((v / NoisePeriod * 6f + patches * 0.35f) * Mathf.PI * 2f);
                     h += band * spec.strata * 0.35f;
+                }
+
+                if (spec.slabs > 0.02f)
+                {
+                    // Paving slab joints: a grid of grooves, in the texture's own tiling space.
+                    float gx = Mathf.Abs(Mathf.Sin(u / NoisePeriod * 8f * Mathf.PI));
+                    float gy = Mathf.Abs(Mathf.Sin(v / NoisePeriod * 8f * Mathf.PI));
+                    float joint = Mathf.Min(gx, gy);
+                    h -= (1f - KontoNoise.SmoothStep(0f, 0.18f, joint)) * spec.slabs;
                 }
 
                 if (spec.speckle > 0.02f)

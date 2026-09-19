@@ -52,8 +52,11 @@ namespace SalaryMan.World
             Step(progress, "Measuring slopes", 0.90f);
             var slope = BuildSlopeField(height, ctx.CellSize);
 
-            Step(progress, "Cutting rice terraces", 0.94f);
+            Step(progress, "Cutting rice terraces", 0.92f);
             var terraceMask = BuildTerraceMask(height, slope, ctx, water, settings);
+
+            Step(progress, "Building the cities", 0.94f);
+            var urban = BuildCities(settings, ctx, water, height, slope, progress);
 
             var data = new KontoWorldData
             {
@@ -63,13 +66,47 @@ namespace SalaryMan.World
                 Height = height,
                 Slope = slope,
                 TerraceMask = terraceMask,
+                Urban = urban,
                 HighestPoint = highest,
             };
 
             Step(progress, "World generated", 1f);
-            Debug.Log(string.Format("[Konto] Generated {0} x {1} m island at {2} x {3} working resolution in {4:0.0} s. Highest point {5:0} m, {6} lakes.",
-                settings.WorldSize.x, settings.WorldSize.y, w, h, sw.Elapsed.TotalSeconds, highest, water.Lakes.Count));
+            Debug.Log(string.Format("[Konto] Generated {0} x {1} m island at {2} x {3} working resolution in {4:0.0} s. Highest point {5:0} m, {6} lakes, {7} cities.",
+                settings.WorldSize.x, settings.WorldSize.y, w, h, sw.Elapsed.TotalSeconds, highest, water.Lakes.Count, urban.Cities.Count));
             return data;
+        }
+
+        /// <summary>
+        /// Plans and grades every city on the island. This runs last, on the finished landscape,
+        /// because that is the order it happens in: the rivers cut the plain, and then people
+        /// build on what the rivers left them.
+        /// </summary>
+        static UrbanLayer BuildCities(KontoWorldSettings settings, LandmassContext ctx, HydrologyResult water,
+            Field2D height, Field2D slope, Action<string, float> progress)
+        {
+            var urban = new UrbanLayer();
+            if (!settings.buildCities || settings.cities == null || settings.cities.Count == 0) return urban;
+
+            var terrain = new CityTerrain(settings, ctx, water, height, slope);
+            int count = settings.cities.Count;
+
+            for (int i = 0; i < count; i++)
+            {
+                var site = settings.cities[i];
+                if (site == null) continue;
+
+                float span = 0.055f / count;
+                float start = 0.94f + span * i * 0.5f;
+                var layout = CityPlanner.Plan(settings, terrain, site,
+                    (msg, t) => Step(progress, site.name + ": " + msg, start + t * span * 0.5f));
+                var built = CityGrading.Build(settings, terrain, site, layout,
+                    (msg, t) => Step(progress, site.name + ": " + msg, start + span * 0.5f + t * span * 0.5f));
+
+                if (built == null) continue;
+                urban.Cities.Add(built);
+                Debug.Log("[Konto] " + layout.Summary());
+            }
+            return urban;
         }
 
         static void Step(Action<string, float> progress, string message, float t)
@@ -117,6 +154,7 @@ namespace SalaryMan.World
 
             float maxSlope = Mathf.Tan(s.terraceMaxSlope * Mathf.Deg2Rad);
             float minSlope = Mathf.Tan(3.0f * Mathf.Deg2Rad);
+            float terraceFlowCells = s.CatchmentCells(s.terraceMinCatchmentKm2);
 
             Parallel.For(0, h.Height, y =>
             {
@@ -131,7 +169,7 @@ namespace SalaryMan.World
                     float sl = slope.Data[idx];
                     if (sl < minSlope || sl > maxSlope) continue;
 
-                    if (water.FlowRaw.Data[idx] < s.terraceMinFlow) continue;
+                    if (water.FlowRaw.Data[idx] < terraceFlowCells) continue;
                     if (water.RiverMask.Data[idx] > 0.4f) continue;
 
                     Vector2 wp = ctx.CellToWorld(x, y);

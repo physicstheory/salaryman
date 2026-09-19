@@ -85,15 +85,20 @@ If you would rather do it by hand: select your HDRP Asset, and in **Rendering** 
    `Assets/SalaryMan/World/Settings/KontoWorldSettings.asset` with the Honshu-derived layout.
 3. Leave every step ticked and press **Build Konto**.
 
-Expected time on a modern desktop, at default settings (8192 × 6144 m, 12 tiles, 900k droplets):
+Expected time on a modern desktop, at default settings (12288 × 10240 m, 30 tiles, 1.1M droplets):
 
 | Step | Time |
 |---|---|
-| Ground textures | ~20 s (first build only) |
+| Ground textures | ~25 s (first build only) |
 | Stand-in vegetation | ~10 s (first build only) |
-| Landform, erosion, hydrology | 2 – 5 min |
-| Terrain tiles, splatmaps, grass, trees | 2 – 6 min |
+| Landform, erosion, hydrology | 3 – 8 min |
+| Cities: planning and grading | 30 s – 2 min |
+| Terrain tiles, splatmaps, grass, trees | 5 – 15 min |
 | Water, sky, lighting | ~10 s |
+
+It is a big island. If that is too long while you are iterating on the look, drop
+`workingResolution` to 1280 and `erosionDroplets` to 300k: the geography stays the same, the
+valleys are just coarser.
 
 Unity will look frozen during erosion. It is not; the progress bar updates between batches.
 
@@ -195,7 +200,8 @@ Default settings target a mid-range desktop at 1080p. If it runs badly:
 | GPU-bound, heavy foliage | `treeSpacing` 9.5 → 14, `grassDensity` 1 → 0.6 |
 | GPU-bound, everything | Turn off Screen Space GI in the HDRP asset first; it is the single most expensive thing enabled |
 | CPU-bound in editor only | Terrain tiles are heavy to inspect. Collapse `Konto World` in the hierarchy |
-| Slow world build | `erosionDroplets` 900k → 350k, `workingResolution` 2048 → 1024 |
+| Slow world build | `erosionDroplets` 1.1M → 350k, `workingResolution` 2560 → 1280 |
+| Slow city build | `urbanCellSize` 2 → 3 (a street is 8 m wide, so do not go past 3) |
 | Out of memory during build | Lower `workingResolution`, or build fewer tiles |
 
 Volumetric clouds and volumetric fog are the next two most expensive features. Both are worth
@@ -218,7 +224,7 @@ world and the geography stays coherent.
   Quadruples terrain memory.
 - **More dramatic mountains:** raise the Konto Alps `peakHeight` and `ridgeSharpness`, and
   `maxHeight` to match.
-- **More rice terraces:** raise `terraceMaxAltitude` and `terraceStrength`, lower `terraceMinFlow`.
+- **More rice terraces:** raise `terraceMaxAltitude` and `terraceStrength`, lower `terraceMinCatchmentKm2`.
 - **Flatter, more buildable plains:** raise each plain's `radius`, lower its `gradient`.
 
 After editing, use **Regenerate terrain only** — it keeps your textures, lighting and any hand

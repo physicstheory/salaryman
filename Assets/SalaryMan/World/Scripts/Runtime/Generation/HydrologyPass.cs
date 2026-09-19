@@ -269,6 +269,7 @@ namespace SalaryMan.World
         {
             int w = h.Width, hh = h.Height;
             float cell = ctx.CellSize;
+            float riverCells = s.CatchmentCells(s.riverCatchmentKm2);
             var carve = new Field2D(w, hh);
 
             for (int y = 1; y < hh - 1; y++)
@@ -277,11 +278,11 @@ namespace SalaryMan.World
                 int idx = y * w + x;
                 if (ctx.LandMask.Data[idx] < 0.25f) continue;
                 float a = accum.Data[idx];
-                if (a < s.riverThreshold) continue;
+                if (a < riverCells) continue;
 
                 // Discharge grows roughly with the square root of catchment area, and channel
                 // width and depth grow with discharge. Log keeps the big rivers in scale.
-                float strength = Mathf.Log(a / s.riverThreshold + 1f) / Mathf.Log(120f);
+                float strength = Mathf.Log(a / riverCells + 1f) / Mathf.Log(120f);
                 strength = Mathf.Clamp01(strength);
 
                 float depth = s.riverMaxCarve * Mathf.Pow(strength, 0.85f);
@@ -323,6 +324,7 @@ namespace SalaryMan.World
             if (s.alluvialFanStrength <= 0f) return;
             int w = h.Width, hh = h.Height;
             float cell = ctx.CellSize;
+            float riverCells = s.CatchmentCells(s.riverCatchmentKm2);
 
             var smooth = h.Clone();
             smooth.Blur(Mathf.Max(1, Mathf.RoundToInt(70f / cell)), 2);
@@ -334,11 +336,11 @@ namespace SalaryMan.World
                     int idx = y * w + x;
                     if (ctx.LandMask.Data[idx] < 0.25f) continue;
                     float a = accum.Data[idx];
-                    if (a < s.riverThreshold * 0.35f) continue;
+                    if (a < riverCells * 0.35f) continue;
 
                     float slope = h.SlopeAt(x, y, cell);
                     // Only flat-ish ground next to a decent river becomes flood plain.
-                    float wgt = Mathf.Clamp01(Mathf.Log(a / (s.riverThreshold * 0.35f) + 1f) / Mathf.Log(40f))
+                    float wgt = Mathf.Clamp01(Mathf.Log(a / (riverCells * 0.35f) + 1f) / Mathf.Log(40f))
                               * (1f - KontoNoise.SmoothStep(0.07f, 0.22f, slope))
                               * s.alluvialFanStrength;
                     if (wgt <= 0.001f) continue;
@@ -430,7 +432,7 @@ namespace SalaryMan.World
         {
             int w = h.Width, hh = h.Height;
             float cell = ctx.CellSize;
-            float startFlow = s.riverThreshold * 5f;
+            float startFlow = s.CatchmentCells(s.riverCatchmentKm2) * 5f;
             int sampleEvery = Mathf.Max(1, Mathf.RoundToInt(22f / cell));
 
             var onPath = new bool[w * hh];
@@ -482,7 +484,7 @@ namespace SalaryMan.World
                         sinceSample = 0;
                         Vector2 wp = ctx.CellToWorld(x, y);
                         float bed = h.Data[idx];
-                        float strength = Mathf.Clamp01(Mathf.Log(accum.Data[idx] / s.riverThreshold + 1f) / Mathf.Log(120f));
+                        float strength = Mathf.Clamp01(Mathf.Log(accum.Data[idx] / s.CatchmentCells(s.riverCatchmentKm2) + 1f) / Mathf.Log(120f));
                         float halfWidth = Mathf.Max(cell * 0.9f, s.riverMaxWidth * Mathf.Pow(strength, 0.7f) * 0.62f);
                         // Sit the surface a little above the bed; the carve profile is flat bottomed.
                         float surface = bed + Mathf.Lerp(0.35f, 1.6f, strength);
