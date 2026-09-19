@@ -1,0 +1,2520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Konto Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=M+PLUS+1+Code:wght@400;500&display=swap">
+<style>
+  :root {
+    --ink: #15171d;
+    --paper: #f1eee7;
+    --slab: rgba(244, 241, 234, 0.88);
+    --slab-solid: #f6f4ee;
+    --line: #c9c3b4;
+    --muted: #6d7164;
+    --accent: #c0362b;
+    --indigo: #274a6d;
+    --shadow: 0 10px 30px rgba(20, 18, 12, 0.18);
+    --ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+    --data: "M PLUS 1 Code", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #ece9de;
+      --paper: #0c0e12;
+      --slab: rgba(14, 16, 21, 0.86);
+      --slab-solid: #12151b;
+      --line: #2d323c;
+      --muted: #8d9284;
+      --accent: #e0584a;
+      --indigo: #7ea6cd;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #ece9de;
+    --paper: #0c0e12;
+    --slab: rgba(14, 16, 21, 0.86);
+    --slab-solid: #12151b;
+    --line: #2d323c;
+    --muted: #8d9284;
+    --accent: #e0584a;
+    --indigo: #7ea6cd;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--ui);
+    overflow: hidden;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+
+  .slab {
+    position: fixed;
+    background: var(--slab);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(10px);
+    border-radius: 2px;
+  }
+
+  /* ---- title block ---- */
+  #masthead {
+    top: env(safe-area-inset-top, 0px);
+    left: 0;
+    margin: 12px 0 0 12px;
+    padding: 10px 14px 11px;
+    max-width: min(46ch, calc(100vw - 24px));
+  }
+  #masthead .kicker {
+    font-family: var(--data);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 3px;
+  }
+  #masthead h1 {
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    margin: 0;
+    line-height: 1.15;
+  }
+  #masthead p {
+    margin: 5px 0 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  /* ---- readout ---- */
+  #readout {
+    top: env(safe-area-inset-top, 0px);
+    right: 0;
+    margin: 12px 12px 0 0;
+    padding: 11px 13px 12px;
+    width: 226px;
+    max-width: calc(100vw - 24px);
+  }
+  .panel-title {
+    font-family: var(--data);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 8px;
+  }
+  .rows { display: grid; gap: 3px; }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .row span:first-child { color: var(--muted); }
+  .row span:last-child {
+    font-family: var(--data);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+  .rule { height: 1px; background: var(--line); margin: 9px 0 8px; border: 0; }
+
+  .sites { display: grid; gap: 2px; }
+  .site {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    border-left: 2px solid transparent;
+    padding: 3px 2px 3px 6px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .site:hover, .site:focus-visible { border-left-color: var(--accent); background: rgba(192, 54, 43, 0.08); }
+  .site code {
+    font-family: var(--data);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* ---- controls ---- */
+  #controls {
+    bottom: env(safe-area-inset-bottom, 0px);
+    left: 0;
+    margin: 0 0 12px 12px;
+    padding: 10px 13px 11px;
+    max-width: calc(100vw - 24px);
+  }
+  .keys { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--muted); }
+  kbd {
+    font-family: var(--data);
+    font-size: 10px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 3px;
+    padding: 1px 4px;
+    color: var(--ink);
+  }
+  .seedbar { display: flex; gap: 6px; margin-top: 9px; align-items: center; }
+  .seedbar label { font-size: 11px; color: var(--muted); }
+  input[type="number"] {
+    font-family: var(--data);
+    font-size: 12px;
+    width: 8.5ch;
+    padding: 4px 5px;
+    color: var(--ink);
+    background: var(--slab-solid);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+  }
+  button.act {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 5px 11px;
+    color: var(--slab-solid);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  button.act:hover { background: var(--accent); border-color: var(--accent); }
+  button.act:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---- legend ---- */
+  #legend {
+    bottom: env(safe-area-inset-bottom, 0px);
+    right: 0;
+    margin: 0 12px 12px 0;
+    padding: 10px 13px 11px;
+    max-width: calc(100vw - 24px);
+  }
+  .swatches { display: grid; grid-template-columns: repeat(2, auto); gap: 3px 14px; }
+  .sw { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .sw i { width: 11px; height: 11px; border: 1px solid rgba(0, 0, 0, 0.25); display: inline-block; }
+
+  /* ---- loading ---- */
+  #boot {
+    position: fixed;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    background: var(--paper);
+    z-index: 20;
+  }
+  #boot .inner { text-align: center; padding: 0 16px; }
+  #boot .mark {
+    font-family: var(--data);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  #boot h2 { font-size: 22px; margin: 8px 0 14px; font-weight: 700; }
+  #bootbar { width: min(280px, 70vw); height: 2px; background: var(--line); margin: 0 auto; }
+  #bootbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s linear; }
+  #bootstage {
+    font-family: var(--data);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 10px;
+    min-height: 1.4em;
+  }
+
+  @media (max-width: 760px) {
+    #readout { display: none; }
+    #legend { display: none; }
+    #masthead p { display: none; }
+    #controls { margin-left: 8px; margin-bottom: 8px; }
+  }
+</style>
+
+</head>
+<body>
+<div id="stage"></div>
+
+<div id="masthead" class="slab">
+  <p class="kicker">Salary Man &middot; world generator</p>
+  <h1>Konto <span style="font-weight:400;color:var(--muted)">&mdash;</span> Tōkonto</h1>
+  <p>The whole island and its capital, generated from one seed in your browser. Plots, streets and
+  railways are reserved space; the grey boxes are massing, not buildings.</p>
+</div>
+
+<div id="readout" class="slab">
+  <p class="panel-title">This island</p>
+  <div class="rows" id="statrows"></div>
+  <hr class="rule">
+  <p class="panel-title">Reserved sites</p>
+  <div class="sites" id="sitelist"></div>
+</div>
+
+<div id="controls" class="slab">
+  <div class="keys">
+    <span><kbd>drag</kbd> look</span>
+    <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</span>
+    <span><kbd>Q</kbd><kbd>E</kbd> down / up</span>
+    <span><kbd>shift</kbd> faster</span>
+  </div>
+  <div class="seedbar">
+    <label for="seed">Seed</label>
+    <input id="seed" type="number" value="19640101" step="1">
+    <button class="act" id="regen" type="button">Generate</button>
+  </div>
+</div>
+
+<div id="legend" class="slab">
+  <p class="panel-title">Ground</p>
+  <div class="swatches">
+    <span class="sw"><i style="background:#1d3f4e"></i>sea</span>
+    <span class="sw"><i style="background:#2f2f33"></i>road</span>
+    <span class="sw"><i style="background:#b3ab96"></i>sand</span>
+    <span class="sw"><i style="background:#7d7a70"></i>plot</span>
+    <span class="sw"><i style="background:#43502c"></i>paddy</span>
+    <span class="sw"><i style="background:#2b3a22"></i>forest</span>
+    <span class="sw"><i style="background:#6d6a62"></i>rock</span>
+    <span class="sw"><i style="background:#e8eef2"></i>snow</span>
+  </div>
+</div>
+
+<div id="boot">
+  <div class="inner">
+    <p class="mark">Konto</p>
+    <h2>Building the island</h2>
+    <div id="bootbar"><i></i></div>
+    <p id="bootstage">starting</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script>
+"use strict";
+/* ============================================================================
+   KONTO — the whole world generator, in one file.
+
+   A condensed port of the Unity/C# generator in this project. Same design, lower
+   fidelity: island arc, mountain ranges, a volcanic front, intermontane basins,
+   coastal plains, a bay, thermal and droplet erosion, flow routing — then the
+   capital's wards, street grids, blocks, reserved building plots, arterials,
+   railways and a moated palace, with every plot graded flat.
+
+   Nothing here needs an editor, an asset pipeline or a build step.
+   ============================================================================ */
+
+// ---------------------------------------------------------------- world scale
+const WORLD_X = 12288;          // metres, east-west
+const WORLD_Z = 10240;          // metres, north-south
+const GRID_X = 640;             // heightfield samples
+const GRID_Z = 534;
+const CELL = WORLD_X / (GRID_X - 1);     // ~19 m per sample
+const MAX_HEIGHT = 1520;
+const SEA_DEPTH = 140;
+
+// ---------------------------------------------------------------- noise
+function hash2(ix, iy, seed) {
+  let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iy | 0, 668265263) ^ Math.imul(seed | 0, 362437);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+function rnd(ix, iy, seed) { return hash2(ix, iy, seed) / 4294967295; }
+
+function gdot(ix, iy, seed, dx, dy) {
+  const a = rnd(ix, iy, seed) * 6.2831853;
+  return Math.cos(a) * dx + Math.sin(a) * dy;
+}
+function perlin(x, y, seed) {
+  const x0 = Math.floor(x), y0 = Math.floor(y);
+  const fx = x - x0, fy = y - y0;
+  const u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy);
+  const a = gdot(x0, y0, seed, fx, fy);
+  const b = gdot(x0 + 1, y0, seed, fx - 1, fy);
+  const c = gdot(x0, y0 + 1, seed, fx, fy - 1);
+  const d = gdot(x0 + 1, y0 + 1, seed, fx - 1, fy - 1);
+  return ((a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v) * 1.5;
+}
+function fbm(x, y, seed, oct) {
+  let amp = 1, frq = 1, sum = 0, norm = 0;
+  for (let i = 0; i < (oct || 4); i++) {
+    sum += perlin(x * frq, y * frq, seed + i * 131) * amp;
+    norm += amp; amp *= 0.5; frq *= 2.02;
+  }
+  return sum / norm;
+}
+function ridged(x, y, seed, oct, sharp) {
+  let amp = 1, frq = 1, sum = 0, norm = 0;
+  for (let i = 0; i < (oct || 5); i++) {
+    let v = 1 - Math.abs(perlin(x * frq, y * frq, seed + i * 97));
+    v = Math.pow(clamp01(v), (sharp || 1) * 1.3);
+    sum += v * amp; norm += amp; amp *= 0.5; frq *= 2.07;
+  }
+  return sum / norm;
+}
+function billow(x, y, seed, oct) {
+  let amp = 1, frq = 1, sum = 0, norm = 0;
+  for (let i = 0; i < (oct || 5); i++) {
+    sum += Math.abs(perlin(x * frq, y * frq, seed + i * 61)) * amp;
+    norm += amp; amp *= 0.5; frq *= 2.03;
+  }
+  return sum / norm;
+}
+
+// ---------------------------------------------------------------- small maths
+function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
+function lerp(a, b, t) { return a + (b - a) * clamp01(t); }
+function sstep(e0, e1, v) {
+  if (e0 === e1) return v < e0 ? 0 : 1;
+  const t = clamp01((v - e0) / (e1 - e0));
+  return t * t * (3 - 2 * t);
+}
+function smax(a, b, k) {
+  if (k <= 0.0001) return Math.max(a, b);
+  const h = clamp01(0.5 + 0.5 * (a - b) / k);
+  return lerp(b, a, h) + k * h * (1 - h);
+}
+function smin(a, b, k) { return -smax(-a, -b, k); }
+function distToSeg(px, py, ax, ay, bx, by) {
+  const abx = bx - ax, aby = by - ay;
+  const len = abx * abx + aby * aby;
+  if (len < 1e-6) return Math.hypot(px - ax, py - ay);
+  const t = clamp01(((px - ax) * abx + (py - ay) * aby) / len);
+  return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
+}
+
+// ---------------------------------------------------------------- island arc
+// Honshu is an island arc: its ranges, its volcanic front, its basins and its
+// plains all line up with one curve, so the curve is modelled once and every
+// landform is anchored to it by (alongT, lateral) instead of coordinates.
+const ARC_POINTS = [
+  [0.055, 0.150], [0.200, 0.290], [0.365, 0.405],
+  [0.530, 0.480], [0.690, 0.570], [0.860, 0.760]
+];
+const ARC_WIDTHS = [900, 1850, 2400, 3000, 3400, 1400];
+
+function buildArc() {
+  const ctrl = ARC_POINTS.map(p => [p[0] * WORLD_X, p[1] * WORLD_Z]);
+  const pts = [], wid = [], dist = [];
+  const segs = ctrl.length - 1, per = 26;
+  for (let i = 0; i < segs; i++) {
+    const p0 = ctrl[Math.max(i - 1, 0)], p1 = ctrl[i];
+    const p2 = ctrl[Math.min(i + 1, segs)], p3 = ctrl[Math.min(i + 2, segs)];
+    const w1 = ARC_WIDTHS[i], w2 = ARC_WIDTHS[Math.min(i + 1, segs)];
+    const count = i === segs - 1 ? per + 1 : per;
+    for (let k = 0; k < count; k++) {
+      const t = k / per, t2 = t * t, t3 = t2 * t;
+      pts.push([
+        0.5 * (2 * p1[0] + (-p0[0] + p2[0]) * t + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * t2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * t3),
+        0.5 * (2 * p1[1] + (-p0[1] + p2[1]) * t + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * t2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * t3)
+      ]);
+      wid.push(lerp(w1, w2, t));
+    }
+  }
+  dist.push(0);
+  for (let i = 1; i < pts.length; i++) {
+    dist.push(dist[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  }
+  const total = Math.max(dist[dist.length - 1], 1);
+
+  function seg(target) {
+    let lo = 0, hi = pts.length - 1;
+    while (lo < hi - 1) {
+      const mid = (lo + hi) >> 1;
+      if (dist[mid] <= target) lo = mid; else hi = mid;
+    }
+    return clamp(lo, 0, pts.length - 2);
+  }
+  return {
+    total: total,
+    pointAt(t) {
+      const target = clamp01(t) * total, i = seg(target);
+      const f = (target - dist[i]) / Math.max(dist[i + 1] - dist[i], 1e-4);
+      return [lerp(pts[i][0], pts[i + 1][0], f), lerp(pts[i][1], pts[i + 1][1], f)];
+    },
+    halfWidthAt(t) {
+      const target = clamp01(t) * total, i = seg(target);
+      const f = (target - dist[i]) / Math.max(dist[i + 1] - dist[i], 1e-4);
+      return lerp(wid[i], wid[i + 1], f);
+    },
+    tangentAt(t) {
+      const i = seg(clamp01(t) * total);
+      const dx = pts[i + 1][0] - pts[i][0], dy = pts[i + 1][1] - pts[i][1];
+      const m = Math.hypot(dx, dy) || 1;
+      return [dx / m, dy / m];
+    },
+    normalAt(t) { const tan = this.tangentAt(t); return [-tan[1], tan[0]]; },
+    anchor(t, lateral) {
+      const p = this.pointAt(t), n = this.normalAt(t), hw = this.halfWidthAt(t);
+      return [p[0] + n[0] * lateral * hw, p[1] + n[1] * lateral * hw];
+    },
+    project(px, py) {
+      let bestD = Infinity, bestI = 0, bestF = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const ax = pts[i][0], ay = pts[i][1];
+        const abx = pts[i + 1][0] - ax, aby = pts[i + 1][1] - ay;
+        const len = abx * abx + aby * aby;
+        if (len < 1e-6) continue;
+        const f = clamp01(((px - ax) * abx + (py - ay) * aby) / len);
+        const dx = px - (ax + abx * f), dy = py - (ay + aby * f);
+        const d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; bestI = i; bestF = f; }
+      }
+      const ax = pts[bestI][0], ay = pts[bestI][1];
+      const bx = pts[bestI + 1][0], by = pts[bestI + 1][1];
+      const m = Math.hypot(bx - ax, by - ay) || 1;
+      const nx = -(by - ay) / m, ny = (bx - ax) / m;
+      const cx = ax + (bx - ax) * bestF, cy = ay + (by - ay) * bestF;
+      const lateral = (px - cx) * nx + (py - cy) * ny;
+      const along = dist[bestI] + Math.hypot(cx - ax, cy - ay);
+      return [clamp01(along / total), lateral];
+    }
+  };
+}
+
+// ---------------------------------------------------------------- the layout
+// Everything below is anchored to the arc, so the geography holds together.
+const RANGES = [
+  // name, alongStart, alongEnd, lateralOffset, halfWidth, peak, sharpness, featureSize, rugged, wander
+  ["Okami Backbone", 0.00, 0.44, -0.02, 1050, 880, 1.05, 2300, 0.68, 620],
+  ["Konto Alps", 0.33, 0.62, -0.06, 1150, 1520, 1.55, 1800, 0.95, 470],
+  ["Nishiyama Uplands", 0.62, 1.00, 0.05, 950, 640, 0.80, 2500, 0.42, 700],
+  ["Ocean Side Hills", 0.08, 0.94, 0.34, 720, 330, 0.85, 1300, 0.50, 820]
+];
+const VOLCANOES = [
+  // alongT, lateral, baseRadius, height, concavity, craterR, craterDepth, caldera
+  ["Kogane-san", 0.450, 0.44, 2300, 1400, 2.05, 150, 110, false],
+  ["Shirotake", 0.285, -0.30, 1350, 800, 1.85, 130, 85, false],
+  ["Aokami Caldera", 0.115, 0.06, 1400, 560, 1.60, 600, 400, true],
+  ["Asagiri-dake", 0.695, -0.44, 1000, 580, 1.95, 95, 65, false]
+];
+const BASINS = [
+  ["Suwa Basin", 0.415, -0.16, 800, 440, 550],
+  ["Aizuno Basin", 0.230, 0.18, 860, 250, 600],
+  ["Mizuho Basin", 0.485, -0.14, 820, 430, 560],
+  ["Zenko Basin", 0.345, -0.34, 650, 370, 480]
+];
+const PLAINS = [
+  // alongT, lateral, alongRadius, lateralRadius, gradient, maxHeight, blend
+  ["Kanmei Plain", 0.655, 0.78, 3700, 1450, 0.0028, 90, 800],
+  ["Etsuno Plain", 0.300, -0.88, 1900, 850, 0.0042, 60, 520],
+  ["Obi Plain", 0.780, 0.80, 1500, 700, 0.0045, 62, 480],
+  ["Sendo Plain", 0.155, 0.74, 1100, 600, 0.0050, 50, 400]
+];
+// The capital, and the village the story starts in.
+const SITES = [
+  {
+    name: "Tōkonto", code: "TKT", capital: true,
+    alongT: 0.655, lateral: 0.90,
+    alongRadius: 3400, inlandRadius: 1380,
+    coreRadius: 760, coreOffset: [-260, 760],
+    outlineNoise: 420, wardCount: 18,
+    maxBuildSlope: 0.34, maxBuildAltitude: 340, platformSlope: 0.085,
+    palace: true, palaceRadius: 470, moatWidth: 58,
+    radials: 7, rings: 3, expressway: true,
+    railLoop: true, railRadials: 5, shinkansen: true,
+    bay: { alongOffset: 250, inlandReach: -180, halfWidth: 1700, depth: 1500, enclosure: 0.62, water: 560 },
+    reclaim: true
+  },
+  {
+    name: "Mizuho", code: "MZH", capital: false,
+    alongT: 0.485, lateral: -0.14,
+    alongRadius: 470, inlandRadius: 340,
+    coreRadius: 95, coreOffset: [0, 20],
+    outlineNoise: 110, wardCount: 4,
+    maxBuildSlope: 0.52, maxBuildAltitude: 780, platformSlope: 0.17,
+    palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 3, rings: 1, expressway: false,
+    railLoop: false, railRadials: 0, shinkansen: false,
+    bay: null, reclaim: false
+  }
+];
+
+// ---------------------------------------------------------------- district rules
+const D = {
+  Core: { plots: "unit", spacing: [115, 165], size: [48, 92], street: 16, floors: [14, 48], open: 0.10, alleys: false },
+  Station: { plots: "unit", spacing: [68, 105], size: [18, 44], street: 11, floors: [5, 22], open: 0.07, alleys: true },
+  Retail: { plots: "unit", spacing: [72, 112], size: [16, 38], street: 10, floors: [3, 12], open: 0.05, alleys: true },
+  Night: { plots: "unit", spacing: [48, 76], size: [9, 20], street: 6.5, floors: [3, 9], open: 0.02, alleys: true },
+  Office: { plots: "unit", spacing: [88, 130], size: [30, 58], street: 13, floors: [6, 18], open: 0.08, alleys: false },
+  Civic: { plots: "unit", spacing: [130, 190], size: [60, 120], street: 15, floors: [3, 11], open: 0.26, alleys: false },
+  Palace: { plots: "block", spacing: [220, 300], size: [120, 220], street: 8, floors: [1, 2], open: 0.92, alleys: false },
+  Mansion: { plots: "unit", spacing: [82, 125], size: [26, 52], street: 9.5, floors: [4, 14], open: 0.12, alleys: true },
+  House: { plots: "block", spacing: [56, 92], size: [40, 80], street: 6, floors: [2, 4], open: 0.09, alleys: true },
+  Suburb: { plots: "block", spacing: [76, 130], size: [55, 110], street: 6.5, floors: [1, 3], open: 0.14, alleys: false },
+  Works: { plots: "unit", spacing: [130, 200], size: [55, 130], street: 12, floors: [1, 4], open: 0.08, alleys: false },
+  Port: { plots: "unit", spacing: [170, 260], size: [70, 180], street: 14, floors: [1, 3], open: 0.10, alleys: false },
+  Fill: { plots: "unit", spacing: [150, 230], size: [60, 150], street: 16, floors: [3, 28], open: 0.22, alleys: false },
+  Campus: { plots: "unit", spacing: [150, 210], size: [55, 120], street: 9, floors: [3, 9], open: 0.34, alleys: false },
+  Park: { plots: "block", spacing: [180, 260], size: [110, 200], street: 7, floors: [1, 2], open: 0.88, alleys: false },
+  Shrine: { plots: "block", spacing: [150, 210], size: [80, 150], street: 7, floors: [1, 2], open: 0.78, alleys: false },
+  Water: { plots: "unit", spacing: [92, 140], size: [30, 70], street: 12, floors: [2, 12], open: 0.20, alleys: false }
+};
+const WARD_NAMES = {
+  Core: ["Marukane", "Tokura", "Shinmei"],
+  Station: ["Kanmei-Ekimae", "Nishiguchi", "Shin-Tokura"],
+  Retail: ["Ginbashi", "Kikyocho", "Nakadori", "Suzuran", "Hinodecho"],
+  Night: ["Yoicho", "Hanazono", "Korakucho"],
+  Office: ["Sakaebashi", "Nijubashi", "Kandamachi", "Toyosaka"],
+  Civic: ["Kanchogai", "Seimon", "Gakushicho"],
+  Palace: ["Gosho"],
+  Mansion: ["Tsukimidai", "Asahigaoka", "Kotobuki", "Wakabadai"],
+  House: ["Yanagimachi", "Sakuradai", "Hatsune", "Kikumachi", "Umezono", "Hozumi"],
+  Suburb: ["Takanodai", "Suzuriyama", "Momijidai", "Oyamada", "Hazukidai"],
+  Works: ["Kurotani", "Tekkohama", "Shiogama"],
+  Port: ["Kanmei-futo", "Shiohama", "Higashiura"],
+  Fill: ["Shinkaijima", "Mirai-futo", "Umishima"],
+  Campus: ["Gakuendai", "Bunkyodai"],
+  Park: ["Midorino", "Hakuchoen", "Kaedegaoka"],
+  Shrine: ["Inarizaka", "Tenjinmae", "Mitamamori"],
+  Water: ["Nagisa", "Umibashi", "Kawaguchi", "Shioiri"]
+};
+const RING1 = ["Station", "Office", "Retail", "Night", "Office", "Mansion", "Retail", "Civic"];
+const RING2 = ["Mansion", "House", "Campus", "Park", "Mansion", "House", "Shrine", "Retail"];
+const RING3 = ["Suburb", "House", "Suburb", "Park", "Works", "Suburb", "House", "Works"];
+const VILLAGE_RING = ["House", "Shrine", "Retail", "Park"];
+
+// ============================================================================
+// GENERATION
+// ============================================================================
+function makeWorld(seed, report) {
+  const arc = buildArc();
+  const n = GRID_X * GRID_Z;
+  const height = new Float32Array(n);
+  const landMask = new Float32Array(n);
+  const coast = new Float32Array(n);
+  const arcT = new Float32Array(n);
+  const arcLat = new Float32Array(n);
+  const flow = new Float32Array(n);
+  const river = new Float32Array(n);
+  const urban = new Float32Array(n);      // 0 country, 1 engineered city ground
+
+  const wx = x => x * CELL;
+  const wz = z => z * CELL;
+  const idx = (x, z) => z * GRID_X + x;
+
+  function sampleField(f, px, pz) {
+    const fx = clamp(px / CELL, 0, GRID_X - 1), fz = clamp(pz / CELL, 0, GRID_Z - 1);
+    const x0 = Math.floor(fx), z0 = Math.floor(fz);
+    const x1 = Math.min(x0 + 1, GRID_X - 1), z1 = Math.min(z0 + 1, GRID_Z - 1);
+    const tx = fx - x0, tz = fz - z0;
+    const a = lerp(f[idx(x0, z0)], f[idx(x1, z0)], tx);
+    const b = lerp(f[idx(x0, z1)], f[idx(x1, z1)], tx);
+    return lerp(a, b, tz);
+  }
+
+  // ---- site frames -------------------------------------------------------
+  const frames = SITES.map(site => {
+    const t = clamp01(site.alongT);
+    const hw = arc.halfWidthAt(t);
+    const origin = arc.anchor(t, site.lateral);
+    const along = arc.tangentAt(t);
+    const nrm = arc.normalAt(t);
+    const inland = site.lateral >= 0 ? [-nrm[0], -nrm[1]] : nrm;
+    return {
+      site: site, t: t, halfWidth: hw, anchorLateral: site.lateral * hw,
+      origin: origin, along: along, inland: inland,
+      toWorld: (u, v) => [origin[0] + along[0] * u + inland[0] * v, origin[1] + along[1] * u + inland[1] * v],
+      toLocal: (px, pz) => {
+        const dx = px - origin[0], dz = pz - origin[1];
+        return [dx * along[0] + dz * along[1], dx * inland[0] + dz * inland[1]];
+      }
+    };
+  });
+
+  // ---- the bay, cut before anything else --------------------------------
+  function bayShape(bay, lu, lv, px, pz) {
+    if (!bay) return 0;
+    const cy = bay.inlandReach - bay.depth * 0.5;
+    const halfDepth = Math.max(60, bay.depth * 0.5);
+    const vn = clamp((lv - cy) / halfDepth, -1.6, 1.6);
+    const mouth = sstep(-0.15, -1.0, vn);
+    const head = sstep(0.35, 1.0, vn);
+    const halfW = Math.max(40, bay.halfWidth * (1 - bay.enclosure * mouth) * (1 - 0.42 * head));
+    const du = (lu - bay.alongOffset) / halfW;
+    const dv = (lv - cy) / halfDepth;
+    let d = Math.hypot(du, dv);
+    d -= fbm(px / 380, pz / 380, seed + 61001, 3) * 190 / Math.max(120, bay.halfWidth);
+    const open = vn < -1 ? (1 - sstep(1.15, 1.5, Math.abs(du))) : 0;
+    return Math.max(open, 1 - sstep(0.80, 1.02, d));
+  }
+
+  // ---- arc fields (coarse, then interpolated: the arc is smooth) ---------
+  report("projecting onto the island arc", 0.04);
+  const CS = 4;
+  const cw = Math.ceil(GRID_X / CS) + 1, ch = Math.ceil(GRID_Z / CS) + 1;
+  const cT = new Float32Array(cw * ch), cL = new Float32Array(cw * ch);
+  for (let j = 0; j < ch; j++) {
+    for (let i = 0; i < cw; i++) {
+      const p = arc.project(Math.min(i * CS, GRID_X - 1) * CELL, Math.min(j * CS, GRID_Z - 1) * CELL);
+      cT[j * cw + i] = p[0]; cL[j * cw + i] = p[1];
+    }
+  }
+  for (let z = 0; z < GRID_Z; z++) {
+    const fz = z / CS, j0 = Math.floor(fz), j1 = Math.min(j0 + 1, ch - 1), tz = fz - j0;
+    for (let x = 0; x < GRID_X; x++) {
+      const fx = x / CS, i0 = Math.floor(fx), i1 = Math.min(i0 + 1, cw - 1), tx = fx - i0;
+      const i = idx(x, z);
+      arcT[i] = lerp(lerp(cT[j0 * cw + i0], cT[j0 * cw + i1], tx), lerp(cT[j1 * cw + i0], cT[j1 * cw + i1], tx), tz);
+      arcLat[i] = lerp(lerp(cL[j0 * cw + i0], cL[j0 * cw + i1], tx), lerp(cL[j1 * cw + i0], cL[j1 * cw + i1], tx), tz);
+    }
+  }
+
+  // ---- coastline --------------------------------------------------------
+  report("drawing the coastline", 0.10);
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X; x++) {
+      const i = idx(x, z), px = wx(x), pz = wz(z);
+      const t = arcT[i], lat = arcLat[i];
+      let hw = arc.halfWidthAt(t);
+      const oceanSide = lat >= 0;
+      hw += fbm(t * 3.4 + (oceanSide ? 0 : 57.3), oceanSide ? 11.7 : -22.4, seed + 331, 3) * 520;
+      hw += fbm(px / 3200, pz / 3200, seed + 907, 4) * (oceanSide ? 320 : 112);
+      if (oceanSide) {
+        // Sanriku style ria coast on the first third: deep V-shaped inlets.
+        const band = sstep(0.02, 0.07, t) * (1 - sstep(0.24, 0.30, t));
+        if (band > 0) {
+          const along = t * arc.total / 820;
+          const jitter = fbm(along * 0.7, 3.1, seed + 1553, 3) * 1.6;
+          let inlet = 0.5 + 0.5 * Math.cos((along + jitter) * 6.2831853);
+          hw -= Math.pow(inlet, 2.2) * 700 * band;
+        }
+      } else {
+        hw += fbm(px / 900, pz / 900, seed + 2711, 2) * 110;
+      }
+      let inland = Math.max(hw, 60) - Math.abs(lat);
+
+      for (let s = 0; s < frames.length; s++) {
+        const bay = frames[s].site.bay;
+        if (!bay) continue;
+        const lu = (t - frames[s].t) * arc.total;
+        const lv = frames[s].anchorLateral >= 0 ? frames[s].anchorLateral - lat : lat - frames[s].anchorLateral;
+        const cut = bayShape(bay, lu, lv, px, pz);
+        if (cut > 0.001) inland = lerp(inland, -bay.water, cut);
+      }
+      coast[i] = inland;
+      landMask[i] = sstep(-45, 90, inland);
+    }
+  }
+
+  // ---- relief ----------------------------------------------------------
+  report("uplifting the ranges", 0.16);
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X; x++) {
+      const i = idx(x, z), px = wx(x), pz = wz(z);
+      const mask = landMask[i], inland = coast[i], t = arcT[i], lat = arcLat[i];
+      let h;
+      if (mask < 0.999) {
+        const off = Math.max(0, -inland);
+        const shelf = -clamp01(off / 1100) * 22;
+        const deep = -sstep(1100, 4950, off) * (SEA_DEPTH - 22);
+        h = shelf + deep + fbm(px / 700, pz / 700, seed + 6101, 4) * 9 * clamp01(off / 300);
+      } else h = 0;
+
+      if (mask > 0.001) {
+        const hw = arc.halfWidthAt(t);
+        let land = Math.min(inland, 260) * 0.055;
+        // Dissected low hill country: the satoyama belt, very high drainage density.
+        const wxx = px / 760 + fbm(px / 1520, pz / 1520, seed + 8117, 2) * 0.85;
+        const wzz = pz / 760 + fbm(px / 1520 + 31.7, pz / 1520 - 17.3, seed + 8119, 2) * 0.85;
+        const hills = billow(wxx, wzz, seed + 311, 5) * 0.65 + ridged(wxx * 2.3, wzz * 2.3, seed + 313, 4, 1.1) * 0.35;
+        land += hills * 185 * sstep(0, 420, inland);
+
+        for (let r = 0; r < RANGES.length; r++) {
+          const R = RANGES[r];
+          const span = R[2] - R[1];
+          const along = (t - R[1]) / span;
+          if (along < 0 || along > 1) continue;
+          const profile = sstep(0, 0.22, along) * (1 - sstep(0.78, 1, along));
+          if (profile <= 0) continue;
+          const wander = fbm(t * 5.7 + r * 13.3, 0.5, seed + 4111 + r * 97, 3) * R[9];
+          const d = Math.abs(lat - (R[3] * hw + wander));
+          let fall = 1 - clamp01(d / R[4]);
+          if (fall <= 0) continue;
+          fall = Math.pow(fall, 1.45);
+          const fs = R[7];
+          const ux = px / fs + fbm(px / (fs * 2), pz / (fs * 2), seed + 5171 + r * 131, 2) * 0.75;
+          const uz = pz / fs + fbm(px / (fs * 2) + 11.3, pz / (fs * 2) + 7.1, seed + 5173 + r * 131, 2) * 0.75;
+          const rr = ridged(ux, uz, seed + 6199 + r * 151, R[6] > 1.2 ? 6 : 5, R[5]);
+          const rn = billow(ux * 0.85, uz * 0.85, seed + 7207 + r * 173, 5);
+          const nv = 0.22 + 0.78 * lerp(rn, rr, R[8]);
+          land += R[5 - 0] * 0 + R[5] * 0; // (kept explicit: peak is R[5])
+          land += R[5] * profile * fall * nv;
+        }
+        land += fbm(px / 220, pz / 220, seed + 9203, 4) * 12 * sstep(0, 180, inland);
+        h = lerp(h, Math.max(land, 0.2), mask);
+      }
+      height[i] = h;
+    }
+  }
+
+  // ---- basins, plains, volcanoes, settlement terraces -------------------
+  report("flattening basins and plains", 0.26);
+  function rectAround(px, pz, radius) {
+    return {
+      x0: Math.max(0, Math.floor((px - radius) / CELL)), x1: Math.min(GRID_X - 1, Math.ceil((px + radius) / CELL)),
+      z0: Math.max(0, Math.floor((pz - radius) / CELL)), z1: Math.min(GRID_Z - 1, Math.ceil((pz + radius) / CELL))
+    };
+  }
+
+  BASINS.forEach(B => {
+    const c = arc.anchor(B[1], B[2]);
+    const outer = B[3] + B[5];
+    const r = rectAround(c[0], c[1], outer);
+    for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) {
+      const i = idx(x, z), px = wx(x), pz = wz(z);
+      let d = Math.hypot(px - c[0], pz - c[1]);
+      d *= 1 + fbm(px / 420, pz / 420, seed + 1301, 3) * 0.22;
+      const w = 1 - sstep(B[3], outer, d);
+      if (w <= 0.001) continue;
+      const floor = B[4] + fbm(px / 300, pz / 300, seed + 1451, 3) * 4.5;
+      let flat = smin(height[i], floor, 55);
+      // A smooth minimum sits below both inputs where they meet, which digs a
+      // sump that then fills with a lake. Hold it to the floor asked for.
+      flat = Math.max(flat, Math.min(height[i], floor - 1.5));
+      height[i] = lerp(height[i], flat, w);
+    }
+  });
+
+  PLAINS.forEach(P => {
+    const c = arc.anchor(P[1], P[2]);
+    const anchorLat = P[2] * arc.halfWidthAt(P[1]);
+    const blendFrac = P[7] / Math.sqrt(P[3] * P[4]);
+    const r = rectAround(c[0], c[1], Math.max(P[3], P[4]) + P[7]);
+    for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) {
+      const i = idx(x, z);
+      if (landMask[i] <= 0.001) continue;
+      const px = wx(x), pz = wz(z);
+      const du = (arcT[i] - P[1]) * arc.total / P[3];
+      const dv = (arcLat[i] - anchorLat) / P[4];
+      let d = Math.hypot(du, dv) * (1 + fbm(px / 520, pz / 520, seed + 2203, 3) * 0.18);
+      const w = 1 - sstep(0.74, 1 + blendFrac, d);
+      if (w <= 0.001) continue;
+      const inl = Math.max(0, coast[i]);
+      let target = Math.min(P[6], 1.6 + inl * P[5]);
+      target += fbm(px / 260, pz / 260, seed + 2311, 3) * 1.6;
+      let flat = smin(height[i], target, 28);
+      const lowest = lerp(-1.5, 0.7, landMask[i]);
+      flat = Math.max(flat, Math.min(height[i], lowest));
+      height[i] = lerp(height[i], flat, w);
+    }
+  });
+
+  report("stacking the volcanic front", 0.32);
+  VOLCANOES.forEach(V => {
+    const c = arc.anchor(V[1], V[2]);
+    const outer = V[3] * 1.15;
+    const base = sampleField(height, c[0], c[1]);
+    const r = rectAround(c[0], c[1], outer);
+    for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) {
+      const i = idx(x, z), px = wx(x), pz = wz(z);
+      const dx = px - c[0], dz = pz - c[1];
+      const rad = Math.hypot(dx, dz);
+      if (rad > outer) continue;
+      const ang = Math.atan2(dz, dx);
+      let rn = clamp01(rad / V[3]);
+      rn = clamp01(rn * (1 + fbm(Math.cos(ang) * 2.3, Math.sin(ang) * 2.3, seed + 3301, 3) * 0.07));
+      let cone = V[4] * Math.pow(1 - rn, V[5]);
+      const rill = (0.5 + 0.5 * Math.cos(ang * 34 + fbm(px / 180, pz / 180, seed + 3407, 3) * 3.4)) * 16
+        * sstep(0.06, 0.55, rn) * (1 - sstep(0.85, 1.05, rn));
+      cone -= rill;
+      // The cone grows out of the ground at THIS point, not out of the ground at
+      // its summit: using the summit turns the whole edifice into a plateau.
+      let target = lerp(height[i], base, 1 - rn) + cone;
+      if (V[6] > 1 && rad < V[6] * 1.6) {
+        const inner = 1 - sstep(V[6] * (V[8] ? 0.62 : 0.35), V[6], rad);
+        target -= V[7] * inner;
+      }
+      const k = 70 * (1 - rn) * (1 - rn);
+      height[i] = smax(height[i], target, k);
+    }
+  });
+
+  // Every settlement gets a buildable terrace cut under it, tilted so it drains.
+  report("cutting the town terraces", 0.36);
+  frames.forEach(F => {
+    const site = F.site;
+    const aR = site.alongRadius, iR = site.inlandRadius;
+    const centre = F.toWorld(site.coreOffset[0], site.coreOffset[1]);
+    const samples = [];
+    for (let a = 0; a < 26; a++) for (let b = 0; b < 26; b++) {
+      const u = (a / 25 - 0.5) * 2, v = (b / 25 - 0.5) * 2;
+      if (u * u + v * v > 1) continue;
+      const p = F.toWorld(site.coreOffset[0] + u * aR, site.coreOffset[1] + v * iR);
+      if (p[0] < 0 || p[1] < 0 || p[0] > WORLD_X || p[1] > WORLD_Z) continue;
+      const e = sampleField(height, p[0], p[1]);
+      if (e < 0.3) continue;
+      samples.push(e);
+    }
+    if (samples.length < 16) return;
+    samples.sort((a, b) => a - b);
+    const floor = Math.max(2.2, samples[clamp(Math.round(samples.length * 0.30), 0, samples.length - 1)]);
+    const step = Math.max(aR, iR) * 0.8;
+    const gx = sampleField(height, centre[0] + step, centre[1]) - sampleField(height, centre[0] - step, centre[1]);
+    const gz = sampleField(height, centre[0], centre[1] + step) - sampleField(height, centre[0], centre[1] - step);
+    let dr = [-gx, -gz];
+    const m = Math.hypot(dr[0], dr[1]);
+    dr = m < 0.01 ? [-F.inland[0], -F.inland[1]] : [dr[0] / m, dr[1] / m];
+
+    const r = rectAround(centre[0], centre[1], Math.max(aR, iR) + 500);
+    for (let z = r.z0; z <= r.z1; z++) for (let x = r.x0; x <= r.x1; x++) {
+      const i = idx(x, z);
+      if (landMask[i] <= 0.05) continue;
+      const px = wx(x), pz = wz(z);
+      const l = F.toLocal(px, pz);
+      const du = (l[0] - site.coreOffset[0]) / aR, dv = (l[1] - site.coreOffset[1]) / iR;
+      let d = Math.hypot(du, dv) * (1 + fbm(px / 460, pz / 460, seed + 2707, 3) * 0.12);
+      const w = 1 - sstep(0.80, 1.12, d);
+      if (w <= 0.001) continue;
+      let target = Math.max(1.4, floor + ((px - centre[0]) * dr[0] + (pz - centre[1]) * dr[1]) * 0.008);
+      target += fbm(px / 210, pz / 210, seed + 2711, 3) * 1.1;
+      const cur = height[i];
+      let flat = smin(cur, target, 34);
+      flat = Math.max(flat, Math.min(cur, target - 2.5));
+      if (flat < target - 0.5 && flat > target - 9) flat = lerp(flat, target, 0.75);
+      height[i] = lerp(cur, flat, w);
+    }
+  });
+
+  // ---- erosion ---------------------------------------------------------
+  report("settling the slopes", 0.42);
+  function thermal(iterations, angleDeg) {
+    const maxDelta = Math.tan(angleDeg * Math.PI / 180) * CELL;
+    const delta = new Float32Array(n);
+    for (let it = 0; it < iterations; it++) {
+      delta.fill(0);
+      for (let z = 1; z < GRID_Z - 1; z++) {
+        for (let x = 1; x < GRID_X - 1; x++) {
+          const i = idx(x, z);
+          if (landMask[i] < 0.02) continue;
+          const c = height[i];
+          let total = 0, largest = 0;
+          const d0 = c - height[i - 1], d1 = c - height[i + 1];
+          const d2 = c - height[i - GRID_X], d3 = c - height[i + GRID_X];
+          const e0 = d0 > maxDelta ? d0 - maxDelta : 0;
+          const e1 = d1 > maxDelta ? d1 - maxDelta : 0;
+          const e2 = d2 > maxDelta ? d2 - maxDelta : 0;
+          const e3 = d3 > maxDelta ? d3 - maxDelta : 0;
+          total = e0 + e1 + e2 + e3;
+          if (total <= 0) continue;
+          largest = Math.max(Math.max(e0, e1), Math.max(e2, e3));
+          // Half the STEEPEST excess, not half the sum of all four: on the sum a
+          // spike sheds four times its own excess, lands below its neighbours,
+          // and the oscillation doubles every iteration.
+          const move = largest * 0.5, scale = move / total;
+          delta[i] -= move;
+          if (e0 > 0) delta[i - 1] += e0 * scale;
+          if (e1 > 0) delta[i + 1] += e1 * scale;
+          if (e2 > 0) delta[i - GRID_X] += e2 * scale;
+          if (e3 > 0) delta[i + GRID_X] += e3 * scale;
+        }
+      }
+      for (let i = 0; i < n; i++) height[i] += delta[i];
+    }
+  }
+  thermal(10, 41);
+
+  report("raining on Konto", 0.48);
+  (function droplets(count) {
+    for (let k = 0; k < count; k++) {
+      let px = rnd(k, 7, seed + 991) * (GRID_X - 3) + 1;
+      let pz = rnd(k, 13, seed + 997) * (GRID_Z - 3) + 1;
+      let dx = 0, dz = 0, water = 1, sediment = 0, speed = 1;
+      for (let life = 0; life < 34; life++) {
+        const x0 = px | 0, z0 = pz | 0;
+        if (x0 < 1 || z0 < 1 || x0 >= GRID_X - 2 || z0 >= GRID_Z - 2) break;
+        const i = idx(x0, z0);
+        if (landMask[i] < 0.5) break;
+        const fx = px - x0, fz = pz - z0;
+        const h00 = height[i], h10 = height[i + 1], h01 = height[i + GRID_X], h11 = height[i + GRID_X + 1];
+        const gradX = (h10 - h00) * (1 - fz) + (h11 - h01) * fz;
+        const gradZ = (h01 - h00) * (1 - fx) + (h11 - h10) * fx;
+        const hOld = (h00 * (1 - fx) + h10 * fx) * (1 - fz) + (h01 * (1 - fx) + h11 * fx) * fz;
+        dx = dx * 0.05 - gradX * 0.95;
+        dz = dz * 0.05 - gradZ * 0.95;
+        const len = Math.hypot(dx, dz);
+        if (len < 1e-5) break;
+        dx /= len; dz /= len;
+        px += dx; pz += dz;
+        const nx = px | 0, nz = pz | 0;
+        if (nx < 1 || nz < 1 || nx >= GRID_X - 2 || nz >= GRID_Z - 2) break;
+        const hNew = height[idx(nx, nz)];
+        const dh = hNew - hOld;
+        const capacity = Math.max(-dh, 0.008) * speed * water * 3.4;
+        if (sediment > capacity || dh > 0) {
+          const drop = dh > 0 ? Math.min(dh, sediment) : (sediment - capacity) * 0.28;
+          sediment -= drop;
+          height[i] += drop * (1 - fx) * (1 - fz);
+          height[i + 1] += drop * fx * (1 - fz);
+          height[i + GRID_X] += drop * (1 - fx) * fz;
+          height[i + GRID_X + 1] += drop * fx * fz;
+        } else {
+          const take = Math.min((capacity - sediment) * 0.32, -dh);
+          sediment += take;
+          height[i] -= take * (1 - fx) * (1 - fz);
+          height[i + 1] -= take * fx * (1 - fz);
+          height[i + GRID_X] -= take * (1 - fx) * fz;
+          height[i + GRID_X + 1] -= take * fx * fz;
+        }
+        speed = Math.sqrt(Math.max(0, speed * speed + -dh * 9.81));
+        water *= 0.982;
+        if (water < 0.02) break;
+      }
+    }
+  })(42000);
+  thermal(14, 35);
+
+  // ---- flow routing and channels ---------------------------------------
+  report("routing the water", 0.56);
+  (function hydrology() {
+    const order = new Int32Array(n);
+    for (let i = 0; i < n; i++) order[i] = i;
+    const arr = Array.prototype.slice.call(order);
+    arr.sort((a, b) => height[b] - height[a]);
+    flow.fill(1);
+    for (let k = 0; k < arr.length; k++) {
+      const i = arr[k];
+      const x = i % GRID_X, z = (i / GRID_X) | 0;
+      if (x < 1 || z < 1 || x >= GRID_X - 1 || z >= GRID_Z - 1) continue;
+      if (landMask[i] < 0.25) continue;
+      let best = -1, bestDrop = 0;
+      for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+        if (!dx && !dz) continue;
+        const j = i + dz * GRID_X + dx;
+        const drop = height[i] - height[j];
+        if (drop > bestDrop) { bestDrop = drop; best = j; }
+      }
+      if (best >= 0) flow[best] += flow[i];
+    }
+    // A watercourse is carved above a real catchment area, not above a cell count.
+    const cellArea = CELL * CELL;
+    const threshold = Math.max(8, 0.30 * 1e6 / cellArea);
+    for (let i = 0; i < n; i++) {
+      if (landMask[i] < 0.25 || flow[i] < threshold) continue;
+      const strength = clamp01(Math.log(flow[i] / threshold + 1) / Math.log(120));
+      river[i] = strength;
+      height[i] -= strength * 7;
+    }
+  })();
+
+  // ---- normalise --------------------------------------------------------
+  let highest = 0;
+  for (let i = 0; i < n; i++) if (height[i] > highest) highest = height[i];
+  if (highest > MAX_HEIGHT) {
+    const s = MAX_HEIGHT / highest;
+    for (let i = 0; i < n; i++) if (height[i] > 0) height[i] *= s;
+    highest = MAX_HEIGHT;
+  }
+  for (let i = 0; i < n; i++) if (height[i] < -SEA_DEPTH + 2) height[i] = -SEA_DEPTH + 2;
+
+  const world = {
+    seed: seed, arc: arc, height: height, landMask: landMask, coast: coast,
+    arcT: arcT, arcLat: arcLat, flow: flow, river: river, urban: urban,
+    highest: highest, cities: [],
+    sampleHeight: (px, pz) => sampleField(height, px, pz),
+    sampleLand: (px, pz) => sampleField(landMask, px, pz),
+    sampleRiver: (px, pz) => sampleField(river, px, pz),
+    sampleUrban: (px, pz) => sampleField(urban, px, pz),
+    slopeAt: (px, pz) => {
+      const d = CELL;
+      const l = sampleField(height, px - d, pz), r = sampleField(height, px + d, pz);
+      const u = sampleField(height, px, pz - d), v = sampleField(height, px, pz + d);
+      return Math.hypot((r - l) / (2 * d), (v - u) / (2 * d));
+    },
+    idx: idx, grid: { x: GRID_X, z: GRID_Z, cell: CELL }
+  };
+
+  // ---- the cities -------------------------------------------------------
+  report("planning Tōkonto", 0.62);
+  world.cities.push(planCity(world, frames[0], seed, report, 0.62));
+  report("planning Mizuho", 0.78);
+  world.cities.push(planCity(world, frames[1], seed + 5, report, 0.78));
+  return world;
+}
+
+// ============================================================================
+// CITY
+// ============================================================================
+function planCity(world, F, seed, report, progressBase) {
+  const site = F.site;
+  const arc = world.arc;
+  const citySeed = seed + 611 + site.code.charCodeAt(0) * 37;
+  const meanR = Math.sqrt(site.alongRadius * site.inlandRadius);
+  const L = { name: site.name, code: site.code, wards: [], blocks: [], plots: [], roads: [], rails: [], stations: [], fills: [], sites: [], moat: null, bounds: null };
+
+  const h01 = (a, b) => rnd(a, b, citySeed + 7717);
+  let core = site.coreOffset.slice();
+  let coreW = F.toWorld(core[0], core[1]);
+
+  function isWater(px, pz) {
+    return world.sampleHeight(px, pz) < 0.35 || world.sampleRiver(px, pz) > 0.45;
+  }
+  function buildableGround(px, pz) {
+    if (px < 120 || pz < 120 || px > WORLD_X - 120 || pz > WORLD_Z - 120) return false;
+    if (fillMask(px, pz) > 0.5) return true;
+    if (world.sampleLand(px, pz) < 0.55) return false;
+    if (world.sampleHeight(px, pz) < 0.15) return false;
+    return world.sampleRiver(px, pz) <= 0.45;
+  }
+  function fillMask(px, pz) {
+    let best = 0;
+    for (let i = 0; i < L.fills.length; i++) {
+      const f = L.fills[i];
+      const l = toRectLocal(px, pz, f.c[0], f.c[1], f.rot);
+      const d = Math.max(Math.abs(l[0]) / (f.size[0] * 0.5), Math.abs(l[1]) / (f.size[1] * 0.5));
+      best = Math.max(best, 1 - sstep(0.93, 1.03, d));
+    }
+    return best;
+  }
+  // Where the city is allowed to be — and where it gives up: too steep, too high,
+  // or not land. This is what leaves the hills green and wraps the city round them.
+  function footprint(px, pz) {
+    const l = F.toLocal(px, pz);
+    const du = (l[0] - core[0]) / site.alongRadius, dv = (l[1] - core[1]) / site.inlandRadius;
+    let d = Math.hypot(du, dv);
+    d -= fbm(px / 620, pz / 620, citySeed + 51001, 3) * site.outlineNoise / Math.max(120, meanR);
+    const edge = 1 - sstep(0.86, 1.02, d);
+    if (edge <= 0) return 0;
+    const slope = world.slopeAt(px, pz), hh = world.sampleHeight(px, pz);
+    const ground = (1 - sstep(site.maxBuildSlope * 0.53, site.maxBuildSlope, slope))
+      * (1 - sstep(site.maxBuildAltitude * 0.58, site.maxBuildAltitude, hh));
+    const land = sstep(0.30, 0.80, world.sampleLand(px, pz));
+    return edge * clamp01(Math.max(Math.min(land, ground), fillMask(px, pz)));
+  }
+
+  // A city needs ground under it. An anchor placed by hand lands in the sea often
+  // enough that the centre is walked out to the nearest ground that will hold it.
+  (function relocate() {
+    const ok = p => buildableGround(p[0], p[1]) && world.sampleLand(p[0], p[1]) > 0.9
+      && world.slopeAt(p[0], p[1]) <= Math.min(0.16, site.maxBuildSlope * 0.55)
+      && world.sampleHeight(p[0], p[1]) <= site.maxBuildAltitude * 0.8;
+    if (ok(coreW)) return;
+    const maxSearch = Math.max(1400, meanR * 2.2);
+    for (let radius = 120; radius <= maxSearch; radius += 120) {
+      const samples = Math.max(8, Math.round(radius / 40));
+      for (let i = 0; i < samples; i++) {
+        const a = (i + h01(radius | 0, i)) / samples * 6.2831853;
+        const cand = [core[0] + Math.cos(a) * radius, core[1] + Math.sin(a) * radius];
+        const w = F.toWorld(cand[0], cand[1]);
+        if (!ok(w)) continue;
+        core = cand; coreW = w;
+        return;
+      }
+    }
+  })();
+
+  // ---- wards -----------------------------------------------------------
+  const seeds = [];
+  const usedNames = {};
+  function pickName(kind) {
+    const pool = WARD_NAMES[kind] || WARD_NAMES.House;
+    for (let i = 0; i < pool.length; i++) {
+      const cand = pool[(Math.abs(citySeed / 7 | 0) + i + seeds.length) % pool.length];
+      if (!usedNames[cand]) { usedNames[cand] = 1; return cand; }
+    }
+    return pool[0] + " " + (seeds.length + 1) + "-chome";
+  }
+  function addSeed(local, kind) {
+    seeds.push({ local: local, world: F.toWorld(local[0], local[1]), kind: kind });
+  }
+  function tryAddSeed(wanted, kind, searchRadius) {
+    if (footprint.apply(null, F.toWorld(wanted[0], wanted[1])) > 0.45) { addSeed(wanted, kind); return wanted; }
+    for (let radius = 90; radius <= searchRadius; radius += 90) {
+      const samples = Math.max(8, Math.round(radius / 45));
+      for (let i = 0; i < samples; i++) {
+        const a = (i + h01(radius | 0, i * 7)) / samples * 6.2831853;
+        const cand = [wanted[0] + Math.cos(a) * radius, wanted[1] + Math.sin(a) * radius];
+        const w = F.toWorld(cand[0], cand[1]);
+        if (footprint(w[0], w[1]) <= 0.45) continue;
+        addSeed(cand, kind);
+        return cand;
+      }
+    }
+    return null;
+  }
+
+  const isVillage = !site.capital && Math.max(site.alongRadius, site.inlandRadius) < 900;
+  addSeed(core.slice(), isVillage ? "Retail" : "Core");
+
+  if (site.palace) {
+    const wanted = [core[0] - site.coreRadius * 0.95, core[1] + site.coreRadius * 0.35];
+    const placed = tryAddSeed(wanted, "Palace", site.coreRadius * 1.3);
+    // Never on top of the business district: a moated park takes half a square
+    // kilometre, and that is the half the towers want.
+    if (placed && Math.hypot(placed[0] - core[0], placed[1] - core[1]) < site.palaceRadius * 0.7) {
+      seeds.pop();
+    } else if (placed) {
+      tryAddSeed([placed[0] - site.palaceRadius * 1.5, placed[1]], "Civic", site.palaceRadius);
+    }
+  }
+
+  let portWards = 0, fillWards = 0, waterWards = 0;
+  function chooseKind(local, ring, index) {
+    const w = F.toWorld(local[0], local[1]);
+    if (isWater(w[0], w[1]) || world.sampleLand(w[0], w[1]) < 0.55) {
+      if (!site.bay) return null;
+      if (portWards < 2 && (fillWards >= 2 || h01(index * 13 + ring, 71) < 0.5)) { portWards++; return "Port"; }
+      if (site.reclaim && fillWards < 2) { fillWards++; return "Fill"; }
+      return null;
+    }
+    const coastD = 0; // handled below
+    if (world.sampleHeight(w[0], w[1]) < 8 && world.sampleLand(w[0], w[1]) < 0.995) {
+      if (waterWards < 2) { waterWards++; return "Water"; }
+    }
+    const pool = isVillage ? VILLAGE_RING : (ring <= 1 ? RING1 : ring === 2 ? RING2 : RING3);
+    return pool[Math.abs((citySeed / 7 | 0) + index * 3) % pool.length];
+  }
+
+  const remaining = Math.max(0, site.wardCount - seeds.length);
+  const ringFrac = [0.42, 0.70, 0.94], ringWeight = [1.0, 1.7, 2.2];
+  const weightSum = 4.9;
+  let placedRings = 0;
+  for (let ring = 0; ring < 3; ring++) {
+    let count = Math.max(1, Math.round(remaining * ringWeight[ring] / weightSum));
+    count = Math.min(count, Math.max(0, remaining - placedRings));
+    if (ring === 2) count = Math.max(0, remaining - placedRings);
+    placedRings += count;
+    const phase = h01(ring * 31 + 3, 17) * 6.2831853;
+    for (let k = 0; k < count; k++) {
+      const jitter = (h01(ring * 101 + k, 53) - 0.5) * 0.55;
+      const ang = phase + (k + jitter) / count * 6.2831853;
+      const rf = ringFrac[ring] * (0.88 + h01(ring * 211 + k, 97) * 0.24);
+      let local = null;
+      for (let attempt = 0; attempt < 5 && !local; attempt++) {
+        const shrink = 1 - attempt * 0.14;
+        const cand = [core[0] + Math.cos(ang) * site.alongRadius * rf * shrink,
+                      core[1] + Math.sin(ang) * site.inlandRadius * rf * shrink];
+        const w = F.toWorld(cand[0], cand[1]);
+        if (w[0] < 140 || w[1] < 140 || w[0] > WORLD_X - 140 || w[1] > WORLD_Z - 140) continue;
+        if (footprint(w[0], w[1]) > 0.25 || isWater(w[0], w[1])) local = cand;
+      }
+      if (!local) continue;
+      const kind = chooseKind(local, ring + 1, k);
+      if (!kind) continue;
+      addSeed(local, kind);
+    }
+  }
+
+  // Made ground: every Japanese port city stands partly on it.
+  if (site.bay && site.reclaim) {
+    let made = 0;
+    for (let i = 0; i < seeds.length && made < 3; i++) {
+      const s = seeds[i];
+      if (s.kind !== "Fill" && s.kind !== "Port") continue;
+      if (!isWater(s.world[0], s.world[1]) && world.sampleLand(s.world[0], s.world[1]) > 0.6) continue;
+      L.fills.push({
+        c: s.world, rot: yawFrom(F.along) + (h01(i * 79, 19) - 0.5) * 14,
+        size: [520 + h01(i * 71, 13) * 620, 420 + h01(i * 73, 17) * 480],
+        y: 4.2
+      });
+      made++;
+    }
+  }
+
+  seeds.forEach((s, i) => {
+    let nearest = Infinity;
+    seeds.forEach((o, k) => {
+      if (k === i) return;
+      nearest = Math.min(nearest, Math.hypot(s.local[0] - o.local[0], s.local[1] - o.local[1]));
+    });
+    if (!isFinite(nearest)) nearest = meanR * 0.5;
+    const coreness = clamp01(1 - Math.hypot(s.local[0] - core[0], s.local[1] - core[1]) / (meanR * 1.05));
+    // Each ward's grid points its own way. In the core it lines up with the bay.
+    const baseYaw = yawFrom(F.along);
+    const spread = (s.kind === "Core" || s.kind === "Fill") ? 8 : 44;
+    const prof = D[s.kind] || D.House;
+    L.wards.push({
+      name: pickName(s.kind), kind: s.kind, centre: s.world, local: s.local,
+      radius: clamp(nearest * 1.15, 170, 900), coreness: coreness,
+      yaw: baseYaw + fbm(s.world[0] / 900, s.world[1] / 900, citySeed + 52003, 2) * spread,
+      sx: lerp(prof.spacing[0], prof.spacing[1], h01(i * 17 + 1, 3)),
+      sz: lerp(prof.spacing[0], prof.spacing[1], h01(i * 17 + 2, 5)),
+      street: prof.street, alley: Math.max(3.6, prof.street * 0.45), alleys: prof.alleys,
+      groundY: world.sampleHeight(s.world[0], s.world[1]), blocks: 0, plots: 0
+    });
+  });
+
+  function nearestWard(px, pz) {
+    let best = -1, bestD = Infinity;
+    for (let i = 0; i < L.wards.length; i++) {
+      const c = L.wards[i].centre;
+      const d = (c[0] - px) * (c[0] - px) + (c[1] - pz) * (c[1] - pz);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    return best;
+  }
+
+  // ---- claimed ground (roads, rail, rivers, stations) --------------------
+  const claims = [];
+  function claim(ax, az, bx, bz, clearance) {
+    if ((bx - ax) * (bx - ax) + (bz - az) * (bz - az) < 1) return;
+    claims.push([ax, az, bx, bz, clearance]);
+  }
+  function claimPath(points, clearance, loop) {
+    for (let i = 1; i < points.length; i++) claim(points[i - 1][0], points[i - 1][2], points[i][0], points[i][2], clearance);
+    if (loop && points.length > 2) claim(points[points.length - 1][0], points[points.length - 1][2], points[0][0], points[0][2], clearance);
+  }
+  function blocked(px, pz, extra) {
+    for (let i = 0; i < claims.length; i++) {
+      const c = claims[i], lim = c[4] + (extra || 0);
+      if (Math.abs(px - c[0]) > lim + 400 && Math.abs(px - c[2]) > lim + 400) continue;
+      if (distToSeg(px, pz, c[0], c[1], c[2], c[3]) < lim) return true;
+    }
+    return false;
+  }
+  function blockedRect(cx, cz, sx, sz, yaw) {
+    const r = yaw * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+    const ex = [cs * sx * 0.5, -sn * sx * 0.5], ez = [sn * sz * 0.5, cs * sz * 0.5];
+    if (blocked(cx, cz, 0)) return true;
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
+      if (!a && !b) continue;
+      if (blocked(cx + ex[0] * a + ez[0] * b, cz + ex[1] * a + ez[1] * b, 0)) return true;
+    }
+    return false;
+  }
+  const exclusions = [];
+  function excluded(px, pz, extra) {
+    for (let i = 0; i < exclusions.length; i++) {
+      const e = exclusions[i], r = e[2] + (extra || 0);
+      if ((px - e[0]) * (px - e[0]) + (pz - e[1]) * (pz - e[1]) < r * r) return true;
+    }
+    return false;
+  }
+
+  // Rivers claim their channel plus an embankment.
+  for (let z = 2; z < world.grid.z - 2; z += 2) {
+    for (let x = 2; x < world.grid.x - 2; x += 2) {
+      const i = world.idx(x, z);
+      if (world.river[i] < 0.5) continue;
+      const px = x * CELL, pz = z * CELL;
+      if (Math.hypot(px - coreW[0], pz - coreW[1]) > meanR * 2.2) continue;
+      claim(px - CELL, pz, px + CELL, pz, 16 + world.river[i] * 22);
+    }
+  }
+
+  // ---- roads -----------------------------------------------------------
+  function pointAt(px, pz) { return [px, world.sampleHeight(px, pz), pz]; }
+
+  for (let ring = 0; ring < site.rings; ring++) {
+    const frac = site.rings <= 1 ? 0.6 : lerp(0.34, 0.95, ring / (site.rings - 1));
+    const pts = [];
+    for (let i = 0; i < 72; i++) {
+      const a = i / 72 * 6.2831853;
+      const dirx = Math.cos(a), dirz = Math.sin(a);
+      let u = core[0] + dirx * site.alongRadius * frac;
+      let v = core[1] + dirz * site.inlandRadius * frac;
+      const w0 = F.toWorld(u, v);
+      const wobble = fbm(w0[0] / 520, w0[1] / 520, citySeed + 53003 + ring * 17, 2) * 90;
+      const w = F.toWorld(u + dirx * wobble, v + dirz * wobble);
+      pts.push(pointAt(w[0], w[1]));
+    }
+    const road = { name: "Ring Road " + (ring + 1), cls: "arterial", halfWidth: ring === 0 ? 13 : 11, loop: true, pts: pts };
+    L.roads.push(road); claimPath(pts, road.halfWidth + 4, true);
+  }
+
+  const phase = h01(5, 9) * 6.2831853;
+  for (let i = 0; i < site.radials; i++) {
+    let bearing = phase + i / site.radials * 6.2831853;
+    const pts = [];
+    // Radials start on the edge of the business district: several arterials meeting
+    // at one point leaves no ground to build on for hundreds of metres around it.
+    let u = core[0] + Math.cos(bearing) * site.coreRadius * 0.45;
+    let v = core[1] + Math.sin(bearing) * site.coreRadius * 0.45;
+    let w = F.toWorld(core[0] + Math.cos(bearing) * site.coreRadius * 0.2, core[1] + Math.sin(bearing) * site.coreRadius * 0.2);
+    pts.push(pointAt(w[0], w[1]));
+    let travelled = 0;
+    for (let step = 0; step < 150 && travelled < meanR * 2.4 + 900; step++) {
+      let bestCost = Infinity, bestB = bearing, bu = u, bv = v;
+      for (let k = -1; k <= 1; k++) {
+        const cand = bearing + k * 0.157;
+        const nu = u + Math.cos(cand) * 55, nv = v + Math.sin(cand) * 55;
+        const nw = F.toWorld(nu, nv);
+        if (nw[0] < 90 || nw[1] < 90 || nw[0] > WORLD_X - 90 || nw[1] > WORLD_Z - 90) continue;
+        // Three bearings, take the least climb: this is how real roads end up
+        // following valleys instead of running straight over the hills.
+        let cost = Math.abs(k) * 0.35 + world.slopeAt(nw[0], nw[1]) * 9;
+        if (isWater(nw[0], nw[1])) cost += 6;
+        cost += Math.max(0, world.sampleHeight(nw[0], nw[1]) - 220) * 0.01;
+        if (cost < bestCost) { bestCost = cost; bestB = cand; bu = nu; bv = nv; }
+      }
+      if (!isFinite(bestCost)) break;
+      bearing = bestB; u = bu; v = bv; travelled += 55;
+      const pw = F.toWorld(u, v);
+      pts.push(pointAt(pw[0], pw[1]));
+      if (travelled > meanR * 1.2 && footprint(pw[0], pw[1]) <= 0.01) break;
+    }
+    if (pts.length < 4) continue;
+    const road = { name: "Route " + (14 + i * 3), cls: "arterial", halfWidth: 12, loop: false, pts: pts };
+    L.roads.push(road); claimPath(pts, road.halfWidth + 4, false);
+  }
+
+  if (site.expressway) {
+    const pts = [];
+    for (let i = 0; i < 56; i++) {
+      const a = i / 56 * 6.2831853;
+      const w = F.toWorld(core[0] + Math.cos(a) * site.alongRadius * 0.30, core[1] + Math.sin(a) * site.inlandRadius * 0.34);
+      const g = world.sampleHeight(w[0], w[1]);
+      pts.push([w[0], Math.max(g, 1) + 13, w[1]]);
+    }
+    const road = { name: "Konto Expressway", cls: "expressway", halfWidth: 10.5, loop: true, elevated: true, pts: pts };
+    L.roads.push(road); claimPath(pts, road.halfWidth + 1.5, true);
+  }
+
+  // ---- rail ------------------------------------------------------------
+  let terminusLocal = [core[0] + site.coreRadius * 0.72, core[1] - site.coreRadius * 0.10];
+  if (footprint.apply(null, F.toWorld(terminusLocal[0], terminusLocal[1])) < 0.5) {
+    outer:
+    for (let radius = 80; radius <= site.coreRadius * 1.6; radius += 80) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i + h01(radius | 0, i * 3)) / 12 * 6.2831853;
+        const cand = [terminusLocal[0] + Math.cos(a) * radius, terminusLocal[1] + Math.sin(a) * radius];
+        const w = F.toWorld(cand[0], cand[1]);
+        if (footprint(w[0], w[1]) < 0.5) continue;
+        terminusLocal = cand; break outer;
+      }
+    }
+  }
+  const terminusW = F.toWorld(terminusLocal[0], terminusLocal[1]);
+  const hasNetwork = site.railLoop || site.railRadials > 0 || site.shinkansen;
+  function addStation(name, w, size, yaw, terminus, elevated) {
+    const st = {
+      name: name, centre: w, size: size, yaw: yaw, terminus: !!terminus, elevated: !!elevated,
+      groundY: world.sampleHeight(w[0], w[1])
+    };
+    L.stations.push(st);
+    const r = yaw * Math.PI / 180;
+    const ex = Math.cos(r) * size[0] * 0.5, ez = -Math.sin(r) * size[0] * 0.5;
+    claim(w[0] - ex, w[1] - ez, w[0] + ex, w[1] + ez, size[1] * 0.75 + 16);
+    return st;
+  }
+  const terminus = addStation(hasNetwork ? site.name + " Central" : site.name + " Station",
+    terminusW, hasNetwork ? [330, 105] : [78, 26], yawFrom(F.along), hasNetwork, false);
+
+  function stationsAlong(line, spacing) {
+    let since = spacing * 0.55;
+    const seen = {};
+    for (let i = 1; i < line.pts.length; i++) {
+      const a = line.pts[i - 1], b = line.pts[i];
+      since += Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (since < spacing) continue;
+      since = 0;
+      if (isWater(b[0], b[2]) || excluded(b[0], b[2], 40)) continue;
+      if (footprint(b[0], b[2]) < 0.40) continue;
+      if (!buildableGround(b[0], b[2])) continue;
+      const ward = L.wards[nearestWard(b[0], b[2])];
+      const base = ward ? ward.name : site.name;
+      const name = seen[base] ? "Shin-" + base : base;
+      seen[base] = 1;
+      const yaw = yawFrom([(b[0] - a[0]), (b[2] - a[2])]);
+      addStation(name + " Station", [b[0], b[2]], [170, 62], yaw, false, line.elevated);
+    }
+  }
+
+  if (site.railLoop) {
+    const pts = [];
+    const radius = Math.max(420, site.coreRadius * 1.55);
+    for (let i = 0; i < 60; i++) {
+      const a = i / 60 * 6.2831853;
+      const r = radius * (1 + fbm(Math.cos(a) * 2.1, Math.sin(a) * 2.1, citySeed + 54011, 2) * 0.09);
+      const w = F.toWorld(core[0] + Math.cos(a) * r * 1.15, core[1] + Math.sin(a) * r);
+      pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 9.5, w[1]]);
+    }
+    const line = { name: "Kanjo Loop Line", cls: "loop", halfWidth: 9, loop: true, elevated: true, pts: pts };
+    L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, true);
+    stationsAlong(line, 620);
+  }
+
+  for (let i = 0; i < site.railRadials; i++) {
+    const bearing = h01(11, 23) * 6.2831853 + i / Math.max(1, site.railRadials) * 6.2831853;
+    let dir = [Math.cos(bearing), Math.sin(bearing)];
+    let u = terminusLocal[0], v = terminusLocal[1];
+    const pts = [pointAt(terminusW[0], terminusW[1])];
+    for (let step = 0; step < 70; step++) {
+      const drift = fbm(step * 0.11, i * 3.7, citySeed + 55021, 2) * 0.05;
+      const c = Math.cos(drift), s = Math.sin(drift);
+      dir = [dir[0] * c - dir[1] * s, dir[0] * s + dir[1] * c];
+      u += dir[0] * 85; v += dir[1] * 85;
+      const w = F.toWorld(u, v);
+      if (w[0] < 110 || w[1] < 110 || w[0] > WORLD_X - 110 || w[1] > WORLD_Z - 110) break;
+      pts.push(pointAt(w[0], w[1]));
+      if (Math.hypot(u - core[0], v - core[1]) > meanR * 1.9) break;
+    }
+    if (pts.length < 4) continue;
+    const line = { name: "Radial line " + (i + 1), cls: "radial", halfWidth: 7.5, loop: false, pts: pts };
+    L.rails.push(line); claimPath(pts, line.halfWidth + 9, false);
+    stationsAlong(line, 800);
+  }
+
+  if (site.shinkansen) {
+    const pts = [];
+    for (let i = -22; i <= 22; i++) {
+      const w = F.toWorld(terminusLocal[0] + i * 180, terminusLocal[1] + i * 12);
+      if (w[0] < 110 || w[1] < 110 || w[0] > WORLD_X - 110 || w[1] > WORLD_Z - 110) continue;
+      pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 12, w[1]]);
+    }
+    if (pts.length > 3) {
+      const line = { name: "Konto Shinkansen", cls: "shinkansen", halfWidth: 11, loop: false, elevated: true, pts: pts };
+      L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, false);
+    }
+  }
+
+  L.stations.forEach(st => exclusions.push([st.centre[0], st.centre[1], Math.min(st.size[0], st.size[1]) * 0.5 + 18]));
+
+  // ---- palace ----------------------------------------------------------
+  const palaceWard = L.wards.findIndex(w => w.kind === "Palace");
+  if (palaceWard >= 0) {
+    const w = L.wards[palaceWard];
+    exclusions.push([w.centre[0], w.centre[1], site.palaceRadius + site.moatWidth + 22]);
+    L.moat = { centre: w.centre, yaw: w.yaw, inner: site.palaceRadius, width: site.moatWidth, groundY: w.groundY };
+    L.sites.push({ name: "Gosho Gardens", note: "Moated palace park. Walls, gates, gardens and a keep go inside the moat.", at: [w.centre[0], w.groundY, w.centre[1]], plot: null });
+  }
+
+  // ---- blocks and plots -------------------------------------------------
+  report("parcelling " + site.name, progressBase + 0.04);
+  const wardBounds = L.wards.map(w => ({ x0: w.centre[0] - 60, x1: w.centre[0] + 60, z0: w.centre[1] - 60, z1: w.centre[1] + 60, started: false }));
+  (function measure() {
+    const step = 36;
+    const halfA = site.alongRadius + site.outlineNoise, halfI = site.inlandRadius + site.outlineNoise;
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (let i = 0; i < 96; i++) {
+      const a = i / 96 * 6.2831853;
+      const w = F.toWorld(core[0] + Math.cos(a) * halfA, core[1] + Math.sin(a) * halfI);
+      minX = Math.min(minX, w[0]); maxX = Math.max(maxX, w[0]);
+      minZ = Math.min(minZ, w[1]); maxZ = Math.max(maxZ, w[1]);
+    }
+    L.bounds = { x0: minX, x1: maxX, z0: minZ, z1: maxZ };
+    for (let pz = minZ; pz <= maxZ; pz += step) {
+      for (let px = minX; px <= maxX; px += step) {
+        if (footprint(px, pz) < 0.32) continue;
+        const wi = nearestWard(px, pz);
+        if (wi < 0) continue;
+        const b = wardBounds[wi];
+        if (!b.started) { b.x0 = px - step; b.x1 = px + step; b.z0 = pz - step; b.z1 = pz + step; b.started = true; }
+        else {
+          b.x0 = Math.min(b.x0, px - step); b.x1 = Math.max(b.x1, px + step);
+          b.z0 = Math.min(b.z0, pz - step); b.z1 = Math.max(b.z1, pz + step);
+        }
+      }
+    }
+  })();
+
+  const PLOT_CAP = 4200;
+  L.wards.forEach((ward, wi) => {
+    if (L.plots.length >= PLOT_CAP) return;
+    const prof = D[ward.kind] || D.House;
+    if (ward.kind === "Palace") {
+      const r = site.palaceRadius;
+      addPlot(wi, L.blocks.length, 0, ward.centre, [r * 1.55, r * 1.55], ward.yaw, "park", 1);
+      addPlot(wi, L.blocks.length, 1, ward.centre, [r * 0.42, r * 0.34], ward.yaw, "civic", 3);
+      L.blocks.push({ ward: wi, centre: ward.centre, size: [r * 1.6, r * 1.6], yaw: ward.yaw });
+      ward.blocks = 1;
+      return;
+    }
+
+    const b = wardBounds[wi];
+    let iMin = Infinity, iMax = -Infinity, jMin = Infinity, jMax = -Infinity;
+    for (let c = 0; c < 4; c++) {
+      const px = (c & 1) ? b.x1 : b.x0, pz = (c & 2) ? b.z1 : b.z0;
+      const g = toRectLocal(px, pz, ward.centre[0], ward.centre[1], ward.yaw);
+      iMin = Math.min(iMin, Math.floor(g[0] / ward.sx)); iMax = Math.max(iMax, Math.floor(g[0] / ward.sx));
+      jMin = Math.min(jMin, Math.floor(g[1] / ward.sz)); jMax = Math.max(jMax, Math.floor(g[1] / ward.sz));
+    }
+    iMin--; jMin--; iMax++; jMax++;
+    if ((iMax - iMin) * (jMax - jMin) > 9000) return;
+
+    let blockNo = 0;
+    for (let j = jMin; j <= jMax; j++) {
+      for (let i = iMin; i <= iMax; i++) {
+        if (L.plots.length >= PLOT_CAP) return;
+        const bk = blockRect(ward, i, j);
+        if (bk.size[0] < 13 || bk.size[1] < 13) continue;
+        const cx = bk.centre[0], cz = bk.centre[1];
+        if (nearestWard(cx, cz) !== wi) continue;
+        if (footprint(cx, cz) < 0.32) continue;
+        if (excluded(cx, cz, Math.max(bk.size[0], bk.size[1]) * 0.35)) continue;
+        if (!groundUsable(cx, cz, bk.size, ward.yaw)) continue;
+        let size = bk.size;
+        if (blockedRect(cx, cz, size[0], size[1], ward.yaw)) {
+          // An arterial clipping a corner means a smaller block set back from the
+          // road, not no block at all. Cities are full of these offcuts.
+          let recovered = false;
+          for (let a = 0; a < 2 && !recovered; a++) {
+            const sm = [size[0] * (a ? 0.45 : 0.68), size[1] * (a ? 0.45 : 0.68)];
+            if (sm[0] < 13 || sm[1] < 13) break;
+            if (blockedRect(cx, cz, sm[0], sm[1], ward.yaw)) continue;
+            size = sm; recovered = true;
+          }
+          if (!recovered) continue;
+        }
+        const blockId = L.blocks.length;
+        subdivide(wi, ward, prof, blockId, bk.centre, size, ward.yaw, i, j, ++blockNo);
+        L.blocks.push({ ward: wi, centre: bk.centre, size: size, yaw: ward.yaw, number: blockNo });
+        ward.blocks++;
+      }
+    }
+  });
+  L.plots.forEach(p => { if (L.wards[p.ward]) L.wards[p.ward].plots++; });
+
+  function groundUsable(cx, cz, size, yaw) {
+    const r = yaw * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+    const ex = [cs * size[0] * 0.5, -sn * size[0] * 0.5], ez = [sn * size[1] * 0.5, cs * size[1] * 0.5];
+    let lo = Infinity, hi = -Infinity;
+    for (let a = -1; a <= 1; a += 2) for (let b = -1; b <= 1; b += 2) {
+      const px = cx + ex[0] * a + ez[0] * b, pz = cz + ex[1] * a + ez[1] * b;
+      if (!buildableGround(px, pz) || world.slopeAt(px, pz) > site.maxBuildSlope * 1.15) return false;
+      const h = world.sampleHeight(px, pz);
+      lo = Math.min(lo, h); hi = Math.max(hi, h);
+    }
+    if (!buildableGround(cx, cz) || world.slopeAt(cx, cz) > site.maxBuildSlope) return false;
+    const diag = Math.hypot(size[0], size[1]);
+    return hi - lo <= Math.max(3.5, diag * site.platformSlope * 1.35);
+  }
+
+  function blockRect(ward, i, j) {
+    const lw = n => ward.alleys ? ((n & 1) === 0 ? ward.street : ward.alley) : ward.street;
+    const x0 = i * ward.sx + lw(i) * 0.5, x1 = (i + 1) * ward.sx - lw(i + 1) * 0.5;
+    const z0 = j * ward.sz + lw(j) * 0.5, z1 = (j + 1) * ward.sz - lw(j + 1) * 0.5;
+    const l = [(x0 + x1) * 0.5, (z0 + z1) * 0.5];
+    return { centre: fromRectLocal(l[0], l[1], ward.centre[0], ward.centre[1], ward.yaw), size: [x1 - x0, z1 - z0] };
+  }
+
+  // Plots run around the perimeter of a block so every one fronts a street, and
+  // whatever is left in the middle becomes a car park or a courtyard.
+  function subdivide(wi, ward, prof, blockId, centre, size, yaw, gi, gj, blockNo) {
+    const coreness = clamp01(ward.coreness * 0.75 + footprint(centre[0], centre[1]) * 0.25);
+    const r = h01(gi * 7919 + gj, blockId * 31 + 7);
+    if (prof.plots === "block") {
+      addPlot(wi, blockId, 0, centre, size, yaw, kindFor(ward.kind, prof, coreness, size[0] * size[1], r), floorsFor(prof, coreness, size[0] * size[1], r), blockNo);
+      return;
+    }
+    const target = lerp(prof.size[0], prof.size[1], r);
+    const shortest = Math.min(size[0], size[1]);
+    if (shortest < target * 1.75) {
+      addPlot(wi, blockId, 0, centre, size, yaw, kindFor(ward.kind, prof, coreness, size[0] * size[1], r), floorsFor(prof, coreness, size[0] * size[1], r), blockNo);
+      return;
+    }
+    const depth = clamp(target * 1.15, 11, shortest * 0.44);
+    const rad = yaw * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+    const ax = [cs, -sn], az = [sn, cs];
+    let index = 0;
+    for (let sx = -1; sx <= 1; sx += 2) for (let sz = -1; sz <= 1; sz += 2) {
+      const c = [
+        centre[0] + ax[0] * sx * (size[0] * 0.5 - depth * 0.5) + az[0] * sz * (size[1] * 0.5 - depth * 0.5),
+        centre[1] + ax[1] * sx * (size[0] * 0.5 - depth * 0.5) + az[1] * sz * (size[1] * 0.5 - depth * 0.5)
+      ];
+      const rr = h01(blockId * 101 + index, 13);
+      addPlot(wi, blockId, index++, c, [depth, depth], yaw + (sx > 0 ? 0 : 180),
+        kindFor(ward.kind, prof, coreness, depth * depth, rr), floorsFor(prof, coreness, depth * depth, rr), blockNo, true);
+    }
+    [[true, 1], [true, -1], [false, 1], [false, -1]].forEach(cfg => {
+      const alongX = cfg[0], sign = cfg[1];
+      const span = (alongX ? size[0] : size[1]) - depth * 2;
+      if (span < target * 0.8) return;
+      const count = Math.max(1, Math.round(span / target));
+      const width = span / count;
+      const offset = (alongX ? size[1] : size[0]) * 0.5 - depth * 0.5;
+      for (let k = 0; k < count; k++) {
+        const along = -span * 0.5 + width * (k + 0.5);
+        const c = alongX
+          ? [centre[0] + ax[0] * along + az[0] * sign * offset, centre[1] + ax[1] * along + az[1] * sign * offset]
+          : [centre[0] + az[0] * along + ax[0] * sign * offset, centre[1] + az[1] * along + ax[1] * sign * offset];
+        const plotYaw = alongX ? yaw + (sign > 0 ? 180 : 0) : yaw + (sign > 0 ? 270 : 90);
+        const rr = h01(blockId * 307 + index, k * 13 + 3);
+        addPlot(wi, blockId, index++, c, [width, depth], plotYaw,
+          kindFor(ward.kind, prof, coreness, width * depth, rr), floorsFor(prof, coreness, width * depth, rr), blockNo);
+      }
+    });
+    const inner = [size[0] - depth * 2, size[1] - depth * 2];
+    if (inner[0] >= 22 && inner[1] >= 22) {
+      const rr = h01(blockId * 211, 29);
+      addPlot(wi, blockId, index++, centre, inner, yaw,
+        rr < 0.45 ? "parking" : kindFor(ward.kind, prof, coreness * 0.8, inner[0] * inner[1], rr),
+        floorsFor(prof, coreness * 0.8, inner[0] * inner[1], rr), blockNo);
+    }
+  }
+
+  function kindFor(district, prof, coreness, area, r) {
+    if (r < prof.open) return r < prof.open * 0.55 ? "park" : "parking";
+    switch (district) {
+      case "Core": return area > 2600 ? "tower" : "office";
+      case "Station": return area > 2200 ? "office" : (r < 0.55 ? "shop" : "midrise");
+      case "Retail": return area > 2600 ? "midrise" : (r < 0.7 ? "shop" : "midrise");
+      case "Night": return "shop";
+      case "Office": return area > 1800 ? "office" : "midrise";
+      case "Civic": return r < 0.7 ? "civic" : "office";
+      case "Palace": return "park";
+      case "Mansion": return r < 0.8 ? "flats" : "midrise";
+      case "House": case "Suburb": return "houses";
+      case "Works": return r < 0.55 ? "factory" : "shed";
+      case "Port": return r < 0.6 ? "wharf" : "shed";
+      case "Fill": return (area > 4000 && coreness > 0.25) ? "tower" : (r < 0.5 ? "office" : "civic");
+      case "Campus": return "campus";
+      case "Park": return "park";
+      case "Shrine": return r < 0.7 ? "shrine" : "houses";
+      case "Water": return r < 0.25 ? "park" : (area > 2000 ? "midrise" : "shop");
+      default: return "midrise";
+    }
+  }
+  function floorsFor(prof, coreness, area, r) {
+    let t = clamp01(0.30 + coreness * 0.55 + (r - 0.5) * 0.42);
+    t = clamp01(t + clamp01((area - 900) / 4200) * 0.25);
+    let floors = Math.round(lerp(prof.floors[0], prof.floors[1], t));
+    if (area < 260) floors = Math.min(floors, 6);
+    return Math.max(1, floors);
+  }
+  function addPlot(ward, block, index, centre, size, yaw, kind, floors, blockNo, corner) {
+    L.plots.push({
+      id: L.plots.length, ward: ward, block: block, index: index, blockNo: blockNo || 1,
+      centre: [centre[0], centre[1]], size: [size[0], size[1]], yaw: ((yaw % 360) + 360) % 360,
+      kind: kind, floors: floors, corner: !!corner,
+      groundY: world.sampleHeight(centre[0], centre[1]),
+      height: floors * floorHeight(kind)
+    });
+  }
+  function floorHeight(kind) {
+    switch (kind) {
+      case "tower": case "office": return 4.0;
+      case "civic": return 4.6;
+      case "midrise": return 3.7;
+      case "shop": return 3.4;
+      case "flats": return 3.1;
+      case "houses": return 3.0;
+      case "factory": case "shed": return 6.5;
+      case "campus": return 4.2;
+      default: return 3.4;
+    }
+  }
+
+  // ---- grading: flatten the plots, run the roads, dig the moat -----------
+  report("grading " + site.name, progressBase + 0.10);
+  (function grade() {
+    const H = world.height, U = world.urban;
+    function stampRect(cx, cz, sx, sz, yaw, y, urbanValue) {
+      const rad = yaw * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+      const ex = Math.abs(cs * sx * 0.5) + Math.abs(sn * sz * 0.5);
+      const ez = Math.abs(sn * sx * 0.5) + Math.abs(cs * sz * 0.5);
+      const x0 = Math.max(0, Math.floor((cx - ex) / CELL)), x1 = Math.min(GRID_X - 1, Math.ceil((cx + ex) / CELL));
+      const z0 = Math.max(0, Math.floor((cz - ez) / CELL)), z1 = Math.min(GRID_Z - 1, Math.ceil((cz + ez) / CELL));
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+        const l = toRectLocal(x * CELL, z * CELL, cx, cz, yaw);
+        if (Math.abs(l[0]) > sx * 0.5 || Math.abs(l[1]) > sz * 0.5) continue;
+        const i = world.idx(x, z);
+        H[i] = y;
+        U[i] = Math.max(U[i], urbanValue);
+      }
+    }
+    // Made ground first: a flat deck a few metres above the water.
+    L.fills.forEach(f => stampRect(f.c[0], f.c[1], f.size[0], f.size[1], f.rot, f.y, 1));
+
+    // Roads get a running profile: sampled, smoothed along their length, then held
+    // to a gradient limit. That is the difference between a road and a stripe.
+    L.roads.concat(L.rails).forEach(path => {
+      const p = path.pts;
+      const prof = p.map(q => world.sampleHeight(q[0], q[2]));
+      for (let pass = 0; pass < 6; pass++) {
+        const tmp = prof.slice();
+        for (let i = 0; i < p.length; i++) {
+          const a = i > 0 ? i - 1 : (path.loop ? p.length - 1 : 0);
+          const b = i < p.length - 1 ? i + 1 : (path.loop ? 0 : p.length - 1);
+          tmp[i] = (prof[a] + prof[i] * 2 + prof[b]) * 0.25;
+        }
+        for (let i = 0; i < p.length; i++) prof[i] = tmp[i];
+      }
+      const maxGrade = path.cls === "expressway" ? 0.045 : (path.cls === "arterial" ? 0.065 : 0.035);
+      for (let pass = 0; pass < 3; pass++) {
+        for (let i = 1; i < p.length; i++) {
+          const lim = Math.max(0.05, Math.hypot(p[i][0] - p[i - 1][0], p[i][2] - p[i - 1][2])) * maxGrade;
+          prof[i] = clamp(prof[i], prof[i - 1] - lim, prof[i - 1] + lim);
+        }
+        for (let i = p.length - 2; i >= 0; i--) {
+          const lim = Math.max(0.05, Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][2] - p[i][2])) * maxGrade;
+          prof[i] = clamp(prof[i], prof[i + 1] - lim, prof[i + 1] + lim);
+        }
+      }
+      path.profile = prof;
+      if (path.elevated) {
+        for (let i = 0; i < p.length; i++) p[i][1] = prof[i] + (path.cls === "shinkansen" ? 12 : path.cls === "loop" ? 9.5 : 13);
+        return;   // a viaduct wants piers, not a cutting
+      }
+      for (let i = 0; i < p.length; i++) p[i][1] = prof[i];
+      // Lay the carriageway on the ground, but never across open water: that is a
+      // bridge, and a bridge does not need earthworks.
+      for (let i = 1; i < p.length; i++) {
+        const ax = p[i - 1][0], az = p[i - 1][2], bx = p[i][0], bz = p[i][2];
+        const len = Math.hypot(bx - ax, bz - az);
+        const steps = Math.max(1, Math.ceil(len / (CELL * 0.6)));
+        for (let k = 0; k <= steps; k++) {
+          const t = k / steps;
+          const cx = lerp(ax, bx, t), cz = lerp(az, bz, t);
+          if (world.sampleHeight(cx, cz) < 0.6) continue;
+          if (footprint(cx, cz) < 0.04) continue;
+          const dirx = (bx - ax) / (len || 1), dirz = (bz - az) / (len || 1);
+          stampRect(cx, cz, path.halfWidth * 2 + 6, CELL * 1.2, yawFrom([dirz, -dirx]), lerp(prof[i - 1], prof[i], t), 1);
+        }
+      }
+    });
+
+    // Every plot graded dead flat at a height snapped to 10 cm, so a building
+    // placed from the plot record lands on the ground exactly.
+    L.plots.forEach(p => {
+      let y = world.sampleHeight(p.centre[0], p.centre[1]);
+      y = Math.max(0.5, Math.round(y * 10) / 10);
+      p.groundY = y;
+      stampRect(p.centre[0], p.centre[1], Math.max(4, p.size[0] - 1.4), Math.max(4, p.size[1] - 1.4), p.yaw, y, 1);
+    });
+    L.stations.forEach(st => {
+      st.groundY = Math.max(0.5, Math.round(world.sampleHeight(st.centre[0], st.centre[1]) * 10) / 10);
+      stampRect(st.centre[0], st.centre[1], st.size[0] * 1.45, st.size[1] * 2.1, st.yaw, st.groundY, 1);
+    });
+
+    if (L.moat) {
+      const m = L.moat;
+      const g = Math.round(world.sampleHeight(m.centre[0], m.centre[1]) * 10) / 10;
+      m.groundY = Math.max(1, g);
+      m.waterY = m.groundY - 1.6;
+      const outer = m.inner + m.width;
+      const rect = { x0: m.centre[0] - outer - CELL, x1: m.centre[0] + outer + CELL, z0: m.centre[1] - outer - CELL, z1: m.centre[1] + outer + CELL };
+      const x0 = Math.max(0, Math.floor(rect.x0 / CELL)), x1 = Math.min(GRID_X - 1, Math.ceil(rect.x1 / CELL));
+      const z0 = Math.max(0, Math.floor(rect.z0 / CELL)), z1 = Math.min(GRID_Z - 1, Math.ceil(rect.z1 / CELL));
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+        const l = toRectLocal(x * CELL, z * CELL, m.centre[0], m.centre[1], m.yaw);
+        const d = Math.max(Math.abs(l[0]), Math.abs(l[1]));
+        if (d > outer) continue;
+        const i = world.idx(x, z);
+        world.urban[i] = 1;
+        world.height[i] = d >= m.inner ? m.groundY - 5.2 : m.groundY;
+      }
+    }
+  })();
+
+  // ---- named sites -----------------------------------------------------
+  const coreWard = L.wards.findIndex(w => w.kind === "Core");
+  if (coreWard >= 0) {
+    const best = L.plots.filter(p => p.ward === coreWard && (p.kind === "tower" || p.kind === "office"))
+      .sort((a, b) => (b.size[0] * b.size[1]) - (a.size[0] * a.size[1]));
+    const names = [
+      ["Soti Tower", "Head office of Soti, and the tallest building in Konto. Lobby, atrium, forty floors of open plan, and the roof the story ends on.", 58],
+      ["Konto Central Bank", "Flagship bank tower, facing the palace across the moat.", 40],
+      ["Konto Broadcasting Centre", "Studios and a mast, for the skyline.", 36]
+    ];
+    for (let i = 0; i < names.length && i < best.length; i++) {
+      const p = best[i];
+      p.kind = i === 0 ? "landmark" : "tower";
+      p.floors = names[i][2];
+      p.height = p.floors * floorHeight("tower");
+      L.sites.push({ name: names[i][0], note: names[i][1], at: [p.centre[0], p.groundY, p.centre[1]], plot: p });
+    }
+  }
+  if (isVillage) {
+    const shrine = L.plots.filter(p => p.kind === "shrine" || p.kind === "park").sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1])[0];
+    const home = L.plots.filter(p => p.kind === "houses" || p.kind === "shop").sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1])[0];
+    if (shrine) L.sites.push({ name: site.name + " shrine", note: "Torii, a gravel approach, a hall and one very old tree.", at: [shrine.centre[0], shrine.groundY, shrine.centre[1]], plot: shrine });
+    if (home) L.sites.push({ name: "Family home", note: "The house the player leaves in the first scene.", at: [home.centre[0], home.groundY, home.centre[1]], plot: home });
+  }
+  if (terminus) {
+    L.sites.push({
+      name: terminus.name,
+      note: hasNetwork ? "Main terminus: concourse, fourteen platforms, a department store over the top." : "Local station: one platform, a level crossing, a vending machine.",
+      at: [terminus.centre[0], terminus.groundY, terminus.centre[1]], plot: null
+    });
+  }
+  const civic = L.plots.filter(p => p.kind === "civic").sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1])[0];
+  if (civic && site.capital) L.sites.push({ name: "Konto Metropolitan Government", note: "City hall. Twin towers and a sunken plaza suit the site.", at: [civic.centre[0], civic.groundY, civic.centre[1]], plot: civic });
+
+  L.roadKm = L.roads.reduce((s, r) => s + pathLength(r.pts, r.loop), 0) / 1000;
+  L.railKm = L.rails.reduce((s, r) => s + pathLength(r.pts, r.loop), 0) / 1000;
+  L.plotArea = L.plots.reduce((s, p) => s + p.size[0] * p.size[1], 0) / 1e6;
+  L.footprint = footprint;
+  L.plotCode = p => L.code + "-" + wardCode(L.wards[p.ward] ? L.wards[p.ward].name : "XXX") + "-B" + String(p.blockNo).padStart(3, "0") + "-P" + String(p.index).padStart(2, "0");
+  return L;
+}
+
+function pathLength(pts, loop) {
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]);
+  if (loop && pts.length > 2) d += Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][2] - pts[pts.length - 1][2]);
+  return d;
+}
+function wardCode(name) {
+  const letters = name.toUpperCase().replace(/[^A-Z]/g, "");
+  if (!letters) return "WRD";
+  let code = letters[0];
+  for (let i = 1; i < letters.length && code.length < 3; i++) if ("AEIOU".indexOf(letters[i]) < 0) code += letters[i];
+  for (let i = 1; i < letters.length && code.length < 3; i++) code += letters[i];
+  while (code.length < 3) code += "X";
+  return code;
+}
+function yawFrom(dir) { return Math.atan2(dir[0], dir[1]) * 180 / Math.PI; }
+function toRectLocal(px, pz, cx, cz, yaw) {
+  const r = yaw * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  const dx = px - cx, dz = pz - cz;
+  return [dx * cs - dz * sn, dx * sn + dz * cs];
+}
+function fromRectLocal(lx, lz, cx, cz, yaw) {
+  const r = yaw * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r);
+  return [cx + lx * cs + lz * sn, cz - lx * sn + lz * cs];
+}
+
+// ============================================================================
+// RENDERING
+// ============================================================================
+const SURFACE = {
+  sea: [0.09, 0.20, 0.26], shallow: [0.16, 0.31, 0.34],
+  sand: [0.70, 0.67, 0.58], gravel: [0.45, 0.44, 0.41],
+  paddy: [0.26, 0.31, 0.17], meadow: [0.33, 0.41, 0.21],
+  forest: [0.15, 0.22, 0.13], forestHigh: [0.22, 0.28, 0.19],
+  rock: [0.40, 0.39, 0.37], scree: [0.50, 0.49, 0.47], snow: [0.91, 0.93, 0.96]
+};
+
+function terrainColour(world, x, z, out) {
+  const i = world.idx(x, z);
+  const h = world.height[i];
+  const land = world.landMask[i];
+  const lat = world.arcLat[i];
+  const slope = (() => {
+    const xm = Math.max(0, x - 1), xp = Math.min(world.grid.x - 1, x + 1);
+    const zm = Math.max(0, z - 1), zp = Math.min(world.grid.z - 1, z + 1);
+    const dx = (world.height[world.idx(xp, z)] - world.height[world.idx(xm, z)]) / (2 * CELL);
+    const dz = (world.height[world.idx(x, zp)] - world.height[world.idx(x, zm)]) / (2 * CELL);
+    return Math.hypot(dx, dz);
+  })();
+  const slopeDeg = Math.atan(slope) * 180 / Math.PI;
+  const snowySide = clamp01(-lat / 1200);
+  const snowLine = 1230 - 200 * snowySide;
+  const treeLine = 1120 - 100 * snowySide;
+
+  let c;
+  if (h < 0) {
+    c = h < -22 ? SURFACE.sea : SURFACE.shallow;
+  } else if (land < 0.6) {
+    c = SURFACE.sand;
+  } else if (h > snowLine && slopeDeg < 55) {
+    c = SURFACE.snow;
+  } else if (slopeDeg > 38) {
+    c = SURFACE.rock;
+  } else if (h > treeLine) {
+    c = SURFACE.scree;
+  } else if (h < 3.2 && slopeDeg < 20) {
+    c = SURFACE.sand;
+  } else if (world.river[i] > 0.4) {
+    c = SURFACE.gravel;
+  } else if (slopeDeg < 6 && h < 320) {
+    c = SURFACE.paddy;
+  } else if (slopeDeg < 20 && h < 700) {
+    c = SURFACE.forest;
+  } else if (h > treeLine - 220) {
+    c = SURFACE.forestHigh;
+  } else {
+    c = SURFACE.meadow;
+  }
+
+  // Ground under the city is engineered: concrete, not soil.
+  const u = world.urban[i];
+  const tint = 0.46 + fbm(x * 0.7, z * 0.7, 4001, 2) * 0.05;
+  out[0] = lerp(c[0], tint, u * 0.85);
+  out[1] = lerp(c[1], tint, u * 0.85);
+  out[2] = lerp(c[2], tint * 1.02, u * 0.85);
+  // Cheap ambient shading so the relief reads without waiting on lights.
+  const shade = 0.72 + 0.28 * clamp01(1 - slope * 1.6);
+  out[0] *= shade; out[1] *= shade; out[2] *= shade;
+}
+
+// The city's own surfaces are drawn, not sampled: the streets land exactly in
+// the gaps between the blocks because both come from the same grid.
+function paintCity(world, city, size) {
+  const b = city.bounds;
+  const pad = 200;
+  const x0 = b.x0 - pad, z0 = b.z0 - pad;
+  const w = (b.x1 - b.x0) + pad * 2, h = (b.z1 - b.z0) + pad * 2;
+  const cv = document.createElement("canvas");
+  const aspect = h / w;
+  cv.width = size;
+  cv.height = Math.max(64, Math.round(size * aspect));
+  const g = cv.getContext("2d");
+  const S = cv.width / w;
+  g.clearRect(0, 0, cv.width, cv.height);
+  const X = px => (px - x0) * S;
+  const Z = pz => (pz - z0) * S;
+
+  const C = {
+    fill: "#8b8579", lot: "#7b776d", asphalt: "#2f3034", footway: "#9c968a",
+    park: "#3f5130", water: "#1b3b46", ballast: "#57544c", plaza: "#a8a294"
+  };
+
+  // Made ground under everything.
+  city.fills.forEach(f => {
+    g.save();
+    g.translate(X(f.c[0]), Z(f.c[1]));
+    g.rotate(-f.rot * Math.PI / 180);
+    g.fillStyle = C.fill;
+    g.fillRect(-f.size[0] * 0.5 * S, -f.size[1] * 0.5 * S, f.size[0] * S, f.size[1] * S);
+    g.restore();
+  });
+
+  // Local streets go on their own layer: they are clipped to each ward's ground by
+  // the Voronoi cell, and then the whole layer is masked by the city footprint, or
+  // the grids run on out over the hills and the farmland for kilometres.
+  const sc = document.createElement("canvas");
+  sc.width = cv.width; sc.height = cv.height;
+  const sg = sc.getContext("2d");
+  const cells = voronoiCells(city.wards.map(wd => wd.centre), [x0, z0, x0 + w, z0 + h]);
+  city.wards.forEach((wd, wi) => {
+    const poly = cells[wi];
+    if (!poly || poly.length < 3) return;
+    sg.save();
+    sg.beginPath();
+    sg.moveTo(X(poly[0][0]), Z(poly[0][1]));
+    for (let i = 1; i < poly.length; i++) sg.lineTo(X(poly[i][0]), Z(poly[i][1]));
+    sg.closePath();
+    sg.clip();
+
+    const reach = Math.max(wd.radius * 1.6, 400);
+    const steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
+    for (let pass = 0; pass < 2; pass++) {
+      for (let k = -steps; k <= steps; k++) {
+        const isAlley = wd.alleys && (k & 1) !== 0;
+        const width = isAlley ? wd.alley : wd.street;
+        if (pass === 0 && isAlley) continue;              // footways only on real streets
+        sg.strokeStyle = pass === 0 ? C.footway : C.asphalt;
+        sg.lineWidth = (pass === 0 ? width + Math.min(4.2, width * 0.3) * 2 : width) * S;
+        for (let axis = 0; axis < 2; axis++) {
+          const a = axis === 0
+            ? [fromRectLocal(k * wd.sx, -reach, wd.centre[0], wd.centre[1], wd.yaw), fromRectLocal(k * wd.sx, reach, wd.centre[0], wd.centre[1], wd.yaw)]
+            : [fromRectLocal(-reach, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw), fromRectLocal(reach, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw)];
+          sg.beginPath();
+          sg.moveTo(X(a[0][0]), Z(a[0][1]));
+          sg.lineTo(X(a[1][0]), Z(a[1][1]));
+          sg.stroke();
+        }
+      }
+    }
+    sg.restore();
+  });
+
+  // Mask the street layer by where the city actually is, then lay it down.
+  const mw = 224, mh = Math.max(32, Math.round(224 * aspect));
+  const mc = document.createElement("canvas");
+  mc.width = mw; mc.height = mh;
+  const mg = mc.getContext("2d");
+  const img = mg.createImageData(mw, mh);
+  for (let my = 0; my < mh; my++) {
+    for (let mx = 0; mx < mw; mx++) {
+      const px = x0 + (mx + 0.5) / mw * w, pz = z0 + (my + 0.5) / mh * h;
+      const a = clamp01((city.footprint(px, pz) - 0.10) / 0.22);
+      const o = (my * mw + mx) * 4;
+      img.data[o] = 255; img.data[o + 1] = 255; img.data[o + 2] = 255;
+      img.data[o + 3] = Math.round(a * 255);
+    }
+  }
+  mg.putImageData(img, 0, 0);
+  sg.globalCompositeOperation = "destination-in";
+  sg.imageSmoothingEnabled = true;
+  sg.drawImage(mc, 0, 0, sc.width, sc.height);
+  sg.globalCompositeOperation = "source-over";
+  g.drawImage(sc, 0, 0);
+
+  // Plots.
+  city.plots.forEach(p => {
+    g.save();
+    g.translate(X(p.centre[0]), Z(p.centre[1]));
+    g.rotate(-p.yaw * Math.PI / 180);
+    g.fillStyle = (p.kind === "park" || p.kind === "shrine") ? C.park : (p.kind === "parking" ? C.asphalt : C.lot);
+    g.fillRect(-p.size[0] * 0.5 * S, -p.size[1] * 0.5 * S, p.size[0] * S, p.size[1] * S);
+    g.restore();
+  });
+
+  // Station plazas.
+  city.stations.forEach(st => {
+    g.save();
+    g.translate(X(st.centre[0]), Z(st.centre[1]));
+    g.rotate(-st.yaw * Math.PI / 180);
+    g.fillStyle = C.plaza;
+    g.fillRect(-st.size[0] * 0.72 * S, -st.size[1] * 1.05 * S, st.size[0] * 1.45 * S, st.size[1] * 2.1 * S);
+    g.fillStyle = C.lot;
+    g.fillRect(-st.size[0] * 0.5 * S, -st.size[1] * 0.5 * S, st.size[0] * S, st.size[1] * S);
+    g.restore();
+  });
+
+  // Rail beds, then the arterials over the top of everything.
+  function strokePath(path, colour, width, dash) {
+    g.strokeStyle = colour;
+    g.lineWidth = Math.max(1, width * S);
+    g.lineCap = "round";
+    g.setLineDash(dash || []);
+    g.beginPath();
+    path.pts.forEach((q, i) => {
+      const px = X(q[0]), pz = Z(q[2]);
+      if (i === 0) g.moveTo(px, pz); else g.lineTo(px, pz);
+    });
+    if (path.loop) g.closePath();
+    g.stroke();
+    g.setLineDash([]);
+  }
+  city.rails.forEach(line => { if (!line.elevated) strokePath(line, C.ballast, line.halfWidth * 2); });
+  city.roads.forEach(road => {
+    if (road.elevated) return;
+    strokePath(road, C.footway, road.halfWidth * 2 + 9);
+    strokePath(road, C.asphalt, road.halfWidth * 2);
+  });
+
+  // The moat.
+  if (city.moat) {
+    const m = city.moat;
+    g.save();
+    g.translate(X(m.centre[0]), Z(m.centre[1]));
+    g.rotate(-m.yaw * Math.PI / 180);
+    g.fillStyle = C.park;
+    g.fillRect(-m.inner * S, -m.inner * S, m.inner * 2 * S, m.inner * 2 * S);
+    g.strokeStyle = C.water;
+    g.lineWidth = m.width * S;
+    const r = (m.inner + m.width * 0.5);
+    g.strokeRect(-r * S, -r * S, r * 2 * S, r * 2 * S);
+    g.restore();
+  }
+
+  return { canvas: cv, x0: x0, z0: z0, w: w, h: h };
+}
+
+// Convex Voronoi cell per seed, by clipping a rectangle against half planes.
+function voronoiCells(seeds, bounds) {
+  const rect = [
+    [bounds[0], bounds[1]], [bounds[2], bounds[1]],
+    [bounds[2], bounds[3]], [bounds[0], bounds[3]]
+  ];
+  return seeds.map((s, i) => {
+    let poly = rect.slice();
+    for (let k = 0; k < seeds.length && poly.length; k++) {
+      if (k === i) continue;
+      const o = seeds[k];
+      const nx = o[0] - s[0], nz = o[1] - s[1];
+      const mx = (o[0] + s[0]) * 0.5, mz = (o[1] + s[1]) * 0.5;
+      const side = p => (p[0] - mx) * nx + (p[1] - mz) * nz;
+      const next = [];
+      for (let a = 0; a < poly.length; a++) {
+        const p = poly[a], q = poly[(a + 1) % poly.length];
+        const sp = side(p), sq = side(q);
+        if (sp <= 0) next.push(p);
+        if ((sp < 0 && sq > 0) || (sp > 0 && sq < 0)) {
+          const t = sp / (sp - sq);
+          next.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+        }
+      }
+      poly = next;
+    }
+    return poly;
+  });
+}
+
+// ============================================================================
+// SCENE
+// ============================================================================
+let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
+const keys = Object.create(null);
+let yaw = 0, pitch = -0.18, speed = 260;
+const camPos = new THREE.Vector3();
+let flyTo = null;
+
+function boot(stageText, t) {
+  const bar = document.querySelector("#bootbar i");
+  const label = document.getElementById("bootstage");
+  if (bar) bar.style.width = Math.round(clamp01(t) * 100) + "%";
+  if (label) label.textContent = stageText;
+}
+
+function initThree() {
+  const stage = document.getElementById("stage");
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(stage.clientWidth, stage.clientHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
+  window.addEventListener("resize", () => {
+    renderer.setSize(stage.clientWidth, stage.clientHeight);
+    camera.aspect = stage.clientWidth / stage.clientHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  // Look, fly.
+  let dragging = false, lastX = 0, lastY = 0;
+  const dom = renderer.domElement;
+  dom.style.touchAction = "none";
+  dom.addEventListener("pointerdown", e => {
+    dragging = true; tour = false; lastX = e.clientX; lastY = e.clientY;
+    dom.setPointerCapture(e.pointerId);
+  });
+  dom.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    yaw -= (e.clientX - lastX) * 0.0032;
+    pitch = clamp(pitch - (e.clientY - lastY) * 0.0028, -1.45, 1.1);
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  dom.addEventListener("pointerup", e => { dragging = false; });
+  dom.addEventListener("wheel", e => {
+    speed = clamp(speed * (e.deltaY > 0 ? 1.15 : 0.87), 20, 4000);
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener("keydown", e => {
+    keys[e.code] = true;
+    if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
+  });
+  window.addEventListener("keyup", e => { keys[e.code] = false; });
+}
+
+function clearScene() {
+  if (!scene) return;
+  groups.forEach(g => {
+    scene.remove(g);
+    g.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        if (o.material.map) o.material.map.dispose();
+        o.material.dispose();
+      }
+    });
+  });
+  groups = [];
+}
+
+function buildScene(w) {
+  if (!scene) {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xb9c6cd);
+    scene.fog = new THREE.Fog(0xb9c6cd, 3200, 15000);
+    const sun = new THREE.DirectionalLight(0xfff2de, 1.15);
+    sun.position.set(-0.45, 0.72, 0.52).multiplyScalar(1000);
+    scene.add(sun);
+    scene.add(new THREE.HemisphereLight(0xd8e6f2, 0x3c3a30, 0.62));
+  }
+  clearScene();
+  const root = new THREE.Group();
+  groups.push(root);
+  scene.add(root);
+
+  // ---- terrain
+  const geo = new THREE.PlaneGeometry(WORLD_X, WORLD_Z, GRID_X - 1, GRID_Z - 1);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position;
+  const colours = new Float32Array(pos.count * 3);
+  const rgb = [0, 0, 0];
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X; x++) {
+      const vi = z * GRID_X + x;
+      pos.setY(vi, w.height[w.idx(x, z)]);
+      terrainColour(w, x, z, rgb);
+      colours[vi * 3] = rgb[0];
+      colours[vi * 3 + 1] = rgb[1];
+      colours[vi * 3 + 2] = rgb[2];
+    }
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+  geo.computeVertexNormals();
+  const terrain = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  terrain.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
+  root.add(terrain);
+
+  // ---- sea
+  const sea = new THREE.Mesh(
+    new THREE.PlaneGeometry(WORLD_X * 2.4, WORLD_Z * 2.4, 1, 1),
+    new THREE.MeshLambertMaterial({ color: 0x18323c, transparent: true, opacity: 0.86 })
+  );
+  sea.geometry.rotateX(-Math.PI / 2);
+  sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
+  root.add(sea);
+
+  // ---- city ground overlays
+  w.cities.forEach(city => {
+    const paint = paintCity(w, city, city.plots.length > 200 ? 2048 : 1024);
+    const tex = new THREE.CanvasTexture(paint.canvas);
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
+    const segX = Math.max(8, Math.round(paint.w / 40));
+    const segZ = Math.max(8, Math.round(paint.h / 40));
+    const og = new THREE.PlaneGeometry(paint.w, paint.h, segX, segZ);
+    og.rotateX(-Math.PI / 2);
+    const op = og.attributes.position;
+    for (let i = 0; i < op.count; i++) {
+      const px = op.getX(i) + paint.x0 + paint.w * 0.5;
+      const pz = op.getZ(i) + paint.z0 + paint.h * 0.5;
+      op.setY(i, w.sampleHeight(px, pz) + 0.7);
+    }
+    og.computeVertexNormals();
+    const overlay = new THREE.Mesh(og, new THREE.MeshLambertMaterial({
+      map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
+    }));
+    overlay.position.set(paint.x0 + paint.w * 0.5, 0, paint.z0 + paint.h * 0.5);
+    root.add(overlay);
+
+    // ---- massing: one instanced box soup for the whole city
+    const boxes = [];
+    city.plots.forEach(p => {
+      if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) return;
+      const r = rnd(Math.round(p.centre[0]), Math.round(p.centre[1]), 9173) ;
+      if (p.kind === "houses") {
+        const nx = clamp(Math.floor(p.size[0] / 13), 1, 4), nz = clamp(Math.floor(p.size[1] / 13), 1, 4);
+        for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
+          const hr = rnd(Math.round(p.centre[0]) + ix, Math.round(p.centre[1]) + iz, 9187);
+          if (hr > 0.86) continue;
+          const cellX = p.size[0] / nx, cellZ = p.size[1] / nz;
+          const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5), -p.size[1] * 0.5 + cellZ * (iz + 0.5)];
+          const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
+          boxes.push({ c: wc, size: [cellX * 0.72, cellZ * 0.72], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), landmark: false });
+        }
+        return;
+      }
+      const setback = p.kind === "shop" ? 0.6 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
+      const size = [Math.max(3, p.size[0] - setback * 2), Math.max(3, p.size[1] - setback * 2)];
+      const top = p.kind === "landmark" ? p.height : p.height * lerp(0.55, 1, r);
+      boxes.push({ c: p.centre, size: size, yaw: p.yaw, y: p.groundY, h: top, landmark: p.kind === "landmark" });
+      // Towers get a setback shoulder, which is what makes a skyline read.
+      if ((p.kind === "tower" || p.kind === "landmark") && top > 45) {
+        const r2 = rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9179);
+        if (r2 > 0.35) {
+          boxes.push({
+            c: p.centre, size: [size[0] * lerp(0.55, 0.78, r2), size[1] * lerp(0.55, 0.78, r2)],
+            yaw: p.yaw, y: p.groundY + top, h: top * lerp(0.18, 0.42, r), landmark: p.kind === "landmark"
+          });
+        }
+      }
+    });
+    // Viaduct decks and piers, so the expressway and the loop line are visible.
+    city.roads.concat(city.rails).forEach(path => {
+      if (!path.elevated) return;
+      let since = 0;
+      for (let i = 1; i < path.pts.length; i++) {
+        const a = path.pts[i - 1], b = path.pts[i];
+        const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        if (len < 1) continue;
+        const mid = [(a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5];
+        const ya = yawFrom([(b[0] - a[0]) / len, (b[2] - a[2]) / len]);
+        const deckY = (a[1] + b[1]) * 0.5;
+        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, y: deckY - 1.4, h: 1.4, deck: true });
+        since += len;
+        if (since < 34) continue;
+        since = 0;
+        const groundY = world.sampleHeight(mid[0], mid[1]);
+        boxes.push({ c: mid, size: [path.halfWidth * 0.55, path.halfWidth * 0.55], yaw: ya, y: groundY, h: Math.max(2, deckY - 1.4 - groundY), deck: true });
+      }
+    });
+
+    if (boxes.length) {
+      const inst = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshLambertMaterial({ vertexColors: false }),
+        boxes.length
+      );
+      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+      const col = new THREE.Color();
+      boxes.forEach((b, i) => {
+        e.set(0, b.yaw * Math.PI / 180, 0);
+        q.setFromEuler(e);
+        m.compose(
+          new THREE.Vector3(b.c[0], b.y + b.h * 0.5, b.c[1]),
+          q,
+          new THREE.Vector3(b.size[0], b.h, b.size[1])
+        );
+        inst.setMatrixAt(i, m);
+        if (b.landmark) col.setHex(0xc86a3c);
+        else if (b.deck) col.setHex(0x6f6f73);
+        else {
+          const g = 0.58 + rnd(i, 3, 771) * 0.16;
+          col.setRGB(g, g * 0.99, g * 0.95);
+        }
+        inst.setColorAt(i, col);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      root.add(inst);
+    }
+
+    // Moat water.
+    if (city.moat) {
+      const m = city.moat;
+      const outer = m.inner + m.width;
+      const water = new THREE.Mesh(
+        new THREE.PlaneGeometry(outer * 2, outer * 2, 1, 1),
+        new THREE.MeshLambertMaterial({ color: 0x1a3b45 })
+      );
+      water.geometry.rotateX(-Math.PI / 2);
+      water.position.set(m.centre[0], m.waterY, m.centre[1]);
+      water.rotation.y = -m.yaw * Math.PI / 180;
+      root.add(water);
+    }
+  });
+
+  // ---- opening shot: out over the bay, looking back at the city
+  const capital = w.cities[0];
+  const look = capital.sites.find(s => s.name === "Soti Tower") || { at: [WORLD_X * 0.5, 40, WORLD_Z * 0.5] };
+  const target = new THREE.Vector3(look.at[0], look.at[1] + 80, look.at[2]);
+  camPos.set(target.x + 1500, 560, target.z + 1750);
+  aimAt(target);
+}
+
+function aimAt(target) {
+  const dir = target.clone().sub(camPos);
+  yaw = Math.atan2(-dir.x, -dir.z);
+  pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
+}
+
+function tick(dt) {
+  if (flyTo) {
+    camPos.lerp(flyTo.pos, 1 - Math.pow(0.0025, dt));
+    aimAt(flyTo.look);
+    if (camPos.distanceTo(flyTo.pos) < 25) flyTo = null;
+  } else if (tour) {
+    const capital = world.cities[0];
+    const c = capital.bounds;
+    const cx = (c.x0 + c.x1) * 0.5, cz = (c.z0 + c.z1) * 0.5;
+    tourAngle += dt * 0.042;
+    const radius = Math.max(c.x1 - c.x0, c.z1 - c.z0) * 0.62;
+    camPos.set(cx + Math.cos(tourAngle) * radius, 620, cz + Math.sin(tourAngle) * radius);
+    aimAt(new THREE.Vector3(cx, 60, cz));
+  } else {
+    const fwd = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const v = new THREE.Vector3();
+    if (keys.KeyW || keys.ArrowUp) v.add(fwd);
+    if (keys.KeyS || keys.ArrowDown) v.sub(fwd);
+    if (keys.KeyD || keys.ArrowRight) v.add(right);
+    if (keys.KeyA || keys.ArrowLeft) v.sub(right);
+    if (keys.KeyE) v.y += 1;
+    if (keys.KeyQ) v.y -= 1;
+    if (v.lengthSq() > 0) {
+      v.normalize().multiplyScalar(speed * dt * ((keys.ShiftLeft || keys.ShiftRight) ? 4 : 1));
+      camPos.add(v);
+    }
+  }
+  const ground = world.sampleHeight(clamp(camPos.x, 0, WORLD_X), clamp(camPos.z, 0, WORLD_Z));
+  camPos.y = Math.max(camPos.y, ground + 2.2);
+  camera.position.copy(camPos);
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(camPos.clone().add(dir));
+  renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------- readout
+function fillReadout(w) {
+  const capital = w.cities[0];
+  const rows = [
+    ["Island", (WORLD_X / 1000).toFixed(1) + " × " + (WORLD_Z / 1000).toFixed(1) + " km"],
+    ["Highest ground", Math.round(w.highest) + " m"],
+    ["Terrain samples", (GRID_X * GRID_Z / 1000).toFixed(0) + "k"],
+    ["—", ""],
+    ["Wards", String(capital.wards.length)],
+    ["Blocks", String(capital.blocks.length)],
+    ["Reserved plots", String(capital.plots.length)],
+    ["Building ground", capital.plotArea.toFixed(2) + " km²"],
+    ["Road", capital.roadKm.toFixed(1) + " km"],
+    ["Railway", capital.railKm.toFixed(1) + " km"],
+    ["Stations", String(capital.stations.length)],
+    ["Village plots", String(w.cities[1] ? w.cities[1].plots.length : 0)]
+  ];
+  const host = document.getElementById("statrows");
+  host.innerHTML = "";
+  rows.forEach(r => {
+    if (r[0] === "—") { host.appendChild(document.createElement("hr")).className = "rule"; return; }
+    const div = document.createElement("div");
+    div.className = "row";
+    const a = document.createElement("span"); a.textContent = r[0];
+    const b = document.createElement("span"); b.textContent = r[1];
+    div.appendChild(a); div.appendChild(b);
+    host.appendChild(div);
+  });
+
+  const list = document.getElementById("sitelist");
+  list.innerHTML = "";
+  const all = [];
+  w.cities.forEach(c => c.sites.forEach(s => all.push({ city: c, site: s })));
+  all.forEach(entry => {
+    const btn = document.createElement("button");
+    btn.className = "site";
+    btn.type = "button";
+    const name = document.createElement("span");
+    name.textContent = entry.site.name;
+    const code = document.createElement("code");
+    code.textContent = entry.site.plot ? entry.city.plotCode(entry.site.plot) : entry.city.code;
+    btn.appendChild(name); btn.appendChild(code);
+    btn.title = entry.site.note || "";
+    btn.addEventListener("click", () => {
+      tour = false;
+      const at = entry.site.at;
+      const h = entry.site.plot ? Math.max(60, entry.site.plot.height) : 90;
+      flyTo = {
+        pos: new THREE.Vector3(at[0] + h * 1.5 + 90, at[1] + h * 1.1 + 70, at[2] + h * 1.5 + 90),
+        look: new THREE.Vector3(at[0], at[1] + h * 0.45, at[2])
+      };
+    });
+    list.appendChild(btn);
+  });
+}
+
+// ---------------------------------------------------------------- run
+function frameLoop() {
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min((now - last) / 1000, 0.1);
+    last = now;
+    if (world && scene) tick(dt);
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+
+function generate(seed) {
+  const btn = document.getElementById("regen");
+  btn.disabled = true;
+  document.getElementById("boot").hidden = false;
+  const stages = [];
+  const report = (text, t) => stages.push([text, t]);
+
+  // Run the stages with a breath between them so the progress bar moves.
+  let step = 0;
+  const work = [
+    () => { world = makeWorld(seed, (text, t) => boot(text, t * 0.86)); },
+    () => { boot("building the mesh", 0.90); buildScene(world); },
+    () => { boot("done", 1); fillReadout(world); }
+  ];
+  function next() {
+    if (step >= work.length) {
+      document.getElementById("boot").hidden = true;
+      btn.disabled = false;
+      return;
+    }
+    const fn = work[step++];
+    try { fn(); } catch (err) {
+      document.getElementById("bootstage").textContent = "failed: " + err.message;
+      console.error(err);
+      btn.disabled = false;
+      return;
+    }
+    setTimeout(next, 16);
+  }
+  setTimeout(next, 30);
+}
+
+initThree();
+frameLoop();
+document.getElementById("regen").addEventListener("click", () => {
+  const v = parseInt(document.getElementById("seed").value, 10);
+  generate(isFinite(v) ? v : 19640101);
+});
+generate(19640101);
+</script>
+
+</body>
+</html>
