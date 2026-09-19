@@ -1,11 +1,15 @@
 # Konto — setup guide for Unity 6 HDRP
 
-This is the world of **Salary Man**: the island of Konto, a compressed replica of Honshu, and the
-space its capital occupies on it. Everything here is generated: the landform, the ground surfacing,
-the vegetation, the water, the lighting, and the city's wards, streets, railways and building plots.
-No buildings are placed — see **[CITY_TOKONTO.md](CITY_TOKONTO.md)** for how to put them on it.
+This is the world of **Salary Man**: the island of Konto, a compressed replica of Honshu, and its
+capital on it. Everything here is generated — the landform, the ground surfacing, the vegetation,
+the water, the lighting, the city's wards, streets, railways and plots, the three thousand
+buildings standing on those plots, the street furniture between them, and the character who walks
+around it. Nothing has to be modelled, bought or downloaded.
 
-Follow it top to bottom the first time. It takes about fifteen minutes plus build time.
+Follow it top to bottom the first time. It is about ten minutes of clicking plus build time.
+
+If you only read one thing: **make an HDRP project, copy `Assets/SalaryMan` into it, and press
+Tools → SalaryMan → Build Konto (all steps)**. The rest of this is detail and troubleshooting.
 
 ---
 
@@ -84,9 +88,18 @@ If you would rather do it by hand: select your HDRP Asset, and in **Rendering** 
 1. Open **Tools → SalaryMan → Konto World Builder**.
 2. Press **Create default settings asset** if the settings field is empty. This writes
    `Assets/SalaryMan/World/Settings/KontoWorldSettings.asset` with the Honshu-derived layout.
-3. Leave every step ticked and press **Build Konto**. The **city** step is one of them: it plans
-   Tokonto and Mizuho and hands over their plots. Untick *Also drop in the grey massing blockout*
-   if you would rather see the bare ground.
+3. Leave every step ticked and press **Build Konto**.
+
+   Under the **city** step there are three sub-options:
+
+   - *Buildings, street furniture and their materials* — on. This is what puts the city up.
+   - *Repaint the facade and roof textures* — off. The textures are painted once and cached to
+     disk; tick this only after you change a painter in `FacadeTextures`.
+   - *Grey massing blockout instead of buildings* — off. Grey boxes, for judging the plan without
+     waiting for the buildings.
+
+   The **character** step imports `Assets/SalaryMan/Characters/Seiko.fbx`, sets its import up,
+   builds a Speed blend tree from its Idle / Walk / Run clips, and puts him in the scene.
 
 Expected time on a modern desktop, at default settings (12288 × 10240 m, 30 tiles, 1.1M droplets):
 
@@ -96,6 +109,8 @@ Expected time on a modern desktop, at default settings (12288 × 10240 m, 30 til
 | Stand-in vegetation | ~10 s (first build only) |
 | Landform, erosion, hydrology | 3 – 8 min |
 | Cities: planning and grading | 30 s – 2 min |
+| City surfaces: painting 18 PBR sets at 1024² | ~40 s (first build only) |
+| Buildings and street furniture | 30 s – 2 min |
 | Terrain tiles, splatmaps, grass, trees | 5 – 15 min |
 | Water, sky, lighting | ~10 s |
 
@@ -110,10 +125,16 @@ When it finishes you will have:
 ```
 Konto World          30 terrain tiles, stitched
 Konto Water          ocean, lakes, river ribbons
-Konto Cities         Tokonto and Mizuho: ward anchors, reserved site markers,
-                     moat water, and the grey massing blockout
+Konto Cities         Tokonto and Mizuho, each with:
+                       Wards            ward anchors
+                       Reserved sites   markers on the named plots
+                       Water            moat
+                       Buildings        one mesh per ward, ~3000 buildings
+                       Street furniture kerbs, lamps, signals, poles and wires
+                       Soti Tower       the one modelled building
 Konto Environment    sun, moon, sky/fog volume, weather, wind
-Main Camera          placed out over the bay, looking back at the city
+Salaryman Player     Seiko Shigu, rigged, on a Speed blend tree
+Main Camera          over his shoulder
 ```
 
 and, on disk, `Assets/SalaryMan/World/Generated/` holding the terrain data, textures, terrain
@@ -131,9 +152,12 @@ reference them do not exist until you save.
 - **Scene view:** press `F` with `Konto World` selected to frame the island.
 - **Play mode:** the main camera has a `KontoFreeCamera`. Hold **right mouse** to look, **WASD**
   to fly, **Q/E** down and up, **shift** to sprint, **scroll** to change speed.
-- **On foot:** **Tools → SalaryMan → Add Walker To Scene** drops a character controller under the
-  scene view camera and parents the main camera to its eyes. This is the important one — scale,
-  slope and surface detail can only be judged from 1.7 m off the ground.
+- **On foot as Seiko:** the build already put him in. Press play and walk. If you want him
+  somewhere else, move `Salaryman Player` and press play again, or re-run
+  **Tools → SalaryMan → Put Seiko In The Scene** with the scene view where you want him.
+- **On foot with no model:** **Tools → SalaryMan → Add Walker To Scene** drops a bare character
+  controller and parents the main camera to its eyes. Scale, slope and surface detail can only be
+  judged from 1.7 m off the ground, and this is the fastest way to get there.
 
 Things worth flying to, in the default seed:
 
@@ -148,6 +172,14 @@ Things worth flying to, in the default seed:
 - **Mizuho**, in a mountain basin on the snowy side at about 48% along — the village the story
   starts in, four kilometres from the capital over the range.
 - **Any valley floor at about 200–400 m** — that is where the rice terraces are cut.
+
+And in the city, on foot:
+
+- **A retail ward** — the shopping streets are a run of narrow buildings sharing party walls, with
+  shopfronts, sign bands and box signs, and poles with the wiring strung over the road.
+- **Soti Tower's plaza** — look up. 592 m, Ping An's form.
+- **Any roof you can get above** — the plant on the roofs is most of what a Japanese skyline is,
+  and it is the thing that most repays flying at 80 m rather than 800.
 
 ---
 
@@ -213,6 +245,9 @@ Default settings target a mid-range desktop at 1080p. If it runs badly:
 | Slow world build | `erosionDroplets` 1.1M → 350k, `workingResolution` 2560 → 1280 |
 | Slow city build | `urbanCellSize` 2 → 3 (a street is 8 m wide, so do not go past 3) |
 | Out of memory during build | Lower `workingResolution`, or build fewer tiles |
+| GPU-bound looking at the city | The facades run pixel displacement. Drop `_PPDMaxSamples` on the `Konto_Surf_*` materials from 15 to 8, or set `_DisplacementMode` to 0 to turn it off entirely |
+| VRAM tight | `KontoSurfaceLibrary.DefaultSize` 1024 → 512, then repaint the surfaces |
+| City costs too much geometry | It is ~1.5M triangles and has no LODs yet. The cheapest win is turning off roof clutter in `BuildingLibrary.StyleFor` |
 
 Volumetric clouds and volumetric fog are the next two most expensive features. Both are worth
 their cost here; screen space GI is the one to drop first.
@@ -310,16 +345,48 @@ probing for parameter names across HDRP versions. It set the one that exists on 
 **The build takes forever.** See the performance table above. Erosion is the slow step and it
 scales with `workingResolution` squared.
 
+**The buildings are grey boxes.** The *Grey massing blockout* option is ticked, or *Buildings,
+street furniture and their materials* is not. Both live under the city step in the build window.
+
+**The buildings are magenta.** The surface materials did not resolve to `HDRP/Lit`, which means
+HDRP is not the active pipeline. Fix Graphics settings, then
+**Tools → SalaryMan → Repaint the city surfaces**.
+
+**The windows look painted on.** Pixel displacement is what gives them depth, and it needs
+`_DisplacementMode` on HDRP Lit. If your HDRP version does not have it the setup skips it
+silently and the facades fall back to normal mapping — still fine at a distance, flat up close.
+Check a `Konto_Surf_Precast` material has a Height Map assigned and Displacement Mode set to
+*Pixel displacement*.
+
+**I changed a facade painter and nothing happened.** Textures are cached on disk. Tick *Repaint
+the facade and roof textures*, or run **Tools → SalaryMan → Repaint the city surfaces**.
+
+**"Seiko.fbx is not in the project".** The character was not committed with your copy, or you
+copied only part of `Assets/SalaryMan`. Re-export it with
+`blender -b <meshy>.blend -P Tools/rig_seiko.py`, or drop your own model in and use
+**Tools → SalaryMan → Konto Character**.
+
+**Seiko stands still.** His clips did not import as separate takes. Select `Seiko.fbx`, check the
+Animation tab lists Idle, Walk and Run, then re-run **Put Seiko In The Scene**. If the list is
+empty, the FBX was exported without `bake_anim_use_all_actions`.
+
 ---
 
 ## 12. What comes next
 
-The generator keeps the data the city pass will need, on `KontoWorldData`:
+What is missing, in the order it would be worth doing:
 
-- `Height`, `Slope` — where building is feasible
-- `Water.Flow`, `Water.Rivers`, `Water.Lakes` — where bridges and ports go
-- `Land.CoastDistance`, `Land.ArcT`, `Land.ArcLateral` — coastal versus inland, and which coast
-- `TerraceMask` — worked farmland that towns should grow out of, not onto
+- **LODs.** The city is ~1.5M triangles with none. A two step LOD that drops roof clutter and
+  street furniture past 150 m is the single biggest performance win available.
+- **A road ribbon.** Carriageways are painted onto the terrain and the kerbs are geometry, but
+  markings, crossings, manholes and drains want a real mesh strip along each road.
+- **Traffic and pedestrians.** The road and rail networks are already polylines with widths and
+  classes, which is most of what a traffic system needs from a city.
+- **Interiors.** Buildings are shells. The first one that needs an inside is Soti Tower's lobby,
+  because that is where the story starts.
+- **Night.** `KontoTimeOfDay` already moves the sun. Lit windows, lit signage and the lamp columns
+  actually emitting are what make a Japanese city at night, and the materials already carry the
+  masks to drive them.
 
-The obvious next steps are a road network following the valley floors and the coast, then
-settlements seeded on the alluvial plains, which is exactly where every Japanese city actually is.
+The data the generator keeps on `KontoWorldData` — `Height`, `Slope`, `Water.Flow`,
+`Land.CoastDistance`, `Land.ArcT`, `TerraceMask` — is what any of that would be built on.
