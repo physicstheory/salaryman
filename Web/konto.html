@@ -272,6 +272,11 @@
     <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> fly</span>
     <span><kbd>Q</kbd><kbd>E</kbd> down / up</span>
     <span><kbd>shift</kbd> faster</span>
+    <span><kbd>F</kbd> walk / fly</span>
+  </div>
+  <p id="modehint" style="margin:8px 0 0;font-size:11px;color:var(--muted);line-height:1.4">Free camera — WASD to fly. Press F to drop Seiko on the ground below.</p>
+  <div class="seedbar">
+    <button class="act" id="modebtn" type="button">Walk as Seiko (F)</button>
   </div>
   <div class="seedbar">
     <label for="seed">Seed</label>
@@ -304,6 +309,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script>
 "use strict";
 /* ============================================================================
@@ -1952,8 +1958,8 @@ function paintCity(world, city, size) {
   const Z = pz => (pz - z0) * S;
 
   const C = {
-    fill: "#8b8579", lot: "#7b776d", asphalt: "#2f3034", footway: "#9c968a",
-    park: "#3f5130", water: "#1b3b46", ballast: "#57544c", plaza: "#a8a294"
+    fill: "#847f75", lot: "#767268", asphalt: "#2e2f33", footway: "#928d84",
+    park: "#3f5130", water: "#1b3b46", ballast: "#57544c", plaza: "#9a958b"
   };
 
   // Made ground under everything.
@@ -2120,10 +2126,371 @@ function voronoiCells(seeds, bounds) {
   });
 }
 
+
+// ============================================================================
+// FACADES
+// Every building style gets its own tiling texture, drawn at a fixed number of
+// metres per window bay so the windows come out the same size on a tower and on
+// a shophouse. The per instance tile counts are rounded to whole bays, which is
+// what keeps a window from being sliced in half at the corner of a block.
+// ============================================================================
+const FACADE_STYLES = {
+  // metres of real facade one repeat of the texture covers: width, height
+  glass:  { cell: [12.8, 14.4], roof: "plant" },
+  office: { cell: [12.8, 14.4], roof: "plant" },
+  shop:   { cell: [9.6, 10.2], roof: "tin" },
+  flats:  { cell: [12.4, 12.4], roof: "plant" },
+  houses: { cell: [9.0, 6.0], roof: "tile" },
+  shed:   { cell: [14.0, 7.0], roof: "tin" },
+  civic:  { cell: [14.0, 13.8], roof: "plant" },
+  deck:   { cell: [8.0, 4.0], roof: "plain" }
+};
+
+function facadeTexture(style) {
+  const S = 256;
+  const c = document.createElement("canvas");
+  c.width = S; c.height = S;
+  const g = c.getContext("2d");
+  const R = (a, b) => rnd(a, b, 4517 + style.length);   // deterministic per style
+
+  function pane(x, y, w, h, base, lit) {
+    const grd = g.createLinearGradient(x, y, x + w * 0.3, y + h);
+    grd.addColorStop(0, lit);
+    grd.addColorStop(0.55, base);
+    grd.addColorStop(1, base);
+    g.fillStyle = grd;
+    g.fillRect(x, y, w, h);
+  }
+
+  if (style === "glass") {
+    g.fillStyle = "#3e4f58"; g.fillRect(0, 0, S, S);
+    const bays = 4, floors = 4, bw = S / bays, fh = S / floors;
+    for (let f = 0; f < floors; f++) for (let b = 0; b < bays; b++) {
+      const t = R(b * 7 + f, 3);
+      pane(b * bw + 1, f * fh + 1, bw - 2, fh - 6,
+        t > 0.82 ? "#7d98a2" : (t > 0.5 ? "#53707d" : "#476672"),
+        t > 0.82 ? "#c3d8dd" : "#8fadb7");
+      // spandrel under each floor
+      g.fillStyle = "#33434c";
+      g.fillRect(b * bw, f * fh + fh - 5, bw, 5);
+    }
+    g.strokeStyle = "rgba(214,224,228,0.45)"; g.lineWidth = 1;
+    for (let b = 0; b <= bays; b++) { g.beginPath(); g.moveTo(b * bw, 0); g.lineTo(b * bw, S); g.stroke(); }
+  } else if (style === "office") {
+    g.fillStyle = "#b4ada0"; g.fillRect(0, 0, S, S);
+    const bays = 4, floors = 4, bw = S / bays, fh = S / floors;
+    for (let f = 0; f < floors; f++) {
+      g.fillStyle = "#a9a294"; g.fillRect(0, f * fh + fh - 7, S, 7);      // floor band
+      for (let b = 0; b < bays; b++) {
+        pane(b * bw + 7, f * fh + 6, bw - 14, fh - 18, "#3d4f58", "#6d8791");
+        g.fillStyle = "rgba(0,0,0,0.18)";
+        g.fillRect(b * bw + 7, f * fh + fh - 13, bw - 14, 3);             // sill shadow
+      }
+    }
+  } else if (style === "shop") {
+    g.fillStyle = "#cdc4b4"; g.fillRect(0, 0, S, S);
+    const bays = 3, floors = 3, bw = S / bays, fh = S / floors;
+    // upper floors: small windows, air conditioners, one vertical sign
+    for (let f = 0; f < floors - 1; f++) for (let b = 0; b < bays; b++) {
+      pane(b * bw + 10, f * fh + 10, bw - 20, fh - 28, "#46525a", "#7f929b");
+      if (R(b + f * 5, 11) > 0.6) {
+        g.fillStyle = "#9aa0a2";
+        g.fillRect(b * bw + bw - 26, f * fh + fh - 26, 16, 12);           // AC unit
+      }
+    }
+    // ground floor: shopfront, awning, sign band
+    const gy = (floors - 1) * fh;
+    g.fillStyle = "#2c3238"; g.fillRect(0, gy, S, fh);
+    for (let b = 0; b < bays; b++) {
+      pane(b * bw + 4, gy + 22, bw - 8, fh - 28, "#55616a", "#b9c6cb");
+      const hue = [ "#b2413a", "#2f5c86", "#c08a2e", "#3c7a56" ][Math.floor(R(b, 23) * 4) % 4];
+      g.fillStyle = hue; g.fillRect(b * bw + 4, gy + 6, bw - 8, 13);      // sign band
+    }
+    g.fillStyle = "#8d3a33"; g.fillRect(0, gy - 6, S, 7);                 // awning
+    // a vertical sign running up the corner bay
+    g.fillStyle = "#c9532f"; g.fillRect(S - 20, 6, 13, gy - 12);
+    g.fillStyle = "rgba(255,255,255,0.75)";
+    for (let k = 0; k < 5; k++) g.fillRect(S - 17, 14 + k * 20, 7, 9);
+  } else if (style === "flats") {
+    g.fillStyle = "#c2bcae"; g.fillRect(0, 0, S, S);
+    const floors = 4, fh = S / floors;
+    for (let f = 0; f < floors; f++) {
+      // recessed balcony band
+      g.fillStyle = "#8e8b80"; g.fillRect(0, f * fh + 8, S, fh - 20);
+      g.fillStyle = "#4a555c";
+      for (let b = 0; b < 4; b++) g.fillRect(b * 64 + 8, f * fh + 12, 48, fh - 30);
+      // railings
+      g.fillStyle = "#d6d2c6"; g.fillRect(0, f * fh + fh - 20, S, 8);
+      g.fillStyle = "rgba(90,92,88,0.5)";
+      for (let x = 2; x < S; x += 6) g.fillRect(x, f * fh + fh - 19, 2, 6);
+      g.fillStyle = "#cfcabb"; g.fillRect(0, f * fh + fh - 12, S, 12);    // slab edge
+      if (R(f, 31) > 0.4) { g.fillStyle = "#a8aca8"; g.fillRect(18, f * fh + 16, 18, 14); }
+    }
+  } else if (style === "houses") {
+    g.fillStyle = "#d3ccbb"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#c3bba8"; g.fillRect(0, S * 0.5, S, 6);
+    for (let f = 0; f < 2; f++) for (let b = 0; b < 2; b++) {
+      pane(b * 128 + 26, f * 128 + 26, 76, 62, "#4b555c", "#8fa0a8");
+      g.strokeStyle = "#8d8676"; g.lineWidth = 3;
+      g.strokeRect(b * 128 + 26, f * 128 + 26, 76, 62);
+    }
+    g.fillStyle = "#6f6757"; g.fillRect(0, S - 10, S, 10);                 // plinth
+    g.fillStyle = "#3d4a52"; g.fillRect(150, S - 62, 40, 52);              // door
+  } else if (style === "shed") {
+    g.fillStyle = "#9aa0a3"; g.fillRect(0, 0, S, S);
+    for (let x = 0; x < S; x += 8) {                                        // corrugation
+      g.fillStyle = x % 16 === 0 ? "#8b9195" : "#a6acaf";
+      g.fillRect(x, 0, 4, S);
+    }
+    g.fillStyle = "#6e7478"; g.fillRect(0, 0, S, 12);
+    g.fillStyle = "#59606a"; g.fillRect(24, S - 104, 96, 104);              // roller door
+    g.fillStyle = "rgba(255,255,255,0.12)";
+    for (let y = S - 100; y < S; y += 10) g.fillRect(24, y, 96, 4);
+    for (let b = 0; b < 3; b++) pane(150 + b * 34, 34, 24, 26, "#42525c", "#7d939c");
+  } else if (style === "civic") {
+    g.fillStyle = "#c8c0af"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#b8b09f"; g.fillRect(0, 0, S, 16);                       // cornice
+    const bays = 4, bw = S / bays;
+    for (let b = 0; b < bays; b++) {
+      pane(b * bw + 14, 34, bw - 28, S - 74, "#42525a", "#8397a0");
+      g.fillStyle = "#d2cabb"; g.fillRect(b * bw + 6, 28, bw - 12, 6);
+    }
+    g.fillStyle = "#b0a894"; g.fillRect(0, S - 30, S, 30);                  // base course
+  } else {
+    g.fillStyle = "#6f7276"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#63666a";
+    for (let y = 0; y < S; y += 32) g.fillRect(0, y, S, 3);
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+let grainTex = null;
+function groundGrain() {
+  if (grainTex) return grainTex;
+  const S = 128;
+  const c = document.createElement("canvas");
+  c.width = S; c.height = S;
+  const g = c.getContext("2d");
+  const img = g.createImageData(S, S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const n = 0.5 + fbm(x * 0.55, y * 0.55, 1801, 3) * 0.5 + (rnd(x, y, 99) - 0.5) * 0.35;
+    const v = clamp(140 + n * 150, 60, 255);
+    const o = (y * S + x) * 4;
+    img.data[o] = img.data[o + 1] = img.data[o + 2] = v;
+    img.data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  grainTex = new THREE.CanvasTexture(c);
+  grainTex.wrapS = grainTex.wrapT = THREE.RepeatWrapping;
+  return grainTex;
+}
+
+function roofTexture(kind) {
+  const S = 128;
+  const c = document.createElement("canvas");
+  c.width = S; c.height = S;
+  const g = c.getContext("2d");
+  if (kind === "tile") {
+    g.fillStyle = "#3a4048"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#454c55";
+    for (let y = 0; y < S; y += 10) for (let x = (y / 10 % 2) * 8; x < S; x += 16) g.fillRect(x, y, 13, 8);
+  } else if (kind === "tin") {
+    g.fillStyle = "#7c8186"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#6c7176";
+    for (let x = 0; x < S; x += 9) g.fillRect(x, 0, 4, S);
+  } else if (kind === "plant") {
+    g.fillStyle = "#54565a"; g.fillRect(0, 0, S, S);
+    g.fillStyle = "#4a4c50";
+    for (let i = 0; i < 26; i++) {
+      const x = rnd(i, 1, 811) * S, y = rnd(i, 2, 811) * S;
+      g.fillRect(x, y, 8 + rnd(i, 3, 811) * 22, 6 + rnd(i, 4, 811) * 16);
+    }
+    g.fillStyle = "#9aa0a4";
+    for (let i = 0; i < 7; i++) g.fillRect(rnd(i, 5, 811) * S, rnd(i, 6, 811) * S, 12, 10);
+    g.strokeStyle = "#6b6e72"; g.lineWidth = 5; g.strokeRect(2, 2, S - 4, S - 4);
+  } else {
+    g.fillStyle = "#6a6d71"; g.fillRect(0, 0, S, S);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.encoding = THREE.sRGBEncoding;
+  return tex;
+}
+
+// One material set per style. The vertex shader multiplies the box UVs by a per
+// instance tile count, so one geometry and one draw call cover a whole ward.
+const facadeCache = {};
+function facadeMaterials(style) {
+  if (facadeCache[style]) return facadeCache[style];
+  const spec = FACADE_STYLES[style] || FACADE_STYLES.office;
+  const side = new THREE.MeshLambertMaterial({ map: facadeTexture(style) });
+  side.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec3 aTile;")
+      .replace("#include <uv_vertex>",
+        "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = vec2(uv.x * tileH, uv.y * aTile.z);\n#endif");
+  };
+  side.customProgramCacheKey = () => "konto-facade";
+  const roof = new THREE.MeshLambertMaterial({ map: roofTexture(spec.roof) });
+  roof.map.repeat.set(2, 2);
+  const base = new THREE.MeshLambertMaterial({ color: 0x5d5a55 });
+  [side, roof, base].forEach(m => { m.userData.shared = true; });
+  // BoxGeometry groups run +X, -X, +Y, -Y, +Z, -Z.
+  facadeCache[style] = { mats: [side, side, roof, base, side, side], spec: spec };
+  return facadeCache[style];
+}
+
+function facadeStyleFor(kind) {
+  switch (kind) {
+    case "landmark": case "tower": return "glass";
+    case "office": return rnd(0, 0, 1) > 2 ? "glass" : "office";
+    case "midrise": return "office";
+    case "shop": return "shop";
+    case "flats": return "flats";
+    case "houses": return "houses";
+    case "factory": case "shed": case "wharf": return "shed";
+    case "civic": case "campus": return "civic";
+    default: return "office";
+  }
+}
+
+
+// ============================================================================
+// SEIKO SHIGU
+// The player character. If a glTF of him sits next to this file (or is dropped
+// on the page) it is used; otherwise he is built here out of boxes, in the
+// clothes he wears for the whole first act: white collared shirt, black tie,
+// black suit trousers, black shoes.
+// ============================================================================
+const SEIKO_HEIGHT = 1.74;      // metres, so everything else has a sense of scale
+
+function makeSeiko() {
+  const skin = new THREE.MeshLambertMaterial({ color: 0xe8c4a2 });
+  const shirt = new THREE.MeshLambertMaterial({ color: 0xf4f2ec });
+  const cloth = new THREE.MeshLambertMaterial({ color: 0x24262b });
+  const hair = new THREE.MeshLambertMaterial({ color: 0x141416 });
+  const tieM = new THREE.MeshLambertMaterial({ color: 0x1b1c20 });
+  const shoe = new THREE.MeshLambertMaterial({ color: 0x141414 });
+
+  function box(w, h, d, mat, x, y, z) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x || 0, y || 0, z || 0);
+    return m;
+  }
+
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  root.add(body);
+
+  // torso: shirt, with the tie down the front
+  body.add(box(0.40, 0.56, 0.22, shirt, 0, 1.12, 0));
+  body.add(box(0.085, 0.36, 0.03, tieM, 0, 1.12, 0.115));
+  body.add(box(0.30, 0.07, 0.23, shirt, 0, 1.42, 0));         // collar
+  body.add(box(0.42, 0.14, 0.24, cloth, 0, 0.83, 0));         // waistband
+
+  // head
+  const head = new THREE.Group();
+  head.position.set(0, 1.56, 0);
+  head.add(box(0.20, 0.24, 0.20, skin, 0, 0, 0));
+  head.add(box(0.215, 0.09, 0.215, hair, 0, 0.10, -0.005));
+  head.add(box(0.225, 0.07, 0.06, hair, 0, 0.055, -0.085));
+  body.add(head);
+
+  // arms: shoulder pivots so they can swing
+  const arms = [];
+  [-1, 1].forEach(side => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.255, 1.36, 0);
+    pivot.add(box(0.12, 0.40, 0.14, shirt, 0, -0.20, 0));
+    pivot.add(box(0.11, 0.22, 0.13, shirt, 0, -0.50, 0));
+    pivot.add(box(0.10, 0.10, 0.12, skin, 0, -0.64, 0));
+    body.add(pivot);
+    arms.push(pivot);
+  });
+
+  // legs: hip pivots, trousers and shoes
+  const legs = [];
+  [-1, 1].forEach(side => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.115, 0.84, 0);
+    pivot.add(box(0.165, 0.46, 0.17, cloth, 0, -0.23, 0));
+    pivot.add(box(0.15, 0.36, 0.155, cloth, 0, -0.60, 0));
+    pivot.add(box(0.145, 0.075, 0.26, shoe, 0, -0.80, 0.04));
+    body.add(pivot);
+    legs.push(pivot);
+  });
+
+  root.userData.rig = { body: body, head: head, arms: arms, legs: legs };
+  root.userData.procedural = true;
+  return root;
+}
+
+// Walk cycle for the built-in figure: hips and shoulders counter-swinging, a
+// little bob, and a lean into a run.
+function animateSeiko(root, speed, t) {
+  const rig = root.userData.rig;
+  if (!rig) return;
+  const stride = clamp(speed / 4.4, 0, 1.15);
+  const phase = t * lerp(5.2, 10.5, clamp01(speed / 4.6));
+  const swing = Math.sin(phase) * 0.62 * stride;
+  rig.legs[0].rotation.x = swing;
+  rig.legs[1].rotation.x = -swing;
+  rig.arms[0].rotation.x = -swing * 0.8;
+  rig.arms[1].rotation.x = swing * 0.8;
+  rig.arms[0].rotation.z = 0.06;
+  rig.arms[1].rotation.z = -0.06;
+  rig.body.position.y = Math.abs(Math.sin(phase)) * 0.035 * stride;
+  rig.body.rotation.x = stride * 0.10;
+  rig.head.rotation.x = -stride * 0.06;
+}
+
+// A uniform grid over the building footprints, so a step can be tested against
+// the few boxes nearby instead of all forty thousand of them.
+function buildSolidGrid() {
+  const cellSize = 60;
+  const map = new Map();
+  solids.forEach((b, i) => {
+    const r = Math.max(b.size[0], b.size[1]) * 0.5 + 2;
+    const x0 = Math.floor((b.c[0] - r) / cellSize), x1 = Math.floor((b.c[0] + r) / cellSize);
+    const z0 = Math.floor((b.c[1] - r) / cellSize), z1 = Math.floor((b.c[1] + r) / cellSize);
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      const key = x + "," + z;
+      let list = map.get(key);
+      if (!list) { list = []; map.set(key, list); }
+      list.push(i);
+    }
+  });
+  solidGrid = { cell: cellSize, map: map };
+}
+
+function insideBuilding(px, pz, radius) {
+  if (!solidGrid) return false;
+  const key = Math.floor(px / solidGrid.cell) + "," + Math.floor(pz / solidGrid.cell);
+  const list = solidGrid.map.get(key);
+  if (!list) return false;
+  for (let k = 0; k < list.length; k++) {
+    const b = solids[list[k]];
+    const l = toRectLocal(px, pz, b.c[0], b.c[1], b.yaw);
+    if (Math.abs(l[0]) < b.size[0] * 0.5 + radius && Math.abs(l[1]) < b.size[1] * 0.5 + radius) return true;
+  }
+  return false;
+}
+
 // ============================================================================
 // SCENE
 // ============================================================================
 let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
+const solids = [];          // building footprints, for walking into
+let solidGrid = null;
+let clock = 0;
+const player = {
+  mode: "fly", obj: null, proc: null, glb: null, usingGlb: false, placed: false,
+  pos: new THREE.Vector3(), yaw: 0, targetYaw: 0, speed: 0
+};
 const keys = Object.create(null);
 let yaw = 0, pitch = -0.18, speed = 260;
 const camPos = new THREE.Vector3();
@@ -2173,20 +2540,75 @@ function initThree() {
   window.addEventListener("keydown", e => {
     keys[e.code] = true;
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
+    if (e.code === "KeyF") toggleWalk();
   });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
 }
 
+// Drop him on the ground in front of the camera, or put the camera back.
+function toggleWalk() {
+  if (!player.obj) return;
+  if (player.mode === "walk") {
+    camPos.copy(player.pos).add(new THREE.Vector3(0, 40, 60));
+    setMode("fly");
+    aimAt(player.pos.clone().add(new THREE.Vector3(0, 2, 0)));
+    return;
+  }
+  if (!player.placed) {
+    // The first time, he starts where his commute does: outside the terminus.
+    player.placed = true;
+    placeSeiko(seikoSpawn(world));
+    player.yaw = player.targetYaw = yaw;
+    camPos.copy(player.pos).add(new THREE.Vector3(0, 2.4, 6));
+    pitch = -0.08;
+    setMode("walk");
+    return;
+  }
+  // Otherwise walk the camera's own ground position, so you land where you were looking.
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const ahead = camPos.clone().add(dir.multiplyScalar(Math.min(400, Math.max(30, camPos.y * 1.6))));
+  let target = new THREE.Vector3(clamp(ahead.x, 60, WORLD_X - 60), 0, clamp(ahead.z, 60, WORLD_Z - 60));
+  if (world.sampleHeight(target.x, target.z) < 0.5 || insideBuilding(target.x, target.z, 1.5)) {
+    // Nothing to stand on there: find the nearest pavement.
+    let found = null;
+    for (let r = 12; r <= 260 && !found; r += 12) {
+      for (let i = 0; i < 12; i++) {
+        const a = i / 12 * 6.2831853;
+        const c = new THREE.Vector3(target.x + Math.cos(a) * r, 0, target.z + Math.sin(a) * r);
+        if (world.sampleHeight(c.x, c.z) >= 0.6 && !insideBuilding(c.x, c.z, 1.5)) { found = c; break; }
+      }
+    }
+    if (found) target = found;
+  }
+  placeSeiko(target);
+  player.yaw = player.targetYaw = yaw;
+  camPos.copy(player.pos).add(new THREE.Vector3(0, 2.2, 5));
+  pitch = -0.12;
+  setMode("walk");
+}
+
+// Materials come in arrays now (a box has a facade on its sides and a roof on
+// top), and the facade sets are shared between rebuilds, so neither can go
+// through a plain dispose.
+function disposeMaterial(m) {
+  if (!m) return;
+  if (Array.isArray(m)) { m.forEach(disposeMaterial); return; }
+  if (m.userData && m.userData.shared) return;
+  if (m.map) m.map.dispose();
+  m.dispose();
+}
+
 function clearScene() {
   if (!scene) return;
+  // The loaded character is kept across rebuilds, so take him out before the
+  // sweep disposes everything it can reach.
+  if (player.glb && player.glb.parent) player.glb.parent.remove(player.glb);
+  player.obj = null;
   groups.forEach(g => {
     scene.remove(g);
     g.traverse(o => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material) {
-        if (o.material.map) o.material.map.dispose();
-        o.material.dispose();
-      }
+      disposeMaterial(o.material);
     });
   });
   groups = [];
@@ -2197,12 +2619,13 @@ function buildScene(w) {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0xb9c6cd);
     scene.fog = new THREE.Fog(0xb9c6cd, 3200, 15000);
-    const sun = new THREE.DirectionalLight(0xfff2de, 1.15);
+    const sun = new THREE.DirectionalLight(0xfff7ec, 0.86);
     sun.position.set(-0.45, 0.72, 0.52).multiplyScalar(1000);
     scene.add(sun);
-    scene.add(new THREE.HemisphereLight(0xd8e6f2, 0x3c3a30, 0.62));
+    scene.add(new THREE.HemisphereLight(0xcfe0ee, 0x37352c, 0.42));
   }
   clearScene();
+  solids.length = 0;
   const root = new THREE.Group();
   groups.push(root);
   scene.add(root);
@@ -2240,8 +2663,9 @@ function buildScene(w) {
 
   // ---- city ground overlays
   w.cities.forEach(city => {
-    const paint = paintCity(w, city, city.plots.length > 200 ? 2048 : 1024);
+    const paint = paintCity(w, city, city.plots.length > 200 ? 3072 : 1024);
     const tex = new THREE.CanvasTexture(paint.canvas);
+    tex.encoding = THREE.sRGBEncoding;
     tex.anisotropy = renderer.capabilities.getMaxAnisotropy ? renderer.capabilities.getMaxAnisotropy() : 1;
     const segX = Math.max(8, Math.round(paint.w / 40));
     const segZ = Math.max(8, Math.round(paint.h / 40));
@@ -2254,9 +2678,24 @@ function buildScene(w) {
       op.setY(i, w.sampleHeight(px, pz) + 0.7);
     }
     og.computeVertexNormals();
-    const overlay = new THREE.Mesh(og, new THREE.MeshLambertMaterial({
+    const overlayMat = new THREE.MeshLambertMaterial({
       map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
-    }));
+    });
+    // The plan is painted at metres to the pixel, which is a flat wash once you
+    // are standing on it. A grain texture at eight metres a repeat gives the
+    // tarmac and the paving a surface without a second set of geometry.
+    const grain = groundGrain();
+    const grainRepeat = new THREE.Vector2(paint.w / 8.5, paint.h / 8.5);
+    overlayMat.onBeforeCompile = shader => {
+      shader.uniforms.detailMap = { value: grain };
+      shader.uniforms.detailRepeat = { value: grainRepeat };
+      shader.fragmentShader = shader.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform sampler2D detailMap;\nuniform vec2 detailRepeat;")
+        .replace("#include <map_fragment>",
+          "#include <map_fragment>\n  float grain = texture2D(detailMap, vUv * detailRepeat).r;\n  diffuseColor.rgb *= 0.70 + grain * 0.30;");
+    };
+    overlayMat.customProgramCacheKey = () => "konto-ground";
+    const overlay = new THREE.Mesh(og, overlayMat);
     overlay.position.set(paint.x0 + paint.w * 0.5, 0, paint.z0 + paint.h * 0.5);
     root.add(overlay);
 
@@ -2273,21 +2712,22 @@ function buildScene(w) {
           const cellX = p.size[0] / nx, cellZ = p.size[1] / nz;
           const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5), -p.size[1] * 0.5 + cellZ * (iz + 0.5)];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
-          boxes.push({ c: wc, size: [cellX * 0.72, cellZ * 0.72], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), landmark: false });
+          boxes.push({ c: wc, size: [cellX * 0.72, cellZ * 0.72], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), style: "houses" });
         }
         return;
       }
       const setback = p.kind === "shop" ? 0.6 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
       const size = [Math.max(3, p.size[0] - setback * 2), Math.max(3, p.size[1] - setback * 2)];
       const top = p.kind === "landmark" ? p.height : p.height * lerp(0.55, 1, r);
-      boxes.push({ c: p.centre, size: size, yaw: p.yaw, y: p.groundY, h: top, landmark: p.kind === "landmark" });
+      boxes.push({ c: p.centre, size: size, yaw: p.yaw, y: p.groundY, h: top, style: facadeStyleFor(p.kind), landmark: p.kind === "landmark" });
       // Towers get a setback shoulder, which is what makes a skyline read.
       if ((p.kind === "tower" || p.kind === "landmark") && top > 45) {
         const r2 = rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9179);
         if (r2 > 0.35) {
           boxes.push({
             c: p.centre, size: [size[0] * lerp(0.55, 0.78, r2), size[1] * lerp(0.55, 0.78, r2)],
-            yaw: p.yaw, y: p.groundY + top, h: top * lerp(0.18, 0.42, r), landmark: p.kind === "landmark"
+            yaw: p.yaw, y: p.groundY + top, h: top * lerp(0.18, 0.42, r),
+            style: facadeStyleFor(p.kind), landmark: p.kind === "landmark"
           });
         }
       }
@@ -2303,43 +2743,59 @@ function buildScene(w) {
         const mid = [(a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5];
         const ya = yawFrom([(b[0] - a[0]) / len, (b[2] - a[2]) / len]);
         const deckY = (a[1] + b[1]) * 0.5;
-        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, y: deckY - 1.4, h: 1.4, deck: true });
+        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
         since += len;
         if (since < 34) continue;
         since = 0;
         const groundY = world.sampleHeight(mid[0], mid[1]);
-        boxes.push({ c: mid, size: [path.halfWidth * 0.55, path.halfWidth * 0.55], yaw: ya, y: groundY, h: Math.max(2, deckY - 1.4 - groundY), deck: true });
+        boxes.push({ c: mid, size: [path.halfWidth * 0.55, path.halfWidth * 0.55], yaw: ya, y: groundY, h: Math.max(2, deckY - 1.4 - groundY), deck: true, style: "deck" });
       }
     });
 
     if (boxes.length) {
-      const inst = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshLambertMaterial({ vertexColors: false }),
-        boxes.length
-      );
-      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-      const col = new THREE.Color();
-      boxes.forEach((b, i) => {
-        e.set(0, b.yaw * Math.PI / 180, 0);
-        q.setFromEuler(e);
-        m.compose(
-          new THREE.Vector3(b.c[0], b.y + b.h * 0.5, b.c[1]),
-          q,
-          new THREE.Vector3(b.size[0], b.h, b.size[1])
-        );
-        inst.setMatrixAt(i, m);
-        if (b.landmark) col.setHex(0xc86a3c);
-        else if (b.deck) col.setHex(0x6f6f73);
-        else {
-          const g = 0.58 + rnd(i, 3, 771) * 0.16;
-          col.setRGB(g, g * 0.99, g * 0.95);
-        }
-        inst.setColorAt(i, col);
+      // Group by facade so each style can carry its own texture, and keep the
+      // footprints for the character to bump into.
+      const byStyle = {};
+      boxes.forEach(b => {
+        const st = b.style || "office";
+        (byStyle[st] || (byStyle[st] = [])).push(b);
+        if (!b.deck) solids.push(b);
       });
-      inst.instanceMatrix.needsUpdate = true;
-      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-      root.add(inst);
+
+      Object.keys(byStyle).forEach(style => {
+        const list = byStyle[style];
+        const set = facadeMaterials(style);
+        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const inst = new THREE.InstancedMesh(geo, set.mats, list.length);
+        const tiles = new Float32Array(list.length * 3);
+        const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+        const col = new THREE.Color();
+        list.forEach((b, i) => {
+          e.set(0, b.yaw * Math.PI / 180, 0);
+          q.setFromEuler(e);
+          m.compose(
+            new THREE.Vector3(b.c[0], b.y + b.h * 0.5, b.c[1]),
+            q,
+            new THREE.Vector3(b.size[0], b.h, b.size[1])
+          );
+          inst.setMatrixAt(i, m);
+          // Whole bays only: a window sliced in half at a corner reads as a bug.
+          tiles[i * 3] = Math.max(1, Math.round(b.size[0] / set.spec.cell[0]));
+          tiles[i * 3 + 1] = Math.max(1, Math.round(b.size[1] / set.spec.cell[0]));
+          tiles[i * 3 + 2] = Math.max(1, Math.round(b.h / set.spec.cell[1]));
+          if (b.landmark) col.setRGB(1.18, 0.86, 0.72);
+          else {
+            const g = 0.86 + rnd(i, 3, 771) * 0.22;
+            col.setRGB(g, g * 0.995, g * 0.97);
+          }
+          inst.setColorAt(i, col);
+        });
+        geo.setAttribute("aTile", new THREE.InstancedBufferAttribute(tiles, 3));
+        inst.instanceMatrix.needsUpdate = true;
+        if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+        inst.frustumCulled = false;
+        root.add(inst);
+      });
     }
 
     // Moat water.
@@ -2357,6 +2813,18 @@ function buildScene(w) {
     }
   });
 
+  // ---- Seiko
+  buildSolidGrid();
+  player.proc = makeSeiko();
+  player.obj = player.glb ? player.glb : player.proc;
+  player.usingGlb = !!player.glb;
+  player.placed = false;
+  player.obj.visible = false;
+  root.add(player.obj);
+  placeSeiko(seikoSpawn(w));
+  player.yaw = player.targetYaw = 0;
+  setMode("fly");
+
   // ---- opening shot: out over the bay, looking back at the city
   const capital = w.cities[0];
   const look = capital.sites.find(s => s.name === "Soti Tower") || { at: [WORLD_X * 0.5, 40, WORLD_Z * 0.5] };
@@ -2371,7 +2839,180 @@ function aimAt(target) {
   pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
 }
 
+
+// If a glTF of the real mesh is sitting next to this page, use it. Opened straight
+// off disk a browser will refuse to fetch it (file:// is not an origin), and the
+// built-in figure above stands in instead — serve the folder over http to see him.
+const SEIKO_FACING = Math.PI;     // the exported mesh faces -Z; turn it to face +Z
+
+function loadSeikoModel(url) {
+  if (typeof THREE.GLTFLoader !== "function") return;
+  let loader;
+  try { loader = new THREE.GLTFLoader(); } catch (e) { return; }
+
+  const onLoad = gltf => {
+    const inner = new THREE.Group();
+    gltf.scene.rotation.y = SEIKO_FACING;
+    inner.add(gltf.scene);
+    inner.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
+    adoptSeiko(fitSeiko(inner));
+  };
+
+  // Carried inside the page when there is nowhere to fetch from.
+  if (typeof window.SEIKO_GLB_B64 === "string" && window.SEIKO_GLB_B64.length > 64) {
+    try {
+      const bin = atob(window.SEIKO_GLB_B64);
+      const buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      loader.parse(buf.buffer, "", onLoad, () => {});
+      return;
+    } catch (e) { /* fall through to fetching it */ }
+  }
+
+  loader.load(url, gltf => {
+    const inner = new THREE.Group();
+    gltf.scene.rotation.y = SEIKO_FACING;
+    inner.add(gltf.scene);
+    inner.traverse(o => { if (o.isMesh) { o.castShadow = false; o.frustumCulled = false; } });
+    adoptSeiko(fitSeiko(inner));
+  }, undefined, () => { /* no model beside the page: the built-in figure stands in */ });
+}
+
+function adoptSeiko(fitted) {
+  player.glb = fitted;
+  if (!player.obj || !player.obj.parent) return;
+  const parent = player.obj.parent;
+  const visible = player.obj.visible;
+  parent.remove(player.obj);
+  player.obj = fitted;
+  player.usingGlb = true;
+  player.obj.visible = visible;
+  player.obj.position.copy(player.pos);
+  player.obj.rotation.set(0, player.yaw, 0);
+  parent.add(player.obj);
+}
+
+// ---------------------------------------------------------------- the player
+function seikoSpawn(w) {
+  // On the plaza in front of the terminus, which is where his commute starts.
+  const city = w.cities[0];
+  const st = city.stations.find(x => x.terminus) || city.stations[0];
+  if (st) {
+    const r = st.yaw * Math.PI / 180;
+    const out = [Math.sin(r), Math.cos(r)];
+    return new THREE.Vector3(st.centre[0] + out[0] * (st.size[1] * 0.9 + 6), st.groundY, st.centre[1] + out[1] * (st.size[1] * 0.9 + 6));
+  }
+  const at = city.sites.length ? city.sites[0].at : [WORLD_X * 0.5, 2, WORLD_Z * 0.5];
+  return new THREE.Vector3(at[0], at[1], at[2]);
+}
+
+function fitSeiko(object3d) {
+  // Whatever the mesh was exported at: stand it on the ground, centre it, and
+  // scale it to a person's height.
+  const box = new THREE.Box3().setFromObject(object3d);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  const scale = SEIKO_HEIGHT / Math.max(0.2, size.y);
+  const holder = new THREE.Group();
+  object3d.scale.setScalar(scale);
+  object3d.position.set(-centre.x * scale, -box.min.y * scale, -centre.z * scale);
+  holder.add(object3d);
+  return holder;
+}
+
+function placeSeiko(pos) {
+  if (!player.obj) return;
+  player.pos.copy(pos);
+  player.pos.y = world.sampleHeight(player.pos.x, player.pos.z);
+  player.obj.position.copy(player.pos);
+  player.speed = 0;
+}
+
+function setMode(mode) {
+  player.mode = mode;
+  tour = false;
+  flyTo = null;
+  if (player.obj) player.obj.visible = (mode === "walk");
+  const btn = document.getElementById("modebtn");
+  if (btn) btn.textContent = mode === "walk" ? "Fly (F)" : "Walk as Seiko (F)";
+  const hint = document.getElementById("modehint");
+  if (hint) hint.textContent = mode === "walk"
+    ? "Seiko Shigu — WASD to walk, shift to run, drag to look around him."
+    : "Free camera — WASD to fly. Press F to drop Seiko on the ground below.";
+}
+
+function tryStep(dx, dz, radius) {
+  const nx = player.pos.x + dx, nz = player.pos.z + dz;
+  if (nx < 40 || nz < 40 || nx > WORLD_X - 40 || nz > WORLD_Z - 40) return false;
+  if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
+  if (insideBuilding(nx, nz, radius)) return false;
+  player.pos.x = nx; player.pos.z = nz;
+  return true;
+}
+
+function updateWalk(dt) {
+  const running = keys.ShiftLeft || keys.ShiftRight;
+  const top = running ? 4.7 : 1.65;
+  const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const wish = new THREE.Vector3();
+  if (keys.KeyW || keys.ArrowUp) wish.add(fwd);
+  if (keys.KeyS || keys.ArrowDown) wish.sub(fwd);
+  if (keys.KeyD || keys.ArrowRight) wish.add(right);
+  if (keys.KeyA || keys.ArrowLeft) wish.sub(right);
+
+  if (wish.lengthSq() > 0) {
+    wish.normalize();
+    player.speed = lerp(player.speed, top, 1 - Math.pow(0.002, dt));
+    player.targetYaw = Math.atan2(wish.x, wish.z);
+  } else {
+    player.speed = lerp(player.speed, 0, 1 - Math.pow(0.0005, dt));
+  }
+
+  if (player.speed > 0.01) {
+    const step = player.speed * dt;
+    const dx = wish.x * step, dz = wish.z * step;
+    // Slide along a wall rather than sticking to it.
+    if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
+  }
+  player.pos.y = world.sampleHeight(player.pos.x, player.pos.z);
+
+  // Turn toward where he is going, by the shorter way round.
+  let d = player.targetYaw - player.yaw;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  player.yaw += d * (1 - Math.pow(0.0001, dt));
+
+  player.obj.position.copy(player.pos);
+  player.obj.rotation.y = player.yaw;
+  if (player.usingGlb) {
+    // No skeleton in the mesh, so he gets a stride bob and a lean, nothing more.
+    const stride = clamp01(player.speed / 4.6);
+    player.obj.position.y += Math.abs(Math.sin(clock * lerp(5.2, 10.5, stride))) * 0.045 * stride;
+    player.obj.rotation.x = stride * 0.06;
+  } else {
+    animateSeiko(player.obj, player.speed, clock);
+  }
+
+  // Camera: over his shoulder, and never underground.
+  const head = player.pos.clone().add(new THREE.Vector3(0, 1.5, 0));
+  const dist = lerp(4.6, 7.0, clamp01(player.speed / 4.7));
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const want = head.clone().sub(dir.clone().multiplyScalar(dist));
+  const ground = world.sampleHeight(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
+  want.y = Math.max(want.y, ground + 1.3);
+  camPos.lerp(want, 1 - Math.pow(0.0008, dt));
+  camera.position.copy(camPos);
+  camera.lookAt(head);
+}
+
 function tick(dt) {
+  clock += dt;
+  if (player.mode === "walk" && player.obj) {
+    updateWalk(dt);
+    renderer.render(scene, camera);
+    return;
+  }
   if (flyTo) {
     camPos.lerp(flyTo.pos, 1 - Math.pow(0.0025, dt));
     aimAt(flyTo.look);
@@ -2509,6 +3150,8 @@ function generate(seed) {
 
 initThree();
 frameLoop();
+loadSeikoModel("seiko.glb");
+document.getElementById("modebtn").addEventListener("click", () => toggleWalk());
 document.getElementById("regen").addEventListener("click", () => {
   const v = parseInt(document.getElementById("seed").value, 10);
   generate(isFinite(v) ? v : 19640101);
