@@ -31,6 +31,11 @@ namespace SalaryMan.World
             public float tileMetresX = 4f;
             public float tileMetresY = 4f;
             public bool isFacade;
+            /// <summary>An atlas addressed by UV cell rather than a tiling sheet.</summary>
+            public bool isAtlas;
+            /// <summary>Deliberately one flat colour — glass, paint — so a flatness check is
+            /// not evidence the painter did nothing.</summary>
+            public bool uniform;
             public float heightScale = 1f;      // normal map strength
             public float displacement;          // centimetres of pixel displacement, 0 to disable
         }
@@ -82,6 +87,79 @@ namespace SalaryMan.World
                 Rect(x0, y1 - t, x1, y1, c, h, rough, metal);
                 Rect(x0, y0, x0 + t, y1, c, h, rough, metal);
                 Rect(x1 - t, y0, x1, y1, c, h, rough, metal);
+            }
+
+            /// <summary>A filled ellipse. <paramml/></summary>
+            public void Disc(float cx, float cy, float rx, float ry, Color c, float h, float rough, float metal, float ao = 1f)
+            {
+                int ix0 = Mathf.FloorToInt((cx - rx) * Size), ix1 = Mathf.CeilToInt((cx + rx) * Size);
+                int iy0 = Mathf.FloorToInt((cy - ry) * Size), iy1 = Mathf.CeilToInt((cy + ry) * Size);
+                for (int y = iy0; y < iy1; y++)
+                for (int x = ix0; x < ix1; x++)
+                {
+                    float dx = ((x + 0.5f) / Size - cx) / Mathf.Max(1e-5f, rx);
+                    float dy = ((y + 0.5f) / Size - cy) / Mathf.Max(1e-5f, ry);
+                    if (dx * dx + dy * dy > 1f) continue;
+                    Set(x, y, c, h, rough, metal, ao);
+                }
+            }
+
+            /// <summary>An elliptical outline of a given thickness.</summary>
+            public void Ring(float cx, float cy, float rx, float ry, float t, Color c, float h, float rough, float metal)
+            {
+                int ix0 = Mathf.FloorToInt((cx - rx) * Size), ix1 = Mathf.CeilToInt((cx + rx) * Size);
+                int iy0 = Mathf.FloorToInt((cy - ry) * Size), iy1 = Mathf.CeilToInt((cy + ry) * Size);
+                float inner = 1f - t;
+                for (int y = iy0; y < iy1; y++)
+                for (int x = ix0; x < ix1; x++)
+                {
+                    float dx = ((x + 0.5f) / Size - cx) / Mathf.Max(1e-5f, rx);
+                    float dy = ((y + 0.5f) / Size - cy) / Mathf.Max(1e-5f, ry);
+                    float d = dx * dx + dy * dy;
+                    if (d > 1f || d < inner * inner) continue;
+                    Set(x, y, c, h, rough, metal);
+                }
+            }
+
+            /// <summary>A thick line segment, with round-ish ends.</summary>
+            public void Line(float x0, float y0, float x1, float y1, float width, Color c, float h, float rough, float metal)
+            {
+                float lo = Mathf.Min(x0, x1) - width, hi = Mathf.Max(x0, x1) + width;
+                float vlo = Mathf.Min(y0, y1) - width, vhi = Mathf.Max(y0, y1) + width;
+                int ix0 = Mathf.FloorToInt(lo * Size), ix1 = Mathf.CeilToInt(hi * Size);
+                int iy0 = Mathf.FloorToInt(vlo * Size), iy1 = Mathf.CeilToInt(vhi * Size);
+                float ax = x1 - x0, ay = y1 - y0;
+                float len2 = Mathf.Max(1e-8f, ax * ax + ay * ay);
+                for (int y = iy0; y < iy1; y++)
+                for (int x = ix0; x < ix1; x++)
+                {
+                    float px = (x + 0.5f) / Size - x0, py = (y + 0.5f) / Size - y0;
+                    float t = Mathf.Clamp01((px * ax + py * ay) / len2);
+                    float dx = px - ax * t, dy = py - ay * t;
+                    if (dx * dx + dy * dy > width * width) continue;
+                    Set(x, y, c, h, rough, metal);
+                }
+            }
+
+            /// <summary>A filled triangle, by barycentric test.</summary>
+            public void Tri(Vector2 a, Vector2 b, Vector2 cc, Color col, float h, float rough, float metal)
+            {
+                float lox = Mathf.Min(a.x, Mathf.Min(b.x, cc.x)), hix = Mathf.Max(a.x, Mathf.Max(b.x, cc.x));
+                float loy = Mathf.Min(a.y, Mathf.Min(b.y, cc.y)), hiy = Mathf.Max(a.y, Mathf.Max(b.y, cc.y));
+                int ix0 = Mathf.FloorToInt(lox * Size), ix1 = Mathf.CeilToInt(hix * Size);
+                int iy0 = Mathf.FloorToInt(loy * Size), iy1 = Mathf.CeilToInt(hiy * Size);
+                float d = (b.y - cc.y) * (a.x - cc.x) + (cc.x - b.x) * (a.y - cc.y);
+                if (Mathf.Abs(d) < 1e-8f) return;
+                for (int y = iy0; y < iy1; y++)
+                for (int x = ix0; x < ix1; x++)
+                {
+                    float px = (x + 0.5f) / Size, py = (y + 0.5f) / Size;
+                    float w0 = ((b.y - cc.y) * (px - cc.x) + (cc.x - b.x) * (py - cc.y)) / d;
+                    float w1 = ((cc.y - a.y) * (px - cc.x) + (a.x - cc.x) * (py - cc.y)) / d;
+                    float w2 = 1f - w0 - w1;
+                    if (w0 < 0f || w1 < 0f || w2 < 0f) continue;
+                    Set(x, y, col, h, rough, metal);
+                }
             }
 
             /// <summary>Dirt washing down from a ledge. Every real building has this and no
@@ -152,6 +230,17 @@ namespace SalaryMan.World
                 new Spec { surface = CitySurface.DarkMetal,    name = "DarkMetal",    tileMetresX = 2f, tileMetresY = 2f, heightScale = 0.7f },
                 new Spec { surface = CitySurface.Signage,      name = "Signage",      tileMetresX = 2.4f, tileMetresY = 2.4f, heightScale = 0.6f },
                 new Spec { surface = CitySurface.Concrete,     name = "Concrete",     tileMetresX = 5f, tileMetresY = 5f, heightScale = 1.0f },
+
+                // Traffic. Car paint is white here and tinted per vehicle at runtime, so one
+                // material carries every colour on the road.
+                new Spec { surface = CitySurface.CarPaint, name = "CarPaint", tileMetresX = 2f, tileMetresY = 2f, heightScale = 0.3f, uniform = true },
+                new Spec { surface = CitySurface.CarGlass, name = "CarGlass", tileMetresX = 2f, tileMetresY = 2f, heightScale = 0.3f, uniform = true },
+                new Spec { surface = CitySurface.CarTrim,  name = "CarTrim",  tileMetresX = 1f, tileMetresY = 1f, heightScale = 0.5f, uniform = true },
+                new Spec { surface = CitySurface.CarLight, name = "CarLight", tileMetresX = 1f, tileMetresY = 1f, heightScale = 0.6f },
+                new Spec { surface = CitySurface.Tyre,     name = "Tyre",     tileMetresX = 0.5f, tileMetresY = 0.5f, heightScale = 1.4f },
+                // The livery sheet is an atlas, not a tile: badges, plates and signs, addressed
+                // by UV cell. See VehicleLibrary.
+                new Spec { surface = CitySurface.Livery,   name = "Livery",   tileMetresX = 1f, tileMetresY = 1f, isAtlas = true, heightScale = 0.4f },
             };
         }
 
@@ -180,6 +269,12 @@ namespace SalaryMan.World
                 case CitySurface.TrimMetal: PaintAnodised(c); break;
                 case CitySurface.DarkMetal: PaintPaintedSteel(c); break;
                 case CitySurface.Signage: PaintSignage(c); break;
+                case CitySurface.CarPaint: PaintCarPaint(c); break;
+                case CitySurface.CarGlass: PaintCarGlass(c); break;
+                case CitySurface.CarTrim: PaintCarTrim(c); break;
+                case CitySurface.CarLight: PaintCarLight(c); break;
+                case CitySurface.Tyre: PaintTyre(c); break;
+                case CitySurface.Livery: PaintLivery(c); break;
                 default: PaintConcrete(c); break;
             }
             Resolve(c, spec, out albedo, out normal, out mask);
@@ -664,6 +759,272 @@ namespace SalaryMan.World
                 }
             }
             c.Grain(0.04f, 8f, c.Seed + 73);
+        }
+
+        // ------------------------------------------------------------------ traffic
+
+        /// <summary>
+        /// Car paint, white. Every car on the road shares this material and is tinted through a
+        /// property block, so the colour of a given car costs nothing. What is baked in is the
+        /// clear coat: very smooth, a faint orange peel in the normal, and the dirt that
+        /// collects along the bottom of a body panel.
+        /// </summary>
+        static void PaintCarPaint(Canvas c)
+        {
+            c.Rect(0f, 0f, 1f, 1f, Color.white, 0.6f, 0.08f, 0f);
+            int n = c.Size;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                int i = y * n + x;
+                // Orange peel: the shallow ripple every sprayed panel has.
+                float peel = KontoNoise.FbmTiled(x / (float)n * 18f, y / (float)n * 18f, c.Seed + 3, 3, 18);
+                c.Height[i] = 0.6f + peel * 0.03f;
+                c.Rough[i] = Mathf.Clamp01(0.07f + Mathf.Abs(peel) * 0.05f);
+                // Road film along the bottom edge.
+                float grime = Mathf.Clamp01(1f - y / (n * 0.16f));
+                if (grime <= 0f) continue;
+                float g = grime * (0.35f + KontoNoise.FbmTiled(x / (float)n * 9f, y / (float)n * 9f, c.Seed + 5, 3, 9) * 0.5f);
+                c.Albedo[i] = Color.Lerp(c.Albedo[i], new Color(0.34f, 0.32f, 0.29f), Mathf.Clamp01(g * 0.7f));
+                c.Rough[i] = Mathf.Clamp01(c.Rough[i] + g * 0.5f);
+            }
+        }
+
+        static void PaintCarGlass(Canvas c)
+        {
+            // Plain tinted glass. The demister grid that used to live here read as dirt on every
+            // pane including the windscreen, which is worse than not having one.
+            c.Rect(0f, 0f, 1f, 1f, new Color(0.055f, 0.065f, 0.075f), 0.6f, 0.035f, 0f);
+            c.Grain(0.02f, 10f, c.Seed + 7);
+        }
+
+        static void PaintCarTrim(Canvas c)
+        {
+            // Textured black plastic: bumpers, mirror shells, sill mouldings.
+            c.Rect(0f, 0f, 1f, 1f, new Color(0.055f, 0.057f, 0.060f), 0.6f, 0.62f, 0f);
+            int n = c.Size;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                int i = y * n + x;
+                float w = KontoNoise.WorleyTiled(x / (float)n * 26f, y / (float)n * 26f, c.Seed + 11, 26);
+                c.Height[i] = 0.6f + w * 0.05f;
+                c.Rough[i] = Mathf.Clamp01(0.58f + w * 0.12f);
+            }
+        }
+
+        static void PaintCarLight(Canvas c)
+        {
+            // Half the sheet is a clear headlamp, half is a red rear lens, so one material does
+            // both ends of the car: the geometry picks a side with its UVs.
+            c.Rect(0f, 0f, 1f, 0.5f, new Color(0.52f, 0.06f, 0.05f), 0.6f, 0.06f, 0f);
+            c.Rect(0f, 0.5f, 1f, 1f, new Color(0.80f, 0.82f, 0.84f), 0.6f, 0.04f, 0f);
+            int n = c.Size;
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                // Fresnel flutes, which is what makes a lamp lens look like a lamp lens.
+                int i = y * n + x;
+                float f = Mathf.Sin(x / (float)n * Mathf.PI * 2f * 22f);
+                c.Height[i] = 0.6f + f * 0.10f;
+                c.Rough[i] = Mathf.Clamp01(c.Rough[i] + Mathf.Abs(f) * 0.04f);
+            }
+            // The reflector cup behind the clear half.
+            c.Disc(0.5f, 0.74f, 0.20f, 0.17f, new Color(0.92f, 0.93f, 0.94f), 0.44f, 0.03f, 0.95f);
+        }
+
+        static void PaintTyre(Canvas c)
+        {
+            c.Rect(0f, 0f, 1f, 1f, new Color(0.042f, 0.044f, 0.047f), 0.6f, 0.78f, 0f);
+            int n = c.Size;
+            // Tread blocks across the sheet, sidewall lettering round the edge.
+            for (int y = 0; y < n; y++)
+            for (int x = 0; x < n; x++)
+            {
+                int i = y * n + x;
+                float u = x / (float)n * 14f, v = y / (float)n * 5f;
+                float bx = Mathf.Abs(u - Mathf.Floor(u) - 0.5f) * 2f;
+                float by = Mathf.Abs(v - Mathf.Floor(v) - 0.5f) * 2f;
+                bool groove = Mathf.Max(bx, by) > 0.72f;
+                c.Height[i] = groove ? 0.44f : 0.66f;
+                if (!groove) continue;
+                c.Ao[i] = 0.62f;
+                c.Albedo[i] = Tint(c.Albedo[i], 0.8f);
+            }
+            c.Grain(0.10f, 20f, c.Seed + 13);
+        }
+
+        /// <summary>
+        /// The livery sheet: an atlas of marque badges, number plates and signs, in a four by
+        /// four grid addressed by <see cref="VehicleLibrary.AtlasCell"/>.
+        ///
+        /// The marques are invented for Konto and so are their badges — geometric shapes in the
+        /// idiom of a car badge (an oval, a chevron, a pinwheel) rather than anything traced off
+        /// a real one. The joke is the names.
+        /// </summary>
+        static void PaintLivery(Canvas c)
+        {
+            c.Rect(0f, 0f, 1f, 1f, new Color(0.10f, 0.10f, 0.11f), 0.6f, 0.5f, 0f);
+            const int G = 4;
+            float cell = 1f / G;
+
+            for (int k = 0; k < 8; k++)
+            {
+                float x0 = (k % G) * cell, y0 = 1f - ((k / G) + 1) * cell;
+                Badge(c, k, x0, y0, cell);
+            }
+
+            // Cell 8: a Konto number plate. White ground, green characters, a red border for
+            // the private plates and a green one for the commercial ones.
+            Plate(c, (8 % G) * cell, 1f - ((8 / G) + 1) * cell, cell, false);
+            Plate(c, (9 % G) * cell, 1f - ((9 / G) + 1) * cell, cell, true);
+
+            // Cell 10: the taxi roof lamp — a lit box with a kanji-ish glyph block.
+            {
+                float x0 = (10 % G) * cell, y0 = 1f - ((10 / G) + 1) * cell;
+                c.Rect(x0 + cell * 0.04f, y0 + cell * 0.22f, x0 + cell * 0.96f, y0 + cell * 0.78f,
+                    new Color(0.95f, 0.88f, 0.62f), 0.7f, 0.25f, 0f);
+                for (int i = 0; i < 3; i++)
+                    c.Rect(x0 + cell * (0.18f + i * 0.24f), y0 + cell * 0.34f,
+                           x0 + cell * (0.34f + i * 0.24f), y0 + cell * 0.66f,
+                           new Color(0.12f, 0.12f, 0.13f), 0.72f, 0.3f, 0f);
+            }
+
+            // Cell 11: the vacant / hired card in a taxi windscreen. Red means 空車, free.
+            {
+                float x0 = (11 % G) * cell, y0 = 1f - ((11 / G) + 1) * cell;
+                c.Rect(x0 + cell * 0.10f, y0 + cell * 0.30f, x0 + cell * 0.90f, y0 + cell * 0.70f,
+                    new Color(0.78f, 0.12f, 0.10f), 0.68f, 0.35f, 0f);
+                c.Rect(x0 + cell * 0.22f, y0 + cell * 0.38f, x0 + cell * 0.44f, y0 + cell * 0.62f,
+                    new Color(0.96f, 0.95f, 0.92f), 0.70f, 0.35f, 0f);
+                c.Rect(x0 + cell * 0.54f, y0 + cell * 0.38f, x0 + cell * 0.76f, y0 + cell * 0.62f,
+                    new Color(0.96f, 0.95f, 0.92f), 0.70f, 0.35f, 0f);
+            }
+
+            // Cells 12-15: delivery van side panels, bus blinds, a livery stripe.
+            for (int k = 12; k < 16; k++)
+            {
+                float x0 = (k % G) * cell, y0 = 1f - ((k / G) + 1) * cell;
+                float r = Rnd(c, k, 41);
+                Color ground = k == 15 ? new Color(0.16f, 0.17f, 0.19f)
+                             : (r < 0.34f ? new Color(0.93f, 0.92f, 0.89f)
+                             : (r < 0.67f ? new Color(0.20f, 0.42f, 0.66f) : new Color(0.24f, 0.52f, 0.34f)));
+                c.Rect(x0 + 0.002f, y0 + 0.002f, x0 + cell - 0.002f, y0 + cell - 0.002f, ground, 0.62f, 0.32f, 0f);
+                bool dark = ground.r + ground.g + ground.b < 1.5f;
+                Color ink = dark ? new Color(0.95f, 0.94f, 0.90f) : new Color(0.12f, 0.13f, 0.15f);
+                if (k == 15)
+                {
+                    // A destination blind: a long light bar with block characters.
+                    for (int i = 0; i < 5; i++)
+                        c.Rect(x0 + cell * (0.10f + i * 0.16f), y0 + cell * 0.40f,
+                               x0 + cell * (0.20f + i * 0.16f), y0 + cell * 0.60f,
+                               new Color(0.95f, 0.78f, 0.28f), 0.64f, 0.35f, 0f);
+                    continue;
+                }
+                // A company mark and a line of text, as blocks.
+                c.Disc(x0 + cell * 0.22f, y0 + cell * 0.62f, cell * 0.11f, cell * 0.11f, ink, 0.64f, 0.3f, 0f);
+                for (int i = 0; i < 4; i++)
+                    c.Rect(x0 + cell * (0.40f + i * 0.13f), y0 + cell * 0.54f,
+                           x0 + cell * (0.50f + i * 0.13f), y0 + cell * 0.70f, ink, 0.64f, 0.3f, 0f);
+                for (int i = 0; i < 6; i++)
+                    c.Rect(x0 + cell * (0.12f + i * 0.13f), y0 + cell * 0.30f,
+                           x0 + cell * (0.20f + i * 0.13f), y0 + cell * 0.40f, ink, 0.64f, 0.3f, 0f);
+            }
+        }
+
+        /// <summary>
+        /// One marque badge, drawn into an atlas cell. Chrome on a dark ground, in the geometry
+        /// of a Konto marque: see the notes on VehicleLibrary.Marques.
+        /// </summary>
+        static void Badge(Canvas c, int badge, float x0, float y0, float cell)
+        {
+            var dark = new Color(0.07f, 0.075f, 0.085f);
+            var chrome = new Color(0.86f, 0.88f, 0.90f);
+            c.Rect(x0 + 0.002f, y0 + 0.002f, x0 + cell - 0.002f, y0 + cell - 0.002f, dark, 0.58f, 0.22f, 0.3f);
+
+            float cx = x0 + cell * 0.5f, cy = y0 + cell * 0.5f;
+            float R = cell * 0.36f;
+            switch (badge)
+            {
+                case 0:     // Kosei: two crossed ovals
+                    c.Ring(cx, cy, R, R * 0.62f, 0.26f, chrome, 0.74f, 0.12f, 0.95f);
+                    c.Ring(cx, cy, R * 0.62f, R, 0.30f, chrome, 0.74f, 0.12f, 0.95f);
+                    break;
+                case 1:     // Ryusei: a circle with a shooting star through it
+                    c.Ring(cx, cy, R, R, 0.16f, chrome, 0.74f, 0.12f, 0.95f);
+                    c.Line(cx - R * 0.8f, cy - R * 0.5f, cx + R * 0.8f, cy + R * 0.5f, cell * 0.035f,
+                        chrome, 0.76f, 0.12f, 0.95f);
+                    c.Disc(cx + R * 0.5f, cy + R * 0.32f, cell * 0.06f, cell * 0.06f, chrome, 0.78f, 0.1f, 0.95f);
+                    break;
+                case 2:     // Kaneda: an angular K in a rounded square
+                    c.Rect(cx - R, cy - R, cx + R, cy + R, chrome, 0.70f, 0.14f, 0.9f);
+                    c.Rect(cx - R * 0.82f, cy - R * 0.82f, cx + R * 0.82f, cy + R * 0.82f, dark, 0.60f, 0.3f, 0.2f);
+                    c.Line(cx - R * 0.35f, cy - R * 0.6f, cx - R * 0.35f, cy + R * 0.6f, cell * 0.045f, chrome, 0.74f, 0.12f, 0.95f);
+                    c.Line(cx - R * 0.35f, cy, cx + R * 0.45f, cy + R * 0.6f, cell * 0.045f, chrome, 0.74f, 0.12f, 0.95f);
+                    c.Line(cx - R * 0.35f, cy, cx + R * 0.45f, cy - R * 0.6f, cell * 0.045f, chrome, 0.74f, 0.12f, 0.95f);
+                    break;
+                case 3:     // Mitsuwa: three triangles in a pinwheel
+                    for (int i = 0; i < 3; i++)
+                    {
+                        float a = i * Mathf.PI * 2f / 3f;
+                        Vector2 p0 = new Vector2(cx + Mathf.Cos(a) * R, cy + Mathf.Sin(a) * R);
+                        Vector2 p1 = new Vector2(cx + Mathf.Cos(a + 0.9f) * R * 0.34f, cy + Mathf.Sin(a + 0.9f) * R * 0.34f);
+                        Vector2 p2 = new Vector2(cx + Mathf.Cos(a - 0.9f) * R * 0.34f, cy + Mathf.Sin(a - 0.9f) * R * 0.34f);
+                        c.Tri(p0, p1, p2, chrome, 0.74f, 0.12f, 0.95f);
+                    }
+                    break;
+                case 4:     // Suzume: a swept chevron
+                    c.Tri(new Vector2(cx - R, cy - R * 0.2f), new Vector2(cx, cy + R * 0.55f),
+                          new Vector2(cx + R, cy - R * 0.2f), chrome, 0.74f, 0.12f, 0.95f);
+                    c.Tri(new Vector2(cx - R * 0.5f, cy - R * 0.35f), new Vector2(cx, cy + R * 0.12f),
+                          new Vector2(cx + R * 0.5f, cy - R * 0.35f), dark, 0.62f, 0.3f, 0.2f);
+                    break;
+                case 5:     // Nanatsu: seven stars in an oval
+                    c.Ring(cx, cy, R, R * 0.66f, 0.14f, chrome, 0.72f, 0.12f, 0.95f);
+                    for (int i = 0; i < 7; i++)
+                    {
+                        float a = i * Mathf.PI * 2f / 7f + 0.4f;
+                        c.Disc(cx + Mathf.Cos(a) * R * 0.42f, cy + Mathf.Sin(a) * R * 0.28f,
+                            cell * 0.028f, cell * 0.028f, chrome, 0.76f, 0.1f, 0.95f);
+                    }
+                    break;
+                case 6:     // Daichi: a mountain glyph
+                    c.Tri(new Vector2(cx - R, cy - R * 0.55f), new Vector2(cx - R * 0.15f, cy + R * 0.6f),
+                          new Vector2(cx + R * 0.35f, cy - R * 0.55f), chrome, 0.74f, 0.12f, 0.95f);
+                    c.Tri(new Vector2(cx - R * 0.1f, cy - R * 0.55f), new Vector2(cx + R * 0.45f, cy + R * 0.3f),
+                          new Vector2(cx + R, cy - R * 0.55f), chrome, 0.74f, 0.12f, 0.95f);
+                    break;
+                default:    // Ganseki: a hexagon with a bar
+                    for (int i = 0; i < 6; i++)
+                    {
+                        float a0 = i * Mathf.PI / 3f, a1 = (i + 1) * Mathf.PI / 3f;
+                        c.Tri(new Vector2(cx, cy),
+                              new Vector2(cx + Mathf.Cos(a0) * R, cy + Mathf.Sin(a0) * R),
+                              new Vector2(cx + Mathf.Cos(a1) * R, cy + Mathf.Sin(a1) * R),
+                              chrome, 0.72f, 0.14f, 0.92f);
+                    }
+                    c.Rect(cx - R * 0.72f, cy - R * 0.14f, cx + R * 0.72f, cy + R * 0.14f, dark, 0.60f, 0.3f, 0.2f);
+                    break;
+            }
+        }
+
+        /// <summary>A Konto number plate: white ground, dark characters, a coloured border.</summary>
+        static void Plate(Canvas c, float x0, float y0, float cell, bool commercial)
+        {
+            Color ground = commercial ? new Color(0.20f, 0.46f, 0.26f) : new Color(0.93f, 0.93f, 0.90f);
+            Color ink = commercial ? new Color(0.93f, 0.93f, 0.90f) : new Color(0.10f, 0.11f, 0.13f);
+            c.Rect(x0 + 0.004f, y0 + cell * 0.22f, x0 + cell - 0.004f, y0 + cell * 0.78f, ground, 0.64f, 0.34f, 0f);
+            c.Frame(x0 + 0.004f, y0 + cell * 0.22f, x0 + cell - 0.004f, y0 + cell * 0.78f, cell * 0.016f,
+                ink, 0.66f, 0.34f, 0f);
+            // A small region line, then four big digits with a gap in the middle.
+            for (int i = 0; i < 3; i++)
+                c.Rect(x0 + cell * (0.18f + i * 0.10f), y0 + cell * 0.60f,
+                       x0 + cell * (0.25f + i * 0.10f), y0 + cell * 0.70f, ink, 0.66f, 0.34f, 0f);
+            for (int i = 0; i < 4; i++)
+            {
+                float gx = x0 + cell * (0.14f + i * 0.19f + (i >= 2 ? 0.04f : 0f));
+                c.Rect(gx, y0 + cell * 0.30f, gx + cell * 0.13f, y0 + cell * 0.55f, ink, 0.66f, 0.34f, 0f);
+            }
         }
 
         static void PaintConcrete(Canvas c)

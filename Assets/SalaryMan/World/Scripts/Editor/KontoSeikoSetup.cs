@@ -19,6 +19,20 @@ namespace SalaryMan.World.EditorTools
     {
         public const string ModelPath = "Assets/SalaryMan/Characters/Seiko.fbx";
         const string ControllerPath = "Assets/SalaryMan/Characters/Seiko.controller";
+        const string MaterialPath = "Assets/SalaryMan/Characters/Seiko.mat";
+        const string BaseColorPath = "Assets/SalaryMan/Characters/Seiko_BaseColor.png";
+        const string NormalPath = "Assets/SalaryMan/Characters/Seiko_Normal.png";
+        const string MaskPath = "Assets/SalaryMan/Characters/Seiko_Mask.png";
+
+        /// <summary>
+        /// Degrees to turn the model under the pivot the character controller drives.
+        ///
+        /// He is authored facing +Y in Blender, which is +Z — forward — once the FBX axis
+        /// conversion has been applied, so this should be zero. It is a field rather than an
+        /// assumption because FBX axis conventions are a swamp and the symptom of getting it
+        /// wrong is a character who moonwalks: if he does, set this to 180 and rebuild.
+        /// </summary>
+        public static float ModelYaw = 0f;
 
         /// <summary>Walk and run speeds the clips were timed to, in metres per second.</summary>
         const float WalkSpeed = 1.65f;
@@ -51,6 +65,8 @@ namespace SalaryMan.World.EditorTools
 
             var controller = BuildController();
 
+            BuildMaterial();
+
             var rig = KontoCharacterFactory.Build(new KontoCharacterFactory.Options
             {
                 model = model,
@@ -59,6 +75,23 @@ namespace SalaryMan.World.EditorTools
                 placeOnTerrain = placeOnTerrain,
             });
             if (rig == null) return null;
+
+            // The character controller turns whatever it is given to face the way he is going,
+            // and it assumes that thing faces +Z. Rather than trust the FBX to have come in that
+            // way, put a pivot in between: the controller turns the pivot, and ModelYaw holds
+            // whatever correction the import needs. One field, instead of a re-export.
+            Transform imported = rig.transform.childCount > 0 ? rig.transform.GetChild(0) : null;
+            if (imported != null)
+            {
+                var pivot = new GameObject("Model").transform;
+                pivot.SetParent(rig.transform, false);
+                imported.SetParent(pivot, false);
+                imported.localRotation = Quaternion.Euler(0f, ModelYaw, 0f);
+                imported.localPosition = Vector3.zero;
+
+                var driven = rig.GetComponent<KontoCharacter>();
+                if (driven != null) driven.model = pivot;
+            }
 
             var animator = rig.GetComponentInChildren<Animator>();
             if (animator == null)
@@ -78,7 +111,9 @@ namespace SalaryMan.World.EditorTools
                 character.sprintSpeed = RunSpeed;
             }
 
-            Debug.Log("[Konto] Seiko Shigu is in the scene, with Idle, Walk and Run on a Speed blend tree.");
+            Debug.Log("[Konto] Seiko Shigu is in the scene, with Idle, Walk and Run on a Speed blend tree. "
+                + "If he walks backwards, set KontoSeikoSetup.ModelYaw to 180 and run "
+                + "Tools > SalaryMan > Put Seiko In The Scene again.");
             return rig;
         }
 
@@ -131,6 +166,86 @@ namespace SalaryMan.World.EditorTools
             }
 
             if (dirty) importer.SaveAndReimport();
+        }
+
+        /// <summary>
+        /// Builds his material from the maps the rig script exported beside the FBX, and remaps
+        /// the model's material slot onto it.
+        ///
+        /// Going through the FBX's own embedded textures was the obvious route and it is the one
+        /// that leaves him grey: what HDRP does with a material imported from an FBX depends on
+        /// the Unity version and the pipeline that was active at import time. Maps on disk and a
+        /// material we make ourselves is boring and works.
+        /// </summary>
+        static void BuildMaterial()
+        {
+            var baseColor = AssetDatabase.LoadAssetAtPath<Texture2D>(BaseColorPath);
+            if (baseColor == null)
+            {
+                Debug.LogWarning("[Konto] " + BaseColorPath + " is missing, so Seiko keeps whatever "
+                    + "material the FBX imported with. Re-run Tools/rig_seiko.py to write the maps.");
+                return;
+            }
+
+            ConfigureMap(BaseColorPath, false, false);
+            ConfigureMap(NormalPath, true, false);
+            ConfigureMap(MaskPath, false, true);
+
+            var mat = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
+            if (mat == null)
+            {
+                Shader shader = Shader.Find("HDRP/Lit");
+                if (shader == null) shader = Shader.Find("Standard");
+                if (shader == null) return;
+                mat = new Material(shader) { name = "Seiko" };
+                AssetDatabase.CreateAsset(mat, MaterialPath);
+            }
+
+            var normal = AssetDatabase.LoadAssetAtPath<Texture2D>(NormalPath);
+            var mask = AssetDatabase.LoadAssetAtPath<Texture2D>(MaskPath);
+            if (mat.HasProperty("_BaseColorMap")) mat.SetTexture("_BaseColorMap", baseColor);
+            if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", baseColor);
+            if (normal != null)
+            {
+                if (mat.HasProperty("_NormalMap")) mat.SetTexture("_NormalMap", normal);
+                if (mat.HasProperty("_BumpMap")) mat.SetTexture("_BumpMap", normal);
+            }
+            // Meshy writes an ORM style map: the green channel is roughness. HDRP's mask map
+            // wants smoothness in alpha, so rather than lie about the channels the cloth gets a
+            // flat, slightly rough response, which is what a suit looks like anyway.
+            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+            if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
+            if (mat.HasProperty("_Smoothness")) mat.SetFloat("_Smoothness", 0.22f);
+            if (mat.HasProperty("_Glossiness")) mat.SetFloat("_Glossiness", 0.22f);
+            if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", 0f);
+            KontoMaterialUtil.ValidateHdrpMaterial(mat);
+            EditorUtility.SetDirty(mat);
+
+            // Point the model's material slot at it, whatever the FBX called its own.
+            var importer = AssetImporter.GetAtPath(ModelPath) as ModelImporter;
+            if (importer == null) return;
+            var names = new System.Collections.Generic.List<string>();
+            foreach (var obj in AssetDatabase.LoadAllAssetsAtPath(ModelPath))
+            {
+                var m = obj as Material;
+                if (m != null) names.Add(m.name);
+            }
+            if (names.Count == 0) names.Add("Material_0");
+            foreach (var n in names)
+                importer.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), n), mat);
+            importer.SaveAndReimport();
+        }
+
+        static void ConfigureMap(string path, bool isNormal, bool isLinear)
+        {
+            var importer = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (importer == null) return;
+            var wantType = isNormal ? TextureImporterType.NormalMap : TextureImporterType.Default;
+            bool wantSrgb = !isNormal && !isLinear;
+            if (importer.textureType == wantType && importer.sRGBTexture == wantSrgb) return;
+            importer.textureType = wantType;
+            importer.sRGBTexture = wantSrgb;
+            importer.SaveAndReimport();
         }
 
         static AnimatorController BuildController()

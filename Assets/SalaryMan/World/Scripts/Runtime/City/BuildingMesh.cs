@@ -44,6 +44,43 @@ namespace SalaryMan.World
         {
             _v.Clear(); _n.Clear(); _uv.Clear();
             for (int i = 0; i < _tris.Length; i++) _tris[i].Clear();
+            _placing = false;
+        }
+
+        // ------------------------------------------------------------------ placement
+
+        // A builder that works in its own local space — a car, a person, a bench — is written
+        // once around the origin and then stamped wherever it is wanted. Everything goes through
+        // AddQuad and AddTriangle, so applying the transform there covers the whole toolkit.
+        bool _placing;
+        Vector3 _placeOrigin;
+        float _placeCos = 1f, _placeSin;
+
+        /// <summary>Stamp everything that follows at a position and heading, until Unplace().</summary>
+        public void PlaceAt(Vector3 origin, float yawDegrees)
+        {
+            _placing = true;
+            _placeOrigin = origin;
+            float r = yawDegrees * Mathf.Deg2Rad;
+            _placeCos = Mathf.Cos(r);
+            _placeSin = Mathf.Sin(r);
+        }
+
+        public void Unplace() { _placing = false; }
+
+        Vector3 Place(Vector3 p)
+        {
+            if (!_placing) return p;
+            return new Vector3(
+                _placeOrigin.x + p.x * _placeCos + p.z * _placeSin,
+                _placeOrigin.y + p.y,
+                _placeOrigin.z - p.x * _placeSin + p.z * _placeCos);
+        }
+
+        Vector3 PlaceDir(Vector3 d)
+        {
+            if (!_placing) return d;
+            return new Vector3(d.x * _placeCos + d.z * _placeSin, d.y, -d.x * _placeSin + d.z * _placeCos);
         }
 
         // ------------------------------------------------------------------ primitives
@@ -57,9 +94,10 @@ namespace SalaryMan.World
             bool flip = Vector3.Dot(face, outward) < 0f;
             Vector3 normal = outward.sqrMagnitude > 1e-9f ? outward.normalized
                            : (flip ? -face.normalized : face.normalized);
+            normal = PlaceDir(normal);
 
             int i = _v.Count;
-            _v.Add(a); _v.Add(b); _v.Add(c); _v.Add(d);
+            _v.Add(Place(a)); _v.Add(Place(b)); _v.Add(Place(c)); _v.Add(Place(d));
             _uv.Add(ua); _uv.Add(ub); _uv.Add(uc); _uv.Add(ud);
             for (int k = 0; k < 4; k++) _n.Add(normal);
 
@@ -95,9 +133,10 @@ namespace SalaryMan.World
             bool flip = Vector3.Dot(face, outward) < 0f;
             Vector3 normal = outward.sqrMagnitude > 1e-9f ? outward.normalized
                            : (flip ? -face.normalized : face.normalized);
+            normal = PlaceDir(normal);
 
             int i = _v.Count;
-            _v.Add(a); _v.Add(b); _v.Add(c);
+            _v.Add(Place(a)); _v.Add(Place(b)); _v.Add(Place(c));
             _uv.Add(ua); _uv.Add(ub); _uv.Add(uc);
             for (int k = 0; k < 3; k++) _n.Add(normal);
 
@@ -135,6 +174,36 @@ namespace SalaryMan.World
             if (includeBottom) AddQuadWorld(b00, b01, b11, b10, Vector3.down, surface, uvScale);
         }
 
+        /// <summary>
+        /// A box whose every face samples one rectangle of a texture atlas. Badges, number
+        /// plates, taxi signs and route boards: small parts that each need a specific picture
+        /// rather than a tiling material.
+        /// </summary>
+        public void AddBoxAtlas(Vector2 centre, Vector2 size, float yawDegrees, float baseY, float height,
+            CitySurface surface, Rect uv)
+        {
+            if (height <= 0.001f || size.x <= 0.001f || size.y <= 0.001f) return;
+            Vector2 ax, az;
+            CityGeom.Axes(yawDegrees, out ax, out az);
+            Vector3 x = new Vector3(ax.x, 0f, ax.y) * (size.x * 0.5f);
+            Vector3 z = new Vector3(az.x, 0f, az.y) * (size.y * 0.5f);
+            Vector3 up = new Vector3(0f, height, 0f);
+            Vector3 o = new Vector3(centre.x, baseY, centre.y);
+
+            Vector3 b00 = o - x - z, b10 = o + x - z, b11 = o + x + z, b01 = o - x + z;
+            Vector3 t00 = b00 + up, t10 = b10 + up, t11 = b11 + up, t01 = b01 + up;
+            Vector3 nx = new Vector3(ax.x, 0f, ax.y), nz = new Vector3(az.x, 0f, az.y);
+
+            Vector2 a = new Vector2(uv.xMin, uv.yMin), b = new Vector2(uv.xMax, uv.yMin);
+            Vector2 c = new Vector2(uv.xMax, uv.yMax), d = new Vector2(uv.xMin, uv.yMax);
+
+            AddQuad(b00, b10, t10, t00, -nz, surface, a, b, c, d);
+            AddQuad(b11, b01, t01, t11, nz, surface, a, b, c, d);
+            AddQuad(b10, b11, t11, t10, nx, surface, a, b, c, d);
+            AddQuad(b01, b00, t00, t01, -nx, surface, a, b, c, d);
+            AddQuad(t00, t10, t11, t01, Vector3.up, surface, a, b, c, d);
+        }
+
         /// <summary>A box given by two world corners, axis aligned. For plant and clutter.</summary>
         public void AddBoxAligned(Vector3 lo, Vector3 hi, CitySurface surface, float uvScale = 1f, bool includeBottom = false)
         {
@@ -170,8 +239,9 @@ namespace SalaryMan.World
             {
                 float a = i / (float)sides * Mathf.PI * 2f;
                 Vector3 dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
-                _v.Add(foot + dir * radius); _n.Add(dir); _uv.Add(new Vector2(i * radius * 6f, 0f));
-                _v.Add(foot + dir * radius + Vector3.up * height); _n.Add(dir); _uv.Add(new Vector2(i * radius * 6f, height));
+                _v.Add(Place(foot + dir * radius)); _n.Add(PlaceDir(dir)); _uv.Add(new Vector2(i * radius * 6f, 0f));
+                _v.Add(Place(foot + dir * radius + Vector3.up * height)); _n.Add(PlaceDir(dir));
+                _uv.Add(new Vector2(i * radius * 6f, height));
             }
             var t = _tris[(int)surface];
             for (int i = 0; i < sides; i++)
@@ -180,6 +250,77 @@ namespace SalaryMan.World
                 t.Add(a); t.Add(c); t.Add(b);
                 t.Add(b); t.Add(c); t.Add(d);
             }
+        }
+
+        /// <summary>
+        /// A cylinder between two points. Wheels, exhausts, mirror stalks, anything round that
+        /// is not standing upright.
+        /// </summary>
+        public void AddCylinder(Vector3 a, Vector3 b, float radius, int sides, CitySurface surface, bool caps = true)
+        {
+            Vector3 axis = b - a;
+            float len = axis.magnitude;
+            if (len < 1e-4f || radius < 1e-4f) return;
+            axis /= len;
+
+            Vector3 u = Vector3.Cross(axis, Vector3.up);
+            if (u.sqrMagnitude < 1e-6f) u = Vector3.Cross(axis, Vector3.right);
+            u = u.normalized;
+            Vector3 v = Vector3.Cross(axis, u).normalized;
+
+            for (int i = 0; i < sides; i++)
+            {
+                float t0 = i / (float)sides * Mathf.PI * 2f;
+                float t1 = (i + 1) / (float)sides * Mathf.PI * 2f;
+                Vector3 d0 = u * Mathf.Cos(t0) + v * Mathf.Sin(t0);
+                Vector3 d1 = u * Mathf.Cos(t1) + v * Mathf.Sin(t1);
+                Vector3 mid = (d0 + d1).normalized;
+
+                AddQuad(a + d0 * radius, a + d1 * radius, b + d1 * radius, b + d0 * radius, mid, surface,
+                    new Vector2(i / (float)sides, 0f), new Vector2((i + 1) / (float)sides, 0f),
+                    new Vector2((i + 1) / (float)sides, len), new Vector2(i / (float)sides, len));
+
+                if (!caps) continue;
+                AddTriangle(b, b + d0 * radius, b + d1 * radius, axis, surface,
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f + Mathf.Cos(t0) * 0.5f, 0.5f + Mathf.Sin(t0) * 0.5f),
+                    new Vector2(0.5f + Mathf.Cos(t1) * 0.5f, 0.5f + Mathf.Sin(t1) * 0.5f));
+                AddTriangle(a, a + d1 * radius, a + d0 * radius, -axis, surface,
+                    new Vector2(0.5f, 0.5f),
+                    new Vector2(0.5f + Mathf.Cos(t1) * 0.5f, 0.5f + Mathf.Sin(t1) * 0.5f),
+                    new Vector2(0.5f + Mathf.Cos(t0) * 0.5f, 0.5f + Mathf.Sin(t0) * 0.5f));
+            }
+        }
+
+        /// <summary>
+        /// A box whose top face is a different size from its bottom, optionally shifted along the
+        /// local Z. Almost every part of a car body is one of these: a bonnet tapers in and down,
+        /// a greenhouse tapers in and back.
+        /// </summary>
+        public void AddTaperedBox(Vector2 centre, Vector2 bottom, Vector2 top, float yawDegrees,
+            float baseY, float height, CitySurface surface, float topShift = 0f, float uvScale = 1f)
+        {
+            if (height <= 0.001f) return;
+            Vector2 ax, az;
+            CityGeom.Axes(yawDegrees, out ax, out az);
+            Vector3 X = new Vector3(ax.x, 0f, ax.y), Z = new Vector3(az.x, 0f, az.y);
+            Vector3 o = new Vector3(centre.x, baseY, centre.y);
+            Vector3 up = Vector3.up * height;
+            Vector3 shift = Z * topShift;
+
+            Vector3 bx = X * (bottom.x * 0.5f), bz = Z * (bottom.y * 0.5f);
+            Vector3 tx = X * (top.x * 0.5f), tz = Z * (top.y * 0.5f);
+
+            Vector3 b00 = o - bx - bz, b10 = o + bx - bz, b11 = o + bx + bz, b01 = o - bx + bz;
+            Vector3 t00 = o + up + shift - tx - tz, t10 = o + up + shift + tx - tz;
+            Vector3 t11 = o + up + shift + tx + tz, t01 = o + up + shift - tx + tz;
+
+            AddQuadWorld(b00, b10, t10, t00, -Z, surface, uvScale);
+            AddQuadWorld(b11, b01, t01, t11, Z, surface, uvScale);
+            AddQuadWorld(b10, b11, t11, t10, X, surface, uvScale);
+            AddQuadWorld(b01, b00, t00, t01, -X, surface, uvScale);
+            AddQuadWorld(t00, t10, t11, t01, Vector3.up, surface, uvScale);
+            AddQuadWorld(b00, b01, b11, b10, Vector3.down, surface, uvScale);
         }
 
         /// <summary>A horizontal bar between two points, as a thin square section.</summary>

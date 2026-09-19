@@ -22,6 +22,43 @@ for im in bpy.data.images:
     if max(im.size) > 1024:
         im.scale(1024, 1024)
 
+def save_maps(folder):
+    """Write the mesh's own maps beside the model.
+
+    Unity will not reliably pull an embedded texture out of an FBX into an HDRP material,
+    and a grey salaryman is not the one we want, so the maps go out as files and
+    KontoSeikoSetup builds the material from them."""
+    if not folder:
+        return
+    m = bpy.data.objects['Mesh_0'].material_slots[0].material
+    if m is None or not m.use_nodes:
+        return
+    # Which map is which is decided by what consumes it, not by the socket name: both the
+    # normal map and the metallic/roughness split arrive on a socket called "Color".
+    for node in m.node_tree.nodes:
+        if node.type != 'TEX_IMAGE' or node.image is None:
+            continue
+        label = None
+        for out in node.outputs:
+            for link in out.links:
+                to = link.to_node.type
+                if to == 'NORMAL_MAP':
+                    label = 'Normal'
+                elif to == 'SEPARATE_COLOR':
+                    label = 'Mask'
+                elif link.to_socket.name == 'Base Color':
+                    label = 'BaseColor'
+        if label is None:
+            continue
+        img = node.image
+        img.filepath_raw = os.path.join(folder, 'Seiko_%s.png' % label)
+        img.file_format = 'PNG'
+        # Colour maps keep their transfer curve; the data maps must not gain one.
+        if label != 'BaseColor':
+            img.colorspace_settings.name = 'Non-Color'
+        img.save()
+        print("[rig] wrote", img.filepath_raw)
+
 scn = bpy.context.scene
 scn.render.fps = 30
 for ob in bpy.data.objects:
@@ -47,6 +84,13 @@ raw = max(v.z for v in co0) - min(v.z for v in co0)
 mesh.data.transform(Matrix.Scale(HEIGHT / raw, 4))
 mesh.data.update()
 print("[rig] scaled %.3f m -> %.3f m" % (raw, HEIGHT))
+
+# Feet on the floor. Meshy centres the mesh on its own bounding box, so his origin sits
+# at his waist; anything that drops the transform on the ground buries him to the hips.
+soles = min(v.co.z for v in mesh.data.vertices)
+mesh.data.transform(Matrix.Translation((0.0, 0.0, -soles)))
+mesh.data.update()
+print("[rig] feet moved to the origin (was %+.3f)" % soles)
 
 dec = mesh.modifiers.new('dec', 'DECIMATE')
 dec.ratio = 0.40
@@ -123,6 +167,75 @@ for pb in rig.pose.bones:
 REST = {pb.name: pb.bone.matrix_local.to_3x3() for pb in rig.pose.bones}
 AXES = {'x': Vector((1, 0, 0)), 'y': Vector((0, 1, 0)), 'z': Vector((0, 0, 1))}
 
+
+def local_quat(bone, axis, deg):
+    local = (REST[bone].inverted() @ AXES[axis]).normalized()
+    return Quaternion(local, D(deg))
+
+
+def set_pose(pose):
+    for pb in rig.pose.bones:
+        pb.rotation_quaternion = Quaternion((1, 0, 0, 0))
+        pb.location = (0, 0, 0)
+    for bone, spec in pose.items():
+        pb = rig.pose.bones[bone]
+        q = Quaternion((1, 0, 0, 0))
+        for axis, amount in spec:
+            if axis == 'loc':
+                pb.location = REST[bone].inverted() @ Vector(amount)
+            else:
+                q = q @ local_quat(bone, axis, amount)
+        pb.rotation_quaternion = q
+
+
+# ---------------------------------------------- hands out of the pockets
+# The source mesh is modelled standing with both hands in his trouser pockets, and the
+# forearms run forward and inward into them. Every animation on top of that rest pose is
+# fighting it. So: pose the arms down and clear of the body, bake that shape into the
+# mesh, make it the rest pose, and work out the weights again on the result. After this
+# the arms are ordinary arms and the walk can swing them.
+OUT_OF_POCKETS = {
+    'UpperArm.L': [('y', 13), ('x', -6)],
+    'UpperArm.R': [('y', -13), ('x', -6)],
+    'Forearm.L':  [('x', -52), ('y', 8)],
+    'Forearm.R':  [('x', -52), ('y', -8)],
+    'Hand.L':     [('x', -10)],
+    'Hand.R':     [('x', -10)],
+}
+
+bpy.context.view_layer.objects.active = rig
+bpy.ops.object.mode_set(mode='POSE')
+set_pose(OUT_OF_POCKETS)
+bpy.ops.object.mode_set(mode='OBJECT')
+
+# Bake the deformed shape, keeping the vertex groups, then make the pose the rest pose.
+bpy.context.view_layer.objects.active = mesh
+mod = next((m for m in mesh.modifiers if m.type == 'ARMATURE'), None)
+if mod is not None:
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+bpy.context.view_layer.objects.active = rig
+bpy.ops.object.mode_set(mode='POSE')
+bpy.ops.pose.armature_apply()
+bpy.ops.object.mode_set(mode='OBJECT')
+
+# Re-skin: the weights that suited a hand inside a pocket do not suit a hand beside a hip.
+bpy.context.view_layer.objects.active = mesh
+mesh.vertex_groups.clear()
+for ob in bpy.data.objects:
+    ob.select_set(False)
+mesh.select_set(True)
+rig.select_set(True)
+bpy.context.view_layer.objects.active = rig
+try:
+    bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+    print("[rig] arms out of the pockets, re-skinned on the new rest pose")
+except Exception as e:
+    print("[rig] re-skin failed (%s); falling back to envelopes" % e)
+    bpy.ops.object.parent_set(type='ARMATURE_ENVELOPE')
+
+# The rest pose moved, so the bone rest matrices did too.
+REST = {pb.name: pb.bone.matrix_local.to_3x3() for pb in rig.pose.bones}
+
 def apply(pose):
     for pb in rig.pose.bones:
         pb.rotation_quaternion = Quaternion((1, 0, 0, 0))
@@ -162,24 +275,21 @@ def merge(*ds):
 
 # Positive 'x' swings a limb forward, negative back.  Positive 'y' abducts the
 # left arm / right leg and adducts the mirrored one, so limb poses carry a sign.
-def pocket_arms(roll=0.0):
-    """Rest arms — hands stay in the pockets, shoulders roll with the stride."""
+def swing_arms(sign, reach=26, fold=20, out=3, roll=0.0):
+    """Arms at his sides, swinging opposite the legs.
+
+    sign is which leg leads: the arm on the same side goes back. reach is the swing in
+    degrees, fold how bent the elbow stays, out how far the arms are held off the body.
+    """
     return {
         'Shoulder.L': [('x',  roll)],
         'Shoulder.R': [('x', -roll)],
-    }
-
-def swing_arms(sign, reach=34, fold=46, out=25):
-    """Hands pulled clear of the pockets and driving, for the run."""
-    return {
-        'Shoulder.L': [('x',  4 * sign)],
-        'Shoulder.R': [('x', -4 * sign)],
-        'UpperArm.L': [('y',  out), ('x', -14 + reach * sign)],
-        'UpperArm.R': [('y', -out), ('x', -14 - reach * sign)],
-        'Forearm.L':  [('x', fold + 14 * sign)],
-        'Forearm.R':  [('x', fold - 14 * sign)],
-        'Hand.L':     [('x', 10)],
-        'Hand.R':     [('x', 10)],
+        'UpperArm.L': [('y',  out), ('x', -reach * sign)],
+        'UpperArm.R': [('y', -out), ('x',  reach * sign)],
+        'Forearm.L':  [('x', fold + 10 * -sign)],
+        'Forearm.R':  [('x', fold + 10 *  sign)],
+        'Hand.L':     [('x', 4)],
+        'Hand.R':     [('x', 4)],
     }
 
 # ---- Idle: quiet breathing, weight settled onto the right leg
@@ -198,7 +308,7 @@ def idle_pose(t):
         'Thigh.R': [('x', 1), ('y', 2)],
         'Shin.R':  [('x', -2)],
         'Foot.R':  [('x', 1), ('z', 6)],
-    }, pocket_arms(1.5 * s))
+    }, swing_arms(0, reach=0, fold=12 + 2 * s, out=4, roll=1.5 * s))
 
 # ---- Walk: heel strike, roll through the foot, 1.07 s cycle
 def walk_contact(sign):
@@ -217,7 +327,7 @@ def walk_contact(sign):
         'Shin.'  + R: [('x', -17)],
         'Foot.'  + R: [('x', -27)],
         'Toe.'   + R: [('x', 24)],
-    }, pocket_arms(5 * sign))
+    }, swing_arms(sign, reach=26, fold=18, out=3, roll=5 * sign))
 
 def walk_pass(sign):
     L, R = ('L', 'R') if sign > 0 else ('R', 'L')
@@ -232,7 +342,7 @@ def walk_pass(sign):
         'Shin.'  + R: [('x', -48)],
         'Foot.'  + R: [('x', 9)],
         'Toe.'   + R: [('x', 0)],
-    }, pocket_arms(1 * sign))
+    }, swing_arms(sign, reach=5, fold=14, out=3, roll=1 * sign))
 
 # ---- Run: forward lean, airborne phase, arms out of the pockets
 def run_contact(sign):
@@ -250,7 +360,7 @@ def run_contact(sign):
         'Shin.'  + R: [('x', -32)],
         'Foot.'  + R: [('x', -36)],
         'Toe.'   + R: [('x', 27)],
-    }, swing_arms(-sign))
+    }, swing_arms(sign, reach=44, fold=62, out=9, roll=6 * sign))
 
 def run_flight(sign):
     L, R = ('L', 'R') if sign > 0 else ('R', 'L')
@@ -265,7 +375,7 @@ def run_flight(sign):
         'Thigh.' + R: [('x', 23)],
         'Shin.'  + R: [('x', -104)],
         'Foot.'  + R: [('x', 14)],
-    }, swing_arms(-sign, reach=16, fold=52))
+    }, swing_arms(sign, reach=18, fold=70, out=9, roll=2 * sign))
 
 bake('Idle', [(1 + i * 24, idle_pose(i / 4.0)) for i in range(5)])
 bake('Walk', [(1, walk_contact(+1)), (9, walk_pass(+1)), (17, walk_contact(-1)),
@@ -297,7 +407,11 @@ if FBX:
         bake_anim=True, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=False,
         bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True,
         bake_anim_step=1.0, bake_anim_simplify_factor=0.0,
-        path_mode='COPY', embed_textures=True, axis_forward='-Z', axis_up='Y')
+        path_mode='STRIP', embed_textures=False, axis_forward='-Z', axis_up='Y')
     print("[rig] wrote", FBX)
+
+# Last, because writing the maps out re-points the images at files on disk and both
+# exporters would then embed those PNGs rather than re-encoding to JPEG.
+save_maps(os.path.dirname(os.path.abspath(FBX)) if FBX else None)
 
 print("[rig] done")

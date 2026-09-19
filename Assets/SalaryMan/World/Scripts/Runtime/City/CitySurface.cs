@@ -29,6 +29,15 @@ namespace SalaryMan.World
         Signage,            // shop signs and box lanterns
         Concrete,           // podiums, plinths, kerbs, retaining, stair cores
 
+        // Traffic. Car paint is tinted per vehicle through a MaterialPropertyBlock, so one
+        // material covers every car on the road in every colour.
+        CarPaint,
+        CarGlass,
+        CarTrim,            // bumpers, mirrors, black plastic, chrome
+        CarLight,           // lamp lenses, front and rear
+        Tyre,
+        Livery,             // marque badges, number plates, taxi signs, delivery panels
+
         Count
     }
 }
