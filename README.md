@@ -6,7 +6,7 @@ that owns half the skyline.
 
 This repository is the **world**: the island, the city on it, and the man who walks around it.
 Landscape, city plan, three thousand built and textured buildings, the street furniture between
-them, and Seiko Shigu rigged and animated.
+them, traffic on the roads and a crowd on the pavements, and Seiko Shigu rigged and animated.
 
 One button builds the lot: **Tools → SalaryMan → Build Konto (all steps)**.
 
@@ -104,6 +104,11 @@ space, not as buildings:
   pixel displacement, so the windows read as holes from the pavement.
 - **Street furniture**: kerbs, lamp columns, signals at the junctions, vending machines, and the
   overhead power lines strung pole to pole that say which country this is.
+- **Traffic**, driving on the left: kei cars, vans, taxis with their 行灯 roof lamps, box vans and
+  buses, from parody marques with parody badges, keeping their lane, keeping a gap and stopping at
+  the lights.
+- **A crowd** on the footways: salarymen with briefcases, office ladies, students, workers in hard
+  hats, all walking somewhere.
 - **Seiko Shigu**, rigged, with idle, walk and run on a blend tree, dropped into the scene with
   the rest of it.
 
@@ -115,6 +120,7 @@ Everything is deterministic from one seed.
 Full detail on the plan: **[Docs/CITY_TOKONTO.md](Docs/CITY_TOKONTO.md)**.
 How the buildings and their materials work, and where to change them:
 **[Docs/BUILDINGS_AND_SURFACES.md](Docs/BUILDINGS_AND_SURFACES.md)**.
+How the cars drive and the crowd walks: **[Docs/TRAFFIC_AND_CROWD.md](Docs/TRAFFIC_AND_CROWD.md)**.
 
 ---
 
@@ -180,11 +186,17 @@ Assets/SalaryMan/World/Scripts/
     UrbanRaster.cs            the per city rasters: graded height, influence, surface
     CityGrading.cs            the civil engineering: platform, streets, plots, rail beds, moat
   Runtime/City/
-    CitySurface.cs            the fifteen-odd material slots the whole city is made of
+    CitySurface.cs            the material slots the whole city, its traffic and its crowd are made of
     BuildingMesh.cs           the mesh accumulator: a ward of buildings welded into one mesh
     BuildingLibrary.cs        a plot in, a building out: massing, articulation, roof plant
     FacadeTextures.cs         paints every surface: albedo, normal, mask and height
     StreetProps.cs            kerbs, lamps, signals, vending machines, poles and their wires
+    VehicleLibrary.cs         nine bodies, parody marques, parody badges, green commercial plates
+    PedestrianLibrary.cs      six kinds of person, as a body and two legs
+    CityLanes.cs              the road plan as lanes to drive on and footways to walk on
+    KontoTraffic.cs           the traffic: lanes, gaps, stop lines, and a pool around the player
+    KontoCrowd.cs             the crowd: footways, leg swings, and cloth tinted per person
+    CityMeshPiece.cs          a baked mesh with its materials and which surface each submesh is
     SotiTower.cs              the one modelled building: Soti's head office, Ping An's form
     KontoCityLayoutAsset.cs   the plan as an asset, with lookup and one-line building placement
     KontoCityRoot.cs          the scene's handle on a city, and its gizmos
@@ -206,6 +218,7 @@ Assets/SalaryMan/World/Scripts/
     KontoCityFactory.cs         city hierarchy, markers, moat water, massing blockout, Soti Tower
     KontoBuildingFactory.cs     the buildings, batched into one mesh per ward
     KontoPropFactory.cs         the street furniture, chunked so it culls
+    KontoTrafficFactory.cs      bakes the fleet and the crowd, drops the spawners in
     KontoSurfaceLibrary.cs      generates the facade, roof and metal materials
     KontoSeikoSetup.cs          imports the character, builds his blend tree, puts him in
     KontoTextureFactory.cs      procedural tiling ground textures and terrain layers

@@ -90,11 +90,13 @@ If you would rather do it by hand: select your HDRP Asset, and in **Rendering** 
    `Assets/SalaryMan/World/Settings/KontoWorldSettings.asset` with the Honshu-derived layout.
 3. Leave every step ticked and press **Build Konto**.
 
-   Under the **city** step there are three sub-options:
+   Under the **city** step there are four sub-options:
 
    - *Buildings, street furniture and their materials* — on. This is what puts the city up.
    - *Repaint the facade and roof textures* — off. The textures are painted once and cached to
      disk; tick this only after you change a painter in `FacadeTextures`.
+   - *Traffic and a crowd on the pavements* — on. Bakes the vehicle and pedestrian bodies and
+     drops the two spawners into the scene. It adds seconds, not minutes.
    - *Grey massing blockout instead of buildings* — off. Grey boxes, for judging the plan without
      waiting for the buildings.
 
@@ -109,8 +111,9 @@ Expected time on a modern desktop, at default settings (12288 × 10240 m, 30 til
 | Stand-in vegetation | ~10 s (first build only) |
 | Landform, erosion, hydrology | 3 – 8 min |
 | Cities: planning and grading | 30 s – 2 min |
-| City surfaces: painting 18 PBR sets at 1024² | ~40 s (first build only) |
+| City surfaces: painting 28 PBR sets at 1024² | ~60 s (first build only) |
 | Buildings and street furniture | 30 s – 2 min |
+| Traffic and crowd bodies | ~5 s |
 | Terrain tiles, splatmaps, grass, trees | 5 – 15 min |
 | Water, sky, lighting | ~10 s |
 
@@ -132,6 +135,9 @@ Konto Cities         Tokonto and Mizuho, each with:
                        Buildings        one mesh per ward, ~3000 buildings
                        Street furniture kerbs, lamps, signals, poles and wires
                        Soti Tower       the one modelled building
+                       Traffic and crowd
+                                        the two spawners: cars on the lanes, people
+                                        on the footways, both pooled around you
 Konto Environment    sun, moon, sky/fog volume, weather, wind
 Salaryman Player     Seiko Shigu, rigged, on a Speed blend tree
 Main Camera          over his shoulder
@@ -346,7 +352,8 @@ probing for parameter names across HDRP versions. It set the one that exists on 
 scales with `workingResolution` squared.
 
 **The buildings are grey boxes.** The *Grey massing blockout* option is ticked, or *Buildings,
-street furniture and their materials* is not. Both live under the city step in the build window.
+street furniture and their materials* is not. Both live under the city step in the build window,
+along with *Traffic and a crowd on the pavements*.
 
 **The buildings are magenta.** The surface materials did not resolve to `HDRP/Lit`, which means
 HDRP is not the active pipeline. Fix Graphics settings, then
@@ -380,8 +387,11 @@ What is missing, in the order it would be worth doing:
   street furniture past 150 m is the single biggest performance win available.
 - **A road ribbon.** Carriageways are painted onto the terrain and the kerbs are geometry, but
   markings, crossings, manholes and drains want a real mesh strip along each road.
-- **Traffic and pedestrians.** The road and rail networks are already polylines with widths and
-  classes, which is most of what a traffic system needs from a city.
+- **Trains.** The road traffic and the crowd are in (see
+  [TRAFFIC_AND_CROWD.md](TRAFFIC_AND_CROWD.md)); the rail network is polylines with widths and
+  classes in exactly the same way, and nothing runs on it yet.
+- **Turns at junctions.** Cars drive a road end to end and are recycled. They stop at the lights
+  correctly, but none of them turns left or right, so traffic never redistributes itself.
 - **Interiors.** Buildings are shells. The first one that needs an inside is Soti Tower's lobby,
   because that is where the story starts.
 - **Night.** `KontoTimeOfDay` already moves the sun. Lit windows, lit signage and the lamp columns

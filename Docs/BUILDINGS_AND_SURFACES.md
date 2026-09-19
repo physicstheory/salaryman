@@ -57,7 +57,10 @@ of one material looking like one wall stamped sixteen times. Sixteen phases, no 
 ## The surfaces
 
 `CitySurface` is the palette, and it is also the submesh order: a ward's buildings are one mesh
-with one submesh per surface, so a whole ward is eighteen draw calls.
+with one submesh per surface, so a whole ward is twenty-odd draw calls. The traffic and the crowd
+share the palette, so they add no materials to a scene that already has the city in it — but they
+are built compacted, with a submesh only for the surfaces they actually use, because there are
+hundreds of them and a car uses six of the twenty-eight.
 
 | | |
 |---|---|
@@ -73,6 +76,9 @@ with one submesh per surface, so a whole ward is eighteen draw calls.
 | `TrimMetal` / `DarkMetal` | anodised aluminium / painted steel |
 | `Signage` | sign panels, for shopfronts and box signs |
 | `Concrete` | podiums, parapets, kerbs, balcony slabs |
+| `Skin` / `Hair` | the crowd |
+| `ClothTop` / `ClothBottom` | the crowd's clothing, painted white and tinted per person |
+| `CarPaint` / `CarGlass` / `CarTrim` / `CarLight` / `Tyre` / `Livery` | the traffic; paint is tinted per car, and the livery sheet is an atlas of badges, number plates and destination blinds |
 
 Adding one means adding an enum entry, a painter in `FacadeTextures`, and a spec in
 `FacadeTextures.All()`. Nothing else has to change.
@@ -93,6 +99,11 @@ catenaries over a street are the single fastest thing that tells you where you a
 
 It all goes into the same surfaces as the buildings, so it costs no extra materials. It is
 chunked into meshes of about 220k vertices so it culls.
+
+## Traffic and the crowd
+
+The cars and the people are built out of the same accumulator and painted with the same surfaces.
+They have their own document: [TRAFFIC_AND_CROWD.md](TRAFFIC_AND_CROWD.md).
 
 ## Soti Tower
 
