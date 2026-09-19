@@ -23,6 +23,7 @@ namespace SalaryMan.World.EditorTools
         bool _cityBlockout = false;
         bool _cityBuildings = true;
         bool _regenerateSurfaces = false;
+        bool _cityTraffic = true;
 
         [MenuItem("Tools/SalaryMan/Konto World Builder", false, 0)]
         public static void Open()
@@ -78,7 +79,10 @@ namespace SalaryMan.World.EditorTools
                 EditorGUI.indentLevel++;
                 _cityBuildings = EditorGUILayout.ToggleLeft("Buildings, street furniture and their materials", _cityBuildings);
                 using (new EditorGUI.DisabledScope(!_cityBuildings))
+                {
                     _regenerateSurfaces = EditorGUILayout.ToggleLeft("Repaint the facade and roof textures", _regenerateSurfaces);
+                    _cityTraffic = EditorGUILayout.ToggleLeft("Traffic and a crowd on the pavements", _cityTraffic);
+                }
                 _cityBlockout = EditorGUILayout.ToggleLeft("Grey massing blockout instead of buildings", _cityBlockout);
                 EditorGUI.indentLevel--;
             }
@@ -192,6 +196,7 @@ namespace SalaryMan.World.EditorTools
             KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
             KontoCityFactory.BuildBuildings = _cityBuildings;
             KontoCityFactory.RegenerateSurfaces = _regenerateSurfaces || _regenerateArt;
+            KontoCityFactory.BuildTraffic = _cityTraffic;
         }
 
         KontoBuildSteps SelectedSteps()

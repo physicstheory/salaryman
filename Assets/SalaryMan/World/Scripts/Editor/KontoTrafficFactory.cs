@@ -1,0 +1,166 @@
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
+
+namespace SalaryMan.World.EditorTools
+{
+    /// <summary>
+    /// Bakes the moving city: a fleet of vehicles and a cast of pedestrians, as mesh assets, and
+    /// the two spawners that drive them.
+    ///
+    /// Everything moving is built the same way as everything standing still — the same surface
+    /// materials, the same mesh accumulator — so the cars and the crowd add no materials and no
+    /// texture memory to a scene that already has the city in it. What they do add is a handful
+    /// of small meshes: a few variants of each body, since one Kei car repeated ninety times
+    /// reads as ninety of the same car, and half a dozen variants does not.
+    ///
+    /// The meshes are compacted: a car uses six of the twenty-eight surfaces, so it is built with
+    /// six submeshes and six materials rather than the full palette.
+    /// </summary>
+    public static class KontoTrafficFactory
+    {
+        public const string GroupName = "Traffic and crowd";
+
+        /// <summary>Bodies baked per vehicle kind. Each one is a different seed: different wheels,
+        /// different badge, different plate.</summary>
+        public const int VariantsPerKind = 3;
+        /// <summary>And per kind of person.</summary>
+        public const int VariantsPerPerson = 2;
+
+        public static void Build(CityLayout layout, KontoCityLayoutAsset asset, Transform parent, Material[] surfaces)
+        {
+            if (layout == null || asset == null || surfaces == null) return;
+
+            var group = new GameObject(GroupName);
+            group.transform.SetParent(parent, true);
+
+            int cars = BuildTraffic(layout, asset, group.transform, surfaces);
+            int people = BuildCrowd(layout, asset, group.transform, surfaces);
+
+            Debug.Log(string.Format("[Konto] {0}: {1} vehicle bodies and {2} pedestrian bodies baked. " +
+                "The lanes are worked out from the road network when the scene starts.",
+                layout.name, cars, people));
+        }
+
+        // ------------------------------------------------------------------ vehicles
+
+        static int BuildTraffic(CityLayout layout, KontoCityLayoutAsset asset, Transform parent, Material[] surfaces)
+        {
+            var go = new GameObject("Traffic");
+            go.transform.SetParent(parent, true);
+            var traffic = go.AddComponent<KontoTraffic>();
+            traffic.city = asset;
+
+            var pieces = new List<CityMeshPiece>();
+            var kinds = new List<VehicleLibrary.VehicleKind>();
+            var order = new List<CitySurface>();
+
+            for (int k = 0; k < (int)VehicleLibrary.VehicleKind.Count; k++)
+            {
+                var kind = (VehicleLibrary.VehicleKind)k;
+                for (int v = 0; v < VariantsPerKind; v++)
+                {
+                    int seed = 4200 + k * 101 + v * 17;
+                    var builder = new BuildingMesh();
+                    VehicleLibrary.Build(kind, seed, builder);
+                    if (builder.VertexCount == 0) continue;
+
+                    var piece = Save(builder, order, surfaces, string.Format("Vehicle_{0}_{1}", kind, v));
+                    pieces.Add(piece);
+                    kinds.Add(kind);
+                }
+            }
+
+            traffic.variants = pieces.ToArray();
+            traffic.variantKinds = kinds.ToArray();
+            return pieces.Count;
+        }
+
+        // ------------------------------------------------------------------ people
+
+        static int BuildCrowd(CityLayout layout, KontoCityLayoutAsset asset, Transform parent, Material[] surfaces)
+        {
+            var go = new GameObject("Crowd");
+            go.transform.SetParent(parent, true);
+            var crowd = go.AddComponent<KontoCrowd>();
+            crowd.city = asset;
+
+            var bodies = new List<KontoCrowd.Body>();
+            var order = new List<CitySurface>();
+
+            for (int k = 0; k < (int)PedestrianLibrary.PersonKind.Count; k++)
+            {
+                var kind = (PedestrianLibrary.PersonKind)k;
+                for (int v = 0; v < VariantsPerPerson; v++)
+                {
+                    int seed = 9100 + k * 71 + v * 13;
+                    var person = Describe(kind, seed);
+
+                    var body = new BuildingMesh();
+                    var legL = new BuildingMesh();
+                    var legR = new BuildingMesh();
+                    PedestrianLibrary.Build(person, seed, body, legL, legR);
+                    if (body.VertexCount == 0) continue;
+
+                    bodies.Add(new KontoCrowd.Body
+                    {
+                        kind = kind,
+                        body = Save(body, order, surfaces, string.Format("Person_{0}_{1}", kind, v)),
+                        legLeft = Save(legL, order, surfaces, string.Format("PersonLegL_{0}_{1}", kind, v)),
+                        legRight = Save(legR, order, surfaces, string.Format("PersonLegR_{0}_{1}", kind, v)),
+                        height = person.height,
+                        hipHeight = person.hipHeight,
+                        pace = person.pace,
+                    });
+                }
+            }
+
+            crowd.bodies = bodies.ToArray();
+            return bodies.Count;
+        }
+
+        /// <summary>
+        /// A person of a given kind. Describe() picks the kind from the seed as well, which is
+        /// what the crowd wants at runtime and not what the factory wants, so this walks seeds
+        /// until it gets the kind it was asked for.
+        /// </summary>
+        static PedestrianLibrary.Person Describe(PedestrianLibrary.PersonKind kind, int seed)
+        {
+            for (int i = 0; i < 400; i++)
+            {
+                var p = PedestrianLibrary.Describe(seed + i * 37);
+                if (p.kind == kind) return p;
+            }
+            var fallback = PedestrianLibrary.Describe(seed);
+            fallback.kind = kind;
+            return fallback;
+        }
+
+        // ------------------------------------------------------------------ assets
+
+        /// <summary>
+        /// Saves one compacted mesh and the materials it needs. The surface list travels with it,
+        /// so the spawners know which submesh is the paint and which is the shirt.
+        /// </summary>
+        static CityMeshPiece Save(BuildingMesh builder, List<CitySurface> order, Material[] surfaces, string name)
+        {
+            var mesh = builder.BuildCompact(name, order);
+
+            string path = string.Format("{0}/Konto_{1}.asset", KontoAssetPaths.Meshes, name);
+            var existing = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (existing != null) AssetDatabase.DeleteAsset(path);
+            AssetDatabase.CreateAsset(mesh, path);
+
+            var used = new Material[order.Count];
+            var list = new CitySurface[order.Count];
+            for (int i = 0; i < order.Count; i++)
+            {
+                list[i] = order[i];
+                int index = (int)order[i];
+                used[i] = index < surfaces.Length ? surfaces[index] : null;
+            }
+
+            return new CityMeshPiece { mesh = mesh, materials = used, surfaces = list };
+        }
+    }
+}

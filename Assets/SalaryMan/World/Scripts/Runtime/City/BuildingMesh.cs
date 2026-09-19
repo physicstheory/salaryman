@@ -404,6 +404,31 @@ namespace SalaryMan.World
             return mesh;
         }
 
+        /// <summary>
+        /// The same mesh, but with only the surfaces that were actually used, and a report of
+        /// which surface each submesh came out as. A ward uses most of the palette so the fixed
+        /// form costs nothing; a car uses six of twenty-eight, and there are hundreds of cars, so
+        /// they get the compact form and a materials array to match.
+        /// </summary>
+        public Mesh BuildCompact(string name, List<CitySurface> order)
+        {
+            order.Clear();
+            for (int i = 0; i < _tris.Length; i++)
+                if (_tris[i].Count > 0) order.Add((CitySurface)i);
+
+            var mesh = new Mesh();
+            mesh.name = name;
+            mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+            mesh.SetVertices(_v);
+            mesh.SetNormals(_n);
+            mesh.SetUVs(0, _uv);
+            mesh.subMeshCount = order.Count;
+            for (int i = 0; i < order.Count; i++) mesh.SetTriangles(_tris[(int)order[i]], i);
+            mesh.RecalculateBounds();
+            mesh.RecalculateTangents();
+            return mesh;
+        }
+
         /// <summary>Read-only access, for the offline mesh dumps the build is checked with.</summary>
         public IList<Vector3> Vertices { get { return _v; } }
         public IList<Vector3> Normals { get { return _n; } }

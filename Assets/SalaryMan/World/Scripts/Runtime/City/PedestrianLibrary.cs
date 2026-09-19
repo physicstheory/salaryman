@@ -73,37 +73,46 @@ namespace SalaryMan.World
             }
             p.hipHeight = p.height * 0.50f;
 
-            // Japanese street clothing is mostly dark, and a crowd that is all primary colours
-            // looks wrong immediately, so the bright end of the palette is rare on purpose.
+            Colours(kind, seed, out p.top, out p.bottom);
+            return p;
+        }
+
+        /// <summary>
+        /// What this kind of person is wearing. Japanese street clothing is mostly dark, and a
+        /// crowd that is all primary colours looks wrong immediately, so the bright end of the
+        /// palette is rare on purpose. The crowd system calls this per person and tints the two
+        /// cloth submeshes with it.
+        /// </summary>
+        public static void Colours(PersonKind kind, int seed, out Color top, out Color bottom)
+        {
             float c1 = KontoNoise.White(seed, 23, 29), c2 = KontoNoise.White(seed, 31, 37);
             switch (kind)
             {
                 case PersonKind.Salaryman:
-                    p.top = Grey(0.10f, 0.22f, c1);
-                    p.bottom = Grey(0.08f, 0.18f, c2);
+                    top = Grey(0.10f, 0.22f, c1);
+                    bottom = Grey(0.08f, 0.18f, c2);
                     break;
                 case PersonKind.OfficeLady:
-                    p.top = c1 < 0.55f ? Grey(0.62f, 0.88f, c1) : Muted(c1, 0.32f);
-                    p.bottom = Grey(0.10f, 0.30f, c2);
+                    top = c1 < 0.55f ? Grey(0.62f, 0.88f, c1) : Muted(c1, 0.32f);
+                    bottom = Grey(0.10f, 0.30f, c2);
                     break;
                 case PersonKind.Student:
-                    p.top = c1 < 0.5f ? Grey(0.72f, 0.92f, c1) : new Color(0.10f, 0.13f, 0.26f);
-                    p.bottom = new Color(0.09f, 0.11f, 0.22f);
+                    top = c1 < 0.5f ? Grey(0.72f, 0.92f, c1) : new Color(0.10f, 0.13f, 0.26f);
+                    bottom = new Color(0.09f, 0.11f, 0.22f);
                     break;
                 case PersonKind.Elder:
-                    p.top = Grey(0.28f, 0.52f, c1);
-                    p.bottom = Grey(0.20f, 0.40f, c2);
+                    top = Grey(0.28f, 0.52f, c1);
+                    bottom = Grey(0.20f, 0.40f, c2);
                     break;
                 case PersonKind.Worker:
-                    p.top = c1 < 0.6f ? new Color(0.86f, 0.42f, 0.08f) : new Color(0.55f, 0.72f, 0.22f);
-                    p.bottom = new Color(0.22f, 0.26f, 0.34f);
+                    top = c1 < 0.6f ? new Color(0.86f, 0.42f, 0.08f) : new Color(0.55f, 0.72f, 0.22f);
+                    bottom = new Color(0.22f, 0.26f, 0.34f);
                     break;
                 default:
-                    p.top = c1 < 0.62f ? Grey(0.14f, 0.55f, c1) : Muted(c1, 0.40f);
-                    p.bottom = c2 < 0.7f ? new Color(0.17f, 0.21f, 0.32f) : Grey(0.12f, 0.35f, c2);
+                    top = c1 < 0.62f ? Grey(0.14f, 0.55f, c1) : Muted(c1, 0.40f);
+                    bottom = c2 < 0.7f ? new Color(0.17f, 0.21f, 0.32f) : Grey(0.12f, 0.35f, c2);
                     break;
             }
-            return p;
         }
 
         static Color Grey(float lo, float hi, float t)

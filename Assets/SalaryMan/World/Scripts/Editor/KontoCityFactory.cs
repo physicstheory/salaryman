@@ -26,6 +26,8 @@ namespace SalaryMan.World.EditorTools
         public static bool BuildBuildings = true;
         /// <summary>Repaint the facade and roof textures even if they are already on disk.</summary>
         public static bool RegenerateSurfaces = false;
+        /// <summary>Bake the fleet and the crowd, and put the two spawners in the scene.</summary>
+        public static bool BuildTraffic = true;
 
         public static List<KontoCityLayoutAsset> Build(KontoWorldData data, bool buildBlockout = false)
         {
@@ -63,6 +65,7 @@ namespace SalaryMan.World.EditorTools
                     KontoBuildingFactory.Build(city.Layout, cityGo.transform, surfaces);
                     KontoPropFactory.Build(city.Layout, cityGo.transform, surfaces);
                     CreateSotiTower(city.Layout, cityGo.transform);
+                    if (BuildTraffic) KontoTrafficFactory.Build(city.Layout, asset, cityGo.transform, surfaces);
                 }
                 if (buildBlockout) CreateBlockout(city.Layout, cityGo.transform);
 
