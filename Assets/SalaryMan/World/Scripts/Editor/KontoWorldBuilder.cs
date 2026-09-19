@@ -18,7 +18,9 @@ namespace SalaryMan.World.EditorTools
         Environment = 1 << 5,
         SpawnPoint = 1 << 6,
         City = 1 << 7,
-        All = ConfigureHdrp | GroundTextures | Foliage | Terrain | Water | Environment | SpawnPoint | City,
+        Character = 1 << 8,
+        All = ConfigureHdrp | GroundTextures | Foliage | Terrain | Water | Environment | SpawnPoint
+            | City | Character,
     }
 
     /// <summary>Runs the whole world build from the editor and saves everything it generates as assets.</summary>
@@ -29,7 +31,7 @@ namespace SalaryMan.World.EditorTools
         public static KontoWorldData LastBuild { get; private set; }
 
         /// <summary>Whether the city build also drops in the grey massing blockout.</summary>
-        public static bool BuildCityBlockout = true;
+        public static bool BuildCityBlockout = false;
 
         public static KontoWorldSettings LoadOrCreateSettings()
         {
@@ -119,8 +121,15 @@ namespace SalaryMan.World.EditorTools
                 if ((steps & KontoBuildSteps.SpawnPoint) != 0 && data != null)
                 {
                     step = "placing the viewpoint";
-                    EditorUtility.DisplayProgressBar("Building Konto", "Placing the viewpoint", 0.97f);
+                    EditorUtility.DisplayProgressBar("Building Konto", "Placing the viewpoint", 0.96f);
                     PlaceViewpoint(data);
+                }
+
+                if ((steps & KontoBuildSteps.Character) != 0)
+                {
+                    step = "placing the character";
+                    EditorUtility.DisplayProgressBar("Building Konto", "Placing Seiko Shigu", 0.98f);
+                    KontoSeikoSetup.Build();
                 }
 
                 step = "saving";

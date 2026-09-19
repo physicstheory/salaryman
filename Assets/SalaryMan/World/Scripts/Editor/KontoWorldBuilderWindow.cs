@@ -19,7 +19,10 @@ namespace SalaryMan.World.EditorTools
         bool _stepEnvironment = true;
         bool _stepViewpoint = true;
         bool _stepCity = true;
-        bool _cityBlockout = true;
+        bool _stepCharacter = true;
+        bool _cityBlockout = false;
+        bool _cityBuildings = true;
+        bool _regenerateSurfaces = false;
 
         [MenuItem("Tools/SalaryMan/Konto World Builder", false, 0)]
         public static void Open()
@@ -69,13 +72,17 @@ namespace SalaryMan.World.EditorTools
             _stepTerrain = EditorGUILayout.ToggleLeft("Generate the island and build terrain tiles", _stepTerrain);
             _stepWater = EditorGUILayout.ToggleLeft("Build the sea and the lakes", _stepWater);
             _stepEnvironment = EditorGUILayout.ToggleLeft("Build sky, fog, clouds and lighting", _stepEnvironment);
-            _stepCity = EditorGUILayout.ToggleLeft("Hand over the city plans, markers and water", _stepCity);
+            _stepCity = EditorGUILayout.ToggleLeft("Plan the cities and build them", _stepCity);
             using (new EditorGUI.DisabledScope(!_stepCity))
             {
                 EditorGUI.indentLevel++;
-                _cityBlockout = EditorGUILayout.ToggleLeft("Also drop in the grey massing blockout", _cityBlockout);
+                _cityBuildings = EditorGUILayout.ToggleLeft("Buildings, street furniture and their materials", _cityBuildings);
+                using (new EditorGUI.DisabledScope(!_cityBuildings))
+                    _regenerateSurfaces = EditorGUILayout.ToggleLeft("Repaint the facade and roof textures", _regenerateSurfaces);
+                _cityBlockout = EditorGUILayout.ToggleLeft("Grey massing blockout instead of buildings", _cityBlockout);
                 EditorGUI.indentLevel--;
             }
+            _stepCharacter = EditorGUILayout.ToggleLeft("Put Seiko Shigu in the scene, rigged and animated", _stepCharacter);
             _stepViewpoint = EditorGUILayout.ToggleLeft("Place a fly camera looking at the island", _stepViewpoint);
 
             EditorGUILayout.Space();
@@ -88,7 +95,7 @@ namespace SalaryMan.World.EditorTools
                 GUI.backgroundColor = new Color(0.62f, 0.82f, 0.62f);
                 if (GUILayout.Button("Build Konto", GUILayout.Height(40f)))
                 {
-                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+                    ApplyCityOptions();
                     KontoWorldBuilder.BuildAll(_settings, SelectedSteps(), _rebuildProfiles, _regenerateArt);
                 }
                 GUI.backgroundColor = Color.white;
@@ -96,9 +103,14 @@ namespace SalaryMan.World.EditorTools
                 EditorGUILayout.Space();
                 if (GUILayout.Button("Regenerate terrain and city only (keeps art and lighting)"))
                 {
-                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+                    ApplyCityOptions();
                     KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water
                         | KontoBuildSteps.City | KontoBuildSteps.SpawnPoint, false, false);
+                }
+                if (GUILayout.Button("Rebuild the city only (keeps the terrain)"))
+                {
+                    ApplyCityOptions();
+                    KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.City, false, false);
                 }
                 if (GUILayout.Button("Rebuild lighting and sky only"))
                 {
@@ -109,7 +121,7 @@ namespace SalaryMan.World.EditorTools
                     Undo.RecordObject(_settings, "New Konto seed");
                     _settings.seed = Random.Range(1, int.MaxValue);
                     EditorUtility.SetDirty(_settings);
-                    KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+                    ApplyCityOptions();
                     KontoWorldBuilder.BuildAll(_settings, KontoBuildSteps.Terrain | KontoBuildSteps.Water
                         | KontoBuildSteps.City | KontoBuildSteps.SpawnPoint, false, false);
                 }
@@ -175,6 +187,13 @@ namespace SalaryMan.World.EditorTools
                 EditorGUILayout.HelpBox("That many droplets will take several minutes.", MessageType.Info);
         }
 
+        void ApplyCityOptions()
+        {
+            KontoWorldBuilder.BuildCityBlockout = _cityBlockout;
+            KontoCityFactory.BuildBuildings = _cityBuildings;
+            KontoCityFactory.RegenerateSurfaces = _regenerateSurfaces || _regenerateArt;
+        }
+
         KontoBuildSteps SelectedSteps()
         {
             var steps = KontoBuildSteps.None;
@@ -185,6 +204,7 @@ namespace SalaryMan.World.EditorTools
             if (_stepWater) steps |= KontoBuildSteps.Water;
             if (_stepEnvironment) steps |= KontoBuildSteps.Environment;
             if (_stepCity) steps |= KontoBuildSteps.City;
+            if (_stepCharacter) steps |= KontoBuildSteps.Character;
             if (_stepViewpoint) steps |= KontoBuildSteps.SpawnPoint;
             return steps;
         }
@@ -198,6 +218,27 @@ namespace SalaryMan.World.EditorTools
         {
             var settings = KontoWorldBuilder.LoadOrCreateSettings();
             KontoWorldBuilder.BuildAll(settings, KontoBuildSteps.All);
+        }
+
+        [MenuItem("Tools/SalaryMan/Rebuild the city only", false, 21)]
+        public static void RebuildCity()
+        {
+            var settings = KontoWorldBuilder.LoadOrCreateSettings();
+            KontoWorldBuilder.BuildAll(settings, KontoBuildSteps.City, false, false);
+        }
+
+        [MenuItem("Tools/SalaryMan/Repaint the city surfaces", false, 22)]
+        public static void RepaintSurfaces()
+        {
+            var settings = KontoWorldBuilder.LoadOrCreateSettings();
+            KontoSurfaceLibrary.CreateOrUpdate(settings.seed, true);
+            Debug.Log("[Konto] Facade, roof and metal textures repainted.");
+        }
+
+        [MenuItem("Tools/SalaryMan/Put Seiko In The Scene", false, 23)]
+        public static void PlaceSeiko()
+        {
+            KontoSeikoSetup.Build();
         }
 
         [MenuItem("Tools/SalaryMan/Configure HDRP Asset", false, 40)]

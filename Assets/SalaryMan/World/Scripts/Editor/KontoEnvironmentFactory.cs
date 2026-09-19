@@ -271,6 +271,16 @@ namespace SalaryMan.World.EditorTools
             HdrpReflection.SetParameter(ssr, "minSmoothness", 0.5f);
             HdrpReflection.SetParameter(ssr, "smoothnessFadeStart", 0.6f);
 
+            // Screen space global illumination. A street canyon is lit almost entirely by light
+            // that has already hit something else, so without a bounce the shaded side of every
+            // building in the city goes flat and dead. This is the single biggest thing between
+            // "grey boxes with textures on" and "a street".
+            var ssgi = HdrpReflection.AddVolumeComponent(profile, "GlobalIllumination", "ScreenSpaceGlobalIllumination");
+            HdrpReflection.SetParameter(ssgi, "enable", true);
+            HdrpReflection.SetParameter(ssgi, "enabled", true);
+            HdrpReflection.SetParameter(ssgi, "fullResolutionSS", false);
+            HdrpReflection.SetParameter(ssgi, "depthBufferThickness", 0.02f);
+
             var indirect = HdrpReflection.AddVolumeComponent(profile, "IndirectLightingController");
             HdrpReflection.SetParameter(indirect, "indirectDiffuseLightingMultiplier", 1.05f);
             HdrpReflection.SetParameter(indirect, "reflectionLightingMultiplier", 1f);

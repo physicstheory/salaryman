@@ -191,19 +191,40 @@ change: the footprint (`alongRadius` / `coreOffset`), the ground limits (`maxBui
 
 ---
 
+## The buildings
+
+The build puts up about three thousand buildings: podiums and setbacks, floor bands, corner
+pilasters, parapets and copings, balconies, canopies, shopfronts and box signs, pitched roofs
+with eaves on the houses, and roof plant on everything with a flat top. Facades are generated PBR
+sets with pixel displacement, so the windows read as openings from the pavement rather than as
+wallpaper.
+
+Everything on a ward's plots goes into one mesh with one submesh per material, so a ward is
+eighteen draw calls rather than eighteen thousand. About 950 triangles a building, 1.5 million
+for the capital.
+
+How it fits together, and where to change it:
+**[BUILDINGS_AND_SURFACES.md](BUILDINGS_AND_SURFACES.md)**.
+
+## The street furniture
+
+Kerbs along the arterials and avenues, lamp columns every 26 m, signals where two roads of
+consequence cross, vending machines against the shopfronts, and utility poles every 34 m with
+the wires strung between them — Japan's distribution network is overhead, and the catenaries
+over a street are most of what places it.
+
 ## The blockout
 
-The build drops in a grey massing blockout — one combined mesh per ward, plus decks for the
-viaducts and bridges — so the city can be driven through, lit, and judged from a mountain top
-before any art exists. Heights come from each plot's floor allowance with a deterministic wobble,
-so it has a skyline.
+The grey massing blockout is still there behind a toggle in the build window, for when you want
+to judge the plan without waiting for the buildings, or to compare the two. Heights come from
+each plot's floor allowance with a deterministic wobble, so it has a skyline.
 
 Plots whose kind is a shophouse, a mid-rise, an apartment block or an office have their frontage
 split into two to five narrower buildings of differing height, because a shopping street is a run
 of party walls and not one slab, and that rhythm is most of what the eye reads in close.
 
-**It is meant to be deleted.** `Konto City → Delete the grey massing blockout`, or just delete the
-`Blockout` object under each city. Everything else in the hierarchy is scaffolding to build on.
+`Konto City → Delete the grey massing blockout` removes it, or just delete the `Blockout` object
+under each city.
 
 ---
 
@@ -228,9 +249,12 @@ is the steel, so one renderer carries both materials.
 
 ## What is deliberately not here
 
-- No buildings, no interiors, no props, no signage.
-- No road surface meshes: carriageways and footways are painted onto the terrain. Kerbs, markings,
-  crossings and drains want real geometry later.
+- No interiors. Buildings are shells: the shopfront glazing has a shop painted behind it and that
+  is as far in as you get.
+- No carriageway meshes. The road surface is painted onto the terrain; the kerbs are geometry,
+  but markings, crossings and drains want a proper road ribbon later.
 - No traffic, no pedestrians, no navmesh.
 - No station interiors or platforms — the box and the plaza are reserved, the building is not.
 - Subway lines are recorded as polylines with nothing built on the surface.
+- No LODs yet. At 1.5 million triangles for the capital it has not needed them, but a distant
+  ward drawing its roof plant is waste that a two step LOD would remove.

@@ -12,6 +12,11 @@ D = math.radians
 OUT = os.environ.get('SEIKO_GLB') or os.path.join(
     os.path.dirname(os.path.abspath(bpy.data.filepath)) if bpy.data.filepath else os.getcwd(),
     'seiko.glb')
+# Unity reads FBX natively and glTF only with a package, so the engine build gets an FBX
+# of the same rig. Set SEIKO_FBX='' to skip it.
+FBX = os.environ.get('SEIKO_FBX', os.path.splitext(OUT)[0] + '.fbx')
+# Meshy exported him at 1.90 m. A salaryman is 1.74.
+HEIGHT = float(os.environ.get('SEIKO_HEIGHT', '1.74'))
 
 for im in bpy.data.images:
     if max(im.size) > 1024:
@@ -36,6 +41,12 @@ print("[rig] head cy before spin %+.4f" % head_cy())
 mesh.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
 mesh.data.update()
 print("[rig] head cy after  spin %+.4f" % head_cy())
+
+co0 = [v.co for v in mesh.data.vertices]
+raw = max(v.z for v in co0) - min(v.z for v in co0)
+mesh.data.transform(Matrix.Scale(HEIGHT / raw, 4))
+mesh.data.update()
+print("[rig] scaled %.3f m -> %.3f m" % (raw, HEIGHT))
 
 dec = mesh.modifiers.new('dec', 'DECIMATE')
 dec.ratio = 0.40
@@ -273,4 +284,20 @@ bpy.ops.export_scene.gltf(
     export_animations=True, export_animation_mode='ACTIONS',
     export_force_sampling=True, export_bake_animation=True,
     export_optimize_animation_size=False, use_selection=True)
+print("[rig] wrote", OUT)
+
+if FBX:
+    # add_leaf_bones off and all actions baked: that is what makes Unity import three
+    # separate clips called Idle, Walk and Run instead of one nameless take.
+    bpy.ops.export_scene.fbx(
+        filepath=FBX, use_selection=True, apply_unit_scale=True,
+        apply_scale_options='FBX_SCALE_ALL', object_types={'ARMATURE', 'MESH'},
+        use_mesh_modifiers=True, mesh_smooth_type='FACE', add_leaf_bones=False,
+        primary_bone_axis='Y', secondary_bone_axis='X',
+        bake_anim=True, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=False,
+        bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True,
+        bake_anim_step=1.0, bake_anim_simplify_factor=0.0,
+        path_mode='COPY', embed_textures=True, axis_forward='-Z', axis_up='Y')
+    print("[rig] wrote", FBX)
+
 print("[rig] done")

@@ -22,13 +22,23 @@ namespace SalaryMan.World.EditorTools
         public const string RootName = "Konto Cities";
         public const string BlockoutName = "Blockout (delete when the real buildings arrive)";
 
-        public static List<KontoCityLayoutAsset> Build(KontoWorldData data, bool buildBlockout = true)
+        /// <summary>Build the modelled, textured buildings rather than the grey massing.</summary>
+        public static bool BuildBuildings = true;
+        /// <summary>Repaint the facade and roof textures even if they are already on disk.</summary>
+        public static bool RegenerateSurfaces = false;
+
+        public static List<KontoCityLayoutAsset> Build(KontoWorldData data, bool buildBlockout = false)
         {
             var assets = new List<KontoCityLayoutAsset>();
             if (data == null || data.Urban == null || data.Urban.Cities.Count == 0) return assets;
 
             KontoAssetPaths.EnsureAll();
             Clear();
+
+            int seed = data.Settings != null ? data.Settings.seed : 0;
+            Material[] surfaces = BuildBuildings
+                ? KontoSurfaceLibrary.CreateOrUpdate(seed, RegenerateSurfaces)
+                : null;
 
             var root = new GameObject(RootName);
 
@@ -48,6 +58,12 @@ namespace SalaryMan.World.EditorTools
                 CreateWardAnchors(city.Layout, cityGo.transform);
                 CreateNamedSiteMarkers(city.Layout, cityGo.transform);
                 CreateCityWater(city.Layout, cityGo.transform);
+                if (BuildBuildings && surfaces != null)
+                {
+                    KontoBuildingFactory.Build(city.Layout, cityGo.transform, surfaces);
+                    KontoPropFactory.Build(city.Layout, cityGo.transform, surfaces);
+                    CreateSotiTower(city.Layout, cityGo.transform);
+                }
                 if (buildBlockout) CreateBlockout(city.Layout, cityGo.transform);
 
                 Debug.Log("[Konto] " + city.Layout.Summary() + " Plan saved to " + AssetDatabase.GetAssetPath(asset));
@@ -241,7 +257,7 @@ namespace SalaryMan.World.EditorTools
                 AddMeshObject(group.transform, builder, massing, layout, ward.name + " massing", "Massing_" + layout.code + "_" + w);
             }
 
-            CreateSotiTower(layout, group.transform);
+            if (!BuildBuildings) CreateSotiTower(layout, group.transform);
 
             // Viaducts and bridges: these carry nothing on the ground, so without a deck they
             // are invisible, and the expressway loop is half the character of the city.
