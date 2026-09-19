@@ -79,9 +79,11 @@ Assets/SalaryMan/World/Scripts/
     KontoTimeOfDay.cs         real solar position, sun and moon
     KontoWeather.cs           six weather states, crossfaded
   Runtime/Player/
-    KontoInput.cs             works with either input backend
-    KontoFreeCamera.cs        fly camera
-    KontoWalker.cs            walk the world at eye height
+    KontoInput.cs             keyboard, mouse and Xbox pad, either input backend
+    KontoCharacter.cs         third person character movement, drives the animator
+    KontoThirdPersonCamera.cs orbit camera with collision and a first person toggle
+    KontoFreeCamera.cs        fly camera for surveying
+    KontoWalker.cs            first person tester, no model needed
   Editor/
     KontoWorldBuilderWindow.cs  the build window and menu items
     KontoWorldBuilder.cs        build orchestration and asset saving
@@ -92,7 +94,14 @@ Assets/SalaryMan/World/Scripts/
     KontoWaterFactory.cs        ocean and lakes
     KontoRiverBuilder.cs        river ribbon meshes
     KontoHdrpAssetConfigurator.cs  switches on the HDRP features this world needs
+    KontoCharacterWindow.cs     drops a model in as a playable character
+    KontoCharacterFactory.cs    builds the rig: capsule, movement, camera, layers
+    KontoProjectSettingsUtil.cs creates layers, installs gamepad axes
+    KontoSceneUtil.cs           makes sure the scene has a usable camera
 ```
+
+Character setup, Blender export settings and the full control map:
+**[Docs/CHARACTER_AND_CONTROLLER.md](Docs/CHARACTER_AND_CONTROLLER.md)**.
 
 ---
 

@@ -178,6 +178,12 @@ namespace SalaryMan.World.EditorTools
             KontoHdrpAssetConfigurator.Configure();
         }
 
+        [MenuItem("Tools/SalaryMan/Install Gamepad Axes (legacy input only)", false, 42)]
+        public static void InstallGamepadAxes()
+        {
+            KontoInputAxisInstaller.Install();
+        }
+
         [MenuItem("Tools/SalaryMan/Add Walker To Scene", false, 41)]
         public static void AddWalker()
         {
