@@ -1,10 +1,16 @@
-# Build a humanoid rig for the Meshy salaryman mesh, skin it, author
-# Idle / Walk / Run cycles, and export an animated GLB.
+# Build a humanoid rig for a Meshy salaryman mesh, skin it, author Idle / Walk / Run
+# cycles, and export a GLB for the browser build and an FBX for Unity.
 #
-# The source mesh stands with both hands in his trouser pockets and faces
-# -Y.  The first thing we do is spin him so he faces +Y, which lets every
-# pose below read in ordinary terms: +X is his right, +Y is forward, +Z up.
-import bpy, math, os
+# Nothing here is told what the source mesh looks like. Which way it faces is measured
+# from its feet, where its shoulders, elbows, wrists, hips, knees and ankles are is
+# measured by slicing it, and which way it ends up facing in the exported FBX is measured
+# by reading the file back. The model has been swapped twice already - once standing with
+# its hands in its pockets, once in a T pose - and every assumption typed in about the
+# first one was wrong for the second.
+#
+# Everything below the facing check reads in ordinary terms: +X is his right, +Y is
+# forward, +Z is up.
+import bpy, math, os, sys
 from mathutils import Vector, Quaternion, Matrix
 
 D = math.radians
@@ -74,10 +80,36 @@ def head_cy():
     b = [v for v in co if zl + hh * 0.88 < v.z < zl + hh * 0.93]
     return sum(v.y for v in b) / len(b)
 
-print("[rig] head cy before spin %+.4f" % head_cy())
-mesh.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
-mesh.data.update()
-print("[rig] head cy after  spin %+.4f" % head_cy())
+
+def facing():
+    """+1 if the mesh faces +Y, -1 if it faces -Y.
+
+    Decided by the feet, because feet are unambiguous: the toes reach much further in
+    front of the ankle than the heel reaches behind it. The head is a second opinion -
+    a face pushes the mean of the skull forward - and the two are printed together, so
+    a model that disagrees with itself says so instead of being silently turned round.
+    """
+    co = [v.co for v in mesh.data.vertices]
+    zl = min(v.z for v in co); hh = max(v.z for v in co) - zl
+    feet = [v for v in co if v.z < zl + hh * 0.06]
+    shin = sorted(v.y for v in co if zl + hh * 0.10 < v.z < zl + hh * 0.17)
+    ankle = shin[len(shin) // 2] if shin else 0.0
+    toes = (max(v.y for v in feet) - ankle) - (ankle - min(v.y for v in feet))
+    skull = head_cy()
+    print("[rig] facing: feet %+.4f, head %+.4f -> %s" %
+          (toes, skull, '+Y' if toes > 0 else '-Y'))
+    if (toes > 0) != (skull > 0):
+        print("[rig] WARNING: feet and head disagree about which way he faces; trusting the feet")
+    return 1.0 if toes > 0 else -1.0
+
+
+# Everything below is written as if he faces +Y, so if he does not, he does now.
+if facing() < 0:
+    mesh.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
+    mesh.data.update()
+    print("[rig] turned him round to face +Y")
+    if facing() < 0:
+        raise SystemExit("[rig] could not work out which way the model faces")
 
 co0 = [v.co for v in mesh.data.vertices]
 raw = max(v.z for v in co0) - min(v.z for v in co0)
@@ -108,11 +140,77 @@ def z(f): return zmin + H * f
 print("[rig] height %.4f  zmin %.4f" % (H, zmin))
 
 # ------------------------------------------------------- skeleton geometry
-# Landmarks come from slicing the mesh (probe.py / probe2.py): the legs part
-# at x ~ 0.09, the elbows stand off at x ~ 0.26 and sit slightly behind the
-# hips, and the hands are buried in the pockets at the front of the thighs.
-HIPW, KNEEW = 0.088, 0.095
-SHX, ELX, WRX = 0.155, 0.260, 0.165
+# The skeleton is measured off the mesh rather than typed in. The first model was
+# standing with his hands in his pockets, the second is in a T pose, and a set of
+# landmarks that fits one fits the other nowhere near well enough to skin. So the
+# arms are found by slicing outwards until the slice stops being a body and starts
+# being a limb, and the legs by finding the two lobes a horizontal slice splits into.
+CO = [v.co for v in mesh.data.vertices]
+XS = max(abs(v.x) for v in CO)
+
+
+def slab(axis, at, tol):
+    if axis == 'x':
+        return [v for v in CO if abs(abs(v.x) - at) < tol]
+    return [v for v in CO if abs(v.z - at) < tol]
+
+
+def arm_at(x):
+    """Centre of the arm where it crosses this distance from the middle: (z, y)."""
+    band = slab('x', x, XS * 0.025)
+    if not band:
+        return None
+    return (sum(v.z for v in band) / len(band), sum(v.y for v in band) / len(band))
+
+
+def shoulder_x():
+    """Where the body stops and the arm starts: the first slice thin enough to be a limb."""
+    for i in range(12, 60):
+        x = XS * i / 60.0
+        band = slab('x', x, XS * 0.025)
+        if not band:
+            continue
+        thick = max(v.z for v in band) - min(v.z for v in band)
+        if thick < H * 0.16:
+            return x
+    return XS * 0.30
+
+
+def leg_x(at_z):
+    """Half the distance between the legs at a height: the centre of one lobe."""
+    band = slab('z', at_z, H * 0.012)
+    right = [v.x for v in band if v.x > XS * 0.01]
+    if not right:
+        return H * 0.055
+    return (min(right) + max(right)) * 0.5
+
+
+SHX = shoulder_x()
+TIPX = XS
+# Upper arm, forearm and hand divide the reach from shoulder to fingertip roughly
+# a third, a third and a fifth. The bones only have to land inside the limb.
+ELX = SHX + (TIPX - SHX) * 0.44
+WRX = SHX + (TIPX - SHX) * 0.80
+SH_Z, SH_Y = arm_at(SHX * 1.04) or (z(0.80), 0.0)
+EL_Z, EL_Y = arm_at(ELX) or (z(0.72), 0.0)
+WR_Z, WR_Y = arm_at(WRX) or (z(0.66), 0.0)
+HD_Z, HD_Y = arm_at((WRX + TIPX) * 0.5) or (WR_Z, WR_Y)
+
+HIPW = leg_x(z(0.45))
+KNEEW = leg_x(z(0.28))
+ANKW = leg_x(z(0.07))
+
+# The foot: the toe reaches forward of the ankle, which is how the mesh was told
+# which way it faces in the first place.
+feet = [v for v in CO if v.z < zmin + H * 0.06]
+TOE_Y = max(v.y for v in feet) * 0.72 if feet else H * 0.09
+ANK_Y = sorted(v.y for v in slab('z', z(0.13), H * 0.03))[len(slab('z', z(0.13), H * 0.03)) // 2] if slab('z', z(0.13), H * 0.03) else 0.0
+
+print("[rig] measured: shoulder x %.3f  elbow %.3f  wrist %.3f  fingertip %.3f" % (SHX, ELX, WRX, TIPX))
+print("[rig]           arm line z %.3f -> %.3f -> %.3f   y %+.3f -> %+.3f -> %+.3f"
+      % (SH_Z, EL_Z, WR_Z, SH_Y, EL_Y, WR_Y))
+print("[rig]           leg x hip %.3f knee %.3f ankle %.3f   toe y %+.3f ankle y %+.3f"
+      % (HIPW, KNEEW, ANKW, TOE_Y, ANK_Y))
 
 BONES = [
     ("Hips",  (0.0, 0.0, z(0.525)), (0.0, 0.0, z(0.600)), None,    False),
@@ -123,14 +221,14 @@ BONES = [
 ]
 for s, sx in (("L", -1.0), ("R", 1.0)):
     BONES += [
-        ("Shoulder."+s, (sx*0.030, 0.0,   z(0.795)), (sx*SHX, -0.02,  z(0.790)), "Chest",       False),
-        ("UpperArm."+s, (sx*SHX,  -0.02,  z(0.790)), (sx*ELX, -0.080, z(0.645)), "Shoulder."+s, True),
-        ("Forearm."+s,  (sx*ELX,  -0.080, z(0.645)), (sx*WRX,  0.075, z(0.550)), "UpperArm."+s, True),
-        ("Hand."+s,     (sx*WRX,   0.075, z(0.550)), (sx*0.150, 0.118, z(0.522)), "Forearm."+s, True),
-        ("Thigh."+s,    (sx*HIPW,  0.0,   z(0.520)), (sx*KNEEW, 0.015, z(0.290)), "Hips",       False),
-        ("Shin."+s,     (sx*KNEEW, 0.015, z(0.290)), (sx*KNEEW, 0.005, z(0.045)), "Thigh."+s,   True),
-        ("Foot."+s,     (sx*KNEEW, 0.005, z(0.045)), (sx*KNEEW, 0.090, z(0.012)), "Shin."+s,    True),
-        ("Toe."+s,      (sx*KNEEW, 0.090, z(0.012)), (sx*KNEEW, 0.145, z(0.010)), "Foot."+s,    True),
+        ("Shoulder."+s, (sx*SHX*0.22, 0.0,   z(0.800)), (sx*SHX,   SH_Y, SH_Z), "Chest",       False),
+        ("UpperArm."+s, (sx*SHX,      SH_Y,  SH_Z),     (sx*ELX,   EL_Y, EL_Z), "Shoulder."+s, True),
+        ("Forearm."+s,  (sx*ELX,      EL_Y,  EL_Z),     (sx*WRX,   WR_Y, WR_Z), "UpperArm."+s, True),
+        ("Hand."+s,     (sx*WRX,      WR_Y,  WR_Z),     (sx*(WRX + (TIPX-WRX)*0.75), HD_Y, HD_Z), "Forearm."+s, True),
+        ("Thigh."+s,    (sx*HIPW,  ANK_Y*0.3, z(0.520)), (sx*KNEEW, ANK_Y*0.6, z(0.290)), "Hips",     False),
+        ("Shin."+s,     (sx*KNEEW, ANK_Y*0.6, z(0.290)), (sx*ANKW,  ANK_Y,     z(0.045)), "Thigh."+s, True),
+        ("Foot."+s,     (sx*ANKW,  ANK_Y,     z(0.045)), (sx*ANKW,  TOE_Y,     z(0.012)), "Shin."+s,  True),
+        ("Toe."+s,      (sx*ANKW,  TOE_Y,     z(0.012)), (sx*ANKW,  TOE_Y + H*0.035, z(0.010)), "Foot."+s, True),
     ]
 
 arm_data = bpy.data.armatures.new("SeikoArmature")
@@ -426,18 +524,43 @@ bpy.ops.export_scene.gltf(
 print("[rig] wrote", OUT)
 
 if FBX:
-    # add_leaf_bones off and all actions baked: that is what makes Unity import three
-    # separate clips called Idle, Walk and Run instead of one nameless take.
-    bpy.ops.export_scene.fbx(
-        filepath=FBX, use_selection=True, apply_unit_scale=True,
-        apply_scale_options='FBX_SCALE_ALL', object_types={'ARMATURE', 'MESH'},
-        use_mesh_modifiers=True, mesh_smooth_type='FACE', add_leaf_bones=False,
-        primary_bone_axis='Y', secondary_bone_axis='X',
-        bake_anim=True, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=False,
-        bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True,
-        bake_anim_step=1.0, bake_anim_simplify_factor=0.0,
-        path_mode='STRIP', embed_textures=False, axis_forward='-Z', axis_up='Y')
-    print("[rig] wrote", FBX)
+    def export_fbx(forward):
+        # add_leaf_bones off and all actions baked: that is what makes Unity import three
+        # separate clips called Idle, Walk and Run instead of one nameless take.
+        bpy.ops.export_scene.fbx(
+            filepath=FBX, use_selection=True, apply_unit_scale=True,
+            apply_scale_options='FBX_SCALE_ALL', object_types={'ARMATURE', 'MESH'},
+            use_mesh_modifiers=True, mesh_smooth_type='FACE', add_leaf_bones=False,
+            primary_bone_axis='Y', secondary_bone_axis='X',
+            bake_anim=True, bake_anim_use_all_bones=True, bake_anim_use_nla_strips=False,
+            bake_anim_use_all_actions=True, bake_anim_force_startend_keying=True,
+            bake_anim_step=1.0, bake_anim_simplify_factor=0.0,
+            path_mode='STRIP', embed_textures=False, axis_forward=forward, axis_up='Y')
+
+    # Which way he faces in the exported file is measured, not assumed. Unity's character
+    # controller turns the model to face the way it is going and takes "facing" to mean +Z,
+    # so the file has to come out with his front along +Z. The mesh going in faces +Y.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import fbx_axes
+
+    depsgraph = bpy.context.evaluated_depsgraph_get()
+    evaluated = mesh.evaluated_get(depsgraph)
+    sent = [tuple(v.co) for v in evaluated.data.vertices]
+
+    unity_facing = None
+    for forward in ('-Z', 'Z', 'X', '-X'):
+        export_fbx(forward)
+        unity_facing, _ = fbx_axes.facing_in_unity(FBX, sent)
+        print("[rig] axis_forward=%-2s -> in Unity he faces (%+.2f, %+.2f, %+.2f)"
+              % (forward, unity_facing[0], unity_facing[1], unity_facing[2]))
+        if unity_facing[2] > 0.95:
+            break
+        print("[rig] not +Z, so that is a character who walks backwards. Trying the next one.")
+
+    if unity_facing is None or unity_facing[2] < 0.95:
+        raise SystemExit("[rig] no export orientation puts his front on +Z; refusing to ship a "
+                         "model that walks backwards")
+    print("[rig] wrote", FBX, "- facing +Z, which is forward in Unity")
 
 # Last, because writing the maps out re-points the images at files on disk and both
 # exporters would then embed those PNGs rather than re-encoding to JPEG.

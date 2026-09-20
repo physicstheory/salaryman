@@ -27,10 +27,12 @@ namespace SalaryMan.World.EditorTools
         /// <summary>
         /// Degrees to turn the model under the pivot the character controller drives.
         ///
-        /// He is authored facing +Y in Blender, which is +Z — forward — once the FBX axis
-        /// conversion has been applied, so this should be zero. It is a field rather than an
-        /// assumption because FBX axis conventions are a swamp and the symptom of getting it
-        /// wrong is a character who moonwalks: if he does, set this to 180 and rebuild.
+        /// This should stay zero. The export used to guess at the axis conversion and guessed
+        /// wrong — he came out facing -Z and walked backwards — so `Tools/rig_seiko.py` now
+        /// measures which way he faces in the finished FBX (it reads the file back and works out
+        /// the transform that was actually applied), tries the other orientation if that is not
+        /// +Z, and refuses to write the file at all if neither works. The field stays as an
+        /// escape hatch for a model that did not come through that script.
         /// </summary>
         public static float ModelYaw = 0f;
 
