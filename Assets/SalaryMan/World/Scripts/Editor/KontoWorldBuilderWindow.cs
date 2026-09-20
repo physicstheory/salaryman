@@ -240,10 +240,26 @@ namespace SalaryMan.World.EditorTools
             Debug.Log("[Konto] Facade, roof and metal textures repainted.");
         }
 
+        [MenuItem("Tools/SalaryMan/Add The Traffic And The Crowd", false, 24)]
+        public static void AddTraffic()
+        {
+            int done = KontoTrafficFactory.BuildIntoOpenScene();
+            if (done > 0)
+                Debug.Log("[Konto] Traffic and a crowd added to " + done + " "
+                    + (done == 1 ? "city" : "cities") + ". Press Play: they exist around the camera, "
+                    + "so nothing shows in the editor view until the game is running.");
+        }
+
         [MenuItem("Tools/SalaryMan/Put Seiko In The Scene", false, 23)]
         public static void PlaceSeiko()
         {
             KontoSeikoSetup.Build();
+        }
+
+        [MenuItem("Tools/SalaryMan/Check Seiko\'s Rig", false, 25)]
+        public static void CheckSeiko()
+        {
+            KontoSeikoSetup.Report(null);
         }
 
         [MenuItem("Tools/SalaryMan/Configure HDRP Asset", false, 40)]

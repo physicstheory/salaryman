@@ -194,18 +194,47 @@ def set_pose(pose):
 # fighting it. So: pose the arms down and clear of the body, bake that shape into the
 # mesh, make it the rest pose, and work out the weights again on the result. After this
 # the arms are ordinary arms and the walk can swing them.
-OUT_OF_POCKETS = {
-    'UpperArm.L': [('y', 13), ('x', -6)],
-    'UpperArm.R': [('y', -13), ('x', -6)],
-    'Forearm.L':  [('x', -52), ('y', 8)],
-    'Forearm.R':  [('x', -52), ('y', -8)],
-    'Hand.L':     [('x', -10)],
-    'Hand.R':     [('x', -10)],
-}
+#
+# The angles are not guessed. Guessing produced a man standing with his elbows out and his
+# hands on his hips, which is a pose, just not this one. Instead each bone is aimed: the
+# rotation that takes the direction it currently points to the direction it should point.
+# That is robust to whatever the source rig's bone rolls happen to be.
+def aim_bone(name, direction):
+    """Turn a pose bone so it points along a direction in armature space."""
+    pb = rig.pose.bones[name]
+    bpy.context.view_layer.update()
+    current = pb.tail - pb.head
+    if current.length < 1e-6:
+        return
+    turn = current.normalized().rotation_difference(Vector(direction).normalized())
+    head = pb.head.copy()
+    pb.matrix = (Matrix.Translation(head) @ turn.to_matrix().to_4x4()
+                 @ Matrix.Translation(-head) @ pb.matrix)
+    bpy.context.view_layer.update()
+
+
+# He faces +Y by now, so -Y is behind him. An arm at rest hangs down, a little out from
+# the body so the hand clears the hip, and a little behind the shoulder.
+AIM_ARMS = [
+    ('UpperArm.L', (-0.20, -0.06, -0.98)),
+    ('UpperArm.R', ( 0.20, -0.06, -0.98)),
+    ('Forearm.L',  (-0.10, -0.02, -0.99)),
+    ('Forearm.R',  ( 0.10, -0.02, -0.99)),
+    ('Hand.L',     (-0.06,  0.04, -1.00)),
+    ('Hand.R',     ( 0.06,  0.04, -1.00)),
+]
 
 bpy.context.view_layer.objects.active = rig
 bpy.ops.object.mode_set(mode='POSE')
-set_pose(OUT_OF_POCKETS)
+for pb in rig.pose.bones:
+    pb.rotation_quaternion = Quaternion((1, 0, 0, 0))
+    pb.location = (0, 0, 0)
+for bone, direction in AIM_ARMS:
+    aim_bone(bone, direction)
+for bone, _ in AIM_ARMS:
+    pb = rig.pose.bones[bone]
+    print("[rig] %-12s now points to (%.2f, %.2f, %.2f), hand at %.2f m" % (
+        (bone,) + tuple((pb.tail - pb.head).normalized()) + (pb.tail.z,)))
 bpy.ops.object.mode_set(mode='OBJECT')
 
 # Bake the deformed shape, keeping the vertex groups, then make the pose the rest pose.

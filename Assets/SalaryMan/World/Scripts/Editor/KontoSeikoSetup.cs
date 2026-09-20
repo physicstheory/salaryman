@@ -93,15 +93,7 @@ namespace SalaryMan.World.EditorTools
                 if (driven != null) driven.model = pivot;
             }
 
-            var animator = rig.GetComponentInChildren<Animator>();
-            if (animator == null)
-            {
-                var child = rig.transform.childCount > 0 ? rig.transform.GetChild(0).gameObject : rig;
-                animator = child.AddComponent<Animator>();
-            }
-            if (controller != null) animator.runtimeAnimatorController = controller;
-            animator.applyRootMotion = false;
-            animator.cullingMode = AnimatorCullingMode.CullUpdateTransforms;
+            var animator = WireAnimator(rig, imported, controller);
 
             var character = rig.GetComponent<KontoCharacter>();
             if (character != null)
@@ -111,10 +103,116 @@ namespace SalaryMan.World.EditorTools
                 character.sprintSpeed = RunSpeed;
             }
 
-            Debug.Log("[Konto] Seiko Shigu is in the scene, with Idle, Walk and Run on a Speed blend tree. "
-                + "If he walks backwards, set KontoSeikoSetup.ModelYaw to 180 and run "
-                + "Tools > SalaryMan > Put Seiko In The Scene again.");
+            Report(rig);
             return rig;
+        }
+
+        /// <summary>
+        /// Puts exactly one Animator on the character, on the imported model's own root, with
+        /// the model's Avatar and the locomotion controller.
+        ///
+        /// All three of those have been the reason he stood still at some point. An Animator on
+        /// the capsule instead of the model looks for animation paths that start one level too
+        /// high; a second Animator further down takes the hierarchy away from the first; and a
+        /// generic rig with no Avatar plays nothing at all and says nothing about it.
+        /// </summary>
+        static Animator WireAnimator(GameObject rig, Transform imported, AnimatorController controller)
+        {
+            var host = imported != null ? imported.gameObject : rig;
+
+            // Anything else claiming to be an animator on this character is in the way.
+            foreach (var stray in rig.GetComponentsInChildren<Animator>(true))
+                if (stray != null && stray.gameObject != host) Object.DestroyImmediate(stray);
+
+            var animator = host.GetComponent<Animator>();
+            if (animator == null) animator = host.AddComponent<Animator>();
+
+            if (animator.avatar == null) animator.avatar = LoadAvatar();
+            if (controller != null) animator.runtimeAnimatorController = controller;
+            animator.applyRootMotion = false;
+            // Not CullUpdateTransforms: that stops the bones being written whenever Unity thinks
+            // the renderer is off screen, and a generic rig's bounds are not always to be
+            // trusted. He is the one character always on screen; animate him always.
+            animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            return animator;
+        }
+
+        /// <summary>The Avatar the model importer built, which lives inside the FBX.</summary>
+        static Avatar LoadAvatar()
+        {
+            foreach (var obj in AssetDatabase.LoadAllAssetsAtPath(ModelPath))
+            {
+                var avatar = obj as Avatar;
+                if (avatar != null) return avatar;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Says out loud what he ended up with. Every part of this has failed silently at least
+        /// once, so the console gets the clip names, the avatar, where the animator is and what
+        /// the blend tree is blending, rather than a cheerful line claiming it all worked.
+        /// </summary>
+        public static void Report(GameObject rig)
+        {
+            if (rig == null) rig = GameObject.Find(KontoCharacterFactory.RootName);
+            if (rig == null)
+            {
+                Debug.LogWarning("[Konto] Seiko is not in the scene. Tools > SalaryMan > Put Seiko In The Scene.");
+                return;
+            }
+
+            var clips = new List<string>();
+            Avatar avatar = null;
+            foreach (var obj in AssetDatabase.LoadAllAssetsAtPath(ModelPath))
+            {
+                var clip = obj as AnimationClip;
+                if (clip != null && !clip.name.StartsWith("__preview__")) clips.Add(clip.name);
+                var av = obj as Avatar;
+                if (av != null) avatar = av;
+            }
+
+            var animator = rig.GetComponentInChildren<Animator>(true);
+            var character = rig.GetComponent<KontoCharacter>();
+            var skin = rig.GetComponentInChildren<SkinnedMeshRenderer>(true);
+
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[Konto] Seiko's rig:");
+            sb.AppendLine("  clips in the FBX: " + (clips.Count == 0 ? "NONE - he cannot animate" : string.Join(", ", clips.ToArray())));
+            sb.AppendLine("  avatar: " + (avatar != null ? avatar.name + (avatar.isValid ? " (valid)" : " (INVALID)") : "NONE - a generic rig without one plays nothing"));
+
+            if (animator == null) sb.AppendLine("  animator: NONE");
+            else
+            {
+                sb.AppendLine("  animator: on '" + animator.name + "'"
+                    + ", avatar " + (animator.avatar != null ? animator.avatar.name : "NONE")
+                    + ", controller " + (animator.runtimeAnimatorController != null ? animator.runtimeAnimatorController.name : "NONE")
+                    + ", culling " + animator.cullingMode);
+
+                var built = animator.runtimeAnimatorController as AnimatorController;
+                if (built != null && built.layers.Length > 0)
+                {
+                    foreach (var state in built.layers[0].stateMachine.states)
+                    {
+                        var tree = state.state.motion as BlendTree;
+                        if (tree == null) continue;
+                        var parts = new List<string>();
+                        foreach (var child in tree.children)
+                            parts.Add((child.motion != null ? child.motion.name : "MISSING") + " at " + child.threshold);
+                        sb.AppendLine("  blend tree '" + tree.blendParameter + "': " + string.Join(", ", parts.ToArray()));
+                    }
+                }
+            }
+
+            sb.AppendLine("  character: " + (character == null ? "NO KontoCharacter"
+                : "animator " + (character.animator != null ? "wired" : "NOT WIRED")
+                  + ", model pivot " + (character.model != null ? character.model.name : "NONE")
+                  + ", walk " + character.walkSpeed + " jog " + character.jogSpeed + " sprint " + character.sprintSpeed));
+            sb.AppendLine("  skinned mesh: " + (skin == null ? "NONE" : skin.name + ", " + skin.bones.Length + " bones, root "
+                + (skin.rootBone != null ? skin.rootBone.name : "NONE")));
+            sb.Append("  If he still slides without moving, run this again and check every line above says something.");
+
+            Debug.Log(sb.ToString());
         }
 
         /// <summary>
@@ -131,6 +229,15 @@ namespace SalaryMan.World.EditorTools
             if (importer.animationType != ModelImporterAnimationType.Generic)
             {
                 importer.animationType = ModelImporterAnimationType.Generic;
+                dirty = true;
+            }
+            // A generic rig animates through an Avatar, and a model that was ever imported with
+            // no animation type has none. Without it the Animator holds a controller, reports no
+            // errors, and plays nothing - which looks exactly like a character who slides along
+            // the ground in his rest pose.
+            if (importer.avatarSetup != ModelImporterAvatarSetup.CreateFromThisModel)
+            {
+                importer.avatarSetup = ModelImporterAvatarSetup.CreateFromThisModel;
                 dirty = true;
             }
             if (!importer.importAnimation) { importer.importAnimation = true; dirty = true; }
