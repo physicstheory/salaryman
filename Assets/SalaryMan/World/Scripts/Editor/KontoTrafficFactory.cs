@@ -28,6 +28,86 @@ namespace SalaryMan.World.EditorTools
         public const int VariantsPerPerson = 2;
 
         /// <summary>
+        /// Says whether this scene has traffic in it, and if not, which of the several ways it
+        /// can be missing is the one that happened. "It is not there" is not a diagnosis.
+        /// </summary>
+        public static void Report()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[Konto] Traffic and crowd:");
+
+            var cities = Object.FindObjectsByType<KontoCityRoot>(FindObjectsSortMode.None);
+            if (cities == null || cities.Length == 0)
+            {
+                sb.Append("  no city in this scene at all. Build the world first.");
+                Debug.LogWarning(sb.ToString());
+                return;
+            }
+
+            foreach (var city in cities)
+            {
+                sb.AppendLine("  " + city.name + ": layout "
+                    + (city.city != null && city.city.layout != null
+                        ? city.city.layout.name + ", " + city.city.layout.roads.Count + " roads"
+                        : "MISSING - nothing can be built for this city"));
+
+                var traffic = city.GetComponentInChildren<KontoTraffic>(true);
+                var crowd = city.GetComponentInChildren<KontoCrowd>(true);
+
+                if (traffic == null)
+                    sb.AppendLine("    traffic: NOT IN THE SCENE. This is the usual one: the scene was "
+                        + "built before the traffic existed, and updating the scripts does not reach into "
+                        + "a built scene. Run Tools > SalaryMan > Add The Traffic And The Crowd.");
+                else
+                    sb.AppendLine("    traffic: " + traffic.variants.Length + " bodies, pool of "
+                        + traffic.maxVehicles + ", spawn radius " + traffic.spawnRadius + " m"
+                        + (Valid(traffic.variants) ? "" : "  -- SOME BODIES HAVE NO MESH OR MATERIALS"));
+
+                if (crowd == null)
+                    sb.AppendLine("    crowd:   NOT IN THE SCENE. Same fix.");
+                else
+                    sb.AppendLine("    crowd:   " + crowd.bodies.Length + " bodies, pool of "
+                        + crowd.maxPeople + ", spawn radius " + crowd.spawnRadius + " m");
+
+                if (city.city != null && city.city.layout != null)
+                {
+                    var lanes = CityLanes.Build(city.city.layout);
+                    sb.AppendLine("    lanes:   " + lanes.driving.Count + " to drive on, "
+                        + lanes.footways.Count + " to walk on, " + lanes.junctions.Count + " junctions");
+
+                    // Where the player is standing decides whether any of it is near enough to see.
+                    var player = Object.FindFirstObjectByType<KontoCharacter>();
+                    Vector3 at = player != null ? player.transform.position
+                               : (Camera.main != null ? Camera.main.transform.position : Vector3.zero);
+                    float best = float.MaxValue;
+                    for (int i = 0; i < lanes.driving.Count; i++)
+                    {
+                        var pts = lanes.driving[i].points;
+                        for (int k = 1; k < pts.Length; k++)
+                            best = Mathf.Min(best, CityGeom.DistanceToSegment(new Vector2(at.x, at.z),
+                                new Vector2(pts[k - 1].x, pts[k - 1].z), new Vector2(pts[k].x, pts[k].z)));
+                    }
+                    sb.AppendLine("    nearest road to " + (player != null ? "Seiko" : "the camera")
+                        + ": " + best.ToString("0") + " m"
+                        + (traffic != null && best > traffic.spawnRadius
+                            ? "  -- further than the spawn radius, so you would see nothing from there"
+                            : ""));
+                }
+            }
+
+            sb.Append("  Both spawn around the camera when the game runs, so the editor view stays empty.");
+            Debug.Log(sb.ToString());
+        }
+
+        static bool Valid(CityMeshPiece[] pieces)
+        {
+            if (pieces == null) return false;
+            foreach (var p in pieces)
+                if (p == null || !p.Valid) return false;
+            return true;
+        }
+
+        /// <summary>
         /// Adds the traffic and the crowd to a city that is already in the scene.
         ///
         /// Replacing the scripts in a project does nothing to a scene that was built before they

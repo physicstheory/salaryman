@@ -39,8 +39,8 @@ namespace SalaryMan.World
 
         [Header("How many")]
         [Range(0, 400)] public int maxPeople = 120;
-        public float spawnRadius = 90f;
-        public float despawnRadius = 140f;
+        public float spawnRadius = 120f;
+        public float despawnRadius = 180f;
         [Tooltip("Nobody is ever spawned closer than this, so nobody appears out of nothing in front of you.")]
         public float spawnClearance = 22f;
 
@@ -65,6 +65,8 @@ namespace SalaryMan.World
         readonly List<int> _nearLanes = new List<int>();
         MaterialPropertyBlock _block;
         float _nextLaneScan;
+        float _started;
+        bool _reported;
         int _spawnSeed = 101;
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -82,10 +84,29 @@ namespace SalaryMan.World
 
         void OnEnable()
         {
-            if (city == null || city.layout == null || bodies.Length == 0) { enabled = false; return; }
+            if (city == null || city.layout == null)
+            {
+                Debug.LogWarning("[Konto] " + name + " has no city layout asset, so there will be no "
+                    + "crowd. Run Tools > SalaryMan > Add The Traffic And The Crowd.", this);
+                enabled = false;
+                return;
+            }
+            if (bodies == null || bodies.Length == 0)
+            {
+                Debug.LogWarning("[Konto] " + name + " has no pedestrian bodies baked, so there will be "
+                    + "no crowd. Run Tools > SalaryMan > Add The Traffic And The Crowd.", this);
+                enabled = false;
+                return;
+            }
 
             _lanes = CityLanes.Build(city.layout);
-            if (_lanes.footways.Count == 0) { enabled = false; return; }
+            if (_lanes.footways.Count == 0)
+            {
+                Debug.LogWarning("[Konto] " + city.layout.name + " has no footways, so there is nowhere "
+                    + "to walk.", this);
+                enabled = false;
+                return;
+            }
 
             _laneBounds = new Bounds[_lanes.footways.Count];
             for (int i = 0; i < _lanes.footways.Count; i++)
@@ -99,6 +120,25 @@ namespace SalaryMan.World
             _block = new MaterialPropertyBlock();
             _pool = new Person[maxPeople];
             for (int i = 0; i < _pool.Length; i++) _pool[i] = Make(i);
+
+            _started = Time.time;
+            Debug.Log(string.Format("[Konto] Crowd ready: {0} footways, {1} bodies, a pool of {2}, "
+                + "spawning within {3:0} m.", _lanes.footways.Count, bodies.Length, maxPeople, spawnRadius), this);
+        }
+
+        /// <summary>How far the nearest footway is from a point.</summary>
+        public float NearestFootway(Vector3 from)
+        {
+            if (_lanes == null) return float.MaxValue;
+            float best = float.MaxValue;
+            for (int i = 0; i < _lanes.footways.Count; i++)
+            {
+                var pts = _lanes.footways[i].points;
+                for (int k = 1; k < pts.Length; k++)
+                    best = Mathf.Min(best, CityGeom.DistanceToSegment(new Vector2(from.x, from.z),
+                        new Vector2(pts[k - 1].x, pts[k - 1].z), new Vector2(pts[k].x, pts[k].z)));
+            }
+            return best;
         }
 
         void OnDisable()
@@ -148,6 +188,20 @@ namespace SalaryMan.World
                 ScanLanes(at);
             }
             Spawn(at);
+
+            if (!_reported && Time.time - _started > 4f)
+            {
+                _reported = true;
+                if (ActiveCount == 0)
+                {
+                    float d = NearestFootway(at);
+                    Debug.LogWarning(string.Format(
+                        "[Konto] Nobody has appeared. The nearest footway is {0:0} m away, and people "
+                        + "spawn between {1:0} m and {2:0} m. {3}", d, spawnClearance, spawnRadius,
+                        d > spawnRadius ? "Stand nearer a street, or raise Spawn Radius on this component."
+                                        : "Check that the pedestrian bodies have meshes and materials."), this);
+                }
+            }
         }
 
         Transform Eye()
@@ -289,6 +343,32 @@ namespace SalaryMan.World
             _block.SetColor(ColorId, c);
             renderer.SetPropertyBlock(_block, slot);
         }
+
+#if UNITY_EDITOR
+        CityLanes _editorLanes;
+
+        void OnDrawGizmosSelected()
+        {
+            if (city == null || city.layout == null) return;
+            if (_editorLanes == null) _editorLanes = _lanes ?? CityLanes.Build(city.layout);
+
+            var cam = UnityEditor.SceneView.lastActiveSceneView != null
+                    ? UnityEditor.SceneView.lastActiveSceneView.camera : null;
+            Vector3 at = cam != null ? cam.transform.position
+                       : (viewer != null ? viewer.position : transform.position);
+
+            Gizmos.color = new Color(0.55f, 1f, 0.6f, 0.8f);
+            for (int i = 0; i < _editorLanes.footways.Count; i++)
+            {
+                var pts = _editorLanes.footways[i].points;
+                for (int k = 1; k < pts.Length; k++)
+                {
+                    if (Horizontal(pts[k], at) > 260f) continue;
+                    Gizmos.DrawLine(pts[k - 1] + Vector3.up * 0.2f, pts[k] + Vector3.up * 0.2f);
+                }
+            }
+        }
+#endif
 
         static float Horizontal(Vector3 a, Vector3 b)
         {

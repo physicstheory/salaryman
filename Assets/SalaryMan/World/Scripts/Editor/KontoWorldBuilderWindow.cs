@@ -256,6 +256,12 @@ namespace SalaryMan.World.EditorTools
             KontoSeikoSetup.Build();
         }
 
+        [MenuItem("Tools/SalaryMan/Check The Traffic", false, 26)]
+        public static void CheckTraffic()
+        {
+            KontoTrafficFactory.Report();
+        }
+
         [MenuItem("Tools/SalaryMan/Check Seiko\'s Rig", false, 25)]
         public static void CheckSeiko()
         {

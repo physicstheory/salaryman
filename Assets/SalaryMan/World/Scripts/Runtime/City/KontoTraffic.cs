@@ -36,9 +36,9 @@ namespace SalaryMan.World
         [Header("How much")]
         [Range(0, 400)] public int maxVehicles = 90;
         [Tooltip("Cars are spawned onto lanes inside this radius, in metres.")]
-        public float spawnRadius = 170f;
+        public float spawnRadius = 210f;
         [Tooltip("And recycled once they are further away than this.")]
-        public float despawnRadius = 250f;
+        public float despawnRadius = 300f;
         [Tooltip("Cars nearer than this are never spawned in front of you, which is what makes it look like they were always there.")]
         public float spawnClearance = 55f;
 
@@ -74,6 +74,8 @@ namespace SalaryMan.World
         Bounds[] _laneBounds;
         MaterialPropertyBlock _block;
         float _nextLaneScan;
+        float _started;
+        bool _reported;
         int _spawnSeed = 1;
 
         static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
@@ -93,14 +95,31 @@ namespace SalaryMan.World
 
         void OnEnable()
         {
-            if (city == null || city.layout == null || variants.Length == 0)
+            // Every one of these has meant "there is no traffic and nothing said why", so
+            // each one says why now.
+            if (city == null || city.layout == null)
             {
+                Debug.LogWarning("[Konto] " + name + " has no city layout asset, so there will be no "
+                    + "traffic. Run Tools > SalaryMan > Add The Traffic And The Crowd.", this);
+                enabled = false;
+                return;
+            }
+            if (variants == null || variants.Length == 0)
+            {
+                Debug.LogWarning("[Konto] " + name + " has no vehicle bodies baked, so there will be no "
+                    + "traffic. Run Tools > SalaryMan > Add The Traffic And The Crowd.", this);
                 enabled = false;
                 return;
             }
 
             _lanes = CityLanes.Build(city.layout);
-            if (_lanes.driving.Count == 0) { enabled = false; return; }
+            if (_lanes.driving.Count == 0)
+            {
+                Debug.LogWarning("[Konto] " + city.layout.name + " has " + city.layout.roads.Count
+                    + " roads but none of them carry lanes, so there is nowhere to drive.", this);
+                enabled = false;
+                return;
+            }
 
             _laneBounds = new Bounds[_lanes.driving.Count];
             _byLane = new List<int>[_lanes.driving.Count];
@@ -116,6 +135,35 @@ namespace SalaryMan.World
             _block = new MaterialPropertyBlock();
             _pool = new Car[maxVehicles];
             for (int i = 0; i < _pool.Length; i++) _pool[i] = MakeCar(i);
+
+            _started = Time.time;
+            Debug.Log(string.Format("[Konto] Traffic ready: {0} lanes, {1} junctions, {2} bodies, "
+                + "a pool of {3}, spawning within {4:0} m.",
+                _lanes.driving.Count, _lanes.junctions.Count, variants.Length, maxVehicles, spawnRadius), this);
+        }
+
+        /// <summary>
+        /// How far the nearest driveable lane is from a point, and which lane it is. Used to
+        /// answer the only question anyone asks when the roads are empty.
+        /// </summary>
+        public float NearestLane(Vector3 from, out int lane)
+        {
+            lane = -1;
+            if (_lanes == null) return float.MaxValue;
+            float best = float.MaxValue;
+            for (int i = 0; i < _lanes.driving.Count; i++)
+            {
+                var pts = _lanes.driving[i].points;
+                for (int k = 1; k < pts.Length; k++)
+                {
+                    float d = CityGeom.DistanceToSegment(new Vector2(from.x, from.z),
+                        new Vector2(pts[k - 1].x, pts[k - 1].z), new Vector2(pts[k].x, pts[k].z));
+                    if (d >= best) continue;
+                    best = d;
+                    lane = i;
+                }
+            }
+            return best;
         }
 
         void OnDisable()
@@ -161,6 +209,23 @@ namespace SalaryMan.World
                 ScanLanes(at);
             }
             Spawn(at);
+
+            // If the roads are still empty a few seconds in, say so once, with the reason.
+            if (!_reported && now - _started > 4f)
+            {
+                _reported = true;
+                if (ActiveCount == 0)
+                {
+                    int lane;
+                    float d = NearestLane(at, out lane);
+                    Debug.LogWarning(string.Format(
+                        "[Konto] No traffic has appeared. The nearest road is {0:0} m from {1}, and cars "
+                        + "spawn between {2:0} m and {3:0} m away. {4}",
+                        d, viewer != null ? viewer.name : "the camera", spawnClearance, spawnRadius,
+                        d > spawnRadius ? "Stand nearer a road, or raise Spawn Radius on this component."
+                                        : "Check that the vehicle bodies have meshes and materials."), this);
+                }
+            }
         }
 
         Transform Eye()
@@ -168,8 +233,16 @@ namespace SalaryMan.World
             if (viewer != null) return viewer;
             var cam = Camera.main;
             if (cam != null) viewer = cam.transform;
+            else if (!_noEye)
+            {
+                _noEye = true;
+                Debug.LogWarning("[Konto] Traffic has nothing to exist around: there is no camera "
+                    + "tagged MainCamera, and no Viewer set on this component.", this);
+            }
             return viewer;
         }
+
+        bool _noEye;
 
         void Recycle(Vector3 at)
         {
@@ -448,6 +521,43 @@ namespace SalaryMan.World
             _block.SetColor(ColorId, c);
             car.renderer.SetPropertyBlock(_block, slot);
         }
+
+#if UNITY_EDITOR
+        // Drawn in the scene view so the lane network can be looked at without pressing Play.
+        // "Is there traffic in this scene" should not require running the game to answer.
+        CityLanes _editorLanes;
+
+        void OnDrawGizmosSelected()
+        {
+            if (city == null || city.layout == null) return;
+            if (_editorLanes == null) _editorLanes = _lanes ?? CityLanes.Build(city.layout);
+
+            var cam = UnityEditor.SceneView.lastActiveSceneView != null
+                    ? UnityEditor.SceneView.lastActiveSceneView.camera : null;
+            Vector3 at = cam != null ? cam.transform.position
+                       : (viewer != null ? viewer.position : transform.position);
+            const float range = 320f;
+
+            Gizmos.color = new Color(0.35f, 0.85f, 1f, 0.85f);
+            for (int i = 0; i < _editorLanes.driving.Count; i++)
+            {
+                var pts = _editorLanes.driving[i].points;
+                for (int k = 1; k < pts.Length; k++)
+                {
+                    if (Horizontal(pts[k], at) > range) continue;
+                    Gizmos.DrawLine(pts[k - 1] + Vector3.up * 0.3f, pts[k] + Vector3.up * 0.3f);
+                }
+            }
+
+            Gizmos.color = new Color(1f, 0.75f, 0.2f, 0.9f);
+            for (int i = 0; i < _editorLanes.junctions.Count; i++)
+            {
+                var j = _editorLanes.junctions[i];
+                if (Horizontal(j.position, at) > range) continue;
+                Gizmos.DrawWireSphere(j.position + Vector3.up * 0.3f, j.radius);
+            }
+        }
+#endif
 
         static float Horizontal(Vector3 a, Vector3 b)
         {
