@@ -373,9 +373,22 @@ copied only part of `Assets/SalaryMan`. Re-export it with
 `blender -b <meshy>.blend -P Tools/rig_seiko.py`, or drop your own model in and use
 **Tools → SalaryMan → Konto Character**.
 
-**Seiko stands still.** His clips did not import as separate takes. Select `Seiko.fbx`, check the
-Animation tab lists Idle, Walk and Run, then re-run **Put Seiko In The Scene**. If the list is
-empty, the FBX was exported without `bake_anim_use_all_actions`.
+**I updated the scripts and nothing in my scene changed.** Nothing in a built scene is generated
+at play time: the city is meshes and GameObjects that the last build made, and replacing the
+scripts does not reach back into them. To pick up a change, rebuild the part that owns it —
+**Rebuild the city only** for buildings and street furniture, **Add The Traffic And The Crowd**
+for the cars and the pedestrians (seconds, and it does not touch the buildings), **Put Seiko In
+The Scene** for the character, and a full **Build Konto** for anything to do with the terrain,
+which includes the trees.
+
+**Seiko slides along the ground without moving his legs.** Run **Tools → SalaryMan → Check
+Seiko's Rig**: it prints the clips inside the FBX, the avatar, where the Animator ended up, what
+the blend tree is blending and whether the character is wired to it. Whichever line says NONE is
+the fault. Then re-run **Put Seiko In The Scene**, which sets all of them. The usual causes are a
+missing Avatar (a generic rig plays nothing without one), an Animator on the capsule rather than
+on the model, or clips that did not import as separate takes — in which case the Animation tab on
+`Seiko.fbx` will not list Idle, Walk and Run, and the FBX needs re-exporting with
+`bake_anim_use_all_actions`.
 
 ---
 

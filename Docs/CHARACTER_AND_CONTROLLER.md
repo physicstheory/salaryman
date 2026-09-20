@@ -98,8 +98,46 @@ controller to your model's Animator.
 For your own controller: a 1D blend tree on `Speed` covering idle → walk → jog → sprint gets you
 90% of the way.
 
-If the character slides around in a T-pose, it has no Animator Controller assigned. Movement is
-working; animation just is not.
+If the character slides around in a T-pose or a rest pose, movement is working and animation is
+not, and there are four things it can be. In order of how often it is each one:
+
+1. **No Animator Controller assigned.**
+2. **No Avatar on the Animator.** A generic rig animates through one, and a model that was ever
+   imported with its animation type set to None does not have one. Select the FBX, set **Rig →
+   Animation Type** to Generic, and make sure **Avatar Definition** is *Create From This Model*.
+3. **The Animator is on the wrong object.** Animation curve paths are relative to the Animator's
+   own transform, so an Animator on the capsule is looking for `Model/Hips/...` when the clip
+   says `Hips/...`. It belongs on the imported model's root, and there should only be one.
+4. **Culling.** `Cull Update Transforms` stops the bones being written whenever Unity decides the
+   renderer is off screen, and a generic rig's bounds are not always right. A hero character
+   should be on **Always Animate**.
+
+For Seiko specifically, **Tools → SalaryMan → Check Seiko's Rig** prints all four, and
+**Put Seiko In The Scene** sets all four.
+
+---
+
+## 4a. How Seiko himself was built
+
+`Tools/rig_seiko.py` takes the Meshy mesh and produces the FBX and the glTF: a 21 bone skeleton,
+bone-heat weights, and Idle, Walk and Run authored as poses in the script rather than captured.
+
+Two things in there are worth knowing, because both came from the mesh fighting back.
+
+**He is modelled with his hands in his pockets.** The forearms run forward and inward into them,
+and every animation laid on top of that rest pose is fighting it. So the script poses the arms
+down and clear of the body, bakes that shape into the mesh, makes it the rest pose, and works the
+weights out again on the result. The pose is not a set of hand-picked angles — hand-picked angles
+gave a man with his elbows out and his hands on his hips. Each arm bone is *aimed*: the rotation
+that takes the direction it currently points to the direction it should point, which does not care
+what the source rig's bone rolls happen to be.
+
+**He was centred on his bounding box**, so his origin sat at his waist and he stood buried to the
+hips. The script moves the mesh so the soles are at z = 0 before anything else happens.
+
+The maps come out as PNGs beside the model rather than embedded in the FBX, because what HDRP does
+with an FBX's embedded textures depends on the Unity version and the pipeline that was active at
+import; `KontoSeikoSetup` builds the material from the PNGs and remaps the model's slot onto it.
 
 ---
 

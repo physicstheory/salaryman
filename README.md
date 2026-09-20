@@ -109,6 +109,10 @@ space, not as buildings:
   the lights.
 - **A crowd** on the footways: salarymen with briefcases, office ladies, students, workers in hard
   hats, all walking somewhere.
+
+Around it, the island is forested the way Japan is — two thirds of the land under trees, sugi and
+hinoki plantations on the lower slopes, natural forest above them, and bare ground only on the
+highest tops and the faces too steep to hold soil.
 - **Seiko Shigu**, rigged, with idle, walk and run on a blend tree, dropped into the scene with
   the rest of it.
 

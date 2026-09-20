@@ -116,6 +116,17 @@ crowd of primary colours looks wrong immediately, so the bright end of the palet
 purpose. The two cloth surfaces are tinted per person through a property block, the same way the
 cars are painted, so a street full of people is four materials.
 
+## Getting it into a scene
+
+The build window's city step bakes the bodies and drops the two spawners in, and that is all that
+is needed on a fresh build. On a scene that was **built before the traffic existed**, there is
+nothing to update: the city in that scene is meshes the last build made, and replacing the scripts
+in the project does not reach into them. **Tools → SalaryMan → Add The Traffic And The Crowd**
+fits out the cities in the open scene without rebuilding anything else.
+
+Neither shows anything in the editor view. Both systems exist around the camera and spawn on the
+first frame of play, so press Play.
+
 ## Checking it without Unity
 
 The driving model is the kind of code that looks right and is not, so it is run headlessly: a
