@@ -1935,8 +1935,10 @@ function terrainColour(world, x, z, out) {
   })();
   const slopeDeg = Math.atan(slope) * 180 / Math.PI;
   const snowySide = clamp01(-lat / 1200);
-  const snowLine = 1230 - 200 * snowySide;
-  const treeLine = 1120 - 100 * snowySide;
+  // Konto tops out around 1520 m, and Honshu at that height is forested to the summit:
+  // bare ground is the last hundred metres and the faces too steep to hold soil.
+  const snowLine = 1460 - 200 * snowySide;
+  const treeLine = 1400 - 100 * snowySide;
 
   let c;
   if (h < 0) {
@@ -1945,7 +1947,7 @@ function terrainColour(world, x, z, out) {
     c = SURFACE.sand;
   } else if (h > snowLine && slopeDeg < 55) {
     c = SURFACE.snow;
-  } else if (slopeDeg > 38) {
+  } else if (slopeDeg > 48) {
     c = SURFACE.rock;
   } else if (h > treeLine) {
     c = SURFACE.scree;
@@ -1955,9 +1957,9 @@ function terrainColour(world, x, z, out) {
     c = SURFACE.gravel;
   } else if (slopeDeg < 6 && h < 320) {
     c = SURFACE.paddy;
-  } else if (slopeDeg < 20 && h < 700) {
+  } else if (slopeDeg < 34 && h < 900) {
     c = SURFACE.forest;
-  } else if (h > treeLine - 220) {
+  } else if (h > treeLine - 170) {
     c = SURFACE.forestHigh;
   } else {
     c = SURFACE.meadow;

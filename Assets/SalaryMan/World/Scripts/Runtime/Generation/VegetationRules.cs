@@ -60,19 +60,24 @@ namespace SalaryMan.World
             if (s.Height < 2.2f) return 0f;
             if (s.River > 0.3f) return 0f;
             if (s.Terrace > 0.3f) return 0f;
-            if (s.SlopeDegrees > 43f) return 0f;
+            // Japanese mountains are forested to the point where the rock is too steep to hold
+            // soil, and that point is a lot steeper than a gentle reading of "steep" suggests:
+            // a 45 degree slope under sugi is ordinary hill country there.
+            if (s.SlopeDegrees > 54f) return 0f;
 
             float snowySide = Mathf.Clamp01(-s.Lateral / 1200f);
             float treeLine = cfg.treeLine - cfg.snowySideBonus * 0.5f * snowySide;
             if (s.Height > treeLine) return 0f;
 
             // Thins out toward the tree line and on the steepest ground.
-            float alt = 1f - KontoNoise.SmoothStep(treeLine - 220f, treeLine, s.Height);
-            float steep = 1f - KontoNoise.SmoothStep(32f, 43f, s.SlopeDegrees);
+            float alt = 1f - KontoNoise.SmoothStep(treeLine - 170f, treeLine, s.Height);
+            float steep = 1f - KontoNoise.SmoothStep(40f, 54f, s.SlopeDegrees);
 
             // Cleared ground: paddy margins, meadow, firebreaks, riverbanks.
+            // Clearings are the exception in a country that is two thirds forest, not the rule,
+            // so the gate is set where only the deeper troughs of the noise open the canopy.
             float clearing = KontoNoise.Fbm(s.WorldX / 160f, s.WorldZ / 160f, cfg.seed + 34019, 3);
-            float open = KontoNoise.SmoothStep(-0.55f, 0.1f, clearing);
+            float open = KontoNoise.SmoothStep(-0.80f, -0.10f, clearing);
 
             // The flat coastal plains are farmland, not forest.
             float flatFarm = (1f - KontoNoise.SmoothStep(4f, 11f, s.SlopeDegrees))
@@ -144,10 +149,11 @@ namespace SalaryMan.World
                         return;
                 }
             }
-            if (s.SlopeDegrees > 38f) return;
-            if (s.Height > cfg.treeLine) return;
+            if (s.SlopeDegrees > 46f) return;
+            // Dwarf bamboo carries on above the tree line, so the ground cover does too.
+            if (s.Height > cfg.treeLine + 320f) return;
 
-            float open = 1f - KontoNoise.SmoothStep(20f, 34f, s.SlopeDegrees);
+            float open = 1f - KontoNoise.SmoothStep(26f, 44f, s.SlopeDegrees);
             float notPaddy = 1f - Mathf.Clamp01(s.Terrace * 1.4f);
             float patch = KontoNoise.Fbm(s.WorldX / 65f, s.WorldZ / 65f, cfg.seed + 36011, 3) * 0.5f + 0.5f;
 

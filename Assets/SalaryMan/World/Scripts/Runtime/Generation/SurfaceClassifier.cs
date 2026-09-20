@@ -125,6 +125,15 @@ namespace SalaryMan.World
             weights[KontoLayer.Meadow] = canopy * Mathf.Lerp(0.18f, 0.8f, meadowBias);
             weights[KontoLayer.ForestFloor] = canopy * Mathf.Lerp(0.85f, 0.25f, meadowBias) + 0.08f;
 
+            // Above the tree line Japan does not go straight to rock: dwarf bamboo - sasa -
+            // and alpine grass carry on for a few hundred metres, which is why photographs of
+            // the tops are green and not grey.
+            float sasa = KontoNoise.SmoothStep(treeLine - 70f, treeLine + 70f, h)
+                       * (1f - KontoNoise.SmoothStep(treeLine + 230f, treeLine + 430f, h))
+                       * (1f - KontoNoise.SmoothStep(30f, 47f, slopeDeg));
+            weights[KontoLayer.Meadow] = Mathf.Max(weights[KontoLayer.Meadow], sasa * 0.8f);
+            weights[KontoLayer.Scree] *= 1f - sasa * 0.75f;
+
             // --- resolve -----------------------------------------------------------------
             // Hard surfaces win over soft ones rather than averaging into mud.
             float hard = Mathf.Clamp01(weights[KontoLayer.Rock] + weights[KontoLayer.Scree] + weights[KontoLayer.Snow]);

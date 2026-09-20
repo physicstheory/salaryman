@@ -213,14 +213,14 @@ namespace SalaryMan.World
         [Header("Biome thresholds")]
         [Tooltip("Height below which the shore turns to sand and shingle, in metres.")]
         public float beachHeight = 3.2f;
-        [Tooltip("Tree line in metres. Central Honshu sits near 2500 m; Konto is compressed, so this is lower.")]
-        public float treeLine = 1120f;
-        [Tooltip("Height at which permanent snow starts, in metres.")]
-        public float snowLine = 1230f;
+        [Tooltip("Tree line in metres. Konto tops out near 1520 m and Honshu at that height is forested to the summit, so this sits high: the bare tops are the last hundred metres and the faces too steep to hold soil.")]
+        public float treeLine = 1400f;
+        [Tooltip("Height at which permanent snow starts, in metres. Japan has almost none below the Alps, so on Konto this is a cap on the highest peaks rather than a band across the ranges.")]
+        public float snowLine = 1460f;
         [Tooltip("Extra snow, in metres of elevation equivalent, on the Sea of Konto side. The north west coast of Honshu is one of the snowiest inhabited places on earth.")]
         public float snowySideBonus = 200f;
-        [Tooltip("Slope in degrees above which bare rock shows through the soil.")]
-        public float rockSlopeAngle = 38f;
+        [Tooltip("Slope in degrees above which bare rock shows through the soil. Japanese hillsides carry forest at 40 degrees and more, so the rock starts where the slope stops holding soil at all.")]
+        public float rockSlopeAngle = 48f;
 
         [Header("Vegetation")]
         [Tooltip("Spacing in metres of the candidate grid used for tree placement. Smaller means more trees and a slower build.")]
