@@ -124,16 +124,37 @@ bone-heat weights, and Idle, Walk and Run authored as poses in the script rather
 
 Two things in there are worth knowing, because both came from the mesh fighting back.
 
-**He is modelled with his hands in his pockets.** The forearms run forward and inward into them,
-and every animation laid on top of that rest pose is fighting it. So the script poses the arms
-down and clear of the body, bakes that shape into the mesh, makes it the rest pose, and works the
-weights out again on the result. The pose is not a set of hand-picked angles — hand-picked angles
-gave a man with his elbows out and his hands on his hips. Each arm bone is *aimed*: the rotation
-that takes the direction it currently points to the direction it should point, which does not care
-what the source rig's bone rolls happen to be.
+**Nothing in it is told what the mesh looks like.** The model has been swapped twice — once
+standing with its hands in its pockets, once in a T pose — and every assumption typed in about the
+first was wrong for the second. So the skeleton is measured off the mesh: the shoulders by slicing
+outwards until the slice stops being a body and starts being a limb, the elbows and wrists by
+dividing the reach from shoulder to fingertip, the hips, knees and ankles from the two lobes a
+horizontal slice through the legs splits into, the toes from how far the foot reaches in front of
+the ankle. Drop a different humanoid in and it measures that one instead.
+
+**The rest pose is rebuilt before anything is animated.** Whatever the arms are doing in the source
+— folded into pockets, or straight out in a T — they are brought down to hang at the sides, that
+shape is baked into the mesh, it becomes the rest pose, and the weights are worked out again on the
+result. The arms are not posed with hand-picked angles; hand-picked angles gave a man with his
+elbows out and his hands on his hips. Each arm bone is *aimed*: the rotation that takes the
+direction it currently points to the direction it should point, which does not care what the source
+rig's bone rolls happen to be.
 
 **He was centred on his bounding box**, so his origin sat at his waist and he stood buried to the
 hips. The script moves the mesh so the soles are at z = 0 before anything else happens.
+
+**Which way he faces is measured twice, not assumed.** In Blender it comes from the feet, because
+toes reach further in front of the ankle than the heel reaches behind it; if he faces -Y he is
+turned round, and the head is asked for a second opinion. Then, after the FBX is written, it is
+read back: `Tools/fbx_axes.py` is a small binary FBX reader that fits the vertices that came out
+against the vertices that went in and reads the node rotations the exporter baked in, which gives
+the direction he faces in Unity's terms. Unity's character controller turns the model to face the
+way it is going and takes facing to mean +Z, so if the answer is not +Z the script exports with the
+other axis setting and asks again — and if no orientation works it refuses to write the file.
+
+That check exists because the obvious export setting, `axis_forward='-Z'`, puts his front on **-Z**,
+and a character on -Z moonwalks. Reasoning about the conversion got it wrong twice; measuring it
+got it right the first time.
 
 The maps come out as PNGs beside the model rather than embedded in the FBX, because what HDRP does
 with an FBX's embedded textures depends on the Unity version and the pipeline that was active at

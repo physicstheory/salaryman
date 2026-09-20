@@ -381,6 +381,12 @@ for the cars and the pedestrians (seconds, and it does not touch the buildings),
 The Scene** for the character, and a full **Build Konto** for anything to do with the terrain,
 which includes the trees.
 
+**There is no traffic.** Run **Tools → SalaryMan → Check The Traffic**. It says which of the
+several possible reasons it is — most often that the scene was built before the traffic existed,
+which **Add The Traffic And The Crowd** fixes in seconds. Both systems spawn around the camera
+during play, so the editor view is always empty; and standing in the middle of a plaza more than
+210 m from any street will also show you nothing, which the check reports as a distance.
+
 **Seiko slides along the ground without moving his legs.** Run **Tools → SalaryMan → Check
 Seiko's Rig**: it prints the clips inside the FBX, the avatar, where the Animator ended up, what
 the blend tree is blending and whether the character is wired to it. Whichever line says NONE is

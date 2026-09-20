@@ -127,6 +127,17 @@ fits out the cities in the open scene without rebuilding anything else.
 Neither shows anything in the editor view. Both systems exist around the camera and spawn on the
 first frame of play, so press Play.
 
+**If there is no traffic**, do not go looking for it — ask. **Tools → SalaryMan → Check The
+Traffic** prints whether the spawners are in the scene at all (much the commonest answer), how many
+bodies they hold, how many lanes the city has, and how far the nearest road is from where Seiko is
+standing. Selecting either spawner also draws the network in the scene view: driving lanes in blue,
+junctions in amber, footways in green.
+
+In play mode both systems announce what they are working with, name the reason if they switch
+themselves off, and say how far away the nearest road is if nothing has appeared after four
+seconds. Standing in the middle of a plaza further than the spawn radius from any street is a real
+way to see no cars, and it is the one that looks most like a bug.
+
 ## Checking it without Unity
 
 The driving model is the kind of code that looks right and is not, so it is run headlessly: a
