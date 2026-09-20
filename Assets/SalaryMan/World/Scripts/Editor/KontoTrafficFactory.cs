@@ -27,6 +27,52 @@ namespace SalaryMan.World.EditorTools
         /// <summary>And per kind of person.</summary>
         public const int VariantsPerPerson = 2;
 
+        /// <summary>
+        /// Adds the traffic and the crowd to a city that is already in the scene.
+        ///
+        /// Replacing the scripts in a project does nothing to a scene that was built before they
+        /// existed: the city in the scene is meshes and GameObjects made by the last build, and
+        /// nothing in it knows what a vehicle is. This is the cheap way to get the moving parts
+        /// without rebuilding an island - it finds the cities in the open scene and fits them
+        /// out. Returns how many cities were done.
+        /// </summary>
+        public static int BuildIntoOpenScene()
+        {
+            var cities = Object.FindObjectsByType<KontoCityRoot>(FindObjectsSortMode.None);
+            if (cities == null || cities.Length == 0)
+            {
+                Debug.LogWarning("[Konto] There is no city in this scene to put traffic in. Build the world "
+                    + "first, or use Tools > SalaryMan > Rebuild the city only.");
+                return 0;
+            }
+
+            int done = 0;
+            foreach (var city in cities)
+            {
+                var asset = city.city;
+                if (asset == null || asset.layout == null)
+                {
+                    Debug.LogWarning("[Konto] " + city.name + " has no layout asset, so it was skipped.");
+                    continue;
+                }
+
+                // Whatever the city was painted with, not a fresh repaint: this should take
+                // seconds, and the textures are already on disk.
+                int seed;
+                if (!int.TryParse(asset.builtFromSeed, out seed)) seed = asset.layout.seed;
+                var surfaces = KontoSurfaceLibrary.CreateOrUpdate(seed, false);
+
+                var existing = city.transform.Find(GroupName);
+                if (existing != null) Object.DestroyImmediate(existing.gameObject);
+
+                Build(asset.layout, asset, city.transform, surfaces);
+                done++;
+            }
+
+            AssetDatabase.SaveAssets();
+            return done;
+        }
+
         public static void Build(CityLayout layout, KontoCityLayoutAsset asset, Transform parent, Material[] surfaces)
         {
             if (layout == null || asset == null || surfaces == null) return;
