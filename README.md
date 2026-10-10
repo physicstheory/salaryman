@@ -133,7 +133,11 @@ How the cars drive and the crowd walks: **[Docs/TRAFFIC_AND_CROWD.md](Docs/TRAFF
 `Web/konto.html` is the same generator ported to Three.js in a single file: the island, the
 erosion, the rivers, Tōkonto's wards, streets, railways and plots, the textured massing, Soti
 Tower, and **Seiko Shigu** — rigged, with idle, walk and run cycles — who you can walk around it.
-Serve the folder and open the page; nothing to install.
+
+It also carries the street: sixteen kinds of vehicle driving on the left, NHRail commuter sets and
+shinkansen on the viaducts, platforms and name boards at every station, Tokonto Bus stops along
+the arterials, advertising on the buses, the trains, the hoardings and the rooftops, a scramble
+crossing and the shrines. Serve the folder and open the page; nothing to install.
 
 ```
 python3 -m http.server 8000 --directory Web    # then open http://localhost:8000/konto.html

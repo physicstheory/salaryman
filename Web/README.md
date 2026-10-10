@@ -42,16 +42,63 @@ EOF
 Flying, **F** drops him on the ground below where you are looking. Walking, **F** puts the camera
 back. Click any reserved site in the right hand panel to fly to it.
 
+## What is on the streets
+
+**Sixteen kinds of vehicle**, at the manufacturers' real dimensions and in the proportions a
+Japanese street actually carries them: kei cars and kei vans, hatchbacks, a fastback hybrid, a
+saloon, a crossover, a one-box minivan, a taxi with its 行灯 roof lamp and 空車 card, a Ryde
+ride-hailing car, a patrol car, a coupe, a supercar, a motorcycle with a rider, a Hayabin delivery
+scooter, an Isuzu-sized box truck and a 10.49 m municipal bus. A quarter of them are kei, because
+a quarter of them are kei. Commercial vehicles carry green plates and kei vehicles yellow ones.
+
+**Nothing wears a real badge.** The marques are invented — Kosei, Ryusei, Kaneda, Mitsuwa, Suzume,
+Nanatsu, Daichi, Ganseki — and drawn as geometry in the idiom of car badges. Which marque a given
+car wears is a per-instance texture offset, so one hatchback geometry carries four of them for the
+cost of one.
+
+**NHRail** — Nikon Rail — runs the loop line, the radials and the shinkansen: six-car stainless
+commuter sets and eight-car bullet trains with a 6.2 m nose, on two tracks, pitched to the
+gradient. Every station gets side platforms, a canopy, a tactile edge strip, benches, a vending
+machine, ballast and four running rails, a concourse with the company's mark over the door, and
+name boards that are generated per station into one shared atlas so all of them cost one draw call.
+
+**Tokonto Bus** stops stand every 300 m along the arterials, alternating carriageways: a flag, a
+timetable, and one stop in three a shelter with a bench and an advert.
+
+**The advertising** is eight panels at 8:1 — the shape of the side of a bus, the side of a train
+and the sign over a Tokyo street — and they go on all three, plus roadside hoardings, rooftop
+bands, station concourses and the screens wrapped round the scramble crossing. They are jokes
+about Japan rather than copies of Japanese ones. See
+**[Docs/REFERENCES.md](../Docs/REFERENCES.md)** for all of them.
+
+**The scramble crossing** is found rather than placed: wherever the inner ring road crosses a
+radial nearest a nightlife ward. Four crossings and two diagonals laid as geometry on the road,
+horizontal signal heads on all four corners, every building within sight wrapped in advertising
+bands, a police box on one corner and a bronze dog on the other.
+
+**Shrines** get a torii, a gravel approach, a hall on a stone base under a kawara roof, a water
+basin, a guardian pair and stone lanterns.
+
+All of the street furniture in the city is four meshes — one of coloured boxes and one per texture
+atlas — so the whole of it costs four draw calls.
+
 ## Soti Tower
 
-The one building in the city that is modelled rather than massed. It is taken from the Ping An
-International Finance Centre in Shenzhen: a square plan with deeply chamfered corners, a shaft
-that tapers the whole way up, and eight stainless steel mega-columns standing proud of the glass
-that run the full height and close over the roof into the claw, with a short mast above.
-592 m to the tip, 116 floors, and it takes a whole block so it stands in its own plaza.
+The one building in the city that is modelled rather than massed. **248 m**, which is Midtown
+Tower in Akasaka, because that is what the tallest building in a Tokyo district actually measures.
+A 48 m square floorplate with cut corners, 54 floors at 4.1 m, two setbacks at 42% and 74% of the
+shaft, louvred mechanical floors under each of them, four corner pilasters standing 0.4 m off the
+glass, and five storeys of stone podium 62 m across meeting the pavement under a canopy. A mast
+takes it to 262 m.
 
-`SOTI` at the top of the tower section holds the proportions; `buildSotiTower()` lofts the
-curtain wall through 76 rings and extrudes a blade on each of the eight plan corners.
+It used to be the Ping An Finance Centre from Shenzhen — 592 m, eight mega-columns closing over
+the roof into a claw — and next to 150 m neighbours it read as science fiction rather than as a
+city. Tokyo towers cluster; the tallest in a district stands about one and a half times its
+neighbours, which is what Soti does now.
+
+`SOTI` at the top of the tower section holds the proportions; `buildSotiTower()` lofts the curtain
+wall through one ring per floor, doubling the ring at each setback so the step is a crisp soffit
+rather than a taper.
 
 ## seiko.glb
 

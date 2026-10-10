@@ -42,29 +42,53 @@ Three things make the silhouette read as Tokyo rather than as anywhere:
 
 ## The traffic
 
-Dimensions are the manufacturers' own, in millimetres, because a car that is the wrong size is
-wrong in a way you notice before you notice anything else.
+Dimensions are the manufacturers' own, in millimetres, because a vehicle that is the wrong size
+is wrong in a way you notice before you notice anything else. The share is the fraction of the
+traffic each one is, which is the other half of making a street look Japanese: a quarter of it
+is the same small upright box.
 
-| In the game | Real counterpart | L × W × H (mm) |
-|---|---|---|
-| Compact | [Honda Fit / Jazz](https://www.truedelta.com/Honda-Fit-vs-Toyota-Prius-specs-comparison,99-272,2016-2009&r=4) (2020) | 4100 × 1702 × 1524 |
-| Sedan | [Toyota Prius](https://www.carexpert.com.au/toyota/prius/2024/dimensions) (5th gen, 2024) | 4575 × 1760 × 1490 |
-| Kei car, kei van, kei truck | the kei class limits | 3400 × 1480 × 2000 max |
-| Taxi | Toyota JPN Taxi proportions, with the 行灯 roof lamp and a 空車 card | 4400 × 1695 × 1750 |
-| Box van | small Japanese delivery box body | 5000 × 1890 × 2600 |
-| Bus | municipal single-decker | 10500 × 2490 × 3100 |
+| In the game | Real counterpart | L × W × H (mm) | Share |
+|---|---|---|---|
+| Kei car | the kei class limits | 3400 × 1480 × 1700 | 15% |
+| Kei van | the same limits, one-box body | 3400 × 1470 × 1890 | 7% |
+| Hatchback | [Honda Fit / Jazz](https://www.truedelta.com/Honda-Fit-vs-Toyota-Prius-specs-comparison,99-272,2016-2009&r=4) (2020) | 4050 × 1700 × 1520 | 14% |
+| Fastback sedan | [Toyota Prius](https://www.carexpert.com.au/toyota/prius/2024/dimensions) (5th gen, 2024) | 4580 × 1760 × 1490 | 11% |
+| Saloon | Toyota Crown proportions | 4910 × 1800 × 1460 | 5.5% |
+| Crossover | Toyota Harrier / Honda CR-V | 4600 × 1860 × 1690 | 9% |
+| One-box minivan | Toyota Noah / Nissan Serena | 4700 × 1730 × 1860 | 7% |
+| Taxi | Toyota JPN Taxi, with the 行灯 roof lamp and a 空車 card | 4400 × 1695 × 1750 | 7.5% |
+| Ride-hailing car | the saloon, in black, with a lit windscreen badge | 4910 × 1800 × 1460 | 3.5% |
+| Patrol car | 白黒パトカー: white over black, red bar | 4690 × 1780 × 1480 | 1.2% |
+| Sports coupe | Toyota GR86 / Subaru BRZ | 4270 × 1780 × 1310 | 2.8% |
+| Supercar | a mid-engined wedge, 1.17 m to the roof | 4550 × 1970 × 1170 | 0.8% |
+| Motorcycle | a 400 cc naked, with a rider | 2100 × 760 × 1260 | 3% |
+| Delivery scooter | Yamaha GEAR proportions: step-through, front crate | 1900 × 700 × 1320 | 2.5% |
+| Box truck | Isuzu ELF 2-tonne, cab over the front axle | 6190 × 1900 × 3100 | 2.2% |
+| Bus | Hino Blue Ribbon, municipal single-decker | 10490 × 2490 × 3100 | 1.3% |
 
 The kei class is the one worth knowing: a legal category capped at 3.4 m long and 1.48 m wide,
 which is why a fifth of the cars on a Japanese street are the same small size and shape.
 
 Commercial vehicles carry **green number plates**, which in Japan means a vehicle carrying goods
-or people for hire. Private cars carry white ones. The traffic keeps left.
+or people for hire; kei vehicles carry **yellow** ones; private cars carry white. The traffic
+keeps left. Colour is overwhelmingly white, silver and black — one car in twenty is allowed to
+be red, which is about right for Tokyo.
 
-### The marques
+### On the rails
 
-Parody, and deliberately so. The badges are geometry in the idiom of car badges — ovals,
-chevrons, pinwheels, mountains — rather than tracings of anybody's trademark. The joke is the
-names, and each one is shaped by what the real maker is known for rather than copied from it.
+| In the game | Real counterpart | Per car (m) | Speed |
+|---|---|---|---|
+| NHRail commuter set | a six-car stainless E233-ish set, four doors a side | 19.5 × 2.95 × 3.60 | 24 m/s |
+| NHRail shinkansen | an eight-car set, 6.2 m nose on the end cars | 24.5 × 3.36 × 3.65 | 72 m/s |
+
+### The marques, and everything else with a name on it
+
+Parody, and deliberately so. **No real manufacturer's badge, livery or wordmark appears anywhere
+in Konto** — not Toyota, Honda, Nissan, Mazda, Subaru, Suzuki, Daihatsu, Lexus, Mitsubishi,
+Isuzu, Hino, Yamaha, Kawasaki, JR, Uber, or any of the Italian names on the supercar page of a
+reference sheet. The real ones are what the *proportions* come from, in the table above. The
+badges are geometry in the idiom of car badges — ovals, chevrons, pinwheels, mountain glyphs —
+and the joke is the names.
 
 | | | |
 |---|---|---|
@@ -76,6 +100,33 @@ names, and each one is shaped by what the real maker is known for rather than co
 | **Nanatsu** ナナツ | seven stars in an oval | flat engines, four wheel drive, a following |
 | **Daichi** ダイチ | a mountain glyph | the kei specialist |
 | **Ganseki** ガンセキ | a hexagon with a bar | trucks and buses |
+| **Ryde** ライド | a green lozenge, lit, on the windscreen | the ride-hailing one |
+| **Tokonto Kotsu** トコント交通 | a yellow door panel and a freephone number | the taxi operator |
+| **Hayabin** 速便 | a dragonfly on yellow | parcels, by scooter, by tomorrow |
+| **NHRail** ニコン鉄道 | NH worked into one mark, in green | Nikon Rail: the loop, the radials, the shinkansen |
+| **Tokonto Bus** トコントバス | a blue roundel on a white flag | the municipal operator |
+| **Konto Police** コント県警 | a five-petal roundel on the bonnet | |
+
+A badge moves with a per-instance texture offset rather than a second mesh, so one hatchback
+geometry wears four different marques and one bus flank carries eight different advertisements.
+
+### The advertising
+
+Eight panels at 8:1, which is the shape of the side of a bus, the side of a train and the sign
+over a Tokyo street. They go on bus flanks, train flanks, roadside hoardings, the bands wrapped
+round the buildings at the scramble crossing, station concourses and bus shelters. The joke in
+each is Japan laughing at itself, which is the only kind of advertisement worth putting on a bus:
+
+| | |
+|---|---|
+| **Kombini 24** コンビニ二四 | Open 26 hours. Egg sandwich, umbrella, regret. |
+| **Ganbare Energy** 強炭酸 | Your third wind, in a can. Apology included. |
+| **NHRail apologises** ご迷惑をかけます | for the 19-second delay. Written notes at the barrier. |
+| **Mochi Mochi Soft** 期間限定 | Seasonal flavour no. 148: sakura. Ends Thursday. |
+| **Meishi Master** 名刺道 | Card etiquette, now with a bowing-angle sensor. |
+| **Capsule Living** カプセル暮らし | 1.2 m² of pure Tōkonto. Wi-Fi in the ceiling. |
+| **Karaoke Eien** カラオケ永遠 | Nine hours. One song. Nobody is judging you. |
+| **Queue with Pride** 整列ご協力 | Please form an orderly line for our orderly lines. |
 
 ## The city
 
@@ -86,6 +137,10 @@ names, and each one is shaped by what the real maker is known for rather than co
 | Mizuho | a Nagano-basin village: one shopping street, a shrine, a station |
 | Facade tile | 45 mm ceramic, which is most of what Japan built in the 1980s |
 | Roofs | kawara tile, standing-seam metal, felt with puddles |
+| Scramble crossing | Shibuya: five arms crossing on one change of the lights, screens up every wall around it, a 交番 police box on one corner and a bronze dog on the other. Found rather than placed — wherever the inner ring road crosses a radial nearest a nightlife ward |
+| NHRail stations | side platforms 8 m wide and 1.1 m above the railhead, a canopy 3.5 m over them, name boards hung from it, a tactile strip 0.55 m in from the edge |
+| Bus stops | a flag, a timetable and one shelter in three, every 300 m, alternating carriageways |
+| Shrines | a torii, a gravel approach, a hall on a stone base under a kawara roof, a 手水舎 basin, a guardian pair and stone lanterns |
 | Overhead wiring | Japan's distribution network is overhead, and the catenaries over a street are the fastest thing that says which country this is |
 | Forest cover | 66% of the land, against Japan's real 67% |
 | Tree line | 1400 m, because Honshu at Konto's altitudes is forested to the summit |

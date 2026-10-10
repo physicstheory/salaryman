@@ -1241,7 +1241,7 @@ function planCity(world, F, seed, report, progressBase) {
   const arc = world.arc;
   const citySeed = seed + 611 + site.code.charCodeAt(0) * 37;
   const meanR = Math.sqrt(site.alongRadius * site.inlandRadius);
-  const L = { name: site.name, code: site.code, wards: [], blocks: [], plots: [], roads: [], rails: [], stations: [], fills: [], sites: [], moat: null, bounds: null };
+  const L = { name: site.name, code: site.code, wards: [], blocks: [], plots: [], roads: [], rails: [], stations: [], fills: [], sites: [], moat: null, scramble: null, bounds: null };
 
   const h01 = (a, b) => rnd(a, b, citySeed + 7717);
   let core = site.coreOffset.slice();
@@ -1350,6 +1350,7 @@ function planCity(world, F, seed, report, progressBase) {
   }
 
   let portWards = 0, fillWards = 0, waterWards = 0;
+  const poolAt = {};
   function chooseKind(local, ring, index) {
     const w = F.toWorld(local[0], local[1]);
     if (isWater(w[0], w[1]) || world.sampleLand(w[0], w[1]) < 0.55) {
@@ -1363,7 +1364,14 @@ function planCity(world, F, seed, report, progressBase) {
       if (waterWards < 2) { waterWards++; return "Water"; }
     }
     const pool = isVillage ? VILLAGE_RING : (ring <= 1 ? RING1 : ring === 2 ? RING2 : RING3);
-    return pool[Math.abs((citySeed / 7 | 0) + index * 3) % pool.length];
+    // Walk the pool rather than hashing into it. Hashing on the ward's index
+    // within its ring looked random and was not: a ring with one ward took the
+    // same entry every time, so Mizuho came out as three identical parks, and
+    // a ring with five wards could miss a whole district type - which is how a
+    // Japanese capital ended up with no shrine ward in it at all.
+    const key = pool === RING1 ? "r1" : pool === RING2 ? "r2" : pool === RING3 ? "r3" : "v";
+    const at = (poolAt[key] = (poolAt[key] || 0) + 1) - 1;
+    return pool[(Math.abs(citySeed / 7 | 0) + ring * 2 + at) % pool.length];
   }
 
   const remaining = Math.max(0, site.wardCount - seeds.length);
@@ -1394,6 +1402,17 @@ function planCity(world, F, seed, report, progressBase) {
       if (!kind) continue;
       addSeed(local, kind);
     }
+  }
+
+  // Every Japanese town of any size has one shrine precinct big enough to hold
+  // a festival, and it is sited deliberately - on rising ground at the edge of
+  // the built-up area - rather than left to the ring lottery.
+  if (!seeds.some(sd => sd.kind === "Shrine")) {
+    const bearing = h01(29, 7) * 6.2831853;
+    const rf = isVillage ? 0.72 : 0.78;
+    const wanted = [core[0] + Math.cos(bearing) * site.alongRadius * rf,
+                    core[1] + Math.sin(bearing) * site.inlandRadius * rf];
+    tryAddSeed(wanted, "Shrine", Math.max(site.alongRadius, site.inlandRadius) * 0.5);
   }
 
   // Made ground: every Japanese port city stands partly on it.
@@ -1561,6 +1580,59 @@ function planCity(world, F, seed, report, progressBase) {
     L.roads.push(road); claimPath(pts, road.halfWidth + 1.5, true);
   }
 
+  // ---- the scramble crossing -------------------------------------------
+  // The junction people go to look at. It is not placed by hand: it is found,
+  // by crossing the inner ring road with the radials and taking whichever
+  // intersection lands nearest a nightlife or retail ward. So it is always
+  // somewhere the city is already busy, which is how Shibuya happened too.
+  if (site.capital) {
+    function crossAt(a1, a2, b1, b2) {
+      const rx = a2[0] - a1[0], rz = a2[2] - a1[2];
+      const sx = b2[0] - b1[0], sz = b2[2] - b1[2];
+      const den = rx * sz - rz * sx;
+      if (Math.abs(den) < 1e-6) return null;
+      const t = ((b1[0] - a1[0]) * sz - (b1[2] - a1[2]) * sx) / den;
+      const u = ((b1[0] - a1[0]) * rz - (b1[2] - a1[2]) * rx) / den;
+      if (t < -0.001 || t > 1.001 || u < -0.001 || u > 1.001) return null;
+      return [a1[0] + rx * t, a1[2] + rz * t, Math.atan2(rx, rz)];
+    }
+    const ring = L.roads.filter(r => r.cls === "arterial" && r.loop)[0];
+    const radials = L.roads.filter(r => r.cls === "arterial" && !r.loop);
+    const busy = L.wards.filter(wd => wd.kind === "Night" || wd.kind === "Retail");
+    let best = null, bestScore = Infinity;
+    if (ring) {
+      for (let i = 1; i <= ring.pts.length; i++) {
+        const a1 = ring.pts[i - 1], a2 = ring.pts[i % ring.pts.length];
+        for (let k = 0; k < radials.length; k++) {
+          const rd = radials[k];
+          for (let j = 1; j < rd.pts.length; j++) {
+            const hit = crossAt(a1, a2, rd.pts[j - 1], rd.pts[j]);
+            if (!hit || footprint(hit[0], hit[1]) < 0.55) continue;
+            let score = Infinity;
+            busy.forEach(wd => {
+              score = Math.min(score, Math.hypot(hit[0] - wd.centre[0], hit[1] - wd.centre[1]));
+            });
+            if (!busy.length) score = Math.hypot(hit[0] - coreW[0], hit[1] - coreW[1]);
+            if (score < bestScore) { bestScore = score; best = hit; }
+          }
+        }
+      }
+    }
+    if (best) {
+      const wi = nearestWard(best[0], best[1]);
+      const where = wi >= 0 ? L.wards[wi].name : site.name;
+      L.scramble = {
+        at: [best[0], best[1]], yaw: best[2] * 180 / Math.PI, radius: 24,
+        groundY: world.sampleHeight(best[0], best[1]), ward: where
+      };
+      L.sites.push({
+        name: where + " Scramble", plot: null,
+        note: "Five arms of crossing on one change of the lights, screens up every wall around it, a police box on one corner and a bronze dog on the other.",
+        at: [best[0], L.scramble.groundY, best[1]]
+      });
+    }
+  }
+
   // ---- rail ------------------------------------------------------------
   let terminusLocal = [core[0] + site.coreRadius * 0.72, core[1] - site.coreRadius * 0.10];
   if (footprint.apply(null, F.toWorld(terminusLocal[0], terminusLocal[1])) < 0.5) {
@@ -1620,7 +1692,7 @@ function planCity(world, F, seed, report, progressBase) {
       const w = F.toWorld(core[0] + Math.cos(a) * r * 1.15, core[1] + Math.sin(a) * r);
       pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 9.5, w[1]]);
     }
-    const line = { name: "Kanjo Loop Line", cls: "loop", halfWidth: 9, loop: true, elevated: true, pts: pts };
+    const line = { name: "NHRail Kanjo Loop Line", cls: "loop", halfWidth: 9, loop: true, elevated: true, pts: pts };
     L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, true);
     stationsAlong(line, 620);
   }
@@ -1641,7 +1713,7 @@ function planCity(world, F, seed, report, progressBase) {
       if (Math.hypot(u - core[0], v - core[1]) > meanR * 1.9) break;
     }
     if (pts.length < 4) continue;
-    const line = { name: "Radial line " + (i + 1), cls: "radial", halfWidth: 7.5, loop: false, pts: pts };
+    const line = { name: "NHRail Line " + (i + 1), cls: "radial", halfWidth: 7.5, loop: false, pts: pts };
     L.rails.push(line); claimPath(pts, line.halfWidth + 9, false);
     stationsAlong(line, 800);
   }
@@ -1654,7 +1726,7 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 12, w[1]]);
     }
     if (pts.length > 3) {
-      const line = { name: "Konto Shinkansen", cls: "shinkansen", halfWidth: 11, loop: false, elevated: true, pts: pts };
+      const line = { name: "NHRail Shinkansen", cls: "shinkansen", halfWidth: 11, loop: false, elevated: true, pts: pts };
       L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, false);
     }
   }
@@ -1844,6 +1916,14 @@ function planCity(world, F, seed, report, progressBase) {
   }
 
   function kindFor(district, prof, coreness, area, r) {
+    // A shrine ward is one wooded precinct and the houses that grew up around
+    // it, so it is decided before the open-ground roll. Left to the roll it
+    // never built a shrine at all: the ward is 78% open by profile, and every
+    // plot that survived that fell through to houses.
+    if (district === "Shrine") {
+      if (r < 0.40) return "park";
+      return (r > 0.80 && area > 900) ? "shrine" : "houses";
+    }
     if (r < prof.open) return r < prof.open * 0.55 ? "park" : "parking";
     switch (district) {
       case "Core": return area > 2600 ? "tower" : "office";
@@ -1999,6 +2079,17 @@ function planCity(world, F, seed, report, progressBase) {
 
   // ---- named sites -----------------------------------------------------
   const coreWard = L.wards.findIndex(w => w.kind === "Core");
+  // A shrine ward with no shrine in it is a planning accident rather than a
+  // place, which is what happens in a village whose ward holds one plot.
+  // Whichever plot is biggest becomes the precinct.
+  L.wards.forEach((wd, wi) => {
+    if (wd.kind !== "Shrine") return;
+    const mine = L.plots.filter(p => p.ward === wi);
+    if (!mine.length || mine.some(p => p.kind === "shrine")) return;
+    mine.sort((a, c) => c.size[0] * c.size[1] - a.size[0] * a.size[1]);
+    mine[0].kind = "shrine";
+  });
+
   if (coreWard >= 0) {
     const best = L.plots.filter(p => p.ward === coreWard && (p.kind === "tower" || p.kind === "office"))
       .sort((a, b) => (b.size[0] * b.size[1]) - (a.size[0] * a.size[1]));
@@ -2039,7 +2130,7 @@ function planCity(world, F, seed, report, progressBase) {
   if (terminus) {
     L.sites.push({
       name: terminus.name,
-      note: hasNetwork ? "Main terminus: concourse, fourteen platforms, a department store over the top." : "Local station: one platform, a level crossing, a vending machine.",
+      note: hasNetwork ? "NHRail main terminus: concourse, fourteen platforms, a department store over the top." : "Local station: one platform, a level crossing, a vending machine.",
       at: [terminus.centre[0], terminus.groundY, terminus.centre[1]], plot: null
     });
   }
@@ -2168,7 +2259,7 @@ function paintCity(world, city, size) {
   const Z = pz => (pz - z0) * S;
 
   const C = {
-    ground: "#615d55", fill: "#726e64", lot: "#67635b", asphalt: "#26272b", footway: "#7b776f",
+    ground: "#615d55", fill: "#726e64", lot: "#67635b", asphalt: "#3b3d41", footway: "#857f76",
     park: "#36452a", water: "#16323c", ballast: "#4a483f", plaza: "#837f76"
   };
 
@@ -2303,6 +2394,41 @@ function paintCity(world, city, size) {
     strokePath(road, C.footway, road.halfWidth * 2 + 9);
     strokePath(road, C.asphalt, road.halfWidth * 2);
   });
+
+  // The scramble crossing: four crossings and two diagonals, and the wide
+  // corner footways that give three thousand people somewhere to wait.
+  if (city.scramble) {
+    const sc = city.scramble;
+    const r = sc.radius;
+    g.save();
+    g.translate(X(sc.at[0]), Z(sc.at[1]));
+    g.rotate(-sc.yaw * Math.PI / 180);
+    g.fillStyle = C.footway;
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => {
+      g.fillRect(c[0] * r * 1.02 * S, c[1] * r * 1.02 * S, c[0] * r * 1.5 * S, c[1] * r * 1.5 * S);
+    });
+    g.fillStyle = C.asphalt;
+    g.fillRect(-r * 1.04 * S, -r * 1.04 * S, r * 2.08 * S, r * 2.08 * S);
+    // A crossing is a ladder of bars, and the bars are what you recognise.
+    function stripes(cx, cz, ang, span, depth) {
+      g.save();
+      g.translate(cx * S, cz * S);
+      g.rotate(ang);
+      g.fillStyle = "#e7e7e0";
+      const pitch = 1.3;
+      for (let t = -span * 0.5; t <= span * 0.5; t += pitch) {
+        g.fillRect(t * S, -depth * 0.5 * S, pitch * 0.58 * S, depth * S);
+      }
+      g.restore();
+    }
+    stripes(0, r * 0.86, 0, r * 1.7, 4.6);
+    stripes(0, -r * 0.86, 0, r * 1.7, 4.6);
+    stripes(r * 0.86, 0, Math.PI / 2, r * 1.7, 4.6);
+    stripes(-r * 0.86, 0, Math.PI / 2, r * 1.7, 4.6);
+    stripes(0, 0, Math.PI / 4, r * 2.5, 4.4);
+    stripes(0, 0, -Math.PI / 4, r * 2.5, 4.4);
+    g.restore();
+  }
 
   // The moat.
   if (city.moat) {
@@ -2572,32 +2698,45 @@ function facadeMaterials(style) {
 
 // ============================================================================
 // SOTI TOWER
-// Modelled on the Ping An International Finance Centre in Shenzhen: a square
-// plan with deeply chamfered corners, a shaft that tapers the whole way up,
-// and eight stainless mega-columns that run the full height and close over the
-// roof into the claw, with the mast above that.
+// 248 m, which is Midtown Tower in Akasaka, because that is what the tallest
+// building in a Tokyo district actually measures. It used to be the Ping An
+// Finance Centre from Shenzhen - 592 m, eight mega-columns closing over the
+// roof into a claw - and next to 150 m neighbours that read as science fiction
+// rather than as a city.
+//
+// Three things make the silhouette read as Tokyo instead of as anywhere:
+//
+//   the steps      towers here set back as they rise because of the sky
+//                  exposure rules, which limit how much of the sky a building
+//                  may take from the street
+//   the plant      louvred mechanical floors under each setback, visible from
+//                  the pavement as solid bands in a glass wall
+//   the podium     five storeys of stone meeting the footway under a deep
+//                  canopy, rather than glass running into the ground
 // ============================================================================
 const SOTI = {
-  height: 592,        // metres to the tip of the mast
-  shaft: 520,         // the office shaft
-  crown: 578,         // where the claw closes
-  base: 32.5,         // half width at the podium roof
-  taperTop: 0.70,
-  floors: 116,
-  podium: 26          // metres
+  height: 248,          // metres, architectural
+  mastTop: 262,
+  floors: 54,
+  floorH: 4.1,
+  base: 24,             // half width: a 48 m floorplate
+  chamfer: 0.12,        // of the half width, cut off each corner
+  podium: 23,           // five storeys
+  podiumSpread: 1.30,
+  stepAt: [0.42, 0.74], // up the shaft
+  stepKeep: [0.88, 0.80]
 };
+SOTI.podiumHalf = SOTI.base * SOTI.podiumSpread;
 
 function sotiProfile(y) {
-  // half width, corner chamfer, and how far the fins stand off the glass
-  if (y <= SOTI.shaft) {
-    const t = clamp01(y / SOTI.shaft);
-    const a = SOTI.base * lerp(1, SOTI.taperTop, Math.pow(t, 0.94));
-    return { a: a, c: a * lerp(0.30, 0.45, t), fin: lerp(3.2, 2.2, t), thick: lerp(2.1, 1.5, t) };
-  }
-  const u = clamp01((y - SOTI.shaft) / (SOTI.crown - SOTI.shaft));
-  const a0 = SOTI.base * SOTI.taperTop;
-  const a = a0 * lerp(1, 0.10, Math.pow(u, 2.2));
-  return { a: a, c: a * 0.46, fin: lerp(2.2, 0.6, Math.pow(u, 1.8)), thick: lerp(1.5, 0.5, Math.pow(u, 1.8)) };
+  const z0 = SOTI.podium;
+  const t = clamp01((y - z0) / (SOTI.height - z0));
+  let a = SOTI.base;
+  for (let i = 0; i < SOTI.stepAt.length; i++) if (t >= SOTI.stepAt[i]) a = SOTI.base * SOTI.stepKeep[i];
+  // A slight loss of width the whole way up as well as at the steps, which is
+  // what keeps a stepped tower from looking like stacked boxes.
+  a *= lerp(1, 0.985, t);
+  return { a: a, c: a * SOTI.chamfer };
 }
 
 // A square with the corners cut off, walked anticlockwise in plan.
@@ -2610,38 +2749,53 @@ function sotiSection(a, c) {
 
 function buildSotiTower(plot) {
   const group = new THREE.Group();
-  const LV = 76;
-  const top = SOTI.crown;
+  const FLOOR = SOTI.floorH, BAY = 3.2;
+  const z0 = SOTI.podium;
+  const levels = Math.max(8, Math.round((SOTI.height - z0) / FLOOR));
+
+  // One ring per floor. Where the profile steps, two rings are emitted at the
+  // same height - the floor below closed off at its own width, then the floor
+  // above started narrower - so the setback is a crisp soffit and not a taper.
   const rings = [];
-  for (let i = 0; i <= LV; i++) {
-    const y = top * i / LV;
+  const steps = [];
+  for (let i = 0; i <= levels; i++) {
+    const y = z0 + (SOTI.height - z0) * i / levels;
     const pr = sotiProfile(y);
-    rings.push({ y: y, pts: sotiSection(pr.a, pr.c), fin: pr.fin, thick: pr.thick });
+    if (rings.length) {
+      const prev = rings[rings.length - 1];
+      if (prev.a - pr.a > 0.4) {
+        rings.push({ y: y, a: prev.a, c: prev.c });
+        steps.push({ y: y, a: prev.a });
+      }
+    }
+    rings.push({ y: y, a: pr.a, c: pr.c });
   }
 
-  // ---- curtain wall: a lofted shell, UV'd so one texture tile is one bay
+  // ---- curtain wall: a lofted shell, UV'd so one texture tile is one bay.
+  // The geometry is left non-indexed, so computeVertexNormals gives a flat
+  // normal per face and the soffits read as soffits.
   const pos = [], uv = [];
-  const BAY = 3.6, FLOOR = 4.05;
-  for (let i = 0; i < LV; i++) {
+  for (let i = 0; i < rings.length - 1; i++) {
     const lo = rings[i], hi = rings[i + 1];
+    const L = sotiSection(lo.a, lo.c), Hs = sotiSection(hi.a, hi.c);
     let run = 0;
     for (let e = 0; e < 8; e++) {
-      const a0 = lo.pts[e], a1 = lo.pts[(e + 1) % 8];
-      const b0 = hi.pts[e], b1 = hi.pts[(e + 1) % 8];
-      const len = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]);
+      const p0 = L[e], p1 = L[(e + 1) % 8], q0 = Hs[e], q1 = Hs[(e + 1) % 8];
+      const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
       const u0 = run / BAY, u1 = (run + len) / BAY;
       run += len;
       const v0 = lo.y / FLOOR, v1 = hi.y / FLOOR;
-      const P = [[a0[0], lo.y, a0[1]], [a1[0], lo.y, a1[1]], [b1[0], hi.y, b1[1]], [b0[0], hi.y, b0[1]]];
+      const P = [[p0[0], lo.y, p0[1]], [p1[0], lo.y, p1[1]], [q1[0], hi.y, q1[1]], [q0[0], hi.y, q0[1]]];
       const T = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       [0, 2, 1, 0, 3, 2].forEach(k => { pos.push(P[k][0], P[k][1], P[k][2]); uv.push(T[k][0], T[k][1]); });
     }
   }
-  // cap the crown
-  const cap = rings[LV];
+  // the roof
+  const cap = rings[rings.length - 1], capSec = sotiSection(cap.a, cap.c);
   for (let e = 1; e < 7; e++) {
-    const q = [cap.pts[0], cap.pts[e], cap.pts[e + 1]];
-    q.forEach(v => { pos.push(v[0], cap.y, v[1]); uv.push(v[0] * 0.2, v[1] * 0.2); });
+    [capSec[0], capSec[e], capSec[e + 1]].forEach(v => {
+      pos.push(v[0], cap.y, v[1]); uv.push(v[0] * 0.2, v[1] * 0.2);
+    });
   }
   const shell = new THREE.BufferGeometry();
   shell.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -2652,54 +2806,91 @@ function buildSotiTower(plot) {
   shellMesh.castShadow = shellMesh.receiveShadow = true;
   group.add(shellMesh);
 
-  // ---- the eight mega-columns, as tapering blades on the chamfer corners
+  const steel = new THREE.MeshPhongMaterial({
+    color: 0xb0b8bf, specular: 0x8a949c, shininess: 70, side: THREE.DoubleSide
+  });
+
+  // ---- the four corner pilasters. Not mega-columns: a 0.9 m blade standing
+  // 0.4 m off the chamfer, which is the vertical line a Tokyo curtain wall has
+  // and the whole of what this tower borrows from its predecessor.
   const fpos = [];
-  function finQuad(A, B, C, Dv) {
-    [A, C, B, A, Dv, C].forEach(v => fpos.push(v[0], v[1], v[2]));
+  function blade(lo, hi, ex, ez) {
+    const w = 0.45, out = 0.40;
+    for (const s of [1, -1]) {
+      const n = Math.hypot(ex, ez) || 1, nx = ex / n, nz = ez / n;
+      const tx = -nz * w * s, tz = nx * w * s;
+      const A = [lo.x + tx, lo.y, lo.z + tz], B = [hi.x + tx, hi.y, hi.z + tz];
+      const C = [hi.x + tx + nx * out, hi.y, hi.z + tz + nz * out];
+      const Dv = [lo.x + tx + nx * out, lo.y, lo.z + tz + nz * out];
+      [A, C, B, A, Dv, C].forEach(v => fpos.push(v[0], v[1], v[2]));
+    }
   }
-  for (let e = 0; e < 8; e++) {
-    for (let i = 0; i < LV; i++) {
-      const lo = rings[i], hi = rings[i + 1];
-      const sec = [lo, hi].map(r => {
-        const v = r.pts[e];
-        const n = Math.hypot(v[0], v[1]) || 1;
-        const nx = v[0] / n, nz = v[1] / n;
-        const tx = -nz * r.thick, tz = nx * r.thick;
-        return {
-          L: [v[0] + tx, r.y, v[1] + tz],
-          R: [v[0] - tx, r.y, v[1] - tz],
-          T: [v[0] + nx * r.fin, r.y, v[1] + nz * r.fin]
-        };
-      });
-      finQuad(sec[0].L, sec[0].T, sec[1].T, sec[1].L);
-      finQuad(sec[0].T, sec[0].R, sec[1].R, sec[1].T);
-      finQuad(sec[0].R, sec[0].L, sec[1].L, sec[1].R);
+  for (let i = 0; i < rings.length - 1; i++) {
+    const lo = rings[i], hi = rings[i + 1];
+    if (Math.abs(hi.y - lo.y) < 0.01) continue;
+    const L = sotiSection(lo.a, lo.c), Hs = sotiSection(hi.a, hi.c);
+    for (const e of [0, 2, 4, 6]) {
+      const m0 = [(L[e][0] + L[(e + 1) % 8][0]) * 0.5, (L[e][1] + L[(e + 1) % 8][1]) * 0.5];
+      const m1 = [(Hs[e][0] + Hs[(e + 1) % 8][0]) * 0.5, (Hs[e][1] + Hs[(e + 1) % 8][1]) * 0.5];
+      blade({ x: m0[0], y: lo.y, z: m0[1] }, { x: m1[0], y: hi.y, z: m1[1] }, m0[0], m0[1]);
     }
   }
   const finGeo = new THREE.BufferGeometry();
   finGeo.setAttribute("position", new THREE.Float32BufferAttribute(fpos, 3));
   finGeo.computeVertexNormals();
-  const steel = new THREE.MeshPhongMaterial({ color: 0xb4bec6, specular: 0x8f9aa3, shininess: 86, side: THREE.DoubleSide });
   const fins = new THREE.Mesh(finGeo, steel);
   fins.castShadow = true;
   group.add(fins);
 
-  // ---- the mast
-  const mastH = SOTI.height - SOTI.crown;
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 1.5, mastH, 8, 1), steel);
-  mast.position.y = SOTI.crown + mastH * 0.5;
+  // ---- the mechanical floors: a louvred band under each setback and at the
+  // top of the shaft, proud of the glass, which is what you see from below.
+  const plantMat = new THREE.MeshLambertMaterial({ map: roofTexture("plant") });
+  function plantBand(y, a, h) {
+    const band = new THREE.Mesh(new THREE.BoxGeometry(a * 2 + 0.5, h, a * 2 + 0.5), plantMat);
+    band.position.y = y - h * 0.5;
+    band.castShadow = band.receiveShadow = true;
+    group.add(band);
+  }
+  steps.forEach(st => plantBand(st.y, st.a, FLOOR * 1.4));
+  plantBand(SOTI.height, cap.a, FLOOR * 1.6);
+
+  // ---- the parapet and the mast. 262 m to the tip, 14 m of it aerial.
+  const parapet = new THREE.Mesh(
+    new THREE.BoxGeometry(cap.a * 2 + 0.8, 1.4, cap.a * 2 + 0.8), steel);
+  parapet.position.y = SOTI.height + 0.7;
+  parapet.castShadow = true;
+  group.add(parapet);
+  const mastH = SOTI.mastTop - SOTI.height;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.70, mastH, 8, 1), steel);
+  mast.position.y = SOTI.height + mastH * 0.5;
   mast.castShadow = true;
   group.add(mast);
 
-  // ---- the podium the plaza runs into
-  const pw = SOTI.base * 2.36;
-  const podTex = facadeTexture("glass");
-  podTex.repeat.set(Math.round(pw / BAY), Math.round(SOTI.podium / FLOOR));
+  // ---- the podium: five storeys of stone across 62 m, with a canopy
+  // projecting 1.4 m over the footway. This is the part of a tower anybody
+  // standing on the pavement actually meets.
+  const pw = SOTI.podiumHalf * 2;
+  const podTex = facadeTexture("civic");
+  podTex.repeat.set(Math.round(pw / 7), Math.round(SOTI.podium / 4.6));
   const pod = new THREE.Mesh(new THREE.BoxGeometry(pw, SOTI.podium, pw),
     new THREE.MeshLambertMaterial({ map: podTex }));
   pod.position.y = SOTI.podium * 0.5;
   pod.castShadow = pod.receiveShadow = true;
   group.add(pod);
+  const canopy = new THREE.Mesh(
+    new THREE.BoxGeometry(pw + 2.8, 0.55, pw + 2.8),
+    new THREE.MeshLambertMaterial({ color: 0x9aa0a4 }));
+  canopy.position.y = 7.0;
+  canopy.castShadow = true;
+  group.add(canopy);
+  // A glazed ground floor under the canopy, set back, so the stone reads as a
+  // wall standing on glass rather than on the pavement.
+  const lobby = new THREE.Mesh(
+    new THREE.BoxGeometry(pw - 3.0, 6.6, pw - 3.0),
+    new THREE.MeshLambertMaterial({ map: facadeTexture("glass") }));
+  lobby.position.y = 3.3;
+  lobby.receiveShadow = true;
+  group.add(lobby);
 
   group.position.set(plot.centre[0], plot.groundY, plot.centre[1]);
   group.rotation.y = plot.yaw * Math.PI / 180;
@@ -3493,7 +3684,7 @@ function buildScene(w) {
     // Soti Tower, the one building in the city that is modelled and not massed.
     if (sotiPlot) {
       root.add(buildSotiTower(sotiPlot));
-      const w = SOTI.base * 2.36;
+      const w = SOTI.podiumHalf * 2;
       solids.push({ c: sotiPlot.centre, size: [w, w], yaw: sotiPlot.yaw, y: sotiPlot.groundY, h: SOTI.height });
     }
 
@@ -3528,6 +3719,14 @@ function buildScene(w) {
       root.add(trunks); root.add(crowns);
     }
 
+    // Street furniture: NHRail's platforms, the bus stops, the shrines, the
+    // advertising and the scramble crossing. It goes last because it needs the
+    // massing that was actually built - a sign floating over a roof is worse
+    // than no sign - and it needs the footprints to keep off them, so the
+    // collision grid is built here and rebuilt below with the furniture in it.
+    buildSolidGrid();
+    buildStreetFurniture(w, city, root, boxes);
+
     // Moat water.
     if (city.moat) {
       const m = city.moat;
@@ -3548,8 +3747,9 @@ function buildScene(w) {
   player.proc = makeSeiko();
   player.obj = player.glb ? player.glb : player.proc;
   player.usingGlb = !!player.glb;
-  // ---- traffic
+  // ---- traffic and NHRail
   buildTraffic(w, root);
+  buildRail(w, root);
 
   player.placed = false;
   player.obj.visible = false;
@@ -3835,6 +4035,7 @@ function tick(dt) {
   if (player.mode === "walk" && player.obj) {
     updateWalk(dt);
     updateTraffic(dt, player.pos);
+    updateRail(dt, player.pos);
     renderer.render(scene, camera);
     return;
   }
@@ -3873,34 +4074,837 @@ function tick(dt) {
   const ground = world.sampleHeight(clamp(camPos.x, 0, WORLD_X), clamp(camPos.z, 0, WORLD_Z));
   camPos.y = Math.max(camPos.y, ground + 2.2);
   updateTraffic(dt, camPos);
+  updateRail(dt, camPos);
   camera.position.copy(camPos);
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(camPos.clone().add(dir));
   renderer.render(scene, camera);
 }
 
-// ---------------------------------------------------------------- traffic
-// Cars on the arterials, driving on the left because Konto is Japan.
+// ---------------------------------------------------------------- brands
+// Nothing in Konto is a real company. The marques are invented, the liveries
+// are invented, and the advertisements are jokes about Japan rather than
+// copies of Japanese ones. The badges are made of the geometry car badges are
+// made of - ovals, chevrons, pinwheels, mountain glyphs - so they read as
+// badges at a glance and as nobody's trademark on inspection.
 //
-// The same bargain the city makes everywhere else: nothing exists except near the camera.
-// A car is a distance along a lane, so the driving model is a gap, a speed limit and an
-// acceleration cap, and everything else is sampling the lane. They are drawn as two
-// instanced meshes per body - paint, which is tinted per car, and trim, which is glass,
-// tyres and lamps and is not - so a hundred cars in a hundred colours is ten draw calls.
-//
-// Dimensions are the real ones, in metres. A car that is the wrong size is wrong in a way
-// you notice before you notice anything else.
-const CAR_KINDS = [
-  // name      L     W      H     share  top m/s   the real thing
-  ["kei",     3.40, 1.48, 1.70, 0.28, 12.5],   // the kei class limits
-  ["compact", 4.10, 1.70, 1.52, 0.26, 14.0],   // Honda Fit
-  ["sedan",   4.58, 1.76, 1.49, 0.20, 15.5],   // Toyota Prius
-  ["van",     4.70, 1.73, 1.86, 0.14, 13.5],   // a one-box minivan
-  ["taxi",    4.40, 1.70, 1.75, 0.12, 14.0]    // JPN Taxi, upright
+// Two atlases, because the two jobs have different shapes. Square things -
+// badges, number plates, roof signs, roundels - sit in an 8x8 grid of 128 px
+// cells. Advertisements are long bands, because that is the shape of the side
+// of a bus and of a sign over a Tokyo street, so they get eight panels at 8:1.
+
+const JP = '"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
+const UI = '"Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+
+// The eight makers, and who each one is a joke about. The badge is described
+// here in the same words it is drawn in below.
+const MARQUES = [
+  ["kosei",   "コウセイ", "Kosei",   "#1d4f8c"],   // two crossed ovals
+  ["ryusei",  "リュウセイ", "Ryusei",  "#8c1d28"],   // a shooting star in a circle
+  ["kaneda",  "カデダ", "Kaneda",  "#2a2d33"],   // an angular K
+  ["mitsuwa", "ミツワ", "Mitsuwa", "#8c1d28"],   // three triangles, pinwheeled
+  ["suzume",  "スズメ", "Suzume",  "#1b5e7a"],   // a swept chevron
+  ["nanatsu", "ナナツ", "Nanatsu", "#1f3f73"],   // seven stars in an oval
+  ["daichi",  "ダイチ", "Daichi",  "#2f5d38"],   // a mountain glyph
+  ["ganseki", "ガンセキ", "Ganseki", "#6b3a16"]    // a hexagon with a bar
 ];
 
-// Japanese traffic is overwhelmingly white, silver and black. A colour is rare enough to
-// be worth noticing, which is why one in twenty is allowed to be red.
+// Cell addresses in the badge atlas: [column, row].
+const BADGE = {
+  kosei: [0, 0], ryusei: [1, 0], kaneda: [2, 0], mitsuwa: [3, 0],
+  suzume: [4, 0], nanatsu: [5, 0], daichi: [6, 0], ganseki: [7, 0],
+  plate: [0, 1], plateGreen: [1, 1], plateKei: [2, 1], taxiLamp: [3, 1],
+  taxiVacant: [4, 1], taxiDoor: [5, 1], rydeRoof: [6, 1], rydeDoor: [7, 1],
+  policeDoor: [0, 2], policeBonnet: [1, 2], nhrail: [2, 2], nhrailMark: [3, 2],
+  busFlag: [4, 2], busBlind: [5, 2], busBrand: [6, 2], busTimes: [7, 2],
+  hayabin: [0, 3], hayabinBox: [1, 3], truckDoor: [2, 3], shrineSign: [3, 3],
+  dogPlaque: [4, 3], crossingSign: [5, 3], screenOff: [6, 3], vending: [7, 3]
+};
+
+const ATLAS_CELLS = 8;
+const ATLAS_CELL_PX = 128;
+
+let badgeTex = null;
+
+// The uv rectangle of a named cell. Canvas rows run down, uv rows run up.
+function badgeUV(name) {
+  const c = BADGE[name] || BADGE.kosei;
+  const s = 1 / ATLAS_CELLS;
+  return { u0: c[0] * s, v0: 1 - (c[1] + 1) * s, u1: (c[0] + 1) * s, v1: 1 - c[1] * s };
+}
+
+function badgeAtlas() {
+  if (badgeTex) return badgeTex;
+  const S = ATLAS_CELLS * ATLAS_CELL_PX;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = S;
+  const g = cv.getContext("2d");
+  g.clearRect(0, 0, S, S);
+
+  // Everything below draws in a 0..128 box with the origin at the cell's corner,
+  // which keeps each badge readable as its own little drawing.
+  function cell(name, draw) {
+    const c = BADGE[name];
+    g.save();
+    g.translate(c[0] * ATLAS_CELL_PX, c[1] * ATLAS_CELL_PX);
+    g.beginPath(); g.rect(0, 0, ATLAS_CELL_PX, ATLAS_CELL_PX); g.clip();
+    draw(g, ATLAS_CELL_PX);
+    g.restore();
+  }
+  function fill(col, P) { g.fillStyle = col; g.fillRect(0, 0, P, P); }
+  function text(str, x, y, px, col, font, align) {
+    g.fillStyle = col;
+    g.font = "700 " + px + "px " + (font || UI);
+    g.textAlign = align || "center";
+    g.textBaseline = "middle";
+    g.fillText(str, x, y);
+  }
+  function plate(P, body, ink, top, bottom) {
+    // A Japanese plate is a rounded rectangle with a two-line layout: the office
+    // and class on top, the serial below, at about 2:1.
+    const h = P * 0.5, y = P * 0.25;
+    g.fillStyle = body;
+    g.beginPath();
+    const r = 7, x0 = 4, x1 = P - 4;
+    g.moveTo(x0 + r, y); g.lineTo(x1 - r, y);
+    g.quadraticCurveTo(x1, y, x1, y + r); g.lineTo(x1, y + h - r);
+    g.quadraticCurveTo(x1, y + h, x1 - r, y + h); g.lineTo(x0 + r, y + h);
+    g.quadraticCurveTo(x0, y + h, x0, y + h - r); g.lineTo(x0, y + r);
+    g.quadraticCurveTo(x0, y, x0 + r, y);
+    g.fill();
+    g.strokeStyle = ink; g.lineWidth = 2.5; g.stroke();
+    text(top, P * 0.5, y + h * 0.26, 15, ink, JP);
+    text(bottom, P * 0.5, y + h * 0.70, 26, ink, UI);
+  }
+
+  // ---- the eight marques
+  cell("kosei", (g, P) => {
+    // Two ovals crossed inside a third, which is the shape of a badge that has
+    // to be stamped out of one piece of chrome.
+    g.strokeStyle = "#b9c0c6"; g.lineWidth = 7;
+    g.save(); g.translate(P / 2, P * 0.44);
+    g.beginPath(); g.ellipse(0, 0, P * 0.40, P * 0.26, 0, 0, 6.2832); g.stroke();
+    g.lineWidth = 6;
+    g.beginPath(); g.ellipse(0, 0, P * 0.12, P * 0.20, 0, 0, 6.2832); g.stroke();
+    g.beginPath(); g.ellipse(0, 0, P * 0.26, P * 0.085, 0, 0, 6.2832); g.stroke();
+    g.restore();
+    text("KOSEI", P / 2, P * 0.86, 15, "#b9c0c6");
+  });
+  cell("ryusei", (g, P) => {
+    g.strokeStyle = "#c8ced3"; g.lineWidth = 6;
+    g.beginPath(); g.arc(P / 2, P * 0.44, P * 0.33, 0, 6.2832); g.stroke();
+    // the shooting star: a four-pointed spark with a tail across the circle
+    g.fillStyle = "#c8ced3";
+    g.beginPath();
+    g.moveTo(P * 0.62, P * 0.26); g.lineTo(P * 0.69, P * 0.40);
+    g.lineTo(P * 0.62, P * 0.54); g.lineTo(P * 0.55, P * 0.40);
+    g.closePath(); g.fill();
+    g.lineWidth = 4;
+    g.beginPath(); g.moveTo(P * 0.56, P * 0.46); g.lineTo(P * 0.30, P * 0.60); g.stroke();
+    text("RYUSEI", P / 2, P * 0.87, 14, "#c8ced3");
+  });
+  cell("kaneda", (g, P) => {
+    g.fillStyle = "#d3d7da";
+    g.beginPath();
+    const r = 14, x0 = P * 0.18, x1 = P * 0.82, y0 = P * 0.12, y1 = P * 0.70;
+    g.moveTo(x0 + r, y0); g.lineTo(x1 - r, y0);
+    g.quadraticCurveTo(x1, y0, x1, y0 + r); g.lineTo(x1, y1 - r);
+    g.quadraticCurveTo(x1, y1, x1 - r, y1); g.lineTo(x0 + r, y1);
+    g.quadraticCurveTo(x0, y1, x0, y1 - r); g.lineTo(x0, y0 + r);
+    g.quadraticCurveTo(x0, y0, x0 + r, y0); g.fill();
+    // an angular K cut out of it
+    g.strokeStyle = "#2a2d33"; g.lineWidth = 9; g.lineCap = "butt";
+    g.beginPath();
+    g.moveTo(P * 0.36, P * 0.22); g.lineTo(P * 0.36, P * 0.60);
+    g.moveTo(P * 0.36, P * 0.41); g.lineTo(P * 0.64, P * 0.22);
+    g.moveTo(P * 0.36, P * 0.41); g.lineTo(P * 0.64, P * 0.60);
+    g.stroke();
+    text("KANEDA", P / 2, P * 0.86, 14, "#d3d7da");
+  });
+  cell("mitsuwa", (g, P) => {
+    // three triangles, pinwheeled: the one badge on the sheet that is a diagram
+    g.fillStyle = "#c62828";
+    for (let i = 0; i < 3; i++) {
+      g.save();
+      g.translate(P / 2, P * 0.44);
+      g.rotate(i / 3 * 6.2832);
+      g.beginPath();
+      g.moveTo(0, -P * 0.06); g.lineTo(P * 0.30, -P * 0.21); g.lineTo(P * 0.30, P * 0.09);
+      g.closePath(); g.fill();
+      g.restore();
+    }
+    text("MITSUWA", P / 2, P * 0.87, 13, "#c8ced3");
+  });
+  cell("suzume", (g, P) => {
+    // a swept chevron, which is what a badge looks like when the company makes
+    // small cars and wants them to look quick
+    g.fillStyle = "#cfd4d8";
+    g.beginPath();
+    g.moveTo(P * 0.14, P * 0.56); g.lineTo(P * 0.50, P * 0.16);
+    g.lineTo(P * 0.86, P * 0.56); g.lineTo(P * 0.70, P * 0.56);
+    g.lineTo(P * 0.50, P * 0.34); g.lineTo(P * 0.30, P * 0.56);
+    g.closePath(); g.fill();
+    text("SUZUME", P / 2, P * 0.84, 14, "#cfd4d8");
+  });
+  cell("nanatsu", (g, P) => {
+    g.fillStyle = "#15306b";
+    g.beginPath(); g.ellipse(P / 2, P * 0.42, P * 0.42, P * 0.26, 0, 0, 6.2832); g.fill();
+    g.strokeStyle = "#cfd4d8"; g.lineWidth = 4; g.stroke();
+    // seven stars: one large, six around it
+    function star(x, y, r) {
+      g.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * 6.2832, rr = i % 2 ? r * 0.4 : r;
+        const px = x + Math.cos(a - 1.5708) * rr, py = y + Math.sin(a - 1.5708) * rr;
+        i ? g.lineTo(px, py) : g.moveTo(px, py);
+      }
+      g.closePath(); g.fill();
+    }
+    g.fillStyle = "#e8edf1";
+    star(P * 0.33, P * 0.42, 9);
+    for (let i = 0; i < 6; i++) star(P * 0.58 + (i % 3) * P * 0.12, P * 0.34 + ((i / 3) | 0) * P * 0.16, 5.5);
+    text("NANATSU", P / 2, P * 0.86, 13, "#cfd4d8");
+  });
+  cell("daichi", (g, P) => {
+    // a mountain glyph, flat-bottomed, the way a kei specialist's badge would be
+    g.fillStyle = "#cfd4d8";
+    g.beginPath();
+    g.moveTo(P * 0.12, P * 0.60); g.lineTo(P * 0.38, P * 0.16);
+    g.lineTo(P * 0.56, P * 0.42); g.lineTo(P * 0.68, P * 0.28);
+    g.lineTo(P * 0.88, P * 0.60);
+    g.closePath(); g.fill();
+    g.fillStyle = "#2f5d38";
+    g.fillRect(P * 0.12, P * 0.52, P * 0.76, 5);
+    text("DAICHI", P / 2, P * 0.84, 14, "#cfd4d8");
+  });
+  cell("ganseki", (g, P) => {
+    g.fillStyle = "#d8dadc";
+    g.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * 6.2832 - 1.5708;
+      const px = P / 2 + Math.cos(a) * P * 0.36, py = P * 0.44 + Math.sin(a) * P * 0.36;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.closePath(); g.fill();
+    g.fillStyle = "#6b3a16";
+    g.fillRect(P * 0.22, P * 0.38, P * 0.56, 13);
+    text("GANSEKI", P / 2, P * 0.87, 13, "#d8dadc");
+  });
+
+  // ---- number plates. White for a private car, green for one carrying goods
+  // or people for hire, which is the quickest way to tell a taxi from a saloon.
+  cell("plate", (g, P) => plate(P, "#f2f3f0", "#14213a", "品川 300", "さ 42-19"));
+  cell("plateGreen", (g, P) => plate(P, "#1f6b3a", "#f2f3f0", "品川 500", "あ 71-06"));
+  cell("plateKei", (g, P) => plate(P, "#f3e96a", "#14213a", "品川 580", "き 88-24"));
+
+  // ---- taxi. The 行灯 roof lamp and the 空車 card in the windscreen are the two
+  // things that make a black saloon read as a taxi from across a street.
+  cell("taxiLamp", (g, P) => {
+    fill("#f4f1e6", P);
+    g.fillStyle = "#1b2430";
+    g.fillRect(0, P * 0.74, P, P * 0.26);
+    text("タクシー", P / 2, P * 0.40, 30, "#1b2430", JP);
+    text("TOKONTO", P / 2, P * 0.87, 17, "#f4f1e6");
+  });
+  cell("taxiVacant", (g, P) => {
+    fill("#111318", P);
+    g.fillStyle = "#cc1f2a";
+    g.fillRect(P * 0.08, P * 0.30, P * 0.84, P * 0.40);
+    text("空車", P / 2, P * 0.50, 36, "#fdf6ef", JP);
+  });
+  cell("taxiDoor", (g, P) => {
+    g.fillStyle = "#f0c33c";
+    g.fillRect(P * 0.06, P * 0.34, P * 0.88, P * 0.32);
+    text("トコント交通", P / 2, P * 0.50, 19, "#14181f", JP);
+    text("TOKONTO KOTSU", P / 2, P * 0.78, 13, "#efe7da");
+    text("● 0120-44-4949", P / 2, P * 0.20, 13, "#efe7da", JP);
+  });
+
+  // ---- Ryde, which is the ride-hailing company. A black car with a lit
+  // windscreen badge, because that is how you tell one from a private car.
+  cell("rydeRoof", (g, P) => {
+    fill("#0d0f12", P);
+    g.fillStyle = "#19d08a";
+    g.beginPath();
+    const y = P * 0.30, h = P * 0.40, r = h * 0.5;
+    g.moveTo(P * 0.14 + r, y); g.lineTo(P * 0.86 - r, y);
+    g.arc(P * 0.86 - r, y + r, r, -1.5708, 1.5708);
+    g.lineTo(P * 0.14 + r, y + h);
+    g.arc(P * 0.14 + r, y + r, r, 1.5708, -1.5708);
+    g.fill();
+    text("RYDE", P / 2, P * 0.50, 28, "#07140f");
+    text("ライド", P / 2, P * 0.82, 15, "#8fa0a8", JP);
+  });
+  cell("rydeDoor", (g, P) => {
+    g.fillStyle = "#19d08a";
+    g.beginPath(); g.arc(P * 0.26, P * 0.5, P * 0.16, 0, 6.2832); g.fill();
+    g.fillStyle = "#0d0f12";
+    g.beginPath(); g.arc(P * 0.26, P * 0.5, P * 0.07, 0, 6.2832); g.fill();
+    text("RYDE", P * 0.62, P * 0.44, 24, "#f2f5f3");
+    text("配車中", P * 0.62, P * 0.68, 14, "#19d08a", JP);
+  });
+
+  // ---- the police. Japanese patrol cars are white over black with a red bar,
+  // and the force name sits on the front door in two scripts.
+  cell("policeDoor", (g, P) => {
+    text("コント県警", P / 2, P * 0.36, 22, "#16233a", JP);
+    text("KONTO POLICE", P / 2, P * 0.62, 15, "#16233a");
+    g.strokeStyle = "#16233a"; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(P * 0.18, P * 0.49); g.lineTo(P * 0.82, P * 0.49); g.stroke();
+  });
+  cell("policeBonnet", (g, P) => {
+    g.fillStyle = "#16233a";
+    g.beginPath();
+    // a five-petal sakura roundel, which is the shape a police badge takes here
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * 6.2832 - 1.5708;
+      g.moveTo(P / 2, P / 2);
+      g.arc(P / 2 + Math.cos(a) * P * 0.18, P / 2 + Math.sin(a) * P * 0.18, P * 0.17, 0, 6.2832);
+    }
+    g.fill();
+    g.fillStyle = "#f5f6f3";
+    g.beginPath(); g.arc(P / 2, P / 2, P * 0.11, 0, 6.2832); g.fill();
+  });
+
+  // ---- NHRail. Nikon Rail, which runs the loop line, the radials and the
+  // shinkansen, and which apologises for a nineteen-second delay.
+  cell("nhrail", (g, P) => {
+    fill("#f4f5f2", P);
+    g.fillStyle = "#1f8a4c";
+    g.fillRect(0, 0, P, P * 0.10);
+    g.fillRect(0, P * 0.90, P, P * 0.10);
+    text("NH", P / 2, P * 0.40, 46, "#1f8a4c");
+    text("Rail", P / 2, P * 0.68, 22, "#2a2d33");
+  });
+  cell("nhrailMark", (g, P) => {
+    fill("#1f8a4c", P);
+    // NH worked into one mark: two uprights with a swept crossbar
+    g.strokeStyle = "#f4f5f2"; g.lineWidth = 11; g.lineCap = "butt";
+    g.beginPath();
+    g.moveTo(P * 0.26, P * 0.22); g.lineTo(P * 0.26, P * 0.78);
+    g.moveTo(P * 0.74, P * 0.22); g.lineTo(P * 0.74, P * 0.78);
+    g.stroke();
+    g.lineWidth = 10;
+    g.beginPath(); g.moveTo(P * 0.26, P * 0.62); g.lineTo(P * 0.74, P * 0.38); g.stroke();
+  });
+
+  // ---- Tokonto Bus.
+  cell("busFlag", (g, P) => {
+    fill("#f4f5f2", P);
+    g.strokeStyle = "#1b4f94"; g.lineWidth = 8;
+    g.beginPath(); g.arc(P / 2, P / 2, P * 0.42, 0, 6.2832); g.stroke();
+    text("トコント", P / 2, P * 0.36, 20, "#1b4f94", JP);
+    text("バス", P / 2, P * 0.56, 20, "#1b4f94", JP);
+    text("BUS STOP", P / 2, P * 0.78, 12, "#2a2d33");
+  });
+  cell("busBlind", (g, P) => {
+    fill("#0b0d10", P);
+    text("急行", P * 0.22, P * 0.32, 22, "#f0a830", JP);
+    text("都心", P * 0.62, P * 0.32, 26, "#f2f4f0", JP);
+    text("Tōkonto Sta.", P / 2, P * 0.64, 17, "#f2f4f0");
+    text("港 12", P / 2, P * 0.86, 15, "#59c0ea", JP);
+  });
+  cell("busBrand", (g, P) => {
+    fill("#f4f5f2", P);
+    g.fillStyle = "#1b4f94";
+    g.fillRect(0, P * 0.58, P, P * 0.14);
+    text("Tōkonto Bus", P / 2, P * 0.36, 19, "#1b4f94");
+    text("トコントバス", P / 2, P * 0.85, 17, "#2a2d33", JP);
+  });
+  cell("busTimes", (g, P) => {
+    fill("#f4f5f2", P);
+    g.fillStyle = "#1b4f94"; g.fillRect(0, 0, P, P * 0.16);
+    text("時刻表", P / 2, P * 0.08, 13, "#f4f5f2", JP);
+    g.fillStyle = "#3a3f47";
+    g.font = "600 10px " + UI; g.textAlign = "left"; g.textBaseline = "top";
+    for (let r = 0; r < 7; r++) {
+      g.fillText((6 + r) + "  04 14 24 34 44 54", 7, P * 0.20 + r * 14);
+    }
+  });
+
+  // ---- Hayabin, the parcel company, and its step-through delivery scooter.
+  cell("hayabin", (g, P) => {
+    fill("#f0b21c", P);
+    g.fillStyle = "#1d2630";
+    g.beginPath();
+    // a dragonfly, which is what a company called 速便 would put on a van
+    g.ellipse(P * 0.5, P * 0.46, P * 0.06, P * 0.26, 0, 0, 6.2832); g.fill();
+    g.beginPath(); g.ellipse(P * 0.32, P * 0.34, P * 0.17, P * 0.05, -0.3, 0, 6.2832); g.fill();
+    g.beginPath(); g.ellipse(P * 0.68, P * 0.34, P * 0.17, P * 0.05, 0.3, 0, 6.2832); g.fill();
+    text("速便", P / 2, P * 0.86, 22, "#1d2630", JP);
+  });
+  cell("hayabinBox", (g, P) => {
+    fill("#f0b21c", P);
+    text("速便", P / 2, P * 0.34, 34, "#1d2630", JP);
+    text("HAYABIN", P / 2, P * 0.66, 17, "#1d2630");
+    text("翼日お届け", P / 2, P * 0.87, 13, "#4a3b12", JP);
+  });
+  cell("truckDoor", (g, P) => {
+    fill("#f4f5f2", P);
+    text("ガンセキ運輸", P / 2, P * 0.34, 17, "#6b3a16", JP);
+    text("GANSEKI", P / 2, P * 0.58, 19, "#6b3a16");
+    text("TRANSPORT", P / 2, P * 0.78, 13, "#3a3f47");
+  });
+
+  // ---- the rest of the street.
+  cell("shrineSign", (g, P) => {
+    fill("#2a1f18", P);
+    g.strokeStyle = "#c8a24a"; g.lineWidth = 4;
+    g.strokeRect(6, 6, P - 12, P - 12);
+    text("神社", P / 2, P * 0.40, 34, "#e8dcc2", JP);
+    text("SHRINE", P / 2, P * 0.72, 15, "#c8a24a");
+  });
+  cell("dogPlaque", (g, P) => {
+    fill("#4a4e52", P);
+    text("忠犬", P / 2, P * 0.34, 26, "#e4e7e9", JP);
+    text("The loyal dog", P / 2, P * 0.58, 13, "#e4e7e9");
+    text("waited 9 years", P / 2, P * 0.76, 12, "#b7bcc0");
+  });
+  cell("crossingSign", (g, P) => {
+    fill("#f4f5f2", P);
+    g.fillStyle = "#1b4f94"; g.fillRect(0, 0, P, P * 0.22);
+    text("SCRAMBLE", P / 2, P * 0.11, 15, "#f4f5f2");
+    text("スクランブル", P / 2, P * 0.40, 17, "#1b4f94", JP);
+    text("交差点", P / 2, P * 0.64, 20, "#2a2d33", JP);
+    text("3,000 / green", P / 2, P * 0.86, 12, "#6b7076");
+  });
+  cell("screenOff", (g, P) => {
+    fill("#0a0c10", P);
+    g.strokeStyle = "#1a2029"; g.lineWidth = 3;
+    for (let y = 8; y < P; y += 10) { g.beginPath(); g.moveTo(0, y); g.lineTo(P, y); g.stroke(); }
+  });
+  cell("vending", (g, P) => {
+    fill("#d33b2f", P);
+    g.fillStyle = "#f4f5f2"; g.fillRect(P * 0.08, P * 0.08, P * 0.84, P * 0.40);
+    g.fillStyle = "#1d2630"; g.fillRect(P * 0.08, P * 0.56, P * 0.84, P * 0.18);
+    for (let i = 0; i < 4; i++) {
+      g.fillStyle = ["#3a7fc1", "#2f8a4c", "#e0a21c", "#8c2a3a"][i];
+      g.fillRect(P * 0.12 + i * P * 0.20, P * 0.14, P * 0.14, P * 0.28);
+    }
+    text("あったかい", P / 2, P * 0.65, 13, "#f0a830", JP);
+  });
+
+  badgeTex = new THREE.CanvasTexture(cv);
+  badgeTex.encoding = THREE.sRGBEncoding;
+  badgeTex.anisotropy = 4;
+  return badgeTex;
+}
+
+// ---------------------------------------------------------------- the adverts
+// Eight bands at 8:1, which is the shape of the side of a bus, the side of a
+// train, and the sign over a Tokyo street. The joke in each is Japan laughing
+// at itself, which is the only kind of advertisement worth putting on a bus.
+const ADS = [
+  { bg: "#1c4f94", ink: "#f6f7f4", tint: "#f0b21c",
+    jp: "コンビニ二四", head: "KOMBINI 24",
+    sub: "Open 26 hours. Egg sandwich, umbrella, regret.", glyph: "store" },
+  { bg: "#111318", ink: "#f6f7f4", tint: "#2fe08a",
+    jp: "強炭酸", head: "GANBARE ENERGY",
+    sub: "Your third wind, in a can. Apology included.", glyph: "can" },
+  { bg: "#f4f5f2", ink: "#1f8a4c", tint: "#2a2d33",
+    jp: "ご迷惑をかけます", head: "NHRail apologises",
+    sub: "for the 19-second delay. Written notes at the barrier.", glyph: "nh" },
+  { bg: "#e8a9b8", ink: "#4a1f2c", tint: "#f6f7f4",
+    jp: "期間限定", head: "MOCHI MOCHI SOFT",
+    sub: "Seasonal flavour no. 148: sakura. Ends Thursday.", glyph: "cone" },
+  { bg: "#2a2d33", ink: "#f6f7f4", tint: "#d9b36a",
+    jp: "名刺道", head: "MEISHI MASTER",
+    sub: "Card etiquette, now with a bowing-angle sensor.", glyph: "card" },
+  { bg: "#1b6f7a", ink: "#f6f7f4", tint: "#9fe3ea",
+    jp: "カプセル暮らし", head: "CAPSULE LIVING",
+    sub: "1.2 m² of pure Tōkonto. Wi-Fi in the ceiling.", glyph: "pod" },
+  { bg: "#6b1d8c", ink: "#f6f7f4", tint: "#f0a830",
+    jp: "カラオケ永遠", head: "KARAOKE EIEN",
+    sub: "Nine hours. One song. Nobody is judging you.", glyph: "mic" },
+  { bg: "#f0b21c", ink: "#1d2630", tint: "#1c4f94",
+    jp: "整列ご協力", head: "QUEUE WITH PRIDE",
+    sub: "Please form an orderly line for our orderly lines.", glyph: "queue" }
+];
+
+let adTex = null;
+const AD_W = 2048, AD_H = 256;        // one band, 8:1
+
+function adUV(i) {
+  const n = ADS.length, row = ((i % n) + n) % n;
+  return { u0: 0, v0: 1 - (row + 1) / n, u1: 1, v1: 1 - row / n };
+}
+// How far up the atlas one band sits, for the per-instance uv offset.
+function adVOffset(i) {
+  const n = ADS.length, row = ((i % n) + n) % n;
+  return -row / n;
+}
+
+function adAtlas() {
+  if (adTex) return adTex;
+  const cv = document.createElement("canvas");
+  cv.width = AD_W; cv.height = AD_H * ADS.length;
+  const g = cv.getContext("2d");
+
+  ADS.forEach((ad, i) => {
+    g.save();
+    g.translate(0, i * AD_H);
+    g.beginPath(); g.rect(0, 0, AD_W, AD_H); g.clip();
+    g.fillStyle = ad.bg; g.fillRect(0, 0, AD_W, AD_H);
+
+    // A band of colour down the left for the glyph to sit in, which is how a
+    // long advertisement stays readable when you only see a third of it.
+    g.fillStyle = ad.tint;
+    g.globalAlpha = 0.16;
+    g.fillRect(0, 0, 330, AD_H);
+    g.globalAlpha = 1;
+
+    g.save();
+    g.translate(165, AD_H * 0.5);
+    g.fillStyle = ad.tint;
+    g.strokeStyle = ad.tint;
+    g.lineWidth = 9;
+    if (ad.glyph === "store") {
+      g.fillRect(-82, -20, 164, 70);
+      g.beginPath(); g.moveTo(-96, -20); g.lineTo(0, -74); g.lineTo(96, -20); g.closePath(); g.fill();
+    } else if (ad.glyph === "can") {
+      g.fillRect(-36, -70, 72, 140);
+      g.fillStyle = ad.bg; g.fillRect(-36, -18, 72, 30);
+    } else if (ad.glyph === "nh") {
+      g.beginPath();
+      g.moveTo(-54, -66); g.lineTo(-54, 66); g.moveTo(54, -66); g.lineTo(54, 66);
+      g.stroke();
+      g.lineWidth = 11;
+      g.beginPath(); g.moveTo(-54, 30); g.lineTo(54, -30); g.stroke();
+    } else if (ad.glyph === "cone") {
+      g.beginPath(); g.moveTo(-46, -6); g.lineTo(46, -6); g.lineTo(0, 78); g.closePath(); g.fill();
+      g.beginPath(); g.arc(0, -26, 48, 0, 6.2832); g.fill();
+    } else if (ad.glyph === "card") {
+      g.save(); g.rotate(-0.12); g.fillRect(-84, -50, 168, 100); g.restore();
+      g.fillStyle = ad.bg;
+      for (let r = 0; r < 3; r++) g.fillRect(-56, -24 + r * 22, 112 - r * 26, 9);
+    } else if (ad.glyph === "pod") {
+      g.beginPath(); g.arc(0, 0, 70, 1.5708, 4.7124); g.lineTo(78, -70); g.lineTo(78, 70); g.closePath(); g.fill();
+      g.fillStyle = ad.bg; g.beginPath(); g.arc(14, 0, 34, 0, 6.2832); g.fill();
+    } else if (ad.glyph === "mic") {
+      g.beginPath(); g.arc(0, -28, 40, 0, 6.2832); g.fill();
+      g.fillRect(-13, -4, 26, 86);
+    } else {
+      for (let k = 0; k < 4; k++) {
+        g.beginPath(); g.arc(-72 + k * 48, -22, 19, 0, 6.2832); g.fill();
+        g.fillRect(-84 + k * 48, 4, 24, 54);
+      }
+    }
+    g.restore();
+
+    g.textAlign = "left";
+    g.textBaseline = "alphabetic";
+    g.fillStyle = ad.tint;
+    g.font = "700 46px " + JP;
+    g.fillText(ad.jp, 370, 78);
+    g.fillStyle = ad.ink;
+    g.font = "800 92px " + UI;
+    g.fillText(ad.head, 368, 166);
+    g.font = "500 40px " + UI;
+    g.globalAlpha = 0.85;
+    g.fillText(ad.sub, 372, 216);
+    g.globalAlpha = 1;
+    g.restore();
+  });
+
+  adTex = new THREE.CanvasTexture(cv);
+  adTex.encoding = THREE.sRGBEncoding;
+  adTex.anisotropy = 4;
+  return adTex;
+}
+
+// ---------------------------------------------------------------- station signs
+// A Japanese platform name board is a wide, short white panel: the station in
+// kanji large, the romaji under it, and the neighbouring stations with arrows
+// at the ends. Every station in the city needs its own, so they share one
+// atlas of sixteen rows and one draw call.
+const SIGN_ROWS = 16, SIGN_W = 1024, SIGN_H = 64;
+let signTex = null;
+const signNames = [];
+
+function signRow(name) {
+  let at = signNames.indexOf(name);
+  if (at < 0) {
+    if (signNames.length >= SIGN_ROWS) at = signNames.length % SIGN_ROWS;
+    else { signNames.push(name); at = signNames.length - 1; }
+  }
+  return at;
+}
+
+function signUV(row) {
+  const r = ((row % SIGN_ROWS) + SIGN_ROWS) % SIGN_ROWS;
+  return { u0: 0, v0: 1 - (r + 1) / SIGN_ROWS, u1: 1, v1: 1 - r / SIGN_ROWS };
+}
+
+function buildSignAtlas() {
+  const cv = document.createElement("canvas");
+  cv.width = SIGN_W; cv.height = SIGN_H * SIGN_ROWS;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#f4f5f2";
+  g.fillRect(0, 0, cv.width, cv.height);
+  signNames.forEach((name, i) => {
+    const y = i * SIGN_H;
+    g.fillStyle = "#f4f5f2"; g.fillRect(0, y, SIGN_W, SIGN_H);
+    g.fillStyle = "#1f8a4c"; g.fillRect(0, y, SIGN_W, 7);
+    g.fillRect(0, y + SIGN_H - 7, SIGN_W, 7);
+    g.fillStyle = "#1f8a4c"; g.fillRect(14, y + 14, 74, SIGN_H - 28);
+    g.fillStyle = "#f4f5f2";
+    g.font = "800 22px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("NH", 51, y + SIGN_H * 0.5);
+    g.fillStyle = "#1d2630";
+    g.font = "700 30px " + UI; g.textAlign = "left";
+    const label = name.replace(/ Station$/, "");
+    g.fillText(label, 108, y + SIGN_H * 0.44);
+    g.fillStyle = "#5a6068";
+    g.font = "500 16px " + UI;
+    g.fillText("NHRail · ニコン鉄道", 108, y + SIGN_H * 0.78);
+    g.textAlign = "right";
+    g.fillStyle = "#3a3f47";
+    g.font = "500 17px " + UI;
+    g.fillText("←  ·  →", SIGN_W - 22, y + SIGN_H * 0.5);
+  });
+  if (signTex) signTex.dispose();
+  signTex = new THREE.CanvasTexture(cv);
+  signTex.encoding = THREE.sRGBEncoding;
+  signTex.anisotropy = 4;
+  return signTex;
+}
+
+// ---------------------------------------------------------------- vehicles
+// What is on a Japanese road, in the proportions it is on a Japanese road, at
+// the manufacturers' own dimensions in metres. A car that is the wrong size is
+// wrong in a way you notice before you notice anything else, and the kei class
+// - capped by law at 3.40 x 1.48 m - is why a quarter of the traffic is the
+// same small upright box.
+//
+// Each kind is drawn as three instanced meshes, which is how a hundred and
+// thirty vehicles cost a few dozen draw calls:
+//
+//   paint  vertex colour x per-instance colour - the body panels
+//   trim   vertex colour only - glass, tyres, bumpers, lamps, light bars
+//   deco   one shared texture atlas - badges, plates, liveries, adverts
+//
+// The badge on a car and the advert on a bus move with a per-instance uv
+// offset, so one geometry carries eight marques or eight advertisements.
+
+const COL = {
+  glass: [0.16, 0.20, 0.24], dark: [0.10, 0.11, 0.12], tyre: [0.05, 0.05, 0.055],
+  rim: [0.60, 0.63, 0.65], chrome: [0.72, 0.74, 0.76], grille: [0.14, 0.15, 0.17],
+  lampF: [0.90, 0.92, 0.86], lampR: [0.56, 0.07, 0.08], amber: [0.85, 0.45, 0.08],
+  red: [0.68, 0.08, 0.10], blue: [0.09, 0.22, 0.52], white: [0.92, 0.93, 0.90],
+  busBlue: [0.10, 0.30, 0.56], seat: [0.17, 0.18, 0.20], body2: [0.12, 0.13, 0.15],
+  flesh: [0.76, 0.62, 0.52], helmet: [0.88, 0.89, 0.86], jacket: [0.16, 0.18, 0.22],
+  nhGreen: [0.11, 0.52, 0.29], nhSteel: [0.78, 0.80, 0.82], shinkNose: [0.95, 0.96, 0.94]
+};
+
+// Boxes, wedges and wheels into flat arrays with a colour per face, which is
+// all a vehicle needs at the size one appears on screen. Both builders carry a
+// frame - a position and a yaw - so the same primitives place a car at the
+// origin and a bus shelter facing a road two kilometres away.
+function emitFrame() {
+  return { x: 0, y: 0, z: 0, c: 1, s: 0 };
+}
+
+function solidMesh() {
+  const pos = [], nrm = [], col = [];
+  const F = emitFrame();
+  let c = [1, 1, 1];
+  function xf(p) {
+    return [F.x + p[0] * F.c + p[2] * F.s, F.y + p[1], F.z - p[0] * F.s + p[2] * F.c];
+  }
+  function quad(a, b, d2, d) {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
+    const wx = nx * F.c + nz * F.s, wz = -nx * F.s + nz * F.c;
+    [a, b, d2, a, d2, d].forEach(p => {
+      const q = xf(p);
+      pos.push(q[0], q[1], q[2]); nrm.push(wx, ny, wz); col.push(c[0], c[1], c[2]);
+    });
+  }
+  return {
+    frame(x, y, z, yaw) { F.x = x; F.y = y; F.z = z; F.c = Math.cos(yaw); F.s = Math.sin(yaw); return this; },
+    colour(v) { c = v; return this; },
+    // A box whose top and bottom rectangles can differ in size and in where
+    // along Z they sit, which covers a tapered cabin, a wedge nose and a
+    // tumblehome flank with one primitive.
+    box(cx, cy, cz, sx, sy, sz, o) {
+      o = o || {};
+      const hx = sx / 2, hy = sy / 2, hz = sz / 2;
+      const tx = hx * (o.tx === undefined ? 1 : o.tx), tz = hz * (o.tz === undefined ? 1 : o.tz);
+      const bx = hx * (o.bx === undefined ? 1 : o.bx), bz = hz * (o.bz === undefined ? 1 : o.bz);
+      const ts = o.shift || 0, bs = o.bshift || 0;
+      const B = [[cx - bx, cy - hy, cz - bz + bs], [cx + bx, cy - hy, cz - bz + bs],
+                 [cx + bx, cy - hy, cz + bz + bs], [cx - bx, cy - hy, cz + bz + bs]];
+      const T = [[cx - tx, cy + hy, cz - tz + ts], [cx + tx, cy + hy, cz - tz + ts],
+                 [cx + tx, cy + hy, cz + tz + ts], [cx - tx, cy + hy, cz + tz + ts]];
+      if (!o.noBottom) quad(B[3], B[2], B[1], B[0]);
+      if (!o.noTop) quad(T[0], T[1], T[2], T[3]);
+      quad(B[2], B[3], T[3], T[2]);                 // +Z, the nose
+      quad(B[0], B[1], T[1], T[0]);                 // -Z, the tail
+      quad(B[1], B[2], T[2], T[1]);                 // +X
+      quad(B[3], B[0], T[0], T[3]);                 // -X
+      return this;
+    },
+    // A sloping plane, for a tiled shrine roof or a shelter canopy: a quad
+    // given by its centre, its span and the drop from ridge to eaves.
+    slope(cx, cy, cz, sx, sz, drop) {
+      const hx = sx / 2, hz = sz / 2;
+      quad([cx - hx, cy, cz], [cx - hx, cy - drop, cz + hz],
+           [cx + hx, cy - drop, cz + hz], [cx + hx, cy, cz]);
+      quad([cx + hx, cy, cz], [cx + hx, cy - drop, cz - hz],
+           [cx - hx, cy - drop, cz - hz], [cx - hx, cy, cz]);
+      return this;
+    },
+    // A wheel is a short cylinder lying on its side, with a lighter disc for
+    // the rim so it does not read as a hole.
+    wheel(cx, cy, cz, r, w, rimCol) {
+      const S = 10, was = c;
+      for (let i = 0; i < S; i++) {
+        const a0 = i / S * 6.2831853, a1 = (i + 1) / S * 6.2831853;
+        const y0 = cy + Math.sin(a0) * r, z0 = cz + Math.cos(a0) * r;
+        const y1 = cy + Math.sin(a1) * r, z1 = cz + Math.cos(a1) * r;
+        c = was;
+        quad([cx - w / 2, y0, z0], [cx + w / 2, y0, z0], [cx + w / 2, y1, z1], [cx - w / 2, y1, z1]);
+        c = rimCol || COL.rim;
+        const ry0 = cy + Math.sin(a0) * r * 0.62, rz0 = cz + Math.cos(a0) * r * 0.62;
+        const ry1 = cy + Math.sin(a1) * r * 0.62, rz1 = cz + Math.cos(a1) * r * 0.62;
+        quad([cx + w / 2, cy, cz], [cx + w / 2, ry0, rz0], [cx + w / 2, ry1, rz1], [cx + w / 2, ry1, rz1]);
+        quad([cx - w / 2, cy, cz], [cx - w / 2, ry1, rz1], [cx - w / 2, ry0, rz0], [cx - w / 2, ry0, rz0]);
+      }
+      c = was;
+      return this;
+    },
+    // An upright post: cheaper than a box when it is round and 90 mm across.
+    post(cx, cy, cz, r, h) {
+      const S = 6;
+      for (let i = 0; i < S; i++) {
+        const a0 = i / S * 6.2831853, a1 = (i + 1) / S * 6.2831853;
+        const x0 = cx + Math.cos(a0) * r, z0 = cz + Math.sin(a0) * r;
+        const x1 = cx + Math.cos(a1) * r, z1 = cz + Math.sin(a1) * r;
+        quad([x0, cy, z0], [x1, cy, z1], [x1, cy + h, z1], [x0, cy + h, z0]);
+      }
+      quad([cx - r, cy + h, cz - r], [cx + r, cy + h, cz - r],
+           [cx + r, cy + h, cz + r], [cx - r, cy + h, cz + r]);
+      return this;
+    },
+    count() { return pos.length / 3; },
+    empty() { return pos.length === 0; },
+    geometry() {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+      g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      return g;
+    }
+  };
+}
+
+// Flat textured panels: badges, number plates, liveries, destination blinds,
+// platform name boards and the adverts on the side of a bus. aVary marks the
+// panels a per-instance uv offset is allowed to move, so one geometry carries
+// eight different badges or eight different advertisements.
+function decoMesh() {
+  const pos = [], nrm = [], uv = [], vary = [];
+  const F = emitFrame();
+  const AXES = {
+    R: [[0, 0, -1], [0, 1, 0], [1, 0, 0]],
+    L: [[0, 0, 1], [0, 1, 0], [-1, 0, 0]],
+    F: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+    B: [[-1, 0, 0], [0, 1, 0], [0, 0, -1]],
+    U: [[1, 0, 0], [0, 0, -1], [0, 1, 0]],
+    D: [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
+  };
+  return {
+    frame(x, y, z, yaw) { F.x = x; F.y = y; F.z = z; F.c = Math.cos(yaw); F.s = Math.sin(yaw); return this; },
+    panel(cx, cy, cz, w, h, axis, cell, varies, lift) {
+      const f = AXES[axis] || AXES.R;
+      const u = f[0], v = f[1], n = f[2];
+      const off = lift === undefined ? 0.014 : lift;
+      const o = [cx + n[0] * off, cy + n[1] * off, cz + n[2] * off];
+      const P = (su, sv) => {
+        const p = [
+          o[0] + u[0] * su * w / 2 + v[0] * sv * h / 2,
+          o[1] + u[1] * su * w / 2 + v[1] * sv * h / 2,
+          o[2] + u[2] * su * w / 2 + v[2] * sv * h / 2
+        ];
+        return [F.x + p[0] * F.c + p[2] * F.s, F.y + p[1], F.z - p[0] * F.s + p[2] * F.c];
+      };
+      const pts = [P(-1, -1), P(1, -1), P(1, 1), P(-1, 1)];
+      const T = [[cell.u0, cell.v0], [cell.u1, cell.v0], [cell.u1, cell.v1], [cell.u0, cell.v1]];
+      const nx = n[0] * F.c + n[2] * F.s, nz = -n[0] * F.s + n[2] * F.c;
+      [0, 1, 2, 0, 2, 3].forEach(i => {
+        pos.push(pts[i][0], pts[i][1], pts[i][2]);
+        nrm.push(nx, n[1], nz);
+        uv.push(T[i][0], T[i][1]);
+        vary.push(varies ? 1 : 0);
+      });
+      return this;
+    },
+    // The same panel on both flanks, which is what a livery or an advert is.
+    flanks(halfW, cy, cz, w, h, cell, varies) {
+      this.panel(halfW, cy, cz, w, h, "R", cell, varies);
+      this.panel(-halfW, cy, cz, w, h, "L", cell, varies);
+      return this;
+    },
+    // Both faces of a free-standing sign, which is what a bus stop flag is.
+    back(cx, cy, cz, w, h, cell, varies) {
+      this.panel(cx, cy, cz, w, h, "F", cell, varies);
+      this.panel(cx, cy, cz, w, h, "B", cell, varies);
+      return this;
+    },
+    count() { return pos.length / 3; },
+    empty() { return pos.length === 0; },
+    geometry() {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      g.setAttribute("aVary", new THREE.Float32BufferAttribute(vary, 1));
+      return g;
+    }
+  };
+}
+
+// The catalogue. share is the fraction of the traffic; wide keeps a vehicle on
+// the arterials, where a ten-metre bus can actually fit.
+const CAR_KINDS = [
+  { name: "kei", body: "kei", L: 3.40, W: 1.48, H: 1.70, share: 0.15, top: 12.5,
+    marques: ["daichi", "suzume", "kosei"], plate: "plateKei" },
+  { name: "keivan", body: "keivan", L: 3.40, W: 1.47, H: 1.89, share: 0.07, top: 11.5,
+    marques: ["daichi", "suzume", "ganseki"], plate: "plateKei" },
+  { name: "hatch", body: "hatch", L: 4.05, W: 1.70, H: 1.52, share: 0.14, top: 14.0,
+    marques: ["kosei", "ryusei", "kaneda", "mitsuwa"] },
+  { name: "sedan", body: "sedan", L: 4.58, W: 1.76, H: 1.49, share: 0.11, top: 15.5,
+    marques: ["kosei", "ryusei"] },
+  { name: "saloon", body: "saloon", L: 4.91, W: 1.80, H: 1.46, share: 0.055, top: 16.5,
+    marques: ["kosei", "kaneda", "nanatsu"] },
+  { name: "suv", body: "suv", L: 4.60, W: 1.86, H: 1.69, share: 0.09, top: 14.5,
+    marques: ["nanatsu", "mitsuwa", "kosei"] },
+  { name: "onebox", body: "onebox", L: 4.70, W: 1.73, H: 1.86, share: 0.07, top: 13.5,
+    marques: ["kosei", "mitsuwa"] },
+  { name: "taxi", body: "taxi", L: 4.40, W: 1.70, H: 1.75, share: 0.075, top: 14.0,
+    livery: "taxi", colour: [0.06, 0.07, 0.08], plate: "plateGreen" },
+  { name: "ryde", body: "saloon", L: 4.91, W: 1.80, H: 1.46, share: 0.035, top: 15.5,
+    livery: "ryde", colour: [0.07, 0.07, 0.08], plate: "plateGreen" },
+  { name: "police", body: "police", L: 4.69, W: 1.78, H: 1.48, share: 0.012, top: 17.0,
+    livery: "police", colour: [0.93, 0.94, 0.92] },
+  { name: "sports", body: "sports", L: 4.27, W: 1.78, H: 1.31, share: 0.028, top: 18.0,
+    marques: ["nanatsu", "kaneda", "ryusei"] },
+  { name: "super", body: "super", L: 4.55, W: 1.97, H: 1.17, share: 0.008, top: 20.0,
+    marques: ["ryusei", "kaneda"] },
+  { name: "bike", body: "bike", L: 2.10, W: 0.76, H: 1.26, share: 0.03, top: 16.5,
+    marques: ["kaneda", "nanatsu"] },
+  { name: "scooter", body: "scooter", L: 1.90, W: 0.70, H: 1.32, share: 0.025, top: 10.5,
+    livery: "hayabin", colour: [0.94, 0.70, 0.11], plate: "plateKei" },
+  { name: "truck", body: "truck", L: 6.19, W: 1.90, H: 3.10, share: 0.022, top: 12.5,
+    livery: "truck", colour: [0.90, 0.91, 0.88], plate: "plateGreen", wide: true },
+  { name: "bus", body: "bus", L: 10.49, W: 2.49, H: 3.10, share: 0.013, top: 12.0,
+    livery: "bus", colour: [0.93, 0.94, 0.91], plate: "plateGreen", wide: true, ads: true }
+];
+
+// Japanese traffic is overwhelmingly white, silver and black. A colour is rare
+// enough to be worth noticing, which is why one in twenty is allowed to be red.
 const CAR_COLOURS = [
   [0.90, 0.90, 0.89], [0.90, 0.90, 0.89], [0.90, 0.90, 0.89],
   [0.62, 0.64, 0.66], [0.62, 0.64, 0.66],
@@ -3909,114 +4913,428 @@ const CAR_COLOURS = [
 ];
 
 const traffic = {
-  lanes: [], cars: [], byLane: [], paint: [], trim: [], ready: false,
-  max: 110, spawnR: 240, killR: 330, clearR: 34, seed: 1
+  lanes: [], cars: [], byLane: [], paint: [], trim: [], deco: [], ready: false,
+  max: 130, spawnR: 250, killR: 340, clearR: 34, seed: 1
 };
 
-// A tiny mesh builder: boxes and cylinders into flat arrays, which is all a car needs.
-function carMesh() {
-  const pos = [], nrm = [];
-  function quad(a, b, c, d) {
-    const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
-    const vx = d[0]-a[0], vy = d[1]-a[1], vz = d[2]-a[2];
-    let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
-    const len = Math.hypot(nx, ny, nz) || 1; nx/=len; ny/=len; nz/=len;
-    [a,b,c, a,c,d].forEach(p => { pos.push(p[0], p[1], p[2]); nrm.push(nx, ny, nz); });
+// ---- the bodies -------------------------------------------------------
+// One function per silhouette. Nose points +Z, wheels on the ground, origin on
+// the ground between them, which is what the lane sampler expects.
+function buildVehicle(kind) {
+  const L = kind.L, W = kind.W, H = kind.H, hw = W / 2;
+  const paint = solidMesh(), trim = solidMesh(), deco = decoMesh();
+  const badge = badgeUV(kind.marques ? kind.marques[0] : "kosei");
+  const plateCell = badgeUV(kind.plate || "plate");
+
+  // Wheels, bumpers, lamps and plates are the same job on every body, so they
+  // are stated once and the silhouette is all that differs.
+  function running(wheelR, wb, trackF, tyreW) {
+    const t = hw * (trackF || 0.90) - tyreW * 0.5;
+    trim.colour(COL.tyre);
+    [[-t, wb / 2], [t, wb / 2], [-t, -wb / 2], [t, -wb / 2]]
+      .forEach(p => trim.wheel(p[0], wheelR, p[1], wheelR, tyreW));
   }
-  return {
-    pos: pos, nrm: nrm,
-    // A box given by its centre, its size, and an optional taper of the top face.
-    box(cx, cy, cz, sx, sy, sz, topScaleX, topScaleZ, topShift) {
-      const hx = sx/2, hy = sy/2, hz = sz/2;
-      const tx = hx * (topScaleX === undefined ? 1 : topScaleX);
-      const tz = hz * (topScaleZ === undefined ? 1 : topScaleZ);
-      const ts = topShift || 0;
-      const b = [[cx-hx,cy-hy,cz-hz],[cx+hx,cy-hy,cz-hz],[cx+hx,cy-hy,cz+hz],[cx-hx,cy-hy,cz+hz]];
-      const t = [[cx-tx,cy+hy,cz-tz+ts],[cx+tx,cy+hy,cz-tz+ts],[cx+tx,cy+hy,cz+tz+ts],[cx-tx,cy+hy,cz+tz+ts]];
-      quad(b[3],b[2],b[1],b[0]);            // underside
-      quad(t[0],t[1],t[2],t[3]);            // roof
-      quad(b[0],b[1],t[1],t[0]);            // front
-      quad(b[2],b[3],t[3],t[2]);            // back
-      quad(b[1],b[2],t[2],t[1]);            // right
-      quad(b[3],b[0],t[0],t[3]);            // left
-    },
-    // A wheel: a short cylinder lying on its side.
-    wheel(cx, cy, cz, r, w) {
-      const S = 9;
-      for (let i = 0; i < S; i++) {
-        const a0 = i/S*6.2831853, a1 = (i+1)/S*6.2831853;
-        const y0 = cy + Math.sin(a0)*r, z0 = cz + Math.cos(a0)*r;
-        const y1 = cy + Math.sin(a1)*r, z1 = cz + Math.cos(a1)*r;
-        quad([cx-w/2,y0,z0],[cx+w/2,y0,z0],[cx+w/2,y1,z1],[cx-w/2,y1,z1]);
-        quad([cx+w/2,cy,cz],[cx+w/2,y0,z0],[cx+w/2,y1,z1],[cx+w/2,y1,z1]);
-        quad([cx-w/2,cy,cz],[cx-w/2,y1,z1],[cx-w/2,y0,z0],[cx-w/2,y0,z0]);
-      }
-    },
-    geometry() {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
-      g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nrm, 3));
-      return g;
+  function lamps(yF, zFront, yB, zBack, inset) {
+    const x = hw * (inset === undefined ? 0.70 : inset);
+    trim.colour(COL.lampF);
+    trim.box(x, yF, zFront, W * 0.26, 0.17, 0.10);
+    trim.box(-x, yF, zFront, W * 0.26, 0.17, 0.10);
+    trim.colour(COL.lampR);
+    trim.box(x, yB, zBack, W * 0.24, 0.19, 0.09);
+    trim.box(-x, yB, zBack, W * 0.24, 0.19, 0.09);
+  }
+  function bumpers(y, h, zFront, zBack) {
+    trim.colour(COL.body2);
+    trim.box(0, y, zFront, W * 0.95, h, 0.16);
+    trim.box(0, y, zBack, W * 0.95, h, 0.16);
+  }
+  function plates(yF, zF, yB, zB) {
+    const pw = 0.33, ph = 0.165;
+    deco.panel(0, yF, zF, pw, ph, "F", plateCell, false);
+    deco.panel(0, yB, zB, pw, ph, "B", plateCell, false);
+  }
+  function marque(yF, zF, yB, zB, size) {
+    const s = size || 0.17;
+    if (!kind.marques) return;
+    deco.panel(0, yF, zF, s, s, "F", badge, true);
+    deco.panel(0, yB, zB, s, s, "B", badge, true);
+  }
+
+  // A car is three volumes along its length and a greenhouse on top: a bonnet
+  // below the beltline, the doors up to the beltline, and a boot behind them
+  // if the shape has one. That is the whole difference between a hatchback, a
+  // fastback, a saloon and a one-box van - where those volumes start and stop
+  // - so it is stated once and every body is a table of fractions of the
+  // length. Fractions run from the centre, positive towards the nose.
+  function shell(p) {
+    const wheelR = p.wheelR;
+    const sill = p.sill, belt = p.belt, roof = p.roof;
+    const hood = p.hood === undefined ? belt - 0.09 : p.hood;
+    const deck = p.deck === undefined ? belt - 0.06 : p.deck;
+    const Z = f => f * L;
+    const span = (z0, z1) => ({ c: (z0 + z1) * 0.5, l: Math.max(0.05, z1 - z0) });
+
+    paint.colour(COL.white);
+    // The doors. Narrower at the bottom than at the beltline, which is how a
+    // pressed steel flank is drawn and what leaves the tyres standing proud.
+    const door = span(Z(p.cab0), Z(p.cab1));
+    paint.box(0, (sill + belt) / 2, door.c, W, belt - sill, door.l, { bx: 0.93, tx: 1.0 });
+    // The bonnet, below the beltline. A kei car's is 0.2 m long and a coupe's
+    // is a third of the car.
+    if (p.cab1 < p.nose - 0.01) {
+      const b = span(Z(p.cab1), Z(p.nose));
+      paint.box(0, (sill + hood) / 2, b.c, W * 0.985, hood - sill, b.l,
+        { bx: 0.93, tz: 0.94, shift: -0.04 });
     }
+    // The boot, where there is one.
+    if (p.cab0 > p.tail + 0.01) {
+      const b = span(Z(p.tail), Z(p.cab0));
+      paint.box(0, (sill + deck) / 2, b.c, W * 0.985, deck - sill, b.l,
+        { bx: 0.93, tz: 0.95, bshift: 0.03 });
+    }
+    // The greenhouse. Its bottom rectangle is the cabin opening and its top is
+    // the roof panel, so the rake of the windscreen and of the backlight are
+    // two independent numbers rather than one taper.
+    const cab = span(Z(p.cab0), Z(p.cab1));
+    const rf = span(Z(p.roofB), Z(p.roofF));
+    const cabW = p.cabW === undefined ? 0.975 : p.cabW;
+    const gh = { tz: rf.l / cab.l, shift: rf.c - cab.c, tx: p.roofW === undefined ? 0.86 : p.roofW };
+    paint.box(0, (belt + roof) / 2, cab.c, W * cabW, roof - belt, cab.l, gh);
+    // Glass, as a band inside the greenhouse: at this size that is all a
+    // window is, and it costs six faces instead of twenty.
+    const gTop = belt + (roof - belt) * (p.gTop === undefined ? 0.86 : p.gTop);
+    const gBot = belt + (roof - belt) * 0.14;
+    trim.colour(COL.glass);
+    trim.box(0, (gTop + gBot) / 2, cab.c, W * cabW + 0.014, gTop - gBot, cab.l * 0.97, gh);
+
+    // Underbody: the shadow gap between the sill and the road, which on a
+    // Japanese hatchback is about 0.15 m and not the 0.30 m it becomes if you
+    // simply fill everything below the bodywork.
+    const clear = Math.min(0.15, sill * 0.45);
+    trim.colour(COL.dark);
+    trim.box(0, (clear + sill) * 0.5, 0, W * 0.78, sill - clear, L * 0.90, { bx: 0.88 });
+    // Grille and bumpers. A bumper sits under the lamps, not at axle height.
+    trim.colour(COL.grille);
+    trim.box(0, sill + (hood - sill) * 0.52, Z(p.nose) - 0.04, W * 0.60,
+      (hood - sill) * 0.44, 0.09);
+    trim.colour(COL.body2);
+    trim.box(0, sill + 0.11, Z(p.nose) - 0.08, W * 0.96, 0.23, 0.15, { bx: 0.90, tz: 0.9 });
+    trim.box(0, sill + 0.11, Z(p.tail) + 0.08, W * 0.96, 0.23, 0.15, { bx: 0.90, tz: 0.9 });
+
+    // Wheels, flush with the flank so the body overhangs them like an arch.
+    const tyreW = p.tyreW || 0.20;
+    const t = hw * (p.trackF || 0.955) - tyreW * 0.5;
+    const wb = L * (p.wbF || 0.60);
+    trim.colour(COL.tyre);
+    [[-t, wb / 2], [t, wb / 2], [-t, -wb / 2], [t, -wb / 2]]
+      .forEach(q => trim.wheel(q[0], wheelR, q[1], wheelR, tyreW));
+
+    lamps(hood - 0.14, Z(p.nose) - 0.03, deck - 0.14, Z(p.tail) + 0.03, p.lampInset);
+    plates(sill + 0.17, Z(p.nose) - 0.01, sill + 0.17, Z(p.tail) + 0.01);
+    marque(hood - 0.04, Z(p.nose), deck - 0.04, Z(p.tail));
+    // Mirrors, which are small and which the eye misses when they are missing.
+    trim.colour(COL.body2);
+    trim.box(hw + 0.07, belt + 0.03, Z(p.cab1) - 0.14, 0.17, 0.09, 0.26);
+    trim.box(-hw - 0.07, belt + 0.03, Z(p.cab1) - 0.14, 0.17, 0.09, 0.26);
+    return { sill: sill, belt: belt, roof: roof, hood: hood,
+             cabZ0: Z(p.cab0), cabZ1: Z(p.cab1) };
+  }
+
+  let s = null;
+  switch (kind.body) {
+    case "kei":
+      // A kei car is a cabin with a nose attached: the class caps it at 3.40 m
+      // long, so the only way to put four people in it is to go upright and
+      // push the wheels into the corners.
+      s = shell({ wheelR: 0.28, sill: 0.28, belt: H * 0.56, roof: H,
+        nose: 0.50, cab1: 0.33, cab0: -0.47, tail: -0.50, roofF: 0.23, roofB: -0.44,
+        roofW: 0.90, wbF: 0.68, trackF: 0.95, tyreW: 0.17, hood: H * 0.52 });
+      break;
+    case "keivan":
+      s = shell({ wheelR: 0.28, sill: 0.28, belt: H * 0.46, roof: H,
+        nose: 0.50, cab1: 0.36, cab0: -0.49, tail: -0.50, roofF: 0.28, roofB: -0.47,
+        roofW: 0.94, wbF: 0.68, trackF: 0.95, tyreW: 0.17, hood: H * 0.42,
+        gTop: 0.80 });
+      break;
+    case "hatch":
+      s = shell({ wheelR: 0.31, sill: 0.30, belt: H * 0.62, roof: H,
+        nose: 0.49, cab1: 0.25, cab0: -0.44, tail: -0.49, roofF: 0.11, roofB: -0.33,
+        wbF: 0.62, hood: H * 0.56 });
+      break;
+    case "sedan":
+      // The fastback: a long roof running down to a short high tail, which is
+      // the shape people picture when they picture a Japanese hybrid.
+      s = shell({ wheelR: 0.32, sill: 0.31, belt: H * 0.60, roof: H,
+        nose: 0.49, cab1: 0.25, cab0: -0.40, tail: -0.49, roofF: 0.15, roofB: -0.18,
+        roofW: 0.82, wbF: 0.60, hood: H * 0.52, deck: H * 0.56 });
+      break;
+    case "saloon":
+    case "police":
+      // Three boxes: bonnet, cabin, boot. The executive saloon, and the shape
+      // every police force in the world buys.
+      s = shell({ wheelR: 0.33, sill: 0.32, belt: H * 0.59, roof: H,
+        nose: 0.49, cab1: 0.22, cab0: -0.26, tail: -0.49, roofF: 0.12, roofB: -0.17,
+        roofW: 0.84, wbF: 0.58, hood: H * 0.51, deck: H * 0.53 });
+      break;
+    case "suv":
+      s = shell({ wheelR: 0.37, sill: 0.42, belt: H * 0.60, roof: H,
+        nose: 0.49, cab1: 0.28, cab0: -0.44, tail: -0.49, roofF: 0.18, roofB: -0.40,
+        roofW: 0.86, wbF: 0.60, trackF: 0.95, tyreW: 0.24, hood: H * 0.55 });
+      // Arch mouldings and roof rails, which is most of what makes a crossover.
+      trim.colour(COL.body2);
+      [1, -1].forEach(sz => {
+        trim.box(hw * 0.92, 0.60, sz * L * 0.30, 0.10, 0.30, 1.00, { tz: 0.75 });
+        trim.box(-hw * 0.92, 0.60, sz * L * 0.30, 0.10, 0.30, 1.00, { tz: 0.75 });
+      });
+      trim.colour(COL.rim);
+      trim.box(hw * 0.70, H + 0.05, -L * 0.12, 0.07, 0.08, L * 0.52);
+      trim.box(-hw * 0.70, H + 0.05, -L * 0.12, 0.07, 0.08, L * 0.52);
+      break;
+    case "onebox":
+      // One box: the roof carries forward over the windscreen and the nose is
+      // a bumper. This is the shape of a Japanese family's car.
+      s = shell({ wheelR: 0.31, sill: 0.30, belt: H * 0.46, roof: H,
+        nose: 0.50, cab1: 0.40, cab0: -0.48, tail: -0.50, roofF: 0.34, roofB: -0.46,
+        roofW: 0.92, wbF: 0.62, hood: H * 0.42, gTop: 0.84 });
+      break;
+    case "taxi":
+      // Upright, tall-roofed, a sliding door: the shape Tokyo replaced its
+      // Crowns with. The roof lamp is what you recognise it by.
+      s = shell({ wheelR: 0.30, sill: 0.29, belt: H * 0.49, roof: H,
+        nose: 0.50, cab1: 0.32, cab0: -0.46, tail: -0.50, roofF: 0.25, roofB: -0.44,
+        roofW: 0.90, wbF: 0.62, hood: H * 0.45, gTop: 0.84 });
+      break;
+    case "sports":
+      // Long bonnet, cabin set back over the rear axle, 1.31 m to the roof.
+      s = shell({ wheelR: 0.33, sill: 0.30, belt: H * 0.60, roof: H,
+        nose: 0.49, cab1: 0.14, cab0: -0.30, tail: -0.49, roofF: 0.04, roofB: -0.20,
+        roofW: 0.78, wbF: 0.62, trackF: 0.97, tyreW: 0.25, hood: H * 0.52,
+        deck: H * 0.56, lampInset: 0.62 });
+      trim.colour(COL.body2);
+      trim.box(0, H * 0.60, -L * 0.46, W * 0.72, 0.05, 0.22);      // ducktail
+      break;
+    case "super":
+      // A wedge: the cabin forward, the engine behind it, 1.17 m to the roof
+      // and a wing over the tail.
+      paint.colour(COL.white);
+      paint.box(0, 0.42, 0, W, 0.44, L, { bx: 0.90, tx: 0.98, tz: 0.96 });
+      paint.box(0, 0.86, -L * 0.06, W * 0.92, 0.44, L * 0.46,
+        { tx: 0.62, tz: 0.30, shift: -L * 0.10 });
+      paint.box(0, 0.30, L * 0.40, W * 0.94, 0.22, L * 0.20, { tx: 0.86, tz: 0.70, shift: -0.1 });
+      trim.colour(COL.glass);
+      trim.box(0, 0.98, L * 0.02, W * 0.86, 0.26, L * 0.34, { tx: 0.60, tz: 0.34, shift: -L * 0.06 });
+      trim.colour(COL.body2);
+      trim.box(0, 1.12, -L * 0.44, W * 0.80, 0.05, 0.26);
+      trim.box(hw * 0.80, 1.02, -L * 0.44, 0.05, 0.22, 0.24);
+      trim.box(-hw * 0.80, 1.02, -L * 0.44, 0.05, 0.22, 0.24);
+      trim.colour(COL.grille);
+      trim.box(0, 0.30, L * 0.49, W * 0.52, 0.14, 0.08);
+      running(0.34, L * 0.60, 0.99, 0.28);
+      lamps(0.46, L * 0.49, 0.50, -L * 0.49, 0.66);
+      plates(0.26, L * 0.5, 0.30, -L * 0.5);
+      marque(0.50, L * 0.5, 0.54, -L * 0.5, 0.15);
+      s = { sill: 0.20, belt: 0.64, roof: H, cabZ0: -L * 0.30, cabZ1: L * 0.20 };
+      break;
+    case "bike":
+      // A motorcycle and a rider. Without the rider it reads as a bicycle
+      // lying down, which is worse than nothing.
+      paint.colour(COL.white);
+      paint.box(0, 0.74, 0.10, 0.34, 0.26, 0.62, { tx: 0.70, tz: 0.80 });   // tank
+      paint.box(0, 0.56, -L * 0.30, 0.30, 0.30, 0.50, { tz: 0.70 });        // tail
+      trim.colour(COL.dark);
+      trim.box(0, 0.86, -L * 0.14, 0.30, 0.10, 0.44);                       // seat
+      trim.box(0, 0.50, L * 0.08, 0.24, 0.34, 0.40);                        // engine
+      trim.colour(COL.chrome);
+      trim.box(0, 1.00, L * 0.36, 0.60, 0.05, 0.07);                        // bars
+      trim.colour(COL.lampF);
+      trim.box(0, 0.86, L * 0.42, 0.17, 0.17, 0.09);
+      trim.colour(COL.tyre);
+      trim.wheel(0, 0.30, L * 0.38, 0.30, 0.12);
+      trim.wheel(0, 0.30, -L * 0.38, 0.30, 0.14);
+      trim.colour(COL.jacket);
+      trim.box(0, 1.16, -L * 0.06, 0.42, 0.52, 0.30, { tz: 0.8, shift: 0.08 });
+      trim.colour(COL.helmet);
+      trim.box(0, 1.50, L * 0.02, 0.26, 0.26, 0.28, { tx: 0.8, tz: 0.8 });
+      marque(0.74, L * 0.42, 0.62, -L * 0.42, 0.11);
+      break;
+    case "scooter":
+      // A step-through delivery scooter with a crate on the front, which in
+      // Japan carries noodles, parcels and absolutely anything else.
+      paint.colour(COL.white);
+      paint.box(0, 0.50, -L * 0.10, 0.36, 0.34, 0.70, { tz: 0.8 });
+      paint.box(0, 0.86, L * 0.26, 0.32, 0.46, 0.26);
+      trim.colour(COL.dark);
+      trim.box(0, 0.78, -L * 0.22, 0.30, 0.10, 0.40);
+      trim.box(0, 0.28, 0, 0.34, 0.08, 0.56);
+      trim.colour(COL.chrome);
+      trim.box(0, 1.06, L * 0.28, 0.54, 0.05, 0.06);
+      trim.colour(COL.tyre);
+      trim.wheel(0, 0.22, L * 0.34, 0.22, 0.11);
+      trim.wheel(0, 0.22, -L * 0.36, 0.22, 0.13);
+      // the crate: a yellow box with the parcel company on three sides
+      paint.colour([0.94, 0.70, 0.11]);
+      paint.box(0, 1.22, L * 0.20, 0.50, 0.42, 0.44);
+      deco.panel(0, 1.22, L * 0.20 + 0.22, 0.40, 0.34, "F", badgeUV("hayabinBox"), false);
+      deco.flanks(0.25, 1.22, L * 0.20, 0.36, 0.32, badgeUV("hayabinBox"), false);
+      trim.colour(COL.jacket);
+      trim.box(0, 1.10, -L * 0.14, 0.40, 0.48, 0.28, { tz: 0.8 });
+      trim.colour(COL.helmet);
+      trim.box(0, 1.44, -L * 0.10, 0.25, 0.25, 0.27, { tx: 0.8, tz: 0.8 });
+      plates(0.34, -L * 0.5 + 0.02, 0.34, -L * 0.5 + 0.02);
+      break;
+    case "truck":
+      // A cab-over two-tonne box truck: the cab is over the front axle and the
+      // body is a flat-sided box with the haulier's name on it.
+      paint.colour(COL.white);
+      paint.box(0, 1.28, L * 0.30, W, 1.30, L * 0.36, { tz: 0.97 });            // cab
+      paint.box(0, 1.84, -L * 0.14, W * 0.99, 2.16, L * 0.62);                  // body
+      trim.colour(COL.glass);
+      trim.box(0, 1.62, L * 0.30, W * 0.94, 0.62, L * 0.37);
+      trim.colour(COL.body2);
+      trim.box(0, 0.52, L * 0.44, W * 0.96, 0.46, 0.18);
+      trim.box(0, 0.68, -L * 0.48, W * 0.96, 0.30, 0.16);
+      trim.colour(COL.lampF);
+      trim.box(hw * 0.70, 0.76, L * 0.48, W * 0.24, 0.20, 0.08);
+      trim.box(-hw * 0.70, 0.76, L * 0.48, W * 0.24, 0.20, 0.08);
+      trim.colour(COL.lampR);
+      trim.box(hw * 0.70, 0.70, -L * 0.5 + 0.03, W * 0.22, 0.24, 0.08);
+      trim.box(-hw * 0.70, 0.70, -L * 0.5 + 0.03, W * 0.22, 0.24, 0.08);
+      trim.colour(COL.tyre);
+      [[-1, 0.42], [1, 0.42]].forEach(p => trim.wheel(p[0] * (hw - 0.12), 0.40, L * p[1], 0.40, 0.22));
+      [-0.26, -0.40].forEach(z => {
+        trim.wheel(hw - 0.12, 0.40, L * z, 0.40, 0.20);
+        trim.wheel(-hw + 0.12, 0.40, L * z, 0.40, 0.20);
+      });
+      deco.flanks(hw * 0.995, 2.10, -L * 0.14, L * 0.56, 0.84, badgeUV("truckDoor"), false);
+      deco.panel(0, 2.10, -L * 0.5 + 0.01, W * 0.72, 0.80, "B", badgeUV("truckDoor"), false);
+      deco.flanks(hw * 0.995, 1.00, L * 0.30, 0.52, 0.30, badgeUV("hayabin"), false);
+      plates(0.52, L * 0.5 - 0.02, 0.70, -L * 0.5 + 0.01);
+      break;
+    case "bus":
+      // A municipal single-decker: 10.49 m, a glass band the length of it, a
+      // destination blind over the windscreen, and an advert on each flank.
+      paint.colour(COL.white);
+      paint.box(0, 1.90, 0, W, 2.20, L, { bx: 0.90, tx: 0.98, tz: 0.985 });
+      paint.box(0, 3.00, 0, W * 0.97, 0.20, L * 0.99, { tx: 0.92, tz: 0.98 });   // roof dome
+      trim.colour(COL.busBlue);
+      trim.box(0, 1.00, 0, W + 0.015, 0.26, L * 0.995);                          // skirt band
+      trim.box(0, 2.84, 0, W + 0.015, 0.16, L * 0.995);                          // cornice band
+      trim.colour(COL.glass);
+      trim.box(0, 2.34, -L * 0.04, W + 0.02, 0.92, L * 0.90);                    // side glass
+      trim.box(0, 2.30, L * 0.49, W * 0.90, 1.10, 0.06);                         // windscreen
+      trim.box(0, 2.34, -L * 0.49, W * 0.88, 0.88, 0.06);
+      trim.colour(COL.body2);
+      trim.box(0, 0.62, L * 0.49, W * 0.96, 0.52, 0.14);
+      trim.box(0, 0.70, -L * 0.49, W * 0.96, 0.44, 0.14);
+      trim.box(0, 2.96, L * 0.46, W * 0.60, 0.34, 0.26);                         // blind box
+      trim.colour(COL.lampF);
+      trim.box(hw * 0.72, 0.88, L * 0.5 - 0.03, W * 0.20, 0.22, 0.08);
+      trim.box(-hw * 0.72, 0.88, L * 0.5 - 0.03, W * 0.20, 0.22, 0.08);
+      trim.colour(COL.lampR);
+      trim.box(hw * 0.72, 0.92, -L * 0.5 + 0.03, W * 0.20, 0.26, 0.08);
+      trim.box(-hw * 0.72, 0.92, -L * 0.5 + 0.03, W * 0.20, 0.26, 0.08);
+      trim.colour(COL.tyre);
+      [0.36, -0.30].forEach(z => {
+        trim.wheel(hw - 0.15, 0.50, L * z, 0.50, 0.28);
+        trim.wheel(-hw + 0.15, 0.50, L * z, 0.50, 0.28);
+      });
+      // Doors, which is where the queue forms.
+      trim.colour(COL.glass);
+      trim.box(hw - 0.005, 1.60, L * 0.30, 0.04, 1.76, 0.92);
+      trim.box(hw - 0.005, 1.60, -L * 0.14, 0.04, 1.76, 1.10);
+      // The livery, the blind, and the advertisement that pays for the bus.
+      deco.panel(0, 2.96, L * 0.46 + 0.14, W * 0.56, 0.30, "F", badgeUV("busBlind"), false);
+      deco.flanks(hw + 0.01, 1.32, -L * 0.02, L * 0.78, 0.78, adUV(0), true);
+      deco.flanks(hw + 0.01, 2.84, L * 0.30, 1.50, 0.15, badgeUV("busBrand"), false);
+      deco.panel(0, 1.30, -L * 0.5 - 0.01, W * 0.80, 0.56, "B", badgeUV("busBrand"), false);
+      plates(0.48, L * 0.5 - 0.02, 0.66, -L * 0.5 + 0.01);
+      break;
+  }
+
+  // Liveries on the bodies that have one.
+  if (kind.livery === "taxi" && s) {
+    // 行灯 on the roof, 空車 in the windscreen, the company on the door.
+    paint.colour([0.95, 0.94, 0.90]);
+    paint.box(0, H + 0.10, L * 0.04, 0.46, 0.20, 0.24);
+    deco.panel(0, H + 0.10, L * 0.04 + 0.13, 0.42, 0.17, "F", badgeUV("taxiLamp"), false);
+    deco.panel(0, H + 0.10, L * 0.04 - 0.13, 0.42, 0.17, "B", badgeUV("taxiLamp"), false);
+    deco.flanks(0.231, H + 0.10, L * 0.04, 0.21, 0.16, badgeUV("taxiLamp"), false);
+    deco.panel(0, s.belt + 0.10, s.cabZ1 - 0.02, 0.44, 0.18, "F", badgeUV("taxiVacant"), false);
+    deco.flanks(hw + 0.008, s.belt - 0.30, -L * 0.06, 1.05, 0.40, badgeUV("taxiDoor"), false);
+    trim.colour([0.92, 0.80, 0.26]);
+    trim.box(0, s.sill + 0.22, 0, W + 0.012, 0.09, L * 0.90);
+  }
+  if (kind.livery === "ryde" && s) {
+    paint.colour([0.08, 0.09, 0.10]);
+    paint.box(0, H + 0.07, L * 0.10, 0.30, 0.14, 0.17);
+    deco.panel(0, H + 0.07, L * 0.10 + 0.10, 0.28, 0.13, "F", badgeUV("rydeRoof"), false);
+    deco.panel(0, H + 0.07, L * 0.10 - 0.10, 0.28, 0.13, "B", badgeUV("rydeRoof"), false);
+    deco.panel(0, s.belt + 0.12, s.cabZ1 - 0.02, 0.34, 0.15, "F", badgeUV("rydeRoof"), false);
+    deco.flanks(hw + 0.008, s.belt - 0.28, -L * 0.04, 0.60, 0.24, badgeUV("rydeDoor"), false);
+  }
+  if (kind.livery === "police" && s) {
+    // White over black with a red bar. The black is painted into the body as a
+    // dark band rather than as its own mesh, which is how a two-tone works.
+    paint.colour([0.12, 0.13, 0.15]);
+    paint.box(0, (s.sill + s.belt * 0.56) / 2 + 0.01, 0, W + 0.012,
+      s.belt * 0.56 - s.sill, L * 0.97, { bx: 0.88 });
+    trim.colour(COL.red);
+    trim.box(hw * 0.46, H + 0.10, 0, 0.56, 0.17, 0.22);
+    trim.box(-hw * 0.46, H + 0.10, 0, 0.56, 0.17, 0.22);
+    trim.colour([0.92, 0.93, 0.90]);
+    trim.box(0, H + 0.08, 0, 0.42, 0.13, 0.20);
+    trim.colour(COL.dark);
+    trim.box(0, H + 0.015, 0, W * 0.78, 0.05, 0.26);
+    deco.flanks(hw + 0.009, s.belt - 0.26, -L * 0.04, 0.92, 0.34, badgeUV("policeDoor"), false);
+    deco.panel(0, s.belt - 0.04, L * 0.34, 0.26, 0.26, "U", badgeUV("policeBonnet"), false);
+  }
+
+  return {
+    kind: kind,
+    paint: paint.geometry(),
+    trim: trim.geometry(),
+    deco: deco.empty() ? null : deco.geometry()
   };
 }
 
-// One body. Nose points +Z, wheels on the ground, origin between them.
-function buildCarBody(kind) {
-  const L = kind[1], W = kind[2], H = kind[3], name = kind[0];
-  const paint = carMesh(), trim = carMesh();
-
-  const wheelR = (name === "kei" ? 0.27 : 0.31);
-  const sill = wheelR * 1.25;                      // where the body starts
-  const roof = H;
-  const upright = (name === "kei" || name === "van" || name === "taxi");
-
-  // Lower body. A kei car is a vertical-sided box; everything else tucks in a little.
-  paint.box(0, (sill + roof*0.56)/2 + sill*0.1, 0, W, (roof*0.56 - sill), L, 0.99, 0.99);
-
-  // The greenhouse is where the shapes differ. A one-box van or a kei car carries its roof
-  // forward over the windscreen; a Prius runs a long fastback down to the boot.
-  const beltline = roof * 0.56 + sill * 0.1;
-  if (upright) {
-    paint.box(0, (beltline + roof)/2, L*0.02, W*0.95, roof - beltline, L*0.76, 0.93, 0.80, -L*0.02);
-  } else if (name === "sedan") {
-    // long roof, raked screen, tail dropping away: the fastback that says Prius
-    paint.box(0, (beltline + roof)/2, L*0.02, W*0.93, roof - beltline, L*0.56, 0.86, 0.46, -L*0.10);
-    paint.box(0, beltline + (roof-beltline)*0.18, -L*0.34, W*0.95, (roof-beltline)*0.36, L*0.26, 0.97, 0.80, 0);
-  } else {
-    paint.box(0, (beltline + roof)/2, L*0.01, W*0.93, roof - beltline, L*0.60, 0.88, 0.70, -L*0.04);
+// One deco material, shared by every vehicle and by all the street furniture
+// that carries a badge. The per-instance offset is what lets one bus geometry
+// carry eight different advertisements.
+let decoMatCache = null;
+function decoMaterial(map, instanced) {
+  const m = new THREE.MeshLambertMaterial({
+    map: map, transparent: true, alphaTest: 0.42, depthWrite: true, side: THREE.FrontSide
+  });
+  if (instanced) {
+    m.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>",
+          "#include <common>\nattribute vec2 aUvOff;\nattribute float aVary;")
+        .replace("#include <uv_vertex>",
+          "#include <uv_vertex>\n#ifdef USE_UV\n  vUv += aUvOff * aVary;\n#endif");
+    };
+    m.customProgramCacheKey = () => "konto-deco-inst";
   }
-
-  // Bonnet and boot where the shape has them.
-  if (!upright) paint.box(0, beltline - 0.02, L*0.34, W*0.92, 0.10, L*0.26, 1, 1);
-
-  // Glass: a band just inside the greenhouse, which at this size is all a window needs.
-  const gTop = beltline + (roof - beltline) * 0.82, gBot = beltline + (roof - beltline) * 0.16;
-  const gLen = upright ? L*0.74 : L*0.56;
-  trim.box(0, (gTop+gBot)/2, L*0.02, W*0.965, gTop-gBot, gLen, 0.9, 0.78, -L*0.03);
-
-  // Bumpers, lamps, wheels.
-  trim.box(0, sill*0.9, L*0.5 - 0.06, W*0.94, 0.26, 0.14, 1, 1);
-  trim.box(0, sill*0.9, -L*0.5 + 0.06, W*0.94, 0.26, 0.14, 1, 1);
-  const wheelbase = L * 0.58, track = W * 0.42;
-  [[-track, wheelbase/2], [track, wheelbase/2], [-track, -wheelbase/2], [track, -wheelbase/2]]
-    .forEach(p => trim.wheel(p[0], wheelR, p[1], wheelR, 0.19));
-
-  // A taxi carries its 行灯 lamp on the roof, which is the thing you recognise it by.
-  if (name === "taxi") trim.box(0, roof + 0.09, L*0.04, 0.46, 0.17, 0.22, 1, 1);
-
-  return { paint: paint.geometry(), trim: trim.geometry(), kind: kind };
+  return m;
 }
 
-// Lanes, offset to the left of travel. One rule, stated once: the opposing carriageway is
-// the same road walked backwards, which puts it on the other side for free.
+// ---------------------------------------------------------------- the traffic
+// The same bargain the city makes everywhere else: nothing exists except near
+// the camera. A vehicle is a distance along a lane, so the driving model is a
+// gap, a speed limit and an acceleration cap, and everything else is sampling
+// the lane.
+//
+// Lanes sit to the left of travel, because Konto is Japan. One rule, stated
+// once: the opposing carriageway is the same road walked backwards, which puts
+// it on the other side for free.
 function buildTrafficLanes(city) {
   const lanes = [];
   const LANE_W = 3.25;
-  // The painted city ground is laid CITY_LIFT above the terrain across the city's whole
-  // rectangle, while surfaceY tapers that lift off towards the edge - so a car placed on
-  // surfaceY sinks into the paving by up to CITY_LIFT. Inside the rectangle, drive on the
-  // paving; outside it, on the ground.
+  // The painted city ground is laid CITY_LIFT above the terrain across the
+  // city's whole rectangle, while surfaceY tapers that lift off towards the
+  // edge - so a car placed on surfaceY sinks into the paving by up to
+  // CITY_LIFT. Inside the rectangle, drive on the paving; outside, on the
+  // ground.
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
   const roadY = (x, z) => paved(x, z)
@@ -4026,22 +5344,25 @@ function buildTrafficLanes(city) {
     if (road.elevated || !road.pts || road.pts.length < 3) return;
     const perSide = road.halfWidth >= 9 ? 2 : 1;
     const limit = road.cls === "expressway" ? 22 : (road.halfWidth >= 12 ? 15.3 : 12.5);
+    const wide = road.halfWidth >= 10.5;
     for (let dir = 0; dir < 2; dir++) {
       for (let k = 0; k < perSide; k++) {
         const src = dir ? road.pts.slice().reverse() : road.pts;
-        // Only the stretches the city actually paves. A road leaving town carries on as
-        // data but is not drawn out there, and cars gliding across open grass in neat
-        // lines looks far worse than a road with no traffic on it.
+        // Only the stretches the city actually paves. A road leaving town
+        // carries on as data but is not drawn out there, and cars gliding
+        // across open grass in neat lines looks far worse than a road with no
+        // traffic on it.
         let run = [];
         const runs = [];
         for (let i = 0; i < src.length; i++) {
-          const prev = src[Math.max(0, i-1)], next = src[Math.min(src.length-1, i+1)];
-          let dx = next[0]-prev[0], dz = next[2]-prev[2];
-          const len = Math.hypot(dx, dz) || 1; dx/=len; dz/=len;
+          const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+          let dx = next[0] - prev[0], dz = next[2] - prev[2];
+          const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
           const off = LANE_W * (k + 0.5);
-          const lx = src[i][0] - dz*off, lz = src[i][2] + dx*off;
+          const lx = src[i][0] - dz * off, lz = src[i][2] + dx * off;
           if (paved(lx, lz)) {
-            // The road's stored height predates the grading pass, so a car on it floats.
+            // The road's stored height predates the grading pass, so a car on
+            // it floats.
             run.push([lx, roadY(lx, lz) + 0.04, lz]);
           } else if (run.length) { runs.push(run); run = []; }
         }
@@ -4051,11 +5372,11 @@ function buildTrafficLanes(city) {
           if (pts.length < 4) return;
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
-            arc.push(arc[i-1] + Math.hypot(pts[i][0]-pts[i-1][0], pts[i][2]-pts[i-1][2]));
+            arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
           // A loop only stays a loop if none of it was cut away.
           const whole = runs.length === 1 && pts.length === src.length;
-          lanes.push({ pts: pts, arc: arc, length: arc[arc.length-1], speed: limit,
-                       loop: !!road.loop && whole, road: ri });
+          lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
+                       loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === 0 });
         });
       }
     }
@@ -4069,12 +5390,16 @@ function sampleLane(lane, s) {
   else s = clamp(s, 0, total);
   let lo = 0, hi = lane.arc.length - 1;
   while (lo + 1 < hi) { const mid = (lo + hi) >> 1; if (lane.arc[mid] <= s) lo = mid; else hi = mid; }
-  const seg = lane.arc[lo+1] - lane.arc[lo];
+  const seg = lane.arc[lo + 1] - lane.arc[lo];
   const t = seg > 1e-4 ? (s - lane.arc[lo]) / seg : 0;
-  const a = lane.pts[lo], b = lane.pts[lo+1];
+  const a = lane.pts[lo], b = lane.pts[lo + 1];
+  const flat = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1;
   return {
-    x: a[0] + (b[0]-a[0])*t, y: a[1] + (b[1]-a[1])*t, z: a[2] + (b[2]-a[2])*t,
-    yaw: Math.atan2(b[0]-a[0], b[2]-a[2])
+    x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, z: a[2] + (b[2] - a[2]) * t,
+    yaw: Math.atan2(b[0] - a[0], b[2] - a[2]),
+    // Nose up the hill. Without this a car on a gradient hovers at one end
+    // and is buried at the other, and a train does it eight carriages over.
+    pitch: -Math.atan2(b[1] - a[1], flat)
   };
 }
 
@@ -4083,6 +5408,7 @@ function buildTraffic(w, root) {
   traffic.cars = [];
   traffic.paint = [];
   traffic.trim = [];
+  traffic.deco = [];
   traffic.ready = false;
   if (!w.cities || !w.cities.length) return;
 
@@ -4090,15 +5416,29 @@ function buildTraffic(w, root) {
   traffic.lanes = traffic.lanes.filter(l => l.length > 60);
   if (!traffic.lanes.length) return;
   traffic.byLane = traffic.lanes.map(() => []);
+  traffic.wideLanes = traffic.lanes.some(l => l.wide);
 
-  const per = Math.ceil(traffic.max / CAR_KINDS.length);
+  // Capacity follows the share, so the mix on the street is the mix in the
+  // catalogue without anybody having to pick a vehicle at random.
+  const total = CAR_KINDS.reduce((a, k) => a + k.share, 0);
+  const badges = badgeAtlas();
+  const ads = adAtlas();
   CAR_KINDS.forEach((kind, ki) => {
-    const body = buildCarBody(kind);
-    const paintMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
-    const trimMat = new THREE.MeshLambertMaterial({ color: 0x1b1d21 });
-    const paint = new THREE.InstancedMesh(body.paint, paintMat, per);
-    const trim = new THREE.InstancedMesh(body.trim, trimMat, per);
-    [paint, trim].forEach(m => {
+    const body = buildVehicle(kind);
+    const cap = Math.max(2, Math.round(traffic.max * kind.share / total * 1.25));
+    const paintMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+    const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+    const paint = new THREE.InstancedMesh(body.paint, paintMat, cap);
+    const trim = new THREE.InstancedMesh(body.trim, trimMat, cap);
+    const meshes = [paint, trim];
+    let deco = null;
+    if (body.deco) {
+      deco = new THREE.InstancedMesh(body.deco, decoMaterial(kind.ads ? ads : badges, true), cap);
+      // The per-instance uv offset: which marque, or which advertisement.
+      body.deco.setAttribute("aUvOff", new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2));
+      meshes.push(deco);
+    }
+    meshes.forEach(m => {
       m.castShadow = true;
       m.count = 0;
       m.frustumCulled = false;
@@ -4107,8 +5447,10 @@ function buildTraffic(w, root) {
     });
     traffic.paint.push(paint);
     traffic.trim.push(trim);
-    for (let i = 0; i < per; i++) {
-      traffic.cars.push({ kind: ki, slot: i, lane: -1, s: 0, v: 0, half: kind[1]/2, top: kind[5], live: false });
+    traffic.deco.push(deco);
+    for (let i = 0; i < cap; i++) {
+      traffic.cars.push({ kind: ki, lane: -1, s: 0, v: 0, half: kind.L / 2,
+                          top: kind.top, live: false, uv: [0, 0] });
     }
   });
   traffic.ready = true;
@@ -4116,35 +5458,48 @@ function buildTraffic(w, root) {
 
 function trafficSpawn(at) {
   const lanes = traffic.lanes;
-  let budget = 5;
+  let budget = 6;
   for (let c = 0; c < traffic.cars.length && budget > 0; c++) {
     const car = traffic.cars[c];
     if (car.live) continue;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const lane = lanes[(Math.random() * lanes.length) | 0];
+    const kind = CAR_KINDS[car.kind];
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const li = (Math.random() * lanes.length) | 0;
+      const lane = lanes[li];
+      // A ten-metre bus does not belong in a back street.
+      if (kind.wide && !lane.wide && traffic.wideLanes) continue;
       const s = Math.random() * lane.length;
       const p = sampleLane(lane, s);
       const d = Math.hypot(p.x - at.x, p.z - at.z);
       if (d > traffic.spawnR || d < traffic.clearR) continue;
       // Not on top of anything already there, and with room to stop.
-      const here = traffic.byLane[lanes.indexOf(lane)];
+      const here = traffic.byLane[li];
       let blocked = false;
       for (let i = 0; i < here.length; i++) {
         const o = traffic.cars[here[i]];
         if (Math.abs(o.s - s) < car.half + o.half + 9) { blocked = true; break; }
       }
       if (blocked) continue;
-      car.lane = lanes.indexOf(lane);
+      car.lane = li;
       car.s = s;
-      car.v = lane.speed * (0.65 + Math.random() * 0.35);
+      car.v = Math.min(lane.speed, car.top) * (0.65 + Math.random() * 0.35);
       car.live = true;
-      const col = CAR_COLOURS[(Math.random() * CAR_COLOURS.length) | 0];
-      car.colour = (car.kind === 4)
-        ? [0.07, 0.08, 0.10]            // taxis are black here, as most of Tokyo's are
-        : col;
+      car.colour = kind.colour
+        ? kind.colour
+        : CAR_COLOURS[(Math.random() * CAR_COLOURS.length) | 0];
+      // Which marque wears the badge, or which advertisement is on the bus.
+      if (kind.ads) {
+        car.uv[0] = 0;
+        car.uv[1] = adVOffset((Math.random() * ADS.length) | 0);
+      } else if (kind.marques && kind.marques.length > 1) {
+        const base = badgeUV(kind.marques[0]);
+        const pick = badgeUV(kind.marques[(Math.random() * kind.marques.length) | 0]);
+        car.uv[0] = pick.u0 - base.u0;
+        car.uv[1] = pick.v0 - base.v0;
+      } else { car.uv[0] = 0; car.uv[1] = 0; }
       const list = traffic.byLane[car.lane];
       let slot = list.length;
-      while (slot > 0 && traffic.cars[list[slot-1]].s > s) slot--;
+      while (slot > 0 && traffic.cars[list[slot - 1]].s > s) slot--;
       list.splice(slot, 0, c);
       budget--;
       break;
@@ -4163,8 +5518,8 @@ function updateTraffic(dt, at) {
   if (!traffic.ready) return;
   const counts = new Array(CAR_KINDS.length).fill(0);
 
-  // Drive, one lane at a time, from the car in front backwards so every car knows where
-  // its leader is before it picks a speed.
+  // Drive, one lane at a time, from the car in front backwards so every car
+  // knows where its leader is before it picks a speed.
   for (let l = 0; l < traffic.byLane.length; l++) {
     const here = traffic.byLane[l];
     if (!here.length) continue;
@@ -4173,11 +5528,11 @@ function updateTraffic(dt, at) {
       const car = traffic.cars[here[k]];
       let limit = Math.min(lane.speed, car.top);
       if (k + 1 < here.length) {
-        const lead = traffic.cars[here[k+1]];
+        const lead = traffic.cars[here[k + 1]];
         const gap = (lead.s - lead.half) - (car.s + car.half) - 1.8 - lead.v * dt - 0.6;
-        // Able to stop if the car in front stops as hard as it can: the only rule that
-        // actually keeps cars out of each other.
-        limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v*lead.v + 11 * gap)));
+        // Able to stop if the car in front stops as hard as it can: the only
+        // rule that actually keeps cars out of each other.
+        limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v * lead.v + 11 * gap)));
       }
       car.v += clamp(limit - car.v, -6.5 * dt, 2.6 * dt);
       car.v = Math.max(0, car.v);
@@ -4200,7 +5555,7 @@ function updateTraffic(dt, at) {
       continue;
     }
     const i = counts[car.kind]++;
-    _carEuler.set(0, p.yaw, 0);
+    _carEuler.set(p.pitch, p.yaw, 0, "YXZ");
     _carQuat.setFromEuler(_carEuler);
     _carPos.set(p.x, p.y, p.z);
     _carMat.compose(_carPos, _carQuat, _carScale);
@@ -4208,17 +5563,760 @@ function updateTraffic(dt, at) {
     traffic.trim[car.kind].setMatrixAt(i, _carMat);
     _carCol.setRGB(car.colour[0], car.colour[1], car.colour[2]);
     traffic.paint[car.kind].setColorAt(i, _carCol);
+    const deco = traffic.deco[car.kind];
+    if (deco) {
+      deco.setMatrixAt(i, _carMat);
+      const off = deco.geometry.attributes.aUvOff;
+      off.setXY(i, car.uv[0], car.uv[1]);
+    }
   }
 
   for (let k = 0; k < CAR_KINDS.length; k++) {
-    traffic.paint[k].count = counts[k];
-    traffic.trim[k].count = counts[k];
+    const n = counts[k];
+    traffic.paint[k].count = n;
+    traffic.trim[k].count = n;
     traffic.paint[k].instanceMatrix.needsUpdate = true;
     traffic.trim[k].instanceMatrix.needsUpdate = true;
     if (traffic.paint[k].instanceColor) traffic.paint[k].instanceColor.needsUpdate = true;
+    const deco = traffic.deco[k];
+    if (deco) {
+      deco.count = n;
+      deco.instanceMatrix.needsUpdate = true;
+      deco.geometry.attributes.aUvOff.needsUpdate = true;
+    }
   }
 
   trafficSpawn(at);
+}
+
+// ---------------------------------------------------------------- NHRail
+// Nikon Rail runs the loop line, the radials and the shinkansen. A train is a
+// set of cars at fixed spacing on one distance along one line, which is the
+// same model as the traffic with the following rule taken out: the sets are
+// spaced far enough apart at spawn that they cannot catch each other, because
+// every set on a line runs at the same speed.
+const TRAIN_KINDS = [
+  // name          cars  L      W     H     gap   speed  the real thing
+  { name: "commuter", cars: 6, L: 19.5, W: 2.95, H: 3.60, gap: 0.6, speed: 24,
+    nose: false },
+  { name: "shinkansen", cars: 8, L: 24.5, W: 3.36, H: 3.65, gap: 0.4, speed: 72,
+    nose: true }
+];
+
+const rail = { lines: [], sets: [], body: [], trim: [], deco: [], ready: false,
+               max: 7, spawnR: 1400, killR: 2000 };
+
+// One carriage. NHRail stock is stainless with a green belt; the shinkansen
+// is white over blue with a long nose on the end cars.
+function buildCarriage(kind, isNose) {
+  const L = kind.L, W = kind.W, H = kind.H, hw = W / 2;
+  const body = solidMesh(), trim = solidMesh(), deco = decoMesh();
+  const floor = 1.05;                       // rail head to the saloon floor
+  const shink = kind.name === "shinkansen";
+
+  body.colour(shink ? COL.shinkNose : COL.nhSteel);
+  if (isNose) {
+    // The nose: a 6 m taper, which is what makes a bullet train a bullet train.
+    const noseL = shink ? 6.2 : 1.1;
+    body.box(0, floor + H * 0.45, -noseL * 0.5, W, H * 0.90, L - noseL,
+      { bx: 0.93, tx: 0.90, tz: 0.995 });
+    body.box(0, floor + H * 0.38, L * 0.5 - noseL * 0.5, W, H * 0.76, noseL,
+      { tx: 0.26, tz: 0.30, shift: noseL * 0.34, bx: 0.88, bz: 0.80, bshift: noseL * 0.18 });
+  } else {
+    body.box(0, floor + H * 0.45, 0, W, H * 0.90, L, { bx: 0.93, tx: 0.90, tz: 0.998 });
+  }
+  body.colour(shink ? [0.10, 0.22, 0.46] : COL.nhGreen);
+  body.box(0, floor + H * 0.20, 0, W + 0.02, 0.34, L * 0.99, { bx: 0.94 });
+
+  trim.colour(COL.glass);
+  trim.box(0, floor + H * 0.62, isNose ? -L * 0.10 : 0, W + 0.02, 0.86,
+    L * (isNose ? 0.74 : 0.90));
+  trim.colour(COL.dark);
+  // Doors - four a side on a commuter car, two on a shinkansen.
+  const doors = shink ? 2 : 4;
+  for (let d = 0; d < doors; d++) {
+    const z = -L * 0.38 + L * 0.76 * (d + 0.5) / doors;
+    trim.box(hw + 0.005, floor + 1.05, z, 0.05, 2.00, 1.30);
+    trim.box(-hw - 0.005, floor + 1.05, z, 0.05, 2.00, 1.30);
+  }
+  // Bogies and the roof, which is all you see of a train from the street.
+  trim.colour(COL.body2);
+  [L * 0.33, -L * 0.33].forEach(z => {
+    trim.box(0, 0.62, z, W * 0.80, 0.70, 2.50);
+    trim.colour(COL.tyre);
+    trim.wheel(hw * 0.70, 0.43, z + 1.1, 0.43, 0.14);
+    trim.wheel(-hw * 0.70, 0.43, z + 1.1, 0.43, 0.14);
+    trim.wheel(hw * 0.70, 0.43, z - 1.1, 0.43, 0.14);
+    trim.wheel(-hw * 0.70, 0.43, z - 1.1, 0.43, 0.14);
+    trim.colour(COL.body2);
+  });
+  trim.colour(COL.rim);
+  trim.box(0, floor + H * 0.92, 0, W * 0.74, 0.20, L * 0.86, { tx: 0.84 });
+  if (!shink) {
+    // The pantograph, which is the one piece of a commuter train that is not a box.
+    trim.colour(COL.chrome);
+    trim.box(0, floor + H * 0.98 + 0.26, L * 0.22, 0.10, 0.52, 0.10);
+    trim.box(0, floor + H * 0.98 + 0.50, L * 0.22, 1.30, 0.07, 0.12);
+  }
+  if (isNose) {
+    trim.colour(COL.lampF);
+    const zf = L * 0.5 - (shink ? 0.45 : 0.08);
+    trim.box(hw * 0.52, floor + 0.60, zf, 0.26, 0.20, 0.10);
+    trim.box(-hw * 0.52, floor + 0.60, zf, 0.26, 0.20, 0.10);
+  }
+
+  // The mark on the flank, and the advertisement that wraps the car - which on
+  // a Japanese train is a whole-car wrap often enough to be worth doing.
+  deco.flanks(hw + 0.012, floor + H * 0.20, 0, L * 0.30, 0.30, badgeUV("nhrailMark"), false);
+  deco.flanks(hw + 0.012, floor + 0.42, isNose ? -L * 0.10 : 0, L * 0.70, 0.42, adUV(0), true);
+  return {
+    body: body.geometry(), trim: trim.geometry(), deco: deco.geometry()
+  };
+}
+
+// Rail lanes: two tracks, up and down, 2.1 m either side of the stored
+// centreline. Unlike the roads these are not clipped to the paved rectangle,
+// because the viaduct is drawn the whole length of the line.
+function buildRailLanes(city) {
+  const out = [];
+  const b = city.bounds;
+  const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+  city.rails.forEach((line, li) => {
+    if (!line.pts || line.pts.length < 4) return;
+    const kindName = line.cls === "shinkansen" ? "shinkansen" : "commuter";
+    for (let dir = 0; dir < 2; dir++) {
+      const src = dir ? line.pts.slice().reverse() : line.pts;
+      const pts = [];
+      for (let i = 0; i < src.length; i++) {
+        const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+        let dx = next[0] - prev[0], dz = next[2] - prev[2];
+        const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
+        const off = 2.1;
+        const lx = src[i][0] - dz * off, lz = src[i][2] + dx * off;
+        // An elevated line carries its deck height; a line on the ground sits
+        // on ballast, which the city paving has lifted with everything else.
+        const y = line.elevated
+          ? src[i][1] + 0.18
+          : (paved(lx, lz) ? world.sampleHeight(lx, lz) + CITY_LIFT : world.surfaceY(lx, lz)) + 0.55;
+        pts.push([lx, y, lz]);
+      }
+      const arc = [0];
+      for (let i = 1; i < pts.length; i++)
+        arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
+      const length = arc[arc.length - 1];
+      if (length < 500) continue;
+      out.push({ pts: pts, arc: arc, length: length, loop: !!line.loop,
+                 kindName: kindName, line: li });
+    }
+  });
+  return out;
+}
+
+function buildRail(w, root) {
+  rail.lines = [];
+  rail.sets = [];
+  rail.body = [];
+  rail.trim = [];
+  rail.deco = [];
+  rail.ready = false;
+  if (!w.cities || !w.cities.length) return;
+  w.cities.forEach(c => { rail.lines = rail.lines.concat(buildRailLanes(c)); });
+  if (!rail.lines.length) return;
+
+  const badges = badgeAtlas(), ads = adAtlas();
+  TRAIN_KINDS.forEach((kind, ki) => {
+    // Two geometries per kind: an end car with a nose and an intermediate one.
+    const nose = buildCarriage(kind, true), mid = buildCarriage(kind, false);
+    const cap = rail.max * kind.cars;
+    const made = [];
+    [nose, mid].forEach(part => {
+      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+      const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+      const b = new THREE.InstancedMesh(part.body, bodyMat, cap);
+      const t = new THREE.InstancedMesh(part.trim, trimMat, cap);
+      part.deco.setAttribute("aUvOff", new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2));
+      const d = new THREE.InstancedMesh(part.deco, decoMaterial(ads, true), cap);
+      [b, t, d].forEach(m => {
+        m.castShadow = true; m.count = 0; m.frustumCulled = false;
+        m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        root.add(m);
+      });
+      made.push({ body: b, trim: t, deco: d });
+    });
+    rail.body.push(made);
+    for (let i = 0; i < rail.max; i++) {
+      rail.sets.push({ kind: ki, line: -1, s: 0, live: false, uv: 0 });
+    }
+  });
+  rail.ready = true;
+  // The stations the sets run between are built once, as furniture.
+}
+
+function railSpawn(at) {
+  for (let i = 0; i < rail.sets.length; i++) {
+    const set = rail.sets[i];
+    if (set.live) continue;
+    const kind = TRAIN_KINDS[set.kind];
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const li = (Math.random() * rail.lines.length) | 0;
+      const line = rail.lines[li];
+      if (line.kindName !== kind.name) continue;
+      const s = Math.random() * line.length;
+      const p = sampleLane(line, s);
+      const d = Math.hypot(p.x - at.x, p.z - at.z);
+      if (d > rail.spawnR || d < 220) continue;
+      // A set occupies its own length plus a block section; nothing else on
+      // this line may be inside that.
+      const trainL = kind.cars * (kind.L + kind.gap) + 300;
+      let blocked = false;
+      for (let k = 0; k < rail.sets.length; k++) {
+        const o = rail.sets[k];
+        if (!o.live || o.line !== li) continue;
+        if (Math.abs(o.s - s) < trainL) { blocked = true; break; }
+      }
+      if (blocked) continue;
+      set.line = li;
+      set.s = s;
+      set.live = true;
+      set.uv = adVOffset((Math.random() * ADS.length) | 0);
+      break;
+    }
+  }
+}
+
+function updateRail(dt, at) {
+  if (!rail.ready) return;
+  const counts = TRAIN_KINDS.map(() => [0, 0]);
+  for (let i = 0; i < rail.sets.length; i++) {
+    const set = rail.sets[i];
+    if (!set.live) continue;
+    const kind = TRAIN_KINDS[set.kind];
+    const line = rail.lines[set.line];
+    set.s += kind.speed * dt;
+    const pitch = kind.L + kind.gap;
+    const head = sampleLane(line, set.s);
+    if ((!line.loop && set.s > line.length - kind.cars * pitch) ||
+        Math.hypot(head.x - at.x, head.z - at.z) > rail.killR) {
+      set.live = false;
+      continue;
+    }
+    for (let c = 0; c < kind.cars; c++) {
+      const s = set.s - c * pitch;
+      if (!line.loop && s < 0) continue;
+      const p = sampleLane(line, s);
+      const end = (c === 0 || c === kind.cars - 1) ? 0 : 1;
+      const slot = counts[set.kind][end]++;
+      const group = rail.body[set.kind][end];
+      const flip = (c === kind.cars - 1);
+      _carEuler.set(flip ? -p.pitch : p.pitch, p.yaw + (flip ? Math.PI : 0), 0, "YXZ");
+      _carQuat.setFromEuler(_carEuler);
+      _carPos.set(p.x, p.y, p.z);
+      _carMat.compose(_carPos, _carQuat, _carScale);
+      group.body.setMatrixAt(slot, _carMat);
+      group.trim.setMatrixAt(slot, _carMat);
+      group.deco.setMatrixAt(slot, _carMat);
+      group.deco.geometry.attributes.aUvOff.setXY(slot, 0, set.uv);
+    }
+  }
+  TRAIN_KINDS.forEach((kind, ki) => {
+    for (let end = 0; end < 2; end++) {
+      const group = rail.body[ki][end];
+      const n = counts[ki][end];
+      [group.body, group.trim, group.deco].forEach(m => {
+        m.count = n; m.instanceMatrix.needsUpdate = true;
+      });
+      group.deco.geometry.attributes.aUvOff.needsUpdate = true;
+    }
+  });
+  railSpawn(at);
+}
+
+// ------------------------------------------------------------ street furniture
+// Everything that is bolted to the pavement rather than driving along it:
+// NHRail platforms and their name boards, Tokonto Bus stops, the advertising
+// that pays for both, the shrines, and the scramble crossing.
+//
+// All of it is static, so all of it goes into four meshes - one of coloured
+// boxes and one per texture atlas - and the whole of the street furniture in
+// Tokonto costs four draw calls.
+const FURN = {
+  concrete: [0.74, 0.73, 0.70], tile: [0.80, 0.79, 0.76], steel: [0.56, 0.58, 0.60],
+  dark: [0.22, 0.23, 0.25], glass: [0.50, 0.60, 0.64], green: [0.11, 0.52, 0.29],
+  vermillion: [0.68, 0.19, 0.13], timber: [0.34, 0.24, 0.17], kawara: [0.24, 0.26, 0.30],
+  gravel: [0.72, 0.70, 0.64], bronze: [0.33, 0.29, 0.21], stone: [0.62, 0.61, 0.57],
+  busBlue: [0.10, 0.30, 0.56], white: [0.90, 0.91, 0.88], lamp: [0.14, 0.32, 0.70],
+  screen: [0.05, 0.06, 0.08], paint: [0.88, 0.89, 0.86]
+};
+
+function buildStreetFurniture(w, city, root, boxes) {
+  const solid = solidMesh();
+  const badges = decoMesh();
+  const ads = decoMesh();
+  const signs = decoMesh();
+  let adSeq = 0;
+  // What got built, kept on the city so a test can count it, a camera can be
+  // put in front of it, and a bus route can one day call at it.
+  const built = city.furniture = { stops: [], hoardings: [], platforms: [], shrines: [] };
+  const b = city.bounds;
+  const paved = (x, z) => !!b && x > b.x0 + 8 && x < b.x1 - 8 && z > b.z0 + 8 && z < b.z1 - 8;
+  const groundAt = (x, z) => paved(x, z) ? w.sampleHeight(x, z) + CITY_LIFT : w.surfaceY(x, z);
+  const R = (a, c) => rnd(a | 0, c | 0, 70001 + city.code.charCodeAt(0));
+  // One advert follows another down the street rather than being drawn at
+  // random, so you never see the same one twice side by side.
+  const nextAd = () => adUV(adSeq++);
+
+  // ---- NHRail ----------------------------------------------------------
+  // Where the track actually is, and which way it runs: taken from the line
+  // rather than from the station record, so the platform is parallel to the
+  // rails and at the height of the rails whether the line is on a viaduct or
+  // on the ground.
+  function trackAt(cx, cz) {
+    let best = null, bestD = Infinity;
+    city.rails.forEach(line => {
+      for (let i = 1; i < line.pts.length; i++) {
+        const p = line.pts[i], q = line.pts[i - 1];
+        const d = (p[0] - cx) * (p[0] - cx) + (p[2] - cz) * (p[2] - cz);
+        if (d >= bestD) continue;
+        bestD = d;
+        best = { x: p[0], z: p[2], y: line.elevated ? p[1] : groundAt(p[0], p[2]) + 0.55,
+                 yaw: Math.atan2(p[0] - q[0], p[2] - q[2]), elevated: !!line.elevated,
+                 cls: line.cls };
+      }
+    });
+    return bestD < 320 * 320 ? best : null;
+  }
+
+  city.stations.forEach((st, si) => {
+    const t = trackAt(st.centre[0], st.centre[1]);
+    if (!t) return;
+    const PL = clamp(st.size[0] * 0.62, 84, 158);        // platform length
+    const row = signRow(st.name);
+    const railY = t.y;
+    solid.frame(t.x, railY, t.z, t.yaw);
+    badges.frame(t.x, railY, t.z, t.yaw);
+    signs.frame(t.x, railY, t.z, t.yaw);
+    ads.frame(t.x, railY, t.z, t.yaw);
+
+    // Two side platforms, 1.1 m above the railhead, 8 m wide, outside the
+    // 2.1 m tracks. A Japanese platform is the one piece of transport
+    // infrastructure you spend real time standing on, so it gets its edge
+    // strip and its yellow tactile line.
+    [-1, 1].forEach(sideIdx => {
+      const px = sideIdx * 6.7;
+      solid.colour(FURN.concrete).box(px, 0.55, 0, 8.0, 1.10, PL);
+      solid.colour(FURN.tile).box(px, 1.12, 0, 7.6, 0.06, PL - 0.4);
+      solid.colour([0.88, 0.76, 0.18])
+        .box(px - sideIdx * 3.2, 1.16, 0, 0.55, 0.05, PL - 1.0);
+      // The canopy: a flat roof 3.5 m over the platform on posts every 12 m.
+      solid.colour(FURN.steel);
+      const posts = Math.max(3, Math.round(PL / 12));
+      for (let k = 0; k < posts; k++) {
+        const z = -PL * 0.42 + PL * 0.84 * k / (posts - 1);
+        solid.post(px + sideIdx * 2.6, 1.15, z, 0.10, 3.45);
+      }
+      solid.colour(FURN.white).box(px, 4.80, 0, 8.6, 0.22, PL * 0.90);
+      // Name boards hung from the canopy, which is where you read them from a
+      // train window, and one at each end for the platform itself.
+      const cell = signUV(row);
+      [-PL * 0.26, PL * 0.26].forEach(z => {
+        solid.colour(FURN.steel).box(px - sideIdx * 0.1, 3.52, z, 0.10, 0.62, 3.40);
+        signs.back(px - sideIdx * 0.1, 3.52, z, 3.36, 0.56, cell, false);
+      });
+      // Benches, a few vending machines and a bin: the furniture of a platform.
+      solid.colour(FURN.timber);
+      solid.box(px + sideIdx * 2.9, 1.42, PL * 0.10, 0.50, 0.50, 2.00);
+      solid.box(px + sideIdx * 2.9, 1.42, -PL * 0.14, 0.50, 0.50, 2.00);
+      solid.colour([0.72, 0.16, 0.14]);
+      solid.box(px + sideIdx * 3.0, 2.08, PL * 0.30, 0.70, 1.85, 1.20);
+      badges.panel(px + sideIdx * 2.63, 2.20, PL * 0.30, 1.05, 1.35,
+        sideIdx > 0 ? "L" : "R", badgeUV("vending"), false);
+    });
+
+    // The track itself. The city plan is painted at about three metres to the
+    // pixel, which is coarser than a rail is wide, so the running lines at a
+    // station are built rather than drawn.
+    // Ballast and four running rails, and no sleepers: a sleeper every 0.62 m
+    // over a 300 m approach is 600,000 vertices for something you cannot
+    // resolve from a platform, and the rails are what the eye is looking for.
+    const track = PL * 1.04;
+    solid.colour([0.29, 0.27, 0.24]);
+    solid.box(0, -0.30, 0, 11.4, 0.62, track);
+    solid.colour([0.52, 0.50, 0.47]);
+    [-1, 1].forEach(side => [-0.717, 0.717].forEach(railOff => {
+      solid.box(side * 2.1 + railOff, 0.10, 0, 0.075, 0.16, track);
+    }));
+
+    // A concourse at one end, with the company's mark over the door, and a
+    // viaduct-height stair when the line is in the air.
+    const conZ = -PL * 0.5 - 11;
+    const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
+    solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
+    solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1, 20, 3.4, 0.30);
+    solid.colour(FURN.green).box(0, conY + 6.8, conZ, 26.4, 0.5, 20.4);
+    badges.panel(0, conY + 5.3, conZ + 10.3, 4.2, 1.9, "B", badgeUV("nhrail"), false);
+    signs.panel(0, conY + 2.9, conZ + 10.3, 7.0, 1.1, "B", signUV(row), false);
+    if (t.elevated) {
+      // The stair up to the platform, as a run of treads under a sloping roof.
+      solid.colour(FURN.concrete).box(0, conY + (railY - groundAt(t.x, t.z)) * 0.5,
+        conZ + 12.5, 7.0, Math.max(2, railY - groundAt(t.x, t.z)), 5.0, { tz: 0.4, shift: -1.4 });
+    }
+    // The advertising hoarding on the concourse flank, which is where a
+    // Japanese station makes most of its money.
+    ads.panel(13.1, conY + 4.2, conZ, 17.0, 2.1, "R", nextAd(), false);
+    ads.panel(-13.1, conY + 4.2, conZ, 17.0, 2.1, "L", nextAd(), false);
+    solids.push({ c: [t.x, t.z], size: [26, 20], yaw: t.yaw * 180 / Math.PI,
+                  y: groundAt(t.x, t.z), h: 6.6 });
+    built.platforms.push([t.x, railY, t.z, t.yaw, st.name]);
+  });
+
+  // ---- Tokonto Bus -----------------------------------------------------
+  // A flag, a timetable and - one stop in three - a shelter with a bench and
+  // an advert. Spaced the way a city bus route spaces them, which is about
+  // every 300 m, alternating sides so both carriageways are served.
+  let stops = 0;
+  city.roads.forEach((road, ri) => {
+    if (road.elevated || road.halfWidth < 9 || !road.pts || road.pts.length < 4) return;
+    let since = 140 + R(ri, 3) * 160;
+    for (let i = 1; i < road.pts.length && stops < 110; i++) {
+      const p = road.pts[i], q = road.pts[i - 1];
+      const seg = Math.hypot(p[0] - q[0], p[2] - q[2]);
+      since += seg;
+      if (since < 300) continue;
+      since = 0;
+      const dx = (p[0] - q[0]) / (seg || 1), dz = (p[2] - q[2]) / (seg || 1);
+      const side = (i & 1) ? 1 : -1;          // both carriageways get served
+      const off = (road.halfWidth + 2.6) * side;
+      const x = p[0] - dz * off, z = p[2] + dx * off;
+      if (!paved(x, z)) continue;
+      if (insideBuilding(x, z, 3.2)) continue;
+      const y = groundAt(x, z);
+      const yaw = Math.atan2(dx, dz);
+      solid.frame(x, y, z, yaw);
+      badges.frame(x, y, z, yaw);
+      ads.frame(x, y, z, yaw);
+      const inward = side > 0 ? 1 : -1;       // local +X towards the road
+      // The flag: a round sign on a pole, readable along the street in both
+      // directions, which is why it faces the way the traffic comes.
+      solid.colour(FURN.steel).post(0, 0, 0, 0.055, 2.55);
+      solid.colour(FURN.white).box(0, 2.30, 0, 0.09, 0.70, 0.70);
+      badges.back(0, 2.30, 0, 0.66, 0.66, badgeUV("busFlag"), false);
+      solid.colour(FURN.busBlue).box(0, 1.70, 0, 0.10, 0.34, 0.62);
+      badges.panel(0, 1.70, 0, 0.58, 0.30, inward > 0 ? "R" : "L", badgeUV("busBrand"), false);
+      // The timetable, which faces the person waiting rather than the road.
+      solid.colour(FURN.white).box(-inward * 0.10, 1.25, 0, 0.07, 0.62, 0.46);
+      badges.panel(-inward * 0.14, 1.25, 0, 0.44, 0.60,
+        inward > 0 ? "L" : "R", badgeUV("busTimes"), false);
+      if (R(i, ri) > 0.62) {
+        // A shelter: four posts, a roof, a bench and the advert on its back.
+        const sx = -inward * 0.95;        // set back from the kerb
+        solid.colour(FURN.steel);
+        [[-1.55, -1.15], [-1.55, 1.15], [1.55, -1.15], [1.55, 1.15]].forEach(c =>
+          solid.post(sx + c[0] * 0.55, 0, c[1], 0.06, 2.42));
+        solid.colour(FURN.white).box(sx, 2.52, 0, 3.4, 0.14, 2.6);
+        solid.colour(FURN.glass).box(-inward * 2.55, 1.25, 0, 0.10, 2.40, 2.4);
+        solid.colour(FURN.timber).box(-inward * 1.9, 0.46, 0, 0.42, 0.10, 2.0);
+        solid.colour(FURN.steel).box(-inward * 1.9, 0.22, 0, 0.42, 0.44, 0.10);
+        ads.panel(-inward * 2.60, 1.60, 0, 2.30, 0.29,
+          inward > 0 ? "L" : "R", nextAd(), false);
+      }
+      built.stops.push([x, y, z, yaw]);
+      stops++;
+    }
+  });
+
+  // ---- lane markings ---------------------------------------------------
+  // A dashed white centre line between the carriageways, on the arterials
+  // only. The city plan is painted at about three metres to the pixel, so a
+  // 0.15 m line cannot survive it - and a road with no centre line does not
+  // read as a road. Edge lines are left out on purpose: they would treble the
+  // vertex count of the whole of the street furniture for a line you cannot
+  // pick out from a car.
+  let dashes = 0;
+  city.roads.forEach(road => {
+    if (road.elevated || road.halfWidth < 9 || !road.pts || road.pts.length < 3) return;
+    for (let i = 1; i < road.pts.length && dashes < 1800; i++) {
+      const p = road.pts[i - 1], q = road.pts[i];
+      const seg = Math.hypot(q[0] - p[0], q[2] - p[2]);
+      if (seg < 1) continue;
+      const dx = (q[0] - p[0]) / seg, dz = (q[2] - p[2]) / seg;
+      const yawL = Math.atan2(dx, dz);
+      const pitch = 18, dash = 8;
+      for (let t = 0; t < seg && dashes < 1800; t += pitch) {
+        const x = p[0] + dx * (t + dash * 0.5), z = p[2] + dz * (t + dash * 0.5);
+        // Not over the bay: the city rectangle takes in reclaimed water, and
+        // the lifted city ground there is metres below the graded surface.
+        // Not over the bay, and not down a cliff: the ring roads are walked
+        // round a circle rather than routed, so a chord between two of their
+        // points can cross a ravine, and a centre line painted down that is
+        // worse than no centre line.
+        if (!paved(x, z) || w.sampleHeight(x, z) < 1.2 || w.slopeAt(x, z) > 0.32) continue;
+        solid.frame(x, groundAt(x, z) + 0.016, z, yawL);
+        solid.colour([0.88, 0.88, 0.82]);
+        solid.box(0, 0.012, 0, 0.17, 0.024, Math.min(dash, seg - t));
+        dashes++;
+      }
+    }
+  });
+
+  // ---- billboards ------------------------------------------------------
+  // Roadside hoardings on legs, at the 8:1 shape a long Japanese street sign
+  // takes, and a band on the roof of whatever is tall enough to carry one.
+  let hoardings = 0;
+  city.roads.forEach((road, ri) => {
+    if (road.elevated || road.halfWidth < 11 || !road.pts || road.pts.length < 4) return;
+    let since = R(ri, 11) * 300;
+    for (let i = 1; i < road.pts.length && hoardings < 70; i++) {
+      const p = road.pts[i], q = road.pts[i - 1];
+      const seg = Math.hypot(p[0] - q[0], p[2] - q[2]);
+      since += seg;
+      if (since < 460) continue;
+      since = 0;
+      const dx = (p[0] - q[0]) / (seg || 1), dz = (p[2] - q[2]) / (seg || 1);
+      const side = R(i, ri * 3) > 0.5 ? 1 : -1;
+      const off = (road.halfWidth + 7.5) * side;
+      const x = p[0] - dz * off, z = p[2] + dx * off;
+      if (!paved(x, z) || insideBuilding(x, z, 5.0)) continue;
+      const y = groundAt(x, z);
+      const yaw = Math.atan2(dx, dz);
+      solid.frame(x, y, z, yaw);
+      ads.frame(x, y, z, yaw);
+      const inward = side > 0 ? 1 : -1;
+      solid.colour(FURN.steel);
+      solid.post(0, 0, -3.4, 0.14, 7.0);
+      solid.post(0, 0, 3.4, 0.14, 7.0);
+      solid.colour(FURN.dark).box(0, 7.90, 0, 0.34, 1.60, 11.2);
+      ads.panel(inward * 0.19, 7.90, 0, 11.0, 1.38, inward > 0 ? "R" : "L", nextAd(), false);
+      built.hoardings.push([x, y, z, yaw]);
+      hoardings++;
+    }
+  });
+
+  // Rooftop and upper-flank signs. The heights come from the massing that was
+  // actually built, not from the plan, so a sign never floats over a roof.
+  const tall = boxes.filter(k => !k.deck && k.h >= 11 && k.h <= 90 &&
+    Math.min(k.size[0], k.size[1]) >= 7);
+  for (let i = 0; i < tall.length; i += 11) {
+    const k = tall[i];
+    const yaw = k.yaw * Math.PI / 180;
+    const alongX = k.size[0] >= k.size[1];
+    const len = Math.min(alongX ? k.size[0] : k.size[1], 24) * 0.92;
+    const h = clamp(len / 8, 1.1, 3.0);
+    solid.frame(k.c[0], k.y + k.h, k.c[1], yaw);
+    ads.frame(k.c[0], k.y + k.h, k.c[1], yaw);
+    const halfOut = (alongX ? k.size[1] : k.size[0]) * 0.5;
+    solid.colour(FURN.dark);
+    if (alongX) {
+      solid.box(0, h * 0.5 + 0.2, halfOut - 0.35, len, h, 0.30);
+      ads.panel(0, h * 0.5 + 0.2, halfOut - 0.19, len, h, "F", nextAd(), false);
+    } else {
+      solid.box(halfOut - 0.35, h * 0.5 + 0.2, 0, 0.30, h, len);
+      ads.panel(halfOut - 0.19, h * 0.5 + 0.2, 0, len, h, "R", nextAd(), false);
+    }
+  }
+
+  // ---- shrines ---------------------------------------------------------
+  // A torii, a gravel approach, a hall with a tiled roof, a water basin and a
+  // pair of guardian plinths. Vermillion, timber and kawara grey, which is the
+  // whole palette.
+  city.plots.filter(p => p.kind === "shrine" && Math.min(p.size[0], p.size[1]) > 20)
+    .sort((a, c) => c.size[0] * c.size[1] - a.size[0] * a.size[1])
+    .slice(0, 10).forEach(p => {
+    const yaw = p.yaw * Math.PI / 180;
+    const long = Math.max(p.size[0], p.size[1]);
+    const alongX = p.size[0] >= p.size[1];
+    // The approach runs the long way across the plot; the torii stands at the
+    // near end of it and the hall at the far end.
+    const half = Math.min(long * 0.42, 34);
+    const f = yaw + (alongX ? Math.PI / 2 : 0);     // local +Z points up the approach
+    const base = groundAt(p.centre[0], p.centre[1]);
+    solid.frame(p.centre[0], base, p.centre[1], f);
+    badges.frame(p.centre[0], base, p.centre[1], f);
+
+    // the gravel approach
+    solid.colour(FURN.gravel).box(0, 0.05, 0, 5.2, 0.10, half * 1.9);
+    // the torii: two leaning pillars, a curved kasagi and the nuki under it
+    solid.colour(FURN.vermillion);
+    solid.post(-2.35, 0, half * 0.86, 0.23, 4.30);
+    solid.post(2.35, 0, half * 0.86, 0.23, 4.30);
+    solid.box(0, 4.52, half * 0.86, 6.30, 0.34, 0.52, { tx: 0.90, bx: 1.0 });
+    solid.box(0, 4.84, half * 0.86, 5.60, 0.22, 0.40);
+    solid.box(0, 3.62, half * 0.86, 5.10, 0.26, 0.34);
+    solid.colour(FURN.timber).box(0, 4.08, half * 0.86, 0.52, 0.66, 0.30);
+    badges.panel(0, 4.08, half * 0.86 + 0.16, 0.46, 0.46, "F", badgeUV("shrineSign"), false);
+
+    // the hall: a raised timber floor, posts, and a steep tiled roof
+    const hz = -half * 0.55;
+    solid.colour(FURN.stone).box(0, 0.35, hz, 9.4, 0.70, 7.4);
+    solid.colour(FURN.timber).box(0, 2.00, hz, 8.2, 2.60, 6.2);
+    solid.colour([0.52, 0.17, 0.12]).box(0, 3.34, hz, 8.6, 0.28, 6.6);
+    solid.colour(FURN.kawara).slope(0, 5.40, hz, 11.0, 8.6, 1.95);
+    solid.colour(FURN.kawara).box(0, 5.46, hz, 11.0, 0.22, 0.60);
+    solid.colour(FURN.timber).box(0, 0.92, hz + 3.6, 2.60, 0.14, 1.60);   // the steps
+    // the money box and the bell rope, which is what you actually walk up to
+    solid.colour([0.28, 0.21, 0.15]).box(0, 0.95, hz + 3.0, 1.60, 0.50, 0.70);
+    solid.colour([0.78, 0.70, 0.38]).box(0, 3.90, hz + 3.3, 0.22, 1.10, 0.22);
+
+    // the chozuya, a basin under four posts, on the right of the approach
+    solid.colour(FURN.timber);
+    [[-1.5, -1.5], [1.5, -1.5], [-1.5, 1.5], [1.5, 1.5]].forEach(c =>
+      solid.post(5.6 + c[0], 0, half * 0.10 + c[1], 0.09, 2.30));
+    solid.colour(FURN.kawara).slope(5.6, 2.90, half * 0.10, 4.2, 4.2, 0.55);
+    solid.colour(FURN.stone).box(5.6, 0.45, half * 0.10, 2.10, 0.90, 1.40);
+    solid.colour([0.18, 0.30, 0.33]).box(5.6, 0.92, half * 0.10, 1.70, 0.06, 1.05);
+
+    // the guardian pair, which are a plinth and a shape and read correctly at
+    // the distance anybody sees them from
+    solid.colour(FURN.stone);
+    [-1, 1].forEach(sx => {
+      const gx = sx * 3.8, gz = half * 0.52;
+      solid.box(gx, 0.55, gz, 0.90, 1.10, 0.90);
+      solid.box(gx, 1.35, gz, 0.46, 0.60, 0.80, { tz: 0.7 });
+      solid.box(gx, 1.78, gz + 0.14, 0.34, 0.34, 0.38);
+      // a stone lantern beside it
+      solid.box(gx * 1.55, 0.30, -half * 0.12, 0.60, 0.60, 0.60);
+      solid.post(gx * 1.55, 0.60, -half * 0.12, 0.17, 1.00);
+      solid.box(gx * 1.55, 1.78, -half * 0.12, 0.86, 0.26, 0.86);
+      solid.colour([0.86, 0.84, 0.72]).box(gx * 1.55, 2.02, -half * 0.12, 0.62, 0.46, 0.62);
+      solid.colour(FURN.kawara).box(gx * 1.55, 2.34, -half * 0.12, 0.98, 0.26, 0.98, { tx: 0.3, tz: 0.3 });
+      solid.colour(FURN.stone);
+    });
+    built.shrines.push([p.centre[0], base, p.centre[1], f, half]);
+    solids.push({ c: [p.centre[0] + Math.sin(f) * hz, p.centre[1] + Math.cos(f) * hz],
+                  size: [9.4, 7.4], yaw: f * 180 / Math.PI, y: base, h: 5.4 });
+  });
+
+  // ---- the scramble crossing -------------------------------------------
+  // The one junction in Tokonto that people go to look at: four crossings and
+  // two diagonals, the buildings around it wrapped in screens, a police box on
+  // one corner and a bronze dog on the other.
+  if (city.scramble) {
+    const sc = city.scramble;
+    const y = groundAt(sc.at[0], sc.at[1]);
+    const yaw = sc.yaw * Math.PI / 180;
+    solid.frame(sc.at[0], y, sc.at[1], yaw);
+    badges.frame(sc.at[0], y, sc.at[1], yaw);
+    ads.frame(sc.at[0], y, sc.at[1], yaw);
+
+    // Signal heads on all four corners, horizontal the way Japanese ones are.
+    const r = sc.radius;
+    [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => {
+      solid.colour(FURN.steel).post(c[0] * r, 0, c[1] * r, 0.085, 5.20);
+      solid.colour(FURN.dark).box(c[0] * r * 0.86, 5.00, c[1] * r, 1.30, 0.42, 0.34);
+      solid.colour([0.14, 0.62, 0.30]).box(c[0] * r * 0.86 - 0.42, 5.00, c[1] * r + 0.18, 0.30, 0.30, 0.06);
+      solid.colour([0.78, 0.62, 0.12]).box(c[0] * r * 0.86, 5.00, c[1] * r + 0.18, 0.30, 0.30, 0.06);
+      solid.colour([0.72, 0.14, 0.14]).box(c[0] * r * 0.86 + 0.42, 5.00, c[1] * r + 0.18, 0.30, 0.30, 0.06);
+      // a pedestrian signal lower down, and the crossing's own sign
+      solid.colour(FURN.dark).box(c[0] * r, 3.10, c[1] * r + 0.22, 0.34, 0.68, 0.22);
+    });
+    // The crossings themselves. Painted into the city plan they vanish - a
+    // 0.45 m bar is a sixth of a pixel at that scale - so every bar is laid on
+    // the road as its own slab, sampled onto the ground it sits on.
+    function crossing(ox, oz, ang, span, depth) {
+      const bars = Math.floor(span / 1.45);
+      for (let i = 0; i <= bars; i++) {
+        const t = -span * 0.5 + i * 1.45;
+        const lx = ox + Math.cos(ang) * t, lz = oz - Math.sin(ang) * t;
+        const wx = sc.at[0] + lx * Math.cos(yaw) + lz * Math.sin(yaw);
+        const wz = sc.at[1] - lx * Math.sin(yaw) + lz * Math.cos(yaw);
+        solid.frame(wx, groundAt(wx, wz) + 0.012, wz, yaw + ang);
+        solid.colour([0.86, 0.86, 0.82]).box(0, 0.012, 0, 0.52, 0.024, depth);
+      }
+      solid.frame(sc.at[0], y, sc.at[1], yaw);
+    }
+    crossing(0, r * 0.88, 0, r * 1.78, 4.6);
+    crossing(0, -r * 0.88, 0, r * 1.78, 4.6);
+    crossing(r * 0.88, 0, Math.PI / 2, r * 1.78, 4.6);
+    crossing(-r * 0.88, 0, Math.PI / 2, r * 1.78, 4.6);
+    crossing(0, 0, Math.PI / 4, r * 2.5, 4.4);
+    crossing(0, 0, -Math.PI / 4, r * 2.5, 4.4);
+    // The stop lines the traffic waits behind.
+    [[0, r * 1.20, 0], [0, -r * 1.20, 0], [r * 1.20, 0, Math.PI / 2], [-r * 1.20, 0, Math.PI / 2]]
+      .forEach(q => {
+        const wx = sc.at[0] + q[0] * Math.cos(yaw) + q[1] * Math.sin(yaw);
+        const wz = sc.at[1] - q[0] * Math.sin(yaw) + q[1] * Math.cos(yaw);
+        solid.frame(wx, groundAt(wx, wz) + 0.012, wz, yaw + q[2]);
+        solid.colour([0.86, 0.86, 0.82]).box(0, 0.012, 0, r * 0.90, 0.024, 0.45);
+      });
+    solid.frame(sc.at[0], y, sc.at[1], yaw);
+
+    solid.colour(FURN.steel).post(r * 0.82, 0, -r * 1.05, 0.07, 2.70);
+    badges.back(r * 0.82, 2.35, -r * 1.05, 0.72, 0.72, badgeUV("crossingSign"), false);
+
+    // The police box: a kōban, which is on a corner of every busy junction in
+    // Japan, with its blue lamp over the door.
+    const kx = -r * 1.22, kz = -r * 1.22;
+    solid.colour(FURN.tile).box(kx, 1.90, kz, 6.4, 3.80, 5.6);
+    solid.colour(FURN.glass).box(kx, 2.00, kz + 2.85, 4.4, 2.00, 0.22);
+    solid.colour(FURN.dark).box(kx, 3.92, kz, 6.8, 0.26, 6.0);
+    solid.colour(FURN.lamp).box(kx, 4.32, kz, 0.62, 0.52, 0.62);
+    badges.panel(kx, 2.95, kz + 2.95, 2.20, 0.60, "F", badgeUV("policeDoor"), false);
+    solids.push({ c: [sc.at[0] + kx * Math.cos(yaw) + kz * Math.sin(yaw),
+                      sc.at[1] - kx * Math.sin(yaw) + kz * Math.cos(yaw)],
+                  size: [6.4, 5.6], yaw: sc.yaw, y: y, h: 3.8 });
+
+    // The dog. He waited nine years, which the plaque says and the statue does
+    // not need to.
+    const dx = r * 1.18, dz = -r * 1.18;
+    solid.colour(FURN.stone).box(dx, 0.60, dz, 1.70, 1.20, 1.70, { tx: 0.86 });
+    solid.colour(FURN.bronze);
+    solid.box(dx, 1.52, dz, 0.52, 0.64, 1.00, { tz: 0.9 });
+    solid.box(dx, 1.96, dz + 0.42, 0.40, 0.40, 0.42);
+    solid.box(dx - 0.12, 2.20, dz + 0.42, 0.10, 0.22, 0.14, { tx: 0.2 });
+    solid.box(dx + 0.12, 2.20, dz + 0.42, 0.10, 0.22, 0.14, { tx: 0.2 });
+    solid.box(dx, 1.74, dz - 0.52, 0.16, 0.50, 0.16, { shift: -0.16 });
+    badges.panel(dx, 0.80, dz + 0.86, 1.10, 0.52, "F", badgeUV("dogPlaque"), false);
+
+    // The screens. Every building within sight of the crossing that is tall
+    // enough gets wrapped, which is the whole reason the junction is famous.
+    const near = boxes.filter(k => !k.deck && k.h >= 14 &&
+      Math.hypot(k.c[0] - sc.at[0], k.c[1] - sc.at[1]) < r * 3.4)
+      .sort((p, q) => Math.hypot(p.c[0] - sc.at[0], p.c[1] - sc.at[1]) -
+                      Math.hypot(q.c[0] - sc.at[0], q.c[1] - sc.at[1]))
+      .slice(0, 9);
+    near.forEach(k => {
+      const kyaw = k.yaw * Math.PI / 180;
+      solid.frame(k.c[0], k.y, k.c[1], kyaw);
+      ads.frame(k.c[0], k.y, k.c[1], kyaw);
+      const alongX = k.size[0] >= k.size[1];
+      const len = (alongX ? k.size[0] : k.size[1]) * 0.94;
+      const out = (alongX ? k.size[1] : k.size[0]) * 0.5;
+      const bands = clamp(Math.floor((k.h - 6) / 7), 1, 5);
+      for (let n = 0; n < bands; n++) {
+        const by = 7.5 + n * 7.0;
+        const bh = clamp(len / 8, 1.2, 3.4);
+        solid.colour(FURN.screen);
+        if (alongX) {
+          solid.box(0, by, out + 0.22, len, bh + 0.3, 0.44);
+          ads.panel(0, by, out + 0.46, len, bh, "F", nextAd(), false);
+          ads.panel(0, by, -out - 0.46, len, bh, "B", nextAd(), false);
+        } else {
+          solid.box(out + 0.22, by, 0, 0.44, bh + 0.3, len);
+          ads.panel(out + 0.46, by, 0, len, bh, "R", nextAd(), false);
+          ads.panel(-out - 0.46, by, 0, len, bh, "L", nextAd(), false);
+        }
+        if (!alongX) solid.box(-out - 0.22, by, 0, 0.44, bh + 0.3, len);
+        else solid.box(0, by, -out - 0.22, len, bh + 0.3, 0.44);
+      }
+    });
+  }
+
+  // ---- hand the four meshes over --------------------------------------
+  const made = [];
+  if (!solid.empty()) {
+    const m = new THREE.Mesh(solid.geometry(),
+      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true }));
+    m.castShadow = true; m.receiveShadow = true;
+    made.push(m);
+  }
+  const signTexture = buildSignAtlas();
+  [[badges, badgeAtlas()], [ads, adAtlas()], [signs, signTexture]].forEach(pair => {
+    if (pair[0].empty()) return;
+    const m = new THREE.Mesh(pair[0].geometry(), decoMaterial(pair[1], false));
+    m.castShadow = false; m.receiveShadow = false;
+    made.push(m);
+  });
+  made.forEach(m => { m.frustumCulled = false; root.add(m); });
+  return made;
 }
 
 // ---------------------------------------------------------------- readout
