@@ -75,3 +75,25 @@ the arms out.
 
 `updateSeikoClip()` picks the clip from his speed and crossfades over about a fifth of a second,
 scaling the clip's playback rate by speed over `WALK_SPEED` / `RUN_SPEED` so his feet do not skate.
+
+## Playing it on a phone
+
+The page works on a touch screen: drag anywhere to look, and a thumbstick appears in the
+bottom left to move. Run is a toggle, Up and Down are holds and only appear while flying, and
+the panel moves to the top right so the stick is not sitting on top of it. Phones also render
+three device pixels to the CSS pixel, so the renderer is capped at 1.5 on touch.
+
+## One file, for hosts that serve one file
+
+`konto.html` fetches the character from `seiko.glb` beside it, which works on a web server and
+nowhere else: a page opened from a phone's Files app cannot fetch its neighbours, and some
+hosts serve no `.glb` at all. For those:
+
+```
+python3 Tools/web/make-standalone.py              # -> Web/konto-standalone.html
+```
+
+It carries the model into the page as base64, through the `SEIKO_GLB_B64` hook the page
+already has. `--keep-wrapper` leaves the `<!doctype html>` in place, which is what you want
+for a file you open or serve yourself; without it the output is a fragment, for a host that
+supplies its own document skeleton.

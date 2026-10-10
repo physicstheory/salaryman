@@ -247,6 +247,10 @@ Assets/SalaryMan/Characters/
 Web/
   konto.html                  the whole generator, in a browser, in one file
   seiko.glb                   Seiko Shigu, rigged, with idle / walk / run
+
+Tools/
+  cloud/build-konto.ps1|.sh   build the world on a rented machine, no editor window
+  web/make-standalone.py      fold the model into the page, for phones and one-file hosts
 ```
 
 Character setup, Blender export settings and the full control map:
