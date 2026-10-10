@@ -1,0 +1,43 @@
+{
+  "name": "salaryman-konto",
+  "productName": "Salary Man",
+  "version": "0.5.0",
+  "description": "Konto, Tōkonto and Seiko Shigu, as a desktop game.",
+  "license": "MIT",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "stage": "node tools/stage.js",
+    "start": "npm run stage && electron .",
+    "dist": "npm run stage && electron-builder --publish never",
+    "dist:win": "npm run stage && electron-builder --win --publish never",
+    "dist:linux": "npm run stage && electron-builder --linux --publish never",
+    "dist:mac": "npm run stage && electron-builder --mac --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.physicstheory.salaryman",
+    "productName": "Salary Man",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "preload.js", "app/**", "vendor/**", "package.json"],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "SalaryMan-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Salary Man"
+    },
+    "linux": { "target": ["AppImage"], "category": "Game" },
+    "mac": { "target": ["dmg"], "category": "public.app-category.games" }
+  }
+}

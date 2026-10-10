@@ -1,0 +1,5 @@
+# Staged by tools/stage.js from Web/, and rebuilt on every run.
+app/
+# electron-builder's output.
+dist/
+node_modules/

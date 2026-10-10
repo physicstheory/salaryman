@@ -143,8 +143,22 @@ crossing and the shrines. Serve the folder and open the page; nothing to install
 python3 -m http.server 8000 --directory Web    # then open http://localhost:8000/konto.html
 ```
 
-It is a preview of the plan, not the game: the Unity build is where the world actually gets made.
 See **[Web/README.md](Web/README.md)**.
+
+## Or play it properly
+
+`Game/` wraps the same engine in Electron and turns it into something you
+install: a window with no browser in it, an Xbox pad laid out the way GTA V is,
+the libraries vendored so it starts with no internet, and builds made in the
+cloud and left on GitHub for you to download.
+
+```
+cd Game && npm install && npm start
+```
+
+**[Docs/PLAYING_ON_A_PC.md](Docs/PLAYING_ON_A_PC.md)** is the whole of it: where
+to get a build, how to pair the controller, every button, and what to turn off
+if it runs badly.
 
 ---
 

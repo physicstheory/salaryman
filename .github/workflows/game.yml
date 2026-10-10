@@ -1,0 +1,67 @@
+# Build the desktop game and hand back something you can run.
+#
+# Pushing a tag like v0.5.0 builds Windows and Linux and attaches the installers
+# to a GitHub release. Running the workflow by hand (Actions -> Build the game ->
+# Run workflow) builds the same thing and leaves it as a downloadable artifact,
+# which is the quickest way to get a fresh build onto a laptop.
+name: Build the game
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            out: "Game/dist/*.exe"
+          - os: ubuntu-latest
+            name: linux
+            out: "Game/dist/*.AppImage"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        working-directory: Game
+        run: npm install --no-audit --no-fund
+
+      - name: Stage the engine
+        working-directory: Game
+        run: npm run stage
+
+      - name: Build
+        working-directory: Game
+        env:
+          # electron-builder signs nothing here: these are unsigned builds, and
+          # Windows will say so the first time you run one.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist
+
+      - name: Keep the build
+        uses: actions/upload-artifact@v4
+        with:
+          name: SalaryMan-${{ matrix.name }}
+          path: ${{ matrix.out }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.out }}
+          draft: false
+          generate_release_notes: true

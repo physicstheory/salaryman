@@ -30,17 +30,47 @@ EOF
 
 ## Controls
 
-| | |
-|---|---|
-| drag | look |
-| W A S D | move |
-| Q / E | down / up (flying) |
-| shift | run, or fly faster |
-| F | swap between flying and walking as Seiko |
-| scroll | fly speed |
+It is built for an Xbox pad, laid out the way GTA V is, and the keyboard mirrors it.
 
-Flying, **F** drops him on the ground below where you are looking. Walking, **F** puts the camera
-back. Click any reserved site in the right hand panel to fly to it.
+| On foot | Pad | Keyboard |
+|---|---|---|
+| walk | left stick | W A S D |
+| look | right stick | drag |
+| sprint | X (hold) | shift |
+| jump | A | space |
+| get in / out | Y | F |
+| phone | D-pad up | P |
+| Seiko ↔ free camera | D-pad down | G |
+| map | Menu ☰ | M, Esc or Tab |
+
+| Driving | Pad | Keyboard |
+|---|---|---|
+| accelerate | RT | W |
+| brake, then reverse | LT | S |
+| steer | left stick | A / D |
+| handbrake | A | space |
+| get out | Y | F |
+
+On the map: the left stick pans, the triggers zoom, **A** drops a waypoint, the
+D-pad moves down the menu and **X** chooses. With a mouse: drag, scroll, click.
+
+Click any reserved site in the right hand panel to fly to it.
+
+## What you see while you are playing
+
+A **minimap** in the bottom left corner, rotated to where you are looking and
+scaled up when you are driving, with the waypoint and the line to it on it. Over
+it, where you are: the arterial if you are on one, and otherwise the ward and
+the chōme, because most streets in Japan have no name and the block is what an
+address is built from.
+
+The **map** is the whole island: pan it, zoom from the coastline down to a
+street corner, and drop a waypoint anywhere. Zoomed in it draws the street grid,
+the plots, the parks, the station names and the arterials by name. It is the
+pause screen too, so the graphics and shadow switches are down its left side.
+
+The **phone** is a SOTI So24. D-pad up brings it out of the bottom right corner
+and the D-pad moves around it. The apps do nothing yet.
 
 ## What is on the streets
 
@@ -56,7 +86,7 @@ Nanatsu, Daichi, Ganseki — and drawn as geometry in the idiom of car badges. W
 car wears is a per-instance texture offset, so one hatchback geometry carries four of them for the
 cost of one.
 
-**NHRail** — Nikon Rail — runs the loop line, the radials and the shinkansen: six-car stainless
+**NHRail** — Nihon Rail — runs the loop line, the radials and the shinkansen: six-car stainless
 commuter sets and eight-car bullet trains with a 6.2 m nose, on two tracks, pitched to the
 gradient. Every station gets side platforms, a canopy, a tactile edge strip, benches, a vending
 machine, ballast and four running rails, a concourse with the company's mark over the door, and

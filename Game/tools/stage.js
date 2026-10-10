@@ -1,0 +1,73 @@
+// Stage the engine into Game/app, for Electron.
+//
+// Web/konto.html is written to be served: it pulls three.js from a CDN and
+// fetches seiko.glb from the folder beside it. Neither is right for something
+// you install and run on a laptop that may be offline, so this copies the page
+// in, points it at the vendored libraries, and leaves the model where the
+// custom protocol in main.js can serve it.
+//
+//   node tools/stage.js
+//
+// It is idempotent, and npm start / npm run dist call it for you.
+
+const fs = require("fs");
+const path = require("path");
+
+const GAME = path.resolve(__dirname, "..");
+const REPO = path.resolve(GAME, "..");
+const SRC = path.join(REPO, "Web");
+const OUT = path.join(GAME, "app");
+
+// konto://vendor/... rather than ../vendor/..., because a relative path from
+// konto://app/index.html is clamped at the host and would look for the library
+// inside the staged folder.
+const CDN = {
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js": "konto://vendor/three.min.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js": "konto://vendor/GLTFLoader.js"
+};
+
+function main() {
+  fs.mkdirSync(OUT, { recursive: true });
+
+  const pagePath = path.join(SRC, "konto.html");
+  if (!fs.existsSync(pagePath)) {
+    console.error("Could not find " + pagePath + ". Run this from inside the repository.");
+    process.exit(1);
+  }
+  let page = fs.readFileSync(pagePath, "utf8");
+
+  let rewrote = 0;
+  Object.keys(CDN).forEach(url => {
+    if (page.indexOf(url) < 0) return;
+    page = page.split(url).join(CDN[url]);
+    rewrote++;
+  });
+  if (page.indexOf("cdn.jsdelivr.net") >= 0) {
+    console.error("The page still points at a CDN after rewriting. Has a script tag moved?");
+    process.exit(1);
+  }
+  Object.values(CDN).forEach(rel => {
+    const f = path.join(GAME, "vendor", rel.split("/").pop());
+    if (!fs.existsSync(f)) {
+      console.error("Missing " + f + ". The vendored libraries are part of the repository.");
+      process.exit(1);
+    }
+  });
+
+  // Google Fonts is a network call too. The page falls back to system faces
+  // without it, which is what a laptop with no internet gets.
+  page = page.replace(/<link rel="preconnect"[^>]*>\s*/g, "");
+  page = page.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/g,
+    "<!-- web fonts dropped for the desktop build; system faces stand in -->\n");
+
+  fs.writeFileSync(path.join(OUT, "index.html"), page);
+
+  const glb = path.join(SRC, "seiko.glb");
+  if (fs.existsSync(glb)) fs.copyFileSync(glb, path.join(OUT, "seiko.glb"));
+  else console.warn("seiko.glb is not there; the built-in figure will stand in for him.");
+
+  console.log("staged app/index.html (" + rewrote + " script tags pointed at vendor/)"
+    + (fs.existsSync(glb) ? " and seiko.glb" : ""));
+}
+
+main();

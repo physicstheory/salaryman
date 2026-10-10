@@ -6,7 +6,7 @@
 <title>Konto Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=M+PLUS+1+Code:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
 <style>
   :root {
     --ink: #15171d;
@@ -20,6 +20,7 @@
     --shadow: 0 10px 30px rgba(20, 18, 12, 0.18);
     --ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
     --data: "M PLUS 1 Code", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --serif: "Playfair Display", "Times New Roman", Georgia, serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
@@ -392,6 +393,215 @@
   #btnUp   { bottom: calc(104px + env(safe-area-inset-bottom, 0px)); }
   #btnDown { bottom: calc(18px + env(safe-area-inset-bottom, 0px)); right: 104px; }
   body.walking #btnUp, body.walking #btnDown { display: none; }
+
+  /* ---- HUD ------------------------------------------------------------------
+     The things that are on screen while you are playing rather than while you
+     are looking at a menu: the minimap, the street you are on, and the phone.
+     They only appear once Seiko is on the ground, because a free camera over
+     the bay has no street to be on. */
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 30; display: none; }
+  body.walking #hud, body.driving #hud { display: block; }
+
+  #minimapwrap {
+    position: absolute;
+    left: calc(18px + env(safe-area-inset-left, 0px));
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    width: 220px;
+    display: flex;
+    flex-direction: column-reverse;    /* the name sits over the map, not under it */
+  }
+  #minimap {
+    display: block;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: #1b2a33;
+    box-shadow: 0 0 0 3px rgba(12, 14, 18, 0.72), 0 6px 22px rgba(0, 0, 0, 0.5);
+  }
+  #streetbar {
+    margin: 0 0 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 220px;
+  }
+  #streetname {
+    font: 600 15px/1.2 var(--ui);
+    color: #f2f4f0;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+    letter-spacing: 0.01em;
+  }
+  #streetsub {
+    font-family: var(--data);
+    font-size: 11px;
+    color: #c7d0d6;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
+  }
+  #prompt {
+    position: absolute;
+    left: 50%;
+    bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    font: 500 14px/1 var(--ui);
+    color: #f4f6f2;
+    background: rgba(12, 14, 18, 0.62);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    padding: 8px 14px;
+    border-radius: 3px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    display: none;
+    white-space: nowrap;
+  }
+  #prompt.on { display: block; }
+  #prompt b {
+    display: inline-block;
+    min-width: 19px;
+    text-align: center;
+    background: #e8eaec;
+    color: #15171d;
+    border-radius: 11px;
+    padding: 1px 6px;
+    margin-right: 7px;
+    font-weight: 700;
+  }
+
+  /* ---- the phone ------------------------------------------------------------
+     A SOTI So24, which is the phone everybody in Konto has. It slides up out of
+     the bottom right corner on D-pad up and is driven entirely from the pad, so
+     it has to be legible at a glance and obviously a phone. */
+  #phone {
+    position: absolute;
+    right: calc(26px + env(safe-area-inset-right, 0px));
+    bottom: 0;
+    width: 232px;
+    /* Sized off the window so it can never run off the bottom of a laptop
+       screen: the screen is 9:19.5, and the mark and the frame sit outside it. */
+    --screen-h: min(503px, calc(100vh - 118px));
+    transform: translateY(calc(var(--screen-h) + 110px));
+    transition: transform 260ms cubic-bezier(0.22, 0.9, 0.3, 1);
+    pointer-events: none;
+  }
+  body.phone-up #phone { transform: translateY(calc(-18px - env(safe-area-inset-bottom, 0px))); }
+  @media (prefers-reduced-motion: reduce) { #phone { transition: none; } }
+
+  #phonemark {
+    text-align: center;
+    margin: 0 0 9px;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 25px;
+    letter-spacing: 0.12em;
+    color: #f4f5f2;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+  }
+  #phonebody {
+    position: relative;
+    border-radius: 26px;
+    width: calc(var(--screen-h) * 9 / 19.5 + 14px);
+    margin: 0 auto;
+    padding: 7px;
+    background: linear-gradient(145deg, #4a4e55 0%, #22262c 38%, #15181d 62%, #3c4047 100%);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  /* the metal rail down each side, which is what a flagship phone looks like */
+  #phonebody::before, #phonebody::after {
+    content: "";
+    position: absolute;
+    width: 3px;
+    border-radius: 2px;
+    background: linear-gradient(180deg, #8e949c, #5a6068);
+    right: -1px;
+  }
+  #phonebody::before { top: 86px; height: 30px; }
+  #phonebody::after { top: 126px; height: 52px; }
+  #phonescreen {
+    position: relative;
+    border-radius: 20px;
+    overflow: hidden;
+    height: var(--screen-h);
+    width: calc(var(--screen-h) * 9 / 19.5);
+    margin: 0 auto;
+    background: #06080c;
+  }
+  #phonecanvas { display: block; width: 100%; height: 100%; }
+  #phonehole {
+    position: absolute;
+    top: 9px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #05070a;
+    box-shadow: inset 0 0 0 1px rgba(120, 140, 160, 0.4);
+  }
+
+  /* ---- the map --------------------------------------------------------------
+     The Menu button brings this up: the whole island, the city on it, and a
+     waypoint you can drop anywhere. The pause options live down the left, the
+     way they do in the game this borrows its controls from. */
+  #mapscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    display: none;
+    background: rgba(9, 11, 14, 0.93);
+  }
+  body.mapopen #mapscreen { display: block; }
+  body.mapopen #pause { display: none !important; }
+  #mapcanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #mapside {
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 22px);
+    left: 22px;
+    width: 238px;
+    background: rgba(18, 21, 27, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 16px 16px 14px;
+  }
+  #mapside h2 { margin: 0 0 2px; font-size: 20px; color: #f2f4f0; }
+  #mapside .kicker { margin: 0 0 14px; color: var(--accent); }
+  #mapside .menucol .menu-btn {
+    background: transparent;
+    color: #e7eaec;
+    border-color: rgba(255, 255, 255, 0.16);
+    font-size: 14px;
+    padding: 9px 12px;
+  }
+  #mapside .menu-btn.sel, #mapside .menu-btn:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  #maphint {
+    margin: 14px 0 0;
+    font-size: 11px;
+    line-height: 1.55;
+    color: #9aa1a8;
+  }
+  #maplegend {
+    position: absolute;
+    right: 22px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+    background: rgba(18, 21, 27, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 11px 14px;
+    display: grid;
+    gap: 4px;
+  }
+  #maplegend span { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #c3cad0; }
+  #maplegend i { width: 16px; height: 3px; display: inline-block; }
+  #mapwhere {
+    position: absolute;
+    left: 50%;
+    top: calc(env(safe-area-inset-top, 0px) + 22px);
+    transform: translateX(-50%);
+    font: 600 15px/1.3 var(--ui);
+    color: #f2f4f0;
+    text-align: center;
+    text-shadow: 0 2px 8px #000;
+  }
+  #mapwhere small { display: block; font-family: var(--data); font-size: 11px; color: #9fa7ad; font-weight: 400; }
 </style>
 
 </head>
@@ -429,6 +639,51 @@
     <label for="seed">Seed</label>
     <input id="seed" type="number" value="19640101" step="1">
     <button class="act" id="regen" type="button">Generate</button>
+  </div>
+</div>
+
+<div id="hud">
+  <div id="minimapwrap">
+    <canvas id="minimap" width="220" height="220"></canvas>
+    <div id="streetbar">
+      <div id="streetname">&nbsp;</div>
+      <div id="streetsub">&nbsp;</div>
+    </div>
+  </div>
+  <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
+  <div id="phone">
+    <p id="phonemark">SOTI</p>
+    <div id="phonebody">
+      <div id="phonescreen">
+        <canvas id="phonecanvas" width="540" height="1170"></canvas>
+        <div id="phonehole"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="mapscreen">
+  <canvas id="mapcanvas"></canvas>
+  <div id="mapwhere">Konto<small>&nbsp;</small></div>
+  <div id="mapside">
+    <p class="kicker">Salary Man &middot; Konto</p>
+    <h2>Map</h2>
+    <div class="menucol" id="mapmenu">
+      <button class="menu-btn sel" id="kresume" type="button">Resume</button>
+      <button class="menu-btn" id="kwaypoint" type="button">Clear waypoint</button>
+      <button class="menu-btn" id="kmode" type="button">Walk as Seiko</button>
+      <button class="menu-btn" id="kshadows" type="button">Shadows: on</button>
+      <button class="menu-btn" id="kquality" type="button">Graphics: high</button>
+      <button class="menu-btn" id="kregen" type="button">Generate a new island</button>
+    </div>
+    <p id="maphint"></p>
+  </div>
+  <div id="maplegend">
+    <span><i style="background:#e8b23c"></i>Expressway</span>
+    <span><i style="background:#f1f1ec"></i>Arterial</span>
+    <span><i style="background:#8d98a2"></i>Street</span>
+    <span><i style="background:#3fae76"></i>NHRail</span>
+    <span><i style="background:#d8483c"></i>Waypoint</span>
   </div>
 </div>
 
@@ -697,13 +952,18 @@ const SITES = [
   {
     name: "Tōkonto", code: "TKT", capital: true,
     alongT: 0.655, lateral: 0.90,
-    alongRadius: 3400, inlandRadius: 1380,
-    coreRadius: 760, coreOffset: [-260, 760],
-    outlineNoise: 420, wardCount: 18,
+    // Half the island. Greater Tokyo is 13,500 km² of a 228,000 km² Honshu,
+    // but a game map is not a country: Los Santos is most of San Andreas, and
+    // the city is the thing you are here for. 4.2 x 2.5 km of radii puts the
+    // built-up area at about 33 km² of a 126 km² map, and the hills and the
+    // coast take the rest.
+    alongRadius: 4200, inlandRadius: 2500,
+    coreRadius: 880, coreOffset: [-260, 880],
+    outlineNoise: 520, wardCount: 26,
     maxBuildSlope: 0.34, maxBuildAltitude: 340, platformSlope: 0.085,
     palace: true, palaceRadius: 470, moatWidth: 58,
-    radials: 7, rings: 3, expressway: true,
-    railLoop: true, railRadials: 5, shinkansen: true,
+    radials: 9, rings: 4, expressway: true,
+    railLoop: true, railRadials: 6, shinkansen: true,
     bay: { alongOffset: 250, inlandReach: -180, halfWidth: 1700, depth: 1500, enclosure: 0.62, water: 560 },
     reclaim: true
   },
@@ -760,6 +1020,15 @@ const WARD_NAMES = {
   Shrine: ["Inarizaka", "Tenjinmae", "Mitamamori"],
   Water: ["Nagisa", "Umibashi", "Kawaguchi", "Shioiri"]
 };
+// Tokyo's arterials are 通り - Chuo-dori, Showa-dori, Meiji-dori - and its ring
+// roads are 環状 numbered outwards. Konto's are invented on the same pattern,
+// and the radials take the name of whatever they run out towards.
+const AVENUE_NAMES = [
+  "Chūō-dōri", "Suzuran-dōri", "Hinode-dōri", "Kanmei-dōri", "Tokura-dōri",
+  "Midori-dōri", "Sakura-dōri", "Umezono-dōri", "Shiohama-dōri", "Kogane-dōri",
+  "Yanagi-dōri", "Asahi-dōri"
+];
+
 const RING1 = ["Station", "Office", "Retail", "Night", "Office", "Mansion", "Retail", "Civic"];
 const RING2 = ["Mansion", "House", "Campus", "Park", "Mansion", "House", "Shrine", "Retail"];
 const RING3 = ["Suburb", "House", "Suburb", "Park", "Works", "Suburb", "House", "Works"];
@@ -1528,7 +1797,8 @@ function planCity(world, F, seed, report, progressBase) {
       const w = F.toWorld(u + dirx * wobble, v + dirz * wobble);
       pts.push(pointAt(w[0], w[1]));
     }
-    const road = { name: "Ring Road " + (ring + 1), cls: "arterial", halfWidth: ring === 0 ? 13 : 11, loop: true, pts: pts };
+    const road = { name: "Kanjō " + (ring + 1) + "-gō", cls: "arterial", ring: ring,
+                   halfWidth: ring === 0 ? 13 : 11, loop: true, pts: pts };
     L.roads.push(road); claimPath(pts, road.halfWidth + 4, true);
   }
 
@@ -1564,7 +1834,8 @@ function planCity(world, F, seed, report, progressBase) {
       if (travelled > meanR * 1.2 && footprint(pw[0], pw[1]) <= 0.01) break;
     }
     if (pts.length < 4) continue;
-    const road = { name: "Route " + (14 + i * 3), cls: "arterial", halfWidth: 12, loop: false, pts: pts };
+    const road = { name: AVENUE_NAMES[(Math.abs(citySeed / 11 | 0) + i) % AVENUE_NAMES.length],
+                   cls: "arterial", radial: i, halfWidth: 12, loop: false, pts: pts };
     L.roads.push(road); claimPath(pts, road.halfWidth + 4, false);
   }
 
@@ -1576,7 +1847,8 @@ function planCity(world, F, seed, report, progressBase) {
       const g = world.sampleHeight(w[0], w[1]);
       pts.push([w[0], Math.max(g, 1) + 13, w[1]]);
     }
-    const road = { name: "Konto Expressway", cls: "expressway", halfWidth: 10.5, loop: true, elevated: true, pts: pts };
+    const road = { name: "Konto Metropolitan Expressway", cls: "expressway",
+                   halfWidth: 10.5, loop: true, elevated: true, pts: pts };
     L.roads.push(road); claimPath(pts, road.halfWidth + 1.5, true);
   }
 
@@ -2679,7 +2951,16 @@ const facadeCache = {};
 function facadeMaterials(style) {
   if (facadeCache[style]) return facadeCache[style];
   const spec = FACADE_STYLES[style] || FACADE_STYLES.office;
-  const side = new THREE.MeshLambertMaterial({ map: facadeTexture(style) });
+  // Glass wants the sky in it and stone does not, which is the whole of what
+  // separates a Tokyo office tower from a grey box.
+  const glassy = style === "glass";
+  const side = gfx.high
+    ? new THREE.MeshStandardMaterial({
+        map: facadeTexture(style),
+        roughness: glassy ? 0.12 : 0.74, metalness: glassy ? 0.55 : 0.04,
+        envMap: gfx.env || null, envMapIntensity: glassy ? 1.25 : 0.4
+      })
+    : new THREE.MeshLambertMaterial({ map: facadeTexture(style) });
   side.onBeforeCompile = shader => {
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute vec3 aTile;")
@@ -2687,9 +2968,14 @@ function facadeMaterials(style) {
         "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = vec2(uv.x * tileH, uv.y * aTile.z);\n#endif");
   };
   side.customProgramCacheKey = () => "konto-facade";
-  const roof = new THREE.MeshLambertMaterial({ map: roofTexture(spec.roof) });
+  const roof = gfx.high
+    ? new THREE.MeshStandardMaterial({ map: roofTexture(spec.roof), roughness: 0.86, metalness: 0.06,
+                                       envMap: gfx.env || null, envMapIntensity: 0.3 })
+    : new THREE.MeshLambertMaterial({ map: roofTexture(spec.roof) });
   roof.map.repeat.set(2, 2);
-  const base = new THREE.MeshLambertMaterial({ color: 0x5d5a55 });
+  const base = gfx.high
+    ? new THREE.MeshStandardMaterial({ color: 0x5d5a55, roughness: 0.9, metalness: 0.0 })
+    : new THREE.MeshLambertMaterial({ color: 0x5d5a55 });
   [side, roof, base].forEach(m => { m.userData.shared = true; });
   // BoxGeometry groups run +X, -X, +Y, -Y, +Z, -Z.
   facadeCache[style] = { mats: [side, side, roof, base, side, side], spec: spec };
@@ -2801,14 +3087,19 @@ function buildSotiTower(plot) {
   shell.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   shell.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   shell.computeVertexNormals();
-  const glass = new THREE.MeshLambertMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide });
+  const glass = gfx.high
+    ? new THREE.MeshStandardMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide,
+        roughness: 0.11, metalness: 0.55, envMap: gfx.env || null, envMapIntensity: 1.3 })
+    : new THREE.MeshLambertMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide });
   const shellMesh = new THREE.Mesh(shell, glass);
   shellMesh.castShadow = shellMesh.receiveShadow = true;
   group.add(shellMesh);
 
-  const steel = new THREE.MeshPhongMaterial({
-    color: 0xb0b8bf, specular: 0x8a949c, shininess: 70, side: THREE.DoubleSide
-  });
+  const steel = gfx.high
+    ? new THREE.MeshStandardMaterial({ color: 0xb8c0c7, roughness: 0.26, metalness: 0.92,
+        side: THREE.DoubleSide, envMap: gfx.env || null, envMapIntensity: 1.1 })
+    : new THREE.MeshPhongMaterial({ color: 0xb0b8bf, specular: 0x8a949c, shininess: 70,
+        side: THREE.DoubleSide });
 
   // ---- the four corner pilasters. Not mega-columns: a 0.9 m blade standing
   // 0.4 m off the chamfer, which is the vertical line a Tokyo curtain wall has
@@ -3046,6 +3337,11 @@ const SHADOW_SPAN = 320;      // metres of ground the sun shadow map covers
 // A gradient dome rather than a flat clear colour: the horizon has to wash out
 // into the fog or the island looks like it is sitting on a painted backdrop.
 function makeSky() {
+  skyDome = makeSkyMesh();
+  return skyDome;
+}
+
+function makeSkyMesh() {
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
     uniforms: {
@@ -3075,11 +3371,11 @@ function makeSky() {
       "}"
     ].join("\n")
   });
-  skyDome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
-  skyDome.scale.setScalar(26000);
-  skyDome.frustumCulled = false;
-  skyDome.renderOrder = -1;
-  return skyDome;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
+  dome.scale.setScalar(26000);
+  dome.frustumCulled = false;
+  dome.renderOrder = -1;
+  return dome;
 }
 const solids = [];          // building footprints, for walking into
 let solidGrid = null;
@@ -3087,7 +3383,9 @@ let clock = 0;
 const player = {
   mode: "fly", obj: null, proc: null, glb: null, usingGlb: false, placed: false,
   pos: new THREE.Vector3(), yaw: 0, targetYaw: 0, speed: 0,
-  mixer: null, clips: null, action: null, clipName: ""
+  mixer: null, clips: null, action: null, clipName: "",
+  // Seconds left on the floor after a car has hit him, and where it threw him.
+  down: 0, knock: new THREE.Vector3(), jump: 0
 };
 const WALK_SPEED = 1.65, RUN_SPEED = 4.7;   // metres per second the clips were timed to
 const keys = Object.create(null);
@@ -3101,7 +3399,8 @@ let paused = false;
 // would mean a stick that re-centres leaves the last value behind, because the touch
 // handlers only write when a thumb is on the glass - and a character who keeps walking
 // after you let go is the worst kind of bug to find.
-const pad = { index: -1, name: "", was: {}, x: 0, y: 0, up: 0, run: false };
+const pad = { index: -1, name: "", was: {}, x: 0, y: 0, up: 0, run: false,
+               throttle: 0, brake: 0, handbrake: false };
 
 // What the player is asking for, from whichever input is being used.
 function wish() {
@@ -3144,6 +3443,7 @@ function initThree() {
 
   initTouch();
   initPause();
+  initMap();
   window.addEventListener("gamepadconnected", showPad);
   window.addEventListener("gamepaddisconnected", showPad);
 
@@ -3169,8 +3469,34 @@ function initThree() {
   window.addEventListener("keydown", e => {
     keys[e.code] = true;
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
-    if (e.code === "KeyF") toggleWalk();
-    if (e.code === "Escape") { setPaused(!paused); e.preventDefault(); }
+    if (nav.mapOpen) {
+      // The map takes the arrows and the zoom keys while it is up.
+      const step = 0.16;
+      if (e.code === "ArrowLeft") mapPan(-step, 0);
+      if (e.code === "ArrowRight") mapPan(step, 0);
+      if (e.code === "ArrowUp") mapPan(0, -step);
+      if (e.code === "ArrowDown") mapPan(0, step);
+      if (e.code === "Equal" || e.code === "NumpadAdd") setMapZoom(nav.mapZoom + 0.6);
+      if (e.code === "Minus" || e.code === "NumpadSubtract") setMapZoom(nav.mapZoom - 0.6);
+      if (e.code === "Enter" || e.code === "Space") setWaypointHere();
+      if (e.code === "Escape" || e.code === "KeyM" || e.code === "Tab") setMapOpen(false);
+      drawBigMap();
+      e.preventDefault();
+      return;
+    }
+    if (e.code === "KeyF") useRide();
+    if (e.code === "KeyG") toggleWalk();
+    if (e.code === "KeyP") setPhone(!phone.open);
+    if (phone.open) {
+      if (e.code === "ArrowLeft") phoneMove(-1, 0);
+      if (e.code === "ArrowRight") phoneMove(1, 0);
+      if (e.code === "ArrowUp") phoneMove(0, -1);
+      if (e.code === "ArrowDown") phoneMove(0, 1);
+    }
+    if (e.code === "Space" && player.mode === "walk" && !drive.car && !drive.train
+        && player.down <= 0 && player.jump <= 0) { player.jump = 0.42; e.preventDefault(); }
+    if (e.code === "KeyM" || e.code === "Tab") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
+    if (e.code === "Escape") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
   });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
 }
@@ -3181,7 +3507,7 @@ function initThree() {
 // poll, so edges have to be worked out by remembering the last frame.
 const PAD = {
   A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
-  BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13
+  BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15
 };
 
 function deadzone(v, limit) {
@@ -3201,7 +3527,8 @@ function pollPad(dt) {
   }
   if (!gp) {
     pad.x = pad.y = pad.up = 0;
-    pad.run = false;
+    pad.run = pad.handbrake = false;
+    pad.throttle = pad.brake = 0;
     if (pad.index !== -1) { pad.index = -1; pad.name = ""; showPad(); }
     return;
   }
@@ -3212,17 +3539,60 @@ function pollPad(dt) {
   }
 
   const held = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
+  // A trigger is analogue on an Xbox pad and reports through .value; some
+  // drivers put it on an axis instead, so both are read and the larger wins.
+  const trigger = (btn, axis) => {
+    let v = value(btn);
+    if (gp.axes.length > axis && axis >= 0) v = Math.max(v, (gp.axes[axis] + 1) * 0.5);
+    return v > 0.06 ? v : 0;
+  };
 
-  if (pressed(PAD.START) || pressed(PAD.BACK)) setPaused(!paused);
-  if (paused) {
-    // While paused the stick drives nothing: the menu is the only live thing.
-    if (pressed(PAD.A)) setPaused(false);
+  // Menu opens the map. View closes whatever is open, which is what B does too.
+  if (pressed(PAD.START)) setMapOpen(!nav.mapOpen);
+  if (pressed(PAD.BACK)) { if (nav.mapOpen) setMapOpen(false); else if (phone.open) setPhone(false); }
+
+  if (nav.mapOpen) {
+    // The map is the only live thing: stick pans, triggers zoom, A acts.
+    const px = deadzone(gp.axes[0] || 0), py = deadzone(gp.axes[1] || 0);
+    if (px || py) mapPan(px * dt * 1.1, py * dt * 1.1);
+    const z = trigger(PAD.RT, 5) - trigger(PAD.LT, 4);
+    if (z) setMapZoom(nav.mapZoom + z * dt * 3.2);
+    if (pressed(PAD.UP)) { nav.mapSel = (nav.mapSel + MAP_MENU.length - 1) % MAP_MENU.length; syncMapMenu(); }
+    if (pressed(PAD.DOWN)) { nav.mapSel = (nav.mapSel + 1) % MAP_MENU.length; syncMapMenu(); }
+    if (pressed(PAD.A)) setWaypointHere();
+    if (pressed(PAD.X)) runMapMenu(nav.mapSel);
+    if (pressed(PAD.B)) setMapOpen(false);
     pad.x = pad.y = pad.up = 0;
-    pad.run = false;
+    pad.run = pad.handbrake = false;
+    pad.throttle = pad.brake = 0;
+    drawBigMap();
     return;
   }
-  if (pressed(PAD.Y)) toggleWalk();
+  if (paused) {
+    if (pressed(PAD.A) || pressed(PAD.B)) setPaused(false);
+    pad.x = pad.y = pad.up = 0;
+    pad.run = pad.handbrake = false;
+    pad.throttle = pad.brake = 0;
+    return;
+  }
+
+  // D-pad up is the phone, the way it is in the game these controls come from.
+  if (pressed(PAD.UP)) setPhone(!phone.open);
+  if (phone.open) {
+    if (pressed(PAD.LEFT)) phoneMove(-1, 0);
+    if (pressed(PAD.RIGHT)) phoneMove(1, 0);
+    if (pressed(PAD.DOWN)) phoneMove(0, 1);
+    if (pressed(PAD.UP)) phoneMove(0, -1);
+    if (pressed(PAD.B)) setPhone(false);
+    if (pressed(PAD.A)) phone.dirty = true;
+  } else {
+    if (pressed(PAD.DOWN)) toggleWalk();
+  }
+
+  // Y gets you in and out of whatever you are standing next to.
+  if (pressed(PAD.Y)) useRide();
 
   pad.x = deadzone(gp.axes[0] || 0);
   pad.y = deadzone(gp.axes[1] || 0);
@@ -3231,9 +3601,44 @@ function pollPad(dt) {
   look.x = deadzone(gp.axes[2] || 0);
   look.y = deadzone(gp.axes[3] || 0);
 
-  pad.run = held(PAD.RT) || held(PAD.A)
-         || !!(gp.buttons[PAD.RT] && gp.buttons[PAD.RT].value > 0.4);
+  pad.throttle = trigger(PAD.RT, 5);
+  pad.brake = trigger(PAD.LT, 4);
+  pad.handbrake = held(PAD.A);
+  // On foot X sprints, in a car the right trigger is the throttle.
+  pad.run = held(PAD.X) || pad.throttle > 0.5;
   pad.up = (held(PAD.RB) ? 1 : 0) - (held(PAD.LB) ? 1 : 0);
+  if (pressed(PAD.A) && player.mode === "walk" && !drive.car && !drive.train
+      && player.down <= 0 && player.jump <= 0) player.jump = 0.42;
+}
+
+// Y: get in, get out, board, alight.
+function useRide() {
+  if (drive.car) { leaveCar(); return; }
+  if (drive.train) { leaveTrain(); return; }
+  const r = findRide();
+  if (!r) return;
+  if (r.what === "car") enterCar(r.car);
+  else if (r.what === "parked") enterParked(r.parked);
+  else if (r.what === "train") boardTrain(r.train);
+}
+
+function setPromptText(text) {
+  const el = document.getElementById("prompt");
+  const what = document.getElementById("promptwhat");
+  if (!el || !what) return;
+  if (!text) { el.classList.remove("on"); return; }
+  what.textContent = text;
+  el.classList.add("on");
+}
+
+function updatePrompt() {
+  if (drive.car) { setPromptText("Get out"); return; }
+  if (drive.train) { setPromptText("Get off"); return; }
+  const r = findRide();
+  drive.near = r;
+  if (!r) { setPromptText(null); return; }
+  setPromptText(r.what === "train" ? "Board the train"
+    : r.what === "parked" ? "Get back in" : "Get in");
 }
 
 function showPad() {
@@ -3467,6 +3872,24 @@ function buildScene(w) {
     scene.add(makeSky());
   }
   clearScene();
+  // Bake the sky into a prefiltered environment before anything asks a
+  // material for one.
+  // The facade materials are shared and so survive clearScene on purpose; they
+  // carry the environment map, so a rebuild has to retire them itself.
+  Object.keys(facadeCache).forEach(k => {
+    const set = facadeCache[k];
+    const seen = new Set();
+    set.mats.forEach(m => {
+      if (!m || seen.has(m)) return;
+      seen.add(m);
+      if (m.map) m.map.dispose();
+      m.dispose();
+    });
+    delete facadeCache[k];
+  });
+  if (gfx.env && gfx.env.dispose) gfx.env.dispose();
+  gfx.env = bakeEnvironment();
+  scene.environment = gfx.env || null;
   solids.length = 0;
   // Station names are collected into one shared atlas of sixteen rows, so a
   // regenerated island has to start that list again or the seventeenth station
@@ -3723,6 +4146,9 @@ function buildScene(w) {
       root.add(trunks); root.add(crowns);
     }
 
+    // The roads themselves, as geometry rather than as paint.
+    buildRoadSurfaces(w, city, root);
+
     // Street furniture: NHRail's platforms, the bus stops, the shrines, the
     // advertising and the scramble crossing. It goes last because it needs the
     // massing that was actually built - a sign floating over a roof is worse
@@ -3754,6 +4180,13 @@ function buildScene(w) {
   // ---- traffic and NHRail
   buildTraffic(w, root);
   buildRail(w, root);
+  buildRailStops();
+  buildNav(w);
+  drive.car = null;
+  drive.train = null;
+  drive.parked.length = 0;
+  document.body.classList.remove("driving", "phone-up");
+  phone.open = false;
 
   player.placed = false;
   player.obj.visible = false;
@@ -3939,6 +4372,7 @@ function tryStep(dx, dz, radius) {
   if (nx < 40 || nz < 40 || nx > WORLD_X - 40 || nz > WORLD_Z - 40) return false;
   if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
   if (insideBuilding(nx, nz, radius)) return false;
+  if (traffic.ready && carBlocks(nx, nz, radius)) return false;
   player.pos.x = nx; player.pos.z = nz;
   return true;
 }
@@ -3983,6 +4417,13 @@ function updateWalk(dt) {
   player.yaw += d * (1 - Math.pow(0.0001, dt));
 
   player.obj.position.copy(player.pos);
+  if (player.jump > 0) {
+    player.jump -= dt;
+    // Half a metre, over four tenths of a second: enough to clear a kerb and
+    // to read as a jump, and not enough to pretend this is a platformer.
+    player.obj.position.y += Math.sin(clamp01(1 - player.jump / 0.42) * Math.PI) * 0.46;
+    if (player.jump < 0) player.jump = 0;
+  }
   player.obj.rotation.y = player.yaw;
   if (player.usingGlb) {
     if (player.mixer) updateSeikoClip(dt);
@@ -4023,9 +4464,23 @@ function followSun() {
   sunLight.updateMatrixWorld();
 }
 
+// The HUD is not worth sixty frames a second: the minimap redraws a few dozen
+// blocks and the street name only changes when you cross a junction.
+let hudTimer = 0;
+function updateHud(dt, force) {
+  hudTimer -= dt;
+  if (hudTimer > 0 && !force) return;
+  hudTimer = 1 / 14;
+  updatePlace();
+  drawMinimap();
+  updatePrompt();
+  updatePhone();
+}
+
 function tick(dt) {
   pollPad(dt);
-  if (paused) { renderer.render(scene, camera); return; }
+  if (nav.mapOpen) { updatePhone(); renderer.render(scene, camera); return; }
+  if (paused) { updatePhone(); renderer.render(scene, camera); return; }
 
   // The right stick turns the camera the way dragging does, at a rate rather than a step.
   if (look.x || look.y) {
@@ -4036,10 +4491,30 @@ function tick(dt) {
 
   clock += dt;
   followSun();
-  if (player.mode === "walk" && player.obj) {
-    updateWalk(dt);
+
+  if (drive.car) {
+    updateDrive(dt);
+    updateTraffic(dt, drive.car.pos);
+    updateRail(dt, drive.car.pos);
+    updateHud(dt);
+    renderer.render(scene, camera);
+    return;
+  }
+  if (drive.train) {
+    updateRide(dt);
     updateTraffic(dt, player.pos);
     updateRail(dt, player.pos);
+    updateHud(dt);
+    renderer.render(scene, camera);
+    return;
+  }
+  if (player.mode === "walk" && player.obj) {
+    if (player.down > 0) updateKnockdown(dt);
+    else updateWalk(dt);
+    updateTraffic(dt, player.pos);
+    updateRail(dt, player.pos);
+    updatePedestrianSafety(dt);
+    updateHud(dt);
     renderer.render(scene, camera);
     return;
   }
@@ -4079,10 +4554,281 @@ function tick(dt) {
   camPos.y = Math.max(camPos.y, ground + 2.2);
   updateTraffic(dt, camPos);
   updateRail(dt, camPos);
+  updateHud(dt);
   camera.position.copy(camPos);
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(camPos.clone().add(dir));
   renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------- the look
+// What separates a box that is a car from a car is not polygons, it is the
+// surface: where the light goes when it lands on it. Three things do most of
+// the work here.
+//
+//   an environment     the sky, baked once into a prefiltered cube map. Without
+//                      one, metal is grey and glass is a dark hole; with one,
+//                      a car has a horizon in its flank and a tower has the
+//                      sky in it, which is most of what "looks real" means.
+//   per-vertex metal   one mesh carries tyres, chrome, glass and paint, and
+//   and roughness      those four want wildly different surfaces. Two floats a
+//                      vertex and a six-line shader patch give each face its
+//                      own, so a car is still three draw calls.
+//   a clear coat       car paint is pigment under lacquer: two reflections, a
+//                      coloured one and a white one. It is the single cheapest
+//                      thing that reads as automotive.
+//
+// All of it is behind a quality switch, because an integrated laptop GPU
+// shading a million triangles with an environment map is not going to enjoy
+// itself, and medium keeps the old Lambert materials.
+
+const gfx = { high: true, env: null, asphalt: null, paving: null, kerb: null };
+
+// The shader patch: metalness and roughness come off the mesh rather than off
+// the material, so glass and tyre can share one.
+function pbrPerVertex(mat) {
+  mat.onBeforeCompile = sh => {
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aMR;\nvarying vec2 vMR;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vMR = aMR;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec2 vMR;")
+      .replace("#include <roughnessmap_fragment>", "float roughnessFactor = clamp(vMR.y, 0.02, 1.0);")
+      .replace("#include <metalnessmap_fragment>", "float metalnessFactor = clamp(vMR.x, 0.0, 1.0);");
+  };
+  mat.customProgramCacheKey = () => "konto-pbr-vertex";
+  return mat;
+}
+
+// Body panels: pigment under lacquer, tinted per car by the instance colour.
+function paintMaterial() {
+  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  const m = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff, vertexColors: true,
+    metalness: 0.42, roughness: 0.30,
+    clearcoat: 0.9, clearcoatRoughness: 0.09,
+    envMapIntensity: 1.15
+  });
+  if (gfx.env) m.envMap = gfx.env;
+  return m;
+}
+
+// Everything that is not a body panel, each face carrying its own surface.
+function trimMaterial() {
+  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, metalness: 0.0, roughness: 0.6,
+    envMapIntensity: 1.0
+  });
+  if (gfx.env) m.envMap = gfx.env;
+  return pbrPerVertex(m);
+}
+
+// Concrete, steel, stone and timber, in one mesh, same trick.
+function furnitureMaterial() {
+  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffffff, vertexColors: true, metalness: 0.0, roughness: 0.78,
+    envMapIntensity: 0.65
+  });
+  if (gfx.env) m.envMap = gfx.env;
+  return pbrPerVertex(m);
+}
+
+// The sky, prefiltered. One bake at scene build, reused by everything.
+function bakeEnvironment() {
+  if (!gfx.high || !renderer) return null;
+  try {
+    const dome = makeSkyMesh();
+    dome.scale.setScalar(900);
+    const envScene = new THREE.Scene();
+    envScene.add(dome);
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    pmrem.compileCubemapShader();
+    const rt = pmrem.fromScene(envScene, 0.02, 1, 4000);
+    pmrem.dispose();
+    dome.geometry.dispose();
+    dome.material.dispose();
+    return rt.texture;
+  } catch (err) {
+    // An old driver or a software context can refuse the float render target.
+    // Reflections are the first thing to give up, not a reason to fail.
+    console.warn("no environment map: " + err.message);
+    return null;
+  }
+}
+
+// ---- the road surface --------------------------------------------------
+// The city plan is painted at about three metres to the pixel, which is fine
+// for a plot boundary and hopeless for a road: at street level it is a smear.
+// The arterials get their own geometry instead - a ribbon of tarmac with a
+// kerb and a footway each side - at a metre to the texel.
+function asphaltTexture() {
+  if (gfx.asphalt) return gfx.asphalt;
+  const S = 512;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  const img = g.createImageData(S, S);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      // Aggregate: fine noise over a coarser mottle, which is what a chipping
+      // seal looks like from standing height.
+      const fine = rnd(x, y, 9301);
+      const mid = fbm(x * 0.09, y * 0.09, 9311, 3);
+      let v = 78 + mid * 26 + (fine - 0.5) * 42;
+      if (fine > 0.985) v += 46;                    // a pale stone
+      const o = (y * S + x) * 4;
+      img.data[o] = Math.round(clamp(v * 0.99, 20, 220));
+      img.data[o + 1] = Math.round(clamp(v, 20, 220));
+      img.data[o + 2] = Math.round(clamp(v * 1.04, 20, 225));
+      img.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  gfx.asphalt = new THREE.CanvasTexture(c);
+  gfx.asphalt.wrapS = gfx.asphalt.wrapT = THREE.RepeatWrapping;
+  gfx.asphalt.encoding = THREE.sRGBEncoding;
+  gfx.asphalt.anisotropy = 8;
+  return gfx.asphalt;
+}
+
+function pavingTexture() {
+  if (gfx.paving) return gfx.paving;
+  const S = 512;
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  g.fillStyle = "#8a847a";
+  g.fillRect(0, 0, S, S);
+  // 300 mm concrete block paving, which is what a Japanese footway is.
+  const n = 8, cell = S / n;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const t = rnd(i, j, 9401);
+      const v = 134 + t * 26;
+      g.fillStyle = "rgb(" + Math.round(v) + "," + Math.round(v * 0.975) + "," + Math.round(v * 0.93) + ")";
+      g.fillRect(i * cell + 1.6, j * cell + 1.6, cell - 3.2, cell - 3.2);
+    }
+  }
+  // a wash of grime, so it is not a chessboard
+  for (let k = 0; k < 900; k++) {
+    const x = rnd(k, 1, 9411) * S, y = rnd(k, 2, 9413) * S;
+    g.fillStyle = "rgba(60,56,50," + (0.015 + rnd(k, 3, 9415) * 0.05).toFixed(3) + ")";
+    g.fillRect(x, y, 3 + rnd(k, 4, 9417) * 26, 3 + rnd(k, 5, 9419) * 26);
+  }
+  gfx.paving = new THREE.CanvasTexture(c);
+  gfx.paving.wrapS = gfx.paving.wrapT = THREE.RepeatWrapping;
+  gfx.paving.encoding = THREE.sRGBEncoding;
+  gfx.paving.anisotropy = 8;
+  return gfx.paving;
+}
+
+// A ribbon along a path: tarmac in the middle, a kerb and a footway each side.
+// UVs run across in u and along in v at a metre to the unit, so one texture
+// tiles the length of a city without a seam you can find.
+function buildRoadSurfaces(w, city, root) {
+  const b = city.bounds;
+  const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+  const groundAt = (x, z) => paved(x, z) ? w.sampleHeight(x, z) + CITY_LIFT : w.surfaceY(x, z);
+
+  const road = { pos: [], nrm: [], uv: [] };
+  const walk = { pos: [], nrm: [], uv: [] };
+  const kerb = { pos: [], nrm: [], col: [], mr: [] };
+
+  function strip(into, a, b2, c, d, ua, ub, va, vb) {
+    const quad = [[a, ua, va], [b2, ub, va], [c, ub, vb], [d, ua, vb]];
+    [0, 1, 2, 0, 2, 3].forEach(i => {
+      into.pos.push(quad[i][0][0], quad[i][0][1], quad[i][0][2]);
+      into.nrm.push(0, 1, 0);
+      into.uv.push(quad[i][1], quad[i][2]);
+    });
+  }
+
+  city.roads.forEach(r => {
+    if (r.elevated || r.halfWidth < 8 || !r.pts || r.pts.length < 3) return;
+    const hw = r.halfWidth, fw = 4.4;            // carriageway and footway
+    let along = 0;
+    let prev = null;
+    const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const q = pts[Math.min(pts.length - 1, i + 1)];
+      const o = pts[Math.max(0, i - 1)];
+      let dx = q[0] - o[0], dz = q[2] - o[2];
+      const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
+      const nx = -dz, nz = dx;
+      const edge = (t) => {
+        const x = p[0] + nx * t, z = p[2] + nz * t;
+        return [x, groundAt(x, z) + 0.02, z];
+      };
+      const here = {
+        ok: paved(p[0], p[2]),
+        inL: edge(-hw), inR: edge(hw),
+        outL: edge(-hw - fw), outR: edge(hw + fw),
+        kL: edge(-hw - 0.12), kR: edge(hw + 0.12)
+      };
+      if (prev && prev.ok && here.ok) {
+        const seg = Math.hypot(p[0] - pts[i - 1][0], p[2] - pts[i - 1][2]);
+        const v0 = along, v1 = along + seg;
+        strip(road, prev.inL, prev.inR, here.inR, here.inL, 0, hw * 2, v0, v1);
+        strip(walk, prev.outL, prev.kL, here.kL, here.outL, 0, fw, v0, v1);
+        strip(walk, prev.kR, prev.outR, here.outR, here.kR, 0, fw, v0, v1);
+        // The kerb face itself: 120 mm of concrete, which is the line your eye
+        // follows down a street.
+        [[prev.kL, here.kL, -1], [prev.kR, here.kR, 1]].forEach(e => {
+          const a = e[0], c = e[1], s = e[2];
+          const drop = 0.125;
+          const A = [a[0], a[1], a[2]], B = [c[0], c[1], c[2]];
+          const Ad = [a[0], a[1] - drop, a[2]], Bd = [c[0], c[1] - drop, c[2]];
+          const face = s > 0 ? [A, Ad, Bd, B] : [B, Bd, Ad, A];
+          [0, 1, 2, 0, 2, 3].forEach(k => {
+            kerb.pos.push(face[k][0], face[k][1], face[k][2]);
+            kerb.nrm.push(-nx * s, 0, -nz * s);
+            kerb.col.push(0.74, 0.72, 0.68);
+            kerb.mr.push(0, 0.82);
+          });
+        });
+        along = v1;
+      } else if (prev && !here.ok) along = 0;
+      prev = here;
+    }
+  });
+
+  function mesh(data, tex, repeat, rough) {
+    if (!data.pos.length) return null;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(data.pos, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(data.nrm, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(data.uv, 2));
+    const t = tex.clone();
+    t.needsUpdate = true;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(1 / repeat, 1 / repeat);
+    const m = gfx.high
+      ? new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0.0, envMapIntensity: 0.5 })
+      : new THREE.MeshLambertMaterial({ map: t });
+    if (gfx.high && gfx.env) m.envMap = gfx.env;
+    const o = new THREE.Mesh(g, m);
+    o.receiveShadow = true;
+    o.frustumCulled = false;
+    root.add(o);
+    return o;
+  }
+
+  mesh(road, asphaltTexture(), 6.5, 0.88);
+  mesh(walk, pavingTexture(), 3.0, 0.84);
+  if (kerb.pos.length) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(kerb.pos, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(kerb.nrm, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(kerb.col, 3));
+    g.setAttribute("aMR", new THREE.Float32BufferAttribute(kerb.mr, 2));
+    const o = new THREE.Mesh(g, furnitureMaterial());
+    o.receiveShadow = true;
+    o.frustumCulled = false;
+    root.add(o);
+  }
 }
 
 // ---------------------------------------------------------------- brands
@@ -4099,6 +4845,7 @@ function tick(dt) {
 
 const JP = '"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
 const UI = '"Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
 
 // The eight makers, and who each one is a joke about. The badge is described
 // here in the same words it is drawn in below.
@@ -4370,7 +5117,7 @@ function badgeAtlas() {
     g.beginPath(); g.arc(P / 2, P / 2, P * 0.11, 0, 6.2832); g.fill();
   });
 
-  // ---- NHRail. Nikon Rail, which runs the loop line, the radials and the
+  // ---- NHRail. Nihon Rail, which runs the loop line, the radials and the
   // shinkansen, and which apologises for a nineteen-second delay.
   cell("nhrail", (g, P) => {
     fill("#f4f5f2", P);
@@ -4667,7 +5414,7 @@ function buildSignAtlas() {
     g.fillText(label, 108, y + SIGN_H * 0.44);
     g.fillStyle = "#5a6068";
     g.font = "500 16px " + UI;
-    g.fillText("NHRail · ニコン鉄道", 108, y + SIGN_H * 0.78);
+    g.fillText("NHRail · 日本鉄道", 108, y + SIGN_H * 0.78);
     g.textAlign = "right";
     g.fillStyle = "#3a3f47";
     g.font = "500 17px " + UI;
@@ -4699,14 +5446,23 @@ function buildSignAtlas() {
 // The badge on a car and the advert on a bus move with a per-instance uv
 // offset, so one geometry carries eight marques or eight advertisements.
 
+// r, g, b, then metalness and roughness. Glass is a dielectric mirror, a tyre
+// is not, and chrome is nothing else - and all three are in the same mesh.
 const COL = {
-  glass: [0.16, 0.20, 0.24], dark: [0.10, 0.11, 0.12], tyre: [0.05, 0.05, 0.055],
-  rim: [0.60, 0.63, 0.65], chrome: [0.72, 0.74, 0.76], grille: [0.14, 0.15, 0.17],
-  lampF: [0.90, 0.92, 0.86], lampR: [0.56, 0.07, 0.08], amber: [0.85, 0.45, 0.08],
-  red: [0.68, 0.08, 0.10], blue: [0.09, 0.22, 0.52], white: [0.92, 0.93, 0.90],
-  busBlue: [0.10, 0.30, 0.56], seat: [0.17, 0.18, 0.20], body2: [0.12, 0.13, 0.15],
-  flesh: [0.76, 0.62, 0.52], helmet: [0.88, 0.89, 0.86], jacket: [0.16, 0.18, 0.22],
-  nhGreen: [0.11, 0.52, 0.29], nhSteel: [0.78, 0.80, 0.82], shinkNose: [0.95, 0.96, 0.94]
+  glass: [0.09, 0.12, 0.15, 0.0, 0.045], dark: [0.10, 0.11, 0.12, 0.0, 0.55],
+  tyre: [0.045, 0.045, 0.05, 0.0, 0.95],
+  rim: [0.70, 0.73, 0.76, 0.95, 0.19], chrome: [0.80, 0.82, 0.84, 1.0, 0.11],
+  grille: [0.11, 0.12, 0.14, 0.75, 0.38],
+  lampF: [0.92, 0.94, 0.88, 0.1, 0.09], lampR: [0.52, 0.05, 0.06, 0.0, 0.13],
+  amber: [0.85, 0.45, 0.08, 0.0, 0.14],
+  red: [0.66, 0.07, 0.09, 0.0, 0.3], blue: [0.09, 0.22, 0.52, 0.0, 0.3],
+  white: [0.92, 0.93, 0.90, 0.0, 0.42],
+  busBlue: [0.10, 0.30, 0.56, 0.25, 0.3], seat: [0.17, 0.18, 0.20, 0.0, 0.8],
+  body2: [0.12, 0.13, 0.15, 0.35, 0.42],
+  flesh: [0.76, 0.62, 0.52, 0.0, 0.76], helmet: [0.88, 0.89, 0.86, 0.1, 0.16],
+  jacket: [0.16, 0.18, 0.22, 0.0, 0.84],
+  nhGreen: [0.11, 0.52, 0.29, 0.1, 0.36], nhSteel: [0.80, 0.82, 0.84, 0.85, 0.26],
+  shinkNose: [0.95, 0.96, 0.94, 0.1, 0.22]
 };
 
 // Boxes, wedges and wheels into flat arrays with a colour per face, which is
@@ -4718,9 +5474,13 @@ function emitFrame() {
 }
 
 function solidMesh() {
-  const pos = [], nrm = [], col = [];
+  const pos = [], nrm = [], col = [], mr = [];
   const F = emitFrame();
   let c = [1, 1, 1];
+  // Metalness and roughness travel with the colour: COL.chrome is chrome all
+  // the way through, and a mesh that holds tyres and glass and lacquer needs
+  // no extra calls to say which is which.
+  let m = 0, r = 0.62;
   function xf(p) {
     return [F.x + p[0] * F.c + p[2] * F.s, F.y + p[1], F.z - p[0] * F.s + p[2] * F.c];
   }
@@ -4732,12 +5492,18 @@ function solidMesh() {
     const wx = nx * F.c + nz * F.s, wz = -nx * F.s + nz * F.c;
     [a, b, d2, a, d2, d].forEach(p => {
       const q = xf(p);
-      pos.push(q[0], q[1], q[2]); nrm.push(wx, ny, wz); col.push(c[0], c[1], c[2]);
+      pos.push(q[0], q[1], q[2]); nrm.push(wx, ny, wz);
+      col.push(c[0], c[1], c[2]); mr.push(m, r);
     });
   }
   return {
     frame(x, y, z, yaw) { F.x = x; F.y = y; F.z = z; F.c = Math.cos(yaw); F.s = Math.sin(yaw); return this; },
-    colour(v) { c = v; return this; },
+    colour(v) {
+      c = v;
+      m = v.length > 3 ? v[3] : 0;
+      r = v.length > 4 ? v[4] : 0.62;
+      return this;
+    },
     // A box whose top and bottom rectangles can differ in size and in where
     // along Z they sit, which covers a tapered cabin, a wedge nose and a
     // tumblehome flank with one primitive.
@@ -4772,20 +5538,21 @@ function solidMesh() {
     // A wheel is a short cylinder lying on its side, with a lighter disc for
     // the rim so it does not read as a hole.
     wheel(cx, cy, cz, r, w, rimCol) {
-      const S = 10, was = c;
+      const S = 10, was = c, wasM = m, wasR = r;
       for (let i = 0; i < S; i++) {
         const a0 = i / S * 6.2831853, a1 = (i + 1) / S * 6.2831853;
         const y0 = cy + Math.sin(a0) * r, z0 = cz + Math.cos(a0) * r;
         const y1 = cy + Math.sin(a1) * r, z1 = cz + Math.cos(a1) * r;
-        c = was;
+        c = was; m = wasM; r = wasR;
         quad([cx - w / 2, y0, z0], [cx + w / 2, y0, z0], [cx + w / 2, y1, z1], [cx - w / 2, y1, z1]);
-        c = rimCol || COL.rim;
+        const rc = rimCol || COL.rim;
+        c = rc; m = rc.length > 3 ? rc[3] : 0.9; r = rc.length > 4 ? rc[4] : 0.2;
         const ry0 = cy + Math.sin(a0) * r * 0.62, rz0 = cz + Math.cos(a0) * r * 0.62;
         const ry1 = cy + Math.sin(a1) * r * 0.62, rz1 = cz + Math.cos(a1) * r * 0.62;
         quad([cx + w / 2, cy, cz], [cx + w / 2, ry0, rz0], [cx + w / 2, ry1, rz1], [cx + w / 2, ry1, rz1]);
         quad([cx - w / 2, cy, cz], [cx - w / 2, ry1, rz1], [cx - w / 2, ry0, rz0], [cx - w / 2, ry0, rz0]);
       }
-      c = was;
+      c = was; m = wasM; r = wasR;
       return this;
     },
     // An upright post: cheaper than a box when it is round and 90 mm across.
@@ -4808,6 +5575,7 @@ function solidMesh() {
       g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3));
       g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+      g.setAttribute("aMR", new THREE.Float32BufferAttribute(mr, 2));
       return g;
     }
   };
@@ -5438,11 +6206,11 @@ function buildTraffic(w, root) {
   const ads = adAtlas();
   CAR_KINDS.forEach((kind, ki) => {
     const body = buildVehicle(kind);
-    const cap = Math.max(2, Math.round(traffic.max * kind.share / total * 1.25));
-    const paintMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
-    const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
-    const paint = new THREE.InstancedMesh(body.paint, paintMat, cap);
-    const trim = new THREE.InstancedMesh(body.trim, trimMat, cap);
+    // Three spare slots a kind, so the car you are driving and the ones you
+    // parked always have somewhere to be drawn.
+    const cap = Math.max(2, Math.round(traffic.max * kind.share / total * 1.25)) + 3;
+    const paint = new THREE.InstancedMesh(body.paint, paintMaterial(), cap);
+    const trim = new THREE.InstancedMesh(body.trim, trimMaterial(), cap);
     const meshes = [paint, trim];
     let deco = null;
     if (body.deco) {
@@ -5531,6 +6299,34 @@ function updateTraffic(dt, at) {
   if (!traffic.ready) return;
   const counts = new Array(CAR_KINDS.length).fill(0);
 
+  // Where everything is, before anything moves. The collision, the prompt and
+  // the braking all want a position, and one frame of lag on it is invisible.
+  for (let c = 0; c < traffic.cars.length; c++) {
+    const car = traffic.cars[c];
+    if (!car.live) continue;
+    const p = sampleLane(traffic.lanes[car.lane], car.s);
+    car.at = p;
+    car.yawNow = p.yaw;
+  }
+
+  // Drivers brake for a person in the road. Only as hard as they can, which is
+  // why stepping out in front of something at fifteen metres a second still
+  // ends with you on the tarmac.
+  if (player.placed && player.mode === "walk" && !drive.car && !drive.train) {
+    const px = player.pos.x, pz = player.pos.z;
+    carsNear(px, pz, 44, car => {
+      const c = Math.cos(-car.yawNow), sn = Math.sin(-car.yawNow);
+      const dx = px - car.at.x, dz = pz - car.at.z;
+      const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
+      const kind = CAR_KINDS[car.kind];
+      if (Math.abs(lx) > kind.W * 0.5 + 1.1) return;
+      const gap = lz - kind.L * 0.5 - 1.3;
+      if (lz < 0 || gap > 34) return;
+      const able = gap <= 0 ? 0 : Math.sqrt(2 * 6.5 * gap);
+      if (able < car.v) car.v = Math.max(0, Math.min(car.v, able + 0.4));
+    });
+  }
+
   // Drive, one lane at a time, from the car in front backwards so every car
   // knows where its leader is before it picks a speed.
   for (let l = 0; l < traffic.byLane.length; l++) {
@@ -5553,6 +6349,27 @@ function updateTraffic(dt, at) {
     }
   }
 
+  // The car you are driving and the ones you parked are instances of the same
+  // meshes, written first so a full pool can never crowd them out.
+  function writeCar(kindIdx, pos, yawV, colour, uv) {
+    const paint = traffic.paint[kindIdx];
+    const i = counts[kindIdx];
+    if (i >= paint.instanceMatrix.count) return;
+    counts[kindIdx]++;
+    _carEuler.set(0, yawV, 0, "YXZ");
+    _carQuat.setFromEuler(_carEuler);
+    _carPos.set(pos.x, pos.y, pos.z);
+    _carMat.compose(_carPos, _carQuat, _carScale);
+    paint.setMatrixAt(i, _carMat);
+    traffic.trim[kindIdx].setMatrixAt(i, _carMat);
+    _carCol.setRGB(colour[0], colour[1], colour[2]);
+    paint.setColorAt(i, _carCol);
+    const deco = traffic.deco[kindIdx];
+    if (deco) { deco.setMatrixAt(i, _carMat); deco.geometry.attributes.aUvOff.setXY(i, uv[0], uv[1]); }
+  }
+  if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour, drive.car.uv);
+  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv));
+
   // Recycle what has fallen behind, and write the transforms for what has not.
   for (let c = 0; c < traffic.cars.length; c++) {
     const car = traffic.cars[c];
@@ -5567,6 +6384,7 @@ function updateTraffic(dt, at) {
       car.live = false;
       continue;
     }
+    if (counts[car.kind] >= traffic.paint[car.kind].instanceMatrix.count) continue;
     const i = counts[car.kind]++;
     _carEuler.set(p.pitch, p.yaw, 0, "YXZ");
     _carQuat.setFromEuler(_carEuler);
@@ -5603,7 +6421,7 @@ function updateTraffic(dt, at) {
 }
 
 // ---------------------------------------------------------------- NHRail
-// Nikon Rail runs the loop line, the radials and the shinkansen. A train is a
+// Nihon Rail runs the loop line, the radials and the shinkansen. A train is a
 // set of cars at fixed spacing on one distance along one line, which is the
 // same model as the traffic with the following rule taken out: the sets are
 // spaced far enough apart at spawn that they cannot catch each other, because
@@ -5743,10 +6561,8 @@ function buildRail(w, root) {
     const cap = rail.max * kind.cars;
     const made = [];
     [nose, mid].forEach(part => {
-      const bodyMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
-      const trimMat = new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
-      const b = new THREE.InstancedMesh(part.body, bodyMat, cap);
-      const t = new THREE.InstancedMesh(part.trim, trimMat, cap);
+      const b = new THREE.InstancedMesh(part.body, paintMaterial(), cap);
+      const t = new THREE.InstancedMesh(part.trim, trimMaterial(), cap);
       part.deco.setAttribute("aUvOff", new THREE.InstancedBufferAttribute(new Float32Array(cap * 2), 2));
       const d = new THREE.InstancedMesh(part.deco, decoMaterial(ads, true), cap);
       [b, t, d].forEach(m => {
@@ -5758,7 +6574,8 @@ function buildRail(w, root) {
     });
     rail.body.push(made);
     for (let i = 0; i < rail.max; i++) {
-      rail.sets.push({ kind: ki, line: -1, s: 0, live: false, uv: 0 });
+      rail.sets.push({ kind: ki, line: -1, s: 0, live: false, uv: 0,
+                       v: 0, dwell: 0, stop: null });
     }
   });
   rail.ready = true;
@@ -5791,6 +6608,9 @@ function railSpawn(at) {
       set.line = li;
       set.s = s;
       set.live = true;
+      set.v = kind.speed * 0.8;
+      set.dwell = 0;
+      set.stop = nextStop(line, s);
       set.uv = adVOffset((Math.random() * ADS.length) | 0);
       break;
     }
@@ -5805,11 +6625,36 @@ function updateRail(dt, at) {
     if (!set.live) continue;
     const kind = TRAIN_KINDS[set.kind];
     const line = rail.lines[set.line];
-    set.s += kind.speed * dt;
+    // Stop at the stations, stand for a while, then go. A train that never
+    // stops is scenery, and you cannot get on scenery.
+    if (set.dwell > 0) {
+      set.dwell -= dt;
+      set.v = 0;
+      if (set.dwell <= 0) set.stop = nextStop(line, set.s + 8);
+    } else {
+      let limit = kind.speed;
+      if (set.stop) {
+        const gap = set.stop.s - set.s;
+        if (gap <= 0.9) { set.v = 0; set.dwell = 8 + Math.random() * 5; }
+        else limit = Math.min(limit, Math.sqrt(2 * 0.95 * gap));
+      }
+      // And for whatever is standing in front of it, which is what a block
+      // section is for.
+      for (let k = 0; k < rail.sets.length; k++) {
+        const o = rail.sets[k];
+        if (o === set || !o.live || o.line !== set.line) continue;
+        const gap = o.s - kind.cars * (kind.L + kind.gap) - set.s - 40;
+        if (gap > -200 && gap < 600) limit = Math.min(limit, gap <= 0 ? 0 : Math.sqrt(2 * 1.1 * gap));
+      }
+      set.v += clamp(limit - set.v, -1.4 * dt, 0.9 * dt);
+      set.v = Math.max(0, set.v);
+      set.s += set.v * dt;
+    }
     const pitch = kind.L + kind.gap;
     const head = sampleLane(line, set.s);
-    if ((!line.loop && set.s > line.length - kind.cars * pitch) ||
-        Math.hypot(head.x - at.x, head.z - at.z) > rail.killR) {
+    const riding = drive.train && drive.train.set === i;
+    if (!riding && ((!line.loop && set.s > line.length - kind.cars * pitch) ||
+        Math.hypot(head.x - at.x, head.z - at.z) > rail.killR)) {
       set.live = false;
       continue;
     }
@@ -5853,12 +6698,16 @@ function updateRail(dt, at) {
 // boxes and one per texture atlas - and the whole of the street furniture in
 // Tokonto costs four draw calls.
 const FURN = {
-  concrete: [0.74, 0.73, 0.70], tile: [0.80, 0.79, 0.76], steel: [0.56, 0.58, 0.60],
-  dark: [0.22, 0.23, 0.25], glass: [0.50, 0.60, 0.64], green: [0.11, 0.52, 0.29],
-  vermillion: [0.68, 0.19, 0.13], timber: [0.34, 0.24, 0.17], kawara: [0.24, 0.26, 0.30],
-  gravel: [0.72, 0.70, 0.64], bronze: [0.33, 0.29, 0.21], stone: [0.62, 0.61, 0.57],
-  busBlue: [0.10, 0.30, 0.56], white: [0.90, 0.91, 0.88], lamp: [0.14, 0.32, 0.70],
-  screen: [0.05, 0.06, 0.08], paint: [0.88, 0.89, 0.86]
+  concrete: [0.74, 0.73, 0.70, 0.0, 0.88], tile: [0.80, 0.79, 0.76, 0.0, 0.62],
+  steel: [0.62, 0.64, 0.66, 0.85, 0.34], dark: [0.22, 0.23, 0.25, 0.3, 0.5],
+  glass: [0.26, 0.34, 0.38, 0.0, 0.07], green: [0.11, 0.52, 0.29, 0.1, 0.42],
+  vermillion: [0.68, 0.19, 0.13, 0.0, 0.52], timber: [0.34, 0.24, 0.17, 0.0, 0.82],
+  kawara: [0.24, 0.26, 0.30, 0.1, 0.56],
+  gravel: [0.72, 0.70, 0.64, 0.0, 0.95], bronze: [0.36, 0.30, 0.20, 0.9, 0.42],
+  stone: [0.62, 0.61, 0.57, 0.0, 0.9],
+  busBlue: [0.10, 0.30, 0.56, 0.2, 0.36], white: [0.90, 0.91, 0.88, 0.0, 0.46],
+  lamp: [0.14, 0.32, 0.70, 0.0, 0.2],
+  screen: [0.04, 0.05, 0.07, 0.1, 0.22], paint: [0.88, 0.89, 0.86, 0.0, 0.5]
 };
 
 function buildStreetFurniture(w, city, root, boxes) {
@@ -6320,8 +7169,7 @@ function buildStreetFurniture(w, city, root, boxes) {
   // ---- hand the four meshes over --------------------------------------
   const made = [];
   if (!solid.empty()) {
-    const m = new THREE.Mesh(solid.geometry(),
-      new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true }));
+    const m = new THREE.Mesh(solid.geometry(), furnitureMaterial());
     m.castShadow = true; m.receiveShadow = true;
     made.push(m);
   }
@@ -6334,6 +7182,1411 @@ function buildStreetFurniture(w, city, root, boxes) {
   });
   made.forEach(m => { m.frustumCulled = false; root.add(m); });
   return made;
+}
+
+// ---------------------------------------------------------------- navigation
+// The map, the minimap and the waypoint, which are one renderer used at two
+// scales. Everything is drawn in world metres and the canvas transform does
+// the work, so a road is 24 m wide on the minimap and 24 m wide on the island
+// map and neither needs its own set of numbers.
+//
+// What is baked once: the terrain, as a 640 x 534 raster, and a wash of each
+// city's footprint. What is drawn every frame: the blocks, the roads, the
+// railways, the labels and whatever you are standing on. Blocks are drawn and
+// streets are not, because the gaps between the blocks are the streets - which
+// is how a city map reads and is a great deal cheaper than walking every ward
+// grid at sixty frames a second.
+
+const MAPC = {
+  sea: "#122630",
+  land: "#2d333a", block: "#3c434b",
+  street: "#79838d", alley: "#5e6771",
+  arterial: "#f1f1ec", express: "#e8b23c", rail: "#3fae76",
+  plot: "#4d555e", park: "#32492b",
+  ink: "#f2f4f0", shadow: "rgba(0,0,0,0.8)", waypoint: "#d8483c",
+  player: "#55b9ff"
+};
+
+const nav = {
+  base: null, wash: [], idx: null, ready: false,
+  waypoint: null,                      // {x, z}
+  mapOpen: false, mapZoom: 1, mapCx: 0, mapCz: 0, mapSel: 0,
+  street: "", sub: "", place: null
+};
+
+// A grid index of anything with a centre and a size, so the map can draw the
+// hundred blocks on screen instead of the nine thousand that are not.
+function makeIndex(cell) {
+  return { cell: cell, map: new Map() };
+}
+function indexAdd(ix, x, z, radius, value) {
+  const c = ix.cell;
+  const x0 = Math.floor((x - radius) / c), x1 = Math.floor((x + radius) / c);
+  const z0 = Math.floor((z - radius) / c), z1 = Math.floor((z + radius) / c);
+  for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) {
+    const k = i + "," + j;
+    let list = ix.map.get(k);
+    if (!list) { list = []; ix.map.set(k, list); }
+    list.push(value);
+  }
+}
+function indexNear(ix, x0, z0, x1, z1, fn) {
+  const c = ix.cell;
+  const seen = new Set();
+  const i0 = Math.floor(x0 / c), i1 = Math.floor(x1 / c);
+  const j0 = Math.floor(z0 / c), j1 = Math.floor(z1 / c);
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const list = ix.map.get(i + "," + j);
+    if (!list) continue;
+    for (let k = 0; k < list.length; k++) {
+      const v = list[k];
+      if (seen.has(v)) continue;
+      seen.add(v);
+      fn(v);
+    }
+  }
+}
+
+function bakeTerrainMap(w) {
+  const cv = document.createElement("canvas");
+  cv.width = GRID_X; cv.height = GRID_Z;
+  const g = cv.getContext("2d");
+  const img = g.createImageData(GRID_X, GRID_Z);
+  const rgb = [0, 0, 0];
+  for (let z = 0; z < GRID_Z; z++) {
+    for (let x = 0; x < GRID_X; x++) {
+      terrainColour(w, x, z, rgb);
+      const o = (z * GRID_X + x) * 4;
+      // The scene colours are linear and a map drawn in them is a mudbath, so
+      // they go up through a gamma on the way to the canvas.
+      img.data[o] = Math.round(Math.sqrt(clamp01(rgb[0])) * 255);
+      img.data[o + 1] = Math.round(Math.sqrt(clamp01(rgb[1])) * 255);
+      img.data[o + 2] = Math.round(Math.sqrt(clamp01(rgb[2])) * 255);
+      img.data[o + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return cv;
+}
+
+function bakeCityWash(city) {
+  const b = city.bounds, pad = 240;
+  const x0 = b.x0 - pad, z0 = b.z0 - pad;
+  const ww = (b.x1 - b.x0) + pad * 2, hh = (b.z1 - b.z0) + pad * 2;
+  const px = Math.max(64, Math.round(ww / 9)), py = Math.max(64, Math.round(hh / 9));
+  const cv = document.createElement("canvas");
+  cv.width = px; cv.height = py;
+  const g = cv.getContext("2d");
+  const img = g.createImageData(px, py);
+  for (let j = 0; j < py; j++) {
+    for (let i = 0; i < px; i++) {
+      const wx = x0 + (i + 0.5) / px * ww, wz = z0 + (j + 0.5) / py * hh;
+      const a = clamp01((city.footprint(wx, wz) - 0.10) / 0.22);
+      const o = (j * px + i) * 4;
+      img.data[o] = 0x2d; img.data[o + 1] = 0x33; img.data[o + 2] = 0x3a;
+      img.data[o + 3] = Math.round(a * 255);
+    }
+  }
+  g.putImageData(img, 0, 0);
+  // Keep the mask itself: the street grid is clipped to it every frame, and a
+  // lookup in an array is free where re-evaluating the footprint is not.
+  const mask = new Uint8Array(px * py);
+  for (let i = 0; i < mask.length; i++) mask[i] = img.data[i * 4 + 3];
+  return { canvas: cv, x0: x0, z0: z0, w: ww, h: hh, mask: mask, px: px, py: py };
+}
+
+function washAt(wash, x, z) {
+  const i = Math.floor((x - wash.x0) / wash.w * wash.px);
+  const j = Math.floor((z - wash.z0) / wash.h * wash.py);
+  if (i < 0 || j < 0 || i >= wash.px || j >= wash.py) return 0;
+  return wash.mask[j * wash.px + i];
+}
+
+function buildNav(w) {
+  nav.ready = false;
+  nav.waypoint = null;
+  nav.base = bakeTerrainMap(w);
+  nav.wash = w.cities.map(bakeCityWash);
+  const blocks = makeIndex(300), plots = makeIndex(140), roads = makeIndex(220);
+  w.cities.forEach((c, ci) => {
+    c.blocks.forEach(b => indexAdd(blocks, b.centre[0], b.centre[1],
+      Math.max(b.size[0], b.size[1]) * 0.6, { c: ci, b: b }));
+    c.plots.forEach(p => indexAdd(plots, p.centre[0], p.centre[1],
+      Math.max(p.size[0], p.size[1]) * 0.6, { c: ci, p: p }));
+    c.roads.forEach((r, ri) => {
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], q = r.pts[i];
+        const mx = (a[0] + q[0]) * 0.5, mz = (a[2] + q[2]) * 0.5;
+        const rad = Math.hypot(q[0] - a[0], q[2] - a[2]) * 0.5 + r.halfWidth + 8;
+        indexAdd(roads, mx, mz, rad, { c: ci, r: ri, s: i - 1 });
+      }
+    });
+  });
+  nav.cells = w.cities.map(c => {
+    const b = c.bounds, pad = 240;
+    return voronoiCells(c.wards.map(wd => wd.centre),
+      [b.x0 - pad, b.z0 - pad, b.x1 + pad, b.z1 + pad]);
+  });
+  nav.idx = { blocks: blocks, plots: plots, roads: roads };
+  nav.mapCx = w.cities[0] ? (w.cities[0].bounds.x0 + w.cities[0].bounds.x1) * 0.5 : WORLD_X * 0.5;
+  nav.mapCz = w.cities[0] ? (w.cities[0].bounds.z0 + w.cities[0].bounds.z1) * 0.5 : WORLD_Z * 0.5;
+  nav.mapZoom = 1;
+  nav.ready = true;
+}
+
+// Which city a point belongs to, or the nearest one if it is out in the fields.
+function cityAt(x, z) {
+  if (!world || !world.cities) return null;
+  let best = null, bestD = Infinity;
+  for (let i = 0; i < world.cities.length; i++) {
+    const c = world.cities[i], b = c.bounds;
+    if (!b) continue;
+    if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) return c;
+    const cx = (b.x0 + b.x1) * 0.5, cz = (b.z0 + b.z1) * 0.5;
+    const d = Math.hypot(x - cx, z - cz);
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return bestD < 3200 ? best : null;
+}
+
+// Where you are, in the words a Japanese address uses: the arterial if you are
+// on one, and otherwise the ward and the chōme, because most streets in Japan
+// have no name at all and the block is what the address is built from.
+function placeAt(x, z) {
+  const out = { street: "", sub: "", city: "" };
+  if (!nav.ready) return out;
+  let best = null, bestD = Infinity;
+  indexNear(nav.idx.roads, x - 60, z - 60, x + 60, z + 60, e => {
+    const road = world.cities[e.c].roads[e.r];
+    const a = road.pts[e.s], b = road.pts[e.s + 1];
+    const d = distToSeg(x, z, a[0], a[2], b[0], b[2]);
+    if (d < bestD) { bestD = d; best = road; }
+  });
+  const city = cityAt(x, z);
+  out.city = city ? city.name : "Konto";
+  if (best && bestD < best.halfWidth + 13) out.street = best.name;
+
+  if (city && city.wards.length) {
+    let wi = -1, wd = Infinity;
+    for (let i = 0; i < city.wards.length; i++) {
+      const wq = city.wards[i];
+      const d = (wq.centre[0] - x) * (wq.centre[0] - x) + (wq.centre[1] - z) * (wq.centre[1] - z);
+      if (d < wd) { wd = d; wi = i; }
+    }
+    if (wi >= 0) {
+      const ward = city.wards[wi];
+      const l = toRectLocal(x, z, ward.centre[0], ward.centre[1], ward.yaw);
+      const r = Math.max(160, ward.radius || 300);
+      const cu = clamp(Math.floor((l[0] / r + 1) * 1.5), 0, 2);
+      const cv = clamp(Math.floor((l[1] / r + 1) * 1.5), 0, 2);
+      const chome = cv * 3 + cu + 1;
+      const where = ward.name + " " + chome + "-chōme";
+      if (out.street) out.sub = where + " · " + out.city;
+      else { out.street = where; out.sub = out.city; }
+      return out;
+    }
+  }
+  if (!out.street) {
+    const h = world.sampleHeight(x, z);
+    out.street = world.sampleLand(x, z) < 0.5 ? "The Sea of Konto"
+      : (h > 900 ? "The Konto Alps" : h > 320 ? "Highlands" : "Countryside");
+    out.sub = out.city;
+  } else out.sub = out.city;
+  return out;
+}
+
+// ---- the renderer ------------------------------------------------------
+// One function, two users. across is how many metres the canvas is wide, which
+// is the only thing that changes between the minimap and the island map.
+function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
+  opts = opts || {};
+  const S = pw / across;
+  const mPerPx = 1 / S;
+  ctx.save();
+  ctx.fillStyle = MAPC.sea;
+  ctx.fillRect(0, 0, pw, ph);
+  ctx.translate(pw / 2, ph / 2);
+  ctx.rotate(rot);
+  ctx.scale(S, S);
+  ctx.translate(-cx, -cz);
+
+  // The visible rectangle in world metres, grown by the rotation so a rotated
+  // minimap does not lose its corners.
+  const half = Math.hypot(across, ph * mPerPx) * 0.5 + 60;
+  const vx0 = cx - half, vx1 = cx + half, vz0 = cz - half, vz1 = cz + half;
+
+  ctx.imageSmoothingEnabled = true;
+  if (nav.base) ctx.drawImage(nav.base, 0, 0, WORLD_X, WORLD_Z);
+  nav.wash.forEach(wash => ctx.drawImage(wash.canvas, wash.x0, wash.z0, wash.w, wash.h));
+
+  // Blocks, for the grain of the built-up area.
+  ctx.fillStyle = MAPC.block;
+  indexNear(nav.idx.blocks, vx0, vz0, vx1, vz1, e => {
+    const b = e.b;
+    ctx.save();
+    ctx.translate(b.centre[0], b.centre[1]);
+    ctx.rotate(-b.yaw * Math.PI / 180);
+    ctx.fillRect(-b.size[0] * 0.5, -b.size[1] * 0.5, b.size[0], b.size[1]);
+    ctx.restore();
+  });
+
+  // The streets themselves. They are not stored anywhere - the city paints
+  // them as a grid per ward - so they are walked the same way here, clipped to
+  // the ward's own cell and to the city's footprint, which is the baked mask.
+  if (across < 3400) {
+    world.cities.forEach((city, ci) => {
+      const cells = nav.cells[ci], wash = nav.wash[ci];
+      if (!cells || !wash) return;
+      city.wards.forEach((wd, wi) => {
+        const rad = Math.max(wd.radius * 1.7, 420);
+        if (wd.centre[0] + rad < vx0 || wd.centre[0] - rad > vx1 ||
+            wd.centre[1] + rad < vz0 || wd.centre[1] - rad > vz1) return;
+        const poly = cells[wi];
+        if (!poly || poly.length < 3) return;
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(poly[0][0], poly[0][1]);
+        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
+        ctx.closePath();
+        ctx.clip();
+        const reach = rad;
+        const steps = Math.min(90, Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1);
+        ctx.lineCap = "butt";
+        for (let k = -steps; k <= steps; k++) {
+          const isAlley = wd.alleys && (k & 1) !== 0;
+          if (isAlley && across > 1100) continue;
+          ctx.strokeStyle = isAlley ? MAPC.alley : MAPC.street;
+          ctx.lineWidth = Math.max((isAlley ? wd.alley : wd.street), mPerPx * 1.1);
+          for (let axis = 0; axis < 2; axis++) {
+            // Walked in pieces so the run stops where the city does.
+            const N = 12;
+            let run = null;
+            for (let t = 0; t <= N; t++) {
+              const u = (t / N * 2 - 1) * reach;
+              const p = axis === 0
+                ? fromRectLocal(k * wd.sx, u, wd.centre[0], wd.centre[1], wd.yaw)
+                : fromRectLocal(u, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
+              const inside = washAt(wash, p[0], p[1]) > 96;
+              if (inside) { if (!run) { run = []; } run.push(p); }
+              else if (run) {
+                if (run.length > 1) { ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
+                  for (let q = 1; q < run.length; q++) ctx.lineTo(run[q][0], run[q][1]); ctx.stroke(); }
+                run = null;
+              }
+            }
+            if (run && run.length > 1) {
+              ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
+              for (let q = 1; q < run.length; q++) ctx.lineTo(run[q][0], run[q][1]);
+              ctx.stroke();
+            }
+          }
+        }
+        ctx.restore();
+      });
+    });
+  }
+  // Plots, once you are close enough for a block to be more than a smudge.
+  if (across < 700) {
+    indexNear(nav.idx.plots, vx0, vz0, vx1, vz1, e => {
+      const p = e.p;
+      ctx.fillStyle = (p.kind === "park" || p.kind === "shrine") ? MAPC.park : MAPC.plot;
+      ctx.save();
+      ctx.translate(p.centre[0], p.centre[1]);
+      ctx.rotate(-p.yaw * Math.PI / 180);
+      ctx.fillRect(-p.size[0] * 0.5, -p.size[1] * 0.5, p.size[0], p.size[1]);
+      ctx.restore();
+    });
+  }
+
+  function stroke(pts, loop, width, colour, dash) {
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = Math.max(width, mPerPx * 1.1);
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (dash) ctx.setLineDash(dash.map(v => v * mPerPx * 3));
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const q = pts[i];
+      if (i === 0) ctx.moveTo(q[0], q[2]); else ctx.lineTo(q[0], q[2]);
+    }
+    if (loop) ctx.closePath();
+    ctx.stroke();
+    if (dash) ctx.setLineDash([]);
+  }
+
+  world.cities.forEach(city => {
+    city.rails.forEach(line => stroke(line.pts, line.loop, line.halfWidth * 0.75, MAPC.rail,
+      line.cls === "shinkansen" ? null : [3, 2]));
+    city.roads.forEach(road => {
+      if (road.cls === "expressway") return;
+      stroke(road.pts, road.loop, road.halfWidth * 2, MAPC.arterial);
+    });
+    city.roads.forEach(road => {
+      if (road.cls !== "expressway") return;
+      stroke(road.pts, road.loop, road.halfWidth * 2, MAPC.express);
+    });
+  });
+
+  // Markers: stations, shrines and the places worth going.
+  if (opts.markers !== false && across < 9000) {
+    const r = Math.max(5 * mPerPx, 14);
+    world.cities.forEach(city => {
+      ctx.fillStyle = MAPC.rail;
+      city.stations.forEach(st => {
+        if (st.centre[0] < vx0 || st.centre[0] > vx1 || st.centre[1] < vz0 || st.centre[1] > vz1) return;
+        ctx.save();
+        ctx.translate(st.centre[0], st.centre[1]);
+        ctx.rotate(-rot);
+        ctx.fillRect(-r * 0.5, -r * 0.5, r, r);
+        ctx.fillStyle = "#0d2a1c";
+        ctx.fillRect(-r * 0.22, -r * 0.34, r * 0.44, r * 0.68);
+        ctx.fillStyle = MAPC.rail;
+        ctx.restore();
+      });
+    });
+  }
+  ctx.restore();
+
+  // ---- labels, drawn unrotated in screen space so they stay readable
+  function toScreen(wx, wz) {
+    const dx = wx - cx, dz = wz - cz;
+    const c = Math.cos(rot), s = Math.sin(rot);
+    return [pw / 2 + (dx * c - dz * s) * S, ph / 2 + (dx * s + dz * c) * S];
+  }
+  function label(text, wx, wz, size, colour) {
+    const p = toScreen(wx, wz);
+    if (p[0] < -80 || p[0] > pw + 80 || p[1] < -40 || p[1] > ph + 40) return;
+    ctx.font = "600 " + size + "px " + UI;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = Math.max(2, size * 0.22);
+    ctx.strokeStyle = MAPC.shadow;
+    ctx.lineJoin = "round";
+    ctx.strokeText(text, p[0], p[1]);
+    ctx.fillStyle = colour || MAPC.ink;
+    ctx.fillText(text, p[0], p[1]);
+  }
+
+  if (opts.labels !== false) {
+    world.cities.forEach(city => {
+      if (across > 2600) {
+        const b = city.bounds;
+        // Above the middle, because the middle is where the core ward's own
+        // name is and two labels on one point is neither of them.
+        label(city.name, (b.x0 + b.x1) * 0.5, (b.z0 + b.z1) * 0.5 - (b.z1 - b.z0) * 0.09,
+          clamp(across / 260, 14, 32), "#fdfdfb");
+      }
+      if (across < 6500) {
+        city.wards.forEach(wd => label(wd.name, wd.centre[0], wd.centre[1],
+          clamp(across / 420, 10, 15), "#dfe5e9"));
+      }
+      if (across < 2200) {
+        // Street names, at whichever point of the road is nearest the middle
+        // of the view, so panning along an arterial keeps its name in sight.
+        const size = clamp(across / 90, 10, 15);
+        city.roads.forEach(road => {
+          let best = null, bestD = Infinity;
+          for (let i = 2; i < road.pts.length - 2; i += 2) {
+            const q = road.pts[i];
+            const d = (q[0] - cx) * (q[0] - cx) + (q[2] - cz) * (q[2] - cz);
+            if (d < bestD) { bestD = d; best = q; }
+          }
+          if (best) label(road.name, best[0], best[2], size, "#fffef8");
+        });
+        city.sites.forEach(site => label(site.name, site.at[0], site.at[2],
+          clamp(across / 110, 10, 13), "#ffd9a0"));
+      }
+    });
+  }
+
+  // ---- the waypoint, and the line to it
+  if (nav.waypoint) {
+    const p = toScreen(nav.waypoint.x, nav.waypoint.z);
+    if (opts.route !== false && player.placed) {
+      const me = toScreen(player.pos.x, player.pos.z);
+      ctx.strokeStyle = "rgba(216, 72, 60, 0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([7, 6]);
+      ctx.beginPath(); ctx.moveTo(me[0], me[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.fillStyle = MAPC.waypoint;
+    ctx.strokeStyle = "rgba(0,0,0,0.65)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(p[0], p[1]);
+    ctx.lineTo(p[0] - 7, p[1] - 16);
+    ctx.arc(p[0], p[1] - 20, 7.5, 0.9 * Math.PI, 0.1 * Math.PI);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // ---- you
+  if (player.placed || opts.alwaysPlayer) {
+    const p = toScreen(player.pos.x, player.pos.z);
+    const facing = player.yaw + rot;
+    ctx.save();
+    ctx.translate(p[0], p[1]);
+    ctx.rotate(-facing + Math.PI);
+    ctx.fillStyle = MAPC.player;
+    ctx.strokeStyle = "rgba(6,10,14,0.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, -11);
+    ctx.lineTo(7.5, 8);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(-7.5, 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
+// ---- the minimap -------------------------------------------------------
+let miniCtx = null;
+function drawMinimap() {
+  if (!nav.ready) return;
+  const cv = document.getElementById("minimap");
+  if (!cv) return;
+  if (!miniCtx) miniCtx = cv.getContext("2d");
+  const at = player.placed ? player.pos : camPos;
+  // Looking ahead rather than standing on the centre, which is what makes a
+  // minimap useful when you are moving.
+  const ahead = drive.car ? 58 : 26;
+  const fx = at.x - Math.sin(yaw) * ahead, fz = at.z - Math.cos(yaw) * ahead;
+  drawMapView(miniCtx, cv.width, cv.height, fx, fz,
+    drive.car ? 420 : 230, yaw, { labels: false, markers: true, route: true });
+  // The compass tick, so north is findable.
+  const g = miniCtx;
+  g.save();
+  g.translate(cv.width / 2, cv.height / 2);
+  g.rotate(yaw);
+  g.fillStyle = "#e8554a";
+  g.beginPath();
+  g.moveTo(0, -cv.height / 2 + 4);
+  g.lineTo(-6, -cv.height / 2 + 16);
+  g.lineTo(6, -cv.height / 2 + 16);
+  g.closePath();
+  g.fill();
+  g.restore();
+}
+
+function updatePlace() {
+  if (!nav.ready) return;
+  const at = player.placed ? player.pos : camPos;
+  const p = placeAt(at.x, at.z);
+  if (p.street === nav.street && p.sub === nav.sub) return;
+  nav.street = p.street; nav.sub = p.sub;
+  const a = document.getElementById("streetname");
+  const b = document.getElementById("streetsub");
+  if (a) a.textContent = p.street;
+  if (b) b.textContent = nav.waypoint
+    ? p.sub + "  ·  " + Math.round(Math.hypot(nav.waypoint.x - at.x, nav.waypoint.z - at.z)) + " m to waypoint"
+    : p.sub;
+}
+
+// ---- the island map ----------------------------------------------------
+const MAP_MENU = ["kresume", "kwaypoint", "kmode", "kshadows", "kquality", "kregen"];
+
+function mapAcross() {
+  // Zoom 1 is the whole island in the window, whatever shape the window is;
+  // zoom 13 is a street corner.
+  const cv = document.getElementById("mapcanvas");
+  const w = (cv && cv.clientWidth) || window.innerWidth || 1280;
+  const h = (cv && cv.clientHeight) || window.innerHeight || 720;
+  const fit = Math.max(WORLD_X, WORLD_Z * (w / h)) * 1.03;
+  return fit / Math.pow(1.42, nav.mapZoom - 1);
+}
+
+function drawBigMap() {
+  const cv = document.getElementById("mapcanvas");
+  if (!cv) return;
+  const w = cv.clientWidth || window.innerWidth, h = cv.clientHeight || window.innerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  }
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const across = mapAcross();
+  drawMapView(g, w, h, nav.mapCx, nav.mapCz, across, 0,
+    { labels: true, markers: true, route: true, alwaysPlayer: player.placed });
+
+  // The crosshair you drop a waypoint under.
+  g.strokeStyle = "rgba(255,255,255,0.85)";
+  g.lineWidth = 1.5;
+  g.beginPath();
+  g.moveTo(w / 2 - 13, h / 2); g.lineTo(w / 2 - 4, h / 2);
+  g.moveTo(w / 2 + 4, h / 2); g.lineTo(w / 2 + 13, h / 2);
+  g.moveTo(w / 2, h / 2 - 13); g.lineTo(w / 2, h / 2 - 4);
+  g.moveTo(w / 2, h / 2 + 4); g.lineTo(w / 2, h / 2 + 13);
+  g.stroke();
+
+  const where = document.getElementById("mapwhere");
+  if (where) {
+    const p = placeAt(nav.mapCx, nav.mapCz);
+    where.firstChild.nodeValue = p.street;
+    const small = where.querySelector("small");
+    if (small) small.textContent = p.sub + "  ·  " + Math.round(across) + " m across";
+  }
+}
+
+function mapPan(dx, dz) {
+  const m = mapAcross() * 0.5;
+  nav.mapCx = clamp(nav.mapCx + dx * m, -800, WORLD_X + 800);
+  nav.mapCz = clamp(nav.mapCz + dz * m, -800, WORLD_Z + 800);
+}
+
+function setMapZoom(v) {
+  nav.mapZoom = clamp(v, 1, 13);
+}
+
+function setWaypointHere() {
+  nav.waypoint = { x: nav.mapCx, z: nav.mapCz };
+  const b = document.getElementById("kwaypoint");
+  if (b) b.textContent = "Clear waypoint";
+}
+function clearWaypoint() {
+  nav.waypoint = null;
+  const b = document.getElementById("kwaypoint");
+  if (b) b.textContent = "Clear waypoint";
+}
+
+function setMapOpen(on) {
+  nav.mapOpen = !!on;
+  document.body.classList.toggle("mapopen", nav.mapOpen);
+  if (nav.mapOpen) {
+    paused = true;
+    document.body.classList.add("paused");
+    move.x = move.y = move.up = 0;
+    look.x = look.y = 0;
+    for (const k in keys) keys[k] = false;
+    const at = player.placed ? player.pos : camPos;
+    nav.mapCx = at.x; nav.mapCz = at.z;
+    nav.mapZoom = 6;
+    nav.mapSel = 0;
+    syncMapMenu();
+    const mode = document.getElementById("kmode");
+    if (mode) mode.textContent = player.mode === "walk" ? "Back to the free camera" : "Walk as Seiko";
+    const sh = document.getElementById("kshadows");
+    if (sh && renderer) sh.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
+    const q = document.getElementById("kquality");
+    if (q) q.textContent = "Graphics: " + (gfx.high ? "high" : "medium");
+    const hint = document.getElementById("maphint");
+    if (hint) hint.textContent = pad.index >= 0
+      ? "Left stick pans · triggers zoom · A drops a waypoint · D-pad picks an option · B closes"
+      : "Drag to pan · scroll to zoom · click to drop a waypoint · Esc or M closes";
+    drawBigMap();
+  } else {
+    paused = false;
+    document.body.classList.remove("paused");
+  }
+}
+
+function syncMapMenu() {
+  MAP_MENU.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("sel", i === nav.mapSel);
+  });
+}
+
+function runMapMenu(i) {
+  const id = MAP_MENU[i];
+  if (id === "kresume") setMapOpen(false);
+  else if (id === "kwaypoint") { if (nav.waypoint) clearWaypoint(); else setWaypointHere(); }
+  else if (id === "kmode") { setMapOpen(false); toggleWalk(); }
+  else if (id === "kshadows") {
+    if (!renderer) return;
+    renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+    scene.traverse(o => { if (o.material) { const m = o.material; (Array.isArray(m) ? m : [m]).forEach(x => x.needsUpdate = true); } });
+    const el = document.getElementById("kshadows");
+    if (el) el.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
+  } else if (id === "kquality") {
+    // High is reflections, clear coat and a real road surface. Medium is the
+    // same world with none of it, for a laptop that would rather have the
+    // frames - and the switch rebuilds the meshes, not the island.
+    gfx.high = !gfx.high;
+    const keep = { pos: player.pos.clone(), yaw: player.yaw, mode: player.mode, placed: player.placed };
+    buildScene(world);
+    if (keep.placed) {
+      setMode(keep.mode);
+      placeSeiko(keep.pos);
+      player.yaw = player.targetYaw = keep.yaw;
+      player.placed = true;
+      player.obj.visible = keep.mode === "walk";
+    }
+    const el = document.getElementById("kquality");
+    if (el) el.textContent = "Graphics: " + (gfx.high ? "high" : "medium");
+  } else if (id === "kregen") {
+    setMapOpen(false);
+    const b = document.getElementById("regen");
+    if (b) b.click();
+  }
+}
+
+function initMap() {
+  MAP_MENU.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", () => { nav.mapSel = i; syncMapMenu(); runMapMenu(i); });
+  });
+  const cv = document.getElementById("mapcanvas");
+  if (!cv) return;
+  let dragging = false, lx = 0, ly = 0, moved = 0;
+  cv.addEventListener("pointerdown", e => { dragging = true; lx = e.clientX; ly = e.clientY; moved = 0; });
+  cv.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const across = mapAcross();
+    const S = (cv.clientWidth || window.innerWidth) / across;
+    nav.mapCx -= (e.clientX - lx) / S;
+    nav.mapCz -= (e.clientY - ly) / S;
+    moved += Math.abs(e.clientX - lx) + Math.abs(e.clientY - ly);
+    lx = e.clientX; ly = e.clientY;
+    drawBigMap();
+  });
+  cv.addEventListener("pointerup", e => {
+    dragging = false;
+    if (moved < 5) {
+      // A click drops the waypoint where you clicked, not where the crosshair is.
+      const across = mapAcross();
+      const S = (cv.clientWidth || window.innerWidth) / across;
+      const r = cv.getBoundingClientRect();
+      nav.waypoint = {
+        x: nav.mapCx + (e.clientX - r.left - r.width / 2) / S,
+        z: nav.mapCz + (e.clientY - r.top - r.height / 2) / S
+      };
+      drawBigMap();
+    }
+  });
+  cv.addEventListener("wheel", e => {
+    setMapZoom(nav.mapZoom + (e.deltaY > 0 ? -0.5 : 0.5));
+    drawBigMap();
+    e.preventDefault();
+  }, { passive: false });
+}
+
+// ---------------------------------------------------------------- the phone
+// A SOTI So24, which is the phone everyone in Konto has: a 6.2 inch flat slab
+// with a punch hole, a rail down the side and almost no bezel. It lives in the
+// bottom right corner, D-pad up brings it out, and the whole of it is driven
+// from the pad - nothing here wants a mouse.
+//
+// The apps do nothing yet on purpose. What matters at this stage is that it
+// looks like a phone you would own, that it comes up and goes away cleanly,
+// and that the stick and the D-pad move around it the way they would on a
+// console. The wallpaper is Tōkonto at dusk from across the bay, drawn rather
+// than photographed, because the city in the wallpaper ought to be the city
+// you are standing in.
+
+const phone = { open: false, sel: 0, page: 0, dirty: true, minute: -1, ctx: null };
+
+const PHONE_APPS = [
+  ["Phone",    "#2f8a4c", "call"],
+  ["Messages", "#3a7fc1", "chat"],
+  ["Camera",   "#5a6068", "cam"],
+  ["NHRail",   "#1f8a4c", "rail"],
+  ["Ryde",     "#19d08a", "ryde"],
+  ["Kombini",  "#1c4f94", "store"],
+  ["Weather",  "#4a9fd4", "sun"],
+  ["Maps",     "#d8694a", "pin"],
+  ["Wallet",   "#2a2d33", "card"],
+  ["Music",    "#b4365c", "note"],
+  ["Photos",   "#e0a21c", "photo"],
+  ["Clock",    "#1d2630", "clock"],
+  ["Notes",    "#d6c34a", "note2"],
+  ["Browser",  "#3b6ea8", "globe"],
+  ["Settings", "#6b7076", "gear"],
+  ["SOTI",     "#15171d", "soti"]
+];
+const PHONE_DOCK = [0, 1, 7, 14];
+
+// The clock starts at six in the evening, which is when a salaryman's day
+// stops being his own, and runs at a minute to the second.
+function phoneTime() {
+  const mins = Math.floor(18 * 60 + 4 + clock / 1.0) % (24 * 60);
+  return { h: Math.floor(mins / 60), m: mins % 60, mins: mins };
+}
+function two(n) { return (n < 10 ? "0" : "") + n; }
+
+function phoneIcon(g, x, y, s, colour, glyph) {
+  const r = s * 0.235;
+  g.save();
+  g.beginPath();
+  g.moveTo(x + r, y); g.lineTo(x + s - r, y);
+  g.quadraticCurveTo(x + s, y, x + s, y + r); g.lineTo(x + s, y + s - r);
+  g.quadraticCurveTo(x + s, y + s, x + s - r, y + s); g.lineTo(x + r, y + s);
+  g.quadraticCurveTo(x, y + s, x, y + s - r); g.lineTo(x, y + r);
+  g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
+  const grd = g.createLinearGradient(x, y, x, y + s);
+  grd.addColorStop(0, colour);
+  grd.addColorStop(1, "rgba(0,0,0,0.35)");
+  g.fillStyle = colour;
+  g.fill();
+  g.fillStyle = grd;
+  g.globalAlpha = 0.32;
+  g.fill();
+  g.globalAlpha = 1;
+  g.clip();
+
+  const c = x + s / 2, m = y + s / 2, u = s * 0.5;
+  g.strokeStyle = "#f4f6f8";
+  g.fillStyle = "#f4f6f8";
+  g.lineWidth = s * 0.075;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  if (glyph === "call") {
+    g.beginPath();
+    g.moveTo(c - u * 0.42, m - u * 0.46);
+    g.quadraticCurveTo(c - u * 0.1, m + u * 0.1, c + u * 0.46, m + u * 0.42);
+    g.lineTo(c + u * 0.46, m + u * 0.12);
+    g.moveTo(c - u * 0.42, m - u * 0.46);
+    g.lineTo(c - u * 0.12, m - u * 0.46);
+    g.stroke();
+  } else if (glyph === "chat") {
+    g.beginPath();
+    g.moveTo(c - u * 0.5, m - u * 0.36);
+    g.lineTo(c + u * 0.5, m - u * 0.36);
+    g.lineTo(c + u * 0.5, m + u * 0.2);
+    g.lineTo(c - u * 0.14, m + u * 0.2);
+    g.lineTo(c - u * 0.38, m + u * 0.52);
+    g.lineTo(c - u * 0.38, m + u * 0.2);
+    g.lineTo(c - u * 0.5, m + u * 0.2);
+    g.closePath();
+    g.fill();
+  } else if (glyph === "cam") {
+    g.beginPath(); g.arc(c, m + u * 0.05, u * 0.3, 0, 6.2832); g.stroke();
+    g.strokeRect(c - u * 0.52, m - u * 0.3, u * 1.04, u * 0.78);
+    g.fillRect(c - u * 0.18, m - u * 0.46, u * 0.36, u * 0.16);
+  } else if (glyph === "rail") {
+    g.lineWidth = s * 0.1;
+    g.beginPath();
+    g.moveTo(c - u * 0.3, m - u * 0.5); g.lineTo(c - u * 0.3, m + u * 0.5);
+    g.moveTo(c + u * 0.3, m - u * 0.5); g.lineTo(c + u * 0.3, m + u * 0.5);
+    g.stroke();
+    g.beginPath(); g.moveTo(c - u * 0.3, m + u * 0.22); g.lineTo(c + u * 0.3, m - u * 0.22); g.stroke();
+  } else if (glyph === "ryde") {
+    g.fillStyle = "#07140f";
+    g.font = "700 " + Math.round(s * 0.3) + "px " + UI;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("R", c, m);
+  } else if (glyph === "store") {
+    g.beginPath();
+    g.moveTo(c - u * 0.56, m - u * 0.1); g.lineTo(c, m - u * 0.5); g.lineTo(c + u * 0.56, m - u * 0.1);
+    g.closePath(); g.fill();
+    g.fillRect(c - u * 0.44, m - u * 0.08, u * 0.88, u * 0.56);
+  } else if (glyph === "sun") {
+    g.beginPath(); g.arc(c, m, u * 0.3, 0, 6.2832); g.fill();
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * 6.2832;
+      g.beginPath();
+      g.moveTo(c + Math.cos(a) * u * 0.44, m + Math.sin(a) * u * 0.44);
+      g.lineTo(c + Math.cos(a) * u * 0.58, m + Math.sin(a) * u * 0.58);
+      g.stroke();
+    }
+  } else if (glyph === "pin") {
+    g.beginPath();
+    g.arc(c, m - u * 0.12, u * 0.33, Math.PI * 0.86, Math.PI * 0.14);
+    g.lineTo(c, m + u * 0.56);
+    g.closePath(); g.fill();
+    g.fillStyle = "#d8694a";
+    g.beginPath(); g.arc(c, m - u * 0.14, u * 0.13, 0, 6.2832); g.fill();
+  } else if (glyph === "card") {
+    g.fillRect(c - u * 0.54, m - u * 0.34, u * 1.08, u * 0.68);
+    g.fillStyle = "#2a2d33";
+    g.fillRect(c - u * 0.54, m - u * 0.14, u * 1.08, u * 0.14);
+  } else if (glyph === "note") {
+    g.beginPath(); g.arc(c - u * 0.18, m + u * 0.3, u * 0.17, 0, 6.2832); g.fill();
+    g.beginPath(); g.arc(c + u * 0.34, m + u * 0.16, u * 0.17, 0, 6.2832); g.fill();
+    g.fillRect(c - u * 0.03, m - u * 0.46, u * 0.1, u * 0.78);
+    g.fillRect(c + u * 0.45, m - u * 0.6, u * 0.1, u * 0.78);
+    g.fillRect(c - u * 0.03, m - u * 0.6, u * 0.58, u * 0.14);
+  } else if (glyph === "photo") {
+    g.strokeRect(c - u * 0.52, m - u * 0.4, u * 1.04, u * 0.8);
+    g.beginPath();
+    g.moveTo(c - u * 0.46, m + u * 0.34); g.lineTo(c - u * 0.1, m - u * 0.12);
+    g.lineTo(c + u * 0.16, m + u * 0.14); g.lineTo(c + u * 0.32, m - u * 0.02);
+    g.lineTo(c + u * 0.46, m + u * 0.34);
+    g.closePath(); g.fill();
+  } else if (glyph === "clock") {
+    g.beginPath(); g.arc(c, m, u * 0.52, 0, 6.2832); g.stroke();
+    g.beginPath(); g.moveTo(c, m); g.lineTo(c, m - u * 0.33);
+    g.moveTo(c, m); g.lineTo(c + u * 0.24, m + u * 0.1); g.stroke();
+  } else if (glyph === "note2") {
+    g.fillStyle = "#2a2a1e";
+    g.fillRect(c - u * 0.42, m - u * 0.5, u * 0.84, u * 1.0);
+    g.fillStyle = "#f4f6f8";
+    for (let i = 0; i < 4; i++) g.fillRect(c - u * 0.28, m - u * 0.3 + i * u * 0.2, u * 0.56, u * 0.07);
+  } else if (glyph === "globe") {
+    g.beginPath(); g.arc(c, m, u * 0.52, 0, 6.2832); g.stroke();
+    g.beginPath(); g.ellipse(c, m, u * 0.22, u * 0.52, 0, 0, 6.2832); g.stroke();
+    g.beginPath(); g.moveTo(c - u * 0.52, m); g.lineTo(c + u * 0.52, m); g.stroke();
+  } else if (glyph === "gear") {
+    g.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a0 = i / 8 * 6.2832, a1 = (i + 0.5) / 8 * 6.2832;
+      g.lineTo(c + Math.cos(a0) * u * 0.56, m + Math.sin(a0) * u * 0.56);
+      g.lineTo(c + Math.cos(a1) * u * 0.38, m + Math.sin(a1) * u * 0.38);
+    }
+    g.closePath(); g.fill();
+    g.fillStyle = colour;
+    g.beginPath(); g.arc(c, m, u * 0.2, 0, 6.2832); g.fill();
+  } else if (glyph === "soti") {
+    g.fillStyle = "#f4f6f8";
+    g.font = "400 " + Math.round(s * 0.26) + "px " + SERIF;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("SOTI", c, m);
+  }
+  g.restore();
+}
+
+// Tōkonto at dusk from across the bay. Drawn, not photographed, because the
+// city on the wallpaper should be the city out of the window.
+function phoneWallpaper(g, W, H) {
+  const sky = g.createLinearGradient(0, 0, 0, H * 0.72);
+  sky.addColorStop(0, "#131a2e");
+  sky.addColorStop(0.42, "#2d3356");
+  sky.addColorStop(0.72, "#7a4e63");
+  sky.addColorStop(1, "#d98a5e");
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, H);
+  // the mountain behind it
+  g.fillStyle = "#1b2038";
+  g.beginPath();
+  g.moveTo(0, H * 0.66);
+  g.lineTo(W * 0.24, H * 0.49);
+  g.lineTo(W * 0.38, H * 0.56);
+  g.lineTo(W * 0.56, H * 0.41);
+  g.lineTo(W * 0.78, H * 0.58);
+  g.lineTo(W, H * 0.52);
+  g.lineTo(W, H * 0.72);
+  g.lineTo(0, H * 0.72);
+  g.closePath();
+  g.fill();
+  // the skyline, with Soti Tower standing a head above it
+  g.fillStyle = "#0e1424";
+  let x = 0;
+  let i = 0;
+  while (x < W) {
+    const w = 14 + rnd(i, 3, 5501) * 34;
+    const isSoti = i === 11;
+    const h = isSoti ? H * 0.30 : H * (0.07 + rnd(i, 7, 5503) * 0.12);
+    g.fillRect(x, H * 0.70 - h, w, h + 4);
+    if (isSoti) {
+      g.fillRect(x + w * 0.44, H * 0.70 - h - H * 0.022, w * 0.12, H * 0.022);
+    }
+    // lit windows
+    g.fillStyle = "rgba(255, 206, 140, 0.55)";
+    for (let k = 0; k < 10; k++) {
+      if (rnd(i * 11 + k, 2, 5507) > 0.62) {
+        g.fillRect(x + 3 + (k % 3) * (w / 3), H * 0.70 - h + 6 + ((k / 3) | 0) * 11, 4, 6);
+      }
+    }
+    g.fillStyle = "#0e1424";
+    x += w + 2 + rnd(i, 9, 5509) * 5;
+    i++;
+  }
+  // the bay, and the city upside down in it
+  const sea = g.createLinearGradient(0, H * 0.70, 0, H);
+  sea.addColorStop(0, "#131a2c");
+  sea.addColorStop(1, "#242b44");
+  g.fillStyle = sea;
+  g.fillRect(0, H * 0.70, W, H * 0.30);
+  g.globalAlpha = 0.22;
+  g.save();
+  g.translate(0, H * 1.4);
+  g.scale(1, -1);
+  g.fillStyle = "#0e1424";
+  g.fillRect(0, H * 0.70, W, 2);
+  g.restore();
+  g.globalAlpha = 1;
+  for (let k = 0; k < 90; k++) {
+    const sx = rnd(k, 1, 5511) * W, sy = H * 0.71 + rnd(k, 2, 5513) * H * 0.28;
+    g.fillStyle = "rgba(255, 196, 130, " + (0.05 + rnd(k, 3, 5515) * 0.16).toFixed(3) + ")";
+    g.fillRect(sx, sy, 2 + rnd(k, 4, 5517) * 7, 1.6);
+  }
+}
+
+function drawPhone() {
+  const cv = document.getElementById("phonecanvas");
+  if (!cv) return;
+  if (!phone.ctx) phone.ctx = cv.getContext("2d");
+  const g = phone.ctx, W = cv.width, H = cv.height;
+  const t = phoneTime();
+
+  phoneWallpaper(g, W, H);
+
+  // ---- status bar
+  g.fillStyle = "#f3f6f8";
+  g.font = "600 " + Math.round(W * 0.052) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(t.h + ":" + two(t.m), W * 0.09, H * 0.031);
+  g.textAlign = "right";
+  g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText("NHMobile  5G", W * 0.70, H * 0.031);
+  // signal, then a battery at 68%
+  for (let i = 0; i < 4; i++) {
+    const bh = (i + 1) * W * 0.012;
+    g.fillRect(W * 0.735 + i * W * 0.026, H * 0.031 + W * 0.023 - bh, W * 0.018, bh);
+  }
+  const bx = W * 0.855, bw = W * 0.082, bh2 = W * 0.042;
+  g.strokeStyle = "rgba(243,246,248,0.8)";
+  g.lineWidth = W * 0.007;
+  g.strokeRect(bx, H * 0.031 - bh2 / 2, bw, bh2);
+  g.fillRect(bx + bw + W * 0.004, H * 0.031 - bh2 * 0.22, W * 0.008, bh2 * 0.44);
+  g.fillRect(bx + W * 0.005, H * 0.031 - bh2 / 2 + W * 0.005, (bw - W * 0.01) * 0.68, bh2 - W * 0.01);
+
+  // ---- lock-screen clock
+  g.textAlign = "center";
+  g.fillStyle = "#ffffff";
+  g.font = "300 " + Math.round(W * 0.26) + "px " + UI;
+  g.fillText(t.h + ":" + two(t.m), W / 2, H * 0.135);
+  g.font = "500 " + Math.round(W * 0.05) + "px " + UI;
+  g.fillStyle = "rgba(255,255,255,0.84)";
+  g.fillText("Monday 6 April · Tōkonto", W / 2, H * 0.195);
+
+  // ---- the grid
+  const cols = 4, rows = 4;
+  const pad = W * 0.085, gap = (W - pad * 2) / cols;
+  const size = gap * 0.70;
+  const top = H * 0.255;
+  const rowH = H * 0.118;
+  for (let i = 0; i < PHONE_APPS.length; i++) {
+    const r = (i / cols) | 0, c = i % cols;
+    const x = pad + c * gap + (gap - size) / 2;
+    const y = top + r * rowH;
+    if (phone.sel === i) {
+      g.fillStyle = "rgba(255,255,255,0.20)";
+      const m = size * 0.20;
+      g.beginPath();
+      const rr = size * 0.34, X = x - m, Y = y - m, S = size + m * 2;
+      g.moveTo(X + rr, Y); g.lineTo(X + S - rr, Y);
+      g.quadraticCurveTo(X + S, Y, X + S, Y + rr); g.lineTo(X + S, Y + S - rr);
+      g.quadraticCurveTo(X + S, Y + S, X + S - rr, Y + S); g.lineTo(X + rr, Y + S);
+      g.quadraticCurveTo(X, Y + S, X, Y + S - rr); g.lineTo(X, Y + rr);
+      g.quadraticCurveTo(X, Y, X + rr, Y);
+      g.closePath();
+      g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.85)";
+      g.lineWidth = W * 0.008;
+      g.stroke();
+    }
+    phoneIcon(g, x, y, size, PHONE_APPS[i][1], PHONE_APPS[i][2]);
+    g.fillStyle = "rgba(255,255,255,0.92)";
+    g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText(PHONE_APPS[i][0], x + size / 2, y + size + H * 0.021);
+  }
+
+  // ---- page dots and the dock
+  const dotY = top + rows * rowH + H * 0.012;
+  for (let i = 0; i < 3; i++) {
+    g.fillStyle = i === 0 ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.38)";
+    g.beginPath(); g.arc(W / 2 + (i - 1) * W * 0.045, dotY, W * 0.012, 0, 6.2832); g.fill();
+  }
+  const dockY = H * 0.875;
+  g.fillStyle = "rgba(255,255,255,0.14)";
+  const dr = W * 0.09;
+  g.beginPath();
+  const DX = W * 0.055, DY = dockY - W * 0.055, DW = W * 0.89, DH = W * 0.255;
+  g.moveTo(DX + dr, DY); g.lineTo(DX + DW - dr, DY);
+  g.quadraticCurveTo(DX + DW, DY, DX + DW, DY + dr); g.lineTo(DX + DW, DY + DH - dr);
+  g.quadraticCurveTo(DX + DW, DY + DH, DX + DW - dr, DY + DH); g.lineTo(DX + dr, DY + DH);
+  g.quadraticCurveTo(DX, DY + DH, DX, DY + DH - dr); g.lineTo(DX, DY + dr);
+  g.quadraticCurveTo(DX, DY, DX + dr, DY);
+  g.closePath();
+  g.fill();
+  PHONE_DOCK.forEach((appIdx, k) => {
+    const s = W * 0.17;
+    const x = W * 0.09 + k * (W * 0.82 / 4) + (W * 0.82 / 4 - s) / 2;
+    phoneIcon(g, x, dockY, s, PHONE_APPS[appIdx][1], PHONE_APPS[appIdx][2]);
+  });
+  // the gesture bar
+  g.fillStyle = "rgba(255,255,255,0.65)";
+  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+
+  phone.minute = t.mins;
+  phone.dirty = false;
+}
+
+function setPhone(on) {
+  phone.open = !!on;
+  document.body.classList.toggle("phone-up", phone.open);
+  if (phone.open) { phone.dirty = true; drawPhone(); }
+}
+
+function phoneMove(dx, dy) {
+  if (!phone.open) return;
+  const cols = 4;
+  let c = phone.sel % cols, r = (phone.sel / cols) | 0;
+  c = clamp(c + dx, 0, cols - 1);
+  r = clamp(r + dy, 0, Math.ceil(PHONE_APPS.length / cols) - 1);
+  const next = clamp(r * cols + c, 0, PHONE_APPS.length - 1);
+  if (next !== phone.sel) { phone.sel = next; phone.dirty = true; }
+}
+
+function updatePhone() {
+  if (!phone.open) return;
+  const t = phoneTime();
+  if (phone.dirty || t.mins !== phone.minute) drawPhone();
+}
+
+// ---------------------------------------------------------------- getting in
+// Cars are solid, cars hurt, and cars can be driven. Three things that have to
+// agree with each other:
+//
+//   solid    a stopped car is a wall. Walking into one stops you, the same way
+//            a building does.
+//   hurt     a moving one knocks you down. Drivers brake for a person in the
+//            road, but only as hard as they can, so stepping out in front of
+//            something doing fifteen metres a second still ends badly.
+//   drivable stand next to one and press Y. It leaves the traffic and becomes
+//            yours, with arcade physics - no suspension, no tyre model, just a
+//            speed, a heading and a steering rate that falls off with speed so
+//            it does not spin on the spot.
+//
+// Trains stop at stations now, which they have to for any of this to mean
+// anything: a train that never stops is scenery.
+
+const drive = {
+  car: null,            // { kind, pos, yaw, speed, colour, uv }
+  parked: [],           // what you left behind, up to six
+  train: null,          // { set, carIndex } while riding
+  near: null,           // what pressing Y would do right now
+  cooldown: 0
+};
+
+// Where the player is in the world whatever he is sitting in.
+function playerAt() {
+  if (drive.car) return drive.car.pos;
+  if (drive.train) return drive.trainPos || player.pos;
+  return player.pos;
+}
+
+// An oriented box test, which is all a car is for this purpose.
+function boxHit(cx, cz, cyaw, kind, x, z, pad) {
+  const dx = x - cx, dz = z - cz;
+  const c = Math.cos(-cyaw), s = Math.sin(-cyaw);
+  const lx = dx * c - dz * s, lz = dx * s + dz * c;
+  return Math.abs(lx) < kind.W * 0.5 + pad && Math.abs(lz) < kind.L * 0.5 + pad;
+}
+function inCarBox(car, x, z, pad) {
+  return boxHit(car.at.x, car.at.z, car.yawNow, CAR_KINDS[car.kind], x, z, pad);
+}
+
+// A stopped car is a wall, and so is one you left at the kerb. This is what
+// stops Seiko strolling through the traffic as though it were painted on.
+function carBlocks(x, z, radius) {
+  for (let i = 0; i < drive.parked.length; i++) {
+    const p = drive.parked[i];
+    if (boxHit(p.pos.x, p.pos.z, p.yaw, CAR_KINDS[p.kind], x, z, radius)) return true;
+  }
+  let hit = false;
+  carsNear(x, z, 16, c => {
+    if (!hit && c.v < 2.4 && inCarBox(c, x, z, radius)) hit = true;
+  });
+  return hit;
+}
+
+// Every live car near a point, which both the collision and the "press Y"
+// prompt need and neither wants to pay for twice.
+function carsNear(x, z, radius, fn) {
+  const r2 = radius * radius;
+  for (let i = 0; i < traffic.cars.length; i++) {
+    const c = traffic.cars[i];
+    if (!c.live || !c.at) continue;
+    const dx = c.at.x - x, dz = c.at.z - z;
+    if (dx * dx + dz * dz > r2) continue;
+    fn(c, i);
+  }
+}
+
+// ---- getting into one --------------------------------------------------
+function findRide() {
+  if (!player.placed || player.mode !== "walk" || player.down > 0) return null;
+  const px = player.pos.x, pz = player.pos.z;
+  // A parked car you left is the first thing you would reach for.
+  for (let i = 0; i < drive.parked.length; i++) {
+    const p = drive.parked[i];
+    if (Math.hypot(p.pos.x - px, p.pos.z - pz) < 4.2) return { what: "parked", parked: i };
+  }
+  let best = null, bestD = 5.0;
+  carsNear(px, pz, 6.5, (c, i) => {
+    const kind = CAR_KINDS[c.kind];
+    if (kind.body === "bus" || kind.body === "truck") return;      // not yet
+    const d = Math.hypot(c.at.x - px, c.at.z - pz) - kind.L * 0.4;
+    if (c.v > 3.5) return;                                          // too fast to grab
+    if (d < bestD) { bestD = d; best = { what: "car", car: i }; }
+  });
+  if (best) return best;
+  // A train standing at a platform.
+  const t = trainAtPlatform(px, pz);
+  if (t) return { what: "train", train: t };
+  return null;
+}
+
+function enterCar(index) {
+  const c = traffic.cars[index];
+  if (!c || !c.live) return;
+  const lane = traffic.lanes[c.lane];
+  const p = sampleLane(lane, c.s);
+  // Take it out of the traffic: its lane slot goes back to the pool.
+  const list = traffic.byLane[c.lane];
+  const at = list.indexOf(index);
+  if (at >= 0) list.splice(at, 1);
+  c.live = false;
+  drive.car = {
+    kind: c.kind,
+    pos: new THREE.Vector3(p.x, p.y, p.z),
+    yaw: p.yaw, speed: c.v, steer: 0,
+    colour: c.colour.slice(), uv: c.uv.slice()
+  };
+  document.body.classList.add("driving");
+  setPromptText(null);
+}
+
+function enterParked(i) {
+  const p = drive.parked.splice(i, 1)[0];
+  drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
+                colour: p.colour.slice(), uv: p.uv.slice() };
+  document.body.classList.add("driving");
+}
+
+function leaveCar() {
+  if (!drive.car) return;
+  const c = drive.car;
+  drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
+                      colour: c.colour.slice(), uv: c.uv.slice() });
+  while (drive.parked.length > 6) drive.parked.shift();
+  // Step out on the near side, and not into a wall.
+  const side = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw));
+  const kind = CAR_KINDS[c.kind];
+  let out = c.pos.clone().addScaledVector(side, kind.W * 0.5 + 0.7);
+  if (insideBuilding(out.x, out.z, 0.45)) out = c.pos.clone().addScaledVector(side, -(kind.W * 0.5 + 0.7));
+  player.pos.set(out.x, world.surfaceY(out.x, out.z), out.z);
+  player.yaw = player.targetYaw = c.yaw;
+  player.speed = 0;
+  drive.car = null;
+  document.body.classList.remove("driving");
+  camPos.copy(player.pos).add(new THREE.Vector3(Math.sin(yaw) * 5, 2.4, Math.cos(yaw) * 5));
+}
+
+// ---- driving one -------------------------------------------------------
+function updateDrive(dt) {
+  const c = drive.car;
+  const kind = CAR_KINDS[c.kind];
+  const w = wish();
+  // Pedals. A trigger is analogue, the keyboard is not, and both end up here.
+  let throttle = clamp(pad.throttle + (keys.KeyW || keys.ArrowUp ? 1 : 0), 0, 1);
+  let brake = clamp(pad.brake + (keys.KeyS || keys.ArrowDown ? 1 : 0), 0, 1);
+  const hand = keys.Space || pad.handbrake;
+  let steer = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + w.x, -1, 1);
+
+  const top = kind.top * 1.25;
+  if (throttle > 0) c.speed += throttle * (c.speed < 0 ? 14 : 5.2) * dt;
+  if (brake > 0) {
+    if (c.speed > 0.4) c.speed -= brake * 13 * dt;
+    else c.speed -= brake * 4.4 * dt;              // into reverse
+  }
+  if (hand) c.speed *= Math.pow(0.02, dt);
+  if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.55, dt);   // engine braking
+  c.speed = clamp(c.speed, -top * 0.35, top);
+
+  // Steering falls off with speed, so it turns in a car park and tracks on a
+  // motorway, which is the whole of an arcade steering model worth having.
+  const grip = 1 / (1 + Math.abs(c.speed) * 0.16);
+  c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
+  const rate = c.steer * grip * 1.9 * Math.min(1, Math.abs(c.speed) / 2.2);
+  c.yaw += rate * dt * Math.sign(c.speed || 1);
+
+  const step = c.speed * dt;
+  const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
+  const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
+    || world.sampleHeight(nx, nz) < 0.4
+    || insideBuilding(nx, nz, kind.W * 0.45);
+  if (blocked) {
+    c.speed *= -0.22;                               // a thump, not a bounce
+  } else {
+    c.pos.x = nx; c.pos.z = nz;
+  }
+  c.pos.y = world.surfaceY(c.pos.x, c.pos.z) + 0.04;
+
+  // Camera: behind and a little above, swinging round to the heading unless
+  // you are turning it yourself.
+  if (!look.x && !look.y && Math.abs(c.speed) > 2.5) {
+    let d = (c.yaw + Math.PI) - yaw;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    yaw += d * (1 - Math.pow(0.08, dt));
+  }
+  const head = c.pos.clone().add(new THREE.Vector3(0, 1.25, 0));
+  const dist = lerp(7.0, 10.5, clamp01(Math.abs(c.speed) / 18));
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const want = head.clone().sub(dir.clone().multiplyScalar(dist));
+  const ground = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
+  want.y = Math.max(want.y, ground + 1.6);
+  camPos.lerp(want, 1 - Math.pow(0.0006, dt));
+  camera.position.copy(camPos);
+  camera.lookAt(head);
+  // Keep the character with the car so the map and the street name follow it.
+  player.pos.copy(c.pos);
+  player.yaw = c.yaw;
+}
+
+// ---- being hit ---------------------------------------------------------
+function updatePedestrianSafety(dt) {
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
+  if (player.down > 0) { player.down -= dt; return; }
+  const px = player.pos.x, pz = player.pos.z;
+  carsNear(px, pz, 14, (c) => {
+    if (!inCarBox(c, px, pz, 0.34)) return;
+    if (c.v > 2.2) {
+      // Knocked down. Thrown along the car's heading, because that is where
+      // the energy is going.
+      player.down = 2.1;
+      player.knock.set(Math.sin(c.yawNow || 0), 0, Math.cos(c.yawNow || 0)).multiplyScalar(clamp(c.v * 0.42, 2, 9));
+      player.speed = 0;
+    } else {
+      // Stopped, or barely moving: it is a wall. Push back out of it.
+      const kind = CAR_KINDS[c.kind];
+      const dx = px - c.at.x, dz = pz - c.at.z;
+      const len = Math.hypot(dx, dz) || 1;
+      const push = (kind.W * 0.5 + 0.45) - len;
+      if (push > 0) { player.pos.x += dx / len * push; player.pos.z += dz / len * push; }
+    }
+  });
+}
+
+function updateKnockdown(dt) {
+  if (player.down <= 0) return;
+  const k = player.knock;
+  if (k.lengthSq() > 0.01) {
+    const step = k.clone().multiplyScalar(dt);
+    tryStep(step.x, step.z, 0.4);
+    k.multiplyScalar(Math.pow(0.02, dt));
+  }
+  player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
+  // Face down, then get up over the last half second.
+  const t = clamp01(player.down / 2.1);
+  const lie = t > 0.24 ? 1 : t / 0.24;
+  player.obj.position.copy(player.pos);
+  player.obj.position.y += 0.08 * lie;
+  player.obj.rotation.set(-Math.PI * 0.46 * lie, player.yaw, 0);
+  if (player.mixer) updateSeikoClip(dt);
+  const head = player.pos.clone().add(new THREE.Vector3(0, 0.9, 0));
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const want = head.clone().sub(dir.clone().multiplyScalar(5.4));
+  want.y = Math.max(want.y, world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z)) + 1.4);
+  camPos.lerp(want, 1 - Math.pow(0.004, dt));
+  camera.position.copy(camPos);
+  camera.lookAt(head);
+  if (player.down <= 0) { player.obj.rotation.set(0, player.yaw, 0); player.knock.set(0, 0, 0); }
+}
+
+// ---- trains that stop ---------------------------------------------------
+// Each line gets the distances along it at which a station sits, worked out
+// once. A set then has a next stop, and brakes for it from far enough out to
+// arrive at walking pace rather than slamming to nothing.
+function buildRailStops() {
+  rail.lines.forEach(line => {
+    line.stops = [];
+    world.cities.forEach(city => {
+      city.stations.forEach(st => {
+        // The closest point on this line to the station, if it is close at all.
+        let bestS = -1, bestD = Infinity;
+        for (let i = 0; i < line.pts.length; i++) {
+          const p = line.pts[i];
+          const d = (p[0] - st.centre[0]) * (p[0] - st.centre[0]) + (p[2] - st.centre[1]) * (p[2] - st.centre[1]);
+          if (d < bestD) { bestD = d; bestS = i; }
+        }
+        if (bestS >= 0 && bestD < 140 * 140) {
+          line.stops.push({ s: line.arc[bestS], name: st.name, at: st.centre.slice() });
+        }
+      });
+    });
+    line.stops.sort((a, b) => a.s - b.s);
+  });
+}
+
+function nextStop(line, s) {
+  if (!line.stops || !line.stops.length) return null;
+  const L = line.length;
+  if (line.loop) {
+    // A set's distance along a loop is never wrapped - sampleLane does that -
+    // so the next stop has to be found in the wrapped space and handed back in
+    // the unwrapped one, or a train on its second lap stops at nothing.
+    const sm = ((s % L) + L) % L;
+    let best = null;
+    for (let i = 0; i < line.stops.length; i++) {
+      const d = (line.stops[i].s - sm + L) % L;
+      if (d > 3 && (!best || d < best.d)) best = { d: d, st: line.stops[i] };
+    }
+    return best ? { s: s + best.d, name: best.st.name, at: best.st.at } : null;
+  }
+  for (let i = 0; i < line.stops.length; i++) {
+    if (line.stops[i].s > s + 3) return { s: line.stops[i].s, name: line.stops[i].name, at: line.stops[i].at };
+  }
+  return null;
+}
+
+// A set standing at a platform within reach of a point on the ground.
+function trainAtPlatform(x, z) {
+  for (let i = 0; i < rail.sets.length; i++) {
+    const set = rail.sets[i];
+    if (!set.live || set.v > 0.4 || set.dwell <= 0) continue;
+    const line = rail.lines[set.line];
+    const kind = TRAIN_KINDS[set.kind];
+    const pitch = kind.L + kind.gap;
+    for (let c = 0; c < kind.cars; c++) {
+      const p = sampleLane(line, set.s - c * pitch);
+      if (Math.hypot(p.x - x, p.z - z) < 11 && Math.abs(p.y - world.surfaceY(x, z)) < 9) {
+        return { set: i, car: c };
+      }
+    }
+  }
+  return null;
+}
+
+function boardTrain(t) {
+  drive.train = { set: t.set, car: t.car };
+  player.obj.visible = false;
+  document.body.classList.add("driving");
+}
+
+function leaveTrain() {
+  const t = drive.train;
+  drive.train = null;
+  player.obj.visible = true;
+  document.body.classList.remove("driving");
+  const set = rail.sets[t.set];
+  if (!set || !set.live) return;
+  const line = rail.lines[set.line];
+  const kind = TRAIN_KINDS[set.kind];
+  const p = sampleLane(line, set.s - t.car * (kind.L + kind.gap));
+  // Step out onto the platform, 6.7 m to the left of the track.
+  const ox = p.x - Math.cos(p.yaw) * 6.7, oz = p.z + Math.sin(p.yaw) * 6.7;
+  player.pos.set(ox, p.y - 0.18, oz);
+  player.yaw = player.targetYaw = p.yaw + Math.PI / 2;
+  player.speed = 0;
+}
+
+function updateRide(dt) {
+  const t = drive.train;
+  const set = rail.sets[t.set];
+  if (!set || !set.live) { leaveTrain(); return; }
+  const line = rail.lines[set.line];
+  const kind = TRAIN_KINDS[set.kind];
+  const p = sampleLane(line, set.s - t.car * (kind.L + kind.gap));
+  drive.trainPos = new THREE.Vector3(p.x, p.y, p.z);
+  player.pos.set(p.x, p.y, p.z);
+  player.yaw = p.yaw;
+  // Sitting by the window, looking out.
+  const eye = new THREE.Vector3(p.x - Math.cos(p.yaw) * 0.9, p.y + 2.0, p.z + Math.sin(p.yaw) * 0.9);
+  camPos.lerp(eye, 1 - Math.pow(0.0001, dt));
+  camera.position.copy(camPos);
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  camera.lookAt(camPos.clone().add(dir));
 }
 
 // ---------------------------------------------------------------- readout

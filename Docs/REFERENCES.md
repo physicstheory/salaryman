@@ -103,7 +103,7 @@ and the joke is the names.
 | **Ryde** ライド | a green lozenge, lit, on the windscreen | the ride-hailing one |
 | **Tokonto Kotsu** トコント交通 | a yellow door panel and a freephone number | the taxi operator |
 | **Hayabin** 速便 | a dragonfly on yellow | parcels, by scooter, by tomorrow |
-| **NHRail** ニコン鉄道 | NH worked into one mark, in green | Nikon Rail: the loop, the radials, the shinkansen |
+| **NHRail** 日本鉄道 | NH worked into one mark, in green | Nihon Rail: the loop, the radials, the shinkansen |
 | **Tokonto Bus** トコントバス | a blue roundel on a white flag | the municipal operator |
 | **Konto Police** コント県警 | a five-petal roundel on the bonnet | |
 
