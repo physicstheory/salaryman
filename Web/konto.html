@@ -253,15 +253,27 @@
     position: fixed;
     inset: 0;
     z-index: 90;
-    display: none;
+    display: flex;
     align-items: center;
     justify-content: center;
     background: rgba(12, 13, 16, 0.55);
     backdrop-filter: blur(7px);
     padding: 24px;
+    /* display cannot be animated, so the menu is always laid out and fades instead. The
+       visibility delay is what keeps it from swallowing clicks while it is invisible. */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 170ms ease, backdrop-filter 170ms ease, visibility 0s linear 170ms;
   }
-  body.paused #pause { display: flex; }
+  body.paused #pause {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 170ms ease, backdrop-filter 170ms ease;
+  }
   #pausecard {
+    /* It settles rather than appears: a short rise with the overshoot taken out. */
+    transform: translateY(10px) scale(0.985);
+    transition: transform 220ms cubic-bezier(0.22, 0.85, 0.25, 1);
     width: min(420px, 100%);
     background: var(--slab-solid);
     border: 1px solid var(--line);
@@ -289,7 +301,18 @@
   .menu-btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
   .menu-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
   .menu-btn.ghost:hover { color: #fff; }
+  body.paused #pausecard { transform: none; }
+  .menu-btn {
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 90ms ease;
+  }
+  .menu-btn:active { transform: scale(0.985); }
   .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Anyone who has asked their system for less movement gets none of it. */
+  @media (prefers-reduced-motion: reduce) {
+    #pause, #pausecard, .menu-btn { transition: none; }
+    #pausecard { transform: none; }
+  }
   #pausecard .pausehint {
     margin: 14px 0 0;
     font-size: 11px;
@@ -3525,6 +3548,9 @@ function buildScene(w) {
   player.proc = makeSeiko();
   player.obj = player.glb ? player.glb : player.proc;
   player.usingGlb = !!player.glb;
+  // ---- traffic
+  buildTraffic(w, root);
+
   player.placed = false;
   player.obj.visible = false;
   root.add(player.obj);
@@ -3808,6 +3834,7 @@ function tick(dt) {
   followSun();
   if (player.mode === "walk" && player.obj) {
     updateWalk(dt);
+    updateTraffic(dt, player.pos);
     renderer.render(scene, camera);
     return;
   }
@@ -3845,10 +3872,353 @@ function tick(dt) {
   }
   const ground = world.sampleHeight(clamp(camPos.x, 0, WORLD_X), clamp(camPos.z, 0, WORLD_Z));
   camPos.y = Math.max(camPos.y, ground + 2.2);
+  updateTraffic(dt, camPos);
   camera.position.copy(camPos);
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(camPos.clone().add(dir));
   renderer.render(scene, camera);
+}
+
+// ---------------------------------------------------------------- traffic
+// Cars on the arterials, driving on the left because Konto is Japan.
+//
+// The same bargain the city makes everywhere else: nothing exists except near the camera.
+// A car is a distance along a lane, so the driving model is a gap, a speed limit and an
+// acceleration cap, and everything else is sampling the lane. They are drawn as two
+// instanced meshes per body - paint, which is tinted per car, and trim, which is glass,
+// tyres and lamps and is not - so a hundred cars in a hundred colours is ten draw calls.
+//
+// Dimensions are the real ones, in metres. A car that is the wrong size is wrong in a way
+// you notice before you notice anything else.
+const CAR_KINDS = [
+  // name      L     W      H     share  top m/s   the real thing
+  ["kei",     3.40, 1.48, 1.70, 0.28, 12.5],   // the kei class limits
+  ["compact", 4.10, 1.70, 1.52, 0.26, 14.0],   // Honda Fit
+  ["sedan",   4.58, 1.76, 1.49, 0.20, 15.5],   // Toyota Prius
+  ["van",     4.70, 1.73, 1.86, 0.14, 13.5],   // a one-box minivan
+  ["taxi",    4.40, 1.70, 1.75, 0.12, 14.0]    // JPN Taxi, upright
+];
+
+// Japanese traffic is overwhelmingly white, silver and black. A colour is rare enough to
+// be worth noticing, which is why one in twenty is allowed to be red.
+const CAR_COLOURS = [
+  [0.90, 0.90, 0.89], [0.90, 0.90, 0.89], [0.90, 0.90, 0.89],
+  [0.62, 0.64, 0.66], [0.62, 0.64, 0.66],
+  [0.10, 0.10, 0.11], [0.10, 0.10, 0.11],
+  [0.33, 0.35, 0.38], [0.14, 0.22, 0.38], [0.45, 0.09, 0.10]
+];
+
+const traffic = {
+  lanes: [], cars: [], byLane: [], paint: [], trim: [], ready: false,
+  max: 110, spawnR: 240, killR: 330, clearR: 34, seed: 1
+};
+
+// A tiny mesh builder: boxes and cylinders into flat arrays, which is all a car needs.
+function carMesh() {
+  const pos = [], nrm = [];
+  function quad(a, b, c, d) {
+    const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+    const vx = d[0]-a[0], vy = d[1]-a[1], vz = d[2]-a[2];
+    let nx = uy*vz - uz*vy, ny = uz*vx - ux*vz, nz = ux*vy - uy*vx;
+    const len = Math.hypot(nx, ny, nz) || 1; nx/=len; ny/=len; nz/=len;
+    [a,b,c, a,c,d].forEach(p => { pos.push(p[0], p[1], p[2]); nrm.push(nx, ny, nz); });
+  }
+  return {
+    pos: pos, nrm: nrm,
+    // A box given by its centre, its size, and an optional taper of the top face.
+    box(cx, cy, cz, sx, sy, sz, topScaleX, topScaleZ, topShift) {
+      const hx = sx/2, hy = sy/2, hz = sz/2;
+      const tx = hx * (topScaleX === undefined ? 1 : topScaleX);
+      const tz = hz * (topScaleZ === undefined ? 1 : topScaleZ);
+      const ts = topShift || 0;
+      const b = [[cx-hx,cy-hy,cz-hz],[cx+hx,cy-hy,cz-hz],[cx+hx,cy-hy,cz+hz],[cx-hx,cy-hy,cz+hz]];
+      const t = [[cx-tx,cy+hy,cz-tz+ts],[cx+tx,cy+hy,cz-tz+ts],[cx+tx,cy+hy,cz+tz+ts],[cx-tx,cy+hy,cz+tz+ts]];
+      quad(b[3],b[2],b[1],b[0]);            // underside
+      quad(t[0],t[1],t[2],t[3]);            // roof
+      quad(b[0],b[1],t[1],t[0]);            // front
+      quad(b[2],b[3],t[3],t[2]);            // back
+      quad(b[1],b[2],t[2],t[1]);            // right
+      quad(b[3],b[0],t[0],t[3]);            // left
+    },
+    // A wheel: a short cylinder lying on its side.
+    wheel(cx, cy, cz, r, w) {
+      const S = 9;
+      for (let i = 0; i < S; i++) {
+        const a0 = i/S*6.2831853, a1 = (i+1)/S*6.2831853;
+        const y0 = cy + Math.sin(a0)*r, z0 = cz + Math.cos(a0)*r;
+        const y1 = cy + Math.sin(a1)*r, z1 = cz + Math.cos(a1)*r;
+        quad([cx-w/2,y0,z0],[cx+w/2,y0,z0],[cx+w/2,y1,z1],[cx-w/2,y1,z1]);
+        quad([cx+w/2,cy,cz],[cx+w/2,y0,z0],[cx+w/2,y1,z1],[cx+w/2,y1,z1]);
+        quad([cx-w/2,cy,cz],[cx-w/2,y1,z1],[cx-w/2,y0,z0],[cx-w/2,y0,z0]);
+      }
+    },
+    geometry() {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(this.pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(this.nrm, 3));
+      return g;
+    }
+  };
+}
+
+// One body. Nose points +Z, wheels on the ground, origin between them.
+function buildCarBody(kind) {
+  const L = kind[1], W = kind[2], H = kind[3], name = kind[0];
+  const paint = carMesh(), trim = carMesh();
+
+  const wheelR = (name === "kei" ? 0.27 : 0.31);
+  const sill = wheelR * 1.25;                      // where the body starts
+  const roof = H;
+  const upright = (name === "kei" || name === "van" || name === "taxi");
+
+  // Lower body. A kei car is a vertical-sided box; everything else tucks in a little.
+  paint.box(0, (sill + roof*0.56)/2 + sill*0.1, 0, W, (roof*0.56 - sill), L, 0.99, 0.99);
+
+  // The greenhouse is where the shapes differ. A one-box van or a kei car carries its roof
+  // forward over the windscreen; a Prius runs a long fastback down to the boot.
+  const beltline = roof * 0.56 + sill * 0.1;
+  if (upright) {
+    paint.box(0, (beltline + roof)/2, L*0.02, W*0.95, roof - beltline, L*0.76, 0.93, 0.80, -L*0.02);
+  } else if (name === "sedan") {
+    // long roof, raked screen, tail dropping away: the fastback that says Prius
+    paint.box(0, (beltline + roof)/2, L*0.02, W*0.93, roof - beltline, L*0.56, 0.86, 0.46, -L*0.10);
+    paint.box(0, beltline + (roof-beltline)*0.18, -L*0.34, W*0.95, (roof-beltline)*0.36, L*0.26, 0.97, 0.80, 0);
+  } else {
+    paint.box(0, (beltline + roof)/2, L*0.01, W*0.93, roof - beltline, L*0.60, 0.88, 0.70, -L*0.04);
+  }
+
+  // Bonnet and boot where the shape has them.
+  if (!upright) paint.box(0, beltline - 0.02, L*0.34, W*0.92, 0.10, L*0.26, 1, 1);
+
+  // Glass: a band just inside the greenhouse, which at this size is all a window needs.
+  const gTop = beltline + (roof - beltline) * 0.82, gBot = beltline + (roof - beltline) * 0.16;
+  const gLen = upright ? L*0.74 : L*0.56;
+  trim.box(0, (gTop+gBot)/2, L*0.02, W*0.965, gTop-gBot, gLen, 0.9, 0.78, -L*0.03);
+
+  // Bumpers, lamps, wheels.
+  trim.box(0, sill*0.9, L*0.5 - 0.06, W*0.94, 0.26, 0.14, 1, 1);
+  trim.box(0, sill*0.9, -L*0.5 + 0.06, W*0.94, 0.26, 0.14, 1, 1);
+  const wheelbase = L * 0.58, track = W * 0.42;
+  [[-track, wheelbase/2], [track, wheelbase/2], [-track, -wheelbase/2], [track, -wheelbase/2]]
+    .forEach(p => trim.wheel(p[0], wheelR, p[1], wheelR, 0.19));
+
+  // A taxi carries its 行灯 lamp on the roof, which is the thing you recognise it by.
+  if (name === "taxi") trim.box(0, roof + 0.09, L*0.04, 0.46, 0.17, 0.22, 1, 1);
+
+  return { paint: paint.geometry(), trim: trim.geometry(), kind: kind };
+}
+
+// Lanes, offset to the left of travel. One rule, stated once: the opposing carriageway is
+// the same road walked backwards, which puts it on the other side for free.
+function buildTrafficLanes(city) {
+  const lanes = [];
+  const LANE_W = 3.25;
+  // The painted city ground is laid CITY_LIFT above the terrain across the city's whole
+  // rectangle, while surfaceY tapers that lift off towards the edge - so a car placed on
+  // surfaceY sinks into the paving by up to CITY_LIFT. Inside the rectangle, drive on the
+  // paving; outside it, on the ground.
+  const b = city.bounds;
+  const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+  const roadY = (x, z) => paved(x, z)
+    ? world.sampleHeight(x, z) + CITY_LIFT
+    : world.surfaceY(x, z);
+  city.roads.forEach((road, ri) => {
+    if (road.elevated || !road.pts || road.pts.length < 3) return;
+    const perSide = road.halfWidth >= 9 ? 2 : 1;
+    const limit = road.cls === "expressway" ? 22 : (road.halfWidth >= 12 ? 15.3 : 12.5);
+    for (let dir = 0; dir < 2; dir++) {
+      for (let k = 0; k < perSide; k++) {
+        const src = dir ? road.pts.slice().reverse() : road.pts;
+        // Only the stretches the city actually paves. A road leaving town carries on as
+        // data but is not drawn out there, and cars gliding across open grass in neat
+        // lines looks far worse than a road with no traffic on it.
+        let run = [];
+        const runs = [];
+        for (let i = 0; i < src.length; i++) {
+          const prev = src[Math.max(0, i-1)], next = src[Math.min(src.length-1, i+1)];
+          let dx = next[0]-prev[0], dz = next[2]-prev[2];
+          const len = Math.hypot(dx, dz) || 1; dx/=len; dz/=len;
+          const off = LANE_W * (k + 0.5);
+          const lx = src[i][0] - dz*off, lz = src[i][2] + dx*off;
+          if (paved(lx, lz)) {
+            // The road's stored height predates the grading pass, so a car on it floats.
+            run.push([lx, roadY(lx, lz) + 0.04, lz]);
+          } else if (run.length) { runs.push(run); run = []; }
+        }
+        if (run.length) runs.push(run);
+
+        runs.forEach(pts => {
+          if (pts.length < 4) return;
+          const arc = [0];
+          for (let i = 1; i < pts.length; i++)
+            arc.push(arc[i-1] + Math.hypot(pts[i][0]-pts[i-1][0], pts[i][2]-pts[i-1][2]));
+          // A loop only stays a loop if none of it was cut away.
+          const whole = runs.length === 1 && pts.length === src.length;
+          lanes.push({ pts: pts, arc: arc, length: arc[arc.length-1], speed: limit,
+                       loop: !!road.loop && whole, road: ri });
+        });
+      }
+    }
+  });
+  return lanes;
+}
+
+function sampleLane(lane, s) {
+  const total = lane.length;
+  if (lane.loop) { s = ((s % total) + total) % total; }
+  else s = clamp(s, 0, total);
+  let lo = 0, hi = lane.arc.length - 1;
+  while (lo + 1 < hi) { const mid = (lo + hi) >> 1; if (lane.arc[mid] <= s) lo = mid; else hi = mid; }
+  const seg = lane.arc[lo+1] - lane.arc[lo];
+  const t = seg > 1e-4 ? (s - lane.arc[lo]) / seg : 0;
+  const a = lane.pts[lo], b = lane.pts[lo+1];
+  return {
+    x: a[0] + (b[0]-a[0])*t, y: a[1] + (b[1]-a[1])*t, z: a[2] + (b[2]-a[2])*t,
+    yaw: Math.atan2(b[0]-a[0], b[2]-a[2])
+  };
+}
+
+function buildTraffic(w, root) {
+  traffic.lanes = [];
+  traffic.cars = [];
+  traffic.paint = [];
+  traffic.trim = [];
+  traffic.ready = false;
+  if (!w.cities || !w.cities.length) return;
+
+  w.cities.forEach(c => { traffic.lanes = traffic.lanes.concat(buildTrafficLanes(c)); });
+  traffic.lanes = traffic.lanes.filter(l => l.length > 60);
+  if (!traffic.lanes.length) return;
+  traffic.byLane = traffic.lanes.map(() => []);
+
+  const per = Math.ceil(traffic.max / CAR_KINDS.length);
+  CAR_KINDS.forEach((kind, ki) => {
+    const body = buildCarBody(kind);
+    const paintMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+    const trimMat = new THREE.MeshLambertMaterial({ color: 0x1b1d21 });
+    const paint = new THREE.InstancedMesh(body.paint, paintMat, per);
+    const trim = new THREE.InstancedMesh(body.trim, trimMat, per);
+    [paint, trim].forEach(m => {
+      m.castShadow = true;
+      m.count = 0;
+      m.frustumCulled = false;
+      m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      root.add(m);
+    });
+    traffic.paint.push(paint);
+    traffic.trim.push(trim);
+    for (let i = 0; i < per; i++) {
+      traffic.cars.push({ kind: ki, slot: i, lane: -1, s: 0, v: 0, half: kind[1]/2, top: kind[5], live: false });
+    }
+  });
+  traffic.ready = true;
+}
+
+function trafficSpawn(at) {
+  const lanes = traffic.lanes;
+  let budget = 5;
+  for (let c = 0; c < traffic.cars.length && budget > 0; c++) {
+    const car = traffic.cars[c];
+    if (car.live) continue;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const lane = lanes[(Math.random() * lanes.length) | 0];
+      const s = Math.random() * lane.length;
+      const p = sampleLane(lane, s);
+      const d = Math.hypot(p.x - at.x, p.z - at.z);
+      if (d > traffic.spawnR || d < traffic.clearR) continue;
+      // Not on top of anything already there, and with room to stop.
+      const here = traffic.byLane[lanes.indexOf(lane)];
+      let blocked = false;
+      for (let i = 0; i < here.length; i++) {
+        const o = traffic.cars[here[i]];
+        if (Math.abs(o.s - s) < car.half + o.half + 9) { blocked = true; break; }
+      }
+      if (blocked) continue;
+      car.lane = lanes.indexOf(lane);
+      car.s = s;
+      car.v = lane.speed * (0.65 + Math.random() * 0.35);
+      car.live = true;
+      const col = CAR_COLOURS[(Math.random() * CAR_COLOURS.length) | 0];
+      car.colour = (car.kind === 4)
+        ? [0.07, 0.08, 0.10]            // taxis are black here, as most of Tokyo's are
+        : col;
+      const list = traffic.byLane[car.lane];
+      let slot = list.length;
+      while (slot > 0 && traffic.cars[list[slot-1]].s > s) slot--;
+      list.splice(slot, 0, c);
+      budget--;
+      break;
+    }
+  }
+}
+
+const _carMat = new THREE.Matrix4();
+const _carQuat = new THREE.Quaternion();
+const _carEuler = new THREE.Euler();
+const _carPos = new THREE.Vector3();
+const _carScale = new THREE.Vector3(1, 1, 1);
+const _carCol = new THREE.Color();
+
+function updateTraffic(dt, at) {
+  if (!traffic.ready) return;
+  const counts = new Array(CAR_KINDS.length).fill(0);
+
+  // Drive, one lane at a time, from the car in front backwards so every car knows where
+  // its leader is before it picks a speed.
+  for (let l = 0; l < traffic.byLane.length; l++) {
+    const here = traffic.byLane[l];
+    if (!here.length) continue;
+    const lane = traffic.lanes[l];
+    for (let k = here.length - 1; k >= 0; k--) {
+      const car = traffic.cars[here[k]];
+      let limit = Math.min(lane.speed, car.top);
+      if (k + 1 < here.length) {
+        const lead = traffic.cars[here[k+1]];
+        const gap = (lead.s - lead.half) - (car.s + car.half) - 1.8 - lead.v * dt - 0.6;
+        // Able to stop if the car in front stops as hard as it can: the only rule that
+        // actually keeps cars out of each other.
+        limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v*lead.v + 11 * gap)));
+      }
+      car.v += clamp(limit - car.v, -6.5 * dt, 2.6 * dt);
+      car.v = Math.max(0, car.v);
+      car.s += car.v * dt;
+    }
+  }
+
+  // Recycle what has fallen behind, and write the transforms for what has not.
+  for (let c = 0; c < traffic.cars.length; c++) {
+    const car = traffic.cars[c];
+    if (!car.live) continue;
+    const lane = traffic.lanes[car.lane];
+    const ranOut = !lane.loop && car.s > lane.length - car.half;
+    const p = sampleLane(lane, car.s);
+    if (ranOut || Math.hypot(p.x - at.x, p.z - at.z) > traffic.killR) {
+      const list = traffic.byLane[car.lane];
+      const at_ = list.indexOf(c);
+      if (at_ >= 0) list.splice(at_, 1);
+      car.live = false;
+      continue;
+    }
+    const i = counts[car.kind]++;
+    _carEuler.set(0, p.yaw, 0);
+    _carQuat.setFromEuler(_carEuler);
+    _carPos.set(p.x, p.y, p.z);
+    _carMat.compose(_carPos, _carQuat, _carScale);
+    traffic.paint[car.kind].setMatrixAt(i, _carMat);
+    traffic.trim[car.kind].setMatrixAt(i, _carMat);
+    _carCol.setRGB(car.colour[0], car.colour[1], car.colour[2]);
+    traffic.paint[car.kind].setColorAt(i, _carCol);
+  }
+
+  for (let k = 0; k < CAR_KINDS.length; k++) {
+    traffic.paint[k].count = counts[k];
+    traffic.trim[k].count = counts[k];
+    traffic.paint[k].instanceMatrix.needsUpdate = true;
+    traffic.trim[k].instanceMatrix.needsUpdate = true;
+    if (traffic.paint[k].instanceColor) traffic.paint[k].instanceColor.needsUpdate = true;
+  }
+
+  trafficSpawn(at);
 }
 
 // ---------------------------------------------------------------- readout
