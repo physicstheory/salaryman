@@ -3468,6 +3468,10 @@ function buildScene(w) {
   }
   clearScene();
   solids.length = 0;
+  // Station names are collected into one shared atlas of sixteen rows, so a
+  // regenerated island has to start that list again or the seventeenth station
+  // wraps onto the first one's board.
+  signNames.length = 0;
   const root = new THREE.Group();
   groups.push(root);
   scene.add(root);
@@ -4618,7 +4622,7 @@ function adAtlas() {
 // at the ends. Every station in the city needs its own, so they share one
 // atlas of sixteen rows and one draw call.
 const SIGN_ROWS = 16, SIGN_W = 1024, SIGN_H = 64;
-let signTex = null;
+let signTex = null, signCanvas = null;
 const signNames = [];
 
 function signRow(name) {
@@ -4636,8 +4640,15 @@ function signUV(row) {
 }
 
 function buildSignAtlas() {
-  const cv = document.createElement("canvas");
-  cv.width = SIGN_W; cv.height = SIGN_H * SIGN_ROWS;
+  // One canvas and one texture for the whole world. Each city adds its station
+  // names and asks for the atlas again, so making a new texture here would
+  // leave the city built before it pointing at a disposed one - which is what
+  // a blank name board on every platform in the capital turned out to be.
+  if (!signCanvas) {
+    signCanvas = document.createElement("canvas");
+    signCanvas.width = SIGN_W; signCanvas.height = SIGN_H * SIGN_ROWS;
+  }
+  const cv = signCanvas;
   const g = cv.getContext("2d");
   g.fillStyle = "#f4f5f2";
   g.fillRect(0, 0, cv.width, cv.height);
@@ -4662,10 +4673,12 @@ function buildSignAtlas() {
     g.font = "500 17px " + UI;
     g.fillText("←  ·  →", SIGN_W - 22, y + SIGN_H * 0.5);
   });
-  if (signTex) signTex.dispose();
-  signTex = new THREE.CanvasTexture(cv);
-  signTex.encoding = THREE.sRGBEncoding;
-  signTex.anisotropy = 4;
+  if (!signTex) {
+    signTex = new THREE.CanvasTexture(cv);
+    signTex.encoding = THREE.sRGBEncoding;
+    signTex.anisotropy = 4;
+  }
+  signTex.needsUpdate = true;
   return signTex;
 }
 
@@ -6011,7 +6024,7 @@ function buildStreetFurniture(w, city, root, boxes) {
         const sx = -inward * 0.95;        // set back from the kerb
         solid.colour(FURN.steel);
         [[-1.55, -1.15], [-1.55, 1.15], [1.55, -1.15], [1.55, 1.15]].forEach(c =>
-          solid.post(sx + c[0] * 0.55, 0, c[1], 0.06, 2.42));
+          solid.post(sx + c[0], 0, c[1], 0.06, 2.42));
         solid.colour(FURN.white).box(sx, 2.52, 0, 3.4, 0.14, 2.6);
         solid.colour(FURN.glass).box(-inward * 2.55, 1.25, 0, 0.10, 2.40, 2.4);
         solid.colour(FURN.timber).box(-inward * 1.9, 0.46, 0, 0.42, 0.10, 2.0);
@@ -6201,6 +6214,10 @@ function buildStreetFurniture(w, city, root, boxes) {
     const r = sc.radius;
     [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => {
       solid.colour(FURN.steel).post(c[0] * r, 0, c[1] * r, 0.085, 5.20);
+      // The arm. A Japanese signal head hangs off a cantilever over the
+      // carriageway, and without the arm it floats in mid air.
+      solid.box((c[0] * r + c[0] * r * 0.86) * 0.5, 5.12, c[1] * r,
+        r * 0.14 + 0.5, 0.11, 0.11);
       solid.colour(FURN.dark).box(c[0] * r * 0.86, 5.00, c[1] * r, 1.30, 0.42, 0.34);
       solid.colour([0.14, 0.62, 0.30]).box(c[0] * r * 0.86 - 0.42, 5.00, c[1] * r + 0.18, 0.30, 0.30, 0.06);
       solid.colour([0.78, 0.62, 0.12]).box(c[0] * r * 0.86, 5.00, c[1] * r + 0.18, 0.30, 0.30, 0.06);
