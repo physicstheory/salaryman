@@ -223,6 +223,7 @@ Assets/SalaryMan/World/Scripts/
     KontoBuildingFactory.cs     the buildings, batched into one mesh per ward
     KontoPropFactory.cs         the street furniture, chunked so it culls
     KontoTrafficFactory.cs      bakes the fleet and the crowd, drops the spawners in
+    KontoBatchBuild.cs          the command line entry point, for building with no editor open
     KontoSurfaceLibrary.cs      generates the facade, roof and metal materials
     KontoSeikoSetup.cs          imports the character, builds his blend tree, puts him in
     KontoTextureFactory.cs      procedural tiling ground textures and terrain layers
@@ -250,6 +251,11 @@ Web/
 
 Character setup, Blender export settings and the full control map:
 **[Docs/CHARACTER_AND_CONTROLLER.md](Docs/CHARACTER_AND_CONTROLLER.md)**.
+
+Building it on a rented machine, when the island outgrows your own:
+**[Docs/CLOUD_BUILD.md](Docs/CLOUD_BUILD.md)**. The short version is that generating the world
+wants memory and no graphics card, so the expensive half can run headless for pennies:
+`Tools/cloud/build-konto.sh --project ~/Konto --low-memory`.
 
 ---
 

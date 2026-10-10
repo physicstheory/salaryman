@@ -121,6 +121,13 @@ It is a big island. If that is too long while you are iterating on the look, dro
 `workingResolution` to 1280 and `erosionDroplets` to 300k: the geography stays the same, the
 valleys are just coarser.
 
+**If it runs out of memory**, the biggest item is not the one you would guess: the terrain
+alphamaps are 11 layers × 1024² floats × 30 tiles, about 1.4 GB, and the detail maps are the
+same again. Halving `alphamapResolution` and `detailResolution` to 512 cuts 2.8 GB to 700 MB
+and is invisible from the ground. `KontoBatchBuild`'s `-kontoLowMemory` sets those along with
+the working resolution and the texture size; see [CLOUD_BUILD.md](CLOUD_BUILD.md), which also
+covers building the whole thing on a rented machine with no editor window open.
+
 Unity will look frozen during erosion. It is not; the progress bar updates between batches.
 
 When it finishes you will have:

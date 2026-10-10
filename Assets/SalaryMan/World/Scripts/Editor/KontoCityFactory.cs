@@ -28,6 +28,12 @@ namespace SalaryMan.World.EditorTools
         public static bool RegenerateSurfaces = false;
         /// <summary>Bake the fleet and the crowd, and put the two spawners in the scene.</summary>
         public static bool BuildTraffic = true;
+        /// <summary>
+        /// Edge length of the generated surface textures. Twenty-eight PBR sets at 1024 is most
+        /// of half a gigabyte while they are being painted, so a machine short of memory can
+        /// drop this to 512 and lose very little from the pavement.
+        /// </summary>
+        public static int SurfaceTextureSize = KontoSurfaceLibrary.DefaultSize;
 
         public static List<KontoCityLayoutAsset> Build(KontoWorldData data, bool buildBlockout = false)
         {
@@ -39,7 +45,7 @@ namespace SalaryMan.World.EditorTools
 
             int seed = data.Settings != null ? data.Settings.seed : 0;
             Material[] surfaces = BuildBuildings
-                ? KontoSurfaceLibrary.CreateOrUpdate(seed, RegenerateSurfaces)
+                ? KontoSurfaceLibrary.CreateOrUpdate(seed, RegenerateSurfaces, SurfaceTextureSize)
                 : null;
 
             var root = new GameObject(RootName);

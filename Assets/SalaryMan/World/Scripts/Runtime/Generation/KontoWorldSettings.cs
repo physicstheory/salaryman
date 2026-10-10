@@ -456,6 +456,15 @@ namespace SalaryMan.World
 
         void OnValidate()
         {
+            Validate();
+        }
+
+        /// <summary>
+        /// Clamps everything into a range the generator can actually work with. The inspector
+        /// gets this for free through OnValidate; a command line build has to ask for it.
+        /// </summary>
+        public void Validate()
+        {
             tilesX = Mathf.Clamp(tilesX, 1, 16);
             tilesZ = Mathf.Clamp(tilesZ, 1, 16);
             tileSize = Mathf.Clamp(tileSize, 128f, 8192f);
