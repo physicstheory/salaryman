@@ -3,3 +3,8 @@ app/
 # electron-builder's output.
 dist/
 node_modules/
+
+# The repository root ignores build/ for Unity's sake; electron-builder's
+# resources folder is not that, and the icon belongs in git.
+!build/
+!build/**
