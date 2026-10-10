@@ -71,8 +71,31 @@ which is why a fifth of the cars on a Japanese street are the same small size an
 
 Commercial vehicles carry **green number plates**, which in Japan means a vehicle carrying goods
 or people for hire; kei vehicles carry **yellow** ones; private cars carry white. The traffic
-keeps left. Colour is overwhelmingly white, silver and black — one car in twenty is allowed to
-be red, which is about right for Tokyo.
+keeps left.
+
+### Paint
+
+Four palettes, because a kei car is not painted like a saloon and a supercar is not painted like
+either.
+
+| | |
+|---|---|
+| **Family cars** | about a third white, a quarter silver or gunmetal, a fifth black, then navy, dark red, beige and a deep green. Close to what the Japanese market actually buys |
+| **Kei cars** | the one class allowed to be cheerful, because they genuinely are: mustard, mint, pale blue, coral, chocolate, ivory, raspberry — and half of them with a different coloured roof, which is the quickest way to tell a kei car from a small hatchback at a distance |
+| **Coupes** | red, white, black, metallic blue, gold, racing green |
+| **Supercars** | yellow, orange, lime, blue, red — saturated, because nobody buys a beige one |
+
+### If you have a modelled car
+
+The bodies are built out of boxes, and boxes have a ceiling: they can be the right size, the
+right shape and the right surface, and they will still not be photographs. `CAR_MODELS` at the
+top of the traffic section takes a `.glb` per kind and uses it instead of the built body —
+everything else (the traffic, the collision, the paint, getting in) keeps working off the
+catalogue entry. A kind with no entry, or whose file does not load, keeps the built body.
+
+Vehicle mods for other games are not a source for this. They belong to whoever made them, and
+most of them are unlicensed recreations of real cars on top of that, so they carry both a
+copyright and a trademark problem into anything they are shipped in.
 
 ### On the rails
 

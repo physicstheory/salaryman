@@ -4,6 +4,38 @@ How to get a Blender model walking around Konto, and how the Xbox pad is wired u
 
 ---
 
+## 0. Replacing Seiko with a generated model
+
+Seiko is currently a Meshy generation, rigged and animated here. Any text-to-3D
+service will do instead — Tripo, Meshy, Rodin — and the pipeline below does not
+care which one it came from. What it needs is **the exported file**, not a link
+to the studio page.
+
+A studio URL like `studio.tripo3d.ai/3d-model/<id>` is a web application behind
+a sign-in, not a file: there is nothing at that address to download. Export from
+the studio first — **GLB** is the one to pick, with the texture baked in — and
+then:
+
+```
+# into the browser build
+cp your-export.glb Web/seiko.glb
+python3 Tools/web/make-standalone.py        # if you want the one-file version
+
+# into Unity, rigged and animated
+blender --background --python Tools/rig_seiko.py -- your-export.glb
+```
+
+`rig_seiko.py` measures the mesh rather than trusting it: it works out which way
+the model faces from the feet, cross-checks against the head, finds the shoulder
+and hip widths, places a 21-bone skeleton on those measurements, skins it with
+bone-heat weights, and refuses to write the file if the result does not face +Z
+in Unity. That last check exists because an earlier export walked backwards for
+a week before anybody measured it.
+
+If the model arrives A-posed rather than T-posed, or with the hands in the
+pockets, say so — the arm solve takes a direction per limb and that is the one
+number that has to change.
+
 ## 1. Getting the model out of Blender
 
 Most character problems in Unity are export problems. Three things matter.

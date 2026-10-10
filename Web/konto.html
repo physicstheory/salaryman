@@ -4605,9 +4605,9 @@ function paintMaterial() {
   if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
   const m = new THREE.MeshPhysicalMaterial({
     color: 0xffffff, vertexColors: true,
-    metalness: 0.42, roughness: 0.30,
-    clearcoat: 0.9, clearcoatRoughness: 0.09,
-    envMapIntensity: 1.15
+    metalness: 0.25, roughness: 0.36,
+    clearcoat: 0.75, clearcoatRoughness: 0.12,
+    envMapIntensity: 0.75
   });
   if (gfx.env) m.envMap = gfx.env;
   return m;
@@ -4636,26 +4636,92 @@ function furnitureMaterial() {
 }
 
 // The sky, prefiltered. One bake at scene build, reused by everything.
+//
+// And then checked, because a reflection probe is the one thing in here that
+// can silently take the whole city with it. Prefiltering renders to a half
+// float cube map, and a driver that will not filter one hands back NaN rather
+// than an error: every physically based material in the scene then shades to
+// black while the Lambert ones carry on, which looks like a lighting bug and
+// is not one. So the map is rendered onto a test box and read back, and if it
+// does not light it, it is thrown away and the world is lit without it.
+function envUsable(tex) {
+  if (!tex) return false;
+  let rt = null, geo = null, mat = null;
+  try {
+    rt = new THREE.WebGLRenderTarget(16, 16);
+    const probe = new THREE.Scene();
+    const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+    sun.position.set(-0.5, 0.6, 0.6).multiplyScalar(100);
+    probe.add(sun);
+    probe.add(new THREE.HemisphereLight(0xa8c6e0, 0x3a382f, 0.42));
+    const cam = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+    cam.position.set(0, 0.6, 3);
+    cam.lookAt(0, 0, 0);
+    geo = new THREE.BoxGeometry(1.6, 1.6, 1.6);
+    mat = new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.7, metalness: 0.05 });
+    mat.envMap = tex;
+    probe.add(new THREE.Mesh(geo, mat));
+    const was = renderer.getRenderTarget();
+    renderer.setRenderTarget(rt);
+    renderer.clear();
+    renderer.render(probe, cam);
+    const buf = new Uint8Array(16 * 16 * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, 16, 16, buf);
+    renderer.setRenderTarget(was);
+    let best = 0;
+    for (let i = 0; i < buf.length; i += 4) best = Math.max(best, buf[i] + buf[i + 1] + buf[i + 2]);
+    // A grey box under a sun reads a few hundred. Anything near nothing means
+    // the probe poisoned the shading.
+    return best > 90;
+  } catch (err) {
+    return false;
+  } finally {
+    if (rt) rt.dispose();
+    if (geo) geo.dispose();
+    if (mat) mat.dispose();
+  }
+}
+
+function skyScene(radius) {
+  const dome = makeSkyMesh();
+  dome.scale.setScalar(radius);
+  const sc = new THREE.Scene();
+  sc.add(dome);
+  return sc;
+}
+
 function bakeEnvironment() {
   if (!gfx.high || !renderer) return null;
+  // First choice: a prefiltered map, which is what roughness wants.
   try {
-    const dome = makeSkyMesh();
-    dome.scale.setScalar(900);
-    const envScene = new THREE.Scene();
-    envScene.add(dome);
+    const sc = skyScene(900);
     const pmrem = new THREE.PMREMGenerator(renderer);
     pmrem.compileCubemapShader();
-    const rt = pmrem.fromScene(envScene, 0.02, 1, 4000);
+    const rt = pmrem.fromScene(sc, 0.02, 1, 4000);
     pmrem.dispose();
-    dome.geometry.dispose();
-    dome.material.dispose();
-    return rt.texture;
+    if (envUsable(rt.texture)) return rt.texture;
+    rt.dispose();
   } catch (err) {
-    // An old driver or a software context can refuse the float render target.
-    // Reflections are the first thing to give up, not a reason to fail.
-    console.warn("no environment map: " + err.message);
-    return null;
+    console.warn("prefiltered environment refused: " + err.message);
   }
+  // Second choice: an ordinary eight-bit cube map, which every driver filters.
+  try {
+    const sc = skyScene(900);
+    const target = new THREE.WebGLCubeRenderTarget(256, {
+      format: THREE.RGBAFormat, generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter
+    });
+    const cam = new THREE.CubeCamera(1, 4000, target);
+    const was = renderer.getRenderTarget();
+    cam.update(renderer, sc);
+    renderer.setRenderTarget(was);
+    if (envUsable(target.texture)) return target.texture;
+    target.dispose();
+  } catch (err) {
+    console.warn("cube environment refused: " + err.message);
+  }
+  console.warn("no environment map; shading without reflections");
+  return null;
 }
 
 // ---- the road surface --------------------------------------------------
@@ -4675,9 +4741,10 @@ function asphaltTexture() {
       // Aggregate: fine noise over a coarser mottle, which is what a chipping
       // seal looks like from standing height.
       const fine = rnd(x, y, 9301);
-      const mid = fbm(x * 0.09, y * 0.09, 9311, 3);
-      let v = 78 + mid * 26 + (fine - 0.5) * 42;
-      if (fine > 0.985) v += 46;                    // a pale stone
+      const mid = fbm(x * 0.055, y * 0.055, 9311, 4);
+      const coarse = fbm(x * 0.012, y * 0.012, 9317, 2);
+      let v = 74 + mid * 20 + coarse * 16 + (fine - 0.5) * 16;
+      if (fine > 0.993) v += 34;                    // a pale stone
       const o = (y * S + x) * 4;
       img.data[o] = Math.round(clamp(v * 0.99, 20, 220));
       img.data[o + 1] = Math.round(clamp(v, 20, 220));
@@ -4816,8 +4883,8 @@ function buildRoadSurfaces(w, city, root) {
     return o;
   }
 
-  mesh(road, asphaltTexture(), 6.5, 0.88);
-  mesh(walk, pavingTexture(), 3.0, 0.84);
+  mesh(road, asphaltTexture(), 13.0, 0.9);
+  mesh(walk, pavingTexture(), 4.2, 0.86);
   if (kerb.pos.length) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(kerb.pos, 3));
@@ -5457,6 +5524,10 @@ const COL = {
   amber: [0.85, 0.45, 0.08, 0.0, 0.14],
   red: [0.66, 0.07, 0.09, 0.0, 0.3], blue: [0.09, 0.22, 0.52, 0.0, 0.3],
   white: [0.92, 0.93, 0.90, 0.0, 0.42],
+  // Body panels are pure white in the vertices so the per-car colour is
+  // the colour, not the colour times the vertices.
+  shell: [1, 1, 1],
+  keiRoof: [0.90, 0.89, 0.84, 0.0, 0.34],
   busBlue: [0.10, 0.30, 0.56, 0.25, 0.3], seat: [0.17, 0.18, 0.20, 0.0, 0.8],
   body2: [0.12, 0.13, 0.15, 0.35, 0.42],
   flesh: [0.76, 0.62, 0.52, 0.0, 0.76], helmet: [0.88, 0.89, 0.86, 0.1, 0.16],
@@ -5650,9 +5721,9 @@ function decoMesh() {
 // The catalogue. share is the fraction of the traffic; wide keeps a vehicle on
 // the arterials, where a ten-metre bus can actually fit.
 const CAR_KINDS = [
-  { name: "kei", body: "kei", L: 3.40, W: 1.48, H: 1.70, share: 0.15, top: 12.5,
+  { name: "kei", palette: "kei", body: "kei", L: 3.40, W: 1.48, H: 1.70, share: 0.15, top: 12.5,
     marques: ["daichi", "suzume", "kosei"], plate: "plateKei" },
-  { name: "keivan", body: "keivan", L: 3.40, W: 1.47, H: 1.89, share: 0.07, top: 11.5,
+  { name: "keivan", palette: "kei", body: "keivan", L: 3.40, W: 1.47, H: 1.89, share: 0.07, top: 11.5,
     marques: ["daichi", "suzume", "ganseki"], plate: "plateKei" },
   { name: "hatch", body: "hatch", L: 4.05, W: 1.70, H: 1.52, share: 0.14, top: 14.0,
     marques: ["kosei", "ryusei", "kaneda", "mitsuwa"] },
@@ -5670,11 +5741,11 @@ const CAR_KINDS = [
     livery: "ryde", colour: [0.07, 0.07, 0.08], plate: "plateGreen" },
   { name: "police", body: "police", L: 4.69, W: 1.78, H: 1.48, share: 0.012, top: 17.0,
     livery: "police", colour: [0.93, 0.94, 0.92] },
-  { name: "sports", body: "sports", L: 4.27, W: 1.78, H: 1.31, share: 0.028, top: 18.0,
+  { name: "sports", palette: "sports", body: "sports", L: 4.27, W: 1.78, H: 1.31, share: 0.028, top: 18.0,
     marques: ["nanatsu", "kaneda", "ryusei"] },
-  { name: "super", body: "super", L: 4.55, W: 1.97, H: 1.17, share: 0.008, top: 20.0,
+  { name: "super", palette: "super", body: "super", L: 4.55, W: 1.97, H: 1.17, share: 0.008, top: 20.0,
     marques: ["ryusei", "kaneda"] },
-  { name: "bike", body: "bike", L: 2.10, W: 0.76, H: 1.26, share: 0.03, top: 16.5,
+  { name: "bike", palette: "bike", body: "bike", L: 2.10, W: 0.76, H: 1.26, share: 0.03, top: 16.5,
     marques: ["kaneda", "nanatsu"] },
   { name: "scooter", body: "scooter", L: 1.90, W: 0.70, H: 1.32, share: 0.025, top: 10.5,
     livery: "hayabin", colour: [0.94, 0.70, 0.11], plate: "plateKei" },
@@ -5684,19 +5755,126 @@ const CAR_KINDS = [
     livery: "bus", colour: [0.93, 0.94, 0.91], plate: "plateGreen", wide: true, ads: true }
 ];
 
-// Japanese traffic is overwhelmingly white, silver and black. A colour is rare
-// enough to be worth noticing, which is why one in twenty is allowed to be red.
-const CAR_COLOURS = [
-  [0.90, 0.90, 0.89], [0.90, 0.90, 0.89], [0.90, 0.90, 0.89],
-  [0.62, 0.64, 0.66], [0.62, 0.64, 0.66],
-  [0.10, 0.10, 0.11], [0.10, 0.10, 0.11],
-  [0.33, 0.35, 0.38], [0.14, 0.22, 0.38], [0.45, 0.09, 0.10]
-];
+// Paint, by class, because a kei car is not painted like a saloon and a
+// supercar is not painted like either. The family-car mix is close to what the
+// Japanese market actually buys - about a third white, a quarter silver or
+// grey, a fifth black - and the kei mix is the one that is allowed to be
+// cheerful, because kei cars genuinely are: pastel, two-tone, and sold on it.
+const PAINT = {
+  common: [
+    [0.88, 0.88, 0.87], [0.88, 0.88, 0.87], [0.88, 0.88, 0.87],   // white
+    [0.92, 0.90, 0.86],                                            // pearl
+    [0.58, 0.60, 0.62], [0.58, 0.60, 0.62], [0.45, 0.47, 0.50],    // silver, gunmetal
+    [0.075, 0.08, 0.085], [0.075, 0.08, 0.085],                    // black
+    [0.10, 0.16, 0.30],                                            // navy
+    [0.42, 0.08, 0.09],                                            // dark red
+    [0.52, 0.47, 0.40],                                            // beige
+    [0.14, 0.26, 0.24]                                             // deep green
+  ],
+  kei: [
+    [0.88, 0.88, 0.87], [0.92, 0.90, 0.86],
+    [0.58, 0.60, 0.62], [0.075, 0.08, 0.085],
+    [0.86, 0.74, 0.30],                                            // mustard
+    [0.52, 0.72, 0.62],                                            // mint
+    [0.62, 0.74, 0.84],                                            // pale blue
+    [0.84, 0.46, 0.38],                                            // coral
+    [0.46, 0.33, 0.24],                                            // chocolate
+    [0.88, 0.80, 0.66],                                            // ivory
+    [0.74, 0.30, 0.34]                                             // raspberry
+  ],
+  sports: [
+    [0.70, 0.07, 0.07], [0.70, 0.07, 0.07],                        // red
+    [0.88, 0.88, 0.87], [0.075, 0.08, 0.085],
+    [0.08, 0.26, 0.56],                                            // metallic blue
+    [0.84, 0.62, 0.08],                                            // gold
+    [0.16, 0.32, 0.22]                                             // racing green
+  ],
+  "super": [
+    [0.86, 0.68, 0.05],                                            // yellow
+    [0.80, 0.32, 0.04],                                            // orange
+    [0.62, 0.74, 0.14],                                            // lime
+    [0.06, 0.20, 0.52],                                            // blue
+    [0.64, 0.05, 0.08],                                            // red
+    [0.88, 0.88, 0.87]
+  ],
+  bike: [
+    [0.66, 0.07, 0.08], [0.08, 0.20, 0.46], [0.075, 0.08, 0.085],
+    [0.88, 0.88, 0.87], [0.36, 0.38, 0.40]
+  ]
+};
+// Kept for anything that still wants one list.
+const CAR_COLOURS = PAINT.common;
 
 const traffic = {
-  lanes: [], cars: [], byLane: [], paint: [], trim: [], deco: [], ready: false,
+  lanes: [], cars: [], byLane: [], paint: [], trim: [], deco: [], pool: [], ready: false,
   max: 130, spawnR: 250, killR: 340, clearR: 34, seed: 1
 };
+
+// ---- real models, where you have one ------------------------------------
+// The bodies below are built out of boxes, and boxes have a ceiling: they can
+// be the right size, the right shape and the right surface, and they will
+// still not be photographs. If you have a modelled car you are allowed to use
+// - something you bought, something you made, or something released under a
+// licence that permits it - drop the .glb next to this page and name it here,
+// and that kind uses it instead. Everything else keeps working: the traffic,
+// the collision, the paint colour and getting in come from the catalogue
+// entry, and only the geometry changes.
+//
+//   const CAR_MODELS = { sedan: { url: "cars/sedan.glb", yaw: Math.PI } };
+//
+// yaw turns the model until its nose points the way it drives. A kind with no
+// entry, or whose file does not load, keeps the built body - so an incomplete
+// set is not a broken game.
+//
+// What will not work is taking the models out of another game. A vehicle mod
+// for a commercial simulator belongs to whoever made it, and most of them are
+// unlicensed recreations of real cars on top of that, so they carry both a
+// copyright and a trademark problem into anything they are shipped in.
+const CAR_MODELS = {};
+
+function fitCarModel(object3d, kind, spin) {
+  // Whatever it was authored at: stand it on the ground, centre it, point it
+  // down +Z and scale it to the length in the catalogue.
+  const holder = new THREE.Group();
+  const inner = new THREE.Group();
+  inner.add(object3d);
+  inner.rotation.y = spin || 0;
+  inner.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(inner);
+  const size = box.getSize(new THREE.Vector3());
+  const centre = box.getCenter(new THREE.Vector3());
+  const scale = kind.L / Math.max(0.3, size.z);
+  inner.scale.setScalar(scale);
+  inner.position.set(-centre.x * scale, -box.min.y * scale, -centre.z * scale);
+  holder.add(inner);
+  holder.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return holder;
+}
+
+function loadCarModels(root) {
+  if (typeof THREE.GLTFLoader !== "function") return;
+  const loader = new THREE.GLTFLoader();
+  CAR_KINDS.forEach((kind, ki) => {
+    const entry = CAR_MODELS[kind.name];
+    if (!entry) return;
+    const cap = traffic.paint[ki] ? traffic.paint[ki].instanceMatrix.count : 8;
+    loader.load(entry.url, gltf => {
+      const pool = { items: [] };
+      for (let i = 0; i < cap; i++) {
+        const clone = fitCarModel(gltf.scene.clone(true), kind, entry.yaw || 0);
+        clone.visible = false;
+        root.add(clone);
+        pool.items.push(clone);
+      }
+      traffic.pool[ki] = pool;
+      // The built body steps aside rather than being drawn inside the model.
+      [traffic.paint[ki], traffic.trim[ki], traffic.deco[ki]].forEach(m => { if (m) m.visible = false; });
+      console.log("[Konto] " + kind.name + ": using " + entry.url);
+    }, undefined, () => {
+      console.warn("[Konto] " + kind.name + ": " + entry.url + " did not load; keeping the built body");
+    });
+  });
+}
 
 // ---- the bodies -------------------------------------------------------
 // One function per silhouette. Nose points +Z, wheels on the ground, origin on
@@ -5755,7 +5933,7 @@ function buildVehicle(kind) {
     const Z = f => f * L;
     const span = (z0, z1) => ({ c: (z0 + z1) * 0.5, l: Math.max(0.05, z1 - z0) });
 
-    paint.colour(COL.white);
+    paint.colour(COL.shell);
     // The doors. Narrower at the bottom than at the beltline, which is how a
     // pressed steel flank is drawn and what leaves the tyres standing proud.
     const door = span(Z(p.cab0), Z(p.cab1));
@@ -5817,6 +5995,13 @@ function buildVehicle(kind) {
     trim.colour(COL.body2);
     trim.box(hw + 0.07, belt + 0.03, Z(p.cab1) - 0.14, 0.17, 0.09, 0.26);
     trim.box(-hw - 0.07, belt + 0.03, Z(p.cab1) - 0.14, 0.17, 0.09, 0.26);
+    // The two-tone roof, which is on half the kei cars sold and is the
+    // quickest way to tell one from a small hatchback at a distance.
+    if (p.twoTone) {
+      trim.colour(COL.keiRoof);
+      trim.box(0, roof - 0.012, rf.c, W * cabW * (p.roofW === undefined ? 0.86 : p.roofW) * 0.995,
+        0.05, rf.l * 0.97);
+    }
     return { sill: sill, belt: belt, roof: roof, hood: hood,
              cabZ0: Z(p.cab0), cabZ1: Z(p.cab1) };
   }
@@ -5829,7 +6014,7 @@ function buildVehicle(kind) {
       // push the wheels into the corners.
       s = shell({ wheelR: 0.28, sill: 0.28, belt: H * 0.56, roof: H,
         nose: 0.50, cab1: 0.33, cab0: -0.47, tail: -0.50, roofF: 0.23, roofB: -0.44,
-        roofW: 0.90, wbF: 0.68, trackF: 0.95, tyreW: 0.17, hood: H * 0.52 });
+        roofW: 0.90, wbF: 0.68, trackF: 0.95, tyreW: 0.17, hood: H * 0.52, twoTone: true });
       break;
     case "keivan":
       s = shell({ wheelR: 0.28, sill: 0.28, belt: H * 0.46, roof: H,
@@ -5897,7 +6082,7 @@ function buildVehicle(kind) {
     case "super":
       // A wedge: the cabin forward, the engine behind it, 1.17 m to the roof
       // and a wing over the tail.
-      paint.colour(COL.white);
+      paint.colour(COL.shell);
       paint.box(0, 0.42, 0, W, 0.44, L, { bx: 0.90, tx: 0.98, tz: 0.96 });
       paint.box(0, 0.86, -L * 0.06, W * 0.92, 0.44, L * 0.46,
         { tx: 0.62, tz: 0.30, shift: -L * 0.10 });
@@ -5919,7 +6104,7 @@ function buildVehicle(kind) {
     case "bike":
       // A motorcycle and a rider. Without the rider it reads as a bicycle
       // lying down, which is worse than nothing.
-      paint.colour(COL.white);
+      paint.colour(COL.shell);
       paint.box(0, 0.74, 0.10, 0.34, 0.26, 0.62, { tx: 0.70, tz: 0.80 });   // tank
       paint.box(0, 0.56, -L * 0.30, 0.30, 0.30, 0.50, { tz: 0.70 });        // tail
       trim.colour(COL.dark);
@@ -5941,7 +6126,7 @@ function buildVehicle(kind) {
     case "scooter":
       // A step-through delivery scooter with a crate on the front, which in
       // Japan carries noodles, parcels and absolutely anything else.
-      paint.colour(COL.white);
+      paint.colour(COL.shell);
       paint.box(0, 0.50, -L * 0.10, 0.36, 0.34, 0.70, { tz: 0.8 });
       paint.box(0, 0.86, L * 0.26, 0.32, 0.46, 0.26);
       trim.colour(COL.dark);
@@ -5966,7 +6151,7 @@ function buildVehicle(kind) {
     case "truck":
       // A cab-over two-tonne box truck: the cab is over the front axle and the
       // body is a flat-sided box with the haulier's name on it.
-      paint.colour(COL.white);
+      paint.colour(COL.shell);
       paint.box(0, 1.28, L * 0.30, W, 1.30, L * 0.36, { tz: 0.97 });            // cab
       paint.box(0, 1.84, -L * 0.14, W * 0.99, 2.16, L * 0.62);                  // body
       trim.colour(COL.glass);
@@ -5994,7 +6179,7 @@ function buildVehicle(kind) {
     case "bus":
       // A municipal single-decker: 10.49 m, a glass band the length of it, a
       // destination blind over the windscreen, and an advert on each flank.
-      paint.colour(COL.white);
+      paint.colour(COL.shell);
       paint.box(0, 1.90, 0, W, 2.20, L, { bx: 0.90, tx: 0.98, tz: 0.985 });
       paint.box(0, 3.00, 0, W * 0.97, 0.20, L * 0.99, { tx: 0.92, tz: 0.98 });   // roof dome
       trim.colour(COL.busBlue);
@@ -6190,6 +6375,7 @@ function buildTraffic(w, root) {
   traffic.paint = [];
   traffic.trim = [];
   traffic.deco = [];
+  traffic.pool = [];
   traffic.ready = false;
   if (!w.cities || !w.cities.length) return;
 
@@ -6234,6 +6420,7 @@ function buildTraffic(w, root) {
                           top: kind.top, live: false, uv: [0, 0] });
     }
   });
+  loadCarModels(root);
   traffic.ready = true;
 }
 
@@ -6265,9 +6452,8 @@ function trafficSpawn(at) {
       car.s = s;
       car.v = Math.min(lane.speed, car.top) * (0.65 + Math.random() * 0.35);
       car.live = true;
-      car.colour = kind.colour
-        ? kind.colour
-        : CAR_COLOURS[(Math.random() * CAR_COLOURS.length) | 0];
+      const pal = PAINT[kind.palette || "common"] || PAINT.common;
+      car.colour = kind.colour ? kind.colour : pal[(Math.random() * pal.length) | 0];
       // Which marque wears the badge, or which advertisement is on the bus.
       if (kind.ads) {
         car.uv[0] = 0;
@@ -6351,12 +6537,20 @@ function updateTraffic(dt, at) {
 
   // The car you are driving and the ones you parked are instances of the same
   // meshes, written first so a full pool can never crowd them out.
-  function writeCar(kindIdx, pos, yawV, colour, uv) {
+  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV) {
     const paint = traffic.paint[kindIdx];
     const i = counts[kindIdx];
     if (i >= paint.instanceMatrix.count) return;
     counts[kindIdx]++;
-    _carEuler.set(0, yawV, 0, "YXZ");
+    const pool = traffic.pool[kindIdx];
+    if (pool && pool.items[i]) {
+      const o = pool.items[i];
+      o.visible = true;
+      o.position.set(pos.x, pos.y, pos.z);
+      o.rotation.set(pitchV || 0, yawV, 0, "YXZ");
+      return;
+    }
+    _carEuler.set(pitchV || 0, yawV, 0, "YXZ");
     _carQuat.setFromEuler(_carEuler);
     _carPos.set(pos.x, pos.y, pos.z);
     _carMat.compose(_carPos, _carQuat, _carScale);
@@ -6384,22 +6578,7 @@ function updateTraffic(dt, at) {
       car.live = false;
       continue;
     }
-    if (counts[car.kind] >= traffic.paint[car.kind].instanceMatrix.count) continue;
-    const i = counts[car.kind]++;
-    _carEuler.set(p.pitch, p.yaw, 0, "YXZ");
-    _carQuat.setFromEuler(_carEuler);
-    _carPos.set(p.x, p.y, p.z);
-    _carMat.compose(_carPos, _carQuat, _carScale);
-    traffic.paint[car.kind].setMatrixAt(i, _carMat);
-    traffic.trim[car.kind].setMatrixAt(i, _carMat);
-    _carCol.setRGB(car.colour[0], car.colour[1], car.colour[2]);
-    traffic.paint[car.kind].setColorAt(i, _carCol);
-    const deco = traffic.deco[car.kind];
-    if (deco) {
-      deco.setMatrixAt(i, _carMat);
-      const off = deco.geometry.attributes.aUvOff;
-      off.setXY(i, car.uv[0], car.uv[1]);
-    }
+    writeCar(car.kind, p, p.yaw, car.colour, car.uv, p.pitch);
   }
 
   for (let k = 0; k < CAR_KINDS.length; k++) {
@@ -6415,6 +6594,9 @@ function updateTraffic(dt, at) {
       deco.instanceMatrix.needsUpdate = true;
       deco.geometry.attributes.aUvOff.needsUpdate = true;
     }
+    // Whatever the modelled pool did not need this frame goes away again.
+    const pool = traffic.pool[k];
+    if (pool) for (let i = n; i < pool.items.length; i++) pool.items[i].visible = false;
   }
 
   trafficSpawn(at);
