@@ -1567,7 +1567,7 @@ namespace SalaryMan.World
                                 plot.size = blk.size * 0.94f;
                                 plot.rotation = blk.rotation;
                             }
-                            float need = SotiTower.BaseHalfWidth * SotiTower.PodiumSpread;
+                            float need = SotiTower.PodiumWidth;
                             if (plot.size.x < need || plot.size.y < need)
                                 plot.size = new Vector2(Mathf.Max(plot.size.x, need), Mathf.Max(plot.size.y, need));
                         }

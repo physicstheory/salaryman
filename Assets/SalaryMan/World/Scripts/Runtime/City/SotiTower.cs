@@ -6,12 +6,20 @@ namespace SalaryMan.World
     /// <summary>
     /// Soti's head office, the one building in Konto that is modelled rather than massed.
     ///
-    /// The form is taken from the Ping An International Finance Centre in Shenzhen: a
-    /// square plan with deeply chamfered corners, a shaft that tapers the whole way up,
-    /// and eight stainless steel mega-columns standing proud of the glass. The columns
-    /// run the full height and close over the roof into the claw, with a short mast
-    /// above that. The proportions below are the Shenzhen tower's, to the metre where
-    /// they are published and to the eye where they are not.
+    /// It used to be the Ping An tower from Shenzhen — 592 m, eight steel mega-columns closing
+    /// over the roof into a claw, a mast on top. Next to neighbours of 150 m that is nearly four
+    /// times the height of anything around it, and it read as science fiction rather than as a
+    /// city. Tokyo does not look like that. Its towers cluster: the tallest office building in a
+    /// district stands maybe one and a half times its neighbours, and the silhouette is a
+    /// stepped prism, not a spire.
+    ///
+    /// So the form is Tokyo's now, and the numbers come from real buildings:
+    ///
+    ///   248 m           Midtown Tower, Akasaka (2007), architectural height
+    ///   ~150-190 m      the towers around it, which is what Konto's CBD already builds
+    ///   setbacks        the sky-exposure rules (斜線制限) step Tokyo towers back as they rise
+    ///   mechanical bands louvred plant floors every fifteen storeys or so, visible from outside
+    ///   stone podium    five storeys of granite meeting the pavement under a deep canopy
     ///
     /// The mesh comes out in local space with its origin on the podium slab, so it drops
     /// straight onto a graded plot: position at <see cref="CityPlot.WorldPosition"/> and
@@ -19,51 +27,85 @@ namespace SalaryMan.World
     /// </summary>
     public static class SotiTower
     {
-        public const float Height = 592f;          // to the tip of the mast
-        public const float ShaftTop = 520f;        // top of the office shaft
-        public const float CrownTop = 578f;        // where the eight columns close
-        public const float BaseHalfWidth = 32.5f;  // half the plan at the podium roof
-        public const float TaperTop = 0.70f;       // plan at the shaft top, as a fraction
-        public const float PodiumHeight = 26f;
-        public const float PodiumSpread = 2.36f;   // podium width as a multiple of the shaft
-        public const int Floors = 116;
+        public const float Height = 248f;          // to the top of the parapet, Midtown Tower
+        public const float MastTop = 262f;         // the aerial, which is not architectural height
+        public const float FloorHeight = 4.1f;
+        public const int Floors = 54;              // 54 x 4.1 = 221 m of office, then plant
 
-        public const float BayWidth = 3.6f;        // metres of facade per window bay
-        public const float FloorHeight = 4.05f;
+        public const float BaseHalfWidth = 24f;    // a 48 m floorplate, which is a big one
+        public const float PodiumHeight = 23f;     // five storeys of stone
 
-        /// <summary>Half width, corner chamfer, and column stand-off at a given height.</summary>
+        /// <summary>
+        /// The podium's half width as a multiple of the shaft's. Read it through
+        /// <see cref="PodiumHalfWidth"/> or <see cref="PodiumWidth"/> rather than multiplying it
+        /// out by hand: the planner once took this for a full width while the builder took it
+        /// for a half width, and the tower stood on a podium wider than its own plot.
+        /// </summary>
+        public const float PodiumSpread = 1.30f;
+
+        /// <summary>Half the podium's plan, in metres.</summary>
+        public static float PodiumHalfWidth { get { return BaseHalfWidth * PodiumSpread; } }
+
+        /// <summary>The podium's full plan, which is the smallest plot the tower can stand on.</summary>
+        public static float PodiumWidth { get { return PodiumHalfWidth * 2f; } }
+
+        public const float ShaftTop = 221.4f;      // top office floor
+        public const float PlantTop = 240f;        // louvred mechanical floors above it
+        public const float BayWidth = 3.2f;        // metres of facade per window bay
+
+        /// <summary>
+        /// Where the tower steps back, as a fraction of the shaft, and how much of the plan it
+        /// keeps above each step. Tokyo towers step for the daylight rules, and the steps are
+        /// most of what makes the silhouette read as Tokyo rather than as anywhere.
+        /// </summary>
+        static readonly float[] StepAt = { 0.42f, 0.74f };
+        static readonly float[] StepKeep = { 0.88f, 0.80f };
+
+        /// <summary>Half width and corner chamfer at a height up the shaft.</summary>
         public struct Ring
         {
             public float y;
             public float half;
             public float chamfer;
-            public float fin;      // how far the steel stands off the glass
-            public float thick;    // half thickness of a column blade
+            public bool plant;      // a mechanical floor, which is louvre rather than glass
         }
 
         public static Ring Profile(float y)
         {
             Ring r = new Ring();
             r.y = y;
-            if (y <= ShaftTop)
-            {
-                float t = Mathf.Clamp01(y / ShaftTop);
-                r.half = BaseHalfWidth * Mathf.Lerp(1f, TaperTop, Mathf.Pow(t, 0.94f));
-                r.chamfer = r.half * Mathf.Lerp(0.30f, 0.45f, t);
-                r.fin = Mathf.Lerp(3.2f, 2.2f, t);
-                r.thick = Mathf.Lerp(2.1f, 1.5f, t);
-                return r;
-            }
-            float u = Mathf.Clamp01((y - ShaftTop) / (CrownTop - ShaftTop));
-            float top = BaseHalfWidth * TaperTop;
-            r.half = top * Mathf.Lerp(1f, 0.10f, Mathf.Pow(u, 2.2f));
-            r.chamfer = r.half * 0.46f;
-            r.fin = Mathf.Lerp(2.2f, 0.6f, Mathf.Pow(u, 1.8f));
-            r.thick = Mathf.Lerp(1.5f, 0.5f, Mathf.Pow(u, 1.8f));
+
+            float keep = 1f;
+            float t = Mathf.Clamp01(y / ShaftTop);
+            for (int i = 0; i < StepAt.Length; i++)
+                if (t >= StepAt[i]) keep = StepKeep[i];
+
+            // A very slight batter on top of the steps: 2% over the full height. Real curtain
+            // walls are plumb, but a hair of taper keeps the silhouette from reading as a slab.
+            r.half = BaseHalfWidth * keep * Mathf.Lerp(1f, 0.98f, t);
+
+            // Tokyo office towers chamfer their corners rather than cut them deeply; the corner
+            // is a narrow facet that catches the light differently from the faces.
+            r.chamfer = r.half * 0.10f;
+            r.plant = IsPlantFloor(y);
             return r;
         }
 
-        /// <summary>A square with the corners cut off, walked in a single direction.</summary>
+        /// <summary>
+        /// True inside a mechanical floor. They sit immediately under each setback, which is
+        /// where the plant goes in a stepped building, and again at the top of the shaft.
+        /// </summary>
+        public static bool IsPlantFloor(float y)
+        {
+            for (int i = 0; i < StepAt.Length; i++)
+            {
+                float band = ShaftTop * StepAt[i];
+                if (y > band - FloorHeight * 1.5f && y < band) return true;
+            }
+            return y > ShaftTop - FloorHeight;
+        }
+
+        /// <summary>A rectangle with the corners chamfered, walked anticlockwise.</summary>
         public static void Section(in Ring r, Vector2[] into)
         {
             float a = r.half, c = r.chamfer;
@@ -78,30 +120,34 @@ namespace SalaryMan.World
         }
 
         /// <summary>
-        /// Builds the tower. Submesh 0 is the curtain wall, submesh 1 is the steel, so
-        /// one renderer can carry a glass material and a brushed metal one.
+        /// Builds the tower. Submesh 0 is the curtain wall, submesh 1 is everything solid —
+        /// the stone podium, the plant louvres, the parapet and the mast — so one renderer
+        /// carries a glass material and a pale stone one.
         /// </summary>
-        public static Mesh Build(string name, int levels = 76)
+        public static Mesh Build(string name, int levels = 0)
         {
+            if (levels <= 0) levels = Mathf.RoundToInt(ShaftTop / FloorHeight);
+
             var verts = new List<Vector3>();
             var norms = new List<Vector3>();
             var uvs = new List<Vector2>();
             var glass = new List<int>();
-            var steel = new List<int>();
+            var solid = new List<int>();
 
             var rings = new Ring[levels + 1];
             var plans = new Vector2[levels + 1][];
             for (int i = 0; i <= levels; i++)
             {
-                rings[i] = Profile(CrownTop * i / levels);
+                rings[i] = Profile(ShaftTop * i / levels);
                 plans[i] = new Vector2[8];
                 Section(rings[i], plans[i]);
             }
 
-            // ---- curtain wall: a lofted shell, one texture tile per window bay
+            // ---- the shaft, one storey at a time
             for (int i = 0; i < levels; i++)
             {
                 Ring lo = rings[i], hi = rings[i + 1];
+                var into = (lo.plant || hi.plant) ? solid : glass;
                 float run = 0f;
                 for (int e = 0; e < 8; e++)
                 {
@@ -111,138 +157,147 @@ namespace SalaryMan.World
                     float u0 = run / BayWidth, u1 = (run + len) / BayWidth;
                     run += len;
                     float v0 = lo.y / FloorHeight, v1 = hi.y / FloorHeight;
-                    Vector3 pA = new Vector3(a0.x, lo.y, a0.y);
-                    Vector3 pB = new Vector3(a1.x, lo.y, a1.y);
-                    Vector3 pC = new Vector3(b1.x, hi.y, b1.y);
-                    Vector3 pD = new Vector3(b0.x, hi.y, b0.y);
                     Vector2 mid = (a0 + a1) * 0.5f;
                     Vector3 outward = new Vector3(mid.x, 0f, mid.y).normalized;
-                    AddQuad(verts, norms, uvs, glass, pA, pB, pC, pD,
-                        new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1), outward);
+                    AddQuad(verts, norms, uvs, into,
+                        new Vector3(a0.x, lo.y, a0.y), new Vector3(a1.x, lo.y, a1.y),
+                        new Vector3(b1.x, hi.y, b1.y), new Vector3(b0.x, hi.y, b0.y),
+                        new Vector2(u0, v0), new Vector2(u1, v0), new Vector2(u1, v1), new Vector2(u0, v1),
+                        outward);
                 }
+
+                // Where the plan steps in, the floor left behind is a roof. Tokyo towers put
+                // plant and a maintenance walkway on these, and from the street the stepped
+                // edge is the thing that says which building you are looking at.
+                if (hi.half < lo.half - 0.01f)
+                    AddRingSlab(verts, norms, uvs, solid, plans[i], plans[i + 1], hi.y);
             }
 
-            // ---- cap over the claw
-            {
-                Vector2[] top = plans[levels];
-                float y = rings[levels].y;
-                for (int e = 1; e < 7; e++)
-                {
-                    AddTri(verts, norms, uvs, glass,
-                        new Vector3(top[0].x, y, top[0].y),
-                        new Vector3(top[e].x, y, top[e].y),
-                        new Vector3(top[e + 1].x, y, top[e + 1].y),
-                        Vector3.up);
-                }
-            }
+            // ---- mechanical floors above the office shaft, then the parapet
+            AddPrism(verts, norms, uvs, solid, rings[levels].half * 0.97f, ShaftTop, PlantTop, 0.12f, BayWidth);
+            AddPrism(verts, norms, uvs, solid, rings[levels].half * 0.90f, PlantTop, Height, 0.12f, BayWidth);
+            AddCap(verts, norms, uvs, solid, rings[levels].half * 0.90f, Height, 0.12f);
 
-            // ---- the eight mega-columns
-            for (int e = 0; e < 8; e++)
-            {
-                for (int i = 0; i < levels; i++)
-                {
-                    Vector3 loL, loR, loT, hiL, hiR, hiT;
-                    Blade(plans[i][e], rings[i], out loL, out loR, out loT);
-                    Blade(plans[i + 1][e], rings[i + 1], out hiL, out hiR, out hiT);
-                    Vector2 p = plans[i][e];
-                    Vector3 outward = new Vector3(p.x, 0f, p.y).normalized;
-                    Vector3 side = new Vector3(-outward.z, 0f, outward.x);
-                    AddQuad(verts, norms, uvs, steel, loL, loT, hiT, hiL,
-                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, (outward + side).normalized);
-                    AddQuad(verts, norms, uvs, steel, loT, loR, hiR, hiT,
-                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, (outward - side).normalized);
-                    AddQuad(verts, norms, uvs, steel, loR, loL, hiL, hiR,
-                        Vector2.zero, Vector2.right, Vector2.one, Vector2.up, -outward);
-                }
-            }
+            // ---- the aerial. Every tall building in Tokyo carries one; none of them carry a
+            // seventy metre spire, which is what made the old shape read as science fiction.
+            AddMast(verts, norms, uvs, solid, Height, MastTop, 1.1f, 0.35f);
 
-            // ---- the mast
-            AddTaperedMast(verts, norms, uvs, steel, CrownTop, Height, 1.5f, 0.22f);
-
-            // ---- the podium the plaza runs into
-            float pw = BaseHalfWidth * PodiumSpread * 0.5f;
-            AddBox(verts, norms, uvs, glass, new Vector3(-pw, 0f, -pw), new Vector3(pw, PodiumHeight, pw),
-                BayWidth, FloorHeight);
+            // ---- podium: five storeys of stone, wider than the shaft, with a deep canopy
+            float pw = PodiumHalfWidth;
+            AddPrism(verts, norms, uvs, solid, pw, 0f, PodiumHeight, 0.06f, BayWidth);
+            AddCap(verts, norms, uvs, solid, pw, PodiumHeight, 0.06f);
+            // The canopy: a slab standing proud at the second floor, which is how a Tokyo
+            // office tower meets the pavement and what keeps the rain off the entrance.
+            AddPrism(verts, norms, uvs, solid, pw + 1.4f, 7.4f, 8.3f, 0.02f, BayWidth);
+            AddCap(verts, norms, uvs, solid, pw + 1.4f, 8.3f, 0.02f);
 
             var mesh = new Mesh();
-            mesh.name = string.IsNullOrEmpty(name) ? "Konto_SotiTower" : name;
+            mesh.name = name;
             mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
             mesh.SetVertices(verts);
             mesh.SetNormals(norms);
             mesh.SetUVs(0, uvs);
             mesh.subMeshCount = 2;
             mesh.SetTriangles(glass, 0);
-            mesh.SetTriangles(steel, 1);
+            mesh.SetTriangles(solid, 1);
             mesh.RecalculateBounds();
             mesh.RecalculateTangents();
             return mesh;
         }
 
-        static void Blade(Vector2 p, in Ring r, out Vector3 left, out Vector3 right, out Vector3 tip)
-        {
-            Vector2 n = p.sqrMagnitude > 1e-6f ? p.normalized : Vector2.up;
-            Vector2 t = new Vector2(-n.y, n.x) * r.thick;
-            left = new Vector3(p.x + t.x, r.y, p.y + t.y);
-            right = new Vector3(p.x - t.x, r.y, p.y - t.y);
-            tip = new Vector3(p.x + n.x * r.fin, r.y, p.y + n.y * r.fin);
-        }
+        // ------------------------------------------------------------------ primitives
 
-        static void AddTaperedMast(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
-            float y0, float y1, float r0, float r1)
+        /// <summary>A chamfered prism between two heights.</summary>
+        static void AddPrism(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
+            float half, float y0, float y1, float chamferFraction, float bay)
         {
-            const int sides = 8;
-            for (int i = 0; i < sides; i++)
+            var ring = new Ring { half = half, chamfer = half * chamferFraction };
+            var plan = new Vector2[8];
+            Section(ring, plan);
+            float run = 0f;
+            for (int e = 0; e < 8; e++)
             {
-                float a = i / (float)sides * Mathf.PI * 2f;
-                float b = (i + 1) / (float)sides * Mathf.PI * 2f;
-                Vector3 pA = new Vector3(Mathf.Cos(a) * r0, y0, Mathf.Sin(a) * r0);
-                Vector3 pB = new Vector3(Mathf.Cos(b) * r0, y0, Mathf.Sin(b) * r0);
-                Vector3 pC = new Vector3(Mathf.Cos(b) * r1, y1, Mathf.Sin(b) * r1);
-                Vector3 pD = new Vector3(Mathf.Cos(a) * r1, y1, Mathf.Sin(a) * r1);
-                float mid = (a + b) * 0.5f;
-                AddQuad(v, n, uv, tris, pA, pB, pC, pD, Vector2.zero, Vector2.right, Vector2.one, Vector2.up,
-                    new Vector3(Mathf.Cos(mid), 0f, Mathf.Sin(mid)));
+                Vector2 a = plan[e], b = plan[(e + 1) % 8];
+                float len = (b - a).magnitude;
+                float u0 = run / bay, u1 = (run + len) / bay;
+                run += len;
+                Vector2 mid = (a + b) * 0.5f;
+                Vector3 outward = new Vector3(mid.x, 0f, mid.y).normalized;
+                AddQuad(v, n, uv, tris,
+                    new Vector3(a.x, y0, a.y), new Vector3(b.x, y0, b.y),
+                    new Vector3(b.x, y1, b.y), new Vector3(a.x, y1, a.y),
+                    new Vector2(u0, y0 / FloorHeight), new Vector2(u1, y0 / FloorHeight),
+                    new Vector2(u1, y1 / FloorHeight), new Vector2(u0, y1 / FloorHeight),
+                    outward);
             }
         }
 
-        static void AddBox(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
-            Vector3 lo, Vector3 hi, float bay, float floor)
+        static void AddCap(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
+            float half, float y, float chamferFraction)
         {
-            float tw = Mathf.Max(1f, Mathf.Round((hi.x - lo.x) / bay));
-            float th = Mathf.Max(1f, Mathf.Round((hi.y - lo.y) / floor));
-            Vector3[] c =
-            {
-                new Vector3(lo.x, lo.y, lo.z), new Vector3(hi.x, lo.y, lo.z),
-                new Vector3(hi.x, lo.y, hi.z), new Vector3(lo.x, lo.y, hi.z),
-                new Vector3(lo.x, hi.y, lo.z), new Vector3(hi.x, hi.y, lo.z),
-                new Vector3(hi.x, hi.y, hi.z), new Vector3(lo.x, hi.y, hi.z),
-            };
-            Vector2 t0 = Vector2.zero, t1 = new Vector2(tw, 0f), t2 = new Vector2(tw, th), t3 = new Vector2(0f, th);
-            AddQuad(v, n, uv, tris, c[0], c[1], c[5], c[4], t0, t1, t2, t3, Vector3.back);
-            AddQuad(v, n, uv, tris, c[1], c[2], c[6], c[5], t0, t1, t2, t3, Vector3.right);
-            AddQuad(v, n, uv, tris, c[2], c[3], c[7], c[6], t0, t1, t2, t3, Vector3.forward);
-            AddQuad(v, n, uv, tris, c[3], c[0], c[4], c[7], t0, t1, t2, t3, Vector3.left);
-            AddQuad(v, n, uv, tris, c[4], c[5], c[6], c[7], t0, t1, t2, t3, Vector3.up);
+            var ring = new Ring { half = half, chamfer = half * chamferFraction };
+            var plan = new Vector2[8];
+            Section(ring, plan);
+            for (int e = 1; e < 7; e++)
+                AddTri(v, n, uv, tris,
+                    new Vector3(plan[0].x, y, plan[0].y),
+                    new Vector3(plan[e].x, y, plan[e].y),
+                    new Vector3(plan[e + 1].x, y, plan[e + 1].y),
+                    Vector3.up);
         }
 
-        /// <summary>
-        /// Emits a quad wound so its front face looks along <paramref name="outward"/>,
-        /// whichever way round the caller happened to list the corners.
-        /// </summary>
+        /// <summary>The flat roof left behind where the plan steps in.</summary>
+        static void AddRingSlab(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
+            Vector2[] outer, Vector2[] inner, float y)
+        {
+            for (int e = 0; e < 8; e++)
+            {
+                Vector2 a0 = outer[e], a1 = outer[(e + 1) % 8];
+                Vector2 b0 = inner[e], b1 = inner[(e + 1) % 8];
+                AddQuad(v, n, uv, tris,
+                    new Vector3(a0.x, y, a0.y), new Vector3(a1.x, y, a1.y),
+                    new Vector3(b1.x, y, b1.y), new Vector3(b0.x, y, b0.y),
+                    new Vector2(a0.x, a0.y), new Vector2(a1.x, a1.y),
+                    new Vector2(b1.x, b1.y), new Vector2(b0.x, b0.y),
+                    Vector3.up);
+            }
+        }
+
+        /// <summary>A tapered square aerial.</summary>
+        static void AddMast(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
+            float y0, float y1, float halfLow, float halfHigh)
+        {
+            for (int e = 0; e < 4; e++)
+            {
+                float a0 = e * Mathf.PI * 0.5f, a1 = (e + 1) * Mathf.PI * 0.5f;
+                Vector2 lo0 = new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * halfLow;
+                Vector2 lo1 = new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * halfLow;
+                Vector2 hi0 = new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)) * halfHigh;
+                Vector2 hi1 = new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)) * halfHigh;
+                Vector2 mid = (lo0 + lo1) * 0.5f;
+                AddQuad(v, n, uv, tris,
+                    new Vector3(lo0.x, y0, lo0.y), new Vector3(lo1.x, y0, lo1.y),
+                    new Vector3(hi1.x, y1, hi1.y), new Vector3(hi0.x, y1, hi0.y),
+                    Vector2.zero, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(0f, 1f),
+                    new Vector3(mid.x, 0f, mid.y).normalized);
+            }
+        }
+
         static void AddQuad(List<Vector3> v, List<Vector3> n, List<Vector2> uv, List<int> tris,
             Vector3 a, Vector3 b, Vector3 c, Vector3 d,
             Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud, Vector3 outward)
         {
             int i = v.Count;
-            Vector3 face = Vector3.Cross(b - a, d - a);
-            bool flip = Vector3.Dot(face, outward) < 0f;
-            Vector3 normal = outward.sqrMagnitude > 1e-6f ? outward.normalized
-                           : (flip ? -face.normalized : face.normalized);
+            Vector3 normal = Vector3.Cross(b - a, d - a);
+            if (normal.sqrMagnitude < 1e-9f) return;
+            normal.Normalize();
+            if (Vector3.Dot(normal, outward) < 0f) normal = -normal;
 
             v.Add(a); v.Add(b); v.Add(c); v.Add(d);
-            uv.Add(ua); uv.Add(ub); uv.Add(uc); uv.Add(ud);
             for (int k = 0; k < 4; k++) n.Add(normal);
+            uv.Add(ua); uv.Add(ub); uv.Add(uc); uv.Add(ud);
 
+            bool flip = Vector3.Dot(Vector3.Cross(b - a, d - a), outward) < 0f;
             if (flip)
             {
                 tris.Add(i); tris.Add(i + 3); tris.Add(i + 2);
@@ -259,15 +314,19 @@ namespace SalaryMan.World
             Vector3 a, Vector3 b, Vector3 c, Vector3 outward)
         {
             int i = v.Count;
-            Vector3 face = Vector3.Cross(b - a, c - a);
-            bool flip = Vector3.Dot(face, outward) < 0f;
+            Vector3 normal = Vector3.Cross(b - a, c - a);
+            if (normal.sqrMagnitude < 1e-9f) return;
+            normal.Normalize();
+            if (Vector3.Dot(normal, outward) < 0f) normal = -normal;
+
             v.Add(a); v.Add(b); v.Add(c);
-            uv.Add(new Vector2(a.x * 0.2f, a.z * 0.2f));
-            uv.Add(new Vector2(b.x * 0.2f, b.z * 0.2f));
-            uv.Add(new Vector2(c.x * 0.2f, c.z * 0.2f));
-            for (int k = 0; k < 3; k++) n.Add(outward.normalized);
-            if (flip) { tris.Add(i); tris.Add(i + 2); tris.Add(i + 1); }
-            else { tris.Add(i); tris.Add(i + 1); tris.Add(i + 2); }
+            for (int k = 0; k < 3; k++) n.Add(normal);
+            uv.Add(new Vector2(a.x, a.z)); uv.Add(new Vector2(b.x, b.z)); uv.Add(new Vector2(c.x, c.z));
+
+            if (Vector3.Dot(Vector3.Cross(b - a, c - a), outward) < 0f)
+            { tris.Add(i); tris.Add(i + 2); tris.Add(i + 1); }
+            else
+            { tris.Add(i); tris.Add(i + 1); tris.Add(i + 2); }
         }
     }
 }

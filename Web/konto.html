@@ -246,6 +246,58 @@
     #controls { margin-left: 8px; margin-bottom: 8px; }
   }
 
+  /* ---- pause menu -----------------------------------------------------------
+     Esc, or Start on a pad. The world keeps rendering behind it, because a frozen
+     frame behind a menu looks like a crash. */
+  #pause {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(12, 13, 16, 0.55);
+    backdrop-filter: blur(7px);
+    padding: 24px;
+  }
+  body.paused #pause { display: flex; }
+  #pausecard {
+    width: min(420px, 100%);
+    background: var(--slab-solid);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 22px 24px 20px;
+  }
+  #pausecard h2 {
+    margin: 0 0 2px;
+    font-size: 22px;
+    letter-spacing: -0.01em;
+  }
+  #pausecard .kicker { margin: 0 0 16px; }
+  .menucol { display: flex; flex-direction: column; gap: 8px; }
+  .menu-btn {
+    appearance: none;
+    width: 100%;
+    text-align: left;
+    padding: 11px 14px;
+    font: 500 15px/1 var(--ui);
+    color: var(--paper);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    cursor: pointer;
+  }
+  .menu-btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+  .menu-btn:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .menu-btn.ghost:hover { color: #fff; }
+  .menu-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #pausecard .pausehint {
+    margin: 14px 0 0;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  #padstate { font-family: var(--data); font-size: 11px; color: var(--muted); margin: 10px 0 0; }
+
   /* ---- touch controls -------------------------------------------------------
      A phone has no W key. These appear only where the pointer is coarse, sit on
      top of the canvas, and are deliberately large: a thumb is not a mouse. */
@@ -354,6 +406,22 @@
     <label for="seed">Seed</label>
     <input id="seed" type="number" value="19640101" step="1">
     <button class="act" id="regen" type="button">Generate</button>
+  </div>
+</div>
+
+<div id="pause">
+  <div id="pausecard">
+    <p class="kicker">Salary Man &middot; Konto</p>
+    <h2>Paused</h2>
+    <p class="kicker" id="pausewhere">&nbsp;</p>
+    <div class="menucol">
+      <button class="menu-btn" id="mresume" type="button">Resume</button>
+      <button class="menu-btn ghost" id="mmode" type="button">Walk as Seiko</button>
+      <button class="menu-btn ghost" id="mregen" type="button">Generate a new island</button>
+      <button class="menu-btn ghost" id="mshadows" type="button">Shadows: on</button>
+    </div>
+    <p class="pausehint" id="pausekeys"></p>
+    <p id="padstate">No controller. Connect one and press a button.</p>
   </div>
 </div>
 
@@ -2812,6 +2880,24 @@ const keys = Object.create(null);
 // Analogue movement, written by the on-screen thumbstick and read alongside the keyboard, so
 // the fly camera and the walk controller do not have to care which one the player is using.
 const move = { x: 0, y: 0, up: 0, run: false };
+// Camera input from a right stick, in radians per second, added on top of dragging.
+const look = { x: 0, y: 0 };
+let paused = false;
+// The pad keeps its own vector rather than writing into the touch stick's. Sharing one
+// would mean a stick that re-centres leaves the last value behind, because the touch
+// handlers only write when a thumb is on the glass - and a character who keeps walking
+// after you let go is the worst kind of bug to find.
+const pad = { index: -1, name: "", was: {}, x: 0, y: 0, up: 0, run: false };
+
+// What the player is asking for, from whichever input is being used.
+function wish() {
+  return {
+    x: clamp(move.x + pad.x, -1, 1),
+    y: clamp(move.y + pad.y, -1, 1),
+    up: clamp(move.up + pad.up, -1, 1),
+    run: move.run || pad.run
+  };
+}
 let yaw = 0, pitch = -0.18, speed = 260;
 const camPos = new THREE.Vector3();
 let flyTo = null;
@@ -2843,6 +2929,9 @@ function initThree() {
   });
 
   initTouch();
+  initPause();
+  window.addEventListener("gamepadconnected", showPad);
+  window.addEventListener("gamepaddisconnected", showPad);
 
   // Look, fly.
   let dragging = false, lastX = 0, lastY = 0;
@@ -2867,8 +2956,131 @@ function initThree() {
     keys[e.code] = true;
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (e.code === "KeyF") toggleWalk();
+    if (e.code === "Escape") { setPaused(!paused); e.preventDefault(); }
   });
   window.addEventListener("keyup", e => { keys[e.code] = false; });
+}
+
+// ---------------------------------------------------------------- controller
+// A Bluetooth pad shows up as a standard gamepad: left stick moves, right stick looks,
+// the right trigger runs and Start pauses. The browser hands out a fresh snapshot each
+// poll, so edges have to be worked out by remembering the last frame.
+const PAD = {
+  A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
+  BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13
+};
+
+function deadzone(v, limit) {
+  // Sticks rest a little off centre, and a drifting stick that walks you into traffic is
+  // worse than one that needs a firm push.
+  limit = limit || 0.18;
+  if (Math.abs(v) < limit) return 0;
+  const scaled = (Math.abs(v) - limit) / (1 - limit);
+  return Math.sign(v) * scaled * scaled;   // squared, so small pushes stay small
+}
+
+function pollPad(dt) {
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (let i = 0; i < pads.length; i++) {
+    if (pads[i] && pads[i].connected) { gp = pads[i]; break; }
+  }
+  if (!gp) {
+    pad.x = pad.y = pad.up = 0;
+    pad.run = false;
+    if (pad.index !== -1) { pad.index = -1; pad.name = ""; showPad(); }
+    return;
+  }
+  if (pad.index !== gp.index) {
+    pad.index = gp.index;
+    pad.name = gp.id || "controller";
+    showPad();
+  }
+
+  const held = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
+
+  if (pressed(PAD.START) || pressed(PAD.BACK)) setPaused(!paused);
+  if (paused) {
+    // While paused the stick drives nothing: the menu is the only live thing.
+    if (pressed(PAD.A)) setPaused(false);
+    pad.x = pad.y = pad.up = 0;
+    pad.run = false;
+    return;
+  }
+  if (pressed(PAD.Y)) toggleWalk();
+
+  pad.x = deadzone(gp.axes[0] || 0);
+  pad.y = deadzone(gp.axes[1] || 0);
+  if (pad.x || pad.y) { tour = false; flyTo = null; }
+
+  look.x = deadzone(gp.axes[2] || 0);
+  look.y = deadzone(gp.axes[3] || 0);
+
+  pad.run = held(PAD.RT) || held(PAD.A)
+         || !!(gp.buttons[PAD.RT] && gp.buttons[PAD.RT].value > 0.4);
+  pad.up = (held(PAD.RB) ? 1 : 0) - (held(PAD.LB) ? 1 : 0);
+}
+
+function showPad() {
+  const el = document.getElementById("padstate");
+  if (!el) return;
+  el.textContent = pad.index >= 0
+    ? "Controller: " + pad.name.replace(/\s*\(.*$/, "")
+    : "No controller. Connect one and press a button.";
+}
+
+// ---------------------------------------------------------------- pause
+function setPaused(on) {
+  paused = !!on;
+  document.body.classList.toggle("paused", paused);
+  if (paused) {
+    // Let go of everything, or the camera keeps drifting behind the menu.
+    move.x = move.y = move.up = 0;
+    look.x = look.y = 0;
+    for (const k in keys) keys[k] = false;
+    const where = document.getElementById("pausewhere");
+    if (where) {
+      where.textContent = player.mode === "walk"
+        ? "On foot in Tokonto"
+        : "Free camera, " + Math.round(camPos.y) + " m up";
+    }
+    const mode = document.getElementById("mmode");
+    if (mode) mode.textContent = player.mode === "walk" ? "Back to the free camera" : "Walk as Seiko";
+    const shadows = document.getElementById("mshadows");
+    if (shadows && renderer) shadows.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
+    const resume = document.getElementById("mresume");
+    if (resume) resume.focus();
+  }
+}
+
+function initPause() {
+  const on = (id, fn) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener("click", fn);
+  };
+  on("mresume", () => setPaused(false));
+  on("mmode", () => { setPaused(false); toggleWalk(); });
+  on("mregen", () => { setPaused(false); const b = document.getElementById("regen"); if (b) b.click(); });
+  on("mshadows", () => {
+    if (!renderer) return;
+    renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
+    // Three.js caches compiled programs; the flag only takes effect on a recompile.
+    scene.traverse(o => { if (o.material) { const m = o.material; (Array.isArray(m) ? m : [m]).forEach(x => x.needsUpdate = true); } });
+    const el = document.getElementById("mshadows");
+    if (el) el.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
+  });
+
+  const touch = document.body.classList.contains("touch");
+  const hint = document.getElementById("pausekeys");
+  if (hint) {
+    hint.textContent = touch
+      ? "Tap outside this card to resume. A controller works too: left stick moves, right stick looks, Start pauses."
+      : "Esc resumes. Controller: left stick moves, right stick looks, right trigger runs, Y walks or flies, Start pauses.";
+  }
+  document.getElementById("pause").addEventListener("pointerdown", e => {
+    if (e.target.id === "pause") setPaused(false);   // tapping the dimmed area
+  });
 }
 
 // A phone has no W key. The thumbstick writes into the same vector the keyboard feeds, so
@@ -3502,32 +3714,33 @@ function tryStep(dx, dz, radius) {
 }
 
 function updateWalk(dt) {
-  const running = keys.ShiftLeft || keys.ShiftRight || move.run;
+  const w = wish();
+  const running = keys.ShiftLeft || keys.ShiftRight || w.run;
   const top = running ? 4.7 : 1.65;
   const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-  const wish = new THREE.Vector3();
-  if (keys.KeyW || keys.ArrowUp) wish.add(fwd);
-  if (keys.KeyS || keys.ArrowDown) wish.sub(fwd);
-  if (keys.KeyD || keys.ArrowRight) wish.add(right);
-  if (keys.KeyA || keys.ArrowLeft) wish.sub(right);
-  wish.addScaledVector(fwd, -move.y).addScaledVector(right, move.x);
+  const wishDir = new THREE.Vector3();
+  if (keys.KeyW || keys.ArrowUp) wishDir.add(fwd);
+  if (keys.KeyS || keys.ArrowDown) wishDir.sub(fwd);
+  if (keys.KeyD || keys.ArrowRight) wishDir.add(right);
+  if (keys.KeyA || keys.ArrowLeft) wishDir.sub(right);
+  wishDir.addScaledVector(fwd, -w.y).addScaledVector(right, w.x);
 
-  if (wish.lengthSq() > 0) {
+  if (wishDir.lengthSq() > 0) {
     // How far the stick is pushed decides the pace, up to whatever running allows. The
     // keyboard is all or nothing, so it lands at 1 and nothing changes for it.
-    const push = Math.min(1, wish.length());
-    wish.normalize();
+    const push = Math.min(1, wishDir.length());
+    wishDir.normalize();
     player.speed = lerp(player.speed, Math.max(WALK_SPEED * 0.45, top * push),
                         1 - Math.pow(0.002, dt));
-    player.targetYaw = Math.atan2(wish.x, wish.z);
+    player.targetYaw = Math.atan2(wishDir.x, wishDir.z);
   } else {
     player.speed = lerp(player.speed, 0, 1 - Math.pow(0.0005, dt));
   }
 
   if (player.speed > 0.01) {
     const step = player.speed * dt;
-    const dx = wish.x * step, dz = wish.z * step;
+    const dx = wishDir.x * step, dz = wishDir.z * step;
     // Slide along a wall rather than sticking to it.
     if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
   }
@@ -3581,6 +3794,16 @@ function followSun() {
 }
 
 function tick(dt) {
+  pollPad(dt);
+  if (paused) { renderer.render(scene, camera); return; }
+
+  // The right stick turns the camera the way dragging does, at a rate rather than a step.
+  if (look.x || look.y) {
+    tour = false;
+    yaw -= look.x * 2.6 * dt;
+    pitch = clamp(pitch - look.y * 1.9 * dt, -1.45, 1.1);
+  }
+
   clock += dt;
   followSun();
   if (player.mode === "walk" && player.obj) {
@@ -3611,10 +3834,11 @@ function tick(dt) {
     if (keys.KeyE) v.y += 1;
     if (keys.KeyQ) v.y -= 1;
     // Push on the stick: forward is up the screen, so its y runs the other way.
-    v.addScaledVector(fwd, -move.y).addScaledVector(right, move.x);
-    v.y += move.up;
+    const w = wish();
+    v.addScaledVector(fwd, -w.y).addScaledVector(right, w.x);
+    v.y += w.up;
     if (v.lengthSq() > 0) {
-      const fast = (keys.ShiftLeft || keys.ShiftRight || move.run) ? 4 : 1;
+      const fast = (keys.ShiftLeft || keys.ShiftRight || w.run) ? 4 : 1;
       v.normalize().multiplyScalar(speed * dt * fast);
       camPos.add(v);
     }
