@@ -250,16 +250,18 @@
   /* ---- pause menu -----------------------------------------------------------
      Esc, or Start on a pad. The world keeps rendering behind it, because a frozen
      frame behind a menu looks like a crash. */
+  /* ---- pause -----------------------------------------------------------------
+     Tabs across the top, the page beneath, the world still there behind it.
+     Nothing is centred in a card: the screen is the menu. */
   #pause {
     position: fixed;
     inset: 0;
     z-index: 90;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(12, 13, 16, 0.55);
+    flex-direction: column;
+    background: rgba(10, 11, 14, 0.62);
     backdrop-filter: blur(7px);
-    padding: 24px;
+    padding: 0;
     /* display cannot be animated, so the menu is always laid out and fades instead. The
        visibility delay is what keeps it from swallowing clicks while it is invisible. */
     opacity: 0;
@@ -582,6 +584,19 @@
   /* ---- the line that tells you something ------------------------------------
      Low on the screen, above the minimap's eye line, gone on its own. The game
      talks to you here and nowhere else. */
+  /* ---- inside a shop --------------------------------------------------------
+     Full bleed, because you are in there rather than looking at a panel. */
+  #shop {
+    position: fixed; inset: 0; z-index: 26;
+    background: #0a0b0d;
+    display: grid; place-items: center;
+    opacity: 0; transition: opacity 180ms ease;
+  }
+  body.inshop #shop { opacity: 1; }
+  #shop[hidden] { display: none; }
+  #shopcanvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+  body.inshop #hud, body.inshop #money { display: none !important; }
+
   /* ---- money, top right, above where the wanted stars will go ------------- */
   #money {
     position: fixed; top: 16px; right: 20px; z-index: 12;
@@ -654,6 +669,47 @@
 
   /* The ground legend belonged to the generator, like the masthead did. */
   #legend { display: none !important; }
+
+  #pausetabs {
+    display: flex; gap: 0;
+    padding: 26px clamp(24px, 6vw, 90px) 0;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+  .ptab {
+    appearance: none; background: transparent; border: 0; cursor: pointer;
+    padding: 12px 26px 14px; margin-bottom: -1px;
+    font: 700 13px/1 var(--ui); letter-spacing: 0.16em; text-transform: uppercase;
+    color: #70777f; border-bottom: 2px solid transparent;
+    transition: color 130ms ease, border-color 130ms ease;
+  }
+  .ptab:hover { color: #c3c9cf; }
+  .ptab.sel { color: #ffffff; border-bottom-color: #ffffff; }
+  #pausebody {
+    flex: 1; padding: 34px clamp(24px, 6vw, 90px);
+    overflow: hidden;
+  }
+  .ppage { display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: clamp(28px, 6vw, 90px); }
+  .ppage[hidden] { display: none; }
+  .pkicker {
+    font-family: var(--data); font-size: 10px; letter-spacing: 0.20em;
+    text-transform: uppercase; color: #6b727a; margin: 0 0 6px;
+  }
+  .pbig { font: 600 26px/1.2 var(--ui); color: #eef1f3; margin: 0 0 26px; }
+  .pnote { color: #9aa1a9; font-size: 14px; line-height: 1.6; margin: 0 0 18px; max-width: 46ch; }
+  .pnote b { color: #e4e8eb; }
+  .statcol { display: grid; gap: 1px; align-content: start; }
+  .statrow {
+    display: flex; justify-content: space-between; gap: 20px;
+    padding: 11px 2px; border-bottom: 1px solid rgba(255,255,255,0.07);
+    font-size: 14px; color: #c3c9cf;
+  }
+  .statrow b { color: #ffffff; font-weight: 600; font-family: var(--data); }
+  #pausemap { width: 100%; max-width: 520px; border-radius: 6px; background: #11141a; }
+  #pausefoot {
+    padding: 0 clamp(24px, 6vw, 90px) 22px;
+    font-family: var(--data); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: #6b727a;
+  }
 
   #maplegend {
     position: absolute;
@@ -741,6 +797,7 @@
   <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
 </div>
 
+<div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
 <div id="money">&yen;500,000</div>
 <div id="notice"></div>
 
@@ -768,20 +825,57 @@
   </div>
 </div>
 
+<!-- The pause screen, laid out the way the one in the game this borrows its
+     controls from is: a row of tabs across the top, the page under them, and
+     the world still visible behind the whole thing. -->
 <div id="pause">
-  <div id="pausecard">
-    <p class="kicker">Salary Man &middot; Konto</p>
-    <h2>Paused</h2>
-    <p class="kicker" id="pausewhere">&nbsp;</p>
-    <div class="menucol">
-      <button class="menu-btn" id="mresume" type="button">Resume</button>
-      <button class="menu-btn ghost" id="mmode" type="button">Walk as Seiko</button>
-      <button class="menu-btn ghost" id="mquality" type="button">Graphics: high</button>
-      <button class="menu-btn ghost" id="mshadows" type="button">Shadows: on</button>
-    </div>
-    <p class="pausehint" id="pausekeys"></p>
-    <p id="padstate">No controller. Connect one and press a button.</p>
+  <div id="pausetabs">
+    <button class="ptab sel" data-tab="game" type="button">Game</button>
+    <button class="ptab" data-tab="map" type="button">Map</button>
+    <button class="ptab" data-tab="stats" type="button">Stats</button>
+    <button class="ptab" data-tab="phone" type="button">Phone</button>
+    <button class="ptab" data-tab="settings" type="button">Settings</button>
   </div>
+  <div id="pausebody">
+    <div class="ppage" data-page="game">
+      <div class="menucol" id="pgame">
+        <button class="menu-btn sel" id="mresume" type="button">Resume</button>
+        <button class="menu-btn" id="mmode" type="button">Walk as Seiko</button>
+        <button class="menu-btn" id="mmapopen" type="button">Open the map</button>
+      </div>
+      <div class="pside">
+        <p class="pkicker">Where you are</p>
+        <p class="pbig" id="pausewhere">&nbsp;</p>
+        <p class="pkicker">On you</p>
+        <p class="pbig" id="pausemoney">&yen;500,000</p>
+      </div>
+    </div>
+    <div class="ppage" data-page="map" hidden>
+      <p class="pkicker">The island</p>
+      <p class="pnote">Press <b>M</b> or <b>Menu</b> for the full map, where you can zoom in to the streets and drop a waypoint.</p>
+      <canvas id="pausemap" width="520" height="380"></canvas>
+    </div>
+    <div class="ppage" data-page="stats" hidden>
+      <div class="statcol" id="pstats"></div>
+    </div>
+    <div class="ppage" data-page="phone" hidden>
+      <p class="pkicker">SOTI So24</p>
+      <div class="statcol" id="pphone"></div>
+    </div>
+    <div class="ppage" data-page="settings" hidden>
+      <div class="menucol" id="psettings">
+        <button class="menu-btn sel" id="mquality" type="button">Graphics: high</button>
+        <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
+      </div>
+      <div class="pside">
+        <p class="pkicker">Controller</p>
+        <p id="padstate">No controller. Connect one and press A on it.</p>
+        <p class="pkicker">Keys</p>
+        <p class="pausehint" id="pausekeys"></p>
+      </div>
+    </div>
+  </div>
+  <div id="pausefoot"><span id="pausehintbar"></span></div>
 </div>
 
 <div id="touch">
@@ -3592,6 +3686,23 @@ function initThree() {
     if (e.code === "KeyG") toggleWalk();
     if (e.code === "KeyP") setPhone(!phone.open);
     if (e.code === "KeyH") toggleSiren();
+    if (paused) {
+      if (e.code === "ArrowLeft") pauseMove(-1, 0);
+      if (e.code === "ArrowRight") pauseMove(1, 0);
+      if (e.code === "ArrowUp") pauseMove(0, -1);
+      if (e.code === "ArrowDown") pauseMove(0, 1);
+      if (e.code === "Enter" || e.code === "Space") { pauseAct(); e.preventDefault(); return; }
+    }
+    if (shops.inside) {
+      if (e.code === "ArrowLeft") shopMove(-1, 0);
+      if (e.code === "ArrowRight") shopMove(1, 0);
+      if (e.code === "ArrowUp") shopMove(0, -1);
+      if (e.code === "ArrowDown") shopMove(0, 1);
+      if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") takeFromShelf();
+      if (e.code === "Escape" || e.code === "Backspace" || e.code === "KeyF") leaveShop();
+      e.preventDefault();
+      return;
+    }
     if (phone.open) {
       // The phone takes the arrows, Enter and Backspace while it is up, so the
       // keyboard can do everything the pad can.
@@ -3660,6 +3771,17 @@ function pollPad(dt) {
     return v > 0.06 ? v : 0;
   };
 
+  // A shop owns the pad while you are inside one.
+  if (shops.inside) {
+    if (pressed(PAD.LEFT)) shopMove(-1, 0);
+    if (pressed(PAD.RIGHT)) shopMove(1, 0);
+    if (pressed(PAD.UP)) shopMove(0, -1);
+    if (pressed(PAD.DOWN)) shopMove(0, 1);
+    if (pressed(PAD.A)) takeFromShelf();
+    if (pressed(PAD.B) || pressed(PAD.Y)) leaveShop();
+    return;
+  }
+
   // The title screen owns the pad while it is up.
   if (title.on) {
     const ly = deadzone(gp.axes[1] || 0, 0.45);
@@ -3692,7 +3814,16 @@ function pollPad(dt) {
     return;
   }
   if (paused) {
-    if (pressed(PAD.A) || pressed(PAD.B)) setPaused(false);
+    // Bumpers change tab, the way they do in the game this borrows from, and
+    // so does left and right on the stick or the pad.
+    if (pressed(PAD.LB)) pauseMove(-1, 0);
+    if (pressed(PAD.RB)) pauseMove(1, 0);
+    if (pressed(PAD.LEFT)) pauseMove(-1, 0);
+    if (pressed(PAD.RIGHT)) pauseMove(1, 0);
+    if (pressed(PAD.UP)) pauseMove(0, -1);
+    if (pressed(PAD.DOWN)) pauseMove(0, 1);
+    if (pressed(PAD.A)) pauseAct();
+    if (pressed(PAD.B)) setPaused(false);
     pad.x = pad.y = pad.up = 0;
     pad.run = pad.handbrake = false;
     pad.throttle = pad.brake = 0;
@@ -3740,6 +3871,10 @@ function pollPad(dt) {
 function useRide() {
   if (drive.car) { leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
+  if (player.placed && player.mode === "walk") {
+    const sh = shopNear(player.pos.x, player.pos.z, 4.0);
+    if (sh) { enterShop(sh); return; }
+  }
   const r = findRide();
   if (!r) return;
   if (r.what === "car") enterCar(r.car);
@@ -3759,6 +3894,13 @@ function setPromptText(text) {
 function updatePrompt() {
   if (drive.car) { setPromptText("Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
+  // A shop door takes precedence over a car parked outside it, because you
+  // are standing at the door.
+  if (player.placed && player.mode === "walk") {
+    const sh = shopNear(player.pos.x, player.pos.z, 4.0);
+    drive.nearShop = sh;
+    if (sh) { setPromptText("Enter " + sh.name); return; }
+  } else drive.nearShop = null;
   const r = findRide();
   drive.near = r;
   if (!r) { setPromptText(null); return; }
@@ -3805,9 +3947,94 @@ function setPaused(on) {
     if (mode) mode.textContent = player.mode === "walk" ? "Back to the free camera" : "Walk as Seiko";
     const shadows = document.getElementById("mshadows");
     if (shadows && renderer) shadows.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
+    const money = document.getElementById("pausemoney");
+    if (money) money.textContent = yenText(purse.yen);
+    syncQualityLabels();
+    fillPauseStats();
     const resume = document.getElementById("mresume");
     if (resume) resume.focus();
+    if (pause.tab === 1) drawPauseMap();
   }
+}
+
+// ---- the tabs --------------------------------------------------------------
+const PAUSE_TABS = ["game", "map", "stats", "phone", "settings"];
+const PAUSE_ROWS = { game: ["mresume", "mmode", "mmapopen"], settings: ["mquality", "mshadows"] };
+const pause = { tab: 0, row: 0 };
+
+function setPauseTab(i) {
+  pause.tab = (i + PAUSE_TABS.length) % PAUSE_TABS.length;
+  pause.row = 0;
+  const name = PAUSE_TABS[pause.tab];
+  document.querySelectorAll(".ptab").forEach(el =>
+    el.classList.toggle("sel", el.getAttribute("data-tab") === name));
+  document.querySelectorAll(".ppage").forEach(el =>
+    el.hidden = el.getAttribute("data-page") !== name);
+  if (name === "map") drawPauseMap();
+  if (name === "stats" || name === "phone") fillPauseStats();
+  syncPauseRows();
+  const foot = document.getElementById("pausehintbar");
+  if (foot) foot.textContent = PAUSE_ROWS[name]
+    ? "\u25c0 \u25b6 tab     \u25b2 \u25bc choose     A select     B resume"
+    : "\u25c0 \u25b6 tab     B resume";
+}
+function syncPauseRows() {
+  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  if (!rows) return;
+  pause.row = clamp(pause.row, 0, rows.length - 1);
+  rows.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("sel", i === pause.row);
+  });
+}
+function pauseMove(dx, dy) {
+  if (dx) { setPauseTab(pause.tab + dx); return; }
+  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  if (!rows || !dy) return;
+  pause.row = (pause.row + dy + rows.length) % rows.length;
+  syncPauseRows();
+}
+function pauseAct() {
+  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  if (!rows) { setPaused(false); return; }
+  const el = document.getElementById(rows[pause.row]);
+  if (el) el.click();
+}
+
+// The two reading pages: what he is carrying, and what the phone knows.
+function fillPauseStats() {
+  const rows = [
+    ["Money", yenText(purse.yen)],
+    ["Health", Math.round(vitals.health * 100) + "%"],
+    ["Stress", Math.round(vitals.stress * 100) + "%"],
+    ["Where", nav.place && nav.place.street ? nav.place.street : "Tōkonto"],
+    ["Photographs taken", String(phone.gallery.length)],
+    ["Things bought", String(shops.basket.length)],
+    ["Driving", drive.car ? CAR_KINDS[drive.car.kind].name : "on foot"]
+  ];
+  const el = document.getElementById("pstats");
+  if (el) el.innerHTML = rows.map(r =>
+    '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
+  const prows = [
+    ["Balance", yenText(purse.yen)],
+    ["IC card", phone.owns.icCard ? "Added" : "Not added"],
+    ["Audio device", phone.owns.headphones ? "SOTI Studio"
+      : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
+    ["Ryde", phone.ryde ? phone.ryde.cls + ", " + Math.ceil(phone.ryde.eta) + " min away" : "No car booked"],
+    ["Deliveries", deliveries.length ? deliveries.map(d => d.name).join(", ") : "Nothing on the way"],
+    ["Gallery", phone.gallery.length + " photographs"]
+  ];
+  const pel = document.getElementById("pphone");
+  if (pel) pel.innerHTML = prows.map(r =>
+    '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
+}
+
+function drawPauseMap() {
+  const cv = document.getElementById("pausemap");
+  if (!cv || !nav.ready) return;
+  const g = cv.getContext("2d");
+  const at = player.placed ? player.pos : camPos;
+  drawMapView(g, cv.width, cv.height, at.x, at.z, 1400, 0);
 }
 
 function initPause() {
@@ -3828,6 +4055,10 @@ function initPause() {
     });
   });
 
+  document.querySelectorAll(".ptab").forEach((el, i) => {
+    el.addEventListener("click", () => setPauseTab(i));
+  });
+  on("mmapopen", () => { setPaused(false); setMapOpen(true); });
   on("mresume", () => setPaused(false));
   on("mmode", () => { setPaused(false); toggleWalk(); });
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
@@ -4332,6 +4563,8 @@ function buildScene(w) {
   buildRail(w, root);
   buildRailStops();
   buildNav(w);
+  placeShops(w.cities[0]);
+  buildShopSigns(root);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
@@ -10316,6 +10549,304 @@ function takePhotograph() {
     phone.gallery.push(c);
     say("Photograph saved.", 2.5);
   } catch (e) { say("The camera could not save that.", 3); }
+}
+
+// ---- the shops -------------------------------------------------------------
+// Two chains, on ground-floor plots along the busier streets. A shop is a
+// position, a brand and a door; walking to the door and pressing Y puts you
+// inside, which is a screen rather than a room. A real interior would be four
+// walls you cannot see out of, and the thing you actually came in to do -
+// walk the aisle, take something off a shelf, pay - is better served by the
+// shelf itself than by a corridor to it.
+const SHOP_BRANDS = {
+  eleven:  { name: "11 Eleven", band: "#0a6b42", ink: "#ffffff",
+             stripes: ["#e8711a", "#cf2027"], tag: "Open 24 hours" },
+  petmart: { name: "Pet Mart",  band: "#ffffff", ink: "#1272d6",
+             stripes: ["#13a150", "#1272d6"], tag: "Your neighbourhood store" }
+};
+
+// What is actually on the shelves. The convenience stores carry the small
+// everyday things; the electronics are the ones that matter, because the music
+// app is dead until a pair of them arrives.
+const SHELVES = [
+  { name: "Drinks", items: [
+    { id: "coffee",  name: "Canned coffee, black", price: 130, stress: -0.06 },
+    { id: "tea",     name: "Barley tea, cold",     price: 150, stress: -0.04 },
+    { id: "energy",  name: "Ganbare Energy",       price: 210, stress: -0.10, health: 0.04 }
+  ]},
+  { name: "Food", items: [
+    { id: "bento",   name: "Katsu bento",          price: 580, stress: -0.12, health: 0.18 },
+    { id: "onigiri", name: "Onigiri, two",         price: 260, stress: -0.05, health: 0.08 },
+    { id: "sando",   name: "Egg sandwich",         price: 320, stress: -0.06, health: 0.10 }
+  ]},
+  { name: "Everyday", items: [
+    { id: "umbrella", name: "Clear vinyl umbrella", price: 550 },
+    { id: "towel",    name: "Face towel",           price: 480 },
+    { id: "socks",    name: "Business socks, black", price: 390 }
+  ]},
+  { name: "Electronics", items: [
+    { id: "earbuds",    name: "SOTI Buds 3",          price: 24800, carry: true },
+    { id: "headphones", name: "SOTI Studio Over-Ear", price: 41200, carry: true },
+    { id: "charger",    name: "Fast charger, 45 W",   price: 3900 }
+  ]}
+];
+
+const shops = { list: [], inside: null, shelf: 0, item: 0, basket: [], ready: false };
+
+// Pick plots to be shops: small, street-facing, spread out, and never two of
+// the same chain next to each other.
+function placeShops(city) {
+  shops.list.length = 0;
+  if (!city || !city.plots) return;
+  const want = 26;
+  const spacing = 320;
+  const candidates = city.plots.filter(p =>
+    p.size[0] > 14 && p.size[0] < 46 && p.size[1] > 12 && p.size[1] < 46);
+  let seed = 4471;
+  const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  for (let guard = 0; guard < 6000 && shops.list.length < want; guard++) {
+    const p = candidates[(rnd() * candidates.length) | 0];
+    if (!p) break;
+    let near = false;
+    for (let i = 0; i < shops.list.length; i++) {
+      const s = shops.list[i];
+      if (Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < spacing) { near = true; break; }
+    }
+    if (near) continue;
+    const brand = shops.list.length % 2 ? "petmart" : "eleven";
+    const yaw = p.yaw * Math.PI / 180;
+    // The door is on the long face, pushed out to the pavement.
+    const half = p.size[1] * 0.5 + 1.6;
+    shops.list.push({
+      brand: brand,
+      name: SHOP_BRANDS[brand].name,
+      at: [p.centre[0], p.centre[1]],
+      door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
+      yaw: yaw,
+      groundY: p.groundY,
+      size: p.size
+    });
+  }
+  shops.ready = true;
+}
+
+// A lit sign band over each door. One instanced box per chain, with the brand
+// colour on it, which is enough to pick a shop out of a street at a hundred
+// metres - which is what a convenience store sign is for.
+function buildShopSigns(root) {
+  const byBrand = {};
+  shops.list.forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
+  Object.keys(byBrand).forEach(brand => {
+    const list = byBrand[brand];
+    const b = SHOP_BRANDS[brand];
+    const geo = new THREE.BoxGeometry(1, 1, 0.5);
+    const mat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(brand === "eleven" ? 0x0a6b42 : 0xf4f6f5),
+      emissive: new THREE.Color(brand === "eleven" ? 0x083d27 : 0x9fb7cf),
+      emissiveIntensity: 0.75, roughness: 0.55, metalness: 0.0
+    });
+    const band = new THREE.InstancedMesh(geo, mat, list.length);
+    const stripeMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(brand === "eleven" ? 0xe8711a : 0x1272d6),
+      emissive: new THREE.Color(brand === "eleven" ? 0x7a3608 : 0x0a3a67),
+      emissiveIntensity: 0.6, roughness: 0.6
+    });
+    const stripe = new THREE.InstancedMesh(geo, stripeMat, list.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const pos = new THREE.Vector3(), scl = new THREE.Vector3();
+    list.forEach((s, i) => {
+      const w = Math.min(14, s.size[0] * 0.82);
+      e.set(0, s.yaw, 0); q.setFromEuler(e);
+      pos.set(s.door[0], s.groundY + 4.3, s.door[1]);
+      scl.set(w, 1.5, 0.5);
+      m.compose(pos, q, scl); band.setMatrixAt(i, m);
+      pos.set(s.door[0], s.groundY + 3.42, s.door[1]);
+      scl.set(w, 0.26, 0.52);
+      m.compose(pos, q, scl); stripe.setMatrixAt(i, m);
+      s.signY = s.groundY + 4.3;
+    });
+    band.instanceMatrix.needsUpdate = true;
+    stripe.instanceMatrix.needsUpdate = true;
+    band.castShadow = false; stripe.castShadow = false;
+    root.add(band); root.add(stripe);
+  });
+}
+
+function shopNear(x, z, radius) {
+  let best = null, bestD = radius || 4.2;
+  for (let i = 0; i < shops.list.length; i++) {
+    const s = shops.list[i];
+    const d = Math.hypot(s.door[0] - x, s.door[1] - z);
+    if (d < bestD) { bestD = d; best = s; }
+  }
+  return best;
+}
+
+function enterShop(s) {
+  if (!s) return;
+  shops.inside = s;
+  shops.shelf = 0; shops.item = 0; shops.basket = [];
+  const el = document.getElementById("shop");
+  if (el) el.hidden = false;
+  document.body.classList.add("inshop");
+  drawShop();
+}
+function leaveShop() {
+  if (!shops.inside) return;
+  shops.inside = null;
+  document.body.classList.remove("inshop");
+  const el = document.getElementById("shop");
+  if (el) setTimeout(() => { if (!shops.inside) el.hidden = true; }, 200);
+}
+
+// Taking something off the shelf pays for it there and then, which is what a
+// convenience store is.
+function takeFromShelf() {
+  const s = shops.inside;
+  if (!s) return;
+  const it = SHELVES[shops.shelf].items[shops.item];
+  if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
+  purse.yen -= it.price;
+  shops.basket.push(it.name);
+  if (it.carry) {
+    // The big things are carried out, not delivered, if you buy them in person.
+    phone.owns[it.id] = true;
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag now.", 5);
+  } else {
+    if (it.stress) vitals.stress = clamp01(vitals.stress + it.stress);
+    if (it.health) vitals.health = clamp01(vitals.health + it.health);
+    say(it.name + " \u00b7 " + yenText(it.price), 3);
+  }
+  drawShop();
+}
+
+function shopMove(dx, dy) {
+  if (!shops.inside) return;
+  if (dx) shops.shelf = (shops.shelf + dx + SHELVES.length) % SHELVES.length;
+  const n = SHELVES[shops.shelf].items.length;
+  if (dy) shops.item = clamp(shops.item + dy, 0, n - 1);
+  shops.item = clamp(shops.item, 0, n - 1);
+  drawShop();
+}
+
+// ---- the inside of a shop, drawn -------------------------------------------
+function drawShop() {
+  const cv = document.getElementById("shopcanvas");
+  const s = shops.inside;
+  if (!cv || !s) return;
+  const g = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  const brand = SHOP_BRANDS[s.brand];
+
+  // The room: a lit ceiling, a tiled floor, and the aisle running away from you.
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, "#f2f4f3");
+  sky.addColorStop(0.42, "#e4e8e7");
+  sky.addColorStop(0.60, "#cfd5d4");
+  sky.addColorStop(1, "#aeb6b5");
+  g.fillStyle = sky;
+  g.fillRect(0, 0, W, H);
+  // strip lights
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = "rgba(255,255,255,0.85)";
+    g.fillRect(W * (0.10 + i * 0.22), H * 0.045, W * 0.16, H * 0.012);
+  }
+  // floor tiles in perspective
+  g.save();
+  g.beginPath(); g.rect(0, H * 0.60, W, H * 0.40); g.clip();
+  g.strokeStyle = "rgba(0,0,0,0.10)"; g.lineWidth = 1.2;
+  for (let i = -6; i <= 6; i++) {
+    g.beginPath();
+    g.moveTo(W * 0.5 + i * W * 0.045, H * 0.60);
+    g.lineTo(W * 0.5 + i * W * 0.30, H);
+    g.stroke();
+  }
+  for (let i = 0; i < 7; i++) {
+    const y = H * (0.60 + Math.pow(i / 7, 1.8) * 0.40);
+    g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+  }
+  g.restore();
+
+  // The sign band over the aisle.
+  g.fillStyle = brand.band;
+  g.fillRect(0, H * 0.085, W, H * 0.075);
+  brand.stripes.forEach((c, i) => {
+    g.fillStyle = c;
+    g.fillRect(0, H * (0.160 + i * 0.011), W, H * 0.011);
+  });
+  g.fillStyle = brand.ink;
+  g.font = "800 " + Math.round(H * 0.048) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(brand.name, W * 0.045, H * 0.122);
+  g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
+  g.fillStyle = brand.ink === "#ffffff" ? "rgba(255,255,255,0.80)" : "rgba(18,114,214,0.75)";
+  g.textAlign = "right";
+  g.fillText(brand.tag, W * 0.955, H * 0.122);
+  g.textAlign = "left";
+
+  // The shelf tabs, which are the aisles.
+  const tabY = H * 0.215;
+  SHELVES.forEach((sh, i) => {
+    const w = W / SHELVES.length;
+    const on = i === shops.shelf;
+    g.fillStyle = on ? "#15181d" : "rgba(20,23,28,0.10)";
+    g.fillRect(i * w + W * 0.012, tabY, w - W * 0.024, H * 0.055);
+    g.fillStyle = on ? "#ffffff" : "#4a5058";
+    g.font = (on ? "700 " : "600 ") + Math.round(H * 0.028) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText(sh.name, i * w + w * 0.5, tabY + H * 0.0285);
+  });
+  g.textAlign = "left";
+
+  // The shelf itself: three facings, the selected one pulled forward.
+  const items = SHELVES[shops.shelf].items;
+  const shelfY = H * 0.325, shelfH = H * 0.40;
+  g.fillStyle = "#d8dcdb";
+  g.fillRect(W * 0.04, shelfY, W * 0.92, shelfH);
+  g.fillStyle = "rgba(0,0,0,0.12)";
+  g.fillRect(W * 0.04, shelfY + shelfH, W * 0.92, H * 0.012);
+  items.forEach((it, i) => {
+    const bw = W * 0.92 / items.length;
+    const x = W * 0.04 + i * bw;
+    const on = i === shops.item;
+    // the facing
+    g.fillStyle = on ? "#ffffff" : "#eceeed";
+    g.fillRect(x + bw * 0.06, shelfY + shelfH * (on ? 0.10 : 0.16),
+               bw * 0.88, shelfH * (on ? 0.74 : 0.62));
+    // a product block, coloured by shelf
+    const cols = ["#8a3f2c", "#2f6f3c", "#2a4f8a", "#4a4a52"];
+    g.fillStyle = cols[shops.shelf % cols.length];
+    g.fillRect(x + bw * 0.22, shelfY + shelfH * (on ? 0.18 : 0.24),
+               bw * 0.56, shelfH * (on ? 0.40 : 0.32));
+    if (on) {
+      g.strokeStyle = "#15181d"; g.lineWidth = Math.max(2, W * 0.004);
+      g.strokeRect(x + bw * 0.06, shelfY + shelfH * 0.10, bw * 0.88, shelfH * 0.74);
+    }
+    g.fillStyle = "#15181d";
+    g.font = (on ? "700 " : "600 ") + Math.round(H * 0.026) + "px " + UI;
+    g.textAlign = "center";
+    const label = fitText(g, it.name, bw * 0.84);
+    g.fillText(label, x + bw * 0.5, shelfY + shelfH * 0.72);
+    g.font = "700 " + Math.round(H * 0.030) + "px " + UI;
+    g.fillText(yenText(it.price), x + bw * 0.5, shelfY + shelfH * 0.80);
+    g.textAlign = "left";
+  });
+
+  // The counter line along the bottom: balance, basket, and what the buttons do.
+  g.fillStyle = "rgba(14,16,20,0.92)";
+  g.fillRect(0, H * 0.845, W, H * 0.155);
+  g.fillStyle = "#e9edf0";
+  g.font = "700 " + Math.round(H * 0.034) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * 0.045, H * 0.895);
+  g.fillStyle = "#8a919a";
+  g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
+  g.fillText(shops.basket.length ? "In your bag: " + shops.basket.slice(-3).join(", ")
+                                 : "Nothing in your bag yet", W * 0.045, H * 0.945);
+  g.textAlign = "right";
+  g.fillStyle = "#c9ced4";
+  g.font = "600 " + Math.round(H * 0.026) + "px " + UI;
+  g.fillText("\u25c0 \u25b6 aisle     \u25b2 \u25bc shelf     A take     B leave", W * 0.955, H * 0.92);
+  g.textAlign = "left";
 }
 
 // ---- hailing ---------------------------------------------------------------
