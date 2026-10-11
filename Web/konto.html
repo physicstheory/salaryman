@@ -262,17 +262,18 @@
     background: rgba(10, 11, 14, 0.62);
     backdrop-filter: blur(7px);
     padding: 0;
-    /* display cannot be animated, so the menu is always laid out and fades instead. The
-       visibility delay is what keeps it from swallowing clicks while it is invisible. */
+    /* It is hidden outright when closed and fades on the way in.
+       The fade is driven by a class added on the next animation frame rather
+       than by body.paused alone. Toggling opacity in the same style change
+       that makes the element visible left the transition stuck at zero: the
+       menu was present, hit-testable and completely invisible, so pressing
+       pause looked like it did nothing. The title screen already uses the
+       frame-later pattern and has never had the problem. */
     opacity: 0;
-    visibility: hidden;
-    transition: opacity 170ms ease, backdrop-filter 170ms ease, visibility 0s linear 170ms;
+    transition: opacity 170ms ease;
   }
-  body.paused #pause {
-    opacity: 1;
-    visibility: visible;
-    transition: opacity 170ms ease, backdrop-filter 170ms ease;
-  }
+  #pause[hidden] { display: none; }
+  #pause.up { opacity: 1; }
   #pausecard {
     /* It settles rather than appears: a short rise with the overshoot taken out. */
     transform: translateY(10px) scale(0.985);
@@ -584,6 +585,19 @@
   /* ---- the line that tells you something ------------------------------------
      Low on the screen, above the minimap's eye line, gone on its own. The game
      talks to you here and nowhere else. */
+  /* ---- the wheel ------------------------------------------------------------
+     Held, not toggled: it is up only while LB is down. */
+  #wheel {
+    position: fixed; inset: 0; z-index: 24;
+    display: grid; place-items: center;
+    background: rgba(8, 9, 11, 0.42);
+    opacity: 0; transition: opacity 110ms ease;
+    pointer-events: none;
+  }
+  #wheel.up { opacity: 1; }
+  #wheel[hidden] { display: none; }
+  #wheelcanvas { width: min(62vh, 62vw); height: min(62vh, 62vw); }
+
   /* ---- inside a shop --------------------------------------------------------
      Full bleed, because you are in there rather than looking at a panel. */
   #shop {
@@ -803,6 +817,7 @@
 </div>
 
 <div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
+<div id="wheel" hidden><canvas id="wheelcanvas" width="860" height="860"></canvas></div>
 <div id="money">&yen;500,000</div>
 <div id="notice"></div>
 
@@ -833,7 +848,7 @@
 <!-- The pause screen, laid out the way the one in the game this borrows its
      controls from is: a row of tabs across the top, the page under them, and
      the world still visible behind the whole thing. -->
-<div id="pause">
+<div id="pause" hidden>
   <div id="pausetabs">
     <button class="ptab sel" data-tab="game" type="button">Game</button>
     <button class="ptab" data-tab="map" type="button">Map</button>
@@ -3689,6 +3704,13 @@ function initThree() {
     }
     if (e.code === "KeyF") useRide();
     if (e.code === "KeyG") toggleWalk();
+    // Q holds the wheel up for the keyboard, with the arrows stepping round it.
+    if (e.code === "KeyQ" && !phone.open && !paused && !nav.mapOpen && !e.repeat) setWheel(true);
+    if (wheel.open) {
+      if (e.code === "ArrowLeft") { wheelStep(-1); e.preventDefault(); return; }
+      if (e.code === "ArrowRight") { wheelStep(1); e.preventDefault(); return; }
+      if (e.code === "Enter" || e.code === "Space") { setWheel(false); e.preventDefault(); return; }
+    }
     if (e.code === "KeyP") setPhone(!phone.open);
     if (e.code === "KeyH") toggleSiren();
     if (paused) {
@@ -3724,7 +3746,10 @@ function initThree() {
     if (e.code === "KeyM" || e.code === "Tab") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
     if (e.code === "Escape") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
   });
-  window.addEventListener("keyup", e => { keys[e.code] = false; });
+  window.addEventListener("keyup", e => {
+    keys[e.code] = false;
+    if (e.code === "KeyQ" && wheel.open) setWheel(false);
+  });
 }
 
 // ---------------------------------------------------------------- controller
@@ -3835,6 +3860,18 @@ function pollPad(dt) {
     return;
   }
 
+  // LB held brings the wheel up and holds it there; letting go equips.
+  const lbDown = held(PAD.LB);
+  if (lbDown && !phone.open && !nav.mapOpen) {
+    if (!wheel.open) setWheel(true);
+    wheelPoint(deadzone(gp.axes[2] || 0, 0.30), deadzone(gp.axes[3] || 0, 0.30));
+    // Everything else is frozen while it is up.
+    pad.x = pad.y = pad.up = 0;
+    pad.throttle = pad.brake = 0;
+    return;
+  }
+  if (wheel.open) setWheel(false);
+
   // D-pad up is the phone, the way it is in the game these controls come from.
   if (pressed(PAD.UP)) setPhone(!phone.open);
   if (phone.open) {
@@ -3937,6 +3974,18 @@ showPad.had = false;
 function setPaused(on) {
   paused = !!on;
   document.body.classList.toggle("paused", paused);
+  const panel = document.getElementById("pause");
+  if (panel) {
+    if (paused) {
+      panel.hidden = false;
+      // A frame later, so the browser has laid it out before the opacity
+      // changes and the transition has something to run from.
+      requestAnimationFrame(() => { if (paused) panel.classList.add("up"); });
+    } else {
+      panel.classList.remove("up");
+      setTimeout(() => { if (!paused) panel.hidden = true; }, 200);
+    }
+  }
   if (paused) {
     // Let go of everything, or the camera keeps drifting behind the menu.
     move.x = move.y = move.up = 0;
@@ -5160,6 +5209,12 @@ function tick(dt) {
   updateVitals(dt);
   updateHail(dt);
   updateDeliveries();
+  // Spotify is asked how it is getting on twice a second, and only while the
+  // app is actually open.
+  if (phone.open && phone.app === "Music" && spotify.state === "ready") {
+    spotify.tick = (spotify.tick || 0) + dt;
+    if (spotify.tick > 2) { spotify.tick = 0; spotifyPoll(); }
+  }
   if (nav.mapOpen) { updatePhone(); present(); return; }
   if (paused) { updatePhone(); present(); return; }
 
@@ -10358,25 +10413,254 @@ function appContacts(g, W, H) {
   g.textAlign = "left";
 }
 
-function appMusic(g, W, H) {
-  phoneChrome(g, W, H, "SOTI Music", phone.owns.earbuds || phone.owns.headphones ? "Ready" : "No audio device");
-  const has = phone.owns.earbuds || phone.owns.headphones;
-  g.fillStyle = has ? "#b4365c" : "#23272d";
-  roundRect(g, W * 0.22, H * 0.18, W * 0.56, W * 0.56, W * 0.05); g.fill();
-  g.fillStyle = has ? "#ffffff" : "#4a5058";
-  g.font = "800 " + Math.round(W * 0.16) + "px " + UI;
-  g.textAlign = "center";
-  g.fillText("\u266a", W * 0.5, H * 0.33);
-  g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-  g.fillStyle = "#8a919a";
-  if (has) {
-    g.fillText("Connected to " + (phone.owns.headphones ? "SOTI Studio" : "SOTI Buds 3"), W * 0.5, H * 0.60);
-    g.fillText("Sign in to stream your own library.", W * 0.5, H * 0.645);
-  } else {
-    g.fillText("Buy earbuds or headphones from", W * 0.5, H * 0.60);
-    g.fillText("11 Eleven or Pet Mart, and wait for", W * 0.5, H * 0.645);
-    g.fillText("them to be delivered.", W * 0.5, H * 0.69);
+// ---- SOTI Music, over Spotify ---------------------------------------------
+// Real connectivity, with the two things it genuinely needs made explicit: a
+// Premium account, because the Web Playback SDK refuses to play for free ones,
+// and a client id from the owner's own Spotify developer dashboard. Neither is
+// something a game can supply for you. Authorisation is PKCE, so there is no
+// client secret to keep and nothing of yours is stored anywhere but this
+// machine.
+const spotify = {
+  clientId: "", token: "", expires: 0, state: "idle",
+  me: null, track: null, playing: false, device: null, error: ""
+};
+function spotifyLoad() {
+  try {
+    spotify.clientId = localStorage.getItem("konto.spotify.id") || "";
+    spotify.token = localStorage.getItem("konto.spotify.token") || "";
+    spotify.expires = +(localStorage.getItem("konto.spotify.exp") || 0);
+  } catch (e) {}
+  if (spotify.token && Date.now() < spotify.expires) spotify.state = "ready";
+}
+function spotifySave() {
+  try {
+    localStorage.setItem("konto.spotify.id", spotify.clientId);
+    localStorage.setItem("konto.spotify.token", spotify.token);
+    localStorage.setItem("konto.spotify.exp", String(spotify.expires));
+  } catch (e) {}
+}
+async function spotifyLogin() {
+  if (!spotify.clientId) { say("Set a Spotify client id in Settings first.", 5); return; }
+  // PKCE: a random verifier, its SHA-256 sent up front, the verifier sent back
+  // at the exchange. No secret ever leaves this machine.
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+  let verifier = "";
+  const rand = new Uint8Array(64);
+  (window.crypto || {}).getRandomValues && window.crypto.getRandomValues(rand);
+  for (let i = 0; i < 64; i++) verifier += chars[rand[i] % chars.length];
+  try { sessionStorage.setItem("konto.spotify.v", verifier); } catch (e) {}
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  const challenge = btoa(String.fromCharCode.apply(null, new Uint8Array(digest)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const redirect = location.origin + location.pathname;
+  const scope = ["user-read-playback-state", "user-modify-playback-state",
+                 "user-read-currently-playing", "streaming", "user-read-email",
+                 "user-read-private", "playlist-read-private"].join(" ");
+  const url = "https://accounts.spotify.com/authorize?response_type=code" +
+    "&client_id=" + encodeURIComponent(spotify.clientId) +
+    "&scope=" + encodeURIComponent(scope) +
+    "&code_challenge_method=S256&code_challenge=" + challenge +
+    "&redirect_uri=" + encodeURIComponent(redirect);
+  location.href = url;
+}
+async function spotifyFinishLogin() {
+  const code = new URLSearchParams(location.search).get("code");
+  if (!code) return;
+  let verifier = "";
+  try { verifier = sessionStorage.getItem("konto.spotify.v") || ""; } catch (e) {}
+  if (!verifier) return;
+  const redirect = location.origin + location.pathname;
+  try {
+    const res = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: spotify.clientId, grant_type: "authorization_code",
+        code: code, redirect_uri: redirect, code_verifier: verifier
+      })
+    });
+    const j = await res.json();
+    if (j.access_token) {
+      spotify.token = j.access_token;
+      spotify.expires = Date.now() + (j.expires_in || 3600) * 1000;
+      spotify.state = "ready";
+      spotifySave();
+      say("Spotify connected.", 4);
+    } else spotify.error = j.error_description || "sign-in failed";
+  } catch (e) { spotify.error = String(e.message || e); }
+  history.replaceState({}, "", redirect);
+}
+async function spotifyCall(path, method, body) {
+  if (!spotify.token) return null;
+  try {
+    const res = await fetch("https://api.spotify.com/v1" + path, {
+      method: method || "GET",
+      headers: { Authorization: "Bearer " + spotify.token,
+                 "Content-Type": "application/json" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (res.status === 401) { spotify.state = "idle"; spotify.token = ""; spotifySave(); return null; }
+    if (res.status === 204) return {};
+    return await res.json();
+  } catch (e) { spotify.error = String(e.message || e); return null; }
+}
+async function spotifyPoll() {
+  if (spotify.state !== "ready") return;
+  const j = await spotifyCall("/me/player");
+  if (j && j.item) {
+    spotify.track = { name: j.item.name,
+                      artist: (j.item.artists || []).map(a => a.name).join(", "),
+                      album: j.item.album && j.item.album.name,
+                      ms: j.progress_ms || 0, dur: j.item.duration_ms || 1 };
+    spotify.playing = !!j.is_playing;
+    spotify.device = j.device && j.device.name;
   }
+  phone.dirty = true;
+}
+function spotifyTransport(what) {
+  if (spotify.state !== "ready") return;
+  if (what === "play") spotifyCall(spotify.playing ? "/me/player/pause" : "/me/player/play", "PUT");
+  if (what === "next") spotifyCall("/me/player/next", "POST");
+  if (what === "prev") spotifyCall("/me/player/previous", "POST");
+  setTimeout(spotifyPoll, 400);
+}
+
+function appMusic(g, W, H) {
+  const worn = wheel.wearing || (phone.owns.headphones ? null : null);
+  const has = !!wheel.wearing;
+  const owns = phone.owns.earbuds || phone.owns.headphones;
+  phoneChrome(g, W, H, "SOTI Music",
+    spotify.state === "ready" ? (spotify.device || "Spotify") : "Spotify");
+
+  if (!owns) {
+    g.fillStyle = "#23272d";
+    roundRect(g, W * 0.22, H * 0.20, W * 0.56, W * 0.56, W * 0.05); g.fill();
+    g.fillStyle = "#4a5058";
+    g.font = "800 " + Math.round(W * 0.16) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText("\u266a", W * 0.5, H * 0.35);
+    g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
+    g.fillStyle = "#8a919a";
+    g.fillText("Buy earbuds or headphones first \u2014", W * 0.5, H * 0.62);
+    g.fillText("11 Eleven, Pet Mart, or order", W * 0.5, H * 0.665);
+    g.fillText("them through Poodle.", W * 0.5, H * 0.71);
+    g.textAlign = "left";
+    return;
+  }
+  if (!has) {
+    g.fillStyle = "#8a919a";
+    g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText("Hold LB and pick your", W * 0.5, H * 0.46);
+    g.fillText(phone.owns.headphones ? "headphones" : "earbuds", W * 0.5, H * 0.505);
+    g.fillText("to put them on.", W * 0.5, H * 0.55);
+    g.textAlign = "left";
+    return;
+  }
+  if (spotify.state !== "ready") {
+    g.fillStyle = "#1db954";
+    g.beginPath(); g.arc(W * 0.5, H * 0.30, W * 0.13, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#0b0d10"; g.lineCap = "round";
+    [0.40, 0.52, 0.64].forEach((r, i) => {
+      g.lineWidth = W * (0.022 - i * 0.004);
+      g.beginPath();
+      g.arc(W * 0.5, H * 0.335, W * 0.13 * r, -Math.PI * 0.78, -Math.PI * 0.22);
+      g.stroke();
+    });
+    g.textAlign = "center";
+    g.fillStyle = "#ffffff";
+    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+    g.fillText(spotify.clientId ? "Sign in to Spotify" : "Spotify not set up", W * 0.5, H * 0.45);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    if (spotify.clientId) {
+      g.fillText("A Premium account is required", W * 0.5, H * 0.50);
+      g.fillText("to play through the game.", W * 0.5, H * 0.535);
+      const by = H * 0.60, bh = H * 0.075;
+      g.fillStyle = phone.sub === 0 ? "#1ed760" : "#1db954";
+      roundRect(g, W * 0.15, by, W * 0.70, bh, bh * 0.5); g.fill();
+      g.fillStyle = "#06240f";
+      g.font = "700 " + Math.round(W * PL.body) + "px " + UI;
+      g.fillText("Connect", W * 0.5, by + bh * 0.58);
+    } else {
+      g.fillText("Open Settings on this phone and", W * 0.5, H * 0.50);
+      g.fillText("paste a client id from your own", W * 0.5, H * 0.535);
+      g.fillText("Spotify developer dashboard.", W * 0.5, H * 0.57);
+    }
+    if (spotify.error) {
+      g.fillStyle = "#d8483c";
+      g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+      g.fillText(fitText(g, spotify.error, W * 0.84), W * 0.5, H * 0.70);
+    }
+    g.textAlign = "left";
+    return;
+  }
+
+  // Playing.
+  const t = spotify.track;
+  const artY = H * 0.155, artS = W * 0.70;
+  const grad = g.createLinearGradient(W * 0.15, artY, W * 0.85, artY + artS);
+  grad.addColorStop(0, "#2a3b5c"); grad.addColorStop(1, "#14181f");
+  g.fillStyle = grad;
+  roundRect(g, W * 0.15, artY, artS, artS, W * 0.035); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.12)";
+  g.font = "800 " + Math.round(W * 0.22) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("\u266b", W * 0.5, artY + artS * 0.60);
+
+  g.textAlign = "left";
+  g.fillStyle = "#ffffff";
+  g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+  clipText(g, t ? t.name : "Nothing playing", W * PL.pad, H * 0.655, W * 0.85);
+  g.fillStyle = "#8a919a";
+  g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
+  clipText(g, t ? t.artist : "Start something on any device", W * PL.pad, H * 0.695, W * 0.85);
+
+  // Scrubber.
+  const bx = W * PL.pad, bw = W * (1 - PL.pad * 2), by2 = H * 0.735;
+  g.fillStyle = "rgba(255,255,255,0.18)";
+  roundRect(g, bx, by2, bw, H * 0.006, H * 0.003); g.fill();
+  if (t) {
+    g.fillStyle = "#ffffff";
+    roundRect(g, bx, by2, bw * clamp01(t.ms / t.dur), H * 0.006, H * 0.003); g.fill();
+  }
+
+  // Transport: previous, play/pause, next.
+  const cy = H * 0.805;
+  [["prev", W * 0.26], ["play", W * 0.5], ["next", W * 0.74]].forEach(([id, x], i) => {
+    const on = phone.sub === i;
+    const r = id === "play" ? W * 0.085 : W * 0.055;
+    if (id === "play") {
+      g.fillStyle = on ? "#ffffff" : "#e7ebee";
+      g.beginPath(); g.arc(x, cy, r, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#0b0d10";
+      if (spotify.playing) {
+        g.fillRect(x - r * 0.28, cy - r * 0.38, r * 0.18, r * 0.76);
+        g.fillRect(x + r * 0.10, cy - r * 0.38, r * 0.18, r * 0.76);
+      } else {
+        g.beginPath();
+        g.moveTo(x - r * 0.22, cy - r * 0.40);
+        g.lineTo(x + r * 0.42, cy);
+        g.lineTo(x - r * 0.22, cy + r * 0.40);
+        g.closePath(); g.fill();
+      }
+    } else {
+      g.fillStyle = on ? "#ffffff" : "#9aa1a9";
+      const d = id === "prev" ? -1 : 1;
+      g.beginPath();
+      g.moveTo(x + d * r * 0.42, cy - r * 0.52);
+      g.lineTo(x - d * r * 0.30, cy);
+      g.lineTo(x + d * r * 0.42, cy + r * 0.52);
+      g.closePath(); g.fill();
+      g.fillRect(x + d * r * 0.46, cy - r * 0.52, r * 0.16, r * 1.04);
+    }
+  });
+  g.fillStyle = "#6b727a";
+  g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("Playing through " + (spotify.device || "Spotify") +
+             " \u00b7 " + (wheel.wearing === "headphones" ? "SOTI Studio" : "SOTI Buds 3"),
+             W * 0.5, H * 0.90);
   g.textAlign = "left";
 }
 
@@ -10389,7 +10673,9 @@ function appSettings(g, W, H) {
     ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
     ["IC card", phone.owns.icCard ? "Added" : "Not added"],
     ["Photographs", String(phone.gallery.length)],
-    ["Storage", "126 GB of 256 GB"]
+    ["Storage", "126 GB of 256 GB"],
+    ["Spotify", spotify.state === "ready" ? "Signed in"
+      : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
   ];
   rows.forEach((r, i) => {
     const rowH = H * 0.070;
@@ -10437,7 +10723,8 @@ function phoneCount() {
   if (phone.app === "Phone") return phone.vmail ? 0 : 13;
   if (phone.app === "Mail") return SCAM_MAIL.length;
   if (phone.app === "Photos") return Math.min(12, phone.gallery.length);
-  if (phone.app === "Settings") return 7;
+  if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
+  if (phone.app === "Settings") return 8;
   return 0;
 }
 
@@ -10516,6 +10803,16 @@ function phoneAct() {
         else say(c.name + " \u2014 nowhere to keep it yet. Garages come later.", 5);
       }
     }
+  } else if (app === "Music") {
+    if (spotify.state !== "ready") { if (spotify.clientId) spotifyLogin(); }
+    else spotifyTransport(["prev", "play", "next"][clamp(phone.sub, 0, 2)]);
+  } else if (app === "Settings") {
+    if (phone.sub === 7) {
+      // The one field the game cannot fill in for you.
+      const id = window.prompt("Spotify client id, from your own developer dashboard:",
+                               spotify.clientId || "");
+      if (id !== null) { spotify.clientId = id.trim(); spotifySave(); say("Saved.", 3); }
+    }
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -10567,7 +10864,10 @@ const SHOP_BRANDS = {
   eleven:  { name: "11 Eleven", band: "#0a6b42", ink: "#ffffff",
              stripes: ["#e8711a", "#cf2027"], tag: "Open 24 hours" },
   petmart: { name: "Pet Mart",  band: "#ffffff", ink: "#1272d6",
-             stripes: ["#13a150", "#1272d6"], tag: "Your neighbourhood store" }
+             stripes: ["#13a150", "#1272d6"], tag: "Your neighbourhood store" },
+  // No sign worth the name, because it is a shutter down a back street.
+  arms:    { name: "Kanamono",  band: "#1a1c20", ink: "#b9823a",
+             stripes: ["#3a2a14", "#1a1c20"], tag: "Hardware \u00b7 by appointment" }
 };
 
 // What is actually on the shelves. The convenience stores carry the small
@@ -10618,7 +10918,10 @@ function placeShops(city) {
       if (Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < spacing) { near = true; break; }
     }
     if (near) continue;
-    const brand = shops.list.length % 2 ? "petmart" : "eleven";
+    // One in seven is a back-street armourer, and they are not on the main
+    // streets: a hardware shop with a shutter, a nod, and a price list.
+    const n = shops.list.length;
+    const brand = (n % 7 === 3) ? "arms" : (n % 2 ? "petmart" : "eleven");
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
     const half = p.size[1] * 0.5 + 1.6;
@@ -10709,11 +11012,15 @@ function leaveShop() {
 function takeFromShelf() {
   const s = shops.inside;
   if (!s) return;
-  const it = SHELVES[shops.shelf].items[shops.item];
+  const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   purse.yen -= it.price;
   shops.basket.push(it.name);
-  if (it.carry) {
+  if (ARMS_STOCK.some(a => a.id === it.id)) {
+    // It goes on the wheel rather than in your bag.
+    wheel[it.id + "Owned"] = true;
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB for it.", 5);
+  } else if (it.carry) {
     // The big things are carried out, not delivered, if you buy them in person.
     phone.owns[it.id] = true;
     say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag now.", 5);
@@ -10727,14 +11034,23 @@ function takeFromShelf() {
 
 function shopMove(dx, dy) {
   if (!shops.inside) return;
-  if (dx) shops.shelf = (shops.shelf + dx + SHELVES.length) % SHELVES.length;
-  const n = SHELVES[shops.shelf].items.length;
+  const shelves = shopShelves(shops.inside);
+  if (dx) shops.shelf = (shops.shelf + dx + shelves.length) % shelves.length;
+  const n = shelves[shops.shelf].items.length;
   if (dy) shops.item = clamp(shops.item + dy, 0, n - 1);
   shops.item = clamp(shops.item, 0, n - 1);
   drawShop();
 }
 
 // ---- the inside of a shop, drawn -------------------------------------------
+function shopShelves(s) {
+  if (s && s.brand === "arms") {
+    return [{ name: "Hardware", items: ARMS_STOCK.filter(i => i.id === "baton") },
+            { name: "Under the counter", items: ARMS_STOCK.filter(i => i.id !== "baton") }];
+  }
+  return SHELVES;
+}
+
 function drawShop() {
   const cv = document.getElementById("shopcanvas");
   const s = shops.inside;
@@ -10791,8 +11107,9 @@ function drawShop() {
 
   // The shelf tabs, which are the aisles.
   const tabY = H * 0.215;
-  SHELVES.forEach((sh, i) => {
-    const w = W / SHELVES.length;
+  const shelves = shopShelves(s);
+  shelves.forEach((sh, i) => {
+    const w = W / shelves.length;
     const on = i === shops.shelf;
     g.fillStyle = on ? "#15181d" : "rgba(20,23,28,0.10)";
     g.fillRect(i * w + W * 0.012, tabY, w - W * 0.024, H * 0.055);
@@ -10804,7 +11121,7 @@ function drawShop() {
   g.textAlign = "left";
 
   // The shelf itself: three facings, the selected one pulled forward.
-  const items = SHELVES[shops.shelf].items;
+  const items = shopShelves(s)[shops.shelf].items;
   const shelfY = H * 0.325, shelfH = H * 0.40;
   g.fillStyle = "#d8dcdb";
   g.fillRect(W * 0.04, shelfY, W * 0.92, shelfH);
@@ -10853,6 +11170,185 @@ function drawShop() {
   g.fillText("\u25c0 \u25b6 aisle     \u25b2 \u25bc shelf     A take     B leave", W * 0.955, H * 0.92);
   g.textAlign = "left";
 }
+
+// ---- the wheel -------------------------------------------------------------
+// Held on LB, the way it is in the game these controls come from: the world
+// slows almost to a stop, eight segments fan out from the middle, and the
+// right stick points at the one you want. Letting go equips it.
+//
+// It is not only weapons. Earbuds and headphones live on it too, because
+// putting a pair on is the same gesture as drawing something: pick it, let go,
+// it is on you.
+const WHEEL_SLOTS = [
+  { id: "none",       name: "Unarmed",      kind: "hand",  owned: true },
+  { id: "earbuds",    name: "SOTI Buds 3",  kind: "audio" },
+  { id: "headphones", name: "SOTI Studio",  kind: "audio" },
+  { id: "umbrella",   name: "Umbrella",     kind: "melee" },
+  { id: "baton",      name: "Baton",        kind: "melee" },
+  { id: "pistol",     name: "Pistol",       kind: "gun" },
+  { id: "smg",        name: "Machine Pistol", kind: "gun" },
+  { id: "shotgun",    name: "Shotgun",      kind: "gun" }
+];
+const wheel = { open: false, sel: 0, held: 0, equipped: "none", wearing: null };
+
+function wheelOwned(slot) {
+  if (slot.owned) return true;
+  if (slot.kind === "audio") return !!phone.owns[slot.id];
+  return !!wheel[slot.id + "Owned"];
+}
+
+function setWheel(on) {
+  if (on === wheel.open) return;
+  wheel.open = on;
+  const el = document.getElementById("wheel");
+  if (!el) return;
+  if (on) {
+    wheel.held = 0;
+    el.hidden = false;
+    drawWheel();
+    requestAnimationFrame(() => { if (wheel.open) el.classList.add("up"); });
+  } else {
+    el.classList.remove("up");
+    setTimeout(() => { if (!wheel.open) el.hidden = true; }, 160);
+    equipFromWheel();
+  }
+}
+
+function equipFromWheel() {
+  const slot = WHEEL_SLOTS[wheel.sel];
+  if (!slot || !wheelOwned(slot)) { say("You do not have that.", 2.5); return; }
+  if (slot.kind === "audio") {
+    // Putting them on, rather than holding them.
+    wheel.wearing = wheel.wearing === slot.id ? null : slot.id;
+    say(wheel.wearing ? slot.name + " on." : slot.name + " off.", 2.5);
+    phone.dirty = true;
+    return;
+  }
+  wheel.equipped = slot.id;
+  say(slot.id === "none" ? "Put away." : slot.name + " out.", 2.5);
+}
+
+// The stick picks a segment by its angle; the keyboard steps round it.
+function wheelPoint(x, y) {
+  if (Math.hypot(x, y) < 0.42) return;
+  const a = Math.atan2(x, -y);                       // 0 at the top, clockwise
+  const n = WHEEL_SLOTS.length;
+  const i = Math.round(a / (Math.PI * 2 / n) + n) % n;
+  if (i !== wheel.sel) { wheel.sel = i; drawWheel(); }
+}
+function wheelStep(d) {
+  wheel.sel = (wheel.sel + d + WHEEL_SLOTS.length) % WHEEL_SLOTS.length;
+  drawWheel();
+}
+
+// One glyph per slot, drawn rather than fetched.
+function wheelGlyph(g, kind, id, cx, cy, r, on) {
+  g.save();
+  g.translate(cx, cy);
+  g.lineCap = "round"; g.lineJoin = "round";
+  g.strokeStyle = on ? "#0f1114" : "#e7ebee";
+  g.fillStyle = on ? "#0f1114" : "#e7ebee";
+  g.lineWidth = r * 0.11;
+  if (id === "none") {
+    // an open hand
+    g.beginPath(); g.arc(0, r * 0.1, r * 0.42, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
+    for (let i = -1; i <= 1; i++) {
+      g.beginPath(); g.moveTo(i * r * 0.26, r * 0.05); g.lineTo(i * r * 0.26, -r * 0.45); g.stroke();
+    }
+  } else if (id === "earbuds") {
+    [-1, 1].forEach(sx => {
+      g.beginPath(); g.ellipse(sx * r * 0.34, -r * 0.1, r * 0.20, r * 0.26, 0, 0, Math.PI * 2); g.fill();
+      g.beginPath(); g.moveTo(sx * r * 0.34, r * 0.14); g.lineTo(sx * r * 0.30, r * 0.52); g.stroke();
+    });
+  } else if (id === "headphones") {
+    g.beginPath(); g.arc(0, r * 0.06, r * 0.52, Math.PI, Math.PI * 2); g.stroke();
+    [-1, 1].forEach(sx => {
+      g.beginPath();
+      g.ellipse(sx * r * 0.52, r * 0.22, r * 0.17, r * 0.27, 0, 0, Math.PI * 2);
+      g.fill();
+    });
+  } else if (id === "umbrella") {
+    g.beginPath(); g.arc(0, 0, r * 0.52, Math.PI, Math.PI * 2); g.fill();
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(0, r * 0.52); g.stroke();
+    g.beginPath(); g.arc(-r * 0.14, r * 0.52, r * 0.14, 0, Math.PI); g.stroke();
+  } else if (id === "baton") {
+    g.rotate(-0.6);
+    g.beginPath(); g.moveTo(-r * 0.46, 0); g.lineTo(r * 0.46, 0); g.stroke();
+    g.lineWidth = r * 0.2;
+    g.beginPath(); g.moveTo(-r * 0.46, 0); g.lineTo(-r * 0.22, 0); g.stroke();
+  } else {
+    // the firearms, as silhouettes
+    const L = r * (id === "shotgun" ? 0.95 : id === "smg" ? 0.78 : 0.62);
+    g.fillRect(-L * 0.5, -r * 0.10, L, r * 0.19);
+    g.fillRect(-L * 0.5 + L * 0.10, r * 0.07, r * 0.17, r * 0.40);   // grip
+    if (id !== "pistol") g.fillRect(-L * 0.5 + L * 0.46, r * 0.07, r * 0.13, r * 0.26);
+    if (id === "shotgun") g.fillRect(-L * 0.5 - r * 0.02, -r * 0.02, L * 0.9, r * 0.07);
+  }
+  g.restore();
+}
+
+function drawWheel() {
+  const cv = document.getElementById("wheelcanvas");
+  if (!cv) return;
+  const g = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+  const outer = Math.min(W, H) * 0.40, inner = outer * 0.40;
+  const n = WHEEL_SLOTS.length, step = Math.PI * 2 / n;
+
+  WHEEL_SLOTS.forEach((slot, i) => {
+    const mid = i * step - Math.PI / 2;
+    const a0 = mid - step / 2 + 0.012, a1 = mid + step / 2 - 0.012;
+    const on = i === wheel.sel;
+    const have = wheelOwned(slot);
+    g.beginPath();
+    g.arc(cx, cy, outer, a0, a1);
+    g.arc(cx, cy, inner, a1, a0, true);
+    g.closePath();
+    g.fillStyle = on ? "rgba(255,255,255,0.90)"
+                     : have ? "rgba(16,18,22,0.72)" : "rgba(16,18,22,0.42)";
+    g.fill();
+    if (!on) {
+      g.strokeStyle = "rgba(255,255,255,0.10)";
+      g.lineWidth = 1.5;
+      g.stroke();
+    }
+    const gr = (inner + outer) * 0.5;
+    const gx = cx + Math.cos(mid) * gr, gy = cy + Math.sin(mid) * gr;
+    g.globalAlpha = have ? 1 : 0.32;
+    wheelGlyph(g, slot.kind, slot.id, gx, gy, outer * 0.22, on);
+    g.globalAlpha = 1;
+  });
+
+  // The middle: what is under the pointer, and whether you own it.
+  const slot = WHEEL_SLOTS[wheel.sel];
+  const have = wheelOwned(slot);
+  g.fillStyle = "rgba(10,11,14,0.86)";
+  g.beginPath(); g.arc(cx, cy, inner - 6, 0, Math.PI * 2); g.fill();
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = have ? "#ffffff" : "#6b727a";
+  g.font = "700 " + Math.round(outer * 0.115) + "px " + UI;
+  g.fillText(slot.name, cx, cy - outer * 0.045);
+  g.fillStyle = "#79818b";
+  g.font = "500 " + Math.round(outer * 0.085) + "px " + UI;
+  g.fillText(have ? (slot.kind === "audio"
+                      ? (wheel.wearing === slot.id ? "Wearing" : "Put on")
+                      : slot.kind === "gun" ? "Firearm" : slot.kind === "melee" ? "Melee" : "")
+                  : "Not owned", cx, cy + outer * 0.07);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
+// ---- where the guns come from ----------------------------------------------
+// Behind a shutter down a back street, which is the only place anyone in
+// Konto is selling one. Same door-and-prompt as a convenience store; what
+// changes is the stock and that you have to find it.
+const ARMS_STOCK = [
+  { id: "baton",   name: "Telescopic baton", price: 18000 },
+  { id: "pistol",  name: "Compact pistol",   price: 240000 },
+  { id: "smg",     name: "Machine pistol",   price: 620000 },
+  { id: "shotgun", name: "Short shotgun",    price: 480000 }
+];
 
 // ---- hailing ---------------------------------------------------------------
 // D-pad left puts a hand out. No prompt on screen: you either know or you
@@ -11575,6 +12071,8 @@ function generate(seed) {
   setTimeout(next, 30);
 }
 
+spotifyLoad();
+spotifyFinishLogin();
 initThree();
 frameLoop();
 loadSeikoModel("seiko.glb");
