@@ -9164,7 +9164,17 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.save();
         ctx.translate(hx, hz);
         ctx.rotate(-rot);
-        const hr = Math.max(7 * mPerPx, 19);
+        // Bigger than it was, and sitting on a dark disc. A white house
+        // outline on a map whose roads are also white is drawn and invisible,
+        // which is the same thing as not drawn.
+        const hr = Math.max(11 * mPerPx, 30);
+        ctx.fillStyle = "rgba(12,14,18,0.82)";
+        ctx.beginPath();
+        ctx.arc(0, 0, hr * 0.86, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.30)";
+        ctx.lineWidth = hr * 0.07;
+        ctx.stroke();
         ctx.fillStyle = "#f2f4f6";
         ctx.beginPath();
         ctx.moveTo(0, -hr * 0.62);
@@ -9176,9 +9186,6 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.lineTo(-hr * 0.60, -hr * 0.06);
         ctx.closePath();
         ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.65)";
-        ctx.lineWidth = hr * 0.09;
-        ctx.stroke();
         ctx.fillStyle = "#1b1e23";
         ctx.fillRect(-hr * 0.13, hr * 0.14, hr * 0.26, hr * 0.42);
         ctx.restore();
@@ -9196,8 +9203,8 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.beginPath();
         ctx.arc(0, 0, sr * 0.5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,0.85)";
-        ctx.lineWidth = sr * 0.14;
+        ctx.strokeStyle = "rgba(10,12,16,0.85)";
+        ctx.lineWidth = sr * 0.22;
         ctx.stroke();
         ctx.restore();
       });
