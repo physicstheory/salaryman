@@ -705,6 +705,11 @@
   }
   .statrow b { color: #ffffff; font-weight: 600; font-family: var(--data); }
   #pausemap { width: 100%; max-width: 520px; border-radius: 6px; background: #11141a; }
+  /* The minimap, the street name and the "press Y" prompt were all still
+     legible through the pause screen, which made it look like a layer rather
+     than a screen. */
+  body.paused #hud { display: none !important; }
+
   #pausefoot {
     padding: 0 clamp(24px, 6vw, 90px) 22px;
     font-family: var(--data); font-size: 11px; letter-spacing: 0.12em;
