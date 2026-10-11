@@ -611,6 +611,14 @@
   #shopcanvas { width: 100%; height: 100%; object-fit: cover; display: block; }
   body.inshop #hud, body.inshop #money { display: none !important; }
 
+  /* The wanted stars, above the money, where the eye already is. */
+  #stars {
+    position: fixed; top: 46px; right: 20px; z-index: 12;
+    width: 130px; height: 23px;
+  }
+  #stars[hidden] { display: none; }
+  body.titleup #stars, body.paused #stars, body.inshop #stars { display: none; }
+
   /* ---- money, top right, above where the wanted stars will go ------------- */
   #money {
     position: fixed; top: 16px; right: 20px; z-index: 12;
@@ -818,6 +826,7 @@
 
 <div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
 <div id="wheel" hidden><canvas id="wheelcanvas" width="860" height="860"></canvas></div>
+<canvas id="stars" width="260" height="46" hidden></canvas>
 <div id="money">&yen;500,000</div>
 <div id="notice"></div>
 
@@ -4912,6 +4921,7 @@ function updateHud(dt, force) {
   updatePlace();
   drawMinimap();
   drawVitals();
+  drawStars();
   updatePrompt();
   updatePhone();
   const m = document.getElementById("money");
@@ -4927,6 +4937,46 @@ function updateHud(dt, force) {
 // Stress is the one that matters: it climbs while he scrolls MyNet and while
 // he is being chased, it is worn down by coffee and food, and when it fills he
 // has to sleep it off.
+// Patrols on the minimap, with the cone each one can actually see through.
+// Only while you are wanted, because otherwise it is just traffic.
+function drawCopBlips(g, cv, cx, cz, rot, scale) {
+  if (!wanted.stars) return;
+  const W = cv.width, H = cv.height;
+  const flashOn = Math.floor(wanted.flash * 3.2) % 2 === 0;
+  g.save();
+  g.beginPath();
+  g.arc(W / 2, H / 2, W * 0.405, 0, Math.PI * 2);
+  g.clip();
+  g.translate(W / 2, H / 2);
+  g.rotate(rot);
+  g.scale(scale, scale);
+  g.translate(-cx, -cz);
+  wanted.cops.forEach(c => {
+    if (!c.live) return;
+    const facing = c.yawNow || 0;
+    // The cone, in world metres, so it is the same cone the sight test uses.
+    g.save();
+    g.translate(c.at.x, c.at.z);
+    g.rotate(-facing);
+    const grad = g.createRadialGradient(0, 0, 2, 0, 0, COP_SIGHT);
+    grad.addColorStop(0, "rgba(90,150,255,0.34)");
+    grad.addColorStop(1, "rgba(90,150,255,0)");
+    g.fillStyle = grad;
+    g.beginPath();
+    g.moveTo(0, 0);
+    g.arc(0, 0, COP_SIGHT, Math.PI / 2 - COP_FOV, Math.PI / 2 + COP_FOV);
+    g.closePath();
+    g.fill();
+    g.restore();
+    // The car itself, flashing blue and red.
+    g.fillStyle = flashOn ? "#3f7fe0" : "#d8483c";
+    g.beginPath();
+    g.arc(c.at.x, c.at.z, 6 / scale, 0, Math.PI * 2);
+    g.fill();
+  });
+  g.restore();
+}
+
 function drawVitals() {
   const cv = document.getElementById("minimap");
   if (!cv || !miniCtx) return;
@@ -5209,6 +5259,8 @@ function tick(dt) {
   updateVitals(dt);
   updateHail(dt);
   updateDeliveries();
+  updateJacking(dt);
+  updateWanted(dt);
   // Spotify is asked how it is getting on twice a second, and only while the
   // app is actually open.
   if (phone.open && phone.app === "Music" && spotify.state === "ready") {
@@ -8553,7 +8605,15 @@ function updateSound(dt) {
   }
 }
 
-function toggleSiren() {
+function toggleSiren(on) {
+  // With an argument this is the pursuit talking: sirens on the street, which
+  // you can hear whether or not you are in a police car yourself. Without one
+  // it is the horn switch in the car you are driving.
+  if (on !== undefined) {
+    sound.sirenOn = !!on;
+    if (on) wakeAudio();
+    return;
+  }
   if (!drive.car) return;
   if (CAR_KINDS[drive.car.kind].livery !== "police") return;
   sound.sirenOn = !sound.sirenOn;
@@ -9032,8 +9092,10 @@ function drawMinimap() {
   // minimap useful when you are moving.
   const ahead = drive.car ? 58 : 26;
   const fx = at.x - Math.sin(yaw) * ahead, fz = at.z - Math.cos(yaw) * ahead;
+  const across = drive.car ? 420 : 230;
   drawMapView(miniCtx, cv.width, cv.height, fx, fz,
-    drive.car ? 420 : 230, yaw, { labels: false, markers: true, route: true });
+    across, yaw, { labels: false, markers: true, route: true });
+  drawCopBlips(miniCtx, cv, fx, fz, yaw, cv.width / across);
   // The compass tick, so north is findable.
   const g = miniCtx;
   g.save();
@@ -11243,48 +11305,199 @@ function wheelStep(d) {
   drawWheel();
 }
 
-// One glyph per slot, drawn rather than fetched.
+// One drawing per slot. These were line sketches before and read as clip art;
+// each is now built from the shapes the real object is actually made of - a
+// slide and a frame and a trigger guard, a band and two cups, a canopy and a
+// crook - because at this size the silhouette is the whole icon and a wrong
+// silhouette is the only thing anyone notices.
 function wheelGlyph(g, kind, id, cx, cy, r, on) {
+  const ink = on ? "#0f1114" : "#e7ebee";
+  const dim = on ? "rgba(15,17,20,0.55)" : "rgba(231,235,238,0.45)";
   g.save();
   g.translate(cx, cy);
   g.lineCap = "round"; g.lineJoin = "round";
-  g.strokeStyle = on ? "#0f1114" : "#e7ebee";
-  g.fillStyle = on ? "#0f1114" : "#e7ebee";
-  g.lineWidth = r * 0.11;
+  g.fillStyle = ink; g.strokeStyle = ink;
+  const u = r / 50;                       // every number below is in fiftieths
+
   if (id === "none") {
-    // an open hand
-    g.beginPath(); g.arc(0, r * 0.1, r * 0.42, Math.PI * 0.1, Math.PI * 0.9); g.stroke();
-    for (let i = -1; i <= 1; i++) {
-      g.beginPath(); g.moveTo(i * r * 0.26, r * 0.05); g.lineTo(i * r * 0.26, -r * 0.45); g.stroke();
-    }
-  } else if (id === "earbuds") {
-    [-1, 1].forEach(sx => {
-      g.beginPath(); g.ellipse(sx * r * 0.34, -r * 0.1, r * 0.20, r * 0.26, 0, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.moveTo(sx * r * 0.34, r * 0.14); g.lineTo(sx * r * 0.30, r * 0.52); g.stroke();
-    });
-  } else if (id === "headphones") {
-    g.beginPath(); g.arc(0, r * 0.06, r * 0.52, Math.PI, Math.PI * 2); g.stroke();
-    [-1, 1].forEach(sx => {
+    // A closed fist, knuckles forward: the unarmed slot.
+    g.beginPath();
+    g.moveTo(-22*u, 2*u);
+    g.quadraticCurveTo(-26*u, -16*u, -8*u, -20*u);
+    g.quadraticCurveTo(14*u, -24*u, 22*u, -10*u);
+    g.quadraticCurveTo(28*u, 2*u, 20*u, 14*u);
+    g.quadraticCurveTo(6*u, 24*u, -10*u, 20*u);
+    g.quadraticCurveTo(-22*u, 16*u, -22*u, 2*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = dim; g.lineWidth = 2.2*u;
+    for (let i = -1; i <= 2; i++) {
       g.beginPath();
-      g.ellipse(sx * r * 0.52, r * 0.22, r * 0.17, r * 0.27, 0, 0, Math.PI * 2);
-      g.fill();
+      g.moveTo(-4*u + i*8*u, -18*u);
+      g.lineTo(-6*u + i*8*u, -6*u);
+      g.stroke();
+    }
+    // the thumb, folded across
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-20*u, 6*u);
+    g.quadraticCurveTo(-4*u, 10*u, 10*u, 6*u);
+    g.quadraticCurveTo(12*u, 14*u, -2*u, 16*u);
+    g.quadraticCurveTo(-16*u, 16*u, -20*u, 6*u);
+    g.closePath(); g.fill();
+
+  } else if (id === "earbuds") {
+    // Two buds, stems down, sitting either side of an open case.
+    [-1, 1].forEach(sx => {
+      g.save();
+      g.translate(sx * 20*u, -6*u);
+      g.rotate(sx * 0.18);
+      g.beginPath(); g.ellipse(0, -6*u, 8.5*u, 9.5*u, 0, 0, Math.PI*2); g.fill();
+      g.beginPath();
+      g.moveTo(-3.2*u, 2*u); g.lineTo(3.2*u, 2*u);
+      g.lineTo(2.2*u, 20*u); g.quadraticCurveTo(0, 23*u, -2.2*u, 20*u);
+      g.closePath(); g.fill();
+      g.fillStyle = dim;
+      g.beginPath(); g.ellipse(-2*u, -7*u, 3.2*u, 3.8*u, -0.3, 0, Math.PI*2); g.fill();
+      g.fillStyle = ink;
+      g.restore();
     });
+    // the case between them
+    g.fillStyle = dim;
+    g.beginPath();
+    g.moveTo(-9*u, 10*u); g.lineTo(9*u, 10*u);
+    g.quadraticCurveTo(11*u, 10*u, 11*u, 14*u);
+    g.lineTo(11*u, 22*u);
+    g.quadraticCurveTo(11*u, 26*u, 7*u, 26*u);
+    g.lineTo(-7*u, 26*u);
+    g.quadraticCurveTo(-11*u, 26*u, -11*u, 22*u);
+    g.lineTo(-11*u, 14*u);
+    g.quadraticCurveTo(-11*u, 10*u, -9*u, 10*u);
+    g.closePath(); g.fill();
+
+  } else if (id === "headphones") {
+    // Over-ear: a band with real thickness, two cups with padding.
+    g.lineWidth = 6*u;
+    g.strokeStyle = ink;
+    g.beginPath(); g.arc(0, 4*u, 26*u, Math.PI * 1.06, Math.PI * 1.94); g.stroke();
+    [-1, 1].forEach(sx => {
+      g.save();
+      g.translate(sx * 25*u, 8*u);
+      g.fillStyle = ink;
+      g.beginPath();
+      g.moveTo(-8*u, -8*u);
+      g.quadraticCurveTo(-11*u, -12*u, -11*u, -4*u);
+      g.lineTo(-11*u, 12*u);
+      g.quadraticCurveTo(-11*u, 22*u, 0, 22*u);
+      g.quadraticCurveTo(11*u, 22*u, 11*u, 12*u);
+      g.lineTo(11*u, -4*u);
+      g.quadraticCurveTo(11*u, -12*u, 8*u, -8*u);
+      g.closePath(); g.fill();
+      g.fillStyle = dim;
+      g.beginPath(); g.ellipse(sx * -3*u, 8*u, 5*u, 9*u, 0, 0, Math.PI*2); g.fill();
+      g.restore();
+    });
+
   } else if (id === "umbrella") {
-    g.beginPath(); g.arc(0, 0, r * 0.52, Math.PI, Math.PI * 2); g.fill();
-    g.beginPath(); g.moveTo(0, 0); g.lineTo(0, r * 0.52); g.stroke();
-    g.beginPath(); g.arc(-r * 0.14, r * 0.52, r * 0.14, 0, Math.PI); g.stroke();
+    // A canopy with ribs, a shaft and a crook.
+    g.beginPath();
+    g.moveTo(-28*u, -2*u);
+    g.quadraticCurveTo(-26*u, -24*u, 0, -26*u);
+    g.quadraticCurveTo(26*u, -24*u, 28*u, -2*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = dim; g.lineWidth = 2*u;
+    [-14, 0, 14].forEach(x => {
+      g.beginPath();
+      g.moveTo(0, -25*u);
+      g.quadraticCurveTo(x*u*0.7, -12*u, x*u*1.9, -2*u);
+      g.stroke();
+    });
+    g.strokeStyle = ink; g.lineWidth = 3.4*u;
+    g.beginPath(); g.moveTo(0, -24*u); g.lineTo(0, 18*u); g.stroke();
+    g.beginPath(); g.arc(-5*u, 18*u, 5*u, 0, Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(0, -24*u); g.lineTo(0, -30*u); g.stroke();
+
   } else if (id === "baton") {
-    g.rotate(-0.6);
-    g.beginPath(); g.moveTo(-r * 0.46, 0); g.lineTo(r * 0.46, 0); g.stroke();
-    g.lineWidth = r * 0.2;
-    g.beginPath(); g.moveTo(-r * 0.46, 0); g.lineTo(-r * 0.22, 0); g.stroke();
-  } else {
-    // the firearms, as silhouettes
-    const L = r * (id === "shotgun" ? 0.95 : id === "smg" ? 0.78 : 0.62);
-    g.fillRect(-L * 0.5, -r * 0.10, L, r * 0.19);
-    g.fillRect(-L * 0.5 + L * 0.10, r * 0.07, r * 0.17, r * 0.40);   // grip
-    if (id !== "pistol") g.fillRect(-L * 0.5 + L * 0.46, r * 0.07, r * 0.13, r * 0.26);
-    if (id === "shotgun") g.fillRect(-L * 0.5 - r * 0.02, -r * 0.02, L * 0.9, r * 0.07);
+    // Telescopic: three tapering sections and a knurled grip.
+    g.save();
+    g.rotate(-0.62);
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-30*u, -4.6*u); g.lineTo(-8*u, -4.6*u);
+    g.lineTo(-8*u, 4.6*u); g.lineTo(-30*u, 4.6*u);
+    g.quadraticCurveTo(-33*u, 0, -30*u, -4.6*u);
+    g.closePath(); g.fill();
+    g.fillRect(-8*u, -3.4*u, 18*u, 6.8*u);
+    g.beginPath();
+    g.moveTo(10*u, -2.4*u); g.lineTo(28*u, -1.6*u);
+    g.quadraticCurveTo(31*u, 0, 28*u, 1.6*u);
+    g.lineTo(10*u, 2.4*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = dim; g.lineWidth = 1.4*u;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(-27*u + i*5*u, -4.2*u); g.lineTo(-27*u + i*5*u, 4.2*u); g.stroke();
+    }
+    g.restore();
+
+  } else if (id === "pistol") {
+    // Slide, frame, trigger guard and a raked grip.
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-26*u, -12*u); g.lineTo(22*u, -12*u);
+    g.lineTo(22*u, -3*u); g.lineTo(-26*u, -3*u);
+    g.closePath(); g.fill();
+    g.fillRect(-26*u, -3*u, 30*u, 5*u);
+    g.beginPath();
+    g.moveTo(-24*u, 2*u); g.lineTo(-10*u, 2*u);
+    g.lineTo(-14*u, 24*u); g.lineTo(-26*u, 24*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink; g.lineWidth = 2.6*u;
+    g.beginPath();
+    g.moveTo(-8*u, 2*u);
+    g.quadraticCurveTo(-4*u, 13*u, -13*u, 13*u);
+    g.stroke();
+    g.fillStyle = dim;
+    g.fillRect(16*u, -10.5*u, 4*u, 2*u);
+
+  } else if (id === "smg") {
+    // Machine pistol: longer, with a magazine forward of the grip.
+    g.fillStyle = ink;
+    g.fillRect(-30*u, -10*u, 54*u, 9*u);
+    g.fillRect(24*u, -7.5*u, 8*u, 4*u);
+    g.beginPath();
+    g.moveTo(-26*u, -1*u); g.lineTo(-13*u, -1*u);
+    g.lineTo(-16*u, 20*u); g.lineTo(-28*u, 20*u);
+    g.closePath(); g.fill();
+    g.save(); g.rotate(0.10);
+    g.fillRect(2*u, 0*u, 8*u, 22*u);
+    g.restore();
+    g.strokeStyle = ink; g.lineWidth = 2.4*u;
+    g.beginPath();
+    g.moveTo(-11*u, -1*u); g.quadraticCurveTo(-7*u, 10*u, -15*u, 10*u);
+    g.stroke();
+    g.fillStyle = dim;
+    g.fillRect(-28*u, -14*u, 10*u, 4*u);
+
+  } else if (id === "shotgun") {
+    // Short barrel, pump under it, and a cut-down stock.
+    g.fillStyle = ink;
+    g.fillRect(-34*u, -8*u, 52*u, 7*u);
+    g.fillRect(18*u, -7*u, 14*u, 5*u);
+    g.fillStyle = dim;
+    g.fillRect(-2*u, 0*u, 18*u, 6*u);          // the pump
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-34*u, -1*u); g.lineTo(-22*u, -1*u);
+    g.lineTo(-24*u, 16*u); g.lineTo(-36*u, 18*u);
+    g.closePath(); g.fill();
+    g.beginPath();
+    g.moveTo(-36*u, 2*u); g.lineTo(-30*u, 2*u);
+    g.lineTo(-26*u, 20*u); g.lineTo(-34*u, 22*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink; g.lineWidth = 2.4*u;
+    g.beginPath();
+    g.moveTo(-20*u, -1*u); g.quadraticCurveTo(-16*u, 9*u, -24*u, 9*u);
+    g.stroke();
   }
   g.restore();
 }
@@ -11351,6 +11564,221 @@ const ARMS_STOCK = [
   { id: "smg",     name: "Machine pistol",   price: 620000 },
   { id: "shotgun", name: "Short shotgun",    price: 480000 }
 ];
+
+// ---- being wanted ----------------------------------------------------------
+// Stars in the top right. They go up when you are seen doing something, and
+// they only come down when nobody can see you: out of every cone, for long
+// enough. While you are out of sight but not yet clear they flash, which is
+// the signal to keep moving rather than to stop.
+const wanted = {
+  stars: 0, heat: 0,          // heat is the part of a star you have earned
+  seen: false, since: 0,      // seconds since anyone last had eyes on you
+  escape: 0,                  // how long you have been unseen
+  cops: [], flash: 0, lastCrime: ""
+};
+
+const CRIMES = {
+  jacking:   { stars: 1, what: "Taking a car that was not yours" },
+  jackSeen:  { stars: 2, what: "Carjacking, in front of a patrol" },
+  alarm:     { stars: 1, what: "Setting off an alarm" },
+  knockdown: { stars: 2, what: "Running somebody over" },
+  gun:       { stars: 2, what: "Firing a weapon in the street" },
+  escape:    { stars: 1, what: "Outrunning a patrol" }
+};
+
+// How far a patrol can see, and how wide. A cone, not a circle: standing
+// behind something is the whole game here.
+const COP_SIGHT = 62, COP_FOV = 0.62;      // radians either side of its heading
+
+function commitCrime(id, at) {
+  const c = CRIMES[id];
+  if (!c) return;
+  wanted.lastCrime = c.what;
+  const before = wanted.stars;
+  wanted.stars = Math.min(5, wanted.stars + c.stars);
+  wanted.heat = 1;
+  wanted.escape = 0;
+  if (wanted.stars > before) {
+    say(c.what + " \u00b7 " + wanted.stars + (wanted.stars === 1 ? " star" : " stars"), 4);
+    vitals.stress = clamp01(vitals.stress + 0.12 * c.stars);
+  }
+  callPolice(at || player.pos);
+}
+
+// Turn the nearest few patrol cars into pursuers, and make more of them the
+// more stars you have.
+function callPolice(at) {
+  const ki = CAR_KINDS.findIndex(k => k.name === "police");
+  if (ki < 0) return;
+  const want = Math.min(6, 1 + wanted.stars);
+  let have = wanted.cops.filter(c => c.live).length;
+  if (have >= want) return;
+  const candidates = [];
+  traffic.cars.forEach(c => {
+    if (!c.live || c.kind !== ki) return;
+    if (wanted.cops.indexOf(c) >= 0) return;
+    candidates.push({ c: c, d: Math.hypot(c.at.x - at.x, c.at.z - at.z) });
+  });
+  // Nothing in blue nearby: press an ordinary car into service, which is what
+  // an unmarked unit is.
+  if (!candidates.length) {
+    traffic.cars.forEach(c => {
+      if (!c.live || wanted.cops.indexOf(c) >= 0) return;
+      const d = Math.hypot(c.at.x - at.x, c.at.z - at.z);
+      if (d > 40 && d < 260) candidates.push({ c: c, d: d });
+    });
+  }
+  candidates.sort((a, b) => a.d - b.d);
+  for (let i = 0; i < candidates.length && have < want; i++) {
+    const c = candidates[i].c;
+    c.chasing = true;
+    c.siren = true;
+    wanted.cops.push(c);
+    have++;
+  }
+  if (wanted.cops.length) toggleSiren(true);
+}
+
+// Can this car see you? Cone, range, and a wall in the way stops it.
+function copSees(c, px, pz) {
+  if (!c.live) return false;
+  const dx = px - c.at.x, dz = pz - c.at.z;
+  const d = Math.hypot(dx, dz);
+  if (d > COP_SIGHT) return false;
+  if (Math.abs((c.at.y || 0) - player.pos.y) > 3) return false;
+  const facing = c.yawNow || 0;
+  const a = Math.atan2(dx, dz);
+  let diff = a - facing;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  if (Math.abs(diff) > COP_FOV) return false;
+  // A building between you and it breaks the line.
+  const steps = Math.max(3, Math.round(d / 6));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    const sx = c.at.x + dx * t, sz = c.at.z + dz * t;
+    if (insideBuilding(sx, sz, 0)) return false;
+  }
+  return true;
+}
+
+function updateWanted(dt) {
+  if (!player.placed) return;
+  wanted.flash += dt;
+  if (!wanted.stars) {
+    if (wanted.cops.length) {
+      wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
+      wanted.cops.length = 0;
+      toggleSiren(false);
+    }
+    return;
+  }
+  const px = player.pos.x, pz = player.pos.z;
+  wanted.cops = wanted.cops.filter(c => c.live);
+  let seen = false;
+  wanted.cops.forEach(c => { if (copSees(c, px, pz)) seen = true; });
+  // Patrols you have not provoked can still spot you.
+  if (!seen) {
+    const ki = CAR_KINDS.findIndex(k => k.name === "police");
+    carsNear(px, pz, COP_SIGHT, c => {
+      if (!seen && c.kind === ki && copSees(c, px, pz)) { seen = true; callPolice(player.pos); }
+    });
+  }
+  wanted.seen = seen;
+  if (seen) {
+    wanted.escape = 0;
+    wanted.since = 0;
+    vitals.stress = clamp01(vitals.stress + dt * 0.03);
+  } else {
+    wanted.escape += dt;
+    wanted.since += dt;
+    // Twelve seconds unseen per star, and they come off one at a time.
+    const need = 9 + wanted.stars * 3;
+    if (wanted.escape > need) {
+      wanted.escape = 0;
+      wanted.stars--;
+      if (!wanted.stars) {
+        say("You lost them.", 4);
+        wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
+        wanted.cops.length = 0;
+        toggleSiren(false);
+      }
+    }
+  }
+  // Arrest: on foot, stopped, with a patrol right on top of you.
+  if (player.mode === "walk" && !drive.car) {
+    let close = null;
+    wanted.cops.forEach(c => {
+      const d = Math.hypot(c.at.x - px, c.at.z - pz);
+      if (d < 7 && c.v < 3.5 && copSees(c, px, pz)) close = c;
+    });
+    wanted.busting = close ? (wanted.busting || 0) + dt : 0;
+    if (wanted.busting > 2.2) arrest();
+  } else wanted.busting = 0;
+  // They drive at you rather than round their lane.
+  wanted.cops.forEach(c => {
+    const d = Math.hypot(c.at.x - px, c.at.z - pz);
+    c.chaseHard = d < 180;
+  });
+}
+
+function arrest() {
+  const fine = Math.min(purse.yen, 2000 + wanted.stars * 6000);
+  purse.yen -= fine;
+  wanted.stars = 0;
+  wanted.busting = 0;
+  wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
+  wanted.cops.length = 0;
+  toggleSiren(false);
+  vitals.stress = clamp01(vitals.stress + 0.25);
+  // Put back on the pavement somewhere else, lighter.
+  const city = world.cities[0];
+  if (city && city.scramble) {
+    placeSeiko(new THREE.Vector3(city.scramble.at[0], city.scramble.groundY, city.scramble.at[1]));
+  }
+  say("Busted. " + yenText(fine) + " gone.", 6);
+}
+
+// ---- the stars, drawn ------------------------------------------------------
+function drawStars() {
+  const el = document.getElementById("stars");
+  if (!el) return;
+  if (!wanted.stars) { el.hidden = true; return; }
+  el.hidden = false;
+  const cv = el;
+  const g = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  // Out of sight and not yet clear: they blink.
+  const blink = !wanted.seen && (Math.floor(wanted.flash * 3.2) % 2 === 0);
+  for (let i = 0; i < 5; i++) {
+    const lit = i < wanted.stars;
+    const cx = W - (5 - i) * H * 0.92 + H * 0.46, cy = H * 0.5;
+    star(g, cx, cy, H * 0.36,
+      lit ? (blink ? "rgba(255,255,255,0.22)" : "#f2f4f6") : "rgba(255,255,255,0.10)",
+      lit && !blink);
+  }
+}
+function star(g, cx, cy, r, fill, glow) {
+  g.save();
+  g.translate(cx, cy);
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 5;
+    const rr = i % 2 ? r * 0.44 : r;
+    const x = Math.cos(a) * rr, y = Math.sin(a) * rr;
+    if (i) g.lineTo(x, y); else g.moveTo(x, y);
+  }
+  g.closePath();
+  if (glow) { g.shadowColor = "rgba(0,0,0,0.9)"; g.shadowBlur = r * 0.5; }
+  g.fillStyle = fill;
+  g.fill();
+  g.shadowBlur = 0;
+  g.strokeStyle = "rgba(0,0,0,0.55)";
+  g.lineWidth = r * 0.10;
+  g.stroke();
+  g.restore();
+}
 
 // ---- hailing ---------------------------------------------------------------
 // D-pad left puts a hand out. No prompt on screen: you either know or you
@@ -11515,9 +11943,73 @@ function findRide() {
   return null;
 }
 
-function enterCar(index) {
+// ---- taking a car ----------------------------------------------------------
+// There is a driver in it. Getting them out takes a moment: Seiko hauls the
+// door open, pulls them from the seat and gets in, and for that second and a
+// half he is standing in the road in plain view. That is the risk, and it is
+// why the animation exists rather than the car simply becoming yours.
+//
+// A car with an alarm - anything expensive, anything new - starts screaming,
+// which is a second, louder way of being noticed.
+function startJacking(index) {
+  const c = traffic.cars[index];
+  if (!c || !c.live) return false;
+  const kind = CAR_KINDS[c.kind];
+  const posted = c.hailed || c.stopped;     // a taxi you flagged down is yours
+  if (posted) return false;
+  drive.jack = {
+    index: index, t: 0, dur: 1.45,
+    alarm: kind.name === "sports" || kind.name === "super" || kind.name === "saloon"
+           || kind.name === "ryde",
+    seen: false
+  };
+  player.jacking = 0;
+  say("Hauling the driver out\u2026", 2);
+  return true;
+}
+
+function updateJacking(dt) {
+  const j = drive.jack;
+  if (!j) return;
+  j.t += dt;
+  player.jacking = clamp01(j.t / j.dur);
+  const c = traffic.cars[j.index];
+  if (!c || !c.live) { drive.jack = null; player.jacking = 0; return; }
+  // Hold Seiko against the door while he works.
+  const kind = CAR_KINDS[c.kind];
+  const side = (c.yawNow || 0) + Math.PI * 0.5;
+  player.pos.x = c.at.x + Math.sin(side) * (kind.W * 0.5 + 0.55);
+  player.pos.z = c.at.z + Math.cos(side) * (kind.W * 0.5 + 0.55);
+  player.targetYaw = (c.yawNow || 0) + Math.PI * 0.5;
+  c.v = Math.max(0, c.v - 16 * dt);
+  // Anyone looking right now sees it happen.
+  if (!j.seen) {
+    const ki = CAR_KINDS.findIndex(k => k.name === "police");
+    carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => {
+      if (!j.seen && pc.kind === ki && copSees(pc, player.pos.x, player.pos.z)) j.seen = true;
+    });
+  }
+  if (j.t < j.dur) return;
+  const alarm = j.alarm;
+  const seen = j.seen;
+  drive.jack = null;
+  player.jacking = 0;
+  enterCar(j.index, true);
+  commitCrime(seen ? "jackSeen" : "jacking");
+  if (alarm) {
+    sound.alarmUntil = clock + 7;
+    say("The alarm is going off.", 4);
+    commitCrime("alarm");
+  }
+}
+
+function enterCar(index, jacked) {
   const c = traffic.cars[index];
   if (!c || !c.live) return;
+  // Walking up to a moving car and pressing Y is a carjacking, not a lift.
+  if (!jacked && c.v > 0.4 && !c.hailed && !c.stopped) {
+    if (startJacking(index)) return;
+  }
   const lane = traffic.lanes[c.lane];
   const p = sampleLane(lane, c.s);
   // Take it out of the traffic: its lane slot goes back to the pool.
@@ -11670,6 +12162,7 @@ function updateDrive(dt) {
 // ---- being hit ---------------------------------------------------------
 function updatePedestrianSafety(dt) {
   if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
+  if (drive.jack) return;
   if (player.down > 0) { player.down -= dt; return; }
   const px = player.pos.x, pz = player.pos.z;
   carsNear(px, pz, 14, (c) => {
@@ -11684,6 +12177,7 @@ function updatePedestrianSafety(dt) {
       player.down = 2.1;
       player.knock.set(Math.sin(c.yawNow || 0), 0, Math.cos(c.yawNow || 0)).multiplyScalar(clamp(c.v * 0.42, 2, 9));
       player.speed = 0;
+      vitals.health = clamp01(vitals.health - clamp(c.v * 0.022, 0.05, 0.35));
     } else {
       // Stopped, or barely moving: it is a wall. Push back out of it.
       const kind = CAR_KINDS[c.kind];
