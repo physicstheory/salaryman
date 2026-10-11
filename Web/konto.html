@@ -11320,30 +11320,36 @@ function wheelGlyph(g, kind, id, cx, cy, r, on) {
   const u = r / 50;                       // every number below is in fiftieths
 
   if (id === "none") {
-    // A closed fist, knuckles forward: the unarmed slot.
+    // A fist in profile. The knuckles are bumps in the outline rather than
+    // lines drawn on top of it: at this size anything drawn inside the shape
+    // disappears, and only the silhouette survives.
     g.beginPath();
-    g.moveTo(-22*u, 2*u);
-    g.quadraticCurveTo(-26*u, -16*u, -8*u, -20*u);
-    g.quadraticCurveTo(14*u, -24*u, 22*u, -10*u);
-    g.quadraticCurveTo(28*u, 2*u, 20*u, 14*u);
-    g.quadraticCurveTo(6*u, 24*u, -10*u, 20*u);
-    g.quadraticCurveTo(-22*u, 16*u, -22*u, 2*u);
-    g.closePath(); g.fill();
-    g.strokeStyle = dim; g.lineWidth = 2.2*u;
-    for (let i = -1; i <= 2; i++) {
-      g.beginPath();
-      g.moveTo(-4*u + i*8*u, -18*u);
-      g.lineTo(-6*u + i*8*u, -6*u);
-      g.stroke();
+    g.moveTo(-20*u, -6*u);
+    // four knuckles along the top
+    for (let i = 0; i < 4; i++) {
+      const x0 = -20*u + i * 11*u;
+      g.quadraticCurveTo(x0 + 5.5*u, -20*u, x0 + 11*u, -6*u);
     }
-    // the thumb, folded across
-    g.fillStyle = ink;
+    g.lineTo(24*u, 2*u);
+    g.quadraticCurveTo(26*u, 16*u, 12*u, 20*u);
+    g.lineTo(-12*u, 20*u);
+    g.quadraticCurveTo(-24*u, 18*u, -22*u, 4*u);
+    g.closePath();
+    g.fill();
+    // the thumb, laid across the fingers
     g.beginPath();
-    g.moveTo(-20*u, 6*u);
-    g.quadraticCurveTo(-4*u, 10*u, 10*u, 6*u);
-    g.quadraticCurveTo(12*u, 14*u, -2*u, 16*u);
-    g.quadraticCurveTo(-16*u, 16*u, -20*u, 6*u);
-    g.closePath(); g.fill();
+    g.moveTo(-21*u, 0*u);
+    g.quadraticCurveTo(-6*u, 7*u, 12*u, 3*u);
+    g.quadraticCurveTo(16*u, 10*u, 4*u, 13*u);
+    g.quadraticCurveTo(-14*u, 15*u, -21*u, 8*u);
+    g.closePath();
+    g.fillStyle = dim;
+    g.fill();
+    g.fillStyle = ink;
+    // the cuff, which is what says this is a hand and not a stone
+    g.fillRect(-30*u, -2*u, 9*u, 18*u);
+    g.fillStyle = dim;
+    g.fillRect(-30*u, 4*u, 9*u, 3*u);
 
   } else if (id === "earbuds") {
     // Two buds, stems down, sitting either side of an open case.
