@@ -1211,7 +1211,47 @@ const SITES = [
     radials: 3, rings: 1, expressway: false,
     railLoop: false, railRadials: 0, shinkansen: false,
     bay: null, reclaim: false
-  }
+  },
+  // Six more along the coast, strung down the island the way the small places
+  // on Honshu are: a harbour, one road through, a station if they are lucky.
+  // They are all the same shape as Mizuho and differ only in where they sit
+  // and how big they got, which is also true of the real ones.
+  { name: "Hamaura",  code: "HMU", capital: false, alongT: 0.165, lateral: 0.86,
+    alongRadius: 330, inlandRadius: 210, coreRadius: 70, coreOffset: [0, 10],
+    outlineNoise: 90, wardCount: 3, maxBuildSlope: 0.55, maxBuildAltitude: 520,
+    platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true },
+  { name: "Shiokawa", code: "SKW", capital: false, alongT: 0.305, lateral: -0.88,
+    alongRadius: 380, inlandRadius: 240, coreRadius: 78, coreOffset: [0, 14],
+    outlineNoise: 96, wardCount: 3, maxBuildSlope: 0.55, maxBuildAltitude: 520,
+    platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true },
+  { name: "Nagisa",   code: "NGS", capital: false, alongT: 0.800, lateral: 0.90,
+    alongRadius: 300, inlandRadius: 190, coreRadius: 64, coreOffset: [0, 8],
+    outlineNoise: 84, wardCount: 2, maxBuildSlope: 0.58, maxBuildAltitude: 520,
+    platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true },
+  { name: "Isobe",    code: "ISB", capital: false, alongT: 0.905, lateral: -0.82,
+    alongRadius: 290, inlandRadius: 185, coreRadius: 62, coreOffset: [0, 8],
+    outlineNoise: 82, wardCount: 2, maxBuildSlope: 0.58, maxBuildAltitude: 520,
+    platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true },
+  { name: "Tomari",   code: "TMR", capital: false, alongT: 0.060, lateral: -0.70,
+    alongRadius: 260, inlandRadius: 170, coreRadius: 58, coreOffset: [0, 6],
+    outlineNoise: 76, wardCount: 2, maxBuildSlope: 0.60, maxBuildAltitude: 520,
+    platformSlope: 0.21, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true },
+  { name: "Kaido",    code: "KDO", capital: false, alongT: 0.620, lateral: -0.92,
+    alongRadius: 340, inlandRadius: 215, coreRadius: 72, coreOffset: [0, 12],
+    outlineNoise: 92, wardCount: 3, maxBuildSlope: 0.55, maxBuildAltitude: 520,
+    platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
+    radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
+    shinkansen: false, bay: null, reclaim: false, coastal: true }
 ];
 
 // ---------------------------------------------------------------- district rules
@@ -5235,7 +5275,7 @@ function drawTitleLogo() {
     tg.beginPath(); tg.rect(0, 0, splitAt, t.height); tg.clip();
     tg.drawImage(logoArt, 0, 0, t.width, t.height);
     tg.globalCompositeOperation = "source-in";
-    tg.fillStyle = "#565d66";
+    tg.fillStyle = "#4b525b";
     tg.fillRect(0, 0, splitAt, t.height);
     tg.restore();
 
@@ -5248,8 +5288,9 @@ function drawTitleLogo() {
     tg.filter = "none";
     tg.globalCompositeOperation = "source-atop";
     const warm = tg.createLinearGradient(splitAt, 0, t.width, t.height);
-    warm.addColorStop(0, "rgba(92,138,205,0.55)");
-    warm.addColorStop(1, "rgba(206,160,96,0.45)");
+    warm.addColorStop(0.00, "rgba(74,124,201,0.82)");
+    warm.addColorStop(0.55, "rgba(96,148,214,0.70)");
+    warm.addColorStop(1.00, "rgba(214,158,86,0.62)");
     tg.fillStyle = warm;
     tg.fillRect(splitAt, 0, t.width - splitAt, t.height);
     tg.restore();
@@ -9100,6 +9141,54 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.restore();
       });
     });
+
+    // Home, and the shops, each with its own mark. A safehouse is a house
+    // outline; a convenience store is its chain's colour. Both only once you
+    // are close enough for them to mean anything.
+    if (home.door && across < 2600) {
+      const hx = home.door[0], hz = home.door[1];
+      if (hx > vx0 && hx < vx1 && hz > vz0 && hz < vz1) {
+        ctx.save();
+        ctx.translate(hx, hz);
+        ctx.rotate(-rot);
+        const hr = Math.max(7 * mPerPx, 19);
+        ctx.fillStyle = "#f2f4f6";
+        ctx.beginPath();
+        ctx.moveTo(0, -hr * 0.62);
+        ctx.lineTo(hr * 0.60, -hr * 0.06);
+        ctx.lineTo(hr * 0.38, -hr * 0.06);
+        ctx.lineTo(hr * 0.38, hr * 0.56);
+        ctx.lineTo(-hr * 0.38, hr * 0.56);
+        ctx.lineTo(-hr * 0.38, -hr * 0.06);
+        ctx.lineTo(-hr * 0.60, -hr * 0.06);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(0,0,0,0.65)";
+        ctx.lineWidth = hr * 0.09;
+        ctx.stroke();
+        ctx.fillStyle = "#1b1e23";
+        ctx.fillRect(-hr * 0.13, hr * 0.14, hr * 0.26, hr * 0.42);
+        ctx.restore();
+      }
+    }
+    if (shops.list.length && across < 1400) {
+      const sr = Math.max(4 * mPerPx, 11);
+      shops.list.forEach(sh => {
+        if (sh.at[0] < vx0 || sh.at[0] > vx1 || sh.at[1] < vz0 || sh.at[1] > vz1) return;
+        ctx.save();
+        ctx.translate(sh.at[0], sh.at[1]);
+        ctx.rotate(-rot);
+        ctx.fillStyle = sh.brand === "eleven" ? "#0a6b42"
+                      : sh.brand === "arms" ? "#8a6a2a" : "#1272d6";
+        ctx.beginPath();
+        ctx.arc(0, 0, sr * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.85)";
+        ctx.lineWidth = sr * 0.14;
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
   }
   ctx.restore();
 
