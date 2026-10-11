@@ -757,6 +757,10 @@ const GRID_Z = 534;
 const CELL = WORLD_X / (GRID_X - 1);     // ~19 m per sample
 const MAX_HEIGHT = 1520;
 const SEA_DEPTH = 140;
+// The lowest a road or a railway is allowed to sit. The sea is drawn as a sheet
+// at y = 0 and the city ground is laid CITY_LIFT above the terrain, so a metre
+// of freeboard keeps the paving dry with room for the kerb.
+const ROAD_MIN_Y = 1.0;
 
 // ---------------------------------------------------------------- noise
 function hash2(ix, iy, seed) {
@@ -2272,7 +2276,13 @@ function planCity(world, F, seed, report, progressBase) {
     // to a gradient limit. That is the difference between a road and a stripe.
     L.roads.concat(L.rails).forEach(path => {
       const p = path.pts;
-      const prof = p.map(q => world.sampleHeight(q[0], q[2]));
+      // The sea is one flat sheet at y = 0, so a carriageway graded to the
+      // ground where the ground is below that comes out underwater: the water
+      // cuts across the cars at about the beltline and the street turns into a
+      // dark slab. Hold every profile a metre clear of it before the smoothing
+      // and the gradient limiter run, so the ramp up to it is a ramp and not a
+      // step, and so the earthworks that follow lift the ground with it.
+      const prof = p.map(q => Math.max(world.sampleHeight(q[0], q[2]), ROAD_MIN_Y));
       for (let pass = 0; pass < 6; pass++) {
         const tmp = prof.slice();
         for (let i = 0; i < p.length; i++) {
@@ -6521,10 +6531,17 @@ function buildTrafficLanes(city) {
           const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
           const off = LANE_W * (k + 0.5);
           const lx = src[i][0] - dz * off, lz = src[i][2] + dx * off;
-          if (paved(lx, lz)) {
+          const y = roadY(lx, lz);
+          // Paved, and dry. The city rectangle takes in part of the bay, so a
+          // road drawn across it would otherwise put a lane of traffic on the
+          // sea floor - the water sheet then cuts the cars off at the beltline,
+          // which is the dark slab that turns up in a photograph of a street
+          // near the shore. A submerged stretch ends the run the same way an
+          // unpaved one does: no lane, no cars, rather than drowned ones.
+          if (paved(lx, lz) && y > ROAD_MIN_Y - 0.5) {
             // The road's stored height predates the grading pass, so a car on
             // it floats.
-            run.push([lx, roadY(lx, lz) + 0.04, lz]);
+            run.push([lx, y + 0.04, lz]);
           } else if (run.length) { runs.push(run); run = []; }
         }
         if (run.length) runs.push(run);
