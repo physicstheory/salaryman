@@ -4846,6 +4846,40 @@ function drawTitleLogo() {
   runner(g, W * 0.155, ground + 2, 132, 1.07, "#2f5389", 1, "#a2703a");
 }
 
+// ---- holding on to a frame -------------------------------------------------
+// The camera app and MyNet both want the picture the game just drew. A WebGL
+// canvas cannot simply be read later: once the frame is composited the drawing
+// buffer is gone, and drawImage returns nothing, which is why both screens
+// came out black. Turning on preserveDrawingBuffer would fix it and slow every
+// frame down for everyone, so instead the frame is copied the instant after it
+// is drawn, and only while something is actually asking for one.
+const frameGrab = { canvas: null, ctx: null, want: false, ok: false };
+function wantFrame() {
+  return phone.open && (phone.app === "Camera" || phone.app === "MyNet");
+}
+function grabFrame() {
+  const src = renderer && renderer.domElement;
+  if (!src || src.width < 8) return;
+  if (!frameGrab.canvas) {
+    frameGrab.canvas = document.createElement("canvas");
+    frameGrab.ctx = frameGrab.canvas.getContext("2d");
+  }
+  const w = 480, h = Math.max(8, Math.round(w * src.height / src.width));
+  if (frameGrab.canvas.width !== w || frameGrab.canvas.height !== h) {
+    frameGrab.canvas.width = w; frameGrab.canvas.height = h;
+  }
+  try {
+    frameGrab.ctx.drawImage(src, 0, 0, w, h);
+    frameGrab.ok = true;
+  } catch (e) { frameGrab.ok = false; }
+}
+// Every render in the frame loop goes through here, so the copy always happens
+// while the buffer is still there.
+function present() {
+  renderer.render(scene, camera);
+  if (wantFrame() || frameGrab.want) { grabFrame(); frameGrab.want = false; }
+}
+
 let noticeTimer = null;
 function say(text, seconds) {
   const el = document.getElementById("notice");
@@ -4888,8 +4922,8 @@ function tick(dt) {
   updateVitals(dt);
   updateHail(dt);
   updateDeliveries();
-  if (nav.mapOpen) { updatePhone(); renderer.render(scene, camera); return; }
-  if (paused) { updatePhone(); renderer.render(scene, camera); return; }
+  if (nav.mapOpen) { updatePhone(); present(); return; }
+  if (paused) { updatePhone(); present(); return; }
 
   // The right stick turns the camera the way dragging does, at a rate rather than a step.
   if (look.x || look.y) {
@@ -4906,7 +4940,7 @@ function tick(dt) {
     updateTraffic(dt, drive.car.pos);
     updateRail(dt, drive.car.pos);
     updateHud(dt);
-    renderer.render(scene, camera);
+    present();
     return;
   }
   if (drive.train) {
@@ -4914,7 +4948,7 @@ function tick(dt) {
     updateTraffic(dt, player.pos);
     updateRail(dt, player.pos);
     updateHud(dt);
-    renderer.render(scene, camera);
+    present();
     return;
   }
   if (player.mode === "walk" && player.obj) {
@@ -4924,7 +4958,7 @@ function tick(dt) {
     updateRail(dt, player.pos);
     updatePedestrianSafety(dt);
     updateHud(dt);
-    renderer.render(scene, camera);
+    present();
     return;
   }
   if (flyTo) {
@@ -4967,7 +5001,7 @@ function tick(dt) {
   camera.position.copy(camPos);
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   camera.lookAt(camPos.clone().add(dir));
-  renderer.render(scene, camera);
+  present();
 }
 
 // ---------------------------------------------------------------- the look
@@ -9817,7 +9851,7 @@ function appCamera(g, W, H) {
   g.fillRect(0, 0, W, H);
   // The viewfinder shows the last frame the game drew, which is what the
   // camera is actually pointed at.
-  const src = renderer && renderer.domElement;
+  const src = frameGrab.ok ? frameGrab.canvas : null;
   const vy = H * 0.14, vh = H * 0.56;
   if (src) {
     try {
@@ -9893,7 +9927,7 @@ function appMyNet(g, W, H) {
   const t = clock * 0.6 + i * 3;
   g.fillStyle = "#0b0d10";
   g.fillRect(0, 0, W, H);
-  const src = renderer && renderer.domElement;
+  const src = frameGrab.ok ? frameGrab.canvas : null;
   let drew = false;
   if (src && src.width > 8) {
     try {
@@ -10271,8 +10305,8 @@ function phoneBack() {
 
 // Photographs are kept as little canvases, so the gallery is real.
 function takePhotograph() {
-  const src = renderer && renderer.domElement;
-  if (!src) return;
+  const src = frameGrab.ok ? frameGrab.canvas : null;
+  if (!src) { frameGrab.want = true; say("Hold still\u2026", 1.5); return; }
   const c = document.createElement("canvas");
   c.width = 240; c.height = 240;
   const g2 = c.getContext("2d");
@@ -10955,7 +10989,7 @@ function updateTitle(dt) {
   followSun();
   updateTraffic(dt, camPos);
   updateRail(dt, camPos);
-  renderer.render(scene, camera);
+  present();
 }
 
 // ---------------------------------------------------------------- run
