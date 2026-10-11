@@ -80,7 +80,7 @@ either.
 
 | | |
 |---|---|
-| **Family cars** | about a third white, a quarter silver or gunmetal, a fifth black, then navy, dark red, beige and a deep green. Close to what the Japanese market actually buys |
+| **Family cars** | white, pearl, silver, gunmetal and black for the half of the street that is monochrome in Japan, then navy, bright blue, dark red, bright red, beige, deep green, leaf green, amber, plum, teal and terracotta. Weighted a little more colourful than the sales figures, because a street of eighteen white cars reads as a bug |
 | **Kei cars** | the one class allowed to be cheerful, because they genuinely are: mustard, mint, pale blue, coral, chocolate, ivory, raspberry — and half of them with a different coloured roof, which is the quickest way to tell a kei car from a small hatchback at a distance |
 | **Coupes** | red, white, black, metallic blue, gold, racing green |
 | **Supercars** | yellow, orange, lime, blue, red — saturated, because nobody buys a beige one |
@@ -95,7 +95,7 @@ text-to-3D generator as sealed, untextured shells at 130,000 to 400,000 faces, a
 |---|---|
 | **Orient** | the width is the axis whose geometry is most even about its own centre, because a car is mirror-symmetric left to right and not front to back or floor to roof. The length is the longest. Whatever is left is up. Measuring it beats assuming it — one of the five arrived standing on its nose |
 | **Resize** | to the real car's L × W × H on all three axes. A generated kei car came out 1.9 m wide for a class capped by law at 1.48, and a car that does not fit its lane is wrong immediately |
-| **Shrink** | to 4,000–5,500 triangles. A hundred and thirty cars at 150k faces is twenty million triangles |
+| **Shrink** | to 4,000–5,500 triangles. A hundred and thirty cars at 150k faces is twenty million triangles. Going the other way does not help either: at 11,000 the geometric material cut starts picking up the shell's own noise and the roof comes out mottled, so the budget is what the cut can take, not what the GPU can take |
 | **Cut** | into four materials by geometry alone, since there is nothing to sample: below the sill and near a hub is tyre, below the sill otherwise is trim, above the beltline and vertical (or raked, near the ends of the greenhouse) is glass, the rest is paint |
 
 The game then gives every copy its own `paint` material, so one mesh is forty

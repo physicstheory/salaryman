@@ -5794,14 +5794,21 @@ const CAR_KINDS = [
 // cheerful, because kei cars genuinely are: pastel, two-tone, and sold on it.
 const PAINT = {
   common: [
-    [0.88, 0.88, 0.87], [0.88, 0.88, 0.87], [0.88, 0.88, 0.87],   // white
+    [0.88, 0.88, 0.87], [0.88, 0.88, 0.87],                        // white
     [0.92, 0.90, 0.86],                                            // pearl
-    [0.58, 0.60, 0.62], [0.58, 0.60, 0.62], [0.45, 0.47, 0.50],    // silver, gunmetal
+    [0.58, 0.60, 0.62], [0.45, 0.47, 0.50],                        // silver, gunmetal
     [0.075, 0.08, 0.085], [0.075, 0.08, 0.085],                    // black
     [0.10, 0.16, 0.30],                                            // navy
+    [0.13, 0.34, 0.58],                                            // bright blue
     [0.42, 0.08, 0.09],                                            // dark red
+    [0.66, 0.11, 0.12],                                            // bright red
     [0.52, 0.47, 0.40],                                            // beige
-    [0.14, 0.26, 0.24]                                             // deep green
+    [0.14, 0.26, 0.24],                                            // deep green
+    [0.30, 0.52, 0.34],                                            // leaf green
+    [0.78, 0.56, 0.12],                                            // amber
+    [0.58, 0.24, 0.42],                                            // plum
+    [0.22, 0.48, 0.50],                                            // teal
+    [0.80, 0.46, 0.30]                                             // terracotta
   ],
   kei: [
     [0.88, 0.88, 0.87], [0.92, 0.90, 0.86],
@@ -5952,6 +5959,9 @@ function fitCarModel(object3d, kind, entry) {
   holder.traverse(o => {
     if (!o.isMesh) return;
     o.castShadow = true;
+    // A car with nothing falling on it floats. Taking the shadow of the
+    // building beside it is most of what sits it on the road.
+    o.receiveShadow = true;
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     const out = mats.map(m => {
       if (!m) return m;
@@ -5959,9 +5969,9 @@ function fitCarModel(object3d, kind, entry) {
       if (name === "paint") {
         if (!paint) {
           paint = new THREE.MeshPhysicalMaterial({
-            color: 0xcccccc, metalness: 0.25, roughness: 0.34,
-            clearcoat: gfx.high ? 0.75 : 0, clearcoatRoughness: 0.12,
-            envMap: gfx.env || null, envMapIntensity: 0.75
+            color: 0xcccccc, metalness: 0.22, roughness: 0.26,
+            clearcoat: gfx.high ? 0.9 : 0, clearcoatRoughness: 0.06,
+            envMap: gfx.env || null, envMapIntensity: 0.95
           });
         }
         return paint;
@@ -6463,9 +6473,38 @@ function buildTrafficLanes(city) {
     ? world.sampleHeight(x, z) + CITY_LIFT
     : world.surfaceY(x, z);
   city.roads.forEach((road, ri) => {
-    if (road.elevated || !road.pts || road.pts.length < 3) return;
+    if (!road.pts || road.pts.length < 3) return;
     const perSide = road.halfWidth >= 9 ? 2 : 1;
-    const limit = road.cls === "expressway" ? 22 : (road.halfWidth >= 12 ? 15.3 : 12.5);
+    const limit = road.cls === "expressway" ? 25 : (road.halfWidth >= 12 ? 15.3 : 12.5);
+    // The elevated expressway is its own case and a simpler one: the deck is a
+    // continuous surface at a height the road already carries, so there is
+    // nothing to clip against the paving and nothing to sample off the ground.
+    // Without this the viaduct stands over the city carrying no traffic, which
+    // is the one road in Konto you are most likely to look at from below.
+    if (road.elevated) {
+      const wideDeck = road.halfWidth >= 10.5;
+      for (let dir = 0; dir < 2; dir++) {
+        for (let k = 0; k < perSide; k++) {
+          const src = dir ? road.pts.slice().reverse() : road.pts;
+          const pts = [];
+          for (let i = 0; i < src.length; i++) {
+            const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+            let dx = next[0] - prev[0], dz = next[2] - prev[2];
+            const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
+            const off = LANE_W * (k + 0.5);
+            pts.push([src[i][0] - dz * off, src[i][1] + 0.06, src[i][2] + dx * off]);
+          }
+          if (pts.length < 4) continue;
+          const arc = [0];
+          for (let i = 1; i < pts.length; i++)
+            arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
+          lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
+                       loop: !!road.loop, road: ri, wide: wideDeck, kerb: k === 0,
+                       elevated: true });
+        }
+      }
+      return;
+    }
     const wide = road.halfWidth >= 10.5;
     for (let dir = 0; dir < 2; dir++) {
       for (let k = 0; k < perSide; k++) {
@@ -6667,6 +6706,7 @@ function updateTraffic(dt, at) {
   if (player.placed && player.mode === "walk" && !drive.car && !drive.train) {
     const px = player.pos.x, pz = player.pos.z;
     carsNear(px, pz, 44, car => {
+      if (Math.abs((car.at ? car.at.y : 0) - player.pos.y) > 2.4) return;
       const c = Math.cos(-car.yawNow), sn = Math.sin(-car.yawNow);
       const dx = px - car.at.x, dz = pz - car.at.z;
       const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
@@ -8808,7 +8848,9 @@ function carBlocks(x, z, radius) {
     if (boxHit(p.pos.x, p.pos.z, p.yaw, CAR_KINDS[p.kind], x, z, radius)) return true;
   }
   let hit = false;
+  const atY = player.placed ? player.pos.y : 0;
   carsNear(x, z, 16, c => {
+    if (Math.abs((c.at ? c.at.y : 0) - atY) > 2.4) return;   // on the viaduct, not here
     if (!hit && c.v < 2.4 && inCarBox(c, x, z, radius)) hit = true;
   });
   return hit;
@@ -8840,6 +8882,8 @@ function findRide() {
   carsNear(px, pz, 6.5, (c, i) => {
     const kind = CAR_KINDS[c.kind];
     if (kind.body === "bus" || kind.body === "truck") return;      // not yet
+    if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;  // one on the viaduct
+
     const d = Math.hypot(c.at.x - px, c.at.z - pz) - kind.L * 0.4;
     if (c.v > 3.5) return;                                          // too fast to grab
     if (d < bestD) { bestD = d; best = { what: "car", car: i }; }
@@ -9009,6 +9053,10 @@ function updatePedestrianSafety(dt) {
   if (player.down > 0) { player.down -= dt; return; }
   const px = player.pos.x, pz = player.pos.z;
   carsNear(px, pz, 14, (c) => {
+    // Now that the viaduct carries traffic, two things can be on the same
+    // square metre of map and thirteen metres apart. Only the one at your
+    // height can hit you.
+    if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;
     if (!inCarBox(c, px, pz, 0.34)) return;
     if (c.v > 2.2) {
       // Knocked down. Thrown along the car's heading, because that is where

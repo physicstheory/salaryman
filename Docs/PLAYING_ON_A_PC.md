@@ -8,22 +8,51 @@ work each way is.
 
 ## The short way: download a build
 
-Every build is made in the cloud and left on GitHub, so nothing has to be
-compiled on your machine.
+There is a workflow in the repository that builds the Windows installer in the
+cloud, so nothing has to be compiled on your machine. **It needs one click from
+you before it will appear**, and this is the one thing about this that is not
+obvious:
 
-1. Go to **[the Actions tab](https://github.com/physicstheory/salaryman/actions/workflows/game.yml)**.
-2. Pick the newest run with a green tick, scroll to **Artifacts**, and download
-   **SalaryMan-windows**.
-3. Unzip it. There are two files in it and they do the same thing:
+GitHub only shows a workflow's **Run workflow** button if the workflow file is on
+the repository's *default* branch. The game lives on
+`claude/friendly-cannon-alnk4v`, and the default branch is still the old
+`claude/salary-man-world-base-fngyx5`, which has no workflow on it. So right now
+the Actions tab is empty.
+
+**To switch it on, once:**
+
+1. Go to **[Settings → General](https://github.com/physicstheory/salaryman/settings)**.
+2. Under **Default branch**, press the pencil, choose
+   `claude/friendly-cannon-alnk4v`, and confirm.
+3. Go to **[Actions → Build the game](https://github.com/physicstheory/salaryman/actions/workflows/game.yml)**
+   and press **Run workflow**.
+
+After about five minutes:
+
+1. Open the run, scroll to **Artifacts**, download **SalaryMan-windows**.
+2. Unzip it. Two files, both the same game:
    - `SalaryMan-0.5.0-x64.exe` — the installer. Installs to your user folder, makes
-     a desktop shortcut, and shows up in Add or Remove Programs.
+     a desktop shortcut, shows up in Add or Remove Programs.
    - the portable `.exe` — double-click it, no install, nothing left behind.
-4. Windows will say *"Windows protected your PC"*, because the build is not code
+3. Windows will say *"Windows protected your PC"*, because the build is not code
    signed. **More info → Run anyway.** Signing costs a few hundred pounds a year
    and is the only thing standing between you and that dialog.
 
-If there is no run with a green tick, go to the workflow page, press **Run
-workflow**, wait about five minutes, and the artifact will be there.
+**Or, without touching the default branch:** a pushed tag runs the workflow from
+the tagged commit, whatever branch it is on, and attaches the installers to a
+GitHub release. From a checkout of this branch:
+
+```
+git tag v0.5.0
+git push origin v0.5.0
+```
+
+Then **Releases** on the repository front page, five minutes later, has the
+`.exe` on it. Tags are permanent and public, which is why this is your call to
+make rather than something already done for you.
+
+If neither appeals, skip to **the longer way** below — it is four commands and it
+works today.
 
 **What it needs:** 64-bit Windows 10 or 11, 8 GB of RAM, and a graphics card made
 after about 2015 — including the integrated one in a laptop CPU. The first thing
@@ -98,11 +127,14 @@ Enter to drop a waypoint.
 Worth doing if you want to change something and see it immediately.
 
 ```
-git clone https://github.com/physicstheory/salaryman.git
+git clone -b claude/friendly-cannon-alnk4v https://github.com/physicstheory/salaryman.git
 cd salaryman/Game
 npm install
 npm start
 ```
+
+The `-b` matters: a plain clone gives you the default branch, which is an older
+world with none of the cars, the map, the phone or the controller work on it.
 
 `npm start` stages the engine out of `Web/` into `Game/app/` and opens it in
 Electron. Edit `Web/konto.html`, press **Ctrl+R**, and the change is there.
