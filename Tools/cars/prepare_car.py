@@ -236,21 +236,31 @@ def paint(car, belt, sill, glass_tilt, wheel_span):
     cab_mid = (cab_lo + cab_hi) * 0.5
     cab_half = max(0.1, (cab_hi - cab_lo) * 0.5)
 
+    # Each band is tested against the face's own extent rather than its centre.
+    # A centroid test cuts straight through faces that straddle a threshold, and
+    # on a shell with no edge loop along the sill that leaves the bumper line
+    # looking like a row of teeth. Asking that the whole face be below the sill,
+    # or the whole face above the beltline, puts every boundary on an edge the
+    # mesh already has.
     for p in me.polygons:
         c = Vector((0, 0, 0))
+        zs = []
         for vi in p.vertices:
-            c += me.vertices[vi].co
+            v = me.vertices[vi].co
+            c += v
+            zs.append(v.z)
         c /= len(p.vertices)
+        z_top, z_bot = max(zs), min(zs)
         n = p.normal
         outboard = abs(c.x) > W * 0.22
         raked = abs(n.z) < 0.78 and abs(c.y - cab_mid) > cab_half * 0.42
-        if c.z < z_sill and outboard and min((c - h).length for h in hubs) < hub_r:
+        if z_top < z_sill and outboard and min((c - h).length for h in hubs) < hub_r:
             p.material_index = TYRE
-        elif c.z < z_floor:
+        elif z_top < z_floor:
             p.material_index = TRIM          # the sealed underside, never seen
-        elif c.z < z_sill:
+        elif z_top < z_sill:
             p.material_index = TRIM          # bumpers, skirts, arch liners
-        elif c.z > z_belt and (abs(n.z) < glass_tilt or raked):
+        elif z_bot > z_belt and (abs(n.z) < glass_tilt or raked):
             p.material_index = GLASS
         else:
             p.material_index = PAINT
