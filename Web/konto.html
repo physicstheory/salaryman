@@ -11646,7 +11646,9 @@ function callPolice(at) {
   if (have >= want) return;
   const candidates = [];
   traffic.cars.forEach(c => {
-    if (!c.live || c.kind !== ki) return;
+    // A car can be live a frame before the traffic pass has given it a
+    // position, so `at` is not guaranteed just because `live` is.
+    if (!c.live || !c.at || c.kind !== ki) return;
     if (wanted.cops.indexOf(c) >= 0) return;
     candidates.push({ c: c, d: Math.hypot(c.at.x - at.x, c.at.z - at.z) });
   });
@@ -11654,7 +11656,7 @@ function callPolice(at) {
   // an unmarked unit is.
   if (!candidates.length) {
     traffic.cars.forEach(c => {
-      if (!c.live || wanted.cops.indexOf(c) >= 0) return;
+      if (!c.live || !c.at || wanted.cops.indexOf(c) >= 0) return;
       const d = Math.hypot(c.at.x - at.x, c.at.z - at.z);
       if (d > 40 && d < 260) candidates.push({ c: c, d: d });
     });
@@ -11672,7 +11674,7 @@ function callPolice(at) {
 
 // Can this car see you? Cone, range, and a wall in the way stops it.
 function copSees(c, px, pz) {
-  if (!c.live) return false;
+  if (!c.live || !c.at) return false;
   const dx = px - c.at.x, dz = pz - c.at.z;
   const d = Math.hypot(dx, dz);
   if (d > COP_SIGHT) return false;
@@ -11705,7 +11707,7 @@ function updateWanted(dt) {
     return;
   }
   const px = player.pos.x, pz = player.pos.z;
-  wanted.cops = wanted.cops.filter(c => c.live);
+  wanted.cops = wanted.cops.filter(c => c.live && c.at);
   let seen = false;
   wanted.cops.forEach(c => { if (copSees(c, px, pz)) seen = true; });
   // Patrols you have not provoked can still spot you.
