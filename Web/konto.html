@@ -9560,8 +9560,9 @@ function appWallet(g, W, H) {
     g.textAlign = "left";
   });
   g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-  g.fillText("An IC card opens the ticket gates without stopping.", W * 0.075, H * 0.735);
+  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText("An IC card opens the ticket gates", W * PL.pad, H * 0.80);
+  g.fillText("without stopping.", W * PL.pad, H * 0.832);
 }
 
 // ---- Poodle, and the web behind it
@@ -9658,7 +9659,9 @@ const CAR_STOCK = {
   luxury: [
     { name: "Kurogane GT-R Coupe",  price: 9800000, rent: 42000, kind: "sports" },
     { name: "Kurogane S-Saloon",    price: 6400000, rent: 26000, kind: "saloon" },
-    { name: "Kurogane Veloce 900",  price: 14800000, rent: 68000, kind: "super" }
+    { name: "Kurogane Veloce 900",  price: 14800000, rent: 68000, kind: "super" },
+    { name: "Kurogane Kaze Roadster", price: 7900000, rent: 34000, kind: "sports" },
+    { name: "Kurogane Estate 4.0",  price: 5600000, rent: 22000, kind: "keivan" }
   ],
   budget: [
     { name: "Maruichi Hustle Kei",  price: 740000,  rent: 4200,  kind: "kei" },
@@ -9882,19 +9885,41 @@ const MYNET = [
 function appMyNet(g, W, H) {
   const i = ((phone.sub % MYNET.length) + MYNET.length) % MYNET.length;
   const post = MYNET[i];
-  // A full-bleed "video", faked as a moving gradient keyed off the clock so it
-  // is never quite the same twice.
+  // The video is the world. Every clip is a crop of what the game is actually
+  // drawing, pushed around and tinted per post, which is both cheaper than
+  // faking one and closer to what the app is meant to be: footage of Konto,
+  // shot in Konto. A gradient on its own read as a screen that had failed to
+  // load.
   const t = clock * 0.6 + i * 3;
-  const grad = g.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, "hsl(" + ((i * 61 + t * 4) % 360) + ",38%,22%)");
-  grad.addColorStop(1, "hsl(" + ((i * 61 + 140 + t * 4) % 360) + ",44%,11%)");
-  g.fillStyle = grad;
+  g.fillStyle = "#0b0d10";
   g.fillRect(0, 0, W, H);
-  for (let k = 0; k < 26; k++) {
-    const yy = (k * 97 + t * 40) % H;
-    g.fillStyle = "rgba(255,255,255," + (0.012 + (k % 4) * 0.006) + ")";
-    g.fillRect(0, yy, W, H * 0.02);
+  const src = renderer && renderer.domElement;
+  let drew = false;
+  if (src && src.width > 8) {
+    try {
+      // A tall crop out of a wide frame, panned a little by the post index.
+      const want = W / H;
+      const sh = src.height, sw = Math.max(8, Math.min(src.width, sh * want));
+      const sx = clamp((src.width - sw) * (0.15 + 0.7 * ((i * 0.37) % 1)), 0, Math.max(0, src.width - sw));
+      g.drawImage(src, sx, 0, sw, sh, 0, 0, W, H);
+      drew = true;
+    } catch (e) {}
   }
+  if (!drew) {
+    const grad = g.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "hsl(" + ((i * 61 + t * 4) % 360) + ",38%,22%)");
+    grad.addColorStop(1, "hsl(" + ((i * 61 + 140 + t * 4) % 360) + ",44%,11%)");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, W, H);
+  }
+  // A colour grade per post, so the feed does not look like one long clip.
+  g.save();
+  g.globalCompositeOperation = "overlay";
+  g.fillStyle = "hsla(" + ((i * 61) % 360) + ",60%,50%,0.16)";
+  g.fillRect(0, 0, W, H);
+  g.restore();
+  g.fillStyle = "rgba(0,0,0,0.18)";
+  g.fillRect(0, 0, W, H);
   g.fillStyle = "rgba(0,0,0,0.45)";
   g.fillRect(0, H * 0.72, W, H * 0.28);
   g.fillStyle = "#ffffff";
@@ -9921,9 +9946,12 @@ function appMyNet(g, W, H) {
     g.textAlign = "left";
   });
   g.fillStyle = "#ffffff";
-  g.font = "800 " + Math.round(W * 0.055) + "px " + UI;
+  g.font = "800 " + Math.round(W * PL.head) + "px " + UI;
   g.textAlign = "center";
-  g.fillText("MyNet", W * 0.5, H * 0.045);
+  g.fillText("MyNet", W * 0.5, H * PL.safe + H * 0.018);
+  g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillStyle = "rgba(255,255,255,0.60)";
+  g.fillText((i + 1) + " / " + MYNET.length, W * 0.5, H * PL.safe + H * 0.052);
   g.textAlign = "left";
   g.fillStyle = "rgba(255,255,255,0.55)";
   g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
