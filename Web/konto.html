@@ -9337,6 +9337,40 @@ function drawPhone() {
 // a function that fills a rectangle. They share a chrome - a status bar, a
 // title row, a back hint - and differ only in the middle.
 
+// One grid for all twelve screens. Before this each app invented its own
+// margins and type sizes, which is exactly what makes an interface read as a
+// mock-up rather than a device: you notice the furniture moving when you
+// change app. Everything below is a fraction of the screen width, so it holds
+// at any size the phone is drawn at.
+const PL = {
+  pad: 0.075,          // the side margin everything lines up on
+  safe: 0.055,         // below the punch hole: nothing is drawn above this
+  titleY: 0.090,       // the big screen title
+  subY: 0.120,
+  listY: 0.165,        // where a list starts
+  rowH: 0.098,         // a list row, and the gap that follows it
+  rowGap: 0.012,
+  radius: 0.035,
+  // The type scale. Five sizes, and no screen is allowed a sixth.
+  title: 0.082, head: 0.050, body: 0.042, small: 0.035, tiny: 0.030
+};
+
+// Text that does not fit is cut with an ellipsis rather than run under the
+// next thing along. Every label on a row goes through this.
+function fitText(g, text, max) {
+  if (g.measureText(text).width <= max) return text;
+  let lo = 0, hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (g.measureText(text.slice(0, mid) + "\u2026").width <= max) lo = mid;
+    else hi = mid - 1;
+  }
+  return text.slice(0, lo).replace(/[ ,.]+$/, "") + "\u2026";
+}
+function clipText(g, text, x, y, max) {
+  g.fillText(fitText(g, text, max), x, y);
+}
+
 function phoneChrome(g, W, H, title, sub) {
   g.fillStyle = "#0d0f12";
   g.fillRect(0, 0, W, H);
@@ -9351,12 +9385,12 @@ function phoneChrome(g, W, H, title, sub) {
 
   g.textAlign = "left";
   g.fillStyle = "#ffffff";
-  g.font = "700 " + Math.round(W * 0.085) + "px " + UI;
-  g.fillText(title, W * 0.075, H * 0.082);
+  g.font = "700 " + Math.round(W * PL.title) + "px " + UI;
+  clipText(g, title, W * PL.pad, H * PL.titleY, W * 0.62);
   if (sub) {
     g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
-    g.fillText(sub, W * 0.075, H * 0.112);
+    g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
+    clipText(g, sub, W * PL.pad, H * PL.subY, W * 0.62);
   }
   g.fillStyle = "rgba(255,255,255,0.55)";
   g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
@@ -9454,19 +9488,24 @@ function appRyde(g, W, H) {
   g.fillText(nav.place && nav.place.street ? nav.place.street : "Tōkonto", W * 0.075, H * 0.205);
 
   RYDE_CLASSES.forEach((c, i) => {
-    const y = H * 0.26 + i * H * 0.115;
-    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.098, phone.sub === i);
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * 0.055) + "px " + UI;
-    g.fillText(c.name, W * 0.13, y + H * 0.034);
-    g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-    g.fillText(c.note, W * 0.13, y + H * 0.068);
+    const rowH = H * 0.104;
+    const y = H * 0.265 + i * (rowH + H * 0.016);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+    const fare = yenText(rydeFare(c.mult));
+    const fareW = g.measureText(fare).width;
     g.fillStyle = "#e7ebee";
-    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
     g.textAlign = "right";
-    g.fillText(yenText(rydeFare(c.mult)), W * 0.89, y + H * 0.050);
+    g.fillText(fare, W * (1 - PL.pad) - W * 0.035, y + rowH * 0.58);
     g.textAlign = "left";
+    const textX = W * (PL.pad + 0.055);
+    const textW = W * (1 - PL.pad) - W * 0.06 - fareW - textX;
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
+    clipText(g, c.name, textX, y + rowH * 0.38, textW);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    clipText(g, c.note, textX, y + rowH * 0.74, textW);
   });
 
   // The big green button.
@@ -9551,14 +9590,15 @@ function appPoodle(g, W, H) {
     g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
     g.fillText("Search or type a web address", W * 0.15, H * 0.274);
     WEB.forEach((w, i) => {
-      const y = H * 0.33 + i * H * 0.072;
-      phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.062, phone.sub === i);
+      const rowH = H * 0.070;
+      const y = H * 0.335 + i * (rowH + H * 0.011);
+      phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
       g.fillStyle = "#ffffff";
-      g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
-      g.fillText(w.title, W * 0.125, y + H * 0.024);
+      g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
+      clipText(g, w.title, W * (PL.pad + 0.05), y + rowH * 0.40, W * 0.74);
       g.fillStyle = "#6b727a";
-      g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-      g.fillText(w.host, W * 0.125, y + H * 0.048);
+      g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+      clipText(g, w.host, W * (PL.pad + 0.05), y + rowH * 0.76, W * 0.74);
     });
     return;
   }
@@ -9568,36 +9608,50 @@ function appPoodle(g, W, H) {
 function siteChrome(g, W, H, site, bg) {
   g.fillStyle = bg || "#ffffff";
   g.fillRect(0, 0, W, H);
-  // address bar
+  // The address bar used to sit across the camera hole, which cut the middle
+  // out of every web address. It starts below it now, like a real browser's.
   g.fillStyle = "#15181d";
-  g.fillRect(0, 0, W, H * 0.062);
+  g.fillRect(0, 0, W, H * 0.082);
   g.fillStyle = "rgba(255,255,255,0.10)";
-  roundRect(g, W * 0.06, H * 0.016, W * 0.88, H * 0.032, H * 0.016); g.fill();
+  roundRect(g, W * 0.06, H * 0.036, W * 0.88, H * 0.034, H * 0.017); g.fill();
   g.fillStyle = "#9aa1a9";
-  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
   g.textAlign = "center";
-  g.fillText(site.host, W * 0.5, H * 0.0335);
+  g.fillText(site.host, W * 0.5, H * 0.0535);
   g.textAlign = "left";
   g.fillStyle = "rgba(0,0,0,0.55)";
   g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
 }
 
 function shelfItem(g, W, H, it, y, on, accent) {
-  phoneRow(g, W, W * 0.055, y, W * 0.89, H * 0.082, on, "rgba(0,0,0,0.05)");
-  g.fillStyle = accent;
-  roundRect(g, W * 0.085, y + H * 0.014, W * 0.095, H * 0.054, W * 0.02); g.fill();
+  const rowH = H * 0.104;
+  phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, on, "rgba(0,0,0,0.05)");
+  // The price is laid out first and the text is then cut to what is left, so
+  // a long note can never run under the figure.
+  g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+  const price = yenText(it.price);
+  const priceW = g.measureText(price).width;
   g.fillStyle = "#14171b";
-  g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
-  g.fillText(it.name, W * 0.205, y + H * 0.030);
-  g.fillStyle = "#6a717a";
-  g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
-  g.fillText(it.days ? it.note + "  \u00b7  " + it.days + " day delivery" : it.note,
-             W * 0.205, y + H * 0.058);
-  g.fillStyle = "#14171b";
-  g.font = "700 " + Math.round(W * 0.046) + "px " + UI;
   g.textAlign = "right";
-  g.fillText(yenText(it.price), W * 0.92, y + H * 0.044);
+  g.fillText(price, W * (1 - PL.pad) - W * 0.035, y + rowH * 0.42);
   g.textAlign = "left";
+
+  g.fillStyle = accent;
+  roundRect(g, W * (PL.pad + 0.028), y + rowH * 0.20, W * 0.092, rowH * 0.58, W * 0.022); g.fill();
+
+  const textX = W * (PL.pad + 0.155);
+  const textW = W * (1 - PL.pad) - W * 0.055 - priceW - textX;
+  g.fillStyle = "#14171b";
+  g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
+  clipText(g, it.name, textX, y + rowH * 0.36, textW);
+  g.fillStyle = "#6a717a";
+  g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+  clipText(g, it.note, textX, y + rowH * 0.63, textW);
+  if (it.days) {
+    g.fillStyle = accent;
+    g.font = "600 " + Math.round(W * PL.tiny) + "px " + UI;
+    g.fillText(it.days + " day delivery", textX, y + rowH * 0.86);
+  }
 }
 
 const CAR_STOCK = {
@@ -9620,34 +9674,34 @@ function drawSite(g, W, H, site) {
     siteChrome(g, W, H, site, "#f4f5f3");
     // The shopfront band, drawn rather than copied: three stripes for one,
     // two for the other, which is enough to tell them apart on a sign.
-    const by = H * 0.062, bh = H * 0.085;
+    const by = H * 0.082, bh = H * 0.092;
     if (eleven) {
       g.fillStyle = "#0a6b42"; g.fillRect(0, by, W, bh);
       g.fillStyle = "#e8711a"; g.fillRect(0, by + bh * 0.70, W, bh * 0.14);
       g.fillStyle = "#cf2027"; g.fillRect(0, by + bh * 0.84, W, bh * 0.16);
       g.fillStyle = "#ffffff";
       g.font = "800 " + Math.round(W * 0.072) + "px " + UI;
-      g.fillText("11 ELEVEN", W * 0.055, by + bh * 0.40);
+      g.fillText("11 ELEVEN", W * PL.pad, by + bh * 0.40);
     } else {
       g.fillStyle = "#ffffff"; g.fillRect(0, by, W, bh);
       g.fillStyle = "#13a150"; g.fillRect(0, by, W, bh * 0.16);
       g.fillStyle = "#1272d6"; g.fillRect(0, by + bh * 0.84, W, bh * 0.16);
       g.fillStyle = "#1272d6";
       g.font = "800 " + Math.round(W * 0.072) + "px " + UI;
-      g.fillText("Pet Mart", W * 0.055, by + bh * 0.56);
+      g.fillText("Pet Mart", W * PL.pad, by + bh * 0.56);
     }
     g.fillStyle = "#6a717a";
     g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
     g.fillText(eleven ? "Open 24 hours \u00b7 delivery to your door"
                       : "Your neighbourhood store \u00b7 delivery available",
-               W * 0.055, H * 0.172);
+               W * PL.pad, H * 0.196);
     SHOP_ITEMS.forEach((it, i) => {
-      shelfItem(g, W, H, it, H * 0.195 + i * H * 0.092, phone.sub === i,
+      shelfItem(g, W, H, it, H * 0.215 + i * H * 0.117, phone.sub === i,
                 eleven ? "#0a6b42" : "#1272d6");
     });
     g.fillStyle = "#8d949c";
-    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-    g.fillText("Balance " + yenText(purse.yen), W * 0.055, H * 0.775);
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    g.fillText("Balance " + yenText(purse.yen), W * PL.pad, H * 0.945);
     return;
   }
 
@@ -9657,34 +9711,50 @@ function drawSite(g, W, H, site) {
     const ink = lux ? "#ffffff" : "#14171b";
     const dim = lux ? "#8a919a" : "#6a717a";
     g.fillStyle = ink;
-    g.font = "800 " + Math.round(W * 0.078) + "px " + UI;
-    g.fillText(site.title, W * 0.055, H * 0.115);
+    g.font = "800 " + Math.round(W * PL.title) + "px " + UI;
+    clipText(g, site.title, W * PL.pad, H * 0.135, W * 0.86);
     g.fillStyle = dim;
-    g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
     g.fillText(lux ? "Approved used \u00b7 finance available"
                    : "Honest cars, honest prices, no haggling",
-               W * 0.055, H * 0.152);
+               W * PL.pad, H * 0.172);
     const stock = CAR_STOCK[site.tier];
+    const rowH = H * 0.128;
     stock.forEach((c, i) => {
-      const y = H * 0.19 + i * H * 0.115;
-      phoneRow(g, W, W * 0.055, y, W * 0.89, H * 0.100, phone.sub === i,
+      const y = H * 0.21 + i * (rowH + H * 0.016);
+      phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i,
                lux ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
-      // a little car block, in the class's own silhouette
-      g.fillStyle = lux ? "#6f7d93" : "#9aa2ab";
-      const cw = W * 0.13, ch = H * 0.030;
-      roundRect(g, W * 0.085, y + H * 0.034, cw, ch, ch * 0.42); g.fill();
+      // A car in profile rather than a lozenge: a body, a cabin and two wheels
+      // is enough to tell a coupe from a one-box at this size.
+      const cx = W * (PL.pad + 0.035), cy = y + rowH * 0.50, cw = W * 0.165;
+      const low = c.kind === "sports" || c.kind === "super";
+      const tall = c.kind === "keivan";
+      g.fillStyle = lux ? "#7d8a9e" : "#9aa2ab";
+      const bodyH = cw * (low ? 0.17 : 0.21);
+      roundRect(g, cx, cy - bodyH * 0.1, cw, bodyH, bodyH * 0.38); g.fill();
+      const cabW = cw * (tall ? 0.62 : low ? 0.42 : 0.50);
+      const cabH = cw * (tall ? 0.30 : low ? 0.13 : 0.19);
+      roundRect(g, cx + cw * (tall ? 0.16 : 0.26), cy - bodyH * 0.1 - cabH + 1,
+                cabW, cabH, cabH * 0.42); g.fill();
+      g.fillStyle = lux ? "#3b4350" : "#5f6771";
+      [0.22, 0.76].forEach(f => {
+        g.beginPath(); g.arc(cx + cw * f, cy + bodyH * 0.92, cw * 0.072, 0, Math.PI * 2); g.fill();
+      });
+
+      const textX = W * (PL.pad + 0.235);
+      const textW = W * (1 - PL.pad) - W * 0.03 - textX;
       g.fillStyle = ink;
-      g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
-      g.fillText(c.name, W * 0.245, y + H * 0.036);
+      g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
+      clipText(g, c.name, textX, y + rowH * 0.33, textW);
       g.fillStyle = dim;
-      g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-      g.fillText("Buy " + yenText(c.price) + "   \u00b7   Rent " + yenText(c.rent) + "/day",
-                 W * 0.245, y + H * 0.068);
+      g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+      clipText(g, "Buy " + yenText(c.price), textX, y + rowH * 0.60, textW);
+      clipText(g, "Rent " + yenText(c.rent) + " a day", textX, y + rowH * 0.84, textW);
     });
     g.fillStyle = dim;
-    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-    g.fillText("Balance " + yenText(purse.yen) + " \u00b7 nowhere to keep one yet",
-               W * 0.055, H * 0.78);
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    g.fillText("Balance " + yenText(purse.yen), W * PL.pad, H * 0.915);
+    g.fillText("Nowhere to keep one yet \u2014 garages come later.", W * PL.pad, H * 0.945);
     return;
   }
 
@@ -9729,12 +9799,12 @@ function drawSite(g, W, H, site) {
   const ink = site.kind === "scam" ? "#c02020" : "#14171b";
   g.fillStyle = body[0][1] || ink;
   g.font = "800 " + Math.round(W * 0.068) + "px " + UI;
-  g.fillText(body[0][0], W * 0.055, H * 0.115);
+  clipText(g, body[0][0], W * PL.pad, H * 0.135, W * 0.86);
   g.fillStyle = site.kind === "scam" ? "#8a2a10" : "#3c434b";
   for (let i = 1; i < body.length; i++) {
     g.font = (i % 2 || site.kind !== "news" ? "500 " : "400 ") +
              Math.round(W * 0.040) + "px " + UI;
-    g.fillText(body[i][0], W * 0.055, H * (0.165 + i * 0.042));
+    clipText(g, body[i][0], W * PL.pad, H * (0.192 + i * 0.045), W * 0.86);
   }
 }
 
@@ -9869,26 +9939,32 @@ function appNihon(g, W, H) {
   const names = stops.length ? stops.map(s => s.name)
     : ["Hinodechō", "Mizuho", "Tōkonto Central", "Gosho Gardens", "Shinmei"];
   names.forEach((n, i) => {
-    const y = H * 0.155 + i * H * 0.105;
-    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.09, phone.sub === i);
-    g.fillStyle = "#17a05e";
-    roundRect(g, W * 0.105, y + H * 0.024, W * 0.016, H * 0.042, W * 0.008); g.fill();
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * 0.048) + "px " + UI;
-    g.fillText(String(n).replace(" Station", ""), W * 0.145, y + H * 0.032);
-    g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-    g.fillText("NHRail Kanjō Loop \u00b7 platform " + (1 + i % 2), W * 0.145, y + H * 0.062);
+    const rowH = H * 0.112;
+    const y = H * PL.listY + i * (rowH + H * 0.014);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
     const mins = (2 + (i * 7 + t.m) % 11);
+    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+    const minsText = mins + " min";
+    const minsW = g.measureText(minsText).width;
     g.fillStyle = mins <= 2 ? "#f0c020" : "#e7ebee";
-    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
     g.textAlign = "right";
-    g.fillText(mins + " min", W * 0.89, y + H * 0.047);
+    g.fillText(minsText, W * (1 - PL.pad) - W * 0.035, y + rowH * 0.58);
     g.textAlign = "left";
+
+    g.fillStyle = "#17a05e";
+    roundRect(g, W * (PL.pad + 0.03), y + rowH * 0.22, W * 0.015, rowH * 0.56, W * 0.0075); g.fill();
+    const textX = W * (PL.pad + 0.07);
+    const textW = W * (1 - PL.pad) - W * 0.06 - minsW - textX;
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
+    clipText(g, String(n).replace(" Station", ""), textX, y + rowH * 0.40, textW);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    clipText(g, "NHRail Kanjō Loop \u00b7 platform " + (1 + i % 2), textX, y + rowH * 0.74, textW);
   });
   g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-  g.fillText("Times are live. Stations are marked on the map.", W * 0.075, H * 0.72);
+  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText("Stations are marked on the map.", W * PL.pad, H * 0.90);
 }
 
 // ---- Phone, Mail, Contacts, Music, Settings
@@ -9950,22 +10026,24 @@ const SCAM_MAIL = [
 ];
 function appMail(g, W, H) {
   phoneChrome(g, W, H, "Mail", SCAM_MAIL.length + " unread");
+  const mailW = W * (1 - PL.pad * 2) - W * 0.08;
   SCAM_MAIL.forEach((m, i) => {
-    const y = H * 0.155 + i * H * 0.105;
-    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.092, phone.sub === i);
+    const rowH = H * 0.112;
+    const y = H * PL.listY + i * (rowH + H * 0.014);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
     g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText(m[0], W * 0.115, y + H * 0.028);
+    g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
+    clipText(g, m[0], W * (PL.pad + 0.04), y + rowH * 0.28, mailW);
     g.fillStyle = "#c9ced4";
-    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-    g.fillText(m[1], W * 0.115, y + H * 0.056);
+    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    clipText(g, m[1], W * (PL.pad + 0.04), y + rowH * 0.57, mailW);
     g.fillStyle = "#6b727a";
-    g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
-    g.fillText(m[2], W * 0.115, y + H * 0.080);
+    g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    clipText(g, m[2], W * (PL.pad + 0.04), y + rowH * 0.83, mailW);
   });
   g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-  g.fillText("None of these are real. Do not reply to any of them.", W * 0.075, H * 0.73);
+  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText("None of these are real.", W * PL.pad, H * 0.90);
 }
 
 function appContacts(g, W, H) {
@@ -10014,15 +10092,18 @@ function appSettings(g, W, H) {
     ["Storage", "126 GB of 256 GB"]
   ];
   rows.forEach((r, i) => {
-    const y = H * 0.155 + i * H * 0.072;
-    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.062, phone.sub === i);
-    g.fillStyle = "#ffffff";
-    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText(r[0], W * 0.115, y + H * 0.036);
+    const rowH = H * 0.070;
+    const y = H * PL.listY + i * (rowH + H * 0.011);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+    g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
     g.fillStyle = "#79818b";
     g.textAlign = "right";
-    g.fillText(r[1], W * 0.885, y + H * 0.036);
+    const vw = Math.min(g.measureText(r[1]).width, W * 0.48);
+    clipText(g, r[1], W * (1 - PL.pad) - W * 0.04, y + rowH * 0.62, W * 0.48);
     g.textAlign = "left";
+    g.fillStyle = "#ffffff";
+    clipText(g, r[0], W * (PL.pad + 0.04), y + rowH * 0.62,
+             W * (1 - PL.pad * 2) - W * 0.10 - vw);
   });
 }
 
