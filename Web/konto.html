@@ -10646,13 +10646,15 @@ function appMusic(g, W, H) {
       }
     } else {
       g.fillStyle = on ? "#ffffff" : "#9aa1a9";
+      // The apex points the way the button goes: left for previous, right for
+      // next, with the bar behind it on the same side as the apex.
       const d = id === "prev" ? -1 : 1;
       g.beginPath();
-      g.moveTo(x + d * r * 0.42, cy - r * 0.52);
-      g.lineTo(x - d * r * 0.30, cy);
-      g.lineTo(x + d * r * 0.42, cy + r * 0.52);
+      g.moveTo(x + d * r * 0.42, cy);                       // the point
+      g.lineTo(x - d * r * 0.30, cy - r * 0.52);
+      g.lineTo(x - d * r * 0.30, cy + r * 0.52);
       g.closePath(); g.fill();
-      g.fillRect(x + d * r * 0.46, cy - r * 0.52, r * 0.16, r * 1.04);
+      g.fillRect(x + d * r * 0.44, cy - r * 0.52, r * 0.16, r * 1.04);
     }
   });
   g.fillStyle = "#6b727a";
