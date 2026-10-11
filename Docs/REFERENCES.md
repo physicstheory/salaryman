@@ -85,7 +85,74 @@ either.
 | **Coupes** | red, white, black, metallic blue, gold, racing green |
 | **Supercars** | yellow, orange, lime, blue, red — saturated, because nobody buys a beige one |
 
-### If you have a modelled car
+### The modelled cars
+
+Nine of the sixteen kinds are real meshes rather than boxes. They arrive from a
+text-to-3D generator as sealed, untextured shells at 130,000 to 400,000 faces, and
+`Tools/cars/prepare_car.py` turns each one into a game asset:
+
+| | |
+|---|---|
+| **Orient** | the width is the axis whose geometry is most even about its own centre, because a car is mirror-symmetric left to right and not front to back or floor to roof. The length is the longest. Whatever is left is up. Measuring it beats assuming it — one of the five arrived standing on its nose |
+| **Resize** | to the real car's L × W × H on all three axes. A generated kei car came out 1.9 m wide for a class capped by law at 1.48, and a car that does not fit its lane is wrong immediately |
+| **Shrink** | to 4,000–5,500 triangles. A hundred and thirty cars at 150k faces is twenty million triangles |
+| **Cut** | into four materials by geometry alone, since there is nothing to sample: below the sill and near a hub is tyre, below the sill otherwise is trim, above the beltline and vertical (or raked, near the ends of the greenhouse) is glass, the rest is paint |
+
+The game then gives every copy its own `paint` material, so one mesh is forty
+different cars. A taxi, a ride-hailing car and a patrol car are the same saloon
+with different paint and something on the roof, which is what they are in the
+street.
+
+| In the game | What it is |
+|---|---|
+| Kei | a kei crossover: 3.40 × 1.48 × 1.68 m |
+| Kei van | a tall kei one-box: 3.40 × 1.47 × 1.89 m |
+| Fastback sedan, saloon, taxi, Ryde, patrol car | one compact saloon body: 4.58 × 1.78 × 1.46 m |
+| Coupe | a rear-engined sports car: 4.52 × 1.85 × 1.30 m |
+| Motorcycle | a 600 supersport: 2.10 × 0.78 × 1.20 m |
+
+### Driving one
+
+The traffic drives at the speeds in the catalogue. When **you** drive, the
+numbers are the real car's: a top speed and a nought-to-a-hundred time, which
+between them give the acceleration. It falls off towards the top the way a real
+one does, which is what stops a supercar reaching 94 m/s in four seconds.
+
+| | Top | 0–100 km/h |
+|---|---|---|
+| Kei | 38 m/s (137 km/h) | 13.5 s |
+| Fastback sedan | 50 m/s | 9.2 s |
+| Patrol car | 58 m/s | 7.0 s |
+| Coupe | 80 m/s (288 km/h) | 3.5 s |
+| Supercar | 94 m/s | 2.9 s |
+| Motorcycle | 78 m/s | 3.1 s |
+| Bus | 25 m/s | 25 s |
+
+**Weight.** Forward on the left stick puts the weight over the nose and back
+puts it on the rear wheels. On a bike that is a stoppie and a wheelie — back on
+the stick with the throttle open and more than 2 m/s on the clock lifts the
+front to about 37°; forward on it under braking puts the nose down. On a car it
+is dive and squat, which is the same thing with a suspension in the way. On a
+keyboard the throttle is already on W, so shift is the lean.
+
+**The handbrake** (A, or space) locks the back: it scrubs speed and roughly
+doubles the rate the tail comes round, which is a handbrake turn rather than a
+simulation of one.
+
+**The engine** is synthesised, not sampled. A four-cylinder firing twice a
+revolution at 3,000 rpm is 100 Hz, so that is what it is: three sawtooths at
+the firing frequency and its second and third harmonic, through a low pass that
+opens as the throttle does, with a breath of noise for the induction. Six gear
+ratios, so the note climbs and drops rather than rising forever with road
+speed. A bike revs to twice a car's; a bus and a truck are slow-turning
+diesels. Four oscillators, no download, and it tracks the gearbox — which a
+loop of someone else's engine cannot. The patrol car's siren is a square wave
+yelping between 320 and 960 Hz, on **LB** or **H**.
+
+**How many there are** follows the city's own footprint: the middle of Tōkonto
+is nose to tail and a road through the rice is nearly empty.
+
+### If you have another modelled car
 
 The bodies are built out of boxes, and boxes have a ceiling: they can be the right size, the
 right shape and the right surface, and they will still not be photographs. `CAR_MODELS` at the

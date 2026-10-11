@@ -3452,6 +3452,7 @@ function initThree() {
   const dom = renderer.domElement;
   dom.style.touchAction = "none";
   dom.addEventListener("pointerdown", e => {
+    wakeAudio();
     dragging = true; tour = false; lastX = e.clientX; lastY = e.clientY;
     dom.setPointerCapture(e.pointerId);
   });
@@ -3468,6 +3469,7 @@ function initThree() {
   }, { passive: false });
   window.addEventListener("keydown", e => {
     keys[e.code] = true;
+    wakeAudio();
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (nav.mapOpen) {
       // The map takes the arrows and the zoom keys while it is up.
@@ -3487,6 +3489,7 @@ function initThree() {
     if (e.code === "KeyF") useRide();
     if (e.code === "KeyG") toggleWalk();
     if (e.code === "KeyP") setPhone(!phone.open);
+    if (e.code === "KeyH") toggleSiren();
     if (phone.open) {
       if (e.code === "ArrowLeft") phoneMove(-1, 0);
       if (e.code === "ArrowRight") phoneMove(1, 0);
@@ -3537,6 +3540,7 @@ function pollPad(dt) {
     pad.name = gp.id || "controller";
     showPad();
   }
+  if (gp.buttons.some(b => b && b.pressed)) wakeAudio();
 
   const held = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
@@ -3591,8 +3595,10 @@ function pollPad(dt) {
     if (pressed(PAD.DOWN)) toggleWalk();
   }
 
-  // Y gets you in and out of whatever you are standing next to.
+  // Y gets you in and out of whatever you are standing next to; LB is the
+  // siren, if what you are in has one.
   if (pressed(PAD.Y)) useRide();
+  if (pressed(PAD.LB)) toggleSiren();
 
   pad.x = deadzone(gp.axes[0] || 0);
   pad.y = deadzone(gp.axes[1] || 0);
@@ -4468,6 +4474,7 @@ function followSun() {
 // blocks and the street name only changes when you cross a junction.
 let hudTimer = 0;
 function updateHud(dt, force) {
+  updateSound(dt);
   hudTimer -= dt;
   if (hudTimer > 0 && !force) return;
   hudTimer = 1 / 14;
@@ -5718,6 +5725,31 @@ function decoMesh() {
   };
 }
 
+// What each one does when you are the one driving it: the manufacturer's top
+// speed in metres a second, and the time it takes to reach a hundred
+// kilometres an hour, which between them give an acceleration and a ceiling.
+// `top` in the catalogue stays what it was - the speed the computer drives it
+// at in traffic - because a kei car doing its real 137 km/h through a ward is
+// not traffic, it is a problem.
+const PERF = {
+  kei:     { top: 38, to100: 13.5 },   // 658 cc, 64 PS, which is the class limit
+  keivan:  { top: 34, to100: 15.5 },
+  hatch:   { top: 44, to100: 11.0 },
+  sedan:   { top: 50, to100: 9.2 },
+  saloon:  { top: 53, to100: 7.8 },
+  suv:     { top: 50, to100: 9.8 },
+  onebox:  { top: 46, to100: 11.5 },
+  taxi:    { top: 39, to100: 13.0 },
+  ryde:    { top: 53, to100: 7.8 },
+  police:  { top: 58, to100: 7.0 },
+  sports:  { top: 80, to100: 3.5 },    // flat six, rear engine, 911 numbers
+  "super": { top: 94, to100: 2.9 },
+  bike:    { top: 78, to100: 3.1 },    // a 600 supersport
+  scooter: { top: 17, to100: 11.0 },
+  truck:   { top: 28, to100: 20.0 },
+  bus:     { top: 25, to100: 25.0 }
+};
+
 // The catalogue. share is the fraction of the traffic; wide keeps a vehicle on
 // the arterials, where a ten-metre bus can actually fit.
 const CAR_KINDS = [
@@ -5736,7 +5768,7 @@ const CAR_KINDS = [
   { name: "onebox", body: "onebox", L: 4.70, W: 1.73, H: 1.86, share: 0.07, top: 13.5,
     marques: ["kosei", "mitsuwa"] },
   { name: "taxi", body: "taxi", L: 4.40, W: 1.70, H: 1.75, share: 0.075, top: 14.0,
-    livery: "taxi", colour: [0.06, 0.07, 0.08], plate: "plateGreen" },
+    livery: "taxi", colour: [0.93, 0.70, 0.06], plate: "plateGreen" },
   { name: "ryde", body: "saloon", L: 4.91, W: 1.80, H: 1.46, share: 0.035, top: 15.5,
     livery: "ryde", colour: [0.07, 0.07, 0.08], plate: "plateGreen" },
   { name: "police", body: "police", L: 4.69, W: 1.78, H: 1.48, share: 0.012, top: 17.0,
@@ -5811,34 +5843,100 @@ const traffic = {
 };
 
 // ---- real models, where you have one ------------------------------------
-// The bodies below are built out of boxes, and boxes have a ceiling: they can
-// be the right size, the right shape and the right surface, and they will
-// still not be photographs. If you have a modelled car you are allowed to use
-// - something you bought, something you made, or something released under a
-// licence that permits it - drop the .glb next to this page and name it here,
-// and that kind uses it instead. Everything else keeps working: the traffic,
-// the collision, the paint colour and getting in come from the catalogue
-// entry, and only the geometry changes.
-//
-//   const CAR_MODELS = { sedan: { url: "cars/sedan.glb", yaw: Math.PI } };
-//
-// yaw turns the model until its nose points the way it drives. A kind with no
-// entry, or whose file does not load, keeps the built body - so an incomplete
-// set is not a broken game.
+// The box bodies below have a ceiling: they can be the right size, the right
+// shape and the right surface, and they will still not be photographs. Where
+// there is a modelled car it is used instead, and everything else - the
+// traffic, the collision, the paint, getting in - keeps working off the
+// catalogue entry. A kind with no entry, or whose file does not load, keeps
+// its built body, so an incomplete set is not a broken game.
 //
 // What will not work is taking the models out of another game. A vehicle mod
 // for a commercial simulator belongs to whoever made it, and most of them are
 // unlicensed recreations of real cars on top of that, so they carry both a
 // copyright and a trademark problem into anything they are shipped in.
-const CAR_MODELS = {};
+// Modelled cars. Eight of the sixteen kinds are real meshes rather than boxes:
+// they arrive as untextured shells from a generator, get cut into four
+// materials by Tools/cars/prepare_car.py - paint, glass, trim, tyre - and then
+// the only thing the game has to do is give each copy its own paint.
+//
+// Four of them share one body. A taxi, a ride-hailing car and a patrol car are
+// a saloon with different paint and something on the roof, which is what they
+// are in the street, so they are that here too: same mesh, own colour, and a
+// small built attachment for the roof lamp, the beacon or the light bar.
+const CAR_MODELS = {
+  kei: { url: "cars/kei.glb" },
+  keivan: { url: "cars/keivan.glb" },
+  sports: { url: "cars/sports.glb" },
+  bike: { url: "cars/bike.glb" },
+  sedan: { url: "cars/sedan.glb" },
+  saloon: { url: "cars/sedan.glb" },
+  taxi: { url: "cars/sedan.glb", livery: "taxi" },
+  ryde: { url: "cars/sedan.glb", livery: "ryde" },
+  police: { url: "cars/sedan.glb", livery: "police" }
+};
 
-function fitCarModel(object3d, kind, spin) {
+// What goes on the roof. Built out of the same primitives the box bodies are,
+// because a roof lamp is a box whatever is underneath it.
+function liveryRoof(kind, livery) {
+  const g = new THREE.Group();
+  const solid = solidMesh(), deco = decoMesh();
+  const L = kind.L, H = kind.H, hw = kind.W / 2;
+  if (livery === "taxi") {
+    solid.colour([0.95, 0.94, 0.90, 0.0, 0.3]);
+    solid.box(0, H + 0.10, L * 0.04, 0.46, 0.20, 0.24);
+    deco.panel(0, H + 0.10, L * 0.04 + 0.13, 0.42, 0.17, "F", badgeUV("taxiLamp"), false);
+    deco.panel(0, H + 0.10, L * 0.04 - 0.13, 0.42, 0.17, "B", badgeUV("taxiLamp"), false);
+    deco.flanks(0.231, H + 0.10, L * 0.04, 0.21, 0.16, badgeUV("taxiLamp"), false);
+    deco.flanks(hw + 0.01, H * 0.40, -L * 0.06, 1.05, 0.40, badgeUV("taxiDoor"), false);
+  } else if (livery === "ryde") {
+    solid.colour([0.08, 0.09, 0.10, 0.1, 0.3]);
+    solid.box(0, H + 0.07, L * 0.10, 0.30, 0.14, 0.17);
+    deco.panel(0, H + 0.07, L * 0.10 + 0.10, 0.28, 0.13, "F", badgeUV("rydeRoof"), false);
+    deco.panel(0, H + 0.07, L * 0.10 - 0.10, 0.28, 0.13, "B", badgeUV("rydeRoof"), false);
+    deco.flanks(hw + 0.01, H * 0.42, -L * 0.04, 0.60, 0.24, badgeUV("rydeDoor"), false);
+  } else if (livery === "police") {
+    // The bar itself is built here; the two lamps on it are handed back so the
+    // siren can flash them.
+    solid.colour(COL.dark);
+    solid.box(0, H + 0.03, 0, kind.W * 0.80, 0.07, 0.26);
+    deco.flanks(hw + 0.01, H * 0.44, -L * 0.04, 0.92, 0.34, badgeUV("policeDoor"), false);
+    deco.panel(0, H * 0.84, L * 0.34, 0.26, 0.26, "U", badgeUV("policeBonnet"), false);
+  }
+  if (!solid.empty()) {
+    const m = new THREE.Mesh(solid.geometry(), furnitureMaterial());
+    m.castShadow = true;
+    g.add(m);
+  }
+  if (!deco.empty()) {
+    g.add(new THREE.Mesh(deco.geometry(), decoMaterial(badgeAtlas(), false)));
+  }
+  if (livery === "police") {
+    // Two emissive blocks that the siren drives.
+    const lamps = [];
+    [[-1, COL.red], [1, [0.10, 0.22, 0.72]]].forEach(e => {
+      const mat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(e[1][0], e[1][1], e[1][2]),
+        emissive: new THREE.Color(e[1][0], e[1][1], e[1][2]),
+        emissiveIntensity: 0.2, roughness: 0.35, metalness: 0.0
+      });
+      const box = new THREE.Mesh(new THREE.BoxGeometry(kind.W * 0.34, 0.15, 0.22), mat);
+      box.position.set(e[0] * kind.W * 0.22, kind.H + 0.11, 0);
+      g.add(box);
+      lamps.push(mat);
+    });
+    g.userData.lamps = lamps;
+  }
+  return g;
+}
+
+function fitCarModel(object3d, kind, entry) {
   // Whatever it was authored at: stand it on the ground, centre it, point it
-  // down +Z and scale it to the length in the catalogue.
+  // down +Z and scale it to the length in the catalogue. The meshes are already
+  // prepared to those dimensions, so in practice this only re-centres them.
   const holder = new THREE.Group();
   const inner = new THREE.Group();
   inner.add(object3d);
-  inner.rotation.y = spin || 0;
+  inner.rotation.y = entry.yaw || 0;
   inner.updateMatrixWorld(true);
   const box = new THREE.Box3().setFromObject(inner);
   const size = box.getSize(new THREE.Vector3());
@@ -5847,21 +5945,67 @@ function fitCarModel(object3d, kind, spin) {
   inner.scale.setScalar(scale);
   inner.position.set(-centre.x * scale, -box.min.y * scale, -centre.z * scale);
   holder.add(inner);
-  holder.traverse(o => { if (o.isMesh) o.castShadow = true; });
+
+  // Its own paint, so one mesh can be forty different cars. Everything else -
+  // glass, tyres, trim - is shared and shaded the way the rest of the world is.
+  let paint = null;
+  holder.traverse(o => {
+    if (!o.isMesh) return;
+    o.castShadow = true;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const out = mats.map(m => {
+      if (!m) return m;
+      const name = (m.name || "").split(".")[0];
+      if (name === "paint") {
+        if (!paint) {
+          paint = new THREE.MeshPhysicalMaterial({
+            color: 0xcccccc, metalness: 0.25, roughness: 0.34,
+            clearcoat: gfx.high ? 0.75 : 0, clearcoatRoughness: 0.12,
+            envMap: gfx.env || null, envMapIntensity: 0.75
+          });
+        }
+        return paint;
+      }
+      if (name === "glass") return sharedCarMat("glass", 0x0d1014, 0.0, 0.06, 1.1);
+      if (name === "tyre") return sharedCarMat("tyre", 0x0a0a0b, 0.0, 0.95, 0.2);
+      return sharedCarMat("trim", 0x16181c, 0.35, 0.42, 0.6);
+    });
+    o.material = Array.isArray(o.material) ? out : out[0];
+  });
+  holder.userData.paint = paint;
+
+  if (entry.livery) {
+    const extra = liveryRoof(kind, entry.livery);
+    holder.add(extra);
+    holder.userData.lamps = extra.userData.lamps || null;
+  }
   return holder;
+}
+
+const carMatCache = {};
+function sharedCarMat(name, colour, metal, rough, envI) {
+  if (carMatCache[name]) return carMatCache[name];
+  const m = gfx.high
+    ? new THREE.MeshStandardMaterial({ color: colour, metalness: metal, roughness: rough,
+        envMap: gfx.env || null, envMapIntensity: envI })
+    : new THREE.MeshLambertMaterial({ color: colour });
+  carMatCache[name] = m;
+  return m;
 }
 
 function loadCarModels(root) {
   if (typeof THREE.GLTFLoader !== "function") return;
+  Object.keys(carMatCache).forEach(k => delete carMatCache[k]);
   const loader = new THREE.GLTFLoader();
+  const cache = {};
   CAR_KINDS.forEach((kind, ki) => {
     const entry = CAR_MODELS[kind.name];
     if (!entry) return;
     const cap = traffic.paint[ki] ? traffic.paint[ki].instanceMatrix.count : 8;
-    loader.load(entry.url, gltf => {
+    const build = gltf => {
       const pool = { items: [] };
       for (let i = 0; i < cap; i++) {
-        const clone = fitCarModel(gltf.scene.clone(true), kind, entry.yaw || 0);
+        const clone = fitCarModel(gltf.scene.clone(true), kind, entry);
         clone.visible = false;
         root.add(clone);
         pool.items.push(clone);
@@ -5869,9 +6013,21 @@ function loadCarModels(root) {
       traffic.pool[ki] = pool;
       // The built body steps aside rather than being drawn inside the model.
       [traffic.paint[ki], traffic.trim[ki], traffic.deco[ki]].forEach(m => { if (m) m.visible = false; });
-      console.log("[Konto] " + kind.name + ": using " + entry.url);
+    };
+    // Four kinds share one file, so it is fetched once.
+    if (cache[entry.url]) {
+      if (cache[entry.url].gltf) build(cache[entry.url].gltf);
+      else cache[entry.url].waiting.push(build);
+      return;
+    }
+    cache[entry.url] = { gltf: null, waiting: [build] };
+    loader.load(entry.url, gltf => {
+      cache[entry.url].gltf = gltf;
+      cache[entry.url].waiting.forEach(fn => fn(gltf));
+      cache[entry.url].waiting.length = 0;
+      console.log("[Konto] " + entry.url + " loaded");
     }, undefined, () => {
-      console.warn("[Konto] " + kind.name + ": " + entry.url + " did not load; keeping the built body");
+      console.warn("[Konto] " + entry.url + " did not load; keeping the built bodies");
     });
   });
 }
@@ -6427,7 +6583,16 @@ function buildTraffic(w, root) {
 function trafficSpawn(at) {
   const lanes = traffic.lanes;
   let budget = 6;
-  for (let c = 0; c < traffic.cars.length && budget > 0; c++) {
+  // How many cars there should be here at all. A ward in the middle of
+  // Tōkonto is nose to tail; a road through the rice is one car a minute, and
+  // the generator already knows which is which.
+  const city = cityAt(at.x, at.z);
+  const urban = city && city.footprint ? clamp01(city.footprint(at.x, at.z)) : 0;
+  const want = Math.round(traffic.max * (0.10 + 0.90 * Math.pow(urban, 0.55)));
+  let live = 0;
+  for (let c = 0; c < traffic.cars.length; c++) if (traffic.cars[c].live) live++;
+  if (live >= want) return;
+  for (let c = 0; c < traffic.cars.length && budget > 0 && live < want; c++) {
     const car = traffic.cars[c];
     if (car.live) continue;
     const kind = CAR_KINDS[car.kind];
@@ -6469,6 +6634,7 @@ function trafficSpawn(at) {
       while (slot > 0 && traffic.cars[list[slot - 1]].s > s) slot--;
       list.splice(slot, 0, c);
       budget--;
+      live++;
       break;
     }
   }
@@ -6537,7 +6703,7 @@ function updateTraffic(dt, at) {
 
   // The car you are driving and the ones you parked are instances of the same
   // meshes, written first so a full pool can never crowd them out.
-  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV) {
+  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV, rollV) {
     const paint = traffic.paint[kindIdx];
     const i = counts[kindIdx];
     if (i >= paint.instanceMatrix.count) return;
@@ -6547,7 +6713,18 @@ function updateTraffic(dt, at) {
       const o = pool.items[i];
       o.visible = true;
       o.position.set(pos.x, pos.y, pos.z);
-      o.rotation.set(pitchV || 0, yawV, 0, "YXZ");
+      // Pitch for the weight, roll for the slide, yaw for where it is going.
+      o.rotation.set(pitchV || 0, yawV, -(rollV || 0) * 0.22, "YXZ");
+      if (o.userData.paint && colour) {
+        o.userData.paint.color.setRGB(colour[0], colour[1], colour[2]);
+      }
+      const lamps = o.userData.lamps;
+      if (lamps) {
+        // A two-tone flash at about three a second, out of phase.
+        const t = clock * 6.2;
+        lamps[0].emissiveIntensity = 0.15 + Math.max(0, Math.sin(t)) * 2.6;
+        lamps[1].emissiveIntensity = 0.15 + Math.max(0, Math.sin(t + Math.PI)) * 2.6;
+      }
       return;
     }
     _carEuler.set(pitchV || 0, yawV, 0, "YXZ");
@@ -6561,7 +6738,8 @@ function updateTraffic(dt, at) {
     const deco = traffic.deco[kindIdx];
     if (deco) { deco.setMatrixAt(i, _carMat); deco.geometry.attributes.aUvOff.setXY(i, uv[0], uv[1]); }
   }
-  if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour, drive.car.uv);
+  if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
+                          drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0);
   drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv));
 
   // Recycle what has fallen behind, and write the transforms for what has not.
@@ -6578,7 +6756,7 @@ function updateTraffic(dt, at) {
       car.live = false;
       continue;
     }
-    writeCar(car.kind, p, p.yaw, car.colour, car.uv, p.pitch);
+    writeCar(car.kind, p, p.yaw, car.colour, car.uv, p.pitch, 0);
   }
 
   for (let k = 0; k < CAR_KINDS.length; k++) {
@@ -7364,6 +7542,171 @@ function buildStreetFurniture(w, city, root, boxes) {
   });
   made.forEach(m => { m.frustumCulled = false; root.add(m); });
   return made;
+}
+
+// ---------------------------------------------------------------- sound
+// An engine, synthesised rather than sampled. A four-cylinder firing twice a
+// revolution at 3,000 rpm is 100 Hz, and what you hear on top of that is its
+// harmonics shaped by the intake and the exhaust - so that is what this is:
+// three sawtooths at the firing frequency and its second and third harmonic,
+// through a low pass that opens as the throttle does, plus a breath of noise
+// for the induction. It costs four oscillators and no download, and it tracks
+// the gearbox, which a loop of someone else's engine cannot.
+//
+// Browsers will not start audio until the player has touched something, so the
+// context is created on the first key, button or tap and not before.
+const sound = {
+  ctx: null, master: null, ready: false, wanted: false,
+  engine: null, siren: null, sirenOn: false
+};
+
+function initAudio() {
+  if (sound.ctx || !sound.wanted) return;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    const ctx = new AC();
+    const master = ctx.createGain();
+    master.gain.value = 0.0;
+    master.connect(ctx.destination);
+    sound.ctx = ctx;
+    sound.master = master;
+    sound.ready = true;
+  } catch (err) {
+    sound.ready = false;
+  }
+}
+
+// Called from the first real input of any kind.
+function wakeAudio() {
+  sound.wanted = true;
+  if (!sound.ctx) initAudio();
+  if (sound.ctx && sound.ctx.state === "suspended") sound.ctx.resume();
+}
+
+function buildEngine() {
+  const ctx = sound.ctx;
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 500;
+  filter.Q.value = 1.1;
+  filter.connect(out);
+  out.connect(sound.master);
+
+  const oscs = [];
+  [[1, 0.5], [2, 0.3], [3, 0.16]].forEach(h => {
+    const o = ctx.createOscillator();
+    o.type = "sawtooth";
+    o.frequency.value = 60 * h[0];
+    const g = ctx.createGain();
+    g.gain.value = h[1];
+    o.connect(g); g.connect(filter);
+    o.start();
+    oscs.push({ osc: o, mul: h[0] });
+  });
+
+  // Induction noise: two seconds of white noise on a loop, filtered hard.
+  const len = Math.floor(ctx.sampleRate * 2);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * 0.6;
+  const noise = ctx.createBufferSource();
+  noise.buffer = buf;
+  noise.loop = true;
+  const nf = ctx.createBiquadFilter();
+  nf.type = "bandpass";
+  nf.frequency.value = 900;
+  nf.Q.value = 0.7;
+  const ng = ctx.createGain();
+  ng.gain.value = 0;
+  noise.connect(nf); nf.connect(ng); ng.connect(sound.master);
+  noise.start();
+
+  return { out: out, filter: filter, oscs: oscs, noise: ng };
+}
+
+function buildSiren() {
+  const ctx = sound.ctx;
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  out.connect(sound.master);
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.value = 700;
+  const shape = ctx.createBiquadFilter();
+  shape.type = "bandpass";
+  shape.frequency.value = 1400;
+  shape.Q.value = 1.6;
+  osc.connect(shape); shape.connect(out);
+  osc.start();
+  return { out: out, osc: osc };
+}
+
+// Where the revs are. Six ratios, so the note climbs and drops the way a
+// gearbox makes it, rather than rising forever with road speed.
+const GEARS = [3.5, 2.1, 1.45, 1.1, 0.88, 0.72];
+function revsFor(speed, top) {
+  const v = Math.abs(speed);
+  const frac = clamp01(v / Math.max(4, top));
+  let gear = 0;
+  while (gear < GEARS.length - 1 && frac > (gear + 1) / GEARS.length) gear++;
+  const within = clamp01((frac - gear / GEARS.length) * GEARS.length);
+  return { rpm: 0.18 + within * 0.82, gear: gear };
+}
+
+function updateSound(dt) {
+  if (!sound.ready || !sound.ctx) return;
+  const ctx = sound.ctx;
+  const driving = !!drive.car;
+  const target = driving ? 0.5 : 0.0;
+  sound.master.gain.setTargetAtTime(target, ctx.currentTime, 0.12);
+  if (!driving) {
+    if (sound.engine) sound.engine.out.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    if (sound.siren) sound.siren.out.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
+    return;
+  }
+  if (!sound.engine) sound.engine = buildEngine();
+  const c = drive.car;
+  const kind = CAR_KINDS[c.kind];
+  const perf = PERF[kind.name] || { top: 40 };
+  const r = revsFor(c.speed, perf.top);
+  const load = clamp01(pad.throttle + (keys.KeyW || keys.ArrowUp ? 1 : 0));
+
+  // A four cylinder fires twice a revolution; a bike spins to twice the revs
+  // and a bus is a slow-turning diesel, so the base note follows the vehicle.
+  const base = kind.body === "bike" ? 46 : kind.body === "bus" || kind.body === "truck" ? 20 : 32;
+  const f = base * (0.55 + r.rpm * 2.6);
+  const now = ctx.currentTime;
+  sound.engine.oscs.forEach(o => o.osc.frequency.setTargetAtTime(f * o.mul, now, 0.05));
+  sound.engine.filter.frequency.setTargetAtTime(380 + r.rpm * 2400 + load * 900, now, 0.08);
+  sound.engine.out.gain.setTargetAtTime(0.16 + r.rpm * 0.2 + load * 0.16, now, 0.06);
+  sound.engine.noise.gain.setTargetAtTime(0.012 + load * 0.05 * r.rpm, now, 0.08);
+
+  // The siren, on a police car, when you ask for it.
+  if (kind.livery === "police") {
+    if (!sound.siren) sound.siren = buildSiren();
+    if (sound.sirenOn) {
+      // A yelp: up and down twice a second, with the pitch following.
+      const t = ctx.currentTime;
+      const phase = (clock * 1.9) % 1;
+      sound.siren.osc.frequency.setTargetAtTime(640 + Math.sin(phase * 6.2831) * 320, t, 0.02);
+      sound.siren.out.gain.setTargetAtTime(0.22, t, 0.05);
+    } else {
+      sound.siren.out.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
+    }
+  } else if (sound.siren) {
+    sound.siren.out.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
+    sound.sirenOn = false;
+  }
+}
+
+function toggleSiren() {
+  if (!drive.car) return;
+  if (CAR_KINDS[drive.car.kind].livery !== "police") return;
+  sound.sirenOn = !sound.sirenOn;
+  wakeAudio();
 }
 
 // ---------------------------------------------------------------- navigation
@@ -8522,6 +8865,7 @@ function enterCar(index) {
     kind: c.kind,
     pos: new THREE.Vector3(p.x, p.y, p.z),
     yaw: p.yaw, speed: c.v, steer: 0,
+    pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: c.v,
     colour: c.colour.slice(), uv: c.uv.slice()
   };
   document.body.classList.add("driving");
@@ -8531,6 +8875,7 @@ function enterCar(index) {
 function enterParked(i) {
   const p = drive.parked.splice(i, 1)[0];
   drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
+                pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0,
                 colour: p.colour.slice(), uv: p.uv.slice() };
   document.body.classList.add("driving");
 }
@@ -8565,22 +8910,64 @@ function updateDrive(dt) {
   const hand = keys.Space || pad.handbrake;
   let steer = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + w.x, -1, 1);
 
-  const top = kind.top * 1.25;
-  if (throttle > 0) c.speed += throttle * (c.speed < 0 ? 14 : 5.2) * dt;
+  const perf = PERF[kind.name] || { top: kind.top * 1.4, to100: 12 };
+  const top = perf.top;
+  // 27.8 m/s in the quoted time is the acceleration at the bottom of the rev
+  // range; it falls off towards the top the way a real one does, which is what
+  // stops a supercar reaching 94 m/s in four seconds.
+  const pull = 27.8 / perf.to100;
+  const fade = 1 - clamp01(Math.abs(c.speed) / top) * 0.72;
+  if (throttle > 0) c.speed += throttle * (c.speed < 0 ? pull * 2.4 : pull * fade) * dt;
   if (brake > 0) {
     if (c.speed > 0.4) c.speed -= brake * 13 * dt;
-    else c.speed -= brake * 4.4 * dt;              // into reverse
+    else c.speed -= brake * pull * 0.9 * dt;        // into reverse
   }
-  if (hand) c.speed *= Math.pow(0.02, dt);
-  if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.55, dt);   // engine braking
+  // The handbrake locks the back: it scrubs speed and lets the tail come round,
+  // which is a handbrake turn rather than a simulation of one.
+  if (hand) c.speed *= Math.pow(0.22, dt);
+  if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.68, dt);   // engine braking
   c.speed = clamp(c.speed, -top * 0.35, top);
 
   // Steering falls off with speed, so it turns in a car park and tracks on a
   // motorway, which is the whole of an arcade steering model worth having.
   const grip = 1 / (1 + Math.abs(c.speed) * 0.16);
   c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
-  const rate = c.steer * grip * 1.9 * Math.min(1, Math.abs(c.speed) / 2.2);
+  const loose = hand ? 2.1 : 1.0;
+  const rate = c.steer * grip * 1.9 * loose * Math.min(1, Math.abs(c.speed) / 2.2);
   c.yaw += rate * dt * Math.sign(c.speed || 1);
+  // How far the tail is out, which is only used to lean the body into the
+  // slide: there is no separate velocity vector to chase.
+  c.slide = lerp(c.slide || 0, hand ? c.steer * clamp01(Math.abs(c.speed) / 14) : 0,
+                 1 - Math.pow(0.004, dt));
+
+  // ---- weight. Push the stick forward and the weight goes over the nose;
+  // pull it back and it sits on the rear wheels. On a bike that is a stoppie
+  // and a wheelie; on a car it is dive and squat, which is the same thing with
+  // a suspension in the way.
+  // Forward on the stick is weight over the nose, back is weight on the rear
+  // wheel. On a keyboard the throttle is already on W, so shift is the lean:
+  // hold it with the throttle open and the front comes up.
+  const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
+  c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
+  const twoWheels = kind.body === "bike" || kind.body === "scooter";
+  let wantPitch = -c.accelPitch * 0.045;
+  if (twoWheels) {
+    // Back on the stick with the throttle open lifts the front; forward on it
+    // under braking puts the nose down. Both need the wheels turning.
+    if (c.lean < -0.35 && throttle > 0.55 && c.speed > 2.0) {
+      wantPitch -= (-c.lean - 0.35) / 0.65 * 0.62 * clamp01(c.speed / 9);
+    } else if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) {
+      wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
+    }
+  } else {
+    wantPitch += c.lean * 0.055;
+  }
+  c.pitch = lerp(c.pitch || 0, clamp(wantPitch, -0.72, 0.42), 1 - Math.pow(0.0009, dt));
+
+  // Acceleration, for the dive and squat, measured rather than guessed at.
+  const accel = (c.speed - (c.lastSpeed === undefined ? c.speed : c.lastSpeed)) / Math.max(1e-4, dt);
+  c.lastSpeed = c.speed;
+  c.accelPitch = lerp(c.accelPitch || 0, clamp(accel / 9, -1, 1), 1 - Math.pow(0.02, dt));
 
   const step = c.speed * dt;
   const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
