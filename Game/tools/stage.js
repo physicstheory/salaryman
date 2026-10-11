@@ -69,6 +69,14 @@ function main() {
   // The modelled cars live in a folder beside the page and are fetched at
   // runtime, so they have to travel with it or the world falls back to the
   // built box bodies.
+  // Artwork the page fetches at runtime (the title logo) travels with it too.
+  const artIn = path.join(SRC, "art");
+  if (fs.existsSync(artIn)) {
+    const artOut = path.join(OUT, "art");
+    fs.mkdirSync(artOut, { recursive: true });
+    fs.readdirSync(artIn).forEach(f => fs.copyFileSync(path.join(artIn, f), path.join(artOut, f)));
+  }
+
   const carsIn = path.join(SRC, "cars");
   let cars = 0;
   if (fs.existsSync(carsIn)) {

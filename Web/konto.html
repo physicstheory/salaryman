@@ -582,6 +582,15 @@
   /* ---- the line that tells you something ------------------------------------
      Low on the screen, above the minimap's eye line, gone on its own. The game
      talks to you here and nowhere else. */
+  /* ---- money, top right, above where the wanted stars will go ------------- */
+  #money {
+    position: fixed; top: 16px; right: 20px; z-index: 12;
+    font-family: var(--data); font-size: 21px; font-weight: 600;
+    color: #e9edf0; letter-spacing: 0.02em;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.75);
+  }
+  body.titleup #money, body.paused #money { display: none; }
+
   #notice {
     position: fixed; left: 50%; bottom: 13%; transform: translateX(-50%) translateY(6px);
     max-width: min(560px, 74vw); padding: 10px 16px;
@@ -732,6 +741,7 @@
   <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
 </div>
 
+<div id="money">&yen;500,000</div>
 <div id="notice"></div>
 
 <div id="mapscreen">
@@ -3583,10 +3593,15 @@ function initThree() {
     if (e.code === "KeyP") setPhone(!phone.open);
     if (e.code === "KeyH") toggleSiren();
     if (phone.open) {
+      // The phone takes the arrows, Enter and Backspace while it is up, so the
+      // keyboard can do everything the pad can.
       if (e.code === "ArrowLeft") phoneMove(-1, 0);
       if (e.code === "ArrowRight") phoneMove(1, 0);
       if (e.code === "ArrowUp") phoneMove(0, -1);
       if (e.code === "ArrowDown") phoneMove(0, 1);
+      if (e.code === "Enter" || e.code === "Space") { phoneAct(); e.preventDefault(); }
+      if (e.code === "Backspace") { if (!phoneBack()) setPhone(false); e.preventDefault(); }
+      if (e.code === "Escape") { if (!phoneBack()) setPhone(false); e.preventDefault(); return; }
     }
     if (e.code === "Space" && player.mode === "walk" && !drive.car && !drive.train
         && player.down <= 0 && player.jump <= 0) { player.jump = 0.42; e.preventDefault(); }
@@ -3691,10 +3706,12 @@ function pollPad(dt) {
     if (pressed(PAD.RIGHT)) phoneMove(1, 0);
     if (pressed(PAD.DOWN)) phoneMove(0, 1);
     if (pressed(PAD.UP)) phoneMove(0, -1);
-    if (pressed(PAD.B)) setPhone(false);
-    if (pressed(PAD.A)) phone.dirty = true;
+    if (pressed(PAD.A)) phoneAct();
+    if (pressed(PAD.B)) { if (!phoneBack()) setPhone(false); }
   } else {
     if (pressed(PAD.DOWN)) toggleWalk();
+    // D-pad left hails a taxi, with nothing on screen telling you so.
+    if (pressed(PAD.LEFT)) hailTaxi();
   }
 
   // Y gets you in and out of whatever you are standing next to; LB is the
@@ -4607,8 +4624,55 @@ function updateHud(dt, force) {
   hudTimer = 1 / 14;
   updatePlace();
   drawMinimap();
+  drawVitals();
   updatePrompt();
   updatePhone();
+  const m = document.getElementById("money");
+  if (m) {
+    const text = yenText(purse.yen);
+    if (m.textContent !== text) m.textContent = text;
+  }
+}
+
+// ---- the two rings round the minimap --------------------------------------
+// Health outside in red, stress inside in blue. They are arcs rather than bars
+// because the minimap is already a circle and two more circles cost nothing.
+// Stress is the one that matters: it climbs while he scrolls MyNet and while
+// he is being chased, it is worn down by coffee and food, and when it fills he
+// has to sleep it off.
+function drawVitals() {
+  const cv = document.getElementById("minimap");
+  if (!cv || !miniCtx) return;
+  const g = miniCtx, W = cv.width, H = cv.height;
+  const cx = W / 2, cy = H / 2;
+  const ring = (r, v, colour, width) => {
+    g.save();
+    g.lineWidth = width;
+    g.lineCap = "round";
+    g.strokeStyle = "rgba(0,0,0,0.45)";
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    if (v > 0.001) {
+      g.strokeStyle = colour;
+      g.beginPath();
+      g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(v));
+      g.stroke();
+    }
+    g.restore();
+  };
+  ring(W * 0.465, vitals.health, "#d8483c", W * 0.030);
+  ring(W * 0.425, vitals.stress, "#3f8fe0", W * 0.026);
+}
+
+// Stress climbs slowly through the day and faster when he is being hunted;
+// walking it off in the quiet does nothing, which is the joke.
+function updateVitals(dt) {
+  if (!player.placed) return;
+  vitals.stress = clamp01(vitals.stress + dt * 0.0016);
+  if (vitals.health < 1) vitals.health = clamp01(vitals.health + dt * 0.012);
+  if (vitals.stress > 0.995 && !vitals.warned) {
+    vitals.warned = true;
+    say("Exhausted. Find a capsule hotel.", 6);
+  } else if (vitals.stress < 0.9) vitals.warned = false;
 }
 
 // A machine that cannot hold a playable frame rate should not have to be told
@@ -4688,12 +4752,54 @@ function runner(g, x, groundY, h, phase, fill, opacity, caseColour) {
   g.restore();
 }
 
+// The artwork, keyed onto transparency. The drawn version below is kept as the
+// fallback for when the file is missing - opening the page straight off disk,
+// where a fetch is not allowed, is the usual case.
+const logoArt = new Image();
+let logoReady = false;
+logoArt.onload = () => { logoReady = true; drawTitleLogo(); };
+logoArt.onerror = () => { logoReady = false; };
+logoArt.src = "art/logo.png";
+
 function drawTitleLogo() {
   const c = document.getElementById("titlelogo");
   if (!c) return;
   const g = c.getContext("2d");
   const W = c.width, H = c.height;
   g.clearRect(0, 0, W, H);
+
+  if (logoReady && logoArt.naturalWidth) {
+    g.textAlign = "left";
+    g.fillStyle = "#f4f6f8";
+    g.font = "800 94px 'Zen Kaku Gothic New', system-ui, sans-serif";
+    g.fillText("SALARY", 8, 96);
+    g.fillText("MAN", 8, 190);
+    g.fillStyle = "#5f666e";
+    g.fillRect(12, 214, 286, 2);
+    g.font = "600 18px 'M PLUS 1 Code', ui-monospace, monospace";
+    g.fillStyle = "#8d949c";
+    g.fillText("KONTO \u00b7 T\u014dKONTO", 12, 244);
+
+    // The crowd walks in from the left and Seiko is out ahead on the right, so
+    // the art is laid across the full width under the wordmark. It is drawn
+    // light-on-dark here, which the original is not: the figures are near
+    // black on white, so they are lifted to a pale ink first.
+    const availH = H - 262;
+    const sc = Math.min(W / logoArt.naturalWidth, availH / logoArt.naturalHeight);
+    const dw = logoArt.naturalWidth * sc, dh = logoArt.naturalHeight * sc;
+    const dx = 4, dy = 262 + (availH - dh) * 0.5;
+    const t = document.createElement("canvas");
+    t.width = Math.max(1, Math.round(dw)); t.height = Math.max(1, Math.round(dh));
+    const tg = t.getContext("2d");
+    // Inverted rather than flattened to one colour: the art is near-black on
+    // white, and inverting keeps the modelling - the crowd goes pale, the lead
+    // man's shirt and collar go dark, and he still reads as the one figure
+    // with detail in him. A flat fill would lose all of that.
+    tg.filter = "invert(1) brightness(1.06)";
+    tg.drawImage(logoArt, 0, 0, t.width, t.height);
+    g.drawImage(t, dx, dy);
+    return;
+  }
 
   // ---- the wordmark, along the top
   g.textAlign = "left";
@@ -4779,6 +4885,9 @@ function tick(dt) {
   pollPad(dt);
   if (title.on) { updateTitle(dt); return; }
   watchFrameRate(dt);
+  updateVitals(dt);
+  updateHail(dt);
+  updateDeliveries();
   if (nav.mapOpen) { updatePhone(); renderer.render(scene, camera); return; }
   if (paused) { updatePhone(); renderer.render(scene, camera); return; }
 
@@ -8835,27 +8944,77 @@ function initMap() {
 // than photographed, because the city in the wallpaper ought to be the city
 // you are standing in.
 
-const phone = { open: false, sel: 0, page: 0, dirty: true, minute: -1, ctx: null };
+// ---- what Seiko owns, and what it is costing him --------------------------
+// Money is a number on the HUD, in the wallet and on the pause screen, so it
+// lives out here rather than inside any one of them. He starts on half a
+// million yen, which is a real salaryman's bonus and about two months of rent
+// in a city like this one.
+const purse = { yen: 500000 };
+function yenText(n) {
+  return "\u00a5" + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+// Health and stress, the two rings round the minimap. Stress is the one the
+// game is actually about: it climbs while he scrolls, and it has to be slept
+// off in a capsule hotel.
+const vitals = { health: 1, stress: 0.14 };
 
+const phone = {
+  open: false, sel: 0, dirty: true, minute: -1, ctx: null,
+  app: null,            // null is the home screen
+  sub: 0,               // selection inside whatever app is open
+  scroll: 0,
+  owns: { earbuds: false, headphones: false, icCard: true },
+  gallery: [],          // photographs taken with the camera
+  dial: "",
+  ryde: null            // a car on its way, once one is called
+};
+
+// Four icon glyphs were drawn before; the rest are new. The colour is the tile
+// and the third field names the glyph.
 const PHONE_APPS = [
-  ["Phone",    "#2f8a4c", "call"],
-  ["Messages", "#3a7fc1", "chat"],
-  ["Camera",   "#5a6068", "cam"],
-  ["NHRail",   "#1f8a4c", "rail"],
-  ["Ryde",     "#19d08a", "ryde"],
-  ["Kombini",  "#1c4f94", "store"],
-  ["Weather",  "#4a9fd4", "sun"],
-  ["Maps",     "#d8694a", "pin"],
-  ["Wallet",   "#2a2d33", "card"],
-  ["Music",    "#b4365c", "note"],
-  ["Photos",   "#e0a21c", "photo"],
-  ["Clock",    "#1d2630", "clock"],
-  ["Notes",    "#d6c34a", "note2"],
-  ["Browser",  "#3b6ea8", "globe"],
-  ["Settings", "#6b7076", "gear"],
-  ["SOTI",     "#15171d", "soti"]
+  ["Ryde",      "#12b36b", "ryde"],
+  ["Poodle",    "#3b6ea8", "globe"],
+  ["Wallet",    "#1d2026", "card"],
+  ["Camera",    "#4a5058", "cam"],
+  ["MyNet",     "#101014", "mynet"],
+  ["Nihon",     "#157a46", "rail"],
+  ["Phone",     "#2f8a4c", "call"],
+  ["Mail",      "#2f6fb0", "chat"],
+  ["Contacts",  "#8a6f3c", "people"],
+  ["Music",     "#b4365c", "note"],
+  ["Photos",    "#d99a1c", "photo"],
+  ["Settings",  "#6b7076", "gear"]
 ];
-const PHONE_DOCK = [0, 1, 7, 14];
+const PHONE_DOCK = [0, 1, 6, 3];
+
+// ---- the things you can buy, and the places that sell them ----------------
+const SHOP_ITEMS = [
+  { id: "earbuds",     name: "SOTI Buds 3",            price: 24800, days: 1,
+    note: "Wireless earbuds. Needed before Music will play anything." },
+  { id: "headphones",  name: "SOTI Studio Over-Ear",   price: 41200, days: 2,
+    note: "Over-ear. Same job as the buds, louder about it." },
+  { id: "bento",       name: "Katsu bento",            price: 580,   days: 0,
+    note: "Instant. Takes the edge off a long day." },
+  { id: "coffee",      name: "Canned coffee, black",   price: 130,   days: 0,
+    note: "Instant. Everyone on this island runs on it." },
+  { id: "umbrella",    name: "Clear vinyl umbrella",   price: 550,   days: 0,
+    note: "You will lose it on a train." },
+  { id: "charger",     name: "Fast charger, 45 W",     price: 3900,  days: 0,
+    note: "For the So24." }
+];
+
+// Poodle's index. Each site is a little renderer; the shopping and dealership
+// ones take your money, the rest are there to be read.
+const WEB = [
+  { host: "11eleven.co.kn",   title: "11 Eleven",            kind: "shop",  brand: "eleven" },
+  { host: "petmart.co.kn",    title: "Pet Mart",             kind: "shop",  brand: "petmart" },
+  { host: "kurogane.co.kn",   title: "Kurogane Prestige",    kind: "cars",  tier: "luxury" },
+  { host: "maruichi.co.kn",   title: "Maruichi Car Centre",  kind: "cars",  tier: "budget" },
+  { host: "konto-shimbun.kn", title: "Konto Shimbun",        kind: "news" },
+  { host: "sararii.net",      title: "Sararii Forums",       kind: "forum" },
+  { host: "win-now.biz",      title: "\u2605 YOU HAVE WON \u2605", kind: "scam" },
+  { host: "tokonto-city.kn",  title: "T\u014dkonto City Hall",  kind: "gov" }
+];
 
 // The clock starts at six in the evening, which is when a salaryman's day
 // stops being his own, and runs at a minute to the second.
@@ -9071,6 +9230,13 @@ function drawPhone() {
   const g = phone.ctx, W = cv.width, H = cv.height;
   const t = phoneTime();
 
+  // An app, if one is open, owns the whole screen.
+  if (phone.app) {
+    const fn = PHONE_SCREENS[phone.app];
+    if (fn) { fn(g, W, H); phone.minute = t.mins; phone.dirty = false; return; }
+    phone.app = null;
+  }
+
   phoneWallpaper(g, W, H);
 
   // ---- status bar
@@ -9166,20 +9332,906 @@ function drawPhone() {
   phone.dirty = false;
 }
 
+// ---- the app layer --------------------------------------------------------
+// Every screen is drawn into the same canvas the home screen uses, so an app is
+// a function that fills a rectangle. They share a chrome - a status bar, a
+// title row, a back hint - and differ only in the middle.
+
+function phoneChrome(g, W, H, title, sub) {
+  g.fillStyle = "#0d0f12";
+  g.fillRect(0, 0, W, H);
+  const t = phoneTime();
+  g.fillStyle = "#f3f6f8";
+  g.font = "600 " + Math.round(W * 0.050) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(t.h + ":" + two(t.m), W * 0.09, H * 0.031);
+  g.textAlign = "right";
+  g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+  g.fillText("NHMobile 5G  \u25ae", W * 0.93, H * 0.031);
+
+  g.textAlign = "left";
+  g.fillStyle = "#ffffff";
+  g.font = "700 " + Math.round(W * 0.085) + "px " + UI;
+  g.fillText(title, W * 0.075, H * 0.082);
+  if (sub) {
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
+    g.fillText(sub, W * 0.075, H * 0.112);
+  }
+  g.fillStyle = "rgba(255,255,255,0.55)";
+  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+}
+
+function roundRect(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.lineTo(x + w - r, y);
+  g.quadraticCurveTo(x + w, y, x + w, y + r); g.lineTo(x + w, y + h - r);
+  g.quadraticCurveTo(x + w, y + h, x + w - r, y + h); g.lineTo(x + r, y + h);
+  g.quadraticCurveTo(x, y + h, x, y + h - r); g.lineTo(x, y + r);
+  g.quadraticCurveTo(x, y, x + r, y);
+  g.closePath();
+}
+
+// A row that can be selected, which most of these screens are made of.
+function phoneRow(g, W, x, y, w, h, on, fill) {
+  g.fillStyle = on ? "rgba(255,255,255,0.13)" : (fill || "rgba(255,255,255,0.055)");
+  roundRect(g, x, y, w, h, W * 0.035);
+  g.fill();
+  if (on) {
+    g.strokeStyle = "rgba(255,255,255,0.40)";
+    g.lineWidth = W * 0.006;
+    roundRect(g, x, y, w, h, W * 0.035);
+    g.stroke();
+  }
+}
+
+// ---- Ryde
+const RYDE_CLASSES = [
+  { name: "Compact",  note: "kei or hatchback, one bag",   mult: 1.00, kind: "kei" },
+  { name: "Sedan",    note: "saloon, room for four",       mult: 1.45, kind: "sedan" },
+  { name: "Maxi",     note: "one-box, six seats",          mult: 2.10, kind: "keivan" }
+];
+function rydeFare(mult) { return Math.round((620 + 280 * mult * 3) * mult); }
+
+function appRyde(g, W, H) {
+  phoneChrome(g, W, H, "Ryde", phone.ryde ? "On the way" : "Where to?");
+  // The wordmark: a green R with a full stop, which is the whole logo.
+  g.fillStyle = "#12b36b";
+  g.font = "800 " + Math.round(W * 0.115) + "px " + UI;
+  g.textAlign = "right";
+  g.fillText("R.", W * 0.93, H * 0.082);
+  g.textAlign = "left";
+
+  if (phone.ryde) {
+    const r = phone.ryde;
+    // A little live map with the car crawling towards the dot in the middle.
+    const mx = W * 0.075, my = H * 0.16, mw = W * 0.85, mh = H * 0.34;
+    g.fillStyle = "#15181d";
+    roundRect(g, mx, my, mw, mh, W * 0.04); g.fill();
+    g.save(); roundRect(g, mx, my, mw, mh, W * 0.04); g.clip();
+    // streets
+    g.strokeStyle = "rgba(255,255,255,0.09)";
+    g.lineWidth = W * 0.010;
+    for (let i = 1; i < 6; i++) {
+      g.beginPath(); g.moveTo(mx, my + mh * i / 6); g.lineTo(mx + mw, my + mh * i / 6); g.stroke();
+      g.beginPath(); g.moveTo(mx + mw * i / 6, my); g.lineTo(mx + mw * i / 6, my + mh); g.stroke();
+    }
+    const px = mx + mw * 0.5, py = my + mh * 0.62;
+    const k = clamp01(1 - r.eta / r.eta0);
+    const cx = lerp(mx + mw * 0.14, px, k), cy = lerp(my + mh * 0.18, py, k);
+    g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012;
+    g.setLineDash([W * 0.03, W * 0.02]);
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(px, py); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = "#12b36b";
+    g.beginPath(); g.arc(cx, cy, W * 0.028, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#ffffff";
+    g.beginPath(); g.arc(px, py, W * 0.022, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = W * 0.008;
+    g.beginPath(); g.arc(px, py, W * 0.045, 0, Math.PI * 2); g.stroke();
+    g.restore();
+
+    g.fillStyle = "#ffffff";
+    g.font = "700 " + Math.round(W * 0.095) + "px " + UI;
+    g.fillText(Math.max(1, Math.ceil(r.eta)) + " min", W * 0.075, H * 0.565);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText(r.cls + "  \u00b7  " + r.plate + "  \u00b7  " + yenText(r.fare), W * 0.075, H * 0.605);
+    phoneRow(g, W, W * 0.075, H * 0.65, W * 0.85, H * 0.075, phone.sub === 0);
+    g.fillStyle = "#e7ebee";
+    g.font = "600 " + Math.round(W * 0.048) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText("Cancel", W * 0.5, H * 0.6875);
+    g.textAlign = "left";
+    return;
+  }
+
+  g.fillStyle = "#79818b";
+  g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+  g.fillText("Picking you up at", W * 0.075, H * 0.165);
+  g.fillStyle = "#e7ebee";
+  g.font = "600 " + Math.round(W * 0.052) + "px " + UI;
+  g.fillText(nav.place && nav.place.street ? nav.place.street : "Tōkonto", W * 0.075, H * 0.205);
+
+  RYDE_CLASSES.forEach((c, i) => {
+    const y = H * 0.26 + i * H * 0.115;
+    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.098, phone.sub === i);
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * 0.055) + "px " + UI;
+    g.fillText(c.name, W * 0.13, y + H * 0.034);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+    g.fillText(c.note, W * 0.13, y + H * 0.068);
+    g.fillStyle = "#e7ebee";
+    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText(yenText(rydeFare(c.mult)), W * 0.89, y + H * 0.050);
+    g.textAlign = "left";
+  });
+
+  // The big green button.
+  const by = H * 0.655, bh = H * 0.082;
+  const armed = phone.sub === RYDE_CLASSES.length;
+  g.fillStyle = armed ? "#17d07e" : "#12b36b";
+  roundRect(g, W * 0.075, by, W * 0.85, bh, W * 0.04); g.fill();
+  g.fillStyle = "#06240f";
+  g.font = "800 " + Math.round(W * 0.062) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("RYDE", W * 0.5, by + bh * 0.54);
+  g.textAlign = "left";
+}
+
+// ---- Soti Wallet
+function appWallet(g, W, H) {
+  phoneChrome(g, W, H, "SOTI Wallet", "Balance");
+  g.fillStyle = "#ffffff";
+  g.font = "300 " + Math.round(W * 0.145) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
+
+  // Stacked cards, the way a wallet app does it.
+  const cards = [
+    { name: "IC Card",        sub: "Suika \u00b7 NHRail",  a: "#1d7a4c", b: "#0d4a2d",
+      val: phone.owns.icCard ? yenText(3240) : "Not added" },
+    { name: "SOTI Pay",       sub: "Debit \u00b7 \u2022\u2022\u2022\u2022 4417", a: "#2a2f38", b: "#15181d",
+      val: yenText(purse.yen) },
+    { name: "Konto Point",    sub: "Loyalty",           a: "#8a5a1c", b: "#4a2f0d",
+      val: "812 pt" }
+  ];
+  cards.forEach((c, i) => {
+    const y = H * 0.235 + i * H * 0.155;
+    const x = W * 0.075, w = W * 0.85, h = H * 0.185;
+    const grad = g.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, c.a); grad.addColorStop(1, c.b);
+    g.fillStyle = grad;
+    roundRect(g, x, y, w, h, W * 0.05); g.fill();
+    if (phone.sub === i) {
+      g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = W * 0.008;
+      roundRect(g, x, y, w, h, W * 0.05); g.stroke();
+    }
+    g.fillStyle = "#ffffff";
+    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
+    g.fillText(c.name, x + W * 0.055, y + H * 0.036);
+    g.fillStyle = "rgba(255,255,255,0.65)";
+    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+    g.fillText(c.sub, x + W * 0.055, y + H * 0.064);
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText(c.val, x + w - W * 0.055, y + H * 0.036);
+    g.textAlign = "left";
+  });
+  g.fillStyle = "#6b727a";
+  g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+  g.fillText("An IC card opens the ticket gates without stopping.", W * 0.075, H * 0.735);
+}
+
+// ---- Poodle, and the web behind it
+function poodleMark(g, W, cx, cy, size) {
+  // Six dots in a ring, in the four colours, because that is what these marks
+  // all look like.
+  const cols = ["#3b6ea8", "#d1483c", "#e0a21c", "#2f8a4c", "#3b6ea8", "#d1483c"];
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI * 2 - Math.PI / 2;
+    g.fillStyle = cols[i];
+    g.beginPath();
+    g.arc(cx + Math.cos(a) * size, cy + Math.sin(a) * size, size * 0.42, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+
+function appPoodle(g, W, H) {
+  const site = phone.site != null ? WEB[phone.site] : null;
+  if (!site) {
+    phoneChrome(g, W, H, "Poodle", "Search the web");
+    poodleMark(g, W, W * 0.5, H * 0.20, W * 0.055);
+    // search box
+    g.fillStyle = "rgba(255,255,255,0.08)";
+    roundRect(g, W * 0.09, H * 0.245, W * 0.82, H * 0.058, H * 0.029); g.fill();
+    g.fillStyle = "#6b727a";
+    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText("Search or type a web address", W * 0.15, H * 0.274);
+    WEB.forEach((w, i) => {
+      const y = H * 0.33 + i * H * 0.072;
+      phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.062, phone.sub === i);
+      g.fillStyle = "#ffffff";
+      g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+      g.fillText(w.title, W * 0.125, y + H * 0.024);
+      g.fillStyle = "#6b727a";
+      g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+      g.fillText(w.host, W * 0.125, y + H * 0.048);
+    });
+    return;
+  }
+  drawSite(g, W, H, site);
+}
+
+function siteChrome(g, W, H, site, bg) {
+  g.fillStyle = bg || "#ffffff";
+  g.fillRect(0, 0, W, H);
+  // address bar
+  g.fillStyle = "#15181d";
+  g.fillRect(0, 0, W, H * 0.062);
+  g.fillStyle = "rgba(255,255,255,0.10)";
+  roundRect(g, W * 0.06, H * 0.016, W * 0.88, H * 0.032, H * 0.016); g.fill();
+  g.fillStyle = "#9aa1a9";
+  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText(site.host, W * 0.5, H * 0.0335);
+  g.textAlign = "left";
+  g.fillStyle = "rgba(0,0,0,0.55)";
+  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+}
+
+function shelfItem(g, W, H, it, y, on, accent) {
+  phoneRow(g, W, W * 0.055, y, W * 0.89, H * 0.082, on, "rgba(0,0,0,0.05)");
+  g.fillStyle = accent;
+  roundRect(g, W * 0.085, y + H * 0.014, W * 0.095, H * 0.054, W * 0.02); g.fill();
+  g.fillStyle = "#14171b";
+  g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+  g.fillText(it.name, W * 0.205, y + H * 0.030);
+  g.fillStyle = "#6a717a";
+  g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+  g.fillText(it.days ? it.note + "  \u00b7  " + it.days + " day delivery" : it.note,
+             W * 0.205, y + H * 0.058);
+  g.fillStyle = "#14171b";
+  g.font = "700 " + Math.round(W * 0.046) + "px " + UI;
+  g.textAlign = "right";
+  g.fillText(yenText(it.price), W * 0.92, y + H * 0.044);
+  g.textAlign = "left";
+}
+
+const CAR_STOCK = {
+  luxury: [
+    { name: "Kurogane GT-R Coupe",  price: 9800000, rent: 42000, kind: "sports" },
+    { name: "Kurogane S-Saloon",    price: 6400000, rent: 26000, kind: "saloon" },
+    { name: "Kurogane Veloce 900",  price: 14800000, rent: 68000, kind: "super" }
+  ],
+  budget: [
+    { name: "Maruichi Hustle Kei",  price: 740000,  rent: 4200,  kind: "kei" },
+    { name: "Maruichi One-Box",     price: 980000,  rent: 5400,  kind: "keivan" },
+    { name: "Maruichi Compact",     price: 1340000, rent: 7100,  kind: "sedan" },
+    { name: "Maruichi Roadrunner",  price: 460000,  rent: 2800,  kind: "scooter" }
+  ]
+};
+
+function drawSite(g, W, H, site) {
+  if (site.kind === "shop") {
+    const eleven = site.brand === "eleven";
+    siteChrome(g, W, H, site, "#f4f5f3");
+    // The shopfront band, drawn rather than copied: three stripes for one,
+    // two for the other, which is enough to tell them apart on a sign.
+    const by = H * 0.062, bh = H * 0.085;
+    if (eleven) {
+      g.fillStyle = "#0a6b42"; g.fillRect(0, by, W, bh);
+      g.fillStyle = "#e8711a"; g.fillRect(0, by + bh * 0.70, W, bh * 0.14);
+      g.fillStyle = "#cf2027"; g.fillRect(0, by + bh * 0.84, W, bh * 0.16);
+      g.fillStyle = "#ffffff";
+      g.font = "800 " + Math.round(W * 0.072) + "px " + UI;
+      g.fillText("11 ELEVEN", W * 0.055, by + bh * 0.40);
+    } else {
+      g.fillStyle = "#ffffff"; g.fillRect(0, by, W, bh);
+      g.fillStyle = "#13a150"; g.fillRect(0, by, W, bh * 0.16);
+      g.fillStyle = "#1272d6"; g.fillRect(0, by + bh * 0.84, W, bh * 0.16);
+      g.fillStyle = "#1272d6";
+      g.font = "800 " + Math.round(W * 0.072) + "px " + UI;
+      g.fillText("Pet Mart", W * 0.055, by + bh * 0.56);
+    }
+    g.fillStyle = "#6a717a";
+    g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText(eleven ? "Open 24 hours \u00b7 delivery to your door"
+                      : "Your neighbourhood store \u00b7 delivery available",
+               W * 0.055, H * 0.172);
+    SHOP_ITEMS.forEach((it, i) => {
+      shelfItem(g, W, H, it, H * 0.195 + i * H * 0.092, phone.sub === i,
+                eleven ? "#0a6b42" : "#1272d6");
+    });
+    g.fillStyle = "#8d949c";
+    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("Balance " + yenText(purse.yen), W * 0.055, H * 0.775);
+    return;
+  }
+
+  if (site.kind === "cars") {
+    const lux = site.tier === "luxury";
+    siteChrome(g, W, H, site, lux ? "#0e1013" : "#f6f6f4");
+    const ink = lux ? "#ffffff" : "#14171b";
+    const dim = lux ? "#8a919a" : "#6a717a";
+    g.fillStyle = ink;
+    g.font = "800 " + Math.round(W * 0.078) + "px " + UI;
+    g.fillText(site.title, W * 0.055, H * 0.115);
+    g.fillStyle = dim;
+    g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText(lux ? "Approved used \u00b7 finance available"
+                   : "Honest cars, honest prices, no haggling",
+               W * 0.055, H * 0.152);
+    const stock = CAR_STOCK[site.tier];
+    stock.forEach((c, i) => {
+      const y = H * 0.19 + i * H * 0.115;
+      phoneRow(g, W, W * 0.055, y, W * 0.89, H * 0.100, phone.sub === i,
+               lux ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
+      // a little car block, in the class's own silhouette
+      g.fillStyle = lux ? "#6f7d93" : "#9aa2ab";
+      const cw = W * 0.13, ch = H * 0.030;
+      roundRect(g, W * 0.085, y + H * 0.034, cw, ch, ch * 0.42); g.fill();
+      g.fillStyle = ink;
+      g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
+      g.fillText(c.name, W * 0.245, y + H * 0.036);
+      g.fillStyle = dim;
+      g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+      g.fillText("Buy " + yenText(c.price) + "   \u00b7   Rent " + yenText(c.rent) + "/day",
+                 W * 0.245, y + H * 0.068);
+    });
+    g.fillStyle = dim;
+    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("Balance " + yenText(purse.yen) + " \u00b7 nowhere to keep one yet",
+               W * 0.055, H * 0.78);
+    return;
+  }
+
+  // The read-only ones.
+  siteChrome(g, W, H, site, site.kind === "scam" ? "#fffbe8" : "#ffffff");
+  const body = {
+    news: [["Konto Shimbun", "#14171b"],
+      ["Ministry announces committee to study committees", 0],
+      ["\u201cWe expect findings within nine years,\u201d says chair"],
+      ["Tōkonto commuters set new record: 4 h 12 min average"],
+      ["Rail operator calls it \u201ca triumph of endurance\u201d"],
+      ["Salaryman promoted after 31 years; declines, citing fatigue"],
+      ["Capsule hotel chain adds \u2018slightly larger capsule\u2019 tier"],
+      ["Bay reclamation project reclaims part of itself"]],
+    forum: [["Sararii Forums", "#14171b"],
+      ["\u25b8 Boss replied \u2018noted\u2019 to my resignation letter. Thoughts?"],
+      ["   412 replies \u00b7 last post 2 minutes ago"],
+      ["\u25b8 Is 3 hours sleep enough. Be honest"],
+      ["   88 replies"],
+      ["\u25b8 Found a vending machine that sells hot soup. Life changed"],
+      ["   1,204 replies \u00b7 pinned"],
+      ["\u25b8 Does anyone actually use the gym in their building"],
+      ["   6 replies"]],
+    scam: [["\u2605 CONGRATULATIONS \u2605", "#c02020"],
+      ["You are the 1,000,000th visitor to this website!"],
+      ["You have been selected to receive \u00a550,000,000"],
+      [""],
+      ["To claim, simply confirm your bank details,"],
+      ["your residence card, and your mother's name."],
+      [""],
+      ["CLAIM NOW   CLAIM NOW   CLAIM NOW"],
+      ["(this offer expires in 00:04:11)"]],
+    gov: [["Tōkonto City Hall", "#14171b"],
+      ["Residence registration \u00b7 forms A through A-14"],
+      ["Waste separation: 11 categories, revised monthly"],
+      ["Noise ordinance \u00b7 quiet hours 22:00\u201306:00"],
+      ["Capsule hotel register \u00b7 licensed premises"],
+      ["Ward office hours: 08:45\u201317:15, closed 12:00\u201313:00"],
+      ["Online services: currently under maintenance"],
+      ["(since 2019)"]]
+  }[site.kind] || [["", "#14171b"]];
+  const ink = site.kind === "scam" ? "#c02020" : "#14171b";
+  g.fillStyle = body[0][1] || ink;
+  g.font = "800 " + Math.round(W * 0.068) + "px " + UI;
+  g.fillText(body[0][0], W * 0.055, H * 0.115);
+  g.fillStyle = site.kind === "scam" ? "#8a2a10" : "#3c434b";
+  for (let i = 1; i < body.length; i++) {
+    g.font = (i % 2 || site.kind !== "news" ? "500 " : "400 ") +
+             Math.round(W * 0.040) + "px " + UI;
+    g.fillText(body[i][0], W * 0.055, H * (0.165 + i * 0.042));
+  }
+}
+
+// ---- Camera
+function appCamera(g, W, H) {
+  g.fillStyle = "#000000";
+  g.fillRect(0, 0, W, H);
+  // The viewfinder shows the last frame the game drew, which is what the
+  // camera is actually pointed at.
+  const src = renderer && renderer.domElement;
+  const vy = H * 0.14, vh = H * 0.56;
+  if (src) {
+    try {
+      const ar = src.width / Math.max(1, src.height);
+      const dw = W * 0.90, dh = dw / ar;
+      g.drawImage(src, W * 0.05, vy + (vh - dh) * 0.5, dw, dh);
+    } catch (e) {}
+  }
+  g.strokeStyle = "rgba(255,255,255,0.30)"; g.lineWidth = W * 0.004;
+  g.strokeRect(W * 0.05, vy, W * 0.90, vh);
+  // rule of thirds
+  g.strokeStyle = "rgba(255,255,255,0.14)";
+  for (let i = 1; i < 3; i++) {
+    g.beginPath(); g.moveTo(W * 0.05, vy + vh * i / 3); g.lineTo(W * 0.95, vy + vh * i / 3); g.stroke();
+    g.beginPath(); g.moveTo(W * 0.05 + W * 0.9 * i / 3, vy); g.lineTo(W * 0.05 + W * 0.9 * i / 3, vy + vh); g.stroke();
+  }
+  g.fillStyle = "#ffffff";
+  g.font = "600 " + Math.round(W * 0.042) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("PHOTO", W * 0.5, H * 0.755);
+  // shutter
+  g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.012;
+  g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.105, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = phone.sub === 0 ? "#ffffff" : "rgba(255,255,255,0.85)";
+  g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.088, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.65)";
+  g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText(phone.gallery.length + " in the gallery", W * 0.5, H * 0.935);
+  g.textAlign = "left";
+  g.fillStyle = "rgba(255,255,255,0.55)";
+  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+}
+
+function appPhotos(g, W, H) {
+  phoneChrome(g, W, H, "Photos", phone.gallery.length + " photographs");
+  if (!phone.gallery.length) {
+    g.fillStyle = "#6b727a";
+    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText("Nothing yet. Open Camera and press A.", W * 0.075, H * 0.22);
+    return;
+  }
+  const cols = 3, s = W * 0.28, gap = W * 0.03;
+  phone.gallery.slice(-12).forEach((img, i) => {
+    const r = (i / cols) | 0, c = i % cols;
+    const x = W * 0.07 + c * (s + gap), y = H * 0.16 + r * (s + gap);
+    try { g.drawImage(img, x, y, s, s); } catch (e) {
+      g.fillStyle = "#23272d"; g.fillRect(x, y, s, s);
+    }
+    if (phone.sub === i) {
+      g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.008;
+      g.strokeRect(x, y, s, s);
+    }
+  });
+}
+
+// ---- MyNet
+const MYNET = [
+  { who: "@tokonto_eats",  text: "Queued 40 minutes for this bowl. Worth it. Probably.", tag: "#ramen", l: "12.4k" },
+  { who: "@last_train",    text: "POV: you missed the 23:48 and the capsule hotel is full", tag: "#salaryman", l: "88.1k" },
+  { who: "@shibuyacrossing",text: "3,000 people, one green light, nobody touches", tag: "#tokonto", l: "204k" },
+  { who: "@keicarclub",    text: "She's 660cc and she owes me nothing", tag: "#keicar", l: "9,812" },
+  { who: "@officefloor12", text: "Boss said 'let's circle back' and walked in a circle", tag: "#work", l: "41.2k" },
+  { who: "@nhrail_fan",    text: "The 07:12 was 19 seconds late. An apology was issued.", tag: "#nhrail", l: "15.7k" }
+];
+function appMyNet(g, W, H) {
+  const i = ((phone.sub % MYNET.length) + MYNET.length) % MYNET.length;
+  const post = MYNET[i];
+  // A full-bleed "video", faked as a moving gradient keyed off the clock so it
+  // is never quite the same twice.
+  const t = clock * 0.6 + i * 3;
+  const grad = g.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, "hsl(" + ((i * 61 + t * 4) % 360) + ",38%,22%)");
+  grad.addColorStop(1, "hsl(" + ((i * 61 + 140 + t * 4) % 360) + ",44%,11%)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, W, H);
+  for (let k = 0; k < 26; k++) {
+    const yy = (k * 97 + t * 40) % H;
+    g.fillStyle = "rgba(255,255,255," + (0.012 + (k % 4) * 0.006) + ")";
+    g.fillRect(0, yy, W, H * 0.02);
+  }
+  g.fillStyle = "rgba(0,0,0,0.45)";
+  g.fillRect(0, H * 0.72, W, H * 0.28);
+  g.fillStyle = "#ffffff";
+  g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
+  g.fillText(post.who, W * 0.07, H * 0.775);
+  g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
+  const words = post.text.split(" ");
+  let line = "", ly = H * 0.822;
+  words.forEach(w => {
+    const test = line ? line + " " + w : w;
+    if (g.measureText(test).width > W * 0.80) { g.fillText(line, W * 0.07, ly); line = w; ly += H * 0.036; }
+    else line = test;
+  });
+  g.fillText(line, W * 0.07, ly);
+  g.fillStyle = "#8ad4ff";
+  g.font = "600 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText(post.tag, W * 0.07, ly + H * 0.042);
+  // the rail of buttons down the right
+  ["\u2665 " + post.l, "\u25b6 reply", "\u21bb share"].forEach((lab, k) => {
+    g.fillStyle = "rgba(255,255,255,0.85)";
+    g.font = "600 " + Math.round(W * 0.036) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText(lab, W * 0.94, H * 0.50 + k * H * 0.06);
+    g.textAlign = "left";
+  });
+  g.fillStyle = "#ffffff";
+  g.font = "800 " + Math.round(W * 0.055) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("MyNet", W * 0.5, H * 0.045);
+  g.textAlign = "left";
+  g.fillStyle = "rgba(255,255,255,0.55)";
+  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+  // Scrolling costs him something, which is the point of the app.
+  vitals.stress = clamp01(vitals.stress + 0.00035);
+}
+
+// ---- Nihon Services
+function appNihon(g, W, H) {
+  phoneChrome(g, W, H, "Nihon Services", "Departures near you");
+  const stops = (drive.stops && drive.stops.length) ? drive.stops.slice(0, 5) : [];
+  const t = phoneTime();
+  const names = stops.length ? stops.map(s => s.name)
+    : ["Hinodechō", "Mizuho", "Tōkonto Central", "Gosho Gardens", "Shinmei"];
+  names.forEach((n, i) => {
+    const y = H * 0.155 + i * H * 0.105;
+    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.09, phone.sub === i);
+    g.fillStyle = "#17a05e";
+    roundRect(g, W * 0.105, y + H * 0.024, W * 0.016, H * 0.042, W * 0.008); g.fill();
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * 0.048) + "px " + UI;
+    g.fillText(String(n).replace(" Station", ""), W * 0.145, y + H * 0.032);
+    g.fillStyle = "#79818b";
+    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("NHRail Kanjō Loop \u00b7 platform " + (1 + i % 2), W * 0.145, y + H * 0.062);
+    const mins = (2 + (i * 7 + t.m) % 11);
+    g.fillStyle = mins <= 2 ? "#f0c020" : "#e7ebee";
+    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText(mins + " min", W * 0.89, y + H * 0.047);
+    g.textAlign = "left";
+  });
+  g.fillStyle = "#6b727a";
+  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText("Times are live. Stations are marked on the map.", W * 0.075, H * 0.72);
+}
+
+// ---- Phone, Mail, Contacts, Music, Settings
+const VOICEMAILS = [
+  "The number you have dialled is not in service. \u304a\u304b\u3051\u306b\u306a\u3063\u305f\u756a\u53f7\u306f\u73fe\u5728\u4f7f\u308f\u308c\u3066\u304a\u308a\u307e\u305b\u3093\u3002",
+  "Moshi moshi \u2014 you have reached a noodle shop. We close at eleven.",
+  "This is the Tōkonto ward office. Our hours are 08:45 to 17:15. Please call back.",
+  "\u305f\u3060\u3044\u307e\u96fb\u8a71\u306b\u51fa\u3089\u308c\u307e\u305b\u3093\u3002Please leave a message after the tone.",
+  "Congratulations! You have been pre-approved for a loan of up to \u2014 (call ended)",
+  "Hello? Hello. I can't hear you. I'll call you back. I won't call you back."
+];
+function appDialler(g, W, H) {
+  phoneChrome(g, W, H, "Phone", phone.vmail ? "Voicemail" : "Keypad");
+  if (phone.vmail) {
+    g.fillStyle = "#e7ebee";
+    g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
+    const words = phone.vmail.split(" ");
+    let line = "", ly = H * 0.20;
+    words.forEach(w => {
+      const test = line ? line + " " + w : w;
+      if (g.measureText(test).width > W * 0.84) { g.fillText(line, W * 0.075, ly); line = w; ly += H * 0.042; }
+      else line = test;
+    });
+    g.fillText(line, W * 0.075, ly);
+    g.fillStyle = "#6b727a";
+    g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("B to hang up", W * 0.075, ly + H * 0.07);
+    return;
+  }
+  g.fillStyle = "#ffffff";
+  g.font = "300 " + Math.round(W * 0.105) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText(phone.dial || "\u2014", W * 0.5, H * 0.165);
+  const keys = ["1","2","3","4","5","6","7","8","9","\u2217","0","#"];
+  keys.forEach((k, i) => {
+    const r = (i / 3) | 0, c = i % 3;
+    const cx = W * 0.26 + c * W * 0.24, cy = H * 0.26 + r * H * 0.105;
+    g.fillStyle = phone.sub === i ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.08)";
+    g.beginPath(); g.arc(cx, cy, W * 0.085, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#ffffff";
+    g.font = "500 " + Math.round(W * 0.070) + "px " + UI;
+    g.fillText(k, cx, cy + H * 0.012);
+  });
+  const cy = H * 0.72;
+  g.fillStyle = phone.sub === 12 ? "#2fd47e" : "#1f9d5c";
+  g.beginPath(); g.arc(W * 0.5, cy, W * 0.095, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#06240f";
+  g.font = "700 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText("CALL", W * 0.5, cy + H * 0.012);
+  g.textAlign = "left";
+}
+
+const SCAM_MAIL = [
+  ["Konto Tax Agency", "URGENT: refund of \u00a5412,000 pending", "Click within 24 hours or forfeit."],
+  ["NHRail Rewards", "You have 980,000 unused points", "Verify your IC card to redeem."],
+  ["Your Bank (Real)", "Unusual login from Hokkaido", "If this was not you, do nothing."],
+  ["Soti HR", "Mandatory wellness seminar, Saturday 06:00", "Attendance is voluntary and compulsory."],
+  ["Prince of Somewhere", "A business proposal of mutual benefit", "I require only your account number."]
+];
+function appMail(g, W, H) {
+  phoneChrome(g, W, H, "Mail", SCAM_MAIL.length + " unread");
+  SCAM_MAIL.forEach((m, i) => {
+    const y = H * 0.155 + i * H * 0.105;
+    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.092, phone.sub === i);
+    g.fillStyle = "#ffffff";
+    g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText(m[0], W * 0.115, y + H * 0.028);
+    g.fillStyle = "#c9ced4";
+    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+    g.fillText(m[1], W * 0.115, y + H * 0.056);
+    g.fillStyle = "#6b727a";
+    g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+    g.fillText(m[2], W * 0.115, y + H * 0.080);
+  });
+  g.fillStyle = "#6b727a";
+  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText("None of these are real. Do not reply to any of them.", W * 0.075, H * 0.73);
+}
+
+function appContacts(g, W, H) {
+  phoneChrome(g, W, H, "Contacts", "No one yet");
+  g.fillStyle = "#4a5058";
+  g.beginPath(); g.arc(W * 0.5, H * 0.33, W * 0.11, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#6b727a";
+  g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("Nobody has given Seiko", W * 0.5, H * 0.45);
+  g.fillText("their number.", W * 0.5, H * 0.49);
+  g.textAlign = "left";
+}
+
+function appMusic(g, W, H) {
+  phoneChrome(g, W, H, "SOTI Music", phone.owns.earbuds || phone.owns.headphones ? "Ready" : "No audio device");
+  const has = phone.owns.earbuds || phone.owns.headphones;
+  g.fillStyle = has ? "#b4365c" : "#23272d";
+  roundRect(g, W * 0.22, H * 0.18, W * 0.56, W * 0.56, W * 0.05); g.fill();
+  g.fillStyle = has ? "#ffffff" : "#4a5058";
+  g.font = "800 " + Math.round(W * 0.16) + "px " + UI;
+  g.textAlign = "center";
+  g.fillText("\u266a", W * 0.5, H * 0.33);
+  g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+  g.fillStyle = "#8a919a";
+  if (has) {
+    g.fillText("Connected to " + (phone.owns.headphones ? "SOTI Studio" : "SOTI Buds 3"), W * 0.5, H * 0.60);
+    g.fillText("Sign in to stream your own library.", W * 0.5, H * 0.645);
+  } else {
+    g.fillText("Buy earbuds or headphones from", W * 0.5, H * 0.60);
+    g.fillText("11 Eleven or Pet Mart, and wait for", W * 0.5, H * 0.645);
+    g.fillText("them to be delivered.", W * 0.5, H * 0.69);
+  }
+  g.textAlign = "left";
+}
+
+function appSettings(g, W, H) {
+  phoneChrome(g, W, H, "Settings", "SOTI So24");
+  const rows = [
+    ["Owner", "Shigu Seiko"],
+    ["Balance", yenText(purse.yen)],
+    ["Network", "NHMobile \u00b7 5G"],
+    ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
+    ["IC card", phone.owns.icCard ? "Added" : "Not added"],
+    ["Photographs", String(phone.gallery.length)],
+    ["Storage", "126 GB of 256 GB"]
+  ];
+  rows.forEach((r, i) => {
+    const y = H * 0.155 + i * H * 0.072;
+    phoneRow(g, W, W * 0.075, y, W * 0.85, H * 0.062, phone.sub === i);
+    g.fillStyle = "#ffffff";
+    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText(r[0], W * 0.115, y + H * 0.036);
+    g.fillStyle = "#79818b";
+    g.textAlign = "right";
+    g.fillText(r[1], W * 0.885, y + H * 0.036);
+    g.textAlign = "left";
+  });
+}
+
+const PHONE_SCREENS = {
+  Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
+  MyNet: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
+  Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings
+};
+
 function setPhone(on) {
   phone.open = !!on;
   document.body.classList.toggle("phone-up", phone.open);
   if (phone.open) { phone.dirty = true; drawPhone(); }
 }
 
+// How many things there are to move between on whatever is open.
+function phoneCount() {
+  if (!phone.app) return PHONE_APPS.length;
+  if (phone.app === "Ryde") return phone.ryde ? 1 : RYDE_CLASSES.length + 1;
+  if (phone.app === "Poodle") {
+    if (phone.site == null) return WEB.length;
+    const site = WEB[phone.site];
+    if (site.kind === "shop") return SHOP_ITEMS.length;
+    if (site.kind === "cars") return CAR_STOCK[site.tier].length;
+    return 0;
+  }
+  if (phone.app === "Wallet") return 3;
+  if (phone.app === "Camera") return 1;
+  if (phone.app === "MyNet") return MYNET.length;
+  if (phone.app === "Nihon") return 5;
+  if (phone.app === "Phone") return phone.vmail ? 0 : 13;
+  if (phone.app === "Mail") return SCAM_MAIL.length;
+  if (phone.app === "Photos") return Math.min(12, phone.gallery.length);
+  if (phone.app === "Settings") return 7;
+  return 0;
+}
+
 function phoneMove(dx, dy) {
   if (!phone.open) return;
+  if (phone.app) {
+    const n = phoneCount();
+    if (!n) return;
+    // The dialler is a three-wide keypad; everything else is a list, and
+    // MyNet is a feed you flick up and down.
+    let step = dy;
+    if (phone.app === "Phone" && phone.sub < 12) step = dy * 3 + dx;
+    else if (dx && phone.app !== "Phone") step = dx;
+    const next = phone.app === "MyNet"
+      ? (phone.sub + step + n) % n
+      : clamp(phone.sub + step, 0, n - 1);
+    if (next !== phone.sub) { phone.sub = next; phone.dirty = true; }
+    return;
+  }
   const cols = 4;
   let c = phone.sel % cols, r = (phone.sel / cols) | 0;
   c = clamp(c + dx, 0, cols - 1);
   r = clamp(r + dy, 0, Math.ceil(PHONE_APPS.length / cols) - 1);
   const next = clamp(r * cols + c, 0, PHONE_APPS.length - 1);
   if (next !== phone.sel) { phone.sel = next; phone.dirty = true; }
+}
+
+// A press of A, wherever you are.
+function phoneAct() {
+  if (!phone.open) return;
+  if (!phone.app) {
+    phone.app = PHONE_APPS[phone.sel][0];
+    phone.sub = 0; phone.site = null; phone.vmail = ""; phone.dial = "";
+    phone.dirty = true;
+    return;
+  }
+  const app = phone.app;
+  if (app === "Ryde") {
+    if (phone.ryde) { phone.ryde = null; say("Ryde cancelled.", 3); }
+    else {
+      const cls = RYDE_CLASSES[Math.min(phone.sub, RYDE_CLASSES.length - 1)];
+      const fare = rydeFare(cls.mult);
+      if (purse.yen < fare) { say("Not enough for that. " + yenText(purse.yen) + " left.", 4); }
+      else {
+        const eta = 2 + Math.random() * 5;
+        phone.ryde = { cls: cls.name, kind: cls.kind, fare: fare, eta: eta, eta0: eta,
+                       plate: "品川 " + (300 + ((Math.random() * 99) | 0)) + " " +
+                              String.fromCharCode(12354 + ((Math.random() * 40) | 0)) +
+                              " " + (1000 + ((Math.random() * 8999) | 0)) };
+        phone.sub = 0;
+        say("Ryde on the way \u00b7 " + Math.ceil(eta) + " min", 4);
+      }
+    }
+  } else if (app === "Poodle") {
+    if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; }
+    else {
+      const site = WEB[phone.site];
+      if (site.kind === "shop") {
+        const it = SHOP_ITEMS[phone.sub];
+        if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
+        else {
+          purse.yen -= it.price;
+          if (it.id === "earbuds" || it.id === "headphones") {
+            // Delivered, not instant: that is the whole point of ordering it.
+            deliveries.push({ id: it.id, name: it.name, at: clock + it.days * 90 });
+            say(it.name + " ordered \u00b7 " + yenText(it.price) + " \u00b7 arriving in " +
+                it.days + " day" + (it.days > 1 ? "s" : ""), 5);
+          } else {
+            if (it.id === "bento" || it.id === "coffee") vitals.stress = clamp01(vitals.stress - 0.08);
+            say(it.name + " \u00b7 " + yenText(it.price), 4);
+          }
+        }
+      } else if (site.kind === "cars") {
+        const c = CAR_STOCK[site.tier][phone.sub];
+        if (purse.yen < c.rent) say("Not enough even to rent that.", 4);
+        else say(c.name + " \u2014 nowhere to keep it yet. Garages come later.", 5);
+      }
+    }
+  } else if (app === "Camera") {
+    takePhotograph();
+  } else if (app === "Phone") {
+    if (phone.vmail) { phone.vmail = ""; }
+    else if (phone.sub === 12) {
+      if (phone.dial.length < 3) say("Dial a number first.", 3);
+      else phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
+    } else {
+      const keys = "123456789*0#";
+      if (phone.dial.length < 11) phone.dial += keys[phone.sub];
+    }
+  }
+  phone.dirty = true;
+}
+
+// A press of B: out of a page, out of an app, then out of the phone.
+function phoneBack() {
+  if (!phone.open) return false;
+  if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.dirty = true; return true; }
+  if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
+  if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
+  if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
+  return false;
+}
+
+// Photographs are kept as little canvases, so the gallery is real.
+function takePhotograph() {
+  const src = renderer && renderer.domElement;
+  if (!src) return;
+  const c = document.createElement("canvas");
+  c.width = 240; c.height = 240;
+  const g2 = c.getContext("2d");
+  const side = Math.min(src.width, src.height);
+  try {
+    g2.drawImage(src, (src.width - side) / 2, (src.height - side) / 2, side, side, 0, 0, 240, 240);
+    phone.gallery.push(c);
+    say("Photograph saved.", 2.5);
+  } catch (e) { say("The camera could not save that.", 3); }
+}
+
+// ---- hailing ---------------------------------------------------------------
+// D-pad left puts a hand out. No prompt on screen: you either know or you
+// learn. The nearest taxi on a lane near you takes the fare, pulls in and
+// waits, and getting in is the usual Y.
+function hailTaxi() {
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
+  if (drive.hailed && drive.hailed.live) { say("One is already pulling in.", 3); return; }
+  const ki = CAR_KINDS.findIndex(k => k.name === "taxi");
+  if (ki < 0) return;
+  const px = player.pos.x, pz = player.pos.z;
+  let best = null, bestD = 180;
+  traffic.cars.forEach(c => {
+    if (!c.live || c.kind !== ki) return;
+    if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;
+    const d = Math.hypot(c.at.x - px, c.at.z - pz);
+    if (d < bestD) { bestD = d; best = c; }
+  });
+  if (!best) { say("No taxi in sight.", 3); return; }
+  drive.hailed = best;
+  best.hailed = true;
+  say("Taxi flagged down \u00b7 " + Math.round(bestD) + " m", 4);
+}
+
+// A hailed taxi slows and stops beside you; a Ryde booked on the phone counts
+// down and then turns up as one.
+function updateHail(dt) {
+  const h = drive.hailed;
+  if (h) {
+    if (!h.live) { drive.hailed = null; }
+    else {
+      const d = Math.hypot(h.at.x - player.pos.x, h.at.z - player.pos.z);
+      if (d < 22) { h.v = Math.max(0, h.v - 9 * dt); h.stopped = true; }
+      if (d > 200) { h.hailed = false; drive.hailed = null; say("It drove on.", 3); }
+    }
+  }
+  if (phone.ryde) {
+    phone.ryde.eta -= dt / 60;
+    if (phone.ryde.eta <= 0) {
+      purse.yen = Math.max(0, purse.yen - phone.ryde.fare);
+      const was = phone.ryde;
+      phone.ryde = null;
+      phone.dirty = true;
+      hailTaxi();
+      say("Your " + was.cls + " is here. " + yenText(was.fare) + " charged.", 5);
+    } else if (phone.open && phone.app === "Ryde") phone.dirty = true;
+  }
+}
+
+// Things ordered and not yet arrived.
+const deliveries = [];
+function updateDeliveries() {
+  for (let i = deliveries.length - 1; i >= 0; i--) {
+    if (clock < deliveries[i].at) continue;
+    const d = deliveries.splice(i, 1)[0];
+    phone.owns[d.id] = true;
+    say(d.name + " has been delivered.", 5);
+  }
 }
 
 function updatePhone() {
