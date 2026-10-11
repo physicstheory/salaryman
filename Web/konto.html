@@ -1768,10 +1768,15 @@ function makeWorld(seed, report) {
   };
 
   // ---- the cities -------------------------------------------------------
-  report("planning Tōkonto", 0.62);
-  world.cities.push(planCity(world, frames[0], seed, report, 0.62));
-  report("planning Mizuho", 0.78);
-  world.cities.push(planCity(world, frames[1], seed + 5, report, 0.78));
+  // Every site in the list gets built, rather than the first two by hand:
+  // adding a town to SITES used to change nothing at all, because nobody ever
+  // asked for it.
+  for (let i = 0; i < frames.length; i++) {
+    const site = frames[i].site;
+    const t = 0.62 + (i / frames.length) * 0.36;
+    report("planning " + site.name, t);
+    world.cities.push(planCity(world, frames[i], seed + i * 5, report, t));
+  }
   return world;
 }
 
@@ -2676,7 +2681,14 @@ function planCity(world, F, seed, report, progressBase) {
     const shrine = L.plots.filter(p => p.kind === "shrine" || p.kind === "park").sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1])[0];
     const home = L.plots.filter(p => p.kind === "houses" || p.kind === "shop").sort((a, b) => b.size[0] * b.size[1] - a.size[0] * a.size[1])[0];
     if (shrine) L.sites.push({ name: site.name + " shrine", note: "Torii, a gravel approach, a hall and one very old tree.", at: [shrine.centre[0], shrine.groundY, shrine.centre[1]], plot: shrine });
-    if (home) L.sites.push({ name: "Family home", note: "The house the player leaves in the first scene.", at: [home.centre[0], home.groundY, home.centre[1]], plot: home });
+    // Only Mizuho has his family's flat in it. The other villages get houses
+    // like anywhere else, or there would be six family homes on one island.
+    if (home) L.sites.push({
+      name: site.name === "Mizuho" ? "Family home" : site.name + " houses",
+      note: site.name === "Mizuho"
+        ? "The flat Seiko grew up in, and the one place on the island that is his."
+        : "Two streets of houses and a vending machine.",
+      at: [home.centre[0], home.groundY, home.centre[1]], plot: home });
   }
   if (terminus) {
     L.sites.push({
