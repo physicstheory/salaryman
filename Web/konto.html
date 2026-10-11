@@ -592,6 +592,60 @@
   }
   #notice.up { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+  /* ---- title screen ---------------------------------------------------------
+     The world is already on screen behind this; everything here is a layer over
+     it. The veil is a left-weighted gradient so the type has something to sit
+     on without hiding the city. */
+  #title {
+    position: fixed; inset: 0; z-index: 30;
+    opacity: 0; transition: opacity 900ms ease;
+    font-family: var(--ui);
+  }
+  #title.up { opacity: 1; }
+  #title[hidden] { display: none; }
+  #titleveil {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(100deg, rgba(8,9,11,0.90) 0%, rgba(8,9,11,0.72) 24%,
+                      rgba(8,9,11,0.26) 46%, rgba(8,9,11,0.00) 66%, rgba(8,9,11,0.18) 100%),
+      linear-gradient(0deg, rgba(8,9,11,0.58) 0%, rgba(8,9,11,0) 30%);
+  }
+  #titlepanel {
+    position: absolute; left: clamp(28px, 6vw, 110px); top: 50%;
+    transform: translateY(-50%);
+    width: min(430px, 44vw);
+  }
+  #titlelogo { width: 100%; height: auto; display: block; margin-bottom: 26px; }
+  #titlemenu { display: flex; flex-direction: column; gap: 2px; }
+  .title-btn {
+    appearance: none; background: transparent; border: 0;
+    border-left: 2px solid transparent;
+    padding: 11px 0 11px 16px; text-align: left; cursor: pointer;
+    color: #9aa1a9; font: 600 17px/1 var(--ui); letter-spacing: 0.06em;
+    text-transform: uppercase; transition: color 140ms ease, border-color 140ms ease,
+      background 140ms ease, padding-left 140ms ease;
+  }
+  .title-btn:hover { color: #e8ebee; }
+  .title-btn.sel {
+    color: #fff; border-left-color: #e8ebee; padding-left: 22px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(255,255,255,0));
+  }
+  .title-btn[hidden] { display: none; }
+  #titlehint {
+    margin: 26px 0 0; font-family: var(--data); font-size: 11px;
+    letter-spacing: 0.12em; text-transform: uppercase; color: #6f767e;
+  }
+  #titlehint b { color: #aeb5bd; }
+  #titlefoot {
+    position: absolute; left: 0; right: 0; bottom: 20px; text-align: center;
+    font-family: var(--data); font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #5d646c;
+  }
+  body.titleup #hud, body.titleup #controls { display: none !important; }
+
+  /* The ground legend belonged to the generator, like the masthead did. */
+  #legend { display: none !important; }
+
   #maplegend {
     position: absolute;
     right: 22px;
@@ -656,6 +710,26 @@
       </div>
     </div>
   </div>
+</div>
+
+<!-- ---- the front of the game -------------------------------------------
+     A splash that fades up while the island is being built, then the title
+     over a live view of Tokonto from a mountain. The backdrop is not a video:
+     it is the game, rendered, with its own traffic running and its own clock
+     turning the sky over. -->
+<div id="title" hidden>
+  <div id="titleveil"></div>
+  <div id="titlepanel">
+    <canvas id="titlelogo" width="760" height="470"></canvas>
+    <div class="menucol" id="titlemenu">
+      <button class="title-btn sel" id="tnew" type="button">New game</button>
+      <button class="title-btn" id="tcontinue" type="button" hidden>Continue</button>
+      <button class="title-btn" id="tsettings" type="button">Settings</button>
+      <button class="title-btn" id="tquit" type="button" hidden>Quit</button>
+    </div>
+    <p id="titlehint">Enter, or <b>A</b> on the controller</p>
+  </div>
+  <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
 </div>
 
 <div id="notice"></div>
@@ -3480,6 +3554,14 @@ function initThree() {
   window.addEventListener("keydown", e => {
     keys[e.code] = true;
     wakeAudio();
+    // The title screen swallows everything while it is up.
+    if (title.on) {
+      if (e.code === "ArrowUp" || e.code === "KeyW") titleMove(-1);
+      else if (e.code === "ArrowDown" || e.code === "KeyS") titleMove(1);
+      else if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") titleChoose();
+      e.preventDefault();
+      return;
+    }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (nav.mapOpen) {
       // The map takes the arrows and the zoom keys while it is up.
@@ -3562,6 +3644,16 @@ function pollPad(dt) {
     if (gp.axes.length > axis && axis >= 0) v = Math.max(v, (gp.axes[axis] + 1) * 0.5);
     return v > 0.06 ? v : 0;
   };
+
+  // The title screen owns the pad while it is up.
+  if (title.on) {
+    const ly = deadzone(gp.axes[1] || 0, 0.45);
+    if (pressed(PAD.UP) || (ly < -0.5 && !pad.titleHeld)) { titleMove(-1); pad.titleHeld = true; }
+    else if (pressed(PAD.DOWN) || (ly > 0.5 && !pad.titleHeld)) { titleMove(1); pad.titleHeld = true; }
+    else if (Math.abs(ly) < 0.3) pad.titleHeld = false;
+    if (pressed(PAD.A) || pressed(PAD.START)) titleChoose();
+    return;
+  }
 
   // Menu opens the map. View closes whatever is open, which is what B does too.
   if (pressed(PAD.START)) setMapOpen(!nav.mapOpen);
@@ -3706,6 +3798,19 @@ function initPause() {
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", fn);
   };
+  ["tnew", "tcontinue", "tsettings"].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("mouseenter", () => {
+      const at = titleItems().indexOf(id);
+      if (at >= 0) { title.sel = at; titleSync(); }
+    });
+    el.addEventListener("click", () => {
+      const at = titleItems().indexOf(id);
+      if (at >= 0) { title.sel = at; titleChoose(); }
+    });
+  });
+
   on("mresume", () => setPaused(false));
   on("mmode", () => { setPaused(false); toggleWalk(); });
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
@@ -4511,6 +4616,130 @@ function updateHud(dt, force) {
 // watches the first few seconds of real play, and if the picture is genuinely
 // struggling it steps the tier down once and says so. It only ever goes down,
 // it never fights a choice the player made by hand, and it does it once.
+// ---- the logo ------------------------------------------------------------
+// Drawn rather than loaded, so it is sharp on any monitor and costs nothing to
+// ship. A pack of salarymen in silhouette, and one man out in front of them in
+// colour with a briefcase, because that is the whole premise of the game in
+// one picture.
+//
+// Each figure is the same little articulated man at a different phase of the
+// same running cycle, which is what makes a crowd out of one function.
+function runner(g, x, groundY, h, phase, fill, opacity, caseColour) {
+  const u = h / 100;                       // every measurement below is in body-heights
+  g.save();
+  g.globalAlpha = opacity;
+  g.fillStyle = fill;
+  g.strokeStyle = fill;
+  g.lineCap = "round";
+  g.lineJoin = "round";
+  g.translate(x, groundY);
+
+  const sw = Math.sin(phase), cw = Math.cos(phase);
+  const hip = -44 * u - Math.abs(sw) * 2.0 * u;
+  const lean = 7 * u;
+  const sh = hip - 29 * u;                 // shoulder
+
+  const limb = (x1, y1, x2, y2, x3, y3, w) => {
+    g.lineWidth = w;
+    g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.lineTo(x3, y3); g.stroke();
+  };
+
+  // Legs, mid-stride, knees bent against it.
+  const stride = 19 * u;
+  limb(0, hip, sw * stride * 0.55 + 3 * u, hip + 24 * u, sw * stride + 2 * u, 0, 7.0 * u);
+  limb(0, hip, -sw * stride * 0.55 - 2 * u, hip + 23 * u,
+       -sw * stride - 1 * u, -Math.max(0, -sw) * 7 * u, 7.0 * u);
+
+  // The jacket, as a shape rather than a thick line: narrow at the waist,
+  // square at the shoulders, with a vent at the hem. It is what makes these
+  // read as men in suits instead of stick figures.
+  g.beginPath();
+  g.moveTo(-8.0 * u, hip + 3 * u);
+  g.lineTo(-9.5 * u + lean * 0.5, sh + 5 * u);
+  g.lineTo(-11.5 * u + lean, sh - 3 * u);
+  g.lineTo(11.5 * u + lean, sh - 3 * u);
+  g.lineTo(9.5 * u + lean * 0.5, sh + 5 * u);
+  g.lineTo(8.0 * u, hip + 3 * u);
+  g.closePath();
+  g.fill();
+
+  // Arms: the near one swings, the far one carries whatever it carries.
+  limb(lean - 7 * u, sh + 1 * u, lean - cw * 13 * u, sh + 14 * u,
+       lean - cw * 19 * u, sh + 26 * u, 5.6 * u);
+  const handX = lean + cw * 15 * u, handY = sh + 25 * u;
+  limb(lean + 7 * u, sh + 1 * u, lean + cw * 11 * u, sh + 13 * u, handX, handY, 5.6 * u);
+
+  // Neck and head.
+  g.lineWidth = 5 * u;
+  g.beginPath(); g.moveTo(lean, sh - 2 * u); g.lineTo(lean + 1.2 * u, sh - 7 * u); g.stroke();
+  g.beginPath(); g.arc(lean + 1.5 * u, sh - 12.5 * u, 8.0 * u, 0, Math.PI * 2); g.fill();
+
+  if (caseColour) {
+    g.save();
+    g.translate(handX, handY + 1 * u);
+    g.rotate(cw * 0.20);
+    g.fillStyle = caseColour;
+    const bw = 21 * u, bh = 15 * u;
+    g.fillRect(-bw / 2, 0, bw, bh);
+    g.fillStyle = "rgba(0,0,0,0.32)";
+    g.fillRect(-bw / 2, bh * 0.50, bw, 1.8 * u);
+    g.restore();
+  }
+  g.restore();
+}
+
+function drawTitleLogo() {
+  const c = document.getElementById("titlelogo");
+  if (!c) return;
+  const g = c.getContext("2d");
+  const W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+
+  // ---- the wordmark, along the top
+  g.textAlign = "left";
+  g.fillStyle = "#f4f6f8";
+  g.font = "800 94px 'Zen Kaku Gothic New', system-ui, sans-serif";
+  g.fillText("SALARY", 8, 96);
+  g.fillText("MAN", 8, 190);
+  g.fillStyle = "#5f666e";
+  g.fillRect(12, 214, 286, 2);
+  g.font = "600 18px 'M PLUS 1 Code', ui-monospace, monospace";
+  g.fillStyle = "#8d949c";
+  g.fillText("KONTO \u00b7 T\u014dKONTO", 12, 244);
+
+  // ---- the pack, below it, running left out of frame
+  // Its own little generator, so the crowd is the same crowd every launch.
+  let seedN = 8812;
+  const rnd = () => {
+    seedN = (seedN * 1664525 + 1013904223) >>> 0;
+    return seedN / 4294967296;
+  };
+  const ground = H - 14;
+  const pack = [];
+  for (let row = 0; row < 4; row++) {
+    const depth = row / 3;                       // 0 near, 1 far
+    const n = 4 + row * 3;
+    for (let i = 0; i < n; i++) {
+      pack.push({
+        x: W * (0.33 + rnd() * 0.72) - depth * 10,
+        y: ground - depth * 17,
+        h: (104 - depth * 30) * (0.93 + rnd() * 0.14),
+        phase: rnd() * Math.PI * 2,
+        shade: 0.13 + depth * 0.13,
+        alpha: 0.95 - depth * 0.40
+      });
+    }
+  }
+  pack.sort((a, b) => a.h - b.h);
+  pack.forEach(p => {
+    const v = Math.round(p.shade * 255);
+    runner(g, p.x, p.y, p.h, p.phase, "rgb(" + v + "," + (v + 2) + "," + (v + 7) + ")", p.alpha, null);
+  });
+
+  // ---- Seiko, out in front and the only one with any colour in him
+  runner(g, W * 0.155, ground + 2, 132, 1.07, "#2f5389", 1, "#a2703a");
+}
+
 let noticeTimer = null;
 function say(text, seconds) {
   const el = document.getElementById("notice");
@@ -4548,6 +4777,7 @@ function watchFrameRate(dt) {
 
 function tick(dt) {
   pollPad(dt);
+  if (title.on) { updateTitle(dt); return; }
   watchFrameRate(dt);
   if (nav.mapOpen) { updatePhone(); renderer.render(scene, camera); return; }
   if (paused) { updatePhone(); renderer.render(scene, camera); return; }
@@ -4691,9 +4921,12 @@ function applyTier(name, opts) {
     sizeRenderer();
   }
   if (camera) {
-    // Pulling the far plane in is only half of it: the fog has to come in with
-    // it, or the world ends in a hard edge against the sky.
-    camera.far = Math.max(t.far * 6, 12000);
+    // The far plane stays where it was. The sky is a dome at 26 km and clipping
+    // it leaves a black hole where the sky should be, so distance is managed
+    // with the fog instead, which is what actually saves the work: geometry
+    // swallowed by fog is still drawn, but it is the fog that decides how much
+    // of the island is worth looking at.
+    camera.far = 30000;
     camera.updateProjectionMatrix();
   }
   if (scene && scene.fog) {
@@ -9420,6 +9653,150 @@ function fillReadout(w) {
   });
 }
 
+// ---------------------------------------------------------------- the title
+// The backdrop is the world itself, watched from a mountain across the bay:
+// its own traffic running, its own trains, and a sky wound forward fast enough
+// that a whole day passes while you sit on the menu. The camera creeps, because
+// a still picture reads as a picture and a moving one reads as a place.
+const title = {
+  on: false, t: 0, sel: 0, started: false, from: null, to: null, ready: false
+};
+const TITLE_ITEMS = ["tnew", "tcontinue", "tsettings"];
+
+// Somewhere high, looking down the length of the city.
+function titleViewpoint() {
+  const city = world.cities[0];
+  const c = [city.bounds ? (city.bounds.x0 + city.bounds.x1) * 0.5 : WORLD_X * 0.5,
+             city.bounds ? (city.bounds.z0 + city.bounds.z1) * 0.5 : WORLD_Z * 0.5];
+  // Walk outward from the city until the ground climbs: that is the overlook.
+  let best = null;
+  for (let a = 0; a < 48; a++) {
+    const ang = a / 48 * Math.PI * 2;
+    for (let r = 2600; r < 6200; r += 260) {
+      const x = clamp(c[0] + Math.cos(ang) * r, 200, WORLD_X - 200);
+      const z = clamp(c[1] + Math.sin(ang) * r, 200, WORLD_Z - 200);
+      const y = world.sampleHeight(x, z);
+      if (y < 140) continue;
+      // Prefer high ground that is close in, so the city still fills the frame.
+      const score = y - r * 0.055;
+      if (!best || score > best.score) best = { x: x, y: y, z: z, score: score, r: r };
+    }
+  }
+  if (!best) best = { x: c[0] - 3200, y: 220, z: c[1] - 2600 };
+  return { at: best, look: c };
+}
+
+function setTitle(on) {
+  title.on = !!on;
+  const el = document.getElementById("title");
+  if (!el) return;
+  document.body.classList.toggle("titleup", title.on);
+  if (title.on) {
+    el.hidden = false;
+    drawTitleLogo();
+    titleSync();
+    requestAnimationFrame(() => el.classList.add("up"));
+  } else {
+    el.classList.remove("up");
+    setTimeout(() => { if (!title.on) el.hidden = true; }, 900);
+  }
+}
+
+function titleSync() {
+  const items = titleItems();
+  if (title.sel >= items.length) title.sel = 0;
+  TITLE_ITEMS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle("sel", id === items[title.sel]);
+  });
+}
+function titleItems() {
+  return TITLE_ITEMS.filter(id => {
+    const el = document.getElementById(id);
+    return el && !el.hidden;
+  });
+}
+function titleMove(d) {
+  const items = titleItems();
+  title.sel = (title.sel + d + items.length) % items.length;
+  titleSync();
+}
+function titleChoose() {
+  const id = titleItems()[title.sel];
+  if (id === "tsettings") { setTitle(false); setPaused(true); return; }
+  // New game and continue both land you on the ground in Tokonto. The
+  // difference will matter once there is something to save.
+  setTitle(false);
+  title.started = true;
+  const c = world.cities[0];
+  const sc = c.scramble;
+  tour = false;
+  if (sc) {
+    setMode("walk");
+    placeSeiko(new THREE.Vector3(sc.at[0], sc.groundY, sc.at[1]));
+    player.placed = true;
+  }
+  say("Press M for the map, P for the phone.", 6);
+}
+
+// A day in a little under a minute, so you see dusk if you linger.
+function titleSky(t) {
+  // t = 0 is midday. A whole day takes about fifty seconds, so the sky has
+  // visibly moved by the time you have read the menu, and if you sit there you
+  // get dusk and then the city lighting up.
+  const day = (t * 0.021) % 1;
+  const ang = day * Math.PI * 2 + Math.PI * 0.5;
+  const h = Math.sin(ang);                       // -1 midnight, +1 noon
+  sunDir.set(Math.cos(ang) * 0.72, Math.max(-0.35, h), 0.46).normalize();
+  if (sunLight) {
+    sunLight.position.copy(sunDir).multiplyScalar(2400);
+    sunLight.intensity = clamp(0.08 + h * 1.05, 0.03, 0.9);
+    // Warm at the ends of the day, white in the middle of it.
+    const warm = clamp01(1 - Math.max(0, h) * 1.7);
+    sunLight.color.setRGB(1, 1 - warm * 0.30, 1 - warm * 0.56);
+  }
+  const night = clamp01(-h * 2.2);
+  const dusk = clamp01(1 - Math.abs(h) * 3.4);
+  const sky = new THREE.Color().setRGB(
+    lerp(lerp(0.24, 0.76, dusk), 0.03, night),
+    lerp(lerp(0.47, 0.48, dusk), 0.04, night),
+    lerp(lerp(0.71, 0.40, dusk), 0.09, night));
+  const haze = new THREE.Color().setRGB(
+    lerp(lerp(0.76, 0.92, dusk), 0.05, night),
+    lerp(lerp(0.81, 0.62, dusk), 0.06, night),
+    lerp(lerp(0.85, 0.44, dusk), 0.11, night));
+  if (skyDome && skyDome.material.uniforms) {
+    skyDome.material.uniforms.zenith.value.copy(sky);
+    skyDome.material.uniforms.horizon.value.copy(haze);
+  }
+  if (scene.fog) scene.fog.color.copy(haze);
+  if (renderer) renderer.toneMappingExposure = lerp(1.0, 0.62, night);
+}
+
+function updateTitle(dt) {
+  title.t += dt;
+  if (!title.from) {
+    const v = titleViewpoint();
+    title.from = v.at;
+    title.to = v.look;
+  }
+  // A slow arc in, which is the whole animation: everything else that moves in
+  // frame is the game moving on its own.
+  const k = title.t * 0.016;
+  const sway = Math.sin(k) * 70, rise = Math.cos(k * 0.7) * 16;
+  camPos.set(title.from.x + sway, title.from.y + 34 + rise, title.from.z + Math.cos(k) * 70);
+  const d = new THREE.Vector3(title.to[0] - camPos.x, -0.16, title.to[1] - camPos.z);
+  yaw = Math.atan2(-d.x, -d.z);
+  pitch = -0.145;
+  camera.position.copy(camPos);
+  camera.lookAt(title.to[0], Math.max(0, title.from.y) - 150, title.to[1]);
+  titleSky(title.t);
+  followSun();
+  updateTraffic(dt, camPos);
+  updateRail(dt, camPos);
+  renderer.render(scene, camera);
+}
+
 // ---------------------------------------------------------------- run
 function frameLoop() {
   let last = performance.now();
@@ -9450,6 +9827,9 @@ function generate(seed) {
     if (step >= work.length) {
       document.getElementById("boot").hidden = true;
       btn.disabled = false;
+      // Straight from the loading screen onto the title, over the world it
+      // just finished building.
+      if (!title.started) { title.from = null; setTitle(true); }
       return;
     }
     const fn = work[step++];
