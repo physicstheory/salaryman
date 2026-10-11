@@ -213,30 +213,44 @@
   .sw i { width: 11px; height: 11px; border: 1px solid rgba(0, 0, 0, 0.25); display: inline-block; }
 
   /* ---- loading ---- */
+  /* The splash is the game's own front, not a build report: the title at the
+     top, the island's name over it, and the progress reduced to a thin line
+     near the bottom where it belongs. */
   #boot {
     position: fixed;
     inset: 0;
     display: grid;
     place-items: center;
-    background: var(--paper);
+    background: #0a0b0d;
     z-index: 20;
   }
   #boot .inner { text-align: center; padding: 0 16px; }
   #boot .mark {
     font-family: var(--data);
     font-size: 11px;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.30em;
     text-transform: uppercase;
-    color: var(--accent);
+    color: #70777f;
+    margin: 0 0 18px;
   }
-  #boot h2 { font-size: 22px; margin: 8px 0 14px; font-weight: 700; }
-  #bootbar { width: min(280px, 70vw); height: 2px; background: var(--line); margin: 0 auto; }
-  #bootbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.2s linear; }
+  #boot h2 {
+    font: 800 clamp(42px, 9vw, 96px)/0.98 var(--ui);
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+    color: #f4f6f8;
+  }
+  #bootbar {
+    width: min(300px, 64vw); height: 2px;
+    background: rgba(255,255,255,0.12); margin: 34px auto 0;
+  }
+  #bootbar i { display: block; height: 100%; width: 0; background: #e7ebee; transition: width 0.2s linear; }
   #bootstage {
     font-family: var(--data);
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 10px;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #5d646c;
+    margin-top: 12px;
     min-height: 1.4em;
   }
 
@@ -598,6 +612,18 @@
   #wheel[hidden] { display: none; }
   #wheelcanvas { width: min(62vh, 62vw); height: min(62vh, 62vw); }
 
+  /* ---- inside the flat ------------------------------------------------------ */
+  #homeview {
+    position: fixed; inset: 0; z-index: 26;
+    background: #0a0b0d;
+    display: grid; place-items: center;
+    opacity: 0; transition: opacity 180ms ease;
+  }
+  body.inhome #homeview { opacity: 1; }
+  #homeview[hidden] { display: none; }
+  #homecanvas { width: 100%; height: 100%; object-fit: cover; display: block; }
+  body.inhome #hud, body.inhome #money, body.inhome #stars { display: none !important; }
+
   /* ---- inside a shop --------------------------------------------------------
      Full bleed, because you are in there rather than looking at a panel. */
   #shop {
@@ -824,6 +850,7 @@
   <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
 </div>
 
+<div id="homeview" hidden><canvas id="homecanvas" width="1280" height="720"></canvas></div>
 <div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
 <div id="wheel" hidden><canvas id="wheelcanvas" width="860" height="860"></canvas></div>
 <canvas id="stars" width="260" height="46" hidden></canvas>
@@ -839,7 +866,6 @@
     <div class="menucol" id="mapmenu">
       <button class="menu-btn sel" id="kresume" type="button">Resume</button>
       <button class="menu-btn" id="kwaypoint" type="button">Clear waypoint</button>
-      <button class="menu-btn" id="kmode" type="button">Walk as Seiko</button>
       <button class="menu-btn" id="kshadows" type="button">Shadows: on</button>
       <button class="menu-btn" id="kquality" type="button">Graphics: high</button>
     </div>
@@ -869,7 +895,6 @@
     <div class="ppage" data-page="game">
       <div class="menucol" id="pgame">
         <button class="menu-btn sel" id="mresume" type="button">Resume</button>
-        <button class="menu-btn" id="mmode" type="button">Walk as Seiko</button>
         <button class="menu-btn" id="mmapopen" type="button">Open the map</button>
       </div>
       <div class="pside">
@@ -930,8 +955,8 @@
 
 <div id="boot">
   <div class="inner">
-    <p class="mark">Konto</p>
-    <h2>Building the island</h2>
+    <p class="mark">Konto &middot; Tōkonto</p>
+    <h2>SALARY MAN</h2>
     <div id="bootbar"><i></i></div>
     <p id="bootstage">starting</p>
   </div>
@@ -3562,7 +3587,8 @@ function makeSkyMesh() {
       zenith: { value: new THREE.Color(0x3d78b4) },
       horizon: { value: new THREE.Color(HORIZON) },
       glow: { value: new THREE.Color(0xffeccd) },
-      sunDir: { value: sunDir }
+      sunDir: { value: sunDir },
+      night: { value: 0 }
     },
     vertexShader: [
       "varying vec3 vDir;",
@@ -3573,13 +3599,35 @@ function makeSkyMesh() {
     ].join("\n"),
     fragmentShader: [
       "uniform vec3 zenith; uniform vec3 horizon; uniform vec3 glow; uniform vec3 sunDir;",
+      "uniform float night;",
       "varying vec3 vDir;",
+      // A cheap hash, used to scatter stars over the dome without a texture.
+      "float h21(vec2 p) {",
+      "  p = fract(p * vec2(443.897, 441.423));",
+      "  p += dot(p, p + 19.19);",
+      "  return fract((p.x + p.y) * p.x);",
+      "}",
       "void main() {",
       "  vec3 d = normalize(vDir);",
       "  vec3 col = mix(horizon, zenith, pow(clamp(d.y, 0.0, 1.0), 0.52));",
       "  float s = max(dot(d, normalize(sunDir)), 0.0);",
       "  col += glow * pow(s, 620.0) * 1.4;",       // the disc
       "  col += glow * pow(s, 6.0) * 0.16;",        // the haze around it
+      // Stars: a grid over the dome, one candidate per cell, most of them
+      // rejected, so they land unevenly the way real ones do. They fade in
+      // with the night and never show below the horizon.
+      "  if (night > 0.01 && d.y > 0.02) {",
+      "    vec2 g = d.xz / max(d.y * 0.55 + 0.45, 0.08) * 42.0;",
+      "    vec2 cell = floor(g);",
+      "    float r = h21(cell);",
+      "    if (r > 0.955) {",
+      "      vec2 off = vec2(h21(cell + 7.1), h21(cell + 13.7));",
+      "      float dist = length(fract(g) - off);",
+      "      float mag = 0.35 + h21(cell + 3.3) * 0.65;",
+      "      float star = smoothstep(0.14 * mag, 0.0, dist) * mag;",
+      "      col += vec3(0.86, 0.90, 1.0) * star * night * clamp(d.y * 3.0, 0.0, 1.0);",
+      "    }",
+      "  }",
       "  col = mix(col, horizon, smoothstep(0.14, -0.06, d.y));",
       "  gl_FragColor = vec4(col, 1.0);",
       "}"
@@ -3729,6 +3777,14 @@ function initThree() {
       if (e.code === "ArrowDown") pauseMove(0, 1);
       if (e.code === "Enter" || e.code === "Space") { pauseAct(); e.preventDefault(); return; }
     }
+    if (home.inside) {
+      if (e.code === "ArrowUp") homeMove(-1);
+      if (e.code === "ArrowDown") homeMove(1);
+      if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") homeAct();
+      if (e.code === "Escape" || e.code === "Backspace" || e.code === "KeyF") leaveHome();
+      e.preventDefault();
+      return;
+    }
     if (shops.inside) {
       if (e.code === "ArrowLeft") shopMove(-1, 0);
       if (e.code === "ArrowRight") shopMove(1, 0);
@@ -3809,6 +3865,14 @@ function pollPad(dt) {
     if (gp.axes.length > axis && axis >= 0) v = Math.max(v, (gp.axes[axis] + 1) * 0.5);
     return v > 0.06 ? v : 0;
   };
+
+  if (home.inside) {
+    if (pressed(PAD.UP)) homeMove(-1);
+    if (pressed(PAD.DOWN)) homeMove(1);
+    if (pressed(PAD.A)) homeAct();
+    if (pressed(PAD.B) || pressed(PAD.Y)) leaveHome();
+    return;
+  }
 
   // A shop owns the pad while you are inside one.
   if (shops.inside) {
@@ -3923,6 +3987,7 @@ function useRide() {
   if (drive.car) { leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
   if (player.placed && player.mode === "walk") {
+    if (homeNear(player.pos.x, player.pos.z)) { enterHome(); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     if (sh) { enterShop(sh); return; }
   }
@@ -3948,6 +4013,7 @@ function updatePrompt() {
   // A shop door takes precedence over a car parked outside it, because you
   // are standing at the door.
   if (player.placed && player.mode === "walk") {
+    if (homeNear(player.pos.x, player.pos.z)) { setPromptText("Go inside"); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     drive.nearShop = sh;
     if (sh) { setPromptText("Enter " + sh.name); return; }
@@ -4006,8 +4072,6 @@ function setPaused(on) {
         ? "On foot in Tokonto"
         : "Free camera, " + Math.round(camPos.y) + " m up";
     }
-    const mode = document.getElementById("mmode");
-    if (mode) mode.textContent = player.mode === "walk" ? "Back to the free camera" : "Walk as Seiko";
     const shadows = document.getElementById("mshadows");
     if (shadows && renderer) shadows.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
     const money = document.getElementById("pausemoney");
@@ -4022,7 +4086,7 @@ function setPaused(on) {
 
 // ---- the tabs --------------------------------------------------------------
 const PAUSE_TABS = ["game", "map", "stats", "phone", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mmode", "mmapopen"], settings: ["mquality", "mshadows"] };
+const PAUSE_ROWS = { game: ["mresume", "mmapopen"], settings: ["mquality", "mshadows"] };
 const pause = { tab: 0, row: 0 };
 
 function setPauseTab(i) {
@@ -4123,7 +4187,6 @@ function initPause() {
   });
   on("mmapopen", () => { setPaused(false); setMapOpen(true); });
   on("mresume", () => setPaused(false));
-  on("mmode", () => { setPaused(false); toggleWalk(); });
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
   on("mshadows", () => {
     if (!renderer) return;
@@ -4222,14 +4285,11 @@ function initTouch() {
 }
 
 // Drop him on the ground in front of the camera, or put the camera back.
+// There is no free camera any more. This is the game putting Seiko on the
+// ground the first time, and after that it does nothing: you are him.
 function toggleWalk() {
   if (!player.obj) return;
-  if (player.mode === "walk") {
-    camPos.copy(player.pos).add(new THREE.Vector3(0, 40, 60));
-    setMode("fly");
-    aimAt(player.pos.clone().add(new THREE.Vector3(0, 2, 0)));
-    return;
-  }
+  if (player.mode === "walk") return;
   if (!player.placed) {
     // The first time, he starts where his commute does: outside the terminus.
     player.placed = true;
@@ -4628,6 +4688,7 @@ function buildScene(w) {
   buildNav(w);
   placeShops(w.cities[0]);
   buildShopSigns(root);
+  findHome(w);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
@@ -4759,7 +4820,14 @@ function adoptSeiko(fitted) {
 
 // ---------------------------------------------------------------- the player
 function seikoSpawn(w) {
-  // On the plaza in front of the terminus, which is where his commute starts.
+  // Outside the front door of the family flat in Mizuho. The game starts where
+  // he lives, not where he works.
+  if (!home.at) findHome(w);
+  if (home.door) {
+    const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
+    const x = home.door[0] + out[0] * 1.6, z = home.door[1] + out[1] * 1.6;
+    return new THREE.Vector3(x, w.surfaceY(x, z), z);
+  }
   const city = w.cities[0];
   const st = city.stations.find(x => x.terminus) || city.stations[0];
   if (st) {
@@ -5153,12 +5221,39 @@ function drawTitleLogo() {
     const t = document.createElement("canvas");
     t.width = Math.max(1, Math.round(dw)); t.height = Math.max(1, Math.round(dh));
     const tg = t.getContext("2d");
-    // Inverted rather than flattened to one colour: the art is near-black on
-    // white, and inverting keeps the modelling - the crowd goes pale, the lead
-    // man's shirt and collar go dark, and he still reads as the one figure
-    // with detail in him. A flat fill would lose all of that.
-    tg.filter = "invert(1) brightness(1.06)";
+    // The crowd and the man are treated differently, which is the whole point
+    // of the picture: everyone behind him is a flat silhouette and he is the
+    // only one with any colour in him.
+    //
+    // They are separated by where they are in the frame rather than by any
+    // clever masking: the art has the pack on the left and the lone figure on
+    // the right, so a vertical split at 68% puts each on its own side.
+    const splitAt = Math.round(t.width * 0.68);
+
+    // The crowd: one flat tone, no modelling, so it reads as a mass.
+    tg.save();
+    tg.beginPath(); tg.rect(0, 0, splitAt, t.height); tg.clip();
     tg.drawImage(logoArt, 0, 0, t.width, t.height);
+    tg.globalCompositeOperation = "source-in";
+    tg.fillStyle = "#565d66";
+    tg.fillRect(0, 0, splitAt, t.height);
+    tg.restore();
+
+    // Seiko: inverted so he lifts off the dark panel, then warmed, so he is
+    // the one figure carrying any colour at all.
+    tg.save();
+    tg.beginPath(); tg.rect(splitAt, 0, t.width - splitAt, t.height); tg.clip();
+    tg.filter = "invert(1) brightness(1.04)";
+    tg.drawImage(logoArt, 0, 0, t.width, t.height);
+    tg.filter = "none";
+    tg.globalCompositeOperation = "source-atop";
+    const warm = tg.createLinearGradient(splitAt, 0, t.width, t.height);
+    warm.addColorStop(0, "rgba(92,138,205,0.55)");
+    warm.addColorStop(1, "rgba(206,160,96,0.45)");
+    tg.fillStyle = warm;
+    tg.fillRect(splitAt, 0, t.width - splitAt, t.height);
+    tg.restore();
+
     g.drawImage(t, dx, dy);
     return;
   }
@@ -9153,7 +9248,7 @@ function updatePlace() {
 // ---- the island map ----------------------------------------------------
 // Konto has one seed. There is no "generate a new island" any more, because a
 // place you can reroll is a demo, not somewhere you live.
-const MAP_MENU = ["kresume", "kwaypoint", "kmode", "kshadows", "kquality"];
+const MAP_MENU = ["kresume", "kwaypoint", "kshadows", "kquality"];
 
 function mapAcross() {
   // Zoom 1 is the whole island in the window, whatever shape the window is;
@@ -9233,8 +9328,6 @@ function setMapOpen(on) {
     nav.mapZoom = 6;
     nav.mapSel = 0;
     syncMapMenu();
-    const mode = document.getElementById("kmode");
-    if (mode) mode.textContent = player.mode === "walk" ? "Back to the free camera" : "Walk as Seiko";
     const sh = document.getElementById("kshadows");
     if (sh && renderer) sh.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
     const q = document.getElementById("kquality");
@@ -9275,7 +9368,6 @@ function runMapMenu(i) {
   const id = MAP_MENU[i];
   if (id === "kresume") setMapOpen(false);
   else if (id === "kwaypoint") { if (nav.waypoint) clearWaypoint(); else setWaypointHere(); }
-  else if (id === "kmode") { setMapOpen(false); toggleWalk(); }
   else if (id === "kshadows") {
     if (!renderer) return;
     renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
@@ -11260,6 +11352,207 @@ function drawShop() {
   g.textAlign = "left";
 }
 
+// ---- home ------------------------------------------------------------------
+// The flat in Mizuho Seiko grew up in, and the one place on the island that is
+// his. Four things to do in it, and between them they are the whole loop the
+// stress ring is for: sleep it off, eat, sit in front of the television, or
+// walk back out.
+const home = { at: null, door: null, yaw: 0, groundY: 0, inside: false, sel: 0, tv: 0 };
+
+const HOME_ACTS = [
+  { id: "sleep", name: "Sleep", note: "Until morning. Everything comes back.",
+    detail: "The futon is already out. It always is." },
+  { id: "eat",   name: "Eat something", note: "Whatever is in the fridge.",
+    detail: "Rice, an egg, the end of a jar of pickles." },
+  { id: "tv",    name: "Watch television", note: "Half an hour goes somewhere.",
+    detail: "A variety show. Somebody is eating something enormous." },
+  { id: "leave", name: "Go out", note: "", detail: "" }
+];
+
+function findHome(w) {
+  home.at = null;
+  // Mizuho is the village; the family home is one of its sites.
+  for (let i = 0; i < w.cities.length; i++) {
+    const c = w.cities[i];
+    const site = (c.sites || []).find(x => x.name === "Family home");
+    if (!site) continue;
+    const plot = site.plot;
+    const yaw = plot ? plot.yaw * Math.PI / 180 : 0;
+    const half = plot ? plot.size[1] * 0.5 + 2.0 : 6;
+    home.at = [site.at[0], site.at[2]];
+    home.yaw = yaw;
+    home.groundY = site.at[1];
+    home.door = [site.at[0] + Math.sin(yaw) * half, site.at[2] + Math.cos(yaw) * half];
+    home.city = c.name;
+    break;
+  }
+}
+
+function homeNear(x, z) {
+  if (!home.door) return false;
+  return Math.hypot(home.door[0] - x, home.door[1] - z) < 4.0;
+}
+
+function enterHome() {
+  home.inside = true;
+  home.sel = 0;
+  const el = document.getElementById("homeview");
+  if (el) el.hidden = false;
+  document.body.classList.add("inhome");
+  drawHome();
+}
+function leaveHome() {
+  if (!home.inside) return;
+  home.inside = false;
+  document.body.classList.remove("inhome");
+  const el = document.getElementById("homeview");
+  if (el) setTimeout(() => { if (!home.inside) el.hidden = true; }, 200);
+}
+function homeMove(d) {
+  home.sel = clamp(home.sel + d, 0, HOME_ACTS.length - 1);
+  drawHome();
+}
+function homeAct() {
+  const a = HOME_ACTS[home.sel];
+  if (a.id === "leave") { leaveHome(); return; }
+  if (a.id === "sleep") {
+    vitals.stress = 0;
+    vitals.health = 1;
+    clock += 60 * 8;                       // morning
+    say("Slept until morning. You feel human.", 5);
+    leaveHome();
+    return;
+  }
+  if (a.id === "eat") {
+    vitals.stress = clamp01(vitals.stress - 0.22);
+    vitals.health = clamp01(vitals.health + 0.30);
+    say("Ate. Not much, but something.", 4);
+  }
+  if (a.id === "tv") {
+    home.tv = (home.tv + 1) % 4;
+    vitals.stress = clamp01(vitals.stress - 0.10);
+    clock += 60 * 0.5;
+    say("Half an hour of television.", 3.5);
+  }
+  drawHome();
+}
+
+// The room, drawn. A low table, a television, a fridge in the corner and the
+// futon already out, seen from the doorway.
+function drawHome() {
+  const cv = document.getElementById("homecanvas");
+  if (!cv || !home.inside) return;
+  const g = cv.getContext("2d");
+  const W = cv.width, H = cv.height;
+
+  // Walls, tatami floor, a window with the evening outside it.
+  g.fillStyle = "#22201c"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#3a352c"; g.fillRect(0, H * 0.10, W, H * 0.52);
+  const floor = g.createLinearGradient(0, H * 0.60, 0, H);
+  floor.addColorStop(0, "#8d7c55"); floor.addColorStop(1, "#6b5d3e");
+  g.fillStyle = floor; g.fillRect(0, H * 0.60, W, H * 0.40);
+  // tatami seams
+  g.strokeStyle = "rgba(0,0,0,0.18)"; g.lineWidth = 2;
+  for (let i = 1; i < 5; i++) {
+    const y = H * (0.62 + i * 0.075);
+    g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke();
+  }
+  for (let i = -3; i <= 3; i++) {
+    g.beginPath();
+    g.moveTo(W * 0.5 + i * W * 0.09, H * 0.60);
+    g.lineTo(W * 0.5 + i * W * 0.30, H);
+    g.stroke();
+  }
+  // window, with the sky colour the world is actually using
+  const t = phoneTime();
+  const night = t.h >= 19 || t.h < 5;
+  g.fillStyle = night ? "#14233a" : "#9fc0d8";
+  g.fillRect(W * 0.60, H * 0.16, W * 0.30, H * 0.26);
+  g.strokeStyle = "#2a2620"; g.lineWidth = W * 0.008;
+  g.strokeRect(W * 0.60, H * 0.16, W * 0.30, H * 0.26);
+  g.beginPath();
+  g.moveTo(W * 0.75, H * 0.16); g.lineTo(W * 0.75, H * 0.42);
+  g.moveTo(W * 0.60, H * 0.29); g.lineTo(W * 0.90, H * 0.29);
+  g.stroke();
+  if (night) {
+    g.fillStyle = "rgba(255,230,160,0.75)";
+    for (let i = 0; i < 9; i++) {
+      g.fillRect(W * (0.62 + (i % 5) * 0.056), H * (0.19 + ((i / 5) | 0) * 0.07),
+                 W * 0.012, H * 0.018);
+    }
+  }
+
+  // The television, on the left, showing something.
+  const tx = W * 0.09, ty = H * 0.34, tw = W * 0.26, th = tw * 0.58;
+  g.fillStyle = "#15171b";
+  roundRect(g, tx - W * 0.012, ty - H * 0.012, tw + W * 0.024, th + H * 0.024, W * 0.012); g.fill();
+  const shows = [["#2c4f7c", "#87b4d8"], ["#7c3a2c", "#d8a187"], ["#2c7c52", "#87d8ad"], ["#555", "#aaa"]];
+  const sh = shows[home.tv % shows.length];
+  const tg = g.createLinearGradient(tx, ty, tx + tw, ty + th);
+  tg.addColorStop(0, sh[0]); tg.addColorStop(1, sh[1]);
+  g.fillStyle = tg; g.fillRect(tx, ty, tw, th);
+  g.fillStyle = "rgba(255,255,255,0.14)";
+  for (let i = 0; i < 6; i++) g.fillRect(tx, ty + th * (i / 6), tw, th * 0.03);
+  g.fillStyle = "#2a2620";
+  g.fillRect(tx + tw * 0.42, ty + th + H * 0.012, tw * 0.16, H * 0.03);
+  g.fillRect(tx + tw * 0.28, ty + th + H * 0.042, tw * 0.44, H * 0.012);
+
+  // The low table, with a cup on it.
+  g.fillStyle = "#6b4a2c";
+  roundRect(g, W * 0.38, H * 0.66, W * 0.26, H * 0.035, W * 0.008); g.fill();
+  g.fillStyle = "#523823";
+  g.fillRect(W * 0.41, H * 0.695, W * 0.018, H * 0.07);
+  g.fillRect(W * 0.60, H * 0.695, W * 0.018, H * 0.07);
+  g.fillStyle = "#d8d2c4";
+  g.beginPath(); g.ellipse(W * 0.50, H * 0.655, W * 0.018, H * 0.012, 0, 0, Math.PI * 2); g.fill();
+
+  // The fridge in the corner.
+  g.fillStyle = "#c9ccc9";
+  roundRect(g, W * 0.86, H * 0.44, W * 0.11, H * 0.33, W * 0.008); g.fill();
+  g.fillStyle = "#9aa09a";
+  g.fillRect(W * 0.86, H * 0.565, W * 0.11, H * 0.006);
+  g.fillRect(W * 0.945, H * 0.48, W * 0.008, H * 0.05);
+  g.fillRect(W * 0.945, H * 0.60, W * 0.008, H * 0.05);
+
+  // The futon, already out.
+  g.fillStyle = "#cfc8b6";
+  roundRect(g, W * 0.22, H * 0.80, W * 0.34, H * 0.13, W * 0.018); g.fill();
+  g.fillStyle = "#b9b099";
+  roundRect(g, W * 0.23, H * 0.805, W * 0.10, H * 0.055, W * 0.012); g.fill();
+
+  // The panel of things to do.
+  const px = W * 0.615, py = H * 0.50, pw = W * 0.325;
+  g.fillStyle = "rgba(10,11,14,0.82)";
+  roundRect(g, px, py, pw, H * 0.42, W * 0.012); g.fill();
+  g.fillStyle = "#e9edf0";
+  g.font = "700 " + Math.round(H * 0.040) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("Home", px + W * 0.022, py + H * 0.045);
+  g.fillStyle = "#79818b";
+  g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
+  g.fillText(home.city ? home.city : "Mizuho", px + W * 0.022, py + H * 0.080);
+  HOME_ACTS.forEach((a, i) => {
+    const y = py + H * 0.115 + i * H * 0.072;
+    const on = i === home.sel;
+    g.fillStyle = on ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)";
+    roundRect(g, px + W * 0.014, y, pw - W * 0.028, H * 0.060, W * 0.008); g.fill();
+    g.fillStyle = on ? "#ffffff" : "#c3c9cf";
+    g.font = (on ? "600 " : "500 ") + Math.round(H * 0.030) + "px " + UI;
+    g.fillText(a.name, px + W * 0.032, y + H * 0.021);
+    if (a.note) {
+      g.fillStyle = "#6b727a";
+      g.font = "500 " + Math.round(H * 0.022) + "px " + UI;
+      g.fillText(a.note, px + W * 0.032, y + H * 0.045);
+    }
+  });
+  // vitals, so the point of sleeping is visible
+  g.fillStyle = "#79818b";
+  g.font = "500 " + Math.round(H * 0.024) + "px " + UI;
+  g.fillText("Health " + Math.round(vitals.health * 100) + "%   Stress " +
+             Math.round(vitals.stress * 100) + "%", px + W * 0.022, py + H * 0.405);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
 // ---- the wheel -------------------------------------------------------------
 // Held on LB, the way it is in the game these controls come from: the world
 // slows almost to a stop, eight segments fan out from the middle, and the
@@ -12484,49 +12777,80 @@ function titleChoose() {
   // difference will matter once there is something to save.
   setTitle(false);
   title.started = true;
-  const c = world.cities[0];
-  const sc = c.scramble;
   tour = false;
-  if (sc) {
-    setMode("walk");
-    placeSeiko(new THREE.Vector3(sc.at[0], sc.groundY, sc.at[1]));
-    player.placed = true;
-  }
-  say("Press M for the map, P for the phone.", 6);
+  setMode("walk");
+  placeSeiko(seikoSpawn(world));
+  player.placed = true;
+  player.yaw = player.targetYaw = home.yaw || 0;
+  yaw = (home.yaw || 0) + Math.PI;
+  say("Home, in Mizuho. Press Y to go inside, M for the map, P for the phone.", 7);
 }
 
 // A day in a little under a minute, so you see dusk if you linger.
+//
+// The old version crossfaded three colours and went flat and grey through the
+// middle of every transition. This one treats the four parts of a day as four
+// separate skies and moves between neighbours only, which is what keeps dawn
+// orange instead of averaging it into the night behind it. The sun's own
+// colour and strength follow the same curve, and at night the dome gets stars
+// that fade in as the light goes.
+const SKY_KEYS = [
+  // h = sun elevation, -1 at midnight, +1 at noon
+  { at: -1.00, zen: [0.015, 0.025, 0.065], haze: [0.030, 0.042, 0.080], sun: 0.00 },
+  { at: -0.16, zen: [0.075, 0.085, 0.150], haze: [0.230, 0.150, 0.150], sun: 0.06 },
+  { at:  0.02, zen: [0.180, 0.230, 0.420], haze: [0.820, 0.430, 0.260], sun: 0.30 },
+  { at:  0.22, zen: [0.210, 0.400, 0.680], haze: [0.880, 0.700, 0.520], sun: 0.72 },
+  { at:  1.00, zen: [0.235, 0.470, 0.760], haze: [0.760, 0.810, 0.860], sun: 1.00 }
+];
+function skyAt(h) {
+  let i = 0;
+  while (i < SKY_KEYS.length - 2 && h > SKY_KEYS[i + 1].at) i++;
+  const a = SKY_KEYS[i], b = SKY_KEYS[i + 1];
+  const t = clamp01((h - a.at) / Math.max(0.0001, b.at - a.at));
+  const e = t * t * (3 - 2 * t);                      // ease, so dusk lingers
+  const mix = (x, y) => x + (y - x) * e;
+  return {
+    zen: [mix(a.zen[0], b.zen[0]), mix(a.zen[1], b.zen[1]), mix(a.zen[2], b.zen[2])],
+    haze: [mix(a.haze[0], b.haze[0]), mix(a.haze[1], b.haze[1]), mix(a.haze[2], b.haze[2])],
+    sun: mix(a.sun, b.sun)
+  };
+}
+
 function titleSky(t) {
   // t = 0 is midday. A whole day takes about fifty seconds, so the sky has
   // visibly moved by the time you have read the menu, and if you sit there you
   // get dusk and then the city lighting up.
   const day = (t * 0.021) % 1;
   const ang = day * Math.PI * 2 + Math.PI * 0.5;
-  const h = Math.sin(ang);                       // -1 midnight, +1 noon
-  sunDir.set(Math.cos(ang) * 0.72, Math.max(-0.35, h), 0.46).normalize();
+  const h = Math.sin(ang);
+  applySky(h, Math.cos(ang) * 0.72, 0.46);
+}
+
+// Shared by the title and, later, by the world's own clock.
+function applySky(h, dirX, dirZ) {
+  sunDir.set(dirX, Math.max(-0.35, h), dirZ).normalize();
+  const k = skyAt(h);
   if (sunLight) {
     sunLight.position.copy(sunDir).multiplyScalar(2400);
-    sunLight.intensity = clamp(0.08 + h * 1.05, 0.03, 0.9);
-    // Warm at the ends of the day, white in the middle of it.
-    const warm = clamp01(1 - Math.max(0, h) * 1.7);
-    sunLight.color.setRGB(1, 1 - warm * 0.30, 1 - warm * 0.56);
+    sunLight.intensity = 0.03 + k.sun * 0.92;
+    // Low sun is orange, high sun is white, and the turn happens over the
+    // first fifteen degrees, which is where it happens outside.
+    const low = clamp01(1 - Math.max(0, h) * 4.0);
+    sunLight.color.setRGB(1, 1 - low * 0.34, 1 - low * 0.62);
   }
-  const night = clamp01(-h * 2.2);
-  const dusk = clamp01(1 - Math.abs(h) * 3.4);
-  const sky = new THREE.Color().setRGB(
-    lerp(lerp(0.24, 0.76, dusk), 0.03, night),
-    lerp(lerp(0.47, 0.48, dusk), 0.04, night),
-    lerp(lerp(0.71, 0.40, dusk), 0.09, night));
-  const haze = new THREE.Color().setRGB(
-    lerp(lerp(0.76, 0.92, dusk), 0.05, night),
-    lerp(lerp(0.81, 0.62, dusk), 0.06, night),
-    lerp(lerp(0.85, 0.44, dusk), 0.11, night));
   if (skyDome && skyDome.material.uniforms) {
-    skyDome.material.uniforms.zenith.value.copy(sky);
-    skyDome.material.uniforms.horizon.value.copy(haze);
+    const u = skyDome.material.uniforms;
+    u.zenith.value.setRGB(k.zen[0], k.zen[1], k.zen[2]);
+    u.horizon.value.setRGB(k.haze[0], k.haze[1], k.haze[2]);
+    if (u.night) u.night.value = clamp01(-h * 2.6);
+    if (u.glow) {
+      // The glow round the sun warms as it drops and dies when it is gone.
+      const warm = clamp01(1 - Math.max(0, h) * 3.0) * clamp01(h + 0.22);
+      u.glow.value.setRGB(1.0, 0.92 - warm * 0.30, 0.80 - warm * 0.52);
+    }
   }
-  if (scene.fog) scene.fog.color.copy(haze);
-  if (renderer) renderer.toneMappingExposure = lerp(1.0, 0.62, night);
+  if (scene && scene.fog) scene.fog.color.setRGB(k.haze[0], k.haze[1], k.haze[2]);
+  if (renderer) renderer.toneMappingExposure = lerp(1.04, 0.52, clamp01(-h * 2.2));
 }
 
 function updateTitle(dt) {
