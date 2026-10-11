@@ -66,8 +66,22 @@ function main() {
   if (fs.existsSync(glb)) fs.copyFileSync(glb, path.join(OUT, "seiko.glb"));
   else console.warn("seiko.glb is not there; the built-in figure will stand in for him.");
 
+  // The modelled cars live in a folder beside the page and are fetched at
+  // runtime, so they have to travel with it or the world falls back to the
+  // built box bodies.
+  const carsIn = path.join(SRC, "cars");
+  let cars = 0;
+  if (fs.existsSync(carsIn)) {
+    const carsOut = path.join(OUT, "cars");
+    fs.mkdirSync(carsOut, { recursive: true });
+    fs.readdirSync(carsIn).filter(f => f.endsWith(".glb")).forEach(f => {
+      fs.copyFileSync(path.join(carsIn, f), path.join(carsOut, f));
+      cars++;
+    });
+  }
+
   console.log("staged app/index.html (" + rewrote + " script tags pointed at vendor/)"
-    + (fs.existsSync(glb) ? " and seiko.glb" : ""));
+    + (fs.existsSync(glb) ? " and seiko.glb" : "") + ", " + cars + " car models");
 }
 
 main();

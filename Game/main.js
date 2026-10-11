@@ -25,6 +25,32 @@ protocol.registerSchemesAsPrivileged([
 // is on screen, so the window is shown with the page's own loading screen.
 let win = null;
 
+// --screenshot <file> loads the world, waits for the loading screen to go, and
+// writes a PNG, then quits. It is how the build is smoke-tested without a
+// person at the keyboard, and it is the quickest way for anyone to send a
+// picture of what their machine actually drew.
+function shotPath() {
+  const i = process.argv.indexOf("--screenshot");
+  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : null;
+}
+
+async function takeShot(target) {
+  try {
+    await win.webContents.executeJavaScript(
+      "new Promise(res => { const go = () => { const b = document.getElementById('boot');"
+      + " if (b && b.hidden) res(true); else setTimeout(go, 400); }; go(); })", true);
+    // A few frames after the loading screen goes, so the first render is done.
+    await new Promise(r => setTimeout(r, 2500));
+    const img = await win.webContents.capturePage();
+    require("fs").writeFileSync(target, img.toPNG());
+    console.log("screenshot written to " + target);
+  } catch (err) {
+    console.error("screenshot failed: " + err.message);
+    process.exitCode = 1;
+  }
+  app.quit();
+}
+
 function resolve(request) {
   const u = new URL(request.url);
   let rel = decodeURIComponent(u.pathname).replace(/^\/+/, "");
@@ -60,6 +86,8 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
   win.loadURL("konto://app/index.html");
+  const target = shotPath();
+  if (target) win.webContents.once("did-finish-load", () => takeShot(target));
 
   // F11 fullscreens, Escape belongs to the game, and links open outside.
   win.webContents.on("before-input-event", (event, input) => {
