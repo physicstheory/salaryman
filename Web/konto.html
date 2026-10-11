@@ -11466,7 +11466,8 @@ function drawHome() {
   // window, with the sky colour the world is actually using
   const t = phoneTime();
   const night = t.h >= 19 || t.h < 5;
-  g.fillStyle = night ? "#14233a" : "#9fc0d8";
+  const dusk = !night && (t.h >= 17 || t.h < 7);
+  g.fillStyle = night ? "#14233a" : dusk ? "#c98f63" : "#9fc0d8";
   g.fillRect(W * 0.60, H * 0.16, W * 0.30, H * 0.26);
   g.strokeStyle = "#2a2620"; g.lineWidth = W * 0.008;
   g.strokeRect(W * 0.60, H * 0.16, W * 0.30, H * 0.26);
@@ -11483,7 +11484,7 @@ function drawHome() {
   }
 
   // The television, on the left, showing something.
-  const tx = W * 0.09, ty = H * 0.34, tw = W * 0.26, th = tw * 0.58;
+  const tx = W * 0.165, ty = H * 0.34, tw = W * 0.26, th = tw * 0.58;
   g.fillStyle = "#15171b";
   roundRect(g, tx - W * 0.012, ty - H * 0.012, tw + W * 0.024, th + H * 0.024, W * 0.012); g.fill();
   const shows = [["#2c4f7c", "#87b4d8"], ["#7c3a2c", "#d8a187"], ["#2c7c52", "#87d8ad"], ["#555", "#aaa"]];
@@ -11506,13 +11507,15 @@ function drawHome() {
   g.fillStyle = "#d8d2c4";
   g.beginPath(); g.ellipse(W * 0.50, H * 0.655, W * 0.018, H * 0.012, 0, 0, Math.PI * 2); g.fill();
 
-  // The fridge in the corner.
+  // The fridge, in the corner on the left where the panel cannot sit on it.
   g.fillStyle = "#c9ccc9";
-  roundRect(g, W * 0.86, H * 0.44, W * 0.11, H * 0.33, W * 0.008); g.fill();
+  roundRect(g, W * 0.015, H * 0.40, W * 0.105, H * 0.36, W * 0.008); g.fill();
   g.fillStyle = "#9aa09a";
-  g.fillRect(W * 0.86, H * 0.565, W * 0.11, H * 0.006);
-  g.fillRect(W * 0.945, H * 0.48, W * 0.008, H * 0.05);
-  g.fillRect(W * 0.945, H * 0.60, W * 0.008, H * 0.05);
+  g.fillRect(W * 0.015, H * 0.535, W * 0.105, H * 0.006);
+  g.fillRect(W * 0.100, H * 0.445, W * 0.008, H * 0.05);
+  g.fillRect(W * 0.100, H * 0.570, W * 0.008, H * 0.05);
+  g.fillStyle = "rgba(0,0,0,0.10)";
+  g.fillRect(W * 0.015, H * 0.755, W * 0.105, H * 0.012);
 
   // The futon, already out.
   g.fillStyle = "#cfc8b6";
