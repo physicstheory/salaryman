@@ -30,10 +30,9 @@ the Actions tab is empty.
 After about five minutes:
 
 1. Open the run, scroll to **Artifacts**, download **SalaryMan-windows**.
-2. Unzip it. Two files, both the same game:
-   - `SalaryMan-0.5.0-x64.exe` — the installer. Installs to your user folder, makes
-     a desktop shortcut, shows up in Add or Remove Programs.
-   - the portable `.exe` — double-click it, no install, nothing left behind.
+2. Unzip it. `SalaryMan-0.5.0-x64.exe` is the installer: it installs to your user
+   folder, makes a desktop shortcut and shows up in Add or Remove Programs. No
+   administrator rights needed.
 3. Windows will say *"Windows protected your PC"*, because the build is not code
    signed. **More info → Run anyway.** Signing costs a few hundred pounds a year
    and is the only thing standing between you and that dialog.
@@ -50,6 +49,12 @@ git push origin v0.5.0
 Then **Releases** on the repository front page, five minutes later, has the
 `.exe` on it. Tags are permanent and public, which is why this is your call to
 make rather than something already done for you.
+
+**On the download itself.** It is about 40 MB, and nearly all of that is the
+Chromium runtime an Electron application carries inside it; the game is about
+2 MB. GitHub serves artifact downloads as a single stream with no resume, so a
+VPN hurts it badly — turn one off before downloading, and do not cancel and
+retry, because each attempt starts again from zero.
 
 If neither appeals, skip to **the longer way** below — it is four commands and it
 works today.
