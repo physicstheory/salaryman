@@ -4881,16 +4881,41 @@ function updateWalk(dt) {
     animateSeiko(player.obj, player.speed, clock);
   }
 
-  // Camera: over his shoulder, and never underground.
+  // Camera: over his shoulder, never underground, and never inside a wall.
   const head = player.pos.clone().add(new THREE.Vector3(0, 1.5, 0));
   const dist = lerp(4.6, 7.0, clamp01(player.speed / 4.7));
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-  const want = head.clone().sub(dir.clone().multiplyScalar(dist));
+  const free = cameraReach(head, dir, dist);
+  const want = head.clone().sub(dir.clone().multiplyScalar(free));
   const ground = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
   want.y = Math.max(want.y, ground + 1.3);
-  camPos.lerp(want, 1 - Math.pow(0.0008, dt));
+  // Coming in off a wall has to be immediate or the camera is inside the wall
+  // for the moment it takes to ease; going back out can take its time.
+  const closing = free < (player.camFree === undefined ? free : player.camFree) - 0.05;
+  player.camFree = free;
+  camPos.lerp(want, closing ? 1 : 1 - Math.pow(0.0008, dt));
   camera.position.copy(camPos);
   camera.lookAt(head);
+}
+
+// How far back the camera can actually sit before it is in something. Walks
+// out from the head along the view line and stops at the first thing it hits,
+// with a margin so the near plane does not clip through the face of the wall.
+// Buildings and terrain both count: backing into a hillside is the same
+// problem as backing into an office block.
+function cameraReach(head, dir, want) {
+  const margin = 0.55;
+  const steps = 10;
+  for (let i = 1; i <= steps; i++) {
+    const d = want * (i / steps);
+    const p = head.clone().sub(dir.clone().multiplyScalar(d));
+    const ground = world.surfaceY(clamp(p.x, 0, WORLD_X), clamp(p.z, 0, WORLD_Z));
+    if (insideBuilding(p.x, p.z, margin) || p.y < ground + 0.6) {
+      // Back off to the last clear step, and never closer than the shoulder.
+      return Math.max(1.35, want * ((i - 1) / steps) - 0.1);
+    }
+  }
+  return want;
 }
 
 function followSun() {
