@@ -14566,7 +14566,7 @@ function appMusic(g, W, H) {
 // red heart on it, reading your stress, your health, your sleep and a pulse
 // that goes up when the police are about. On any other phone the watch is a
 // very expensive bracelet.
-const hdata = { bpm: 66, hist: [], tick: 0 };
+const hdata = { bpm: 66, hist: [], acc: 0 };
 function heartRate() {
   let target = 62 + vitals.stress * 28 + wanted.stars * 7 + (drive.car ? 5 : 0);
   if (vitals.awake > 2880) target += Math.min(10, (vitals.awake - 2880) / 400);
@@ -14576,9 +14576,9 @@ function heartRate() {
 function updateHealthData(dt) {
   hdata.bpm += (heartRate() - hdata.bpm) * Math.min(1, dt * 0.6);
   if (!phone.health || !bag.watchOn) return;
-  hdata.tick += dt;
-  if (hdata.tick > 1.2) {
-    hdata.tick = 0;
+  hdata.acc += dt;
+  if (hdata.acc > 1.2) {
+    hdata.acc = 0;
     hdata.hist.push(hdata.bpm + (Math.random() - 0.5) * 3);
     if (hdata.hist.length > 60) hdata.hist.shift();
   }

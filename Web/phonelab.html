@@ -328,6 +328,8 @@ const keys = Object.create(null);
 
 const move = { x: 0, y: 0, up: 0, run: false };
 
+const look = { x: 0, y: 0 };
+
 const pad = { index: -1, name: "", was: {}, x: 0, y: 0, up: 0, run: false,
                throttle: 0, brake: 0, handbrake: false };
 
@@ -341,7 +343,7 @@ function wish() {
   };
 }
 
-const UI = '"Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const UI = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
 
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
 
@@ -362,7 +364,7 @@ const phone = {
   pad: { on: false, sel: 0 },   // keypad focus on a basic phone
   watch: null,          // a Pear Watch, once you have one
   health: false,        // the Health app, once the watch is connected
-  owns: { earbuds: false, headphones: false, icCard: true },
+  owns: { earbuds: false, headphones: false },
   gallery: [],          // photographs taken with the camera
   dial: "",
   ryde: null            // a car on its way, once one is called
@@ -412,6 +414,7 @@ const SHOP_ITEMS = [
 const WEB = [
   { host: "11eleven.co.kn",   title: "11 Eleven",            kind: "shop",  brand: "eleven" },
   { host: "petmart.co.kn",    title: "Pet Mart",             kind: "shop",  brand: "petmart" },
+  { host: "dokoto-camera.co.kn", title: "Dokoto Camera",     kind: "tech" },
   { host: "kurogane.co.kn",   title: "Kurogane Prestige",    kind: "cars",  tier: "luxury" },
   { host: "maruichi.co.kn",   title: "Maruichi Car Centre",  kind: "cars",  tier: "budget" },
   { host: "konto-shimbun.kn", title: "Konto Shimbun",        kind: "news" },
@@ -419,6 +422,130 @@ const WEB = [
   { host: "win-now.biz",      title: "\u2605 YOU HAVE WON \u2605", kind: "scam" },
   { host: "tokonto-city.kn",  title: "T\u014dkonto City Hall",  kind: "gov" }
 ];
+
+const searchUI = { on: false, q: "", focus: "kb", r: 0, c: 0, res: 0 };
+
+const KB_ROWS = ["qwertyuiop", "asdfghjkl-", "zxcvbnm.", ""];
+
+const KB_BOTTOM = ["space", "back", "go"];
+
+function webSearch(q) {
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!toks.length) return [];
+  return WEB.map((w, i) => {
+    const hay = (w.title + " " + w.host + " " + (w.kw || "")).toLowerCase();
+    let s = 0; toks.forEach(t => { if (hay.indexOf(t) >= 0) s += t.length + (w.title.toLowerCase().indexOf(t) >= 0 ? 3 : 0); });
+    return { i: i, s: s };
+  }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+}
+
+function searchOpen() { searchUI.on = true; searchUI.q = ""; searchUI.focus = "kb"; searchUI.r = 1; searchUI.c = 4; searchUI.res = 0; phone.dirty = true; }
+
+function searchClose() { searchUI.on = false; phone.dirty = true; }
+
+function searchType(ch) { if (searchUI.q.length < 28) searchUI.q += ch; searchUI.res = 0; phone.dirty = true; }
+
+function searchOpenResult() {
+  const r = webSearch(searchUI.q);
+  const pick = r[clamp(searchUI.res, 0, Math.max(0, r.length - 1))];
+  if (!pick) { say("Nothing matches that. Poodle suggests a different word.", 3); return; }
+  searchUI.on = false; phone.site = pick.i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
+}
+
+function searchMove(dx, dy) {
+  const res = webSearch(searchUI.q);
+  if (searchUI.focus === "results") {
+    if (dy) { searchUI.res += dy; if (searchUI.res < 0) { searchUI.res = 0; } if (searchUI.res >= res.length) { searchUI.focus = "kb"; searchUI.r = 0; searchUI.res = Math.max(0, res.length - 1); } }
+  } else {
+    if (dy < 0 && searchUI.r === 0 && res.length) { searchUI.focus = "results"; searchUI.res = Math.min(searchUI.res, res.length - 1); phone.dirty = true; return; }
+    if (dy) searchUI.r = clamp(searchUI.r + dy, 0, 3);
+    if (dx) {
+      if (searchUI.r === 3) searchUI.c = clamp(searchUI.c + dx, 0, 2);
+      else searchUI.c = clamp(searchUI.c + dx, 0, KB_ROWS[searchUI.r].length - 1);
+    }
+    if (searchUI.r === 3) searchUI.c = clamp(searchUI.c, 0, 2);
+    else searchUI.c = clamp(searchUI.c, 0, KB_ROWS[searchUI.r].length - 1);
+  }
+  phone.dirty = true;
+}
+
+function searchAct() {
+  if (searchUI.focus === "results") { searchOpenResult(); return; }
+  if (searchUI.r === 3) {
+    const k = KB_BOTTOM[searchUI.c];
+    if (k === "space") searchType(" "); else if (k === "back") { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchOpenResult();
+  } else searchType(KB_ROWS[searchUI.r][searchUI.c]);
+}
+
+function searchBack() {
+  if (searchUI.q.length) { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchClose();
+}
+
+function drawSearchPage(g, W, H) {
+  g.fillStyle = "#15181b"; g.fillRect(0, 0, W, H);
+  poodleTabStrip(g, W, H, "Search", "#5b6b7a");
+  poodleOmnibox(g, W, H, searchUI.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
+  const res = webSearch(searchUI.q);
+  const x = W * 0.05, w = W * 0.90, rowH = H * 0.062;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  if (!searchUI.q) {
+    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+    g.fillText("Type to search every site on the island.", x, H * 0.20);
+  } else if (!res.length) {
+    g.fillStyle = "#c3c9ce"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
+    g.fillText("Nothing matches “" + searchUI.q + "”.", x, H * 0.19);
+    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("Poodle suggests: ramen, train, cat, forms, toll.", x, H * 0.235);
+  }
+  const first = clamp(searchUI.res - 3, 0, Math.max(0, res.length - 6));
+  res.slice(first, first + 6).forEach((r, k) => {
+    const site = WEB[r.i], y = H * 0.158 + k * (rowH + H * 0.004), on = searchUI.focus === "results" && first + k === searchUI.res;
+    g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
+    if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
+    g.fillStyle = POODLE_TILE[r.i % POODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
+    g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText((site.title.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase(), x + W * 0.045, y + rowH / 2 + 1); g.textAlign = "left";
+    g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; clipText(g, site.title, x + W * 0.095, y + rowH * 0.36, w - W * 0.12);
+    g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, site.host, x + W * 0.095, y + rowH * 0.72, w - W * 0.12);
+  });
+  // the keys
+  const ky = H * 0.585, kh = H * 0.060, gap = W * 0.012;
+  KB_ROWS.forEach((row, r) => {
+    const keys = r === 3 ? KB_BOTTOM : row.split("");
+    const n = keys.length, kw = r === 3 ? W * 0.28 : (W * 0.92 - gap * (10 - 1)) / 10;
+    const total = n * kw + (n - 1) * gap, x0 = (W - total) / 2;
+    keys.forEach((k, c) => {
+      const kx = x0 + c * (kw + gap), y = ky + r * (kh + gap), on = searchUI.focus === "kb" && searchUI.r === r && searchUI.c === c;
+      g.fillStyle = on ? "#ffffff" : r === 3 && k === "go" ? "#2f8a4c" : "#2f3438"; roundRect(g, kx, y, kw, kh, W * 0.014); g.fill();
+      g.fillStyle = on ? "#14171b" : "#e6e9ec"; g.font = "600 " + Math.round(W * 0.042) + "px " + UI; g.textAlign = "center";
+      g.fillText(k === "space" ? "space" : k === "back" ? "⌫" : k === "go" ? "Go" : k, kx + kw / 2, y + kh / 2 + 1);
+    });
+  });
+  g.textAlign = "left";
+  poodleToolbar(g, W, H);
+}
+
+function wrapLines(g, text, maxW) {
+  const words = text.split(" "), out = []; let line = "";
+  words.forEach(w => { const t = line ? line + " " + w : w; if (g.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; });
+  if (line) out.push(line);
+  return out;
+}
+
+function drawPageSite(g, W, H, site) {
+  siteChrome(g, W, H, site, "#fbfaf6");
+  g.fillStyle = site.col; g.fillRect(0, H * 0.082, W, H * 0.085);
+  g.fillStyle = "#ffffff"; g.font = "800 " + Math.round(W * 0.056) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+  clipText(g, site.title, W * PL.pad, H * 0.108, W * 0.84);
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI;
+  clipText(g, site.tag, W * PL.pad, H * 0.143, W * 0.84);
+  g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+  const out = []; site.lines.forEach(t => { wrapLines(g, t, W * 0.84).forEach(l => out.push(l)); out.push(""); });
+  const per = 14, first = clamp(phone.sub, 0, Math.max(0, out.length - per));
+  g.fillStyle = "#2a2f34";
+  out.slice(first, first + per).forEach((l, k) => g.fillText(l, W * PL.pad, H * (0.215 + k * 0.047)));
+  if (out.length > per) { g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; g.textAlign = "right"; g.fillText((first > 0 ? "▲ " : "") + (first + per < out.length ? "▼" : ""), W * (1 - PL.pad), H * 0.84); g.textAlign = "left"; }
+  site._n = out.length;
+}
 
 function two(n) { return (n < 10 ? "0" : "") + n; }
 
@@ -535,6 +662,12 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.beginPath(); g.arc(c, m, u * 0.52, 0, 6.2832); g.stroke();
     g.beginPath(); g.ellipse(c, m, u * 0.22, u * 0.52, 0, 0, 6.2832); g.stroke();
     g.beginPath(); g.moveTo(c - u * 0.52, m); g.lineTo(c + u * 0.52, m); g.stroke();
+  } else if (glyph === "heart") {
+    g.beginPath();
+    g.moveTo(c, m + u * 0.46);
+    g.bezierCurveTo(c - u * 0.95, m - u * 0.02, c - u * 0.46, m - u * 0.66, c, m - u * 0.22);
+    g.bezierCurveTo(c + u * 0.46, m - u * 0.66, c + u * 0.95, m - u * 0.02, c, m + u * 0.46);
+    g.fillStyle = "#ffffff"; g.fill();
   } else if (glyph === "gear") {
     g.beginPath();
     for (let i = 0; i < 8; i++) {
@@ -631,6 +764,7 @@ function mixHex(a, b, k) { const A = hexRGB(a), B = hexRGB(b); return rgbHex([0,
 
 function deviceShell() {
   const d = dev();
+  if (phone.cases && phone.cases[phone.device]) return phone.cases[phone.device];
   if (d.ui === "basic") return d.body[0];
   const list = d.colours;
   return list[clamp(phone.colourIdx || 0, 0, list.length - 1)][1];
@@ -1021,7 +1155,7 @@ function drawPearHome(g, W, H) {
 
   glass(wx1, wy, ww, wh, W * 0.065, 0.17);
   if (phone.health) {
-    const bpm = typeof heartRate === "function" ? Math.round(heartRate()) : 72;
+    const bpm = Math.round(hdata.bpm);
     g.fillStyle = "#ff375f"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
     g.fillText("♥ HEART", wx1 + W * 0.04, wy + H * 0.026);
     g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
@@ -1341,6 +1475,7 @@ function drawPhone() {
   const g = phone.ctx, W = cv.width, H = cv.height;
   if (isBasic() && typeof drawBasicPhone === "function") { drawBasicPhone(g, W, H); return; }
   drawPhoneScreen();
+  if (phone.watchPrompt) drawWatchPrompt(g, W, H);
   phoneCutout(g, W, H);       // the notch or island goes over whatever was drawn
 }
 
@@ -1464,6 +1599,7 @@ function clipText(g, text, x, y, max) {
 }
 
 function appAccent() {
+  if (phone.app === "Health") return "#ff375f";
   if (isPear()) return PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][1];
   const row = PHONE_APPS.find(a => a[0] === phone.app);
   return row ? row[1] : "#4a90d9";
@@ -1674,48 +1810,109 @@ function appRyde(g, W, H) {
   g.textAlign = "left";
 }
 
-function appWallet(g, W, H) {
-  phoneChrome(g, W, H, dev().maker === "soti" ? "SOTI Wallet" : dev().maker === "pear" ? "Pear Wallet" : "Wallet", "Balance");
-  g.fillStyle = "#ffffff";
-  g.font = "300 " + Math.round(W * 0.145) + "px " + UI;
-  g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
+const wallet = { ic: null, toll: null, loyal: {}, buys: { eleven: 0, petmart: 0, dokoto: 0 }, pts: { eleven: 0, petmart: 0, dokoto: 0 }, add: false };
 
-  // Stacked cards, the way a wallet app does it.
-  const cards = [
-    { name: "IC Card",        sub: "Suika \u00b7 NHRail",  a: "#1d7a4c", b: "#0d4a2d",
-      val: phone.owns.icCard ? yenText(3240) : "Not added" },
-    { name: "SOTI Pay",       sub: "Debit \u00b7 \u2022\u2022\u2022\u2022 4417", a: "#2a2f38", b: "#15181d",
-      val: yenText(purse.yen) },
-    { name: "Konto Point",    sub: "Loyalty",           a: "#8a5a1c", b: "#4a2f0d",
-      val: "812 pt" }
-  ];
-  cards.forEach((c, i) => {
-    const y = H * 0.235 + i * H * 0.155;
-    const x = W * 0.075, w = W * 0.85, h = H * 0.185;
-    const grad = g.createLinearGradient(x, y, x + w, y + h);
-    grad.addColorStop(0, c.a); grad.addColorStop(1, c.b);
-    g.fillStyle = grad;
-    roundRect(g, x, y, w, h, W * 0.05); g.fill();
-    if (phone.sub === i) {
-      g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = W * 0.008;
-      roundRect(g, x, y, w, h, W * 0.05); g.stroke();
-    }
-    g.fillStyle = "#ffffff";
-    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
-    g.fillText(c.name, x + W * 0.055, y + H * 0.036);
-    g.fillStyle = "rgba(255,255,255,0.65)";
-    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-    g.fillText(c.sub, x + W * 0.055, y + H * 0.064);
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
-    g.textAlign = "right";
-    g.fillText(c.val, x + w - W * 0.055, y + H * 0.036);
-    g.textAlign = "left";
-  });
-  g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillText("An IC card opens the ticket gates", W * PL.pad, H * 0.80);
-  g.fillText("without stopping.", W * PL.pad, H * 0.832);
+const LOYALTY = {
+  eleven:  { name: "Eleven Points", sub: "11 Eleven", a: "#0a6b42", b: "#e8711a", need: 3 },
+  petmart: { name: "Pet Club",      sub: "Pet Mart",  a: "#1272d6", b: "#13a150", need: 3 },
+  dokoto:  { name: "Dokoto Point",  sub: "Dokoto Camera", a: "#d4152c", b: "#a30f20", need: 3 }
+};
+
+function noteBuy(brand, yen) {
+  if (!(brand in wallet.buys)) return;
+  wallet.buys[brand]++;
+  if (wallet.loyal[brand]) wallet.pts[brand] += Math.floor(yen / 100);
+}
+
+function walletCards() {
+  const list = [{ id: "nhb", name: "NHB Debit", sub: "Konto Bank · •••• 4417", a: "#2a2f38", b: "#15181d", val: yenText(purse.yen) }];
+  if (wallet.ic) list.push({ id: "ic", name: "IC Card", sub: "Suika · NHRail", a: "#1d7a4c", b: "#0d4a2d", val: yenText(wallet.ic.bal), top: true });
+  if (wallet.toll) list.push({ id: "toll", name: "Toll Express", sub: "Highway barriers", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true });
+  Object.keys(LOYALTY).forEach(k => { if (wallet.loyal[k]) { const L = LOYALTY[k]; list.push({ id: "loy-" + k, name: L.name, sub: L.sub + " · loyalty", a: L.a, b: L.b, val: wallet.pts[k] + " pt" }); } });
+  list.push({ id: "add", add: true });
+  return list;
+}
+
+const WALLET_ADD = [
+  { id: "ic",   name: "IC Card",      sub: "Opens the ticket gates", price: 2000, credit: 1500, a: "#1d7a4c" },
+  { id: "toll", name: "Toll Express", sub: "Opens toll barriers",    price: 5000, credit: 4000, a: "#c28a12" }
+];
+
+function walletAct() {
+  if (wallet.add) {
+    const o = WALLET_ADD[clamp(phone.sub, 0, WALLET_ADD.length - 1)];
+    if (wallet[o.id]) { say(o.name + " is already in your wallet.", 3); return; }
+    if (purse.yen < o.price) { say("Not enough. " + o.name + " costs " + yenText(o.price) + ".", 4); return; }
+    purse.yen -= o.price; wallet[o.id] = { bal: o.credit };
+    wallet.add = false; phone.sub = 0;
+    say(o.name + " added with " + yenText(o.credit) + " on it.", 5);
+    return;
+  }
+  const c = walletCards()[clamp(phone.sub, 0, walletCards().length - 1)];
+  if (c.add) { wallet.add = true; phone.sub = 0; return; }
+  if (c.top) {
+    if (purse.yen < 1000) { say("Not enough to top up.", 3); return; }
+    purse.yen -= 1000; wallet[c.id].bal += 1000; say(c.name + " topped up ¥1,000.", 3);
+  }
+}
+
+function loyaltyActivate(brand) {
+  const L = LOYALTY[brand];
+  if (wallet.loyal[brand]) { say(L.name + " is already in your wallet.", 3); return; }
+  if ((wallet.buys[brand] || 0) < L.need) { say("Buy " + (L.need - (wallet.buys[brand] || 0)) + " more from " + L.sub + " first.", 4); return; }
+  wallet.loyal[brand] = true; say(L.name + " card activated. It is in your wallet.", 5);
+}
+
+function walletBack() { if (wallet.add) { wallet.add = false; phone.sub = 0; return true; } return false; }
+
+function drawWalletCard(g, W, x, y, w, h, c, on) {
+  const grad = g.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, c.a); grad.addColorStop(1, c.b);
+  g.fillStyle = grad; roundRect(g, x, y, w, h, W * 0.05); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.07)"; g.beginPath(); g.arc(x + w * 0.88, y + h * 0.1, h * 0.7, 0, 7); g.fill();
+  if (on) { g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = W * 0.008; roundRect(g, x, y, w, h, W * 0.05); g.stroke(); }
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.052) + "px " + UI; g.textAlign = "left";
+  g.fillText(c.name, x + W * 0.055, y + h * 0.34);
+  g.fillStyle = "rgba(255,255,255,0.68)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText(c.sub, x + W * 0.055, y + h * 0.58);
+  g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.046) + "px " + UI; g.textAlign = "right";
+  g.fillText(c.val, x + w - W * 0.055, y + h * 0.34); g.textAlign = "left";
+  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText("A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
+}
+
+function appWallet(g, W, H) {
+  phoneChrome(g, W, H, dev().maker === "soti" ? "SOTI Wallet" : dev().maker === "pear" ? "Pear Wallet" : "Wallet", wallet.add ? "Add a card" : "Cards");
+  const x = W * 0.075, w = W * 0.85;
+  if (wallet.add) {
+    WALLET_ADD.forEach((o, i) => {
+      const y = H * 0.22 + i * H * 0.17, on = i === phone.sub;
+      drawWalletCard(g, W, x, y, w, H * 0.145, { name: o.name, sub: o.sub, a: o.a, b: mixHex(o.a, "#000000", 0.5), val: yenText(o.price) }, on);
+      g.fillStyle = "rgba(255,255,255,0.6)"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+      g.fillText(yenText(o.credit) + " credit included", x + W * 0.055, y + H * 0.126);
+    });
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    g.fillText("Shop loyalty cards are not here.", W * PL.pad, H * 0.62);
+    g.fillText("Buy from the shop, then ask its site.", W * PL.pad, H * 0.652);
+    return;
+  }
+  const cards = walletCards();
+  const sel = clamp(phone.sub, 0, cards.length - 1);
+  g.fillStyle = "#ffffff"; g.font = "300 " + Math.round(W * 0.125) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
+  const vis = 4, first = clamp(sel - 2, 0, Math.max(0, cards.length - vis));
+  for (let k = 0; k < vis && first + k < cards.length; k++) {
+    const i = first + k, c = cards[i], y = H * 0.215 + k * H * 0.150;
+    if (c.add) {
+      g.strokeStyle = i === sel ? "#ffffff" : "rgba(255,255,255,0.35)"; g.lineWidth = W * 0.006; g.setLineDash([W * 0.02, W * 0.016]);
+      roundRect(g, x, y, w, H * 0.13, W * 0.05); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = i === sel ? "#ffffff" : "rgba(255,255,255,0.6)"; g.lineWidth = W * 0.012; g.lineCap = "round";
+      g.beginPath(); g.moveTo(W / 2 - W * 0.045, y + H * 0.065); g.lineTo(W / 2 + W * 0.045, y + H * 0.065); g.moveTo(W / 2, y + H * 0.065 - W * 0.045); g.lineTo(W / 2, y + H * 0.065 + W * 0.045); g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.65)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText("Add a card", W / 2, y + H * 0.118); g.textAlign = "left";
+    } else drawWalletCard(g, W, x, y, w, H * 0.135, c, i === sel);
+  }
+  g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText(wallet.ic ? "IC opens the gates; Toll Express the barriers." : "An IC card or a Toll Express card can be added.", W * PL.pad, H * 0.835);
 }
 
 function poodleMark(g, W, cx, cy, size) {
@@ -1840,6 +2037,7 @@ function poodleToolbar(g, W, H) {
 
 function appPoodle(g, W, H) {
   const site = phone.site != null ? WEB[phone.site] : null;
+  if (!site && searchUI.on) { drawSearchPage(g, W, H); return; }
   if (!site) {
     // The new tab page. A wordmark, a search pill you cannot type in, and the
     // shortcut tiles, which is what a phone browser opens on.
@@ -1856,10 +2054,11 @@ function appPoodle(g, W, H) {
 
     g.fillStyle = "#23272b";
     roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.fill();
+    if (phone.sub === -1) { g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = W * 0.006; roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.stroke(); }
     g.fillStyle = "#7d858d";
     g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
     g.textAlign = "left";
-    g.fillText("Search Poodle", W * 0.175, H * 0.351);
+    g.fillText(phone.sub === -1 ? "Search Poodle  \u00b7  press A to type" : "Search Poodle", W * 0.175, H * 0.351);
     // the little magnifier
     g.strokeStyle = "#7d858d"; g.lineWidth = W * 0.008;
     g.beginPath(); g.arc(W * 0.132, H * 0.3495, W * 0.017, 0, 6.2832); g.stroke();
@@ -1867,9 +2066,12 @@ function appPoodle(g, W, H) {
 
     // the shortcut grid: four across, a coloured disc with the initial on it
     const cols = 4, tileW = W * 0.84 / cols, top = H * 0.425;
+    const rowsN = Math.ceil(WEB.length / cols), curRow = phone.sub < 0 ? 0 : (phone.sub / cols) | 0;
+    const firstRow = clamp(curRow - 2, 0, Math.max(0, rowsN - 4));
     WEB.forEach((w, i) => {
-      const c = i % cols, r = (i / cols) | 0;
-      const cx = W * 0.08 + tileW * (c + 0.5), cy = top + r * H * 0.115;
+      const c = i % cols, r = ((i / cols) | 0) - firstRow;
+      if (r < 0 || r > 3) return;
+      const cx = W * 0.08 + tileW * (c + 0.5), cy = top + r * H * 0.105;
       const rad = W * 0.058;
       if (phone.sub === i) {
         g.fillStyle = "rgba(255,255,255,0.10)";
@@ -1902,6 +2104,20 @@ const PAGE_TOP = 0.142, PAGE_BOTTOM = 0.918;
 function siteChrome(g, W, H, site, bg) {
   g.fillStyle = bg || "#ffffff";
   g.fillRect(0, 0, W, H);
+}
+
+function loyaltyRow(g, W, H, brand, y, on) {
+  const L = LOYALTY[brand], rowH = H * 0.104, n = wallet.buys[brand] || 0, ready = n >= L.need && !wallet.loyal[brand];
+  phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, on, "rgba(0,0,0,0.05)");
+  const gr = g.createLinearGradient(0, y, W, y + rowH); gr.addColorStop(0, L.a); gr.addColorStop(1, mixHex(L.a, "#000000", 0.45));
+  g.fillStyle = gr; roundRect(g, W * (PL.pad + 0.028), y + rowH * 0.18, W * 0.092, rowH * 0.64, W * 0.014); g.fill();
+  g.fillStyle = "#14171b"; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.font = "700 " + Math.round(W * PL.body) + "px " + UI;
+  const tx = W * (PL.pad + 0.155);
+  clipText(g, L.name + " card", tx, y + rowH * 0.38, W * 0.62);
+  g.fillStyle = wallet.loyal[brand] ? "#1d7a4c" : ready ? "#c0172b" : "#6a717a";
+  g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+  clipText(g, wallet.loyal[brand] ? "Active \u00b7 " + wallet.pts[brand] + " points" : ready ? "Ready. Press A to activate it." : "Buy " + L.need + " things from " + L.sub + " to unlock it \u00b7 " + Math.min(n, L.need) + " / " + L.need, tx, y + rowH * 0.68, W * 0.66);
 }
 
 function shelfItem(g, W, H, it, y, on, accent) {
@@ -2089,6 +2305,229 @@ const CAR_STOCK = {
   ]
 };
 
+const DOKOTO_TABS = [
+  { id: "phones", name: "Phones" },
+  { id: "wear",   name: "Watch & Console" },
+  { id: "games",  name: "Games" },
+  { id: "card",   name: "Card" }
+];
+
+function dokotoList(tab) {
+  const out = [];
+  if (tab === 0) {
+    ["so25", "so25u", "so26", "so26u", "p15", "p15p", "p15pm", "p16", "p16p", "p16pm", "p17", "p17p", "p17pm"].forEach(id => {
+      const d = DEVICES[id];
+      out.push({ kind: "phone", id: id, name: d.name, price: d.price, days: 2, note: d.note });
+    });
+  } else if (tab === 1) {
+    ["pearwatch", "pearwatchu", "playbox5", "pearcube"].forEach(id => {
+      const gr = GEAR[id];
+      out.push({ kind: "gear", id: id, name: gr.name, price: gr.price, days: 2, note: gr.note });
+    });
+  } else if (tab === 3) {
+    out.push({ kind: "card", id: "dokoto", name: "Dokoto Point card", price: 0, days: 0, note: "Switched on here, after three purchases from Dokoto Camera" });
+  } else {
+    GAMES.forEach(gm => out.push({ kind: "game", id: gm.id, name: gm.name, price: gm.price, days: 1,
+      note: gm.genre + " · " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
+  }
+  return out;
+}
+
+function dokotoCur() {
+  const tab = clamp(phone.tab || 0, 0, DOKOTO_TABS.length - 1);
+  const list = dokotoList(tab);
+  const sel = clamp(phone.sub, 0, list.length - 1);
+  return { tab: tab, list: list, sel: sel, item: list[sel] };
+}
+
+function dokotoMove(dx, dy) {
+  const cur = dokotoCur();
+  if (phone.tabsOn) {
+    if (dx) { phone.tab = (cur.tab + dx + DOKOTO_TABS.length) % DOKOTO_TABS.length; phone.sub = 0; phone.paint = 0; }
+    if (dy > 0) phone.tabsOn = false;
+    phone.dirty = true;
+    return;
+  }
+  if (dy < 0 && cur.sel === 0) { phone.tabsOn = true; phone.dirty = true; return; }
+  if (dy) { phone.sub = clamp(cur.sel + dy, 0, cur.list.length - 1); phone.paint = 0; }
+  if (dx && cur.item && cur.item.kind === "phone") {
+    const n = DEVICES[cur.item.id].colours.length;
+    phone.paint = ((phone.paint || 0) + dx + n) % n;
+  }
+  phone.dirty = true;
+}
+
+function dokotoBuy() {
+  if (phone.tabsOn) { phone.tabsOn = false; phone.dirty = true; return; }
+  const it = dokotoCur().item;
+  if (!it) return;
+  if (it.kind === "card") { loyaltyActivate("dokoto"); return; }
+  if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + "; you have " + yenText(purse.yen) + ".", 5); return; }
+  purse.yen -= it.price; noteBuy("dokoto", it.price);
+  let colour = 0;
+  if (it.kind === "phone") colour = clamp(phone.paint || 0, 0, DEVICES[it.id].colours.length - 1);
+  orderDelivery(it.kind, it.id, it.name + (it.kind === "phone" ? ", " + DEVICES[it.id].colours[colour][0] : ""), it.days, colour);
+  say(it.name + " ordered · " + yenText(it.price) + " · arriving in " + it.days + " day" + (it.days > 1 ? "s" : ""), 5);
+  phone.dirty = true;
+}
+
+function drawHandset(g, cx, cy, h, d, colour) {
+  const w = h * 0.485;
+  const body = colour;
+  const rr = (x, y, ww, hh, r, c) => { roundRect(g, x, y, ww, hh, r); g.fillStyle = c; g.fill(); };
+  const dark = mixHex(body, "#000000", 0.35), lite = mixHex(body, "#ffffff", 0.28);
+  // front
+  const fx = cx - w * 1.35, fy = cy - h / 2;
+  g.save(); g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = h * 0.06; g.shadowOffsetY = h * 0.02;
+  rr(fx, fy, w, h, w * 0.17, body); g.restore();
+  rr(fx + w * 0.035, fy + w * 0.035, w * 0.93, h - w * 0.07, w * 0.14, "#050608");
+  const sg = g.createLinearGradient(fx, fy, fx + w, fy + h);
+  if (d.maker === "pear") { sg.addColorStop(0, "#1c3f8f"); sg.addColorStop(0.55, "#6a3fb5"); sg.addColorStop(1, "#e0709f"); }
+  else { sg.addColorStop(0, "#2a2f7a"); sg.addColorStop(0.55, "#2a8f9a"); sg.addColorStop(1, "#8fe0b0"); }
+  rr(fx + w * 0.06, fy + w * 0.06, w * 0.88, h - w * 0.12, w * 0.12, sg);
+  g.fillStyle = "#050608";
+  if (d.top === "punch") { g.beginPath(); g.arc(fx + w / 2, fy + w * 0.14, w * 0.032, 0, 7); g.fill(); }
+  else if (d.top === "notch") rr(fx + w * 0.30, fy + w * 0.035, w * 0.40, w * 0.075, w * 0.035, "#050608");
+  else rr(fx + w * 0.34, fy + w * 0.085, w * 0.32, w * 0.082, w * 0.041, "#000");
+  // back
+  const bx = cx - w * 0.1, by = cy - h / 2;
+  g.save(); g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = h * 0.06; g.shadowOffsetY = h * 0.02;
+  rr(bx, by, w, h, w * 0.17, body); g.restore();
+  const bg = g.createLinearGradient(bx, by, bx + w, by + h);
+  bg.addColorStop(0, "rgba(255,255,255,0.18)"); bg.addColorStop(1, "rgba(0,0,0,0.12)");
+  rr(bx, by, w, h, w * 0.17, bg);
+  const lens = (x, y, r) => {
+    g.fillStyle = "#14161a"; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = lite; g.lineWidth = r * 0.14; g.stroke();
+    g.fillStyle = "#2a3550"; g.beginPath(); g.arc(x, y, r * 0.55, 0, 7); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.beginPath(); g.arc(x - r * 0.2, y - r * 0.2, r * 0.14, 0, 7); g.fill();
+  };
+  const lensN = d.cam >= 9 ? 4 : d.cam >= 7 ? 3 : d.cam >= 5 && d.maker === "pear" && /p\d+p/.test(d.id) ? 3 : 2;
+  if (d.maker === "pear") {
+    const px = bx + w * 0.07, py = by + w * 0.07, ps = w * (lensN >= 3 ? 0.50 : 0.46);
+    rr(px, py, ps, ps * (lensN >= 3 ? 1 : 0.95), w * 0.12, lite);
+    const lr = ps * 0.21;
+    lens(px + ps * 0.29, py + ps * 0.28, lr); lens(px + ps * 0.29, py + ps * 0.71, lr);
+    if (lensN >= 3) lens(px + ps * 0.72, py + ps * 0.50, lr);
+    g.fillStyle = "#f4efe0"; g.beginPath(); g.arc(px + ps * 0.74, py + ps * 0.16, lr * 0.28, 0, 7); g.fill();
+  } else {
+    const lr = w * 0.085;
+    for (let i = 0; i < lensN; i++) lens(bx + w * 0.22, by + w * 0.18 + i * lr * 2.7, lr);
+    g.fillStyle = "#f4efe0"; g.beginPath(); g.arc(bx + w * 0.42, by + w * 0.17, lr * 0.4, 0, 7); g.fill();
+  }
+  // edge
+  const ex = cx + w * 0.95, ew = w * (d.flat ? 0.08 : 0.095);
+  rr(ex, cy - h / 2, ew, h, ew * 0.45, lite);
+  rr(ex + ew * 0.1, cy - h / 2, ew * 0.8, h, ew * 0.4, body);
+  rr(ex + ew * 0.95, cy - h / 2 + w * 0.09, ew * 0.55, w * (lensN >= 3 ? 0.50 : 0.40), ew * 0.2, dark);
+  rr(ex - ew * 0.0, cy - h * 0.18, ew * 0.18, h * 0.10, ew * 0.1, dark);
+}
+
+function drawDokoto(g, W, H, site) {
+  const cur = dokotoCur();
+  siteChrome(g, W, H, site, "#fbfaf6");
+  // The shopfront: red with a yellow stripe, which is how this kind of shop
+  // is always painted.
+  const by = H * 0.082, bh = H * 0.07;
+  g.fillStyle = "#d4152c"; g.fillRect(0, by, W, bh);
+  g.fillStyle = "#ffd21c"; g.fillRect(0, by + bh * 0.82, W, bh * 0.18);
+  g.fillStyle = "#ffffff"; g.font = "800 " + Math.round(W * 0.066) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("DOKOTO CAMERA", W * PL.pad, by + bh * 0.42);
+  g.textAlign = "right"; g.font = "600 " + Math.round(W * PL.tiny) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * (1 - PL.pad), by + bh * 0.42);
+  g.textAlign = "left";
+
+  // tabs
+  const ty = H * 0.162, th = H * 0.034;
+  let tx = W * PL.pad;
+  DOKOTO_TABS.forEach((t, i) => {
+    g.font = "700 " + Math.round(W * PL.small) + "px " + UI;
+    const tw = g.measureText(t.name).width + W * 0.05;
+    const on = i === cur.tab;
+    g.fillStyle = on ? "#14171b" : "#e8e9e6";
+    roundRect(g, tx, ty, tw, th, th / 2); g.fill();
+    if (on && phone.tabsOn) { g.strokeStyle = appAccent(); g.lineWidth = W * 0.007; roundRect(g, tx - 3, ty - 3, tw + 6, th + 6, th / 2 + 3); g.stroke(); }
+    g.fillStyle = on ? "#ffffff" : "#4a5058";
+    g.textBaseline = "middle"; g.fillText(t.name, tx + W * 0.025, ty + th * 0.52);
+    tx += tw + W * 0.018;
+  });
+
+  // the stage
+  const sx = W * PL.pad, sy = H * 0.205, sw = W * (1 - PL.pad * 2), sh = H * 0.17;
+  const wall = g.createLinearGradient(0, sy, 0, sy + sh);
+  wall.addColorStop(0, "#eceeef"); wall.addColorStop(0.78, "#d3d7da"); wall.addColorStop(0.78, "#c3c8cc"); wall.addColorStop(1, "#b4b9be");
+  g.fillStyle = wall; roundRect(g, sx, sy, sw, sh, W * 0.03); g.fill();
+  g.save(); roundRect(g, sx, sy, sw, sh, W * 0.03); g.clip();
+  const it = cur.item;
+  if (it) {
+    const pcx = sx + sw / 2, pcy = sy + sh * 0.5;
+    if (it.kind === "phone") {
+      const d = DEVICES[it.id];
+      drawHandset(g, pcx, pcy, sh * 0.84, d, d.colours[clamp(phone.paint || 0, 0, d.colours.length - 1)][1]);
+    } else if (it.kind === "card") {
+      const L = LOYALTY.dokoto, cw = sw * 0.46, ch = cw * 0.62;
+      const gr = g.createLinearGradient(pcx - cw / 2, pcy - ch / 2, pcx + cw / 2, pcy + ch / 2); gr.addColorStop(0, L.a); gr.addColorStop(1, L.b);
+      g.fillStyle = gr; roundRect(g, pcx - cw / 2, pcy - ch / 2, cw, ch, 14); g.fill();
+      g.fillStyle = "#ffd21c"; g.fillRect(pcx - cw / 2, pcy + ch * 0.18, cw, ch * 0.12);
+      g.fillStyle = "#fff"; g.font = "800 " + Math.round(ch * 0.2) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+      g.fillText("DOKOTO POINT", pcx - cw / 2 + cw * 0.07, pcy - ch * 0.22);
+    } else {
+      wheelIcon(g, { kind: it.kind, id: it.id, item: it }, pcx, pcy, sh * 0.5, false);
+    }
+  }
+  g.restore();
+
+  if (it) {
+    g.textBaseline = "alphabetic";
+    g.fillStyle = "#14171b"; g.font = "800 " + Math.round(W * 0.050) + "px " + UI;
+    clipText(g, it.name, W * PL.pad, H * 0.406, W * 0.60);
+    g.textAlign = "right"; g.fillText(it.kind === "card" ? (wallet.loyal.dokoto ? "Active" : (wallet.buys.dokoto || 0) + " / " + LOYALTY.dokoto.need) : yenText(it.price), W * (1 - PL.pad), H * 0.406); g.textAlign = "left";
+    g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    let spec = it.note;
+    if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + " · " + d.chip + " · " + d.camera; }
+    clipText(g, spec, W * PL.pad, H * 0.431, W * (1 - PL.pad * 2));
+    if (it.kind === "phone") {
+      const d = DEVICES[it.id], n = d.colours.length, sw2 = W * 0.027;
+      d.colours.forEach((c, i) => {
+        const cx = W * PL.pad + sw2 + i * (sw2 * 2 + W * 0.02), cy = H * 0.466;
+        g.fillStyle = c[1]; g.beginPath(); g.arc(cx, cy, sw2, 0, 7); g.fill();
+        g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = W * 0.003; g.stroke();
+        if (i === clamp(phone.paint || 0, 0, n - 1)) {
+          g.strokeStyle = appAccent(); g.lineWidth = W * 0.007;
+          g.beginPath(); g.arc(cx, cy, sw2 + W * 0.011, 0, 7); g.stroke();
+        }
+      });
+      g.fillStyle = "#6a717a";
+      g.textAlign = "right"; g.fillText(d.colours[clamp(phone.paint || 0, 0, n - 1)][0], W * (1 - PL.pad), H * 0.472); g.textAlign = "left";
+    } else {
+      g.fillStyle = "#8d949c"; g.fillText(it.days + " day delivery", W * PL.pad, H * 0.466);
+    }
+    g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    g.fillText(it.kind === "phone" ? "◀ ▶ colour   ▲ ▼ model   A order" : it.kind === "card" ? "A activate" : "▲ ▼ browse   A order", W * PL.pad, H * 0.499);
+  }
+
+  // the list, six at a time around the selection
+  const vis = 5, rowH = H * 0.052, y0 = H * 0.515;
+  const start = clamp(cur.sel - 2, 0, Math.max(0, cur.list.length - vis));
+  for (let k = 0; k < vis && start + k < cur.list.length; k++) {
+    const li = start + k, e = cur.list[li], y = y0 + k * (rowH + H * 0.006);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, li === cur.sel && !phone.tabsOn, "rgba(0,0,0,0.05)");
+    g.font = "700 " + Math.round(W * PL.small) + "px " + UI;
+    const pr = yenText(e.price), prW = g.measureText(pr).width;
+    g.fillStyle = "#14171b"; g.textAlign = "right"; g.textBaseline = "middle";
+    g.fillText(pr, W * (1 - PL.pad) - W * 0.03, y + rowH * 0.52);
+    g.textAlign = "left"; g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+    clipText(g, e.name, W * (PL.pad + 0.035), y + rowH * 0.52, W * (1 - PL.pad) - W * 0.07 - prW - W * (PL.pad + 0.035));
+  }
+  if (cur.list.length > vis) {
+    g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI; g.textAlign = "right";
+    g.fillText((cur.sel + 1) + " / " + cur.list.length, W * (1 - PL.pad), y0 + vis * (rowH + H * 0.006) + H * 0.012);
+    g.textAlign = "left";
+  }
+  g.textBaseline = "alphabetic";
+}
+
 function drawSite(g, W, H, site) {
   g.save();
   g.beginPath();
@@ -2105,6 +2544,8 @@ function drawSite(g, W, H, site) {
 }
 
 function drawSiteBody(g, W, H, site) {
+  if (site.kind === "page") { drawPageSite(g, W, H, site); return; }
+  if (site.kind === "tech") { drawDokoto(g, W, H, site); return; }
   if (site.kind === "shop") {
     const eleven = site.brand === "eleven";
     siteChrome(g, W, H, site, "#f4f5f3");
@@ -2131,10 +2572,16 @@ function drawSiteBody(g, W, H, site) {
     g.fillText(eleven ? "Open 24 hours \u00b7 delivery to your door"
                       : "Your neighbourhood store \u00b7 delivery available",
                W * PL.pad, H * 0.196);
-    SHOP_ITEMS.forEach((it, i) => {
-      shelfItem(g, W, H, it, H * 0.215 + i * H * 0.117, phone.sub === i,
-                eleven ? "#0a6b42" : "#1272d6");
-    });
+    // The shelves, and at the bottom the shop's own card. Five rows fit; the page
+    // slides so the one you are on is always showing.
+    const rows = SHOP_ITEMS.concat([{ loyalty: true }]);
+    const first = clamp(phone.sub - 3, 0, rows.length - 5);
+    for (let k = 0; k < 5; k++) {
+      const i = first + k, it = rows[i];
+      const y = H * 0.215 + k * H * 0.117;
+      if (it.loyalty) loyaltyRow(g, W, H, site.brand, y, phone.sub === i);
+      else shelfItem(g, W, H, it, y, phone.sub === i, eleven ? "#0a6b42" : "#1272d6");
+    }
     g.fillStyle = "#8d949c";
     g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
     g.fillText("Balance " + yenText(purse.yen), W * PL.pad, H * 0.945);
@@ -2265,41 +2712,91 @@ function drawSiteBody(g, W, H, site) {
   }
 }
 
+function cameraProfile() {
+  const d = dev();
+  const z = /(\d+)x zoom/.exec(d.camera || ""), m = /(\d+(?:\.\d+)?) MP/.exec(d.camera || "");
+  return { zmax: d.ui === "basic" ? 1 : (z ? +z[1] : 2), mp: m ? +m[1] : 0.3, cam: d.cam, soti: d.maker === "soti", basic: d.ui === "basic" };
+}
+
+let lensGrainTex = null;
+
+function lensGrain() {
+  if (lensGrainTex) return lensGrainTex;
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const g = c.getContext("2d"), id = g.createImageData(96, 96);
+  for (let i = 0; i < id.data.length; i += 4) { const v = Math.random() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  g.putImageData(id, 0, 0); lensGrainTex = c; return c;
+}
+
+function drawThroughLens(g, src, x, y, w, h, zoom, prof) {
+  const ar = w / h;
+  let sw = src.width / zoom, sh = sw / ar;
+  if (sh > src.height / zoom) { sh = src.height / zoom; sw = sh * ar; }
+  const sx = (src.width - sw) / 2, sy = (src.height - sh) / 2;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  if (prof.basic) {
+    const t = document.createElement("canvas"); t.width = 80; t.height = Math.round(80 / ar);
+    t.getContext("2d").drawImage(src, sx, sy, sw, sh, 0, 0, t.width, t.height);
+    g.imageSmoothingEnabled = false; g.filter = "saturate(0.65) contrast(0.92)";
+    g.drawImage(t, x, y, w, h); g.filter = "none"; g.imageSmoothingEnabled = true;
+  } else {
+    const soft = Math.max(0, (zoom / prof.zmax) * (10 - prof.cam) * 0.34 + (10 - prof.cam) * 0.10);
+    const look = prof.soti ? "saturate(1.22) contrast(1.08)" : "saturate(1.06) contrast(1.02) sepia(0.06)";
+    g.filter = (soft > 0.25 ? "blur(" + soft.toFixed(1) + "px) " : "") + look;
+    g.drawImage(src, sx, sy, sw, sh, x, y, w, h);
+    g.filter = "none";
+  }
+  const noise = (10 - prof.cam) * 0.011 + (zoom - 1) * 0.004;
+  if (noise > 0.01) { g.globalAlpha = Math.min(0.22, noise); g.globalCompositeOperation = "overlay"; g.fillStyle = g.createPattern(lensGrain(), "repeat"); g.fillRect(x, y, w, h); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+  g.restore();
+}
+
 function appCamera(g, W, H) {
+  const prof = cameraProfile(), pear = isPear(), zoom = clamp(phone.zoom || 1, 1, prof.zmax);
   g.fillStyle = "#000000";
   g.fillRect(0, 0, W, H);
-  // The viewfinder shows the last frame the game drew, which is what the
-  // camera is actually pointed at.
   const src = frameGrab.ok ? frameGrab.canvas : null;
   const vy = H * 0.14, vh = H * 0.56;
-  if (src) {
-    try {
-      const ar = src.width / Math.max(1, src.height);
-      const dw = W * 0.90, dh = dw / ar;
-      g.drawImage(src, W * 0.05, vy + (vh - dh) * 0.5, dw, dh);
-    } catch (e) {}
-  }
+  if (src) { try { drawThroughLens(g, src, W * 0.05, vy, W * 0.90, vh, zoom, prof); } catch (e) {} }
   g.strokeStyle = "rgba(255,255,255,0.30)"; g.lineWidth = W * 0.004;
   g.strokeRect(W * 0.05, vy, W * 0.90, vh);
-  // rule of thirds
   g.strokeStyle = "rgba(255,255,255,0.14)";
   for (let i = 1; i < 3; i++) {
     g.beginPath(); g.moveTo(W * 0.05, vy + vh * i / 3); g.lineTo(W * 0.95, vy + vh * i / 3); g.stroke();
     g.beginPath(); g.moveTo(W * 0.05 + W * 0.9 * i / 3, vy); g.lineTo(W * 0.05 + W * 0.9 * i / 3, vy + vh); g.stroke();
   }
-  g.fillStyle = "#ffffff";
-  g.font = "600 " + Math.round(W * 0.042) + "px " + UI;
+  g.textAlign = "center"; g.textBaseline = "middle";
+  // zoom stops: the ones this lens has, with the one you are on lit
+  if (prof.zmax > 1) {
+    const stops = [1, 2, 3, 5, 8, 10].filter(v => v <= prof.zmax);
+    const cur = stops.reduce((a, v) => Math.abs(v - zoom) < Math.abs(a - zoom) ? v : a, 1);
+    const cw = W * 0.092, gap = W * 0.016, total = stops.length * cw + (stops.length - 1) * gap;
+    stops.forEach((v, i) => {
+      const cx = (W - total) / 2 + i * (cw + gap) + cw / 2, cy = vy + vh - H * 0.035, on = v === cur;
+      g.fillStyle = on ? (pear ? "#ffd60a" : "#ffffff") : "rgba(0,0,0,0.5)"; g.beginPath(); g.arc(cx, cy, cw / 2, 0, 7); g.fill();
+      g.fillStyle = on ? "#000" : "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.fillText(on ? zoom.toFixed(zoom % 1 ? 1 : 0) : String(v), cx, cy + 1);
+    });
+  }
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI; g.textAlign = "left";
+  g.fillText(prof.mp + " MP" + (prof.basic ? "  \u00b7  fixed focus" : ""), W * 0.07, vy + H * 0.028);
   g.textAlign = "center";
-  g.fillText("PHOTO", W * 0.5, H * 0.755);
-  // shutter
+  if (pear) {
+    g.fillStyle = "#ffd60a"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI; g.fillText("PHOTO", W * 0.5, H * 0.752);
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("VIDEO", W * 0.30, H * 0.752); g.fillText("PORTRAIT", W * 0.72, H * 0.752);
+  } else {
+    g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI; g.fillText("PHOTO", W * 0.5, H * 0.752);
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("MORE", W * 0.24, H * 0.752); g.fillText("VIDEO", W * 0.76, H * 0.752);
+  }
   g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.012;
   g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.105, 0, Math.PI * 2); g.stroke();
   g.fillStyle = phone.sub === 0 ? "#ffffff" : "rgba(255,255,255,0.85)";
   g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.088, 0, Math.PI * 2); g.fill();
   g.fillStyle = "rgba(255,255,255,0.65)";
-  g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-  g.fillText(phone.gallery.length + " in the gallery", W * 0.5, H * 0.935);
-  g.textAlign = "left";
+  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText(phone.gallery.length + " in the gallery" + (prof.zmax > 1 ? "   \u00b7   \u25b2 \u25bc zoom" : ""), W * 0.5, H * 0.935);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
   g.fillStyle = "rgba(255,255,255,0.55)";
   phoneNavBar(g, W, H);
 }
@@ -2691,23 +3188,148 @@ function appMusic(g, W, H) {
   g.textAlign = "left";
 }
 
-function appSettings(g, W, H) {
-  phoneChrome(g, W, H, "Settings", "SOTI So24");
+const hdata = { bpm: 66, hist: [], acc: 0 };
+
+function connectWatch() {
+  const id = phone.watchPrompt;
+  phone.watchPrompt = null;
+  if (!id) return;
+  phone.watch = id; phone.health = true;
+  say(GEAR[id].name + " connected. Health is on your home screen.", 5);
+  phone.dirty = true;
+}
+
+function drawWatchPrompt(g, W, H) {
+  const id = phone.watchPrompt, gr = GEAR[id];
+  if (!gr) return;
+  g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, 0, W, H);
+  const x = W * 0.08, w = W * 0.84, y = H * 0.30, h = H * 0.40;
+  g.fillStyle = "#f2f2f4"; roundRect(g, x, y, w, h, W * 0.07); g.fill();
+  wheelIcon(g, { kind: "gear", id: id, item: gr }, W / 2, y + h * 0.24, W * 0.115, false);
+  g.fillStyle = "#14171b"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "800 " + Math.round(W * 0.054) + "px " + UI;
+  g.fillText("Connect " + gr.name + "?", W / 2, y + h * 0.50);
+  g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText("Your heart rate, stress and sleep", W / 2, y + h * 0.60);
+  g.fillText("will appear in Health.", W / 2, y + h * 0.67);
+  g.fillStyle = "#ff375f"; roundRect(g, x + w * 0.07, y + h * 0.77, w * 0.86, h * 0.15, h * 0.075); g.fill();
+  g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText("Connect  (A)", W / 2, y + h * 0.845);
+  g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+  g.fillText("Not now  (B)", W / 2, y + h * 0.955);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
+function hm(min) { const m = Math.max(0, Math.floor(min)); return Math.floor(m / 60) + " h " + two(m % 60); }
+
+function appHealth(g, W, H) {
+  const worn = !!bag.watchOn && phone.watch;
+  phoneChrome(g, W, H, "Health", worn ? GEAR[bag.watchOn].name + " · live" : "Watch not worn");
+  const px = W * 0.055, pw = W - px * 2;
+  const beat = (performance.now() / 1000) * (hdata.bpm / 60);
+  const pulse = worn ? Math.pow(Math.max(0, Math.sin(beat * Math.PI * 2)), 6) : 0;
+
+  // the heart
+  const cy0 = H * 0.175, ch = H * 0.215;
+  const grad = g.createLinearGradient(px, cy0, px + pw, cy0 + ch);
+  grad.addColorStop(0, "#3a0f1c"); grad.addColorStop(1, "#1a0a10");
+  g.fillStyle = grad; roundRect(g, px, cy0, pw, ch, W * 0.05); g.fill();
+  const hx = px + pw * 0.22, hy = cy0 + ch * 0.50, hs = W * (0.085 + pulse * 0.014);
+  g.fillStyle = worn ? "#ff2d55" : "#6a3140";
+  g.beginPath();
+  g.moveTo(hx, hy + hs * 0.95);
+  g.bezierCurveTo(hx - hs * 1.9, hy - hs * 0.1, hx - hs * 0.9, hy - hs * 1.3, hx, hy - hs * 0.45);
+  g.bezierCurveTo(hx + hs * 0.9, hy - hs * 1.3, hx + hs * 1.9, hy - hs * 0.1, hx, hy + hs * 0.95);
+  g.fill();
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = worn ? "#ffffff" : "#8a6a73";
+  g.font = "300 " + Math.round(W * 0.20) + "px " + UI;
+  g.fillText(String(Math.round(hdata.bpm)), px + pw * 0.44, cy0 + ch * 0.64);
+  g.fillStyle = "#ff6f8a"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText("BPM", px + pw * 0.44 + W * 0.30, cy0 + ch * 0.64);
+  g.fillStyle = "#c5a0aa"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+  g.fillText(hdata.bpm > 100 ? "Elevated" : hdata.bpm > 80 ? "Active" : "Resting", px + pw * 0.44, cy0 + ch * 0.84);
+
+  // three rings
+  const ry = H * 0.415, rh = H * 0.16, rw = (pw - W * 0.04) / 3;
+  const awake = vitals.awake || 0;
+  const cards = [
+    { name: "Stress", v: vitals.stress, c: "#3f8fe0", t: Math.round(vitals.stress * 100) + "%" },
+    { name: "Health", v: vitals.health, c: "#ff2d55", t: Math.round(vitals.health * 100) + "%" },
+    { name: "Awake",  v: clamp01(awake / 4320), c: "#ffb020", t: Math.floor(awake / 60) + " h" }
+  ];
+  cards.forEach((cd, i) => {
+    const x = px + i * (rw + W * 0.02);
+    g.fillStyle = "#171a20"; roundRect(g, x, ry, rw, rh, W * 0.04); g.fill();
+    const cx = x + rw / 2, cy = ry + rh * 0.45, r = rw * 0.27;
+    g.lineWidth = W * 0.016; g.lineCap = "round";
+    g.strokeStyle = "rgba(255,255,255,0.10)"; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = cd.c; g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, cd.v)); g.stroke();
+    g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "700 " + Math.round(W * 0.036) + "px " + UI; g.fillText(cd.t, cx, cy);
+    g.fillStyle = "#8d949c"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI;
+    g.fillText(cd.name, cx, ry + rh * 0.88);
+  });
+
+  // pulse over the last minute and a bit
+  const sy = H * 0.60, sh = H * 0.115;
+  g.fillStyle = "#171a20"; roundRect(g, px, sy, pw, sh, W * 0.04); g.fill();
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = "#8d949c"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI;
+  g.fillText("HEART RATE", px + W * 0.035, sy + sh * 0.22);
+  const hist = hdata.hist;
+  if (hist.length > 2) {
+    g.strokeStyle = "#ff2d55"; g.lineWidth = W * 0.007; g.lineJoin = "round"; g.beginPath();
+    hist.forEach((b, i) => {
+      const x = px + W * 0.035 + (pw - W * 0.07) * i / 59;
+      const y = sy + sh * 0.88 - clamp((b - 50) / 70, 0, 1) * sh * 0.52;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    });
+    g.stroke();
+  } else {
+    g.fillStyle = "#5c636c"; g.fillText(worn ? "Listening…" : "Wear the watch for a reading", px + W * 0.035, sy + sh * 0.62);
+  }
+
+  // sleep
+  const ly = H * 0.735;
+  g.fillStyle = "#171a20"; roundRect(g, px, ly, pw, H * 0.10, W * 0.04); g.fill();
+  g.fillStyle = "#b08cff"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI; g.fillText("SLEEP", px + W * 0.035, ly + H * 0.032);
+  g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
+  g.fillText("Awake for " + hm(awake) + (vitals.slept ? "  ·  Last night " + hm(vitals.slept) : ""), px + W * 0.035, ly + H * 0.070);
+  g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * 0.028) + "px " + UI;
+  g.fillText("Games and food take the edge off. Days awake add to it.", px, H * 0.855);
+}
+
+function settingsRows() {
   const rows = [
     ["Owner", "Shigu Seiko"],
     ["Balance", yenText(purse.yen)],
     ["Network", "NHMobile \u00b7 5G"],
     ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
-    ["IC card", phone.owns.icCard ? "Added" : "Not added"],
+    ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
     ["Storage", "126 GB of 256 GB"],
     ["Spotify", spotify.state === "ready" ? "Signed in"
       : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
   ];
-  rows.forEach((r, i) => {
+  if (isPear()) {
+    rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)].name],
+                      ["Accent colour  \u25c0 \u25b6", PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][0]]);
+  }
+  rows.splice(isPear() ? 3 : 1, 0, ["Handset  \u25c0 \u25b6", dev().name + (dev().colours ? "  \u00b7  " + dev().colours[clamp(phone.colourIdx || 0, 0, dev().colours.length - 1)][0] : "")]);
+  return rows;
+}
+
+function appSettings(g, W, H) {
+  phoneChrome(g, W, H, "Settings", dev().name);
+  const rows = settingsRows();
+  const vis = 8, first = clamp(phone.sub - 5, 0, Math.max(0, rows.length - vis));
+  rows.forEach((r, i0) => {
+    const i = i0 - first;
+    if (i < 0 || i >= vis) return;
     const rowH = H * 0.070;
     const y = H * PL.listY + i * (rowH + H * 0.011);
-    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i0);
     g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
     g.fillStyle = "#79818b";
     g.textAlign = "right";
@@ -2723,7 +3345,8 @@ function appSettings(g, W, H) {
 const PHONE_SCREENS = {
   Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
   MyNet: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
-  Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings
+  Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
+  Health: appHealth
 };
 
 function setPhone(on) {
@@ -2738,11 +3361,13 @@ function phoneCount() {
   if (phone.app === "Poodle") {
     if (phone.site == null) return WEB.length;
     const site = WEB[phone.site];
-    if (site.kind === "shop") return SHOP_ITEMS.length;
+    if (site.kind === "shop") return SHOP_ITEMS.length + 1;
     if (site.kind === "cars") return CAR_STOCK[site.tier].length;
+    if (site.kind === "tech") return dokotoCur().list.length;
+    if (site.kind === "page") return Math.max(1, (site._n || 1));
     return 0;
   }
-  if (phone.app === "Wallet") return 3;
+  if (phone.app === "Wallet") return wallet.add ? WALLET_ADD.length : walletCards().length;
   if (phone.app === "Camera") return 1;
   if (phone.app === "MyNet") return MYNET.length;
   if (phone.app === "Nihon") return 5;
@@ -2750,7 +3375,7 @@ function phoneCount() {
   if (phone.app === "Mail") return SCAM_MAIL.length;
   if (phone.app === "Photos") return Math.min(12, phone.gallery.length);
   if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
-  if (phone.app === "Settings") return 8;
+  if (phone.app === "Settings") return settingsRows().length;
   return 0;
 }
 
@@ -2776,6 +3401,27 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Settings" && dx) {
+    const row = settingsRows()[phone.sub] || [""];
+    if (/^Wallpaper/.test(row[0])) { phone.pearWall = ((phone.pearWall || 0) + dx + PEAR_WALLPAPERS.length) % PEAR_WALLPAPERS.length; phone.dirty = true; }
+    else if (/^Accent/.test(row[0])) { phone.pearAccent = ((phone.pearAccent || 0) + dx + PEAR_ACCENTS.length) % PEAR_ACCENTS.length; phone.dirty = true; }
+    else if (/^Handset/.test(row[0]) && dev().colours) { const n = dev().colours.length; phone.colourIdx = ((phone.colourIdx || 0) + dx + n) % n; applyDeviceSkin(); }
+    return;
+  }
+  if (phone.app === "Camera") {
+    const z = cameraProfile().zmax;
+    if (dy && z > 1) { phone.zoom = clamp((phone.zoom || 1) - dy * 0.5, 1, z); phone.dirty = true; }
+    return;
+  }
+  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchMove(dx, dy); return; }
+  if (phone.app === "Poodle" && phone.site == null) {
+    const cols = 4;
+    if (phone.sub === -1) { if (dy > 0) phone.sub = 0; phone.dirty = true; return; }
+    if (dy < 0 && phone.sub < cols) { phone.sub = -1; phone.dirty = true; return; }
+    const n = WEB.length;
+    phone.sub = clamp(phone.sub + dx + dy * cols, 0, n - 1); phone.dirty = true; return;
+  }
+  if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "tech") { dokotoMove(dx, dy); return; }
   if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
     phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
     phone.dirty = true;
@@ -2806,6 +3452,7 @@ function phoneMoveScreen(dx, dy) {
 
 function phoneAct() {
   if (!phone.open) return;
+  if (phone.watchPrompt) { connectWatch(); return; }
   if (isBasic() && phone.pad.on) { padPress(PAD_KEYS[phone.pad.sel][1]); phone.dirty = true; return; }
   if (!phone.app) {
     phone.app = (homeApps()[phone.sel] || homeApps()[0])[0];
@@ -2831,24 +3478,29 @@ function phoneAct() {
       }
     }
   } else if (app === "Poodle") {
-    if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; }
+    if (phone.site == null && searchUI.on) { searchAct(); }
+    else if (phone.site == null && phone.sub === -1) { searchOpen(); }
+    else if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; }
     else {
       const site = WEB[phone.site];
       if (site.kind === "shop") {
         const it = SHOP_ITEMS[phone.sub];
-        if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
+        if (!it) { loyaltyActivate(site.brand); }
+        else if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
         else {
-          purse.yen -= it.price;
-          if (it.id === "earbuds" || it.id === "headphones") {
+          purse.yen -= it.price; noteBuy(site.brand, it.price);
+          if (it.days > 0) {
             // Delivered, not instant: that is the whole point of ordering it.
-            deliveries.push({ id: it.id, name: it.name, at: clock + it.days * 90 });
+            orderDelivery(it.id === "earbuds" || it.id === "headphones" ? "audio" : "item", it.id, it.name, it.days);
             say(it.name + " ordered \u00b7 " + yenText(it.price) + " \u00b7 arriving in " +
                 it.days + " day" + (it.days > 1 ? "s" : ""), 5);
           } else {
-            if (it.id === "bento" || it.id === "coffee") vitals.stress = clamp01(vitals.stress - 0.08);
-            say(it.name + " \u00b7 " + yenText(it.price), 4);
+            giveItem("item", it.id);
+            say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag.", 4);
           }
         }
+      } else if (site.kind === "tech") {
+        dokotoBuy();
       } else if (site.kind === "cars") {
         const c = CAR_STOCK[site.tier][clamp(phone.sub, 0, CAR_STOCK[site.tier].length - 1)];
         if (purse.yen < c.price) {
@@ -2871,6 +3523,8 @@ function phoneAct() {
                                spotify.clientId || "");
       if (id !== null) { spotify.clientId = id.trim(); spotifySave(); say("Saved.", 3); }
     }
+  } else if (app === "Wallet") {
+    walletAct();
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -2891,9 +3545,12 @@ function phoneAct() {
 
 function phoneBack() {
   if (!phone.open) return false;
+  if (phone.watchPrompt) { phone.watchPrompt = null; phone.dirty = true; say("Not connected. Put it on again to be asked again.", 3); return true; }
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
+  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
+  if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
   return false;
@@ -2906,6 +3563,392 @@ const PAINTS = [
   ["Sunburst",    [0.92, 0.66, 0.08]], ["Graphite",   [0.20, 0.21, 0.23]]
 ];
 
+const WHEEL_CATS = [
+  { id: "hand",  name: "Hands",    colour: "#e4a62f", empty: "Nothing to hold" },
+  { id: "gun",   name: "Firearms", colour: "#d8483c", empty: "No firearms" },
+  { id: "phone", name: "Phones",   colour: "#3b8cf0", empty: "No phones" },
+  { id: "audio", name: "Audio",    colour: "#9a6bf0", empty: "No earphones" },
+  { id: "game",  name: "Games",    colour: "#31b36b", empty: "No games" },
+  { id: "food",  name: "Food",     colour: "#f08a2c", empty: "No food" },
+  { id: "drink", name: "Drinks",   colour: "#2fb7d9", empty: "No drinks" },
+  { id: "tech",  name: "Tech",     colour: "#8d96a3", empty: "No tech" }
+];
+
+const GAMES = [
+  { id: "blockfall",  name: "Blockfall DX",        genre: "Falling blocks",  kind: "blocks",   a: "#2a6fd6", b: "#7fd0ff", price: 3980, on: "both" },
+  { id: "tetrix",     name: "Tetrix Sensei",       genre: "Falling blocks",  kind: "blocks",   a: "#7a2fd0", b: "#ffd35a", price: 4480, on: "both" },
+  { id: "stackcity",  name: "Stack City 99",       genre: "Falling blocks",  kind: "blocks",   a: "#d6552a", b: "#ffe0a0", price: 2980, on: "playbox" },
+  { id: "snakerun",   name: "Snake Run",           genre: "Arcade",          kind: "snake",    a: "#25a05a", b: "#d8ff8a", price: 1980, on: "both" },
+  { id: "brickbreak", name: "Brick Breaker Neo",   genre: "Arcade",          kind: "breakout", a: "#d63a6a", b: "#ffd0e0", price: 2480, on: "both" },
+  { id: "pongsmash",  name: "Pong Smash",          genre: "Sports",          kind: "pong",     a: "#1c1f2b", b: "#7dffb0", price: 1480, on: "both" },
+  { id: "invaders",   name: "Moon Invaders",       genre: "Shooter",         kind: "invaders", a: "#101a44", b: "#8be0ff", price: 3480, on: "playbox" },
+  { id: "starhawk",   name: "Starhawk Zero",       genre: "Shooter",         kind: "invaders", a: "#2d1450", b: "#ff7ad9", price: 4980, on: "playbox" },
+  { id: "driftking",  name: "Touge Drift King",    genre: "Racing",          kind: "drift",    a: "#e8532b", b: "#fff2c4", price: 5480, on: "both" },
+  { id: "midnightdr", name: "Midnight Drift 2",    genre: "Racing",          kind: "drift",    a: "#241046", b: "#4de1ff", price: 5980, on: "both" },
+  { id: "kartrush",   name: "Kei Kart Rush",       genre: "Racing",          kind: "racer",    a: "#f2b81c", b: "#d63a2a", price: 4480, on: "pearcube" },
+  { id: "salaryrun",  name: "Salaryman Sprint",    genre: "Runner",          kind: "runner",   a: "#2b3a55", b: "#ffd35a", price: 1980, on: "both" },
+  { id: "trainrush",  name: "Last Train Rush",     genre: "Runner",          kind: "runner",   a: "#0f6a52", b: "#e8fff4", price: 2480, on: "both" },
+  { id: "konbinidash",name: "Konbini Dash",        genre: "Runner",          kind: "runner",   a: "#17a05c", b: "#ffffff", price: 2480, on: "pearcube" },
+  { id: "catchfruit", name: "Fruit Catcher",       genre: "Casual",          kind: "catch",    a: "#f06a3a", b: "#fff0a0", price: 1480, on: "both" },
+  { id: "sushicatch", name: "Sushi Belt Panic",    genre: "Casual",          kind: "catch",    a: "#e63950", b: "#fff6e8", price: 1980, on: "pearcube" },
+  { id: "crossing",   name: "Crossy Kanda",        genre: "Casual",          kind: "crossing", a: "#3a8f4c", b: "#ffe86a", price: 1980, on: "both" },
+  { id: "frogcross",  name: "Frog Crossing",       genre: "Casual",          kind: "crossing", a: "#2a7f6a", b: "#c9ff6a", price: 1480, on: "pearcube" },
+  { id: "mazeman",    name: "Maze Muncher",        genre: "Arcade",          kind: "maze",     a: "#12163a", b: "#ffd21c", price: 2980, on: "both" },
+  { id: "ghostmaze",  name: "Obake Maze",          genre: "Arcade",          kind: "maze",     a: "#2a1744", b: "#9be8ff", price: 2480, on: "playbox" },
+  { id: "pachinko",   name: "Pachinko Parlour",    genre: "Casual",          kind: "pachi",    a: "#a8143c", b: "#ffe38a", price: 3480, on: "both" },
+  { id: "shogiduel",  name: "Shogi Duel",          genre: "Board",           kind: "board",    a: "#6b4a2a", b: "#f2dcb0", price: 2980, on: "both" },
+  { id: "fishing",    name: "Lake Biwa Fishing",   genre: "Sports",          kind: "fish",     a: "#1f6fa8", b: "#cfeeff", price: 3980, on: "both" },
+  { id: "karaoke",    name: "Karaoke Night",       genre: "Rhythm",           kind: "rhythm",   a: "#b02a8f", b: "#ffe0f6", price: 4980, on: "both" }
+];
+
+const GAME_BY_ID = {}; GAMES.forEach(g => { GAME_BY_ID[g.id] = g; });
+
+const GEAR = {
+  playbox5: { id: "playbox5", name: "SOTI PlayBox 5", note: "Console · plug into a TV", maker: "soti", price: 69800 },
+  pearcube: { id: "pearcube", name: "Pear Cube",      note: "Console · plug into a TV", maker: "pear", price: 74800 },
+  pearwatch:{ id: "pearwatch",name: "Pear Watch",     note: "Wear it and connect",           maker: "pear", price: 54800 },
+  pearwatchu:{ id: "pearwatchu",name: "Pear Watch Ultra", note: "Wear it and connect",        maker: "pear", price: 129800 }
+};
+
+const bag = { counts: {}, phones: {}, games: {}, gear: {}, heldGame: null, watchOn: false };    // watchOn is the id of the watch on your wrist
+
+function bagAdd(id, n) { bag.counts[id] = (bag.counts[id] || 0) + (n || 1); }
+
+function wheelGlyph(g, kind, id, cx, cy, r, on, tint) {
+  const ink = tint || (on ? "#0f1114" : "#e7ebee");
+  const dim = tint ? "rgba(255,255,255,0.55)" : on ? "rgba(15,17,20,0.55)" : "rgba(231,235,238,0.45)";
+  g.save();
+  g.translate(cx, cy);
+  g.lineCap = "round"; g.lineJoin = "round";
+  g.fillStyle = ink; g.strokeStyle = ink;
+  const u = r / 50;                       // every number below is in fiftieths
+
+  if (id === "none") {
+    // A fist in profile. The knuckles are bumps in the outline rather than
+    // lines drawn on top of it: at this size anything drawn inside the shape
+    // disappears, and only the silhouette survives.
+    g.beginPath();
+    g.moveTo(-20*u, -6*u);
+    // four knuckles along the top
+    for (let i = 0; i < 4; i++) {
+      const x0 = -20*u + i * 11*u;
+      g.quadraticCurveTo(x0 + 5.5*u, -20*u, x0 + 11*u, -6*u);
+    }
+    g.lineTo(24*u, 2*u);
+    g.quadraticCurveTo(26*u, 16*u, 12*u, 20*u);
+    g.lineTo(-12*u, 20*u);
+    g.quadraticCurveTo(-24*u, 18*u, -22*u, 4*u);
+    g.closePath();
+    g.fill();
+    // the thumb, laid across the fingers
+    g.beginPath();
+    g.moveTo(-21*u, 0*u);
+    g.quadraticCurveTo(-6*u, 7*u, 12*u, 3*u);
+    g.quadraticCurveTo(16*u, 10*u, 4*u, 13*u);
+    g.quadraticCurveTo(-14*u, 15*u, -21*u, 8*u);
+    g.closePath();
+    g.fillStyle = dim;
+    g.fill();
+    g.fillStyle = ink;
+    // the cuff, which is what says this is a hand and not a stone
+    g.fillRect(-30*u, -2*u, 9*u, 18*u);
+    g.fillStyle = dim;
+    g.fillRect(-30*u, 4*u, 9*u, 3*u);
+
+  } else if (id === "earbuds") {
+    // Two buds, stems down, sitting either side of an open case.
+    [-1, 1].forEach(sx => {
+      g.save();
+      g.translate(sx * 20*u, -6*u);
+      g.rotate(sx * 0.18);
+      g.beginPath(); g.ellipse(0, -6*u, 8.5*u, 9.5*u, 0, 0, Math.PI*2); g.fill();
+      g.beginPath();
+      g.moveTo(-3.2*u, 2*u); g.lineTo(3.2*u, 2*u);
+      g.lineTo(2.2*u, 20*u); g.quadraticCurveTo(0, 23*u, -2.2*u, 20*u);
+      g.closePath(); g.fill();
+      g.fillStyle = dim;
+      g.beginPath(); g.ellipse(-2*u, -7*u, 3.2*u, 3.8*u, -0.3, 0, Math.PI*2); g.fill();
+      g.fillStyle = ink;
+      g.restore();
+    });
+    // the case between them
+    g.fillStyle = dim;
+    g.beginPath();
+    g.moveTo(-9*u, 10*u); g.lineTo(9*u, 10*u);
+    g.quadraticCurveTo(11*u, 10*u, 11*u, 14*u);
+    g.lineTo(11*u, 22*u);
+    g.quadraticCurveTo(11*u, 26*u, 7*u, 26*u);
+    g.lineTo(-7*u, 26*u);
+    g.quadraticCurveTo(-11*u, 26*u, -11*u, 22*u);
+    g.lineTo(-11*u, 14*u);
+    g.quadraticCurveTo(-11*u, 10*u, -9*u, 10*u);
+    g.closePath(); g.fill();
+
+  } else if (id === "headphones") {
+    // Over-ear: a band with real thickness, two cups with padding.
+    g.lineWidth = 6*u;
+    g.strokeStyle = ink;
+    g.beginPath(); g.arc(0, 4*u, 26*u, Math.PI * 1.06, Math.PI * 1.94); g.stroke();
+    [-1, 1].forEach(sx => {
+      g.save();
+      g.translate(sx * 25*u, 8*u);
+      g.fillStyle = ink;
+      g.beginPath();
+      g.moveTo(-8*u, -8*u);
+      g.quadraticCurveTo(-11*u, -12*u, -11*u, -4*u);
+      g.lineTo(-11*u, 12*u);
+      g.quadraticCurveTo(-11*u, 22*u, 0, 22*u);
+      g.quadraticCurveTo(11*u, 22*u, 11*u, 12*u);
+      g.lineTo(11*u, -4*u);
+      g.quadraticCurveTo(11*u, -12*u, 8*u, -8*u);
+      g.closePath(); g.fill();
+      g.fillStyle = dim;
+      g.beginPath(); g.ellipse(sx * -3*u, 8*u, 5*u, 9*u, 0, 0, Math.PI*2); g.fill();
+      g.restore();
+    });
+
+  } else if (id === "umbrella") {
+    // A canopy with ribs, a shaft and a crook.
+    g.beginPath();
+    g.moveTo(-28*u, -2*u);
+    g.quadraticCurveTo(-26*u, -24*u, 0, -26*u);
+    g.quadraticCurveTo(26*u, -24*u, 28*u, -2*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = dim; g.lineWidth = 2*u;
+    [-14, 0, 14].forEach(x => {
+      g.beginPath();
+      g.moveTo(0, -25*u);
+      g.quadraticCurveTo(x*u*0.7, -12*u, x*u*1.9, -2*u);
+      g.stroke();
+    });
+    g.strokeStyle = ink; g.lineWidth = 3.4*u;
+    g.beginPath(); g.moveTo(0, -24*u); g.lineTo(0, 18*u); g.stroke();
+    g.beginPath(); g.arc(-5*u, 18*u, 5*u, 0, Math.PI); g.stroke();
+    g.beginPath(); g.moveTo(0, -24*u); g.lineTo(0, -30*u); g.stroke();
+
+  } else if (id === "baton") {
+    // Telescopic: three tapering sections and a knurled grip.
+    g.save();
+    g.rotate(-0.62);
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-30*u, -4.6*u); g.lineTo(-8*u, -4.6*u);
+    g.lineTo(-8*u, 4.6*u); g.lineTo(-30*u, 4.6*u);
+    g.quadraticCurveTo(-33*u, 0, -30*u, -4.6*u);
+    g.closePath(); g.fill();
+    g.fillRect(-8*u, -3.4*u, 18*u, 6.8*u);
+    g.beginPath();
+    g.moveTo(10*u, -2.4*u); g.lineTo(28*u, -1.6*u);
+    g.quadraticCurveTo(31*u, 0, 28*u, 1.6*u);
+    g.lineTo(10*u, 2.4*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = dim; g.lineWidth = 1.4*u;
+    for (let i = 0; i < 4; i++) {
+      g.beginPath();
+      g.moveTo(-27*u + i*5*u, -4.2*u); g.lineTo(-27*u + i*5*u, 4.2*u); g.stroke();
+    }
+    g.restore();
+
+  } else if (id === "pistol") {
+    // Slide, frame, trigger guard and a raked grip.
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-26*u, -12*u); g.lineTo(22*u, -12*u);
+    g.lineTo(22*u, -3*u); g.lineTo(-26*u, -3*u);
+    g.closePath(); g.fill();
+    g.fillRect(-26*u, -3*u, 30*u, 5*u);
+    g.beginPath();
+    g.moveTo(-24*u, 2*u); g.lineTo(-10*u, 2*u);
+    g.lineTo(-14*u, 24*u); g.lineTo(-26*u, 24*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink; g.lineWidth = 2.6*u;
+    g.beginPath();
+    g.moveTo(-8*u, 2*u);
+    g.quadraticCurveTo(-4*u, 13*u, -13*u, 13*u);
+    g.stroke();
+    g.fillStyle = dim;
+    g.fillRect(16*u, -10.5*u, 4*u, 2*u);
+
+  } else if (id === "smg") {
+    // Machine pistol: longer, with a magazine forward of the grip.
+    g.fillStyle = ink;
+    g.fillRect(-30*u, -10*u, 54*u, 9*u);
+    g.fillRect(24*u, -7.5*u, 8*u, 4*u);
+    g.beginPath();
+    g.moveTo(-26*u, -1*u); g.lineTo(-13*u, -1*u);
+    g.lineTo(-16*u, 20*u); g.lineTo(-28*u, 20*u);
+    g.closePath(); g.fill();
+    g.save(); g.rotate(0.10);
+    g.fillRect(2*u, 0*u, 8*u, 22*u);
+    g.restore();
+    g.strokeStyle = ink; g.lineWidth = 2.4*u;
+    g.beginPath();
+    g.moveTo(-11*u, -1*u); g.quadraticCurveTo(-7*u, 10*u, -15*u, 10*u);
+    g.stroke();
+    g.fillStyle = dim;
+    g.fillRect(-28*u, -14*u, 10*u, 4*u);
+
+  } else if (id === "shotgun") {
+    // Short barrel, pump under it, and a cut-down stock.
+    g.fillStyle = ink;
+    g.fillRect(-34*u, -8*u, 52*u, 7*u);
+    g.fillRect(18*u, -7*u, 14*u, 5*u);
+    g.fillStyle = dim;
+    g.fillRect(-2*u, 0*u, 18*u, 6*u);          // the pump
+    g.fillStyle = ink;
+    g.beginPath();
+    g.moveTo(-34*u, -1*u); g.lineTo(-22*u, -1*u);
+    g.lineTo(-24*u, 16*u); g.lineTo(-36*u, 18*u);
+    g.closePath(); g.fill();
+    g.beginPath();
+    g.moveTo(-36*u, 2*u); g.lineTo(-30*u, 2*u);
+    g.lineTo(-26*u, 20*u); g.lineTo(-34*u, 22*u);
+    g.closePath(); g.fill();
+    g.strokeStyle = ink; g.lineWidth = 2.4*u;
+    g.beginPath();
+    g.moveTo(-20*u, -1*u); g.quadraticCurveTo(-16*u, 9*u, -24*u, 9*u);
+    g.stroke();
+  }
+  g.restore();
+}
+
+function wheelIcon(g, e, cx, cy, r, ghost) {
+  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun" || e.item.cat === "audio")) {
+    wheelGlyph(g, e.item.cat, e.id, cx, cy, r, false, mixHex((WHEEL_CATS.find(c => c.id === e.item.cat) || WHEEL_CATS[0]).colour, "#ffffff", 0.55));
+    return;
+  }
+  g.save();
+  g.translate(cx, cy);
+  g.lineCap = "round"; g.lineJoin = "round";
+  const u = r / 50;
+  const fill = (c) => { g.fillStyle = c; g.fill(); };
+  const rect = (x, y, w, h, rad, c) => { roundRect(g, x*u, y*u, w*u, h*u, rad*u); fill(c); };
+  const id = e.id;
+
+  if (e.kind === "phone") {
+    const d = DEVICES[id] || DEVICES.so24;
+    if (d.ui === "basic") {
+      rect(-17, -40, 34, 80, 7, d.body ? d.body[0] : "#3a3d44");
+      rect(-12, -34, 24, 22, 2, "#9fd2a8");
+      for (let i = 0; i < 12; i++) rect(-12 + (i % 3) * 8.5, -6 + Math.floor(i / 3) * 9, 6.5, 6, 2, "rgba(255,255,255,0.75)");
+    } else {
+      const body = d.colours ? d.colours[0][1] : "#3a3d44";
+      rect(-21, -42, 42, 84, 9, body);
+      rect(-18, -39, 36, 78, 6.5, "#0b0d12");
+      const grad = g.createLinearGradient(-18*u, -39*u, 18*u, 39*u);
+      grad.addColorStop(0, d.maker === "pear" ? "#2f6bd8" : "#4a3cc0"); grad.addColorStop(1, d.maker === "pear" ? "#e46aa8" : "#1fb5a5");
+      rect(-18, -39, 36, 78, 6.5, grad);
+      g.fillStyle = "#050608";
+      if (d.top === "punch") { g.beginPath(); g.arc(0, -33*u, 2.6*u, 0, 7); g.fill(); }
+      else if (d.top === "notch") rect(-9, -39, 18, 6, 3, "#050608");
+      else rect(-7, -35, 14, 5, 2.5, "#050608");
+    }
+    g.restore(); return;
+  }
+  if (e.kind === "game") {
+    const gm = GAME_BY_ID[id] || { a: "#444", b: "#ccc", name: "?" };
+    rect(-28, -40, 56, 80, 4, "#14161b");
+    const gr = g.createLinearGradient(0, -37*u, 0, 37*u);
+    gr.addColorStop(0, gm.a); gr.addColorStop(1, mixHex(gm.a, "#000000", 0.45));
+    rect(-25, -37, 50, 74, 2, gr);
+    g.fillStyle = gm.b; g.globalAlpha = 0.9;
+    g.beginPath(); g.arc(0, -6*u, 14*u, 0, 7); g.fill();
+    g.globalAlpha = 1;
+    rect(-25, 18, 50, 19, 0, "rgba(0,0,0,0.45)");
+    g.fillStyle = "#fff"; g.font = "800 " + Math.round(11*u) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(gm.name.split(" ")[0].slice(0, 9), 0, 27.5*u);
+    g.fillStyle = gm.a; g.font = "900 " + Math.round(20*u) + "px " + UI; g.fillText(gm.name[0], 0, -5*u);
+    g.restore(); return;
+  }
+  if (e.kind === "gear") {
+    if (id === "playbox5") {
+      rect(-14, -40, 28, 80, 6, "#f2f4f7"); rect(-6, -40, 12, 80, 3, "#16181d");
+      g.fillStyle = "#16181d"; g.beginPath(); g.arc(0, 30*u, 3*u, 0, 7); g.fill();
+      rect(-9, -34, 18, 3, 1.5, "#4fa8ff");
+    } else if (id === "pearcube") {
+      rect(-32, -22, 64, 52, 8, "#d9dce1"); rect(-32, -22, 64, 14, 8, "#eef0f3");
+      g.fillStyle = "#30d158"; g.beginPath(); g.arc(0, 8*u, 5*u, 0, 7); g.fill();
+    } else {
+      rect(-12, -44, 24, 20, 4, "#2a2c31"); rect(-12, 24, 24, 20, 4, "#2a2c31");
+      rect(-22, -26, 44, 52, 13, "#c9ccd2"); rect(-18, -22, 36, 44, 10, "#0a0b0e");
+      g.fillStyle = "#ff453a"; g.beginPath(); g.arc(0, 0, 7*u, 0, 7); g.fill();
+      rect(21, -8, 4, 10, 2, "#e84a3a");
+    }
+    g.restore(); return;
+  }
+
+  switch (id) {
+    case "onigiri":
+      g.beginPath(); g.moveTo(0, -38*u); g.quadraticCurveTo(8*u, -34*u, 34*u, 26*u);
+      g.quadraticCurveTo(36*u, 36*u, 24*u, 36*u); g.lineTo(-24*u, 36*u); g.quadraticCurveTo(-36*u, 36*u, -34*u, 26*u);
+      g.quadraticCurveTo(-8*u, -34*u, 0, -38*u); g.closePath(); fill("#f7f6f0");
+      g.beginPath(); g.moveTo(-26*u, 14*u); g.lineTo(26*u, 14*u); g.lineTo(31*u, 26*u); g.quadraticCurveTo(33*u, 36*u, 24*u, 36*u);
+      g.lineTo(-24*u, 36*u); g.quadraticCurveTo(-33*u, 36*u, -31*u, 26*u); g.closePath(); fill("#1b2a22");
+      rect(-8, -10, 16, 7, 3.5, "#e9795a"); break;
+    case "bento":
+      rect(-36, -18, 72, 44, 6, "#2a1a14"); rect(-33, -15, 32, 38, 3, "#e6b04a"); rect(-1, -15, 34, 18, 3, "#f4efe0");
+      rect(-1, 5, 34, 18, 3, "#6fae4d"); rect(-31, -13, 28, 10, 3, "#c4852a"); rect(-36, -26, 72, 10, 5, "#8b2f2a"); break;
+    case "sando":
+      g.beginPath(); g.moveTo(-34*u, 18*u); g.lineTo(0, -34*u); g.lineTo(34*u, 18*u); g.closePath(); fill("#f1deb4");
+      g.beginPath(); g.moveTo(-28*u, 12*u); g.lineTo(0, -26*u); g.lineTo(28*u, 12*u); g.closePath(); fill("#f6c933");
+      rect(-34, 14, 68, 10, 4, "#f1deb4"); rect(-34, 14, 68, 3, 1.5, "#e8c97a"); break;
+    case "chips":
+      g.beginPath(); g.moveTo(-26*u, -38*u); g.lineTo(26*u, -38*u); g.lineTo(32*u, 38*u); g.lineTo(-32*u, 38*u); g.closePath(); fill("#e3402f");
+      rect(-30, -38, 60, 7, 1, "#b02a1f"); g.beginPath(); g.ellipse(0, 4*u, 17*u, 15*u, 0, 0, 7); fill("#f6d04a");
+      g.beginPath(); g.ellipse(-4*u, 1*u, 7*u, 5*u, -0.6, 0, 7); fill("#fff2a8"); break;
+    case "chocolate":
+      rect(-18, -38, 36, 76, 4, "#ba7a3a"); rect(-18, -38, 36, 14, 4, "#c8252a");
+      g.fillStyle = "#4a2b18"; for (let i = 0; i < 4; i++) { for (let j = 0; j < 2; j++) { rect(-14 + j * 15, -18 + i * 14, 12, 11, 2, "#5a3520"); } }
+      break;
+    case "ramen":
+      g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 3*u;
+      for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(i*10*u, -22*u); g.quadraticCurveTo(i*10*u + 5*u, -30*u, i*10*u, -38*u); g.stroke(); }
+      g.beginPath(); g.moveTo(-34*u, -16*u); g.lineTo(34*u, -16*u); g.lineTo(24*u, 38*u); g.lineTo(-24*u, 38*u); g.closePath(); fill("#f2f2ee");
+      g.beginPath(); g.moveTo(-31*u, -4*u); g.lineTo(31*u, -4*u); g.lineTo(27*u, 20*u); g.lineTo(-27*u, 20*u); g.closePath(); fill("#d92f2f");
+      rect(-36, -22, 72, 8, 3, "#e8c46a"); break;
+    case "meatbun":
+      g.beginPath(); g.ellipse(0, 6*u, 36*u, 30*u, 0, 0, 7); fill("#fbf5e8");
+      g.strokeStyle = "#e1d4b6"; g.lineWidth = 2.4*u;
+      for (let i = 0; i < 7; i++) { const a = -2.3 + i * 0.28; g.beginPath(); g.moveTo(Math.cos(a) * 3*u, -12*u); g.quadraticCurveTo(Math.cos(a) * 10*u, -20*u, Math.cos(a) * 12*u, -22*u); g.stroke(); }
+      g.beginPath(); g.ellipse(-12*u, -2*u, 10*u, 6*u, -0.5, 0, 7); g.fillStyle = "rgba(255,255,255,0.7)"; g.fill(); break;
+    case "coffee":
+      rect(-17, -38, 34, 76, 6, "#5a3520"); rect(-17, -38, 34, 10, 5, "#c9ccd2"); rect(-17, 28, 34, 10, 5, "#c9ccd2");
+      rect(-17, -10, 34, 22, 0, "#f2e5c9"); g.fillStyle = "#3a2214"; g.beginPath(); g.ellipse(0, 1*u, 6*u, 8*u, 0, 0, 7); g.fill(); break;
+    case "tea":
+      rect(-9, -42, 18, 10, 3, "#1e5f3a"); rect(-18, -32, 36, 74, 12, "rgba(190,120,50,0.92)");
+      rect(-18, -10, 36, 28, 0, "#2f8f55"); rect(-12, -2, 24, 12, 3, "#f6f1e0"); break;
+    case "energy":
+      rect(-14, -40, 28, 80, 7, "#1f4fd6"); rect(-14, -40, 28, 9, 4, "#c9ccd2"); rect(-14, 31, 28, 9, 4, "#c9ccd2");
+      g.beginPath(); g.moveTo(3*u, -24*u); g.lineTo(-9*u, 6*u); g.lineTo(-1*u, 6*u); g.lineTo(-4*u, 28*u); g.lineTo(10*u, -4*u); g.lineTo(2*u, -4*u); g.closePath(); fill("#ffe23a"); break;
+    case "water":
+      rect(-7, -44, 14, 9, 2, "#2c6fd1"); rect(-17, -35, 34, 78, 13, "rgba(175,220,245,0.92)");
+      rect(-17, -6, 34, 22, 0, "#2c8fe0"); g.beginPath(); g.moveTo(0, -2*u); g.quadraticCurveTo(8*u, 8*u, 0, 14*u); g.quadraticCurveTo(-8*u, 8*u, 0, -2*u); fill("#ffffff"); break;
+    case "cola":
+      rect(-17, -38, 34, 76, 6, "#c4161c"); rect(-17, -38, 34, 9, 5, "#c9ccd2"); rect(-17, 29, 34, 9, 5, "#c9ccd2");
+      g.beginPath(); g.moveTo(-17*u, -6*u); g.quadraticCurveTo(0, 10*u, 17*u, -6*u); g.lineTo(17*u, 4*u); g.quadraticCurveTo(0, 20*u, -17*u, 4*u); g.closePath(); fill("#ffffff"); break;
+    case "charger":
+      rect(-20, -20, 40, 44, 7, "#f4f5f7"); rect(-10, -32, 5, 13, 1.5, "#9aa0a8"); rect(5, -32, 5, 13, 1.5, "#9aa0a8");
+      rect(-6, 28, 12, 14, 3, "#f4f5f7"); g.fillStyle = "#31b36b"; g.beginPath(); g.arc(0, 2*u, 5*u, 0, 7); g.fill(); break;
+    default:
+      rect(-26, -26, 52, 52, 8, "#8d96a3");
+  }
+  g.restore();
+}
+
+function giveItem(kind, id, colour) {
+  if (kind === "audio") phone.owns[id] = true;
+  else if (kind === "phone") bag.phones[id] = colour || 0;
+  else if (kind === "game") bag.games[id] = true;
+  else if (kind === "gear") bag.gear[id] = true;
+  else if (id === "umbrella") wheel.umbrellaOwned = true;
+  else bagAdd(id, 1);
+  phone.dirty = true;
+}
+
+function orderDelivery(kind, id, name, days, colour) {
+  deliveries.push({ kind: kind, id: id, name: name, colour: colour || 0, at: clock + Math.max(0.3, days) * 90 });
+}
+
 function updatePhone() {
   if (!phone.open) return;
   const t = phoneTime();
@@ -2914,6 +3957,7 @@ function updatePhone() {
   const now = performance.now();
   if (islandBusy() && now - island.last > 45) { island.last = now; phone.dirty = true; }
   else if (isBasic() && now - island.last > 90) { island.last = now; phone.dirty = true; }
+  else if (phone.app === "Health" && now - island.last > 100) { island.last = now; phone.dirty = true; }
   if (phone.dirty || t.mins !== phone.minute) drawPhone();
 }
 </script>

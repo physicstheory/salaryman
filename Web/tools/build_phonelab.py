@@ -25,7 +25,9 @@ ROOTS = ["drawPhone", "updatePhone", "equipPhone", "applyDeviceSkin", "phoneMove
          "PAINTS", "clamp", "mixHex", "DEVICE_ORDER"]
 CUT = set("""clock nav garage drive home vitals deliveries purse spotify frameGrab say ownCar hailTaxi spotifyLogin
 spotifyTransport spotifyLoad spotifySave takePhotograph setMapOpen wantFrame grabFrame placeAt phoneTime title post
-world player traffic renderer scene camera shops wheel TIME gameMinutes""".split())
+world player traffic renderer scene camera shops wheel TIME gameMinutes
+R N V T Tx arcRnd arcade ARC radio sound wanted tolls tvui mall parcels updateTolls enterMall enterTV
+enterConsole updateRadio radioSet radioNext sunLight skyDome frameGrab""".split())
 
 def main():
     script = X.script_of(GAME)
