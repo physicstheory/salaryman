@@ -6144,6 +6144,11 @@ function drawVitals() {
 function updateVitals(dt) {
   if (!player.placed) return;
   vitals.stress = clamp01(vitals.stress + dt * 0.0016);
+  // Time awake, in game minutes. A few days without a bed adds a little to the
+  // stress that was going to arrive anyway; sleeping zeroes it.
+  vitals.awake = (vitals.awake || 0) + dt * TIME.rate;
+  if (vitals.awake > 4320) vitals.stress = clamp01(vitals.stress + dt * 0.0004 * Math.min(2.5, (vitals.awake - 4320) / 2880));
+  updateHealthData(dt);
   if (vitals.health < 1) vitals.health = clamp01(vitals.health + dt * 0.012);
   if (vitals.stress > 0.995 && !vitals.warned) {
     vitals.warned = true;
@@ -11416,6 +11421,12 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.beginPath(); g.arc(c, m, u * 0.52, 0, 6.2832); g.stroke();
     g.beginPath(); g.ellipse(c, m, u * 0.22, u * 0.52, 0, 0, 6.2832); g.stroke();
     g.beginPath(); g.moveTo(c - u * 0.52, m); g.lineTo(c + u * 0.52, m); g.stroke();
+  } else if (glyph === "heart") {
+    g.beginPath();
+    g.moveTo(c, m + u * 0.46);
+    g.bezierCurveTo(c - u * 0.95, m - u * 0.02, c - u * 0.46, m - u * 0.66, c, m - u * 0.22);
+    g.bezierCurveTo(c + u * 0.46, m - u * 0.66, c + u * 0.95, m - u * 0.02, c, m + u * 0.46);
+    g.fillStyle = "#ffffff"; g.fill();
   } else if (glyph === "gear") {
     g.beginPath();
     for (let i = 0; i < 8; i++) {
@@ -11956,7 +11967,7 @@ function drawPearHome(g, W, H) {
 
   glass(wx1, wy, ww, wh, W * 0.065, 0.17);
   if (phone.health) {
-    const bpm = typeof heartRate === "function" ? Math.round(heartRate()) : 72;
+    const bpm = Math.round(hdata.bpm);
     g.fillStyle = "#ff375f"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
     g.fillText("♥ HEART", wx1 + W * 0.04, wy + H * 0.026);
     g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
@@ -12295,6 +12306,7 @@ function drawPhone() {
   const g = phone.ctx, W = cv.width, H = cv.height;
   if (isBasic() && typeof drawBasicPhone === "function") { drawBasicPhone(g, W, H); return; }
   drawPhoneScreen();
+  if (phone.watchPrompt) drawWatchPrompt(g, W, H);
   phoneCutout(g, W, H);       // the notch or island goes over whatever was drawn
 }
 
@@ -12432,6 +12444,7 @@ function clipText(g, text, x, y, max) {
 // it was going to waste: the header, the selection and the accents now take
 // it, so the apps stop being twelve screens of the same grey.
 function appAccent() {
+  if (phone.app === "Health") return "#ff375f";
   if (isPear()) return PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][1];
   const row = PHONE_APPS.find(a => a[0] === phone.app);
   return row ? row[1] : "#4a90d9";
@@ -14010,6 +14023,158 @@ function appMusic(g, W, H) {
   g.textAlign = "left";
 }
 
+// ---- the Pear Watch and the Health app ------------------------------------------
+// Put the watch on from the wheel and, if the phone in your pocket is a Pear, it
+// asks to connect. Connect and the Health app appears on the home screen with a
+// red heart on it, reading your stress, your health, your sleep and a pulse
+// that goes up when the police are about. On any other phone the watch is a
+// very expensive bracelet.
+const hdata = { bpm: 66, hist: [], tick: 0 };
+function heartRate() {
+  let target = 62 + vitals.stress * 28 + wanted.stars * 7 + (drive.car ? 5 : 0);
+  if (vitals.awake > 2880) target += Math.min(10, (vitals.awake - 2880) / 400);
+  if (typeof arcade === "object" && arcade.on) target += 8;
+  return target;
+}
+function updateHealthData(dt) {
+  hdata.bpm += (heartRate() - hdata.bpm) * Math.min(1, dt * 0.6);
+  if (!phone.health || !bag.watchOn) return;
+  hdata.tick += dt;
+  if (hdata.tick > 1.2) {
+    hdata.tick = 0;
+    hdata.hist.push(hdata.bpm + (Math.random() - 0.5) * 3);
+    if (hdata.hist.length > 60) hdata.hist.shift();
+  }
+}
+
+function useGear(id) {
+  const gr = GEAR[id];
+  if (!gr) return;
+  if (id === "pearwatch" || id === "pearwatchu") {
+    if (bag.watchOn === id) { bag.watchOn = false; say(gr.name + " off.", 3); phone.dirty = true; return; }
+    bag.watchOn = id;
+    if (isPear() && phone.watch !== id) {
+      phone.watchPrompt = id;
+      setPhone(true); phone.app = null;
+      say(gr.name + " on. Your phone has a question.", 4);
+    } else if (isPear()) say(gr.name + " on. Connected.", 3);
+    else say(gr.name + " on. It needs a Pear phone to talk to.", 4);
+    phone.dirty = true;
+    return;
+  }
+  if (id === "playbox5" || id === "pearcube") { say(gr.name + ". Plug it into the television at home.", 4); return; }
+  say(gr.name + ".", 3);
+}
+function connectWatch() {
+  const id = phone.watchPrompt;
+  phone.watchPrompt = null;
+  if (!id) return;
+  phone.watch = id; phone.health = true;
+  say(GEAR[id].name + " connected. Health is on your home screen.", 5);
+  phone.dirty = true;
+}
+
+function drawWatchPrompt(g, W, H) {
+  const id = phone.watchPrompt, gr = GEAR[id];
+  if (!gr) return;
+  g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, 0, W, H);
+  const x = W * 0.08, w = W * 0.84, y = H * 0.30, h = H * 0.40;
+  g.fillStyle = "#f2f2f4"; roundRect(g, x, y, w, h, W * 0.07); g.fill();
+  wheelIcon(g, { kind: "gear", id: id, item: gr }, W / 2, y + h * 0.24, W * 0.115, false);
+  g.fillStyle = "#14171b"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "800 " + Math.round(W * 0.054) + "px " + UI;
+  g.fillText("Connect " + gr.name + "?", W / 2, y + h * 0.50);
+  g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText("Your heart rate, stress and sleep", W / 2, y + h * 0.60);
+  g.fillText("will appear in Health.", W / 2, y + h * 0.67);
+  g.fillStyle = "#ff375f"; roundRect(g, x + w * 0.07, y + h * 0.77, w * 0.86, h * 0.15, h * 0.075); g.fill();
+  g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText("Connect  (A)", W / 2, y + h * 0.845);
+  g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+  g.fillText("Not now  (B)", W / 2, y + h * 0.955);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
+function hm(min) { const m = Math.max(0, Math.floor(min)); return Math.floor(m / 60) + " h " + two(m % 60); }
+
+function appHealth(g, W, H) {
+  const worn = !!bag.watchOn && phone.watch;
+  phoneChrome(g, W, H, "Health", worn ? GEAR[bag.watchOn].name + " · live" : "Watch not worn");
+  const px = W * 0.055, pw = W - px * 2;
+  const beat = (performance.now() / 1000) * (hdata.bpm / 60);
+  const pulse = worn ? Math.pow(Math.max(0, Math.sin(beat * Math.PI * 2)), 6) : 0;
+
+  // the heart
+  const cy0 = H * 0.175, ch = H * 0.215;
+  const grad = g.createLinearGradient(px, cy0, px + pw, cy0 + ch);
+  grad.addColorStop(0, "#3a0f1c"); grad.addColorStop(1, "#1a0a10");
+  g.fillStyle = grad; roundRect(g, px, cy0, pw, ch, W * 0.05); g.fill();
+  const hx = px + pw * 0.22, hy = cy0 + ch * 0.50, hs = W * (0.085 + pulse * 0.014);
+  g.fillStyle = worn ? "#ff2d55" : "#6a3140";
+  g.beginPath();
+  g.moveTo(hx, hy + hs * 0.95);
+  g.bezierCurveTo(hx - hs * 1.9, hy - hs * 0.1, hx - hs * 0.9, hy - hs * 1.3, hx, hy - hs * 0.45);
+  g.bezierCurveTo(hx + hs * 0.9, hy - hs * 1.3, hx + hs * 1.9, hy - hs * 0.1, hx, hy + hs * 0.95);
+  g.fill();
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = worn ? "#ffffff" : "#8a6a73";
+  g.font = "300 " + Math.round(W * 0.20) + "px " + UI;
+  g.fillText(String(Math.round(hdata.bpm)), px + pw * 0.44, cy0 + ch * 0.64);
+  g.fillStyle = "#ff6f8a"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText("BPM", px + pw * 0.44 + W * 0.30, cy0 + ch * 0.64);
+  g.fillStyle = "#c5a0aa"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+  g.fillText(hdata.bpm > 100 ? "Elevated" : hdata.bpm > 80 ? "Active" : "Resting", px + pw * 0.44, cy0 + ch * 0.84);
+
+  // three rings
+  const ry = H * 0.415, rh = H * 0.16, rw = (pw - W * 0.04) / 3;
+  const awake = vitals.awake || 0;
+  const cards = [
+    { name: "Stress", v: vitals.stress, c: "#3f8fe0", t: Math.round(vitals.stress * 100) + "%" },
+    { name: "Health", v: vitals.health, c: "#ff2d55", t: Math.round(vitals.health * 100) + "%" },
+    { name: "Awake",  v: clamp01(awake / 4320), c: "#ffb020", t: Math.floor(awake / 60) + " h" }
+  ];
+  cards.forEach((cd, i) => {
+    const x = px + i * (rw + W * 0.02);
+    g.fillStyle = "#171a20"; roundRect(g, x, ry, rw, rh, W * 0.04); g.fill();
+    const cx = x + rw / 2, cy = ry + rh * 0.45, r = rw * 0.27;
+    g.lineWidth = W * 0.016; g.lineCap = "round";
+    g.strokeStyle = "rgba(255,255,255,0.10)"; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+    g.strokeStyle = cd.c; g.beginPath(); g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, cd.v)); g.stroke();
+    g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "700 " + Math.round(W * 0.036) + "px " + UI; g.fillText(cd.t, cx, cy);
+    g.fillStyle = "#8d949c"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI;
+    g.fillText(cd.name, cx, ry + rh * 0.88);
+  });
+
+  // pulse over the last minute and a bit
+  const sy = H * 0.60, sh = H * 0.115;
+  g.fillStyle = "#171a20"; roundRect(g, px, sy, pw, sh, W * 0.04); g.fill();
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = "#8d949c"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI;
+  g.fillText("HEART RATE", px + W * 0.035, sy + sh * 0.22);
+  const hist = hdata.hist;
+  if (hist.length > 2) {
+    g.strokeStyle = "#ff2d55"; g.lineWidth = W * 0.007; g.lineJoin = "round"; g.beginPath();
+    hist.forEach((b, i) => {
+      const x = px + W * 0.035 + (pw - W * 0.07) * i / 59;
+      const y = sy + sh * 0.88 - clamp((b - 50) / 70, 0, 1) * sh * 0.52;
+      if (i) g.lineTo(x, y); else g.moveTo(x, y);
+    });
+    g.stroke();
+  } else {
+    g.fillStyle = "#5c636c"; g.fillText(worn ? "Listening…" : "Wear the watch for a reading", px + W * 0.035, sy + sh * 0.62);
+  }
+
+  // sleep
+  const ly = H * 0.735;
+  g.fillStyle = "#171a20"; roundRect(g, px, ly, pw, H * 0.10, W * 0.04); g.fill();
+  g.fillStyle = "#b08cff"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI; g.fillText("SLEEP", px + W * 0.035, ly + H * 0.032);
+  g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
+  g.fillText("Awake for " + hm(awake) + (vitals.slept ? "  ·  Last night " + hm(vitals.slept) : ""), px + W * 0.035, ly + H * 0.070);
+  g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * 0.028) + "px " + UI;
+  g.fillText("Games and food take the edge off. Days awake add to it.", px, H * 0.855);
+}
+
 function appSettings(g, W, H) {
   phoneChrome(g, W, H, "Settings", "SOTI So24");
   const rows = [
@@ -14042,7 +14207,8 @@ function appSettings(g, W, H) {
 const PHONE_SCREENS = {
   Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
   MyNet: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
-  Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings
+  Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
+  Health: appHealth
 };
 
 function setPhone(on) {
@@ -14129,6 +14295,7 @@ function phoneMoveScreen(dx, dy) {
 // A press of A, wherever you are.
 function phoneAct() {
   if (!phone.open) return;
+  if (phone.watchPrompt) { connectWatch(); return; }
   if (isBasic() && phone.pad.on) { padPress(PAD_KEYS[phone.pad.sel][1]); phone.dirty = true; return; }
   if (!phone.app) {
     phone.app = (homeApps()[phone.sel] || homeApps()[0])[0];
@@ -14217,6 +14384,7 @@ function phoneAct() {
 // A press of B: out of a page, out of an app, then out of the phone.
 function phoneBack() {
   if (!phone.open) return false;
+  if (phone.watchPrompt) { phone.watchPrompt = null; phone.dirty = true; say("Not connected. Put it on again to be asked again.", 3); return true; }
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
@@ -15037,6 +15205,7 @@ function homeAct() {
   if (a.id === "sleep") {
     vitals.stress = 0;
     vitals.health = 1;
+    vitals.slept = 60 * 8; vitals.awake = 0;
     advanceGameMinutes(60 * 8);            // morning
     say("Slept until morning. You feel human.", 5);
     leaveHome();
@@ -15268,14 +15437,8 @@ const GEAR = {
   pearwatchu:{ id: "pearwatchu",name: "Pear Watch Ultra", note: "Wear it and connect",        maker: "pear", price: 129800 }
 };
 
-// Hooks the rest of the game fills in as the consoles and the watch arrive.
-// Until then, using one just says what it is.
-function useGear(id) {
-  const gr = GEAR[id];
-  if (!gr) return;
-  if (id === "pearwatch" || id === "pearwatchu") { bag.watchOn = !bag.watchOn; say(bag.watchOn ? "Pear Watch on." : "Pear Watch off.", 3); phone.dirty = true; return; }
-  say(gr.name + ". Plug it into a TV at home.", 4);
-}
+// The watch and the consoles are defined with the phone, below. These are the
+// hooks the consoles fill in when a game goes in.
 function consoleInsertGame(id) { return false; }
 function phoneSwapped(id) { phone.dirty = true; }
 
@@ -15283,7 +15446,7 @@ function phoneSwapped(id) { phone.dirty = true; }
 // in your hand is `phone.device`, and swapping to another throws the old one
 // away, because nobody keeps three phones. Games, consoles and the watch are
 // whole objects, not counts.
-const bag = { counts: {}, phones: {}, games: {}, gear: {}, heldGame: null, watchOn: false };
+const bag = { counts: {}, phones: {}, games: {}, gear: {}, heldGame: null, watchOn: false };    // watchOn is the id of the watch on your wrist
 function bagAdd(id, n) { bag.counts[id] = (bag.counts[id] || 0) + (n || 1); }
 function bagTake(id) {
   if (!bag.counts[id]) return false;
@@ -16233,6 +16396,7 @@ function updatePhone() {
   const now = performance.now();
   if (islandBusy() && now - island.last > 45) { island.last = now; phone.dirty = true; }
   else if (isBasic() && now - island.last > 90) { island.last = now; phone.dirty = true; }
+  else if (phone.app === "Health" && now - island.last > 100) { island.last = now; phone.dirty = true; }
   if (phone.dirty || t.mins !== phone.minute) drawPhone();
 }
 
