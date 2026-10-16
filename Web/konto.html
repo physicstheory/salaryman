@@ -4975,26 +4975,25 @@ function updateWalk(dt) {
     player.speed = lerp(player.speed, Math.max(WALK_SPEED * 0.45, top * push),
                         1 - Math.pow(0.002, dt));
 
-    // Where the body would like to point, and how far that is from where it
-    // points now. Slaving the body straight to the movement vector - which is
-    // what this used to do - makes him spin on the spot the moment you press
-    // back, and swing bodily sideways when you strafe. Neither is what a
-    // person does.
+    // Where the body would like to point.
     const want = Math.atan2(wishDir.x, wishDir.z);
-    let off = want - player.yaw;
-    while (off > Math.PI) off -= Math.PI * 2;
-    while (off < -Math.PI) off += Math.PI * 2;
 
-    // Nearly behind him, and not running: step backwards rather than turn
-    // round. Short reverse steps are a thing people do and a thing the walk
-    // clip can play backwards.
-    const backing = Math.abs(off) > 2.15 && player.speed < WALK_SPEED * 1.35;
+    // Whether this is a reverse step is decided by the input against the
+    // camera, never by the body's own angle. Deciding it from the body is a
+    // trap: backing skips the turn, so a body that starts more than a right
+    // angle away from where you want to go would back up for ever and never
+    // come round. Pressing back means backing; being badly aligned just means
+    // turning.
+    const camF = -wishDir.x * Math.sin(yaw) - wishDir.z * Math.cos(yaw);
+    const camR = wishDir.x * Math.cos(yaw) - wishDir.z * Math.sin(yaw);
+    const backing = camF < -0.55 && player.speed < WALK_SPEED * 1.35;
     player.back = backing ? 1 : 0;
-    if (!backing) player.targetYaw = want;
+    // Backing keeps him facing the camera's forward, so he reverses towards
+    // you rather than turning his back and walking away.
+    player.targetYaw = backing ? yaw + Math.PI : want;
 
-    // Sideways-ness, kept for the animation layer and for the lean. +1 is
-    // pure right, -1 pure left.
-    player.strafe = clamp(Math.sin(off), -1, 1);
+    // Sideways-ness, for the lean and for a blend tree later. +1 is right.
+    player.strafe = clamp(camR, -1, 1);
   } else {
     player.speed = lerp(player.speed, 0, 1 - Math.pow(0.0005, dt));
     player.back = 0;
@@ -11589,8 +11588,13 @@ function placeHospitals(w) {
       const p = list[0];
       const yaw = p.yaw * Math.PI / 180;
       const half = p.size[1] * 0.5 + 2.2;
+      // Named for the ward it stands in, not the city, or every hospital in
+      // Tokonto is called Tokonto General - which all sixteen of them were.
+      const ward = (city.wards && p.ward != null && city.wards[p.ward])
+        ? (city.wards[p.ward].name || city.wards[p.ward])
+        : null;
       hospitals.list.push({
-        name: city.name + " General",
+        name: (ward ? String(ward) : city.name) + " General",
         at: [p.centre[0], p.centre[1]],
         door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
         yaw: yaw, groundY: p.groundY
