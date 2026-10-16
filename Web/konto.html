@@ -11275,6 +11275,7 @@ const SHOP_ITEMS = [
 const WEB = [
   { host: "11eleven.co.kn",   title: "11 Eleven",            kind: "shop",  brand: "eleven" },
   { host: "petmart.co.kn",    title: "Pet Mart",             kind: "shop",  brand: "petmart" },
+  { host: "dokoto-camera.co.kn", title: "Dokoto Camera",     kind: "tech" },
   { host: "kurogane.co.kn",   title: "Kurogane Prestige",    kind: "cars",  tier: "luxury" },
   { host: "maruichi.co.kn",   title: "Maruichi Car Centre",  kind: "cars",  tier: "budget" },
   { host: "konto-shimbun.kn", title: "Konto Shimbun",        kind: "news" },
@@ -13075,6 +13076,224 @@ const CAR_STOCK = {
   ]
 };
 
+// ---- Dokoto Camera, online ----------------------------------------------------
+// The big electronics chain, as a page. Three tabs: handsets, the things you
+// plug in or wear, and games. Everything on it is delivered, to the step in
+// Mizuho, because the shop floor is a different (and much louder) experience.
+// A phone page shows the front, the back and the edge of the handset in the
+// colour picked, which is what a product page is for.
+const DOKOTO_TABS = [
+  { id: "phones", name: "Phones" },
+  { id: "wear",   name: "Watch & Console" },
+  { id: "games",  name: "Games" }
+];
+function dokotoList(tab) {
+  const out = [];
+  if (tab === 0) {
+    ["so25", "so25u", "so26", "so26u", "p15", "p15p", "p15pm", "p16", "p16p", "p16pm", "p17", "p17p", "p17pm"].forEach(id => {
+      const d = DEVICES[id];
+      out.push({ kind: "phone", id: id, name: d.name, price: d.price, days: 2, note: d.note });
+    });
+  } else if (tab === 1) {
+    ["pearwatch", "pearwatchu", "playbox5", "pearcube"].forEach(id => {
+      const gr = GEAR[id];
+      out.push({ kind: "gear", id: id, name: gr.name, price: gr.price, days: 2, note: gr.note });
+    });
+  } else {
+    GAMES.forEach(gm => out.push({ kind: "game", id: gm.id, name: gm.name, price: gm.price, days: 1,
+      note: gm.genre + " · " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
+  }
+  return out;
+}
+function dokotoCur() {
+  const tab = clamp(phone.tab || 0, 0, DOKOTO_TABS.length - 1);
+  const list = dokotoList(tab);
+  const sel = clamp(phone.sub, 0, list.length - 1);
+  return { tab: tab, list: list, sel: sel, item: list[sel] };
+}
+
+function dokotoMove(dx, dy) {
+  const cur = dokotoCur();
+  if (phone.tabsOn) {
+    if (dx) { phone.tab = (cur.tab + dx + DOKOTO_TABS.length) % DOKOTO_TABS.length; phone.sub = 0; phone.paint = 0; }
+    if (dy > 0) phone.tabsOn = false;
+    phone.dirty = true;
+    return;
+  }
+  if (dy < 0 && cur.sel === 0) { phone.tabsOn = true; phone.dirty = true; return; }
+  if (dy) { phone.sub = clamp(cur.sel + dy, 0, cur.list.length - 1); phone.paint = 0; }
+  if (dx && cur.item && cur.item.kind === "phone") {
+    const n = DEVICES[cur.item.id].colours.length;
+    phone.paint = ((phone.paint || 0) + dx + n) % n;
+  }
+  phone.dirty = true;
+}
+
+function dokotoBuy() {
+  if (phone.tabsOn) { phone.tabsOn = false; phone.dirty = true; return; }
+  const it = dokotoCur().item;
+  if (!it) return;
+  if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + "; you have " + yenText(purse.yen) + ".", 5); return; }
+  purse.yen -= it.price;
+  let colour = 0;
+  if (it.kind === "phone") colour = clamp(phone.paint || 0, 0, DEVICES[it.id].colours.length - 1);
+  orderDelivery(it.kind, it.id, it.name + (it.kind === "phone" ? ", " + DEVICES[it.id].colours[colour][0] : ""), it.days, colour);
+  say(it.name + " ordered · " + yenText(it.price) + " · arriving in " + it.days + " day" + (it.days > 1 ? "s" : ""), 5);
+  phone.dirty = true;
+}
+
+// A handset from three sides: the front with its glass and its cut-out, the
+// back with as many lenses as it has, and the edge with the bump.
+function drawHandset(g, cx, cy, h, d, colour) {
+  const w = h * 0.485;
+  const body = colour;
+  const rr = (x, y, ww, hh, r, c) => { roundRect(g, x, y, ww, hh, r); g.fillStyle = c; g.fill(); };
+  const dark = mixHex(body, "#000000", 0.35), lite = mixHex(body, "#ffffff", 0.28);
+  // front
+  const fx = cx - w * 1.35, fy = cy - h / 2;
+  g.save(); g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = h * 0.06; g.shadowOffsetY = h * 0.02;
+  rr(fx, fy, w, h, w * 0.17, body); g.restore();
+  rr(fx + w * 0.035, fy + w * 0.035, w * 0.93, h - w * 0.07, w * 0.14, "#050608");
+  const sg = g.createLinearGradient(fx, fy, fx + w, fy + h);
+  if (d.maker === "pear") { sg.addColorStop(0, "#1c3f8f"); sg.addColorStop(0.55, "#6a3fb5"); sg.addColorStop(1, "#e0709f"); }
+  else { sg.addColorStop(0, "#2a2f7a"); sg.addColorStop(0.55, "#2a8f9a"); sg.addColorStop(1, "#8fe0b0"); }
+  rr(fx + w * 0.06, fy + w * 0.06, w * 0.88, h - w * 0.12, w * 0.12, sg);
+  g.fillStyle = "#050608";
+  if (d.top === "punch") { g.beginPath(); g.arc(fx + w / 2, fy + w * 0.14, w * 0.032, 0, 7); g.fill(); }
+  else if (d.top === "notch") rr(fx + w * 0.30, fy + w * 0.035, w * 0.40, w * 0.075, w * 0.035, "#050608");
+  else rr(fx + w * 0.34, fy + w * 0.085, w * 0.32, w * 0.082, w * 0.041, "#000");
+  // back
+  const bx = cx - w * 0.1, by = cy - h / 2;
+  g.save(); g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = h * 0.06; g.shadowOffsetY = h * 0.02;
+  rr(bx, by, w, h, w * 0.17, body); g.restore();
+  const bg = g.createLinearGradient(bx, by, bx + w, by + h);
+  bg.addColorStop(0, "rgba(255,255,255,0.18)"); bg.addColorStop(1, "rgba(0,0,0,0.12)");
+  rr(bx, by, w, h, w * 0.17, bg);
+  const lens = (x, y, r) => {
+    g.fillStyle = "#14161a"; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+    g.strokeStyle = lite; g.lineWidth = r * 0.14; g.stroke();
+    g.fillStyle = "#2a3550"; g.beginPath(); g.arc(x, y, r * 0.55, 0, 7); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.beginPath(); g.arc(x - r * 0.2, y - r * 0.2, r * 0.14, 0, 7); g.fill();
+  };
+  const lensN = d.cam >= 9 ? 4 : d.cam >= 7 ? 3 : d.cam >= 5 && d.maker === "pear" && /p\d+p/.test(d.id) ? 3 : 2;
+  if (d.maker === "pear") {
+    const px = bx + w * 0.07, py = by + w * 0.07, ps = w * (lensN >= 3 ? 0.50 : 0.46);
+    rr(px, py, ps, ps * (lensN >= 3 ? 1 : 0.95), w * 0.12, lite);
+    const lr = ps * 0.21;
+    lens(px + ps * 0.29, py + ps * 0.28, lr); lens(px + ps * 0.29, py + ps * 0.71, lr);
+    if (lensN >= 3) lens(px + ps * 0.72, py + ps * 0.50, lr);
+    g.fillStyle = "#f4efe0"; g.beginPath(); g.arc(px + ps * 0.74, py + ps * 0.16, lr * 0.28, 0, 7); g.fill();
+  } else {
+    const lr = w * 0.085;
+    for (let i = 0; i < lensN; i++) lens(bx + w * 0.22, by + w * 0.18 + i * lr * 2.7, lr);
+    g.fillStyle = "#f4efe0"; g.beginPath(); g.arc(bx + w * 0.42, by + w * 0.17, lr * 0.4, 0, 7); g.fill();
+  }
+  // edge
+  const ex = cx + w * 0.95, ew = w * (d.flat ? 0.08 : 0.095);
+  rr(ex, cy - h / 2, ew, h, ew * 0.45, lite);
+  rr(ex + ew * 0.1, cy - h / 2, ew * 0.8, h, ew * 0.4, body);
+  rr(ex + ew * 0.95, cy - h / 2 + w * 0.09, ew * 0.55, w * (lensN >= 3 ? 0.50 : 0.40), ew * 0.2, dark);
+  rr(ex - ew * 0.0, cy - h * 0.18, ew * 0.18, h * 0.10, ew * 0.1, dark);
+}
+
+function drawDokoto(g, W, H, site) {
+  const cur = dokotoCur();
+  siteChrome(g, W, H, site, "#fbfaf6");
+  // The shopfront: red with a yellow stripe, which is how this kind of shop
+  // is always painted.
+  const by = H * 0.082, bh = H * 0.07;
+  g.fillStyle = "#d4152c"; g.fillRect(0, by, W, bh);
+  g.fillStyle = "#ffd21c"; g.fillRect(0, by + bh * 0.82, W, bh * 0.18);
+  g.fillStyle = "#ffffff"; g.font = "800 " + Math.round(W * 0.066) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("DOKOTO CAMERA", W * PL.pad, by + bh * 0.42);
+  g.textAlign = "right"; g.font = "600 " + Math.round(W * PL.tiny) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * (1 - PL.pad), by + bh * 0.42);
+  g.textAlign = "left";
+
+  // tabs
+  const ty = H * 0.162, th = H * 0.034;
+  let tx = W * PL.pad;
+  DOKOTO_TABS.forEach((t, i) => {
+    g.font = "700 " + Math.round(W * PL.small) + "px " + UI;
+    const tw = g.measureText(t.name).width + W * 0.05;
+    const on = i === cur.tab;
+    g.fillStyle = on ? "#14171b" : "#e8e9e6";
+    roundRect(g, tx, ty, tw, th, th / 2); g.fill();
+    if (on && phone.tabsOn) { g.strokeStyle = appAccent(); g.lineWidth = W * 0.007; roundRect(g, tx - 3, ty - 3, tw + 6, th + 6, th / 2 + 3); g.stroke(); }
+    g.fillStyle = on ? "#ffffff" : "#4a5058";
+    g.textBaseline = "middle"; g.fillText(t.name, tx + W * 0.025, ty + th * 0.52);
+    tx += tw + W * 0.018;
+  });
+
+  // the stage
+  const sx = W * PL.pad, sy = H * 0.205, sw = W * (1 - PL.pad * 2), sh = H * 0.17;
+  const wall = g.createLinearGradient(0, sy, 0, sy + sh);
+  wall.addColorStop(0, "#eceeef"); wall.addColorStop(0.78, "#d3d7da"); wall.addColorStop(0.78, "#c3c8cc"); wall.addColorStop(1, "#b4b9be");
+  g.fillStyle = wall; roundRect(g, sx, sy, sw, sh, W * 0.03); g.fill();
+  g.save(); roundRect(g, sx, sy, sw, sh, W * 0.03); g.clip();
+  const it = cur.item;
+  if (it) {
+    const pcx = sx + sw / 2, pcy = sy + sh * 0.5;
+    if (it.kind === "phone") {
+      const d = DEVICES[it.id];
+      drawHandset(g, pcx, pcy, sh * 0.84, d, d.colours[clamp(phone.paint || 0, 0, d.colours.length - 1)][1]);
+    } else {
+      wheelIcon(g, { kind: it.kind, id: it.id, item: it }, pcx, pcy, sh * 0.5, false);
+    }
+  }
+  g.restore();
+
+  if (it) {
+    g.textBaseline = "alphabetic";
+    g.fillStyle = "#14171b"; g.font = "800 " + Math.round(W * 0.050) + "px " + UI;
+    clipText(g, it.name, W * PL.pad, H * 0.406, W * 0.60);
+    g.textAlign = "right"; g.fillText(yenText(it.price), W * (1 - PL.pad), H * 0.406); g.textAlign = "left";
+    g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    let spec = it.note;
+    if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + " · " + d.chip + " · " + d.camera; }
+    clipText(g, spec, W * PL.pad, H * 0.431, W * (1 - PL.pad * 2));
+    if (it.kind === "phone") {
+      const d = DEVICES[it.id], n = d.colours.length, sw2 = W * 0.027;
+      d.colours.forEach((c, i) => {
+        const cx = W * PL.pad + sw2 + i * (sw2 * 2 + W * 0.02), cy = H * 0.466;
+        g.fillStyle = c[1]; g.beginPath(); g.arc(cx, cy, sw2, 0, 7); g.fill();
+        g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = W * 0.003; g.stroke();
+        if (i === clamp(phone.paint || 0, 0, n - 1)) {
+          g.strokeStyle = appAccent(); g.lineWidth = W * 0.007;
+          g.beginPath(); g.arc(cx, cy, sw2 + W * 0.011, 0, 7); g.stroke();
+        }
+      });
+      g.fillStyle = "#6a717a";
+      g.textAlign = "right"; g.fillText(d.colours[clamp(phone.paint || 0, 0, n - 1)][0], W * (1 - PL.pad), H * 0.472); g.textAlign = "left";
+    } else {
+      g.fillStyle = "#8d949c"; g.fillText(it.days + " day delivery", W * PL.pad, H * 0.466);
+    }
+    g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    g.fillText(it.kind === "phone" ? "◀ ▶ colour   ▲ ▼ model   A order" : "▲ ▼ browse   A order", W * PL.pad, H * 0.499);
+  }
+
+  // the list, six at a time around the selection
+  const vis = 5, rowH = H * 0.052, y0 = H * 0.515;
+  const start = clamp(cur.sel - 2, 0, Math.max(0, cur.list.length - vis));
+  for (let k = 0; k < vis && start + k < cur.list.length; k++) {
+    const li = start + k, e = cur.list[li], y = y0 + k * (rowH + H * 0.006);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, li === cur.sel && !phone.tabsOn, "rgba(0,0,0,0.05)");
+    g.font = "700 " + Math.round(W * PL.small) + "px " + UI;
+    const pr = yenText(e.price), prW = g.measureText(pr).width;
+    g.fillStyle = "#14171b"; g.textAlign = "right"; g.textBaseline = "middle";
+    g.fillText(pr, W * (1 - PL.pad) - W * 0.03, y + rowH * 0.52);
+    g.textAlign = "left"; g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+    clipText(g, e.name, W * (PL.pad + 0.035), y + rowH * 0.52, W * (1 - PL.pad) - W * 0.07 - prW - W * (PL.pad + 0.035));
+  }
+  if (cur.list.length > vis) {
+    g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI; g.textAlign = "right";
+    g.fillText((cur.sel + 1) + " / " + cur.list.length, W * (1 - PL.pad), y0 + vis * (rowH + H * 0.006) + H * 0.012);
+    g.textAlign = "left";
+  }
+  g.textBaseline = "alphabetic";
+}
+
 function drawSite(g, W, H, site) {
   g.save();
   g.beginPath();
@@ -13091,6 +13310,7 @@ function drawSite(g, W, H, site) {
 }
 
 function drawSiteBody(g, W, H, site) {
+  if (site.kind === "tech") { drawDokoto(g, W, H, site); return; }
   if (site.kind === "shop") {
     const eleven = site.brand === "eleven";
     siteChrome(g, W, H, site, "#f4f5f3");
@@ -13840,6 +14060,7 @@ function phoneCount() {
     const site = WEB[phone.site];
     if (site.kind === "shop") return SHOP_ITEMS.length;
     if (site.kind === "cars") return CAR_STOCK[site.tier].length;
+    if (site.kind === "tech") return dokotoCur().list.length;
     return 0;
   }
   if (phone.app === "Wallet") return 3;
@@ -13876,6 +14097,7 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "tech") { dokotoMove(dx, dy); return; }
   if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
     phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
     phone.dirty = true;
@@ -13932,7 +14154,7 @@ function phoneAct() {
       }
     }
   } else if (app === "Poodle") {
-    if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; }
+    if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; }
     else {
       const site = WEB[phone.site];
       if (site.kind === "shop") {
@@ -13950,6 +14172,8 @@ function phoneAct() {
             say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag.", 4);
           }
         }
+      } else if (site.kind === "tech") {
+        dokotoBuy();
       } else if (site.kind === "cars") {
         const c = CAR_STOCK[site.tier][clamp(phone.sub, 0, CAR_STOCK[site.tier].length - 1)];
         if (purse.yen < c.price) {
@@ -15040,7 +15264,8 @@ const GAME_BY_ID = {}; GAMES.forEach(g => { GAME_BY_ID[g.id] = g; });
 const GEAR = {
   playbox5: { id: "playbox5", name: "SOTI PlayBox 5", note: "Console · plug into a TV", maker: "soti", price: 69800 },
   pearcube: { id: "pearcube", name: "Pear Cube",      note: "Console · plug into a TV", maker: "pear", price: 74800 },
-  pearwatch:{ id: "pearwatch",name: "Pear Watch",     note: "Wear it and connect",           maker: "pear", price: 54800 }
+  pearwatch:{ id: "pearwatch",name: "Pear Watch",     note: "Wear it and connect",           maker: "pear", price: 54800 },
+  pearwatchu:{ id: "pearwatchu",name: "Pear Watch Ultra", note: "Wear it and connect",        maker: "pear", price: 129800 }
 };
 
 // Hooks the rest of the game fills in as the consoles and the watch arrive.
@@ -15048,7 +15273,7 @@ const GEAR = {
 function useGear(id) {
   const gr = GEAR[id];
   if (!gr) return;
-  if (id === "pearwatch") { bag.watchOn = !bag.watchOn; say(bag.watchOn ? "Pear Watch on." : "Pear Watch off.", 3); phone.dirty = true; return; }
+  if (id === "pearwatch" || id === "pearwatchu") { bag.watchOn = !bag.watchOn; say(bag.watchOn ? "Pear Watch on." : "Pear Watch off.", 3); phone.dirty = true; return; }
   say(gr.name + ". Plug it into a TV at home.", 4);
 }
 function consoleInsertGame(id) { return false; }
