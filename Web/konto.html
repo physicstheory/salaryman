@@ -1475,6 +1475,43 @@ function makeWorld(seed, report) {
     }
   }
 
+  // ---- relax the land -----------------------------------------------------
+  // The relief above is built from ridged noise, and ridged noise at a 19 m
+  // grid is a field of spikes: neighbouring cells 150 m apart, which is a 5:1
+  // slope. Nothing built on that can be driven. A road graded to 6.5% across
+  // it sits in a trench with walls a hundred metres high, and the car, which
+  // reads its height off the terrain and not off the road mesh, spends its
+  // time buried or airborne. So the low ground is blurred hard, and the blur
+  // eases off with altitude so the ranges keep their shape: Konto still has
+  // mountains, they just no longer reach down into the places people drive.
+  report("relaxing the foothills", 0.24);
+  (function relaxLand() {
+    const next = new Float32Array(n);
+    // Lowland is also pressed down a little. A flat country needs less relief
+    // to start with, and blurring alone leaves the long swells in.
+    for (let i = 0; i < n; i++) {
+      if (landMask[i] < 0.5 || height[i] <= 0) continue;
+      height[i] *= lerp(0.55, 1, sstep(60, 520, height[i]));
+    }
+    for (let pass = 0; pass < 16; pass++) {
+      for (let z = 0; z < GRID_Z; z++) {
+        for (let x = 0; x < GRID_X; x++) {
+          const i = idx(x, z), h = height[i];
+          if (landMask[i] < 0.5 || h <= 0.4) { next[i] = h; continue; }
+          const xm = Math.max(0, x - 1), xp = Math.min(GRID_X - 1, x + 1);
+          const zm = Math.max(0, z - 1), zp = Math.min(GRID_Z - 1, z + 1);
+          const avg = (height[idx(xm, zm)] + height[idx(xp, zm)] + height[idx(xm, zp)] + height[idx(xp, zp)]
+                     + 2 * (height[idx(xm, z)] + height[idx(xp, z)] + height[idx(x, zm)] + height[idx(x, zp)])
+                     + 4 * h) / 16;
+          // full strength under 250 m, none above 1100 m
+          const k = 1 - sstep(250, 1100, h);
+          next[i] = lerp(h, avg, k);
+        }
+      }
+      height.set(next);
+    }
+  })();
+
   // ---- basins, plains, volcanoes, settlement terraces -------------------
   report("flattening basins and plains", 0.26);
   function rectAround(px, pz, radius) {
@@ -1756,7 +1793,26 @@ function makeWorld(seed, report) {
   };
   // The made ground of a city is drawn as a sheet 0.7 m over the terrain, so
   // anything that walks has to stand on that sheet and not on the soil below.
+  // A bridge is a stretch of carriageway with water under it. The terrain
+  // height there is the seabed, so anything that stands or drives on the
+  // world has to ask whether it is on a deck before it believes the ground.
+  world.bridges = [];
+  world.bridgeY = (px, pz) => {
+    const list = world.bridges;
+    for (let i = 0; i < list.length; i++) {
+      const b = list[i];
+      if (px < b.x0 || px > b.x1 || pz < b.z0 || pz > b.z1) continue;
+      const dx = px - b.ax, dz = pz - b.az;
+      const along = dx * b.ux + dz * b.uz;
+      if (along < 0 || along > b.len) continue;
+      if (Math.abs(dx * b.uz - dz * b.ux) > b.hw) continue;
+      return b.ya + (b.yb - b.ya) * (along / b.len);
+    }
+    return null;
+  };
   world.surfaceY = (px, pz) => {
+    const deck = world.bridgeY(px, pz);
+    if (deck !== null) return deck;
     let lift = 0;
     for (let i = 0; i < world.cities.length; i++) {
       const f = world.cities[i].footprint;
@@ -2546,12 +2602,133 @@ function planCity(world, F, seed, report, progressBase) {
         U[i] = Math.max(U[i], urbanValue);
       }
     }
+    // The carriageway is set to the graded height exactly; the ground either
+    // side is pulled towards it over a shoulder, so a road across a slope gets
+    // a cutting on one side and an embankment on the other instead of a knife
+    // edge where the stamp stops. This is what earthworks are, and without
+    // them a graded road is a flat ribbon sitting in a hillside.
+    function roadBed(cx, cz, yaw, halfWidth, y) {
+      // The terrain is a grid of about 19 m cells sampled bilinearly, so a
+      // point on the centre line is a blend of the four cells round it. A bed
+      // only as wide as the carriageway leaves some of those four on raw
+      // hillside, and the car - which takes its height from that sample, not
+      // from the road mesh - ends up buried or floating by the difference. On
+      // Suzuran-dori the road was at 86 m and the ground the car read was
+      // 141. The flat part has to reach a full cell past the kerb on each
+      // side for the blend to be all road; the shoulder then runs out over
+      // several more, so the cutting or bank is a slope and not a wall.
+      const sx = halfWidth * 2 + CELL * 1.9, shoulder = halfWidth * 2 + CELL * 8;
+      const rad = yaw * Math.PI / 180, cs = Math.cos(rad), sn = Math.sin(rad);
+      const sz = CELL * 1.2;
+      const ex = Math.abs(cs * shoulder * 0.5) + Math.abs(sn * sz * 0.5);
+      const ez = Math.abs(sn * shoulder * 0.5) + Math.abs(cs * sz * 0.5);
+      const x0 = Math.max(0, Math.floor((cx - ex) / CELL)), x1 = Math.min(GRID_X - 1, Math.ceil((cx + ex) / CELL));
+      const z0 = Math.max(0, Math.floor((cz - ez) / CELL)), z1 = Math.min(GRID_Z - 1, Math.ceil((cz + ez) / CELL));
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+        const l = toRectLocal(x * CELL, z * CELL, cx, cz, yaw);
+        if (Math.abs(l[1]) > sz * 0.5) continue;
+        const u = Math.abs(l[0]);
+        if (u > shoulder * 0.5) continue;
+        const i = world.idx(x, z);
+        if (u <= sx * 0.5) { H[i] = y; U[i] = 1; continue; }
+        // the shoulder: all of the way to the road at the kerb, none of it at
+        // the far edge, so the two meet without a step
+        const w = 1 - sstep(sx * 0.5, shoulder * 0.5, u);
+        H[i] = lerp(H[i], y, w);
+      }
+    }
+
+    // The centre line of every road, remembered while the beds are laid and
+    // pinned again once the plots have been graded - see the end of this block.
+    const pins = [];
+
     // Made ground first: a flat deck a few metres above the water.
     L.fills.forEach(f => stampRect(f.c[0], f.c[1], f.size[0], f.size[1], f.rot, f.y, 1));
+
+    // ---- keep the network on land -------------------------------------------
+    // The ring roads and the rail loop were laid out as circles round the
+    // centre, and a circle round a coastal city is half sea. They ran out over
+    // the bay as lines on the water, with nothing under them but a deck
+    // wherever the bridge builder had been taught to find one. A road does not
+    // go out into the ocean. Every path is cut where it leaves the land; a
+    // short crossing between two bits of ground - a few hundred metres, both
+    // ends dry - can stay as a bridge, but only a few of them, and they are
+    // marked so the bridge builder gives them a real deck rather than a bank.
+    (function dryPaths() {
+      const BRIDGE_MAX = 460, MIN_RUN = 4;
+      const wet = q => world.sampleHeight(q[0], q[2]) < 0.5;
+      const cutList = (list, maxBridges) => {
+        const extra = [];
+        let used = 0;
+        list.forEach(path => {
+          let pts = path.pts;
+          if (!pts || pts.length < 3) return;
+          const first = pts.findIndex(wet);
+          if (first < 0) return;                       // wholly on land: left alone
+          if (path.loop) pts = pts.slice(first).concat(pts.slice(0, first));   // open it at the water
+          const runs = []; let cur = [];
+          pts.forEach(q => { if (wet(q)) { if (cur.length) runs.push(cur); cur = []; } else cur.push(q); });
+          if (cur.length) runs.push(cur);
+          const merged = [];
+          runs.forEach(run => {
+            const prev = merged[merged.length - 1];
+            if (prev && prev.length >= MIN_RUN && run.length >= MIN_RUN && used < maxBridges) {
+              const a = prev[prev.length - 1], b = run[0];
+              if (Math.hypot(a[0] - b[0], a[2] - b[2]) <= BRIDGE_MAX) {
+                a.span = true; b.span = true; used++;
+                merged[merged.length - 1] = prev.concat(run);
+                return;
+              }
+            }
+            merged.push(run);
+          });
+          const kept = merged.filter(r => r.length >= MIN_RUN).sort((x, y) => y.length - x.length);
+          if (!kept.length) { path.pts = pts.slice(0, 0); path.dead = true; return; }
+          // the longest piece stays where the path was, so anything holding its
+          // index still finds a road there; the rest are appended
+          path.pts = kept[0];
+          path.loop = false;
+          for (let k = 1; k < kept.length; k++) extra.push(Object.assign({}, path, { pts: kept[k], loop: false }));
+        });
+        for (let i = list.length - 1; i >= 0; i--) if (list[i].dead) list.splice(i, 1);
+        extra.forEach(e => list.push(e));
+      };
+      cutList(L.roads, 3);
+      cutList(L.rails, 1);
+    })();
 
     // Roads get a running profile: sampled, smoothed along their length, then held
     // to a gradient limit. That is the difference between a road and a stripe.
     L.roads.concat(L.rails).forEach(path => {
+      // A road ends where the ground becomes too steep to put one on. The
+      // radials were laid out as straight lines from the centre and just kept
+      // going, up whatever was in the way, and the grade limiter then pulled
+      // the carriageway away from a hillside it could not follow: a cutting a
+      // hundred metres deep with walls you could not drive up and street trees
+      // standing in mid-air on the face of it. Real roads stop at the foot of
+      // the hill. Only the open-country tails are trimmed - rings, rails,
+      // viaducts and expressways are left alone - and a road always keeps
+      // enough of itself to be a road.
+      if (!path.elevated && !path.loop && path.cls !== "expressway" && L.rails.indexOf(path) < 0) {
+        const TOO_STEEP = 0.58, KEEP = 5;
+        const steep = q => world.slopeAt(q[0], q[2]) > TOO_STEEP;
+        // Walk outwards from whichever end is nearer the middle of town and
+        // stop at the first run of two steep points. Trimming only the tail
+        // missed the case that actually happened: a radial that climbs a
+        // ridge, crosses it in a cutting, and carries on down the far side.
+        const pts = path.pts, last = pts.length - 1;
+        const d0 = Math.hypot(pts[0][0] - coreW[0], pts[0][2] - coreW[1]);
+        const d1 = Math.hypot(pts[last][0] - coreW[0], pts[last][2] - coreW[1]);
+        const ordered = d0 <= d1 ? pts.slice() : pts.slice().reverse();
+        let cut = -1;
+        for (let i = KEEP; i < ordered.length - 1; i++) {
+          if (steep(ordered[i]) && steep(ordered[i + 1])) { cut = i; break; }
+        }
+        if (cut > 0) {
+          const kept = ordered.slice(0, cut);
+          path.pts = d0 <= d1 ? kept : kept.reverse();
+        }
+      }
       const p = path.pts;
       // The sea is one flat sheet at y = 0, so a carriageway graded to the
       // ground where the ground is below that comes out underwater: the water
@@ -2589,16 +2766,34 @@ function planCity(world, F, seed, report, progressBase) {
       // Lay the carriageway on the ground, but never across open water: that is a
       // bridge, and a bridge does not need earthworks.
       for (let i = 1; i < p.length; i++) {
+        if (p[i - 1].span && p[i].span) continue;        // a bridge: no bank under it
         const ax = p[i - 1][0], az = p[i - 1][2], bx = p[i][0], bz = p[i][2];
         const len = Math.hypot(bx - ax, bz - az);
         const steps = Math.max(1, Math.ceil(len / (CELL * 0.6)));
         for (let k = 0; k <= steps; k++) {
           const t = k / steps;
           const cx = lerp(ax, bx, t), cz = lerp(az, bz, t);
-          if (world.sampleHeight(cx, cz) < 0.6) continue;
-          if (footprint(cx, cz) < 0.04) continue;
+          // Two gates used to stand here and between them they left a good
+          // deal of the network lying on raw ground.
+          //
+          // The first stopped at the edge of the built-up area, so every road
+          // outside it was ungraded - and once the towns stopped being allowed
+          // to build on steep ground, that was most of some of their networks.
+          // A road is a road wherever it runs.
+          //
+          // The second skipped anywhere the ground was below the waterline, on
+          // the grounds that a bridge needs no earthworks. Nothing was ever
+          // building the bridge, so the carriageway hung over a cliff and the
+          // car went into the sea. Shiokawa's roads were 24 m above their own
+          // ground on average because of it. A shore road on made ground is
+          // what Japan actually builds, so the ground comes up to meet it -
+          // but only where there is a bank to be made rather than a strait to
+          // be crossed, and deep water is still left alone.
+          const bed = lerp(prof[i - 1], prof[i], t);
+          if (world.sampleHeight(cx, cz) < bed - 26) continue;
           const dirx = (bx - ax) / (len || 1), dirz = (bz - az) / (len || 1);
-          stampRect(cx, cz, path.halfWidth * 2 + 6, CELL * 1.2, yawFrom([dirz, -dirx]), lerp(prof[i - 1], prof[i], t), 1);
+          roadBed(cx, cz, yawFrom([dirz, -dirx]), path.halfWidth, bed);
+          pins.push([cx, cz, bed]);
         }
       }
     });
@@ -2632,6 +2827,25 @@ function planCity(world, F, seed, report, progressBase) {
         const i = world.idx(x, z);
         world.urban[i] = 1;
         world.height[i] = d >= m.inner ? m.groundY - 5.2 : m.groundY;
+      }
+    }
+
+    // Pin the centre line. Plots are graded after roads, flat, and sit right
+    // against the kerb, so their platforms overwrite the outer cells of every
+    // road bed beside them. The terrain is sampled bilinearly - a point on the
+    // road is a blend of the four cells round it - so with those cells gone
+    // the ground a car reads is the hillside, not the road: 17 to 80 m out on
+    // some of the radials. The plots keep their exact heights, which is what
+    // lets a building land on its ground, and only the cells under the road
+    // itself are set back to the road's own height, four round each sample.
+    for (let k = 0; k < pins.length; k++) {
+      const q = pins[k];
+      const fx = q[0] / CELL, fz = q[1] / CELL;
+      const x0 = Math.floor(fx), z0 = Math.floor(fz);
+      for (let dz = 0; dz <= 1; dz++) for (let dx = 0; dx <= 1; dx++) {
+        const x = x0 + dx, z = z0 + dz;
+        if (x < 0 || z < 0 || x >= GRID_X || z >= GRID_Z) continue;
+        H[world.idx(x, z)] = q[2];
       }
     }
   })();
@@ -5081,6 +5295,51 @@ function buildScene(w) {
         }
       }
     });
+    // Bridges. The road bed (see roadBed) deliberately leaves deep water alone
+    // and expects a bridge there, but nothing ever built one, so a road over a
+    // bay was a carriageway hanging in the air and a car driven onto it dropped
+    // into the sea. A ground-level road whose terrain is well below its own
+    // profile gets a deck under the carriageway and a pier to the bed every
+    // so often, built from the same boxes the viaducts use.
+    if (city === world.cities[0]) world.bridges.length = 0;
+    city.roads.forEach(path => {
+      if (path.elevated || !path.profile) return;
+      let since = 0;
+      for (let i = 1; i < path.pts.length; i++) {
+        const a = path.pts[i - 1], b = path.pts[i];
+        const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        if (len < 1) continue;
+        const mid = [(a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5];
+        const deckY = (path.profile[i - 1] + path.profile[i]) * 0.5;
+        // The lowest of the two ends and the middle. Judged on the middle
+        // alone, a segment that runs off a shore into deep water was called
+        // land, got no deck, and the road simply stopped in mid-air.
+        const groundY = Math.min(world.sampleHeight(mid[0], mid[1]),
+                                 world.sampleHeight(a[0], a[2]), world.sampleHeight(b[0], b[2]));
+        const forced = a.span && b.span;
+        if (!forced && groundY > deckY - 3.2) { since = 0; continue; }   // on the ground: no bridge
+        const ya = yawFrom([(b[0] - a[0]) / len, (b[2] - a[2]) / len]);
+        // Tilted to the road. A level box per segment turns a sloping road into
+        // a staircase of slabs while the cars follow the smooth line between
+        // the two ends, so the deck has to lie along that line. Positive pitch
+        // about X lowers the +Z end, hence the sign.
+        const pitch = -Math.atan2(path.profile[i] - path.profile[i - 1], len);
+        boxes.push({ c: mid, size: [path.halfWidth * 2 + 1, len * 1.06], yaw: ya, pitch: pitch,
+                     y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
+        const hw = path.halfWidth + 0.5;
+        world.bridges.push({ ax: a[0], az: a[2], ux: (b[0] - a[0]) / len, uz: (b[2] - a[2]) / len,
+                             len: len, hw: hw, ya: path.profile[i - 1] + 0.04, yb: path.profile[i] + 0.04,
+                             x0: Math.min(a[0], b[0]) - hw, x1: Math.max(a[0], b[0]) + hw,
+                             z0: Math.min(a[2], b[2]) - hw, z1: Math.max(a[2], b[2]) + hw });
+        since += len;
+        if (since < 30) continue;
+        since = 0;
+        const floor = Math.min(groundY, deckY - 2);
+        boxes.push({ c: mid, size: [path.halfWidth * 0.6, path.halfWidth * 0.6], yaw: ya,
+                     y: floor, h: Math.max(2, deckY - 1.4 - floor), deck: true, style: "deck" });
+      }
+    });
+
     // Viaduct decks and piers, so the expressway and the loop line are visible.
     city.roads.concat(city.rails).forEach(path => {
       if (!path.elevated) return;
@@ -5120,7 +5379,7 @@ function buildScene(w) {
         const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
         const col = new THREE.Color();
         list.forEach((b, i) => {
-          e.set(0, b.yaw * Math.PI / 180, 0);
+          e.set(b.pitch || 0, b.yaw * Math.PI / 180, 0, "YXZ");
           q.setFromEuler(e);
           m.compose(
             new THREE.Vector3(b.c[0], b.y + b.h * 0.5, b.c[1]),
@@ -5275,7 +5534,31 @@ function seikoLoaded(gltf) {
   gltf.scene.rotation.y = SEIKO_FACING;
   inner.add(gltf.scene);
   inner.traverse(o => {
-    if (o.isMesh || o.isSkinnedMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; }
+    if (!(o.isMesh || o.isSkinnedMesh)) return;
+    o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false;
+    // The exported material arrives as transparent, with depth writing off,
+    // double sided, metallic = 1 and rough = 1. The first two are why he looked
+    // see-through: with no depth write his back faces and the inside of his
+    // jacket are drawn over his front, in whatever order the sort lands on. His
+    // texture has no alpha channel at all, so nothing about him is meant to be
+    // transparent. The last two are the glTF defaults for a file that never
+    // said, and they make a shirt look like brushed steel. He is a person.
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+      if (!m) return;
+      m.transparent = false;
+      m.opacity = 1;
+      m.depthWrite = true;
+      m.depthTest = true;
+      m.alphaTest = 0;
+      m.blending = THREE.NormalBlending;
+      if (m.isMeshStandardMaterial) {
+        m.metalness = 0.0;
+        m.roughness = 0.82;
+        m.envMapIntensity = 0.35;
+      }
+      m.needsUpdate = true;
+    });
+    o.renderOrder = 0;
   });
 
   if (gltf.animations && gltf.animations.length) {
@@ -5978,8 +6261,21 @@ function treeGeometry(species) {
     g.translate(0, 0.5, 0);
     parts.push(placed(g, 0, y, 0, r, h, r));
   };
+  // A canopy lobe: a finer sphere with every vertex pushed in or out by a
+  // deterministic hash of where it is, so the outline is a cloud and not a
+  // polyhedron. The hash is of position, so the shared vertices of the
+  // faceted sphere move together and the surface stays closed.
   const blob = (r, flat, x, y, z) => {
-    const g = new THREE.IcosahedronGeometry(1, 1);
+    const g = new THREE.IcosahedronGeometry(1, 2);
+    const pos = g.getAttribute("position");
+    const seed = Math.round((x * 31 + y * 17 + z * 13 + r * 7) * 1000);
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+      const n = Math.sin(vx * 5.1 + seed) * Math.cos(vy * 4.3 - seed * 0.7) * Math.sin(vz * 4.7 + seed * 1.3);
+      const k = 1 + n * 0.20 + Math.sin((vx + vz) * 9.0 + seed) * 0.05;
+      pos.setXYZ(i, vx * k, vy * k, vz * k);
+    }
+    g.computeVertexNormals();
     parts.push(placed(g, x, y, z, r, r * flat, r));
   };
 
@@ -6024,15 +6320,18 @@ const TREE_LOOK = {
   sugi:   { crown: 0x2f4a30, tall: [11, 21], narrow: true },
   matsu:  { crown: 0x3d5438, tall: [5.5, 9.5] },
   keyaki: { crown: 0x4e7036, tall: [8, 15] },
-  sakura: { crown: 0xd6a9ba, tall: [5, 8] }
+  sakura: { crown: 0xc98aa3, tall: [5, 8] }
 };
 
 function treeMaterial(species) {
   const look = TREE_LOOK[species] || TREE_LOOK.keyaki;
+  // Smooth shaded for the broadleaves, which are clouds. The sugi keeps flat
+  // shading: a cedar is a stack of hard-edged skirts and wants to look it.
+  const flat = species === "sugi";
   return gfx.high
-    ? new THREE.MeshStandardMaterial({ color: look.crown, roughness: 0.92, metalness: 0.0,
-        flatShading: true })
-    : new THREE.MeshLambertMaterial({ color: look.crown, flatShading: true });
+    ? new THREE.MeshStandardMaterial({ color: look.crown, roughness: 0.94, metalness: 0.0,
+        flatShading: flat })
+    : new THREE.MeshLambertMaterial({ color: look.crown, flatShading: flat });
 }
 
 // Which tree goes where. A shrine precinct is sugi and sakura and nothing
@@ -14023,8 +14322,9 @@ function updateDrive(dt) {
 
   const step = c.speed * dt;
   const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
+  const onDeck = world.bridgeY(nx, nz) !== null;
   const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
-    || world.sampleHeight(nx, nz) < 0.4
+    || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
     || insideBuilding(nx, nz, kind.W * 0.45);
   if (blocked) {
     c.speed *= -0.22;                               // a thump, not a bounce
