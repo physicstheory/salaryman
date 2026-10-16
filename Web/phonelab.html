@@ -416,7 +416,7 @@ const PHONE_APPS = [
   ["Poodle",    "#3b6ea8", "globe"],
   ["Wallet",    "#1d2026", "card"],
   ["Camera",    "#4a5058", "cam"],
-  ["MyNet",     "#101014", "mynet"],
+  ["MyGram",     "#101014", "mynet"],
   ["Nihon",     "#157a46", "rail"],
   ["Phone",     "#2f8a4c", "call"],
   ["Mail",      "#2f6fb0", "chat"],
@@ -590,6 +590,19 @@ function drawPageSite(g, W, H, site) {
 
 function two(n) { return (n < 10 ? "0" : "") + n; }
 
+function mnLogo(g, x, y, s, tile) {
+  g.save();
+  if (!tile) { roundRect(g, x, y, s, s, s * 0.235); g.clip(); }
+  const q = g.createRadialGradient(x + s * 0.28, y + s * 1.02, s * 0.02, x + s * 0.28, y + s * 1.02, s * 1.25);
+  q.addColorStop(0, "#fdf497"); q.addColorStop(0.08, "#fdf497"); q.addColorStop(0.42, "#fd5949"); q.addColorStop(0.62, "#d6249f"); q.addColorStop(0.95, "#285aeb");
+  g.fillStyle = q; g.fillRect(x, y, s, s);
+  g.strokeStyle = "#ffffff"; g.fillStyle = "#ffffff"; g.lineWidth = s * 0.075;
+  roundRect(g, x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6, s * 0.17); g.stroke();
+  g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.14, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.arc(x + s * 0.675, y + s * 0.325, s * 0.04, 0, Math.PI * 2); g.fill();
+  g.restore();
+}
+
 function phoneIcon(g, x, y, s, colour, glyph) {
   const r = s * 0.235;
   g.save();
@@ -720,14 +733,7 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.fillStyle = colour;
     g.beginPath(); g.arc(c, m, u * 0.2, 0, 6.2832); g.fill();
   } else if (glyph === "mynet") {
-    // the warm-to-cool wash of the photo apps, from the bottom left, with a camera drawn on it
-    const q = g.createRadialGradient(x + s * 0.28, y + s * 1.02, s * 0.02, x + s * 0.28, y + s * 1.02, s * 1.25);
-    q.addColorStop(0, "#fdf497"); q.addColorStop(0.08, "#fdf497"); q.addColorStop(0.42, "#fd5949"); q.addColorStop(0.62, "#d6249f"); q.addColorStop(0.95, "#285aeb");
-    g.fillStyle = q; g.fillRect(x, y, s, s);
-    g.strokeStyle = "#ffffff"; g.fillStyle = "#ffffff"; g.lineWidth = s * 0.075;
-    roundRect(g, x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6, s * 0.17); g.stroke();
-    g.beginPath(); g.arc(c, m, s * 0.14, 0, Math.PI * 2); g.stroke();
-    g.beginPath(); g.arc(x + s * 0.675, y + s * 0.325, s * 0.04, 0, Math.PI * 2); g.fill();
+    mnLogo(g, x, y, s, true);
   } else if (glyph === "soti") {
     g.fillStyle = "#f4f6f8";
     g.font = "400 " + Math.round(s * 0.26) + "px " + SERIF;
@@ -3400,7 +3406,7 @@ async function mnAskClaude(photo, caption, A) {
     ].join("\n");
     const body = {
       model: "claude-haiku-5-5", max_tokens: 900,
-      system: "You are the audience of MyNet, a photo-sharing app on Konto, a fictional island version of Japan. A salaryman called Seiko Shigu posts a photo with a caption and his followers react. Judge it honestly from what is actually in the picture and what the caption says: sharpness, light, composition, whether the caption matches the photo (a caption claiming ramen over a photo of a wall is a mismatch), repetition, spam, and tone. Reply with JSON only, no prose and no code fence: {\"score\":0-100,\"verdict\":\"one short sentence\",\"noticed\":[{\"good\":true|false,\"text\":\"short observation\"}],\"comments\":[{\"user\":\"@handle\",\"text\":\"comment\"}]}. Score 82+ is viral, 68+ great, 55+ good, 42+ meh, 28+ bad, below that a disaster. Give 3 to 8 comments in the voices of different islanders (fans, foodies, rail nerds, trolls, grannies, his boss Section Chief Tanaka). A bad post gets playful roasts that refer to exactly what is wrong with it. Never use slurs or real hate, and never mention real people or real brands.",
+      system: "You are the audience of MyGram, a photo-sharing app on Konto, a fictional island version of Japan. A salaryman called Seiko Shigu posts a photo with a caption and his followers react. Judge it honestly from what is actually in the picture and what the caption says: sharpness, light, composition, whether the caption matches the photo (a caption claiming ramen over a photo of a wall is a mismatch), repetition, spam, and tone. Reply with JSON only, no prose and no code fence: {\"score\":0-100,\"verdict\":\"one short sentence\",\"noticed\":[{\"good\":true|false,\"text\":\"short observation\"}],\"comments\":[{\"user\":\"@handle\",\"text\":\"comment\"}]}. Score 82+ is viral, 68+ great, 55+ good, 42+ meh, 28+ bad, below that a disaster. Give 3 to 8 comments in the voices of different islanders (fans, foodies, rail nerds, trolls, grannies, his boss Section Chief Tanaka). A bad post gets playful roasts that refer to exactly what is wrong with it. Never use slurs or real hate, and never mention real people or real brands.",
       messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: data } }, { type: "text", text: facts + "\nCaption: " + (caption ? "\"" + caption + "\"" : "(none)") }] }]
     };
     const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", signal: ctl.signal,
@@ -3489,7 +3495,7 @@ function mnThread(who, kind, first, extra) {
   const th = Object.assign({ id: mynet.nid++, who: who, kind: kind, msgs: [{ from: "them", text: first, t: mnNow() }], unread: true, opts: null, closed: false }, extra || {});
   th.opts = mnOptions(th);
   mynet.threads.unshift(th);
-  mnSay("MyNet · new message from " + who.name, 4);
+  mnSay("MyGram · new message from " + who.name, 4);
   phone.dirty = true;
   return th;
 }
@@ -3578,11 +3584,11 @@ function updateMyNet(dt) {
   let changed = false;
   while (mynet.pending.length && mynet.pending[0].at <= now) {
     const e = mynet.pending.shift(); changed = true;
-    if (e.type === "like") { e.post.likes += e.n; e.post.unseen = (e.post.unseen || 0) + 1; if (!e.post.firstLike) { e.post.firstLike = true; mynet.newReact++; mnSay("MyNet · " + mnPerson().handle + " liked your post", 3); } }
-    else if (e.type === "comment") { e.post.comments.push({ who: e.c.who, text: e.c.text, t: now, pol: e.c.pol }); mynet.newReact++; if (e.c.pol === "neg" || e.post.comments.length === 1) mnSay("MyNet · " + e.c.who.handle + ": " + e.c.text.slice(0, 48), 4); }
-    else if (e.type === "follow") { mynet.me.followers = Math.max(0, mynet.me.followers + e.n); if (e.n < 0 && Math.random() < 0.4) mnSay("MyNet · you lost " + Math.abs(e.n) + " follower" + (Math.abs(e.n) > 1 ? "s" : ""), 3); else if (e.n >= 5 && Math.random() < 0.5) mnSay("MyNet · +" + e.n + " new followers", 3); }
+    if (e.type === "like") { e.post.likes += e.n; e.post.unseen = (e.post.unseen || 0) + 1; if (!e.post.firstLike) { e.post.firstLike = true; mynet.newReact++; mnSay("MyGram · " + mnPerson().handle + " liked your post", 3); } }
+    else if (e.type === "comment") { e.post.comments.push({ who: e.c.who, text: e.c.text, t: now, pol: e.c.pol }); mynet.newReact++; if (e.c.pol === "neg" || e.post.comments.length === 1) mnSay("MyGram · " + e.c.who.handle + ": " + e.c.text.slice(0, 48), 4); }
+    else if (e.type === "follow") { mynet.me.followers = Math.max(0, mynet.me.followers + e.n); if (e.n < 0 && Math.random() < 0.4) mnSay("MyGram · you lost " + Math.abs(e.n) + " follower" + (Math.abs(e.n) > 1 ? "s" : ""), 3); else if (e.n >= 5 && Math.random() < 0.5) mnSay("MyGram · +" + e.n + " new followers", 3); }
     else if (e.type === "dm" && e.fn) e.fn();
-    else if (e.type === "pay") mnSay("MyNet · " + e.brand + " paid you ¥" + e.n.toLocaleString("en-US"), 6);
+    else if (e.type === "pay") mnSay("MyGram · " + e.brand + " paid you ¥" + e.n.toLocaleString("en-US"), 6);
   }
   // other people carry on posting
   if (now >= mynet.feedAt) {
@@ -3606,7 +3612,7 @@ function updateMyNet(dt) {
   // the number on the profile rolls rather than jumps
   const diff = mynet.me.followers - mynet.me.shown;
   if (Math.abs(diff) > 0.2) { mynet.me.shown += diff * Math.min(1, dt * 4); if (Math.abs(mynet.me.followers - mynet.me.shown) < 0.5) mynet.me.shown = mynet.me.followers; changed = true; }
-  if (changed && phone.open && phone.app === "MyNet") phone.dirty = true;
+  if (changed && phone.open && phone.app === "MyGram") phone.dirty = true;
 }
 
 const MN_BG = "#0b0c10", MN_INK = "#f2f3f5", MN_DIM = "#8b9099", MN_LINE = "#22252c", MN_RED = "#ff3b5c", MN_GOOD = "#3ddc84", MN_BAD = "#ff5a5a";
@@ -3686,7 +3692,8 @@ function mnGradText(g, text, x, y, size) {
 }
 
 function mnHeader(g, W, H) {
-  mnGradText(g, "MyNet", W * 0.055, H * 0.103, W * 0.088);
+  mnLogo(g, W * 0.045, H * 0.0615, W * 0.095, false);
+  mnGradText(g, "MyGram", W * 0.165, H * 0.1035, W * 0.088);
   const bx = W * 0.80, ix = W * 0.915, y = H * 0.087;
   mnIcon(g, "heart", bx, y, W * 0.058, MN_INK, false);
   mnIcon(g, "plane", ix, y, W * 0.058, MN_INK, false);
@@ -4303,7 +4310,7 @@ function appContacts(g, W, H) {
     g.fillText("Nobody has given Seiko", W * 0.5, H * 0.45);
     g.fillText("their number.", W * 0.5, H * 0.49);
     g.fillStyle = "#4f565e"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-    g.fillText("Strangers on MyNet might.", W * 0.5, H * 0.545);
+    g.fillText("Strangers on MyGram might.", W * 0.5, H * 0.545);
     g.textAlign = "left";
     return;
   }
@@ -4618,7 +4625,7 @@ function appSettings(g, W, H) {
 
 const PHONE_SCREENS = {
   Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
-  MyNet: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
+  MyGram: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
   Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
   Health: appHealth
 };
@@ -4644,7 +4651,7 @@ function phoneCount() {
   if (phone.app === "Wallet") return wallet.add ? WALLET_ADD.length : walletCards().length;
   if (phone.app === "Contacts") return mynet.contacts.length;
   if (phone.app === "Camera") return 1;
-  if (phone.app === "MyNet") return 1;
+  if (phone.app === "MyGram") return 1;
   if (phone.app === "Nihon") return 5;
   if (phone.app === "Phone") return phone.vmail ? 0 : 13;
   if (phone.app === "Mail") return SCAM_MAIL.length;
@@ -4676,7 +4683,7 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
-  if (phone.app === "MyNet") { mynetMove(dx, dy); return; }
+  if (phone.app === "MyGram") { mynetMove(dx, dy); return; }
   if (phone.app === "Settings" && dx) {
     const row = settingsRows()[phone.sub] || [""];
     if (/^Wallpaper/.test(row[0])) { phone.pearWall = ((phone.pearWall || 0) + dx + PEAR_WALLPAPERS.length) % PEAR_WALLPAPERS.length; phone.dirty = true; }
@@ -4707,11 +4714,11 @@ function phoneMoveScreen(dx, dy) {
     const n = phoneCount();
     if (!n) return;
     // The dialler is a three-wide keypad; everything else is a list, and
-    // MyNet is a feed you flick up and down.
+    // MyGram is a feed you flick up and down.
     let step = dy;
     if (phone.app === "Phone" && phone.sub < 12) step = dy * 3 + dx;
     else if (dx && phone.app !== "Phone") step = dx;
-    const next = phone.app === "MyNet"
+    const next = phone.app === "MyGram"
       ? (phone.sub + step + n) % n
       : clamp(phone.sub + step, 0, n - 1);
     if (next !== phone.sub) { phone.sub = next; phone.dirty = true; }
@@ -4809,7 +4816,7 @@ function phoneAct() {
       if (v === null || v === undefined) say("Open the game with ?cm=<YouTube link> to choose your own.", 5);
       else { video.src = v.trim() || DEFAULT_CM; say("Video source set.", 3); }
     }
-  } else if (app === "MyNet") {
+  } else if (app === "MyGram") {
     mynetAct();
   } else if (app === "Contacts") {
     const c = mynet.contacts[phone.sub]; if (c) mynetCall(c);
@@ -4839,7 +4846,7 @@ function phoneBack() {
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
   if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
-  if (phone.app === "MyNet" && mynetBack()) { phone.dirty = true; return true; }
+  if (phone.app === "MyGram" && mynetBack()) { phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
   return false;
