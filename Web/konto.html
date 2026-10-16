@@ -4785,6 +4785,14 @@ function pollPad(dt) {
 
   // A shop owns the pad while you are inside one.
   if (shops.inside) {
+    if (shops.inside.mall && mall.mode === "test" && mall.tkind === "arcade") {
+      const P = arcade.pad;
+      P.l = held(PAD.LEFT) || (gp.axes[0] || 0) < -0.5; P.r = held(PAD.RIGHT) || (gp.axes[0] || 0) > 0.5;
+      P.u = held(PAD.UP) || (gp.axes[1] || 0) < -0.5;   P.d = held(PAD.DOWN) || (gp.axes[1] || 0) > 0.5;
+      P.a = held(PAD.A);
+      if (pressed(PAD.B)) leaveShop();
+      return;
+    }
     if (pressed(PAD.LEFT)) shopMove(-1, 0);
     if (pressed(PAD.RIGHT)) shopMove(1, 0);
     if (pressed(PAD.UP)) shopMove(0, -1);
@@ -5067,8 +5075,7 @@ function fillPauseStats() {
   const prows = [
     ["Balance", yenText(purse.yen)],
     ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
-    ["Audio device", phone.owns.headphones ? "SOTI Studio"
-      : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
+    ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) : audioOwned() ? "In the bag" : "None"],
     ["Ryde", phone.ryde ? phone.ryde.cls + ", " + Math.ceil(phone.ryde.eta) + " min away" : "No car booked"],
     ["Deliveries", deliveries.length ? deliveries.map(d => d.name).join(", ") : "Nothing on the way"],
     ["Gallery", phone.gallery.length + " photographs"]
@@ -5909,6 +5916,7 @@ function adoptSeiko(fitted) {
   player.obj.rotation.set(0, player.yaw, 0);
   parent.add(player.obj);
   if (player.shirtHex) setSeikoShirt(player.shirtHex);
+  seikoWear();
 }
 
 // ---------------------------------------------------------------- the player
@@ -13599,7 +13607,8 @@ const CAR_STOCK = {
 // colour picked, which is what a product page is for.
 const DOKOTO_TABS = [
   { id: "phones", name: "Phones" },
-  { id: "wear",   name: "Watch & Console" },
+  { id: "wear",   name: "Watch & Audio" },
+  { id: "tv",     name: "TVs" },
   { id: "games",  name: "Games" },
   { id: "card",   name: "Card" }
 ];
@@ -13615,11 +13624,15 @@ function dokotoList(tab) {
       const gr = GEAR[id];
       out.push({ kind: "gear", id: id, name: gr.name, price: gr.price, days: 2, note: gr.note });
     });
-  } else if (tab === 3) {
+    [["pods", 24800, "Pear \u00b7 wireless, with a stem"], ["podspro", 39800, "Pear \u00b7 noise cancelling, silicone tips"], ["earbuds", 24800, "SOTI \u00b7 wireless, no stem"], ["headphones", 41200, "SOTI \u00b7 over-ear, louder about it"]].forEach(a =>
+      out.push({ kind: "audio", id: a[0], name: AUDIO_NAMES[a[0]], price: a[1], days: 1, note: a[2] }));
+  } else if (tab === 2) {
+    TVS.forEach(t => out.push({ kind: "tv", id: t.id, name: t.name, price: t.price, days: 3, note: t.note, size: t.size, maker: t.maker }));
+  } else if (tab === 4) {
     out.push({ kind: "card", id: "dokoto", name: "Dokoto Point card", price: 0, days: 0, note: "Switched on here, after three purchases from Dokoto Camera" });
   } else {
     GAMES.forEach(gm => out.push({ kind: "game", id: gm.id, name: gm.name, price: gm.price, days: 1,
-      note: gm.genre + " · " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
+      note: gm.genre + " \u00b7 " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
   }
   return out;
 }
@@ -13757,6 +13770,10 @@ function drawDokoto(g, W, H, site) {
     if (it.kind === "phone") {
       const d = DEVICES[it.id];
       drawHandset(g, pcx, pcy, sh * 0.84, d, d.colours[clamp(phone.paint || 0, 0, d.colours.length - 1)][1]);
+    } else if (it.kind === "audio") {
+      drawAudioProduct(g, it.id, pcx, pcy, sh * 0.5);
+    } else if (it.kind === "tv") {
+      drawTVProduct(g, pcx, pcy, sh * 1.35, TV_BY_ID[it.id], 0, performance.now() / 1000);
     } else if (it.kind === "card") {
       const L = LOYALTY.dokoto, cw = sw * 0.46, ch = cw * 0.62;
       const gr = g.createLinearGradient(pcx - cw / 2, pcy - ch / 2, pcx + cw / 2, pcy + ch / 2); gr.addColorStop(0, L.a); gr.addColorStop(1, L.b);
@@ -14468,7 +14485,7 @@ function spotifyTransport(what) {
 function appMusic(g, W, H) {
   const worn = wheel.wearing || (phone.owns.headphones ? null : null);
   const has = !!wheel.wearing;
-  const owns = phone.owns.earbuds || phone.owns.headphones;
+  const owns = audioOwned();
   phoneChrome(g, W, H, "SOTI Music",
     spotify.state === "ready" ? (spotify.device || "Spotify") : "Spotify");
 
@@ -14492,7 +14509,7 @@ function appMusic(g, W, H) {
     g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
     g.textAlign = "center";
     g.fillText("Hold LB and pick your", W * 0.5, H * 0.46);
-    g.fillText(phone.owns.headphones ? "headphones" : "earbuds", W * 0.5, H * 0.505);
+    g.fillText("earphones or headphones", W * 0.5, H * 0.505);
     g.fillText("to put them on.", W * 0.5, H * 0.55);
     g.textAlign = "left";
     return;
@@ -14601,7 +14618,7 @@ function appMusic(g, W, H) {
   g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
   g.textAlign = "center";
   g.fillText("Playing through " + (spotify.device || "Spotify") +
-             " \u00b7 " + (wheel.wearing === "headphones" ? "SOTI Studio" : "SOTI Buds 3"),
+             " \u00b7 " + audioLabel(wheel.wearing),
              W * 0.5, H * 0.90);
   g.textAlign = "left";
 }
@@ -14634,8 +14651,8 @@ function useGear(id) {
   const gr = GEAR[id];
   if (!gr) return;
   if (id === "pearwatch" || id === "pearwatchu") {
-    if (bag.watchOn === id) { bag.watchOn = false; say(gr.name + " off.", 3); phone.dirty = true; return; }
-    bag.watchOn = id;
+    if (bag.watchOn === id) { bag.watchOn = false; seikoWear(); say(gr.name + " off.", 3); phone.dirty = true; return; }
+    bag.watchOn = id; seikoWear();
     if (isPear() && phone.watch !== id) {
       phone.watchPrompt = id;
       setPhone(true); phone.app = null;
@@ -14763,7 +14780,7 @@ function settingsRows() {
     ["Owner", "Shigu Seiko"],
     ["Balance", yenText(purse.yen)],
     ["Network", "NHMobile \u00b7 5G"],
-    ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
+    ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) + " (on)" : audioOwned() ? "In the bag" : "None"],
     ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
     ["Storage", "126 GB of 256 GB"],
@@ -15222,8 +15239,9 @@ function leaveShop() {
 // basement. You can try a phone (colours, and the camera, zoomed) before you buy
 // it, and everything on the shelves but the consoles is carried out in the bag.
 const MALL_FLOORS = [
+  { id: 4, label: "4F", name: "TVs & Home Cinema" },
   { id: 3, label: "3F", name: "Games & Arcade" },
-  { id: 2, label: "2F", name: "Watches & Consoles" },
+  { id: 2, label: "2F", name: "Watches, Consoles & Audio" },
   { id: 1, label: "1F", name: "Phones & Cameras" },
   { id: 0, label: "B1", name: "Cases & Accessories" }
 ];
@@ -15232,7 +15250,7 @@ const CASES = [["Clear", "#cfe0ea", 2980], ["Black", "#17181b", 2980], ["Red", "
 const CONSOLE_COLOURS = { playbox5: [["White", "#f2f4f7"], ["Black", "#1c1e23"], ["Green", "#1f9a5f"], ["Red", "#c43a3a"]],
                           pearcube: [["Silver", "#d9dce1"], ["Graphite", "#4b4e54"], ["Mint", "#8fd9c2"]] };
 SHOP_BRANDS.dokoto = { name: "Dokoto Camera", band: "#d4152c", ink: "#ffffff", stripes: ["#ffd21c", "#14171b"], tag: "Cameras · Phones · Games" };
-const mall = { floor: 1, mode: "lift", sel: 0, colour: 0, zoom: 1, ride: 0, to: 1, case: 0, flash: 0 };
+const mall = { tkind: null, ch: 0, tt: 0, mirror: null, dsel: 0, floor: 1, mode: "lift", sel: 0, colour: 0, zoom: 1, ride: 0, to: 1, case: 0, flash: 0 };
 
 function placeMalls(w) {
   if (!w || !w.cities) return;
@@ -15323,25 +15341,46 @@ function mallZoomMax(id) { const d = DEVICES[id]; const m = d && /(\d+)x zoom/.e
 function mallList(floor) {
   if (floor === 1) return dokotoList(0);
   if (floor === 2) return dokotoList(1);
-  if (floor === 3) return dokotoList(2);
+  if (floor === 3) return dokotoList(3);
+  if (floor === 4) return dokotoList(2);
   return CASES.map((c, i) => ({ kind: "case", id: "case" + i, name: c[0] + " case", price: c[2], note: "For the " + dev().name, colour: c[1], idx: i }));
 }
 function enterMall(s) {
-  mall.floor = 1; mall.mode = "lift"; mall.sel = 2; mall.colour = 0; mall.zoom = 1; mall.ride = 0; mall.flash = 0;
+  mall.floor = 1; mall.mode = "lift"; mall.sel = 3; mall.colour = 0; mall.zoom = 1; mall.ride = 0; mall.flash = 0;
   drawMall();
 }
+function mallEndTest() {
+  wear.tryAudio = null; wear.tryWatch = null; seikoWear();
+  if (mall.tkind === "arcade") arcadeStop();
+  mall.mirror = null; mall.tkind = null; mall.mode = "floor";
+}
 function mallBack() {
-  if (mall.mode === "test") { mall.mode = "floor"; return true; }
+  if (mall.mode === "test") { mallEndTest(); drawMall(); return true; }
+  if (mall.mode === "dir") { mall.mode = "lift"; drawMall(); return true; }
   if (mall.mode === "floor") { mall.mode = "lift"; mall.sel = MALL_FLOORS.findIndex(f => f.id === mall.floor); drawMall(); return true; }
   if (mall.mode === "ride") return true;
   return false;
 }
+// Y: in the lift it opens the directory of everything in the building; on a
+// floor it tests whatever is on the plinth.
 function mallTest() {
+  if (mall.mode === "lift") { mall.mode = "dir"; mall.dsel = 0; drawMall(); return; }
+  if (mall.mode === "dir") { mall.mode = "lift"; drawMall(); return; }
   if (mall.mode === "floor") {
     const it = mallList(mall.floor)[mall.sel2 || 0];
-    if (it && it.kind === "phone") { mall.mode = "test"; mall.zoom = 1; frameGrab.want = true; }
-    else if (it) say("Nothing to try on this one.", 2.5);
-  } else if (mall.mode === "test") mall.mode = "floor";
+    if (!it) return;
+    mall.tkind = null;
+    if (it.kind === "phone") { mall.tkind = "phone"; mall.zoom = 1; frameGrab.want = true; }
+    else if (it.kind === "tv") { mall.tkind = "tv"; mall.ch = 0; mall.tt = 0; }
+    else if (it.kind === "audio") { wear.tryAudio = it.id; seikoWear(); mall.mirror = seikoPortrait("head"); mall.tkind = "mirror"; mall.what = it; }
+    else if (it.kind === "gear" && /watch/.test(it.id)) { wear.tryWatch = it.id; seikoWear(); mall.mirror = seikoPortrait("watch"); mall.tkind = "mirror"; mall.what = it; }
+    else if (it.kind === "gear" || it.kind === "game") {
+      const gid = it.kind === "game" ? it.id : it.id === "playbox5" ? "driftking" : "blockfall";
+      if (arcadeStart(gid)) { mall.tkind = "arcade"; mall.what = it; }
+    }
+    if (!mall.tkind) { say("Nothing to try on this one.", 2.5); return; }
+    mall.mode = "test";
+  } else if (mall.mode === "test") mallEndTest();
   drawMall();
 }
 function mallMove(dx, dy) {
@@ -15361,10 +15400,14 @@ function mallMove(dx, dy) {
         if (cols) mall.colour = (mall.colour + dy + cols) % cols;
       }
     }
+  } else if (mall.mode === "dir") {
+    if (dy) mall.dsel = Math.max(0, mall.dsel + dy);
   } else if (mall.mode === "test") {
     const it = mallList(mall.floor)[mall.sel2 || 0];
-    if (dy) mall.zoom = clamp(mall.zoom - dy * 0.5, 1, mallZoomMax(it.id));
-    if (dx) { const n = DEVICES[it.id].colours.length; mall.colour = (mall.colour + dx + n) % n; }
+    if (mall.tkind === "phone") {
+      if (dy) mall.zoom = clamp(mall.zoom - dy * 0.5, 1, mallZoomMax(it.id));
+      if (dx) { const n = DEVICES[it.id].colours.length; mall.colour = (mall.colour + dx + n) % n; }
+    } else if (mall.tkind === "tv" && dx) mall.ch = (mall.ch + dx + CHANNELS.length) % CHANNELS.length;
   }
   drawMall();
 }
@@ -15375,7 +15418,8 @@ function mallAct() {
     else { mall.mode = "ride"; mall.ride = 0; }
     drawMall(); return;
   }
-  if (mall.mode === "test") { mall.flash = 0.25; return; }
+  if (mall.mode === "dir") return;
+  if (mall.mode === "test") { if (mall.tkind === "phone") mall.flash = 0.25; return; }
   const list = mallList(mall.floor), it = list[mall.sel2 || 0];
   if (!it) return;
   if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) {
@@ -15387,7 +15431,9 @@ function mallAct() {
   }
   if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return; }
   purse.yen -= it.price; noteBuy("dokoto", it.price);
-  if (it.kind === "phone") { const c = clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1); giveItem("phone", it.id, c); say(it.name + ", " + DEVICES[it.id].colours[c][0] + " · " + yenText(it.price) + " · in your bag.", 5); }
+  if (it.kind === "tv") { orderDelivery("tv", it.id, it.name, 3); say(it.name + " ordered for delivery \u00b7 " + yenText(it.price) + ". It goes in the flat in Mizuho.", 6); }
+  else if (it.kind === "audio") { giveItem("audio", it.id); say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB, Audio, to put them on.", 5); }
+  else if (it.kind === "phone") { const c = clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1); giveItem("phone", it.id, c); say(it.name + ", " + DEVICES[it.id].colours[c][0] + " · " + yenText(it.price) + " · in your bag.", 5); }
   else if (it.kind === "gear") { giveItem("gear", it.id); say(it.name + " · " + yenText(it.price) + " · in your bag.", 5); }
   else if (it.kind === "game") { giveItem("game", it.id); say(it.name + " disc · " + yenText(it.price) + " · in your bag.", 5); }
   else if (it.kind === "case") { phone.cases = phone.cases || {}; phone.cases[phone.device] = it.colour; applyDeviceSkin(); say(it.name + " fitted · " + yenText(it.price), 4); }
@@ -15401,7 +15447,75 @@ function updateMall(dt) {
     if (mall.ride > 1.5) { mall.floor = mall.to; mall.mode = "floor"; mall.sel2 = 0; mall.colour = 0; say(MALL_FLOORS.find(f => f.id === mall.floor).label + "  " + MALL_FLOORS.find(f => f.id === mall.floor).name, 3); }
     drawMall();
   } else if (mall.mode === "test") {
-    frameGrab.want = true; mall.flash = Math.max(0, mall.flash - dt); drawMall();
+    if (mall.tkind === "phone") { frameGrab.want = true; mall.flash = Math.max(0, mall.flash - dt); }
+    else if (mall.tkind === "tv") mall.tt += dt;
+    else if (mall.tkind === "arcade") updateArcade(dt);
+    if (mall.tkind !== "mirror") drawMall();
+  }
+}
+
+function drawMallDirectory(g, W, H, T) {
+  T("Directory", W * 0.03, H * 0.165, H * 0.046, "#14171b", "left", "800");
+  const rows = [];
+  MALL_FLOORS.forEach(f => {
+    rows.push({ head: true, text: f.label + "   " + f.name });
+    if (f.id === 0) rows.push({ text: CASES.length + " cases, clear to rugged" });
+    else mallList(f.id).forEach(e => rows.push({ text: e.name, price: e.price }));
+  });
+  const per = 14, first = clamp(mall.dsel, 0, Math.max(0, rows.length - per));
+  mall.dsel = first;
+  g.fillStyle = "rgba(255,255,255,0.7)"; roundRect(g, W * 0.04, H * 0.20, W * 0.92, H * 0.72, 16); g.fill();
+  rows.slice(first, first + per).forEach((r, k) => {
+    const y = H * 0.235 + k * H * 0.0495;
+    if (r.head) { g.fillStyle = "#d4152c"; g.fillRect(W * 0.05, y - H * 0.02, W * 0.90, H * 0.04); T(r.text, W * 0.06, y, H * 0.028, "#fff", "left", "800"); }
+    else { T(r.text, W * 0.07, y, H * 0.028, "#14171b", "left", "600"); if (r.price) T(yenText(r.price), W * 0.93, y, H * 0.028, "#c0172b", "right", "700"); }
+  });
+  if (rows.length > per) T((first > 0 ? "\u25b2 " : "") + (first + per < rows.length ? "\u25bc" : ""), W * 0.93, H * 0.90, H * 0.026, "#4a4d52", "right", "700");
+  T("\u25b2 \u25bc scroll     B or Y back to the lift", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+}
+// Trying the things that are not phones.
+function drawMallTest(g, W, H, T, it) {
+  const vx = W * 0.05, vy = H * 0.19, vw = W * 0.60, vh = H * 0.72;
+  g.fillStyle = "rgba(20,22,26,0.94)"; roundRect(g, vx, vy, vw, vh, 18); g.fill();
+  const rx = W * 0.68;
+  g.fillStyle = "rgba(20,22,26,0.9)"; roundRect(g, rx, H * 0.19, W * 0.29, H * 0.72, 16); g.fill();
+  if (mall.tkind === "tv") {
+    const tv = TV_BY_ID[it.id];
+    drawTVProduct(g, vx + vw / 2, vy + vh * 0.46, vw * 0.88, tv, mall.ch, mall.tt);
+    T(CHANNELS[mall.ch], vx + vw / 2, vy + vh * 0.93, H * 0.034, "#fff", "center", "700");
+    T("TV test", rx + W * 0.02, H * 0.25, H * 0.038, "#fff", "left", "800");
+    T(tv.name, rx + W * 0.02, H * 0.31, H * 0.028, "#ffd21c", "left", "600");
+    T(tv.note, rx + W * 0.02, H * 0.355, H * 0.024, "#c3c9cf", "left", "500");
+    T(yenText(it.price), rx + W * 0.02, H * 0.42, H * 0.040, "#fff", "left", "800");
+    T("Delivered to the flat", rx + W * 0.02, H * 0.47, H * 0.026, "#a9b0b8", "left", "500");
+    T("\u25c0 \u25b6 channel   B back", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+  } else if (mall.tkind === "mirror") {
+    g.save(); roundRect(g, vx, vy, vw, vh, 18); g.clip();
+    const mg = g.createLinearGradient(vx, vy, vx + vw, vy + vh); mg.addColorStop(0, "#3a4250"); mg.addColorStop(1, "#1b2029"); g.fillStyle = mg; g.fillRect(vx, vy, vw, vh);
+    g.fillStyle = "rgba(255,255,255,0.05)"; g.beginPath(); g.moveTo(vx + vw * 0.1, vy); g.lineTo(vx + vw * 0.3, vy); g.lineTo(vx + vw * 0.15, vy + vh); g.lineTo(vx, vy + vh); g.fill();
+    if (mall.mirror) { const sz = vh * 0.98; g.drawImage(mall.mirror, vx + (vw - sz) / 2, vy + (vh - sz) / 2, sz, sz); }
+    else T("(the mirror is steamed up)", vx + vw / 2, vy + vh / 2, H * 0.03, "#a9b0b8", "center", "500");
+    g.restore();
+    T("Mirror", rx + W * 0.02, H * 0.25, H * 0.038, "#fff", "left", "800");
+    T(mall.what.name, rx + W * 0.02, H * 0.31, H * 0.028, "#ffd21c", "left", "600");
+    T(mall.what.note || "", rx + W * 0.02, H * 0.355, H * 0.022, "#c3c9cf", "left", "500");
+    if (mall.what.kind === "audio") drawAudioProduct(g, mall.what.id, rx + W * 0.145, H * 0.60, H * 0.16);
+    else wheelIcon(g, { kind: "gear", id: mall.what.id, item: mall.what }, rx + W * 0.145, H * 0.60, H * 0.16, false);
+    T(yenText(mall.what.price), rx + W * 0.145, H * 0.80, H * 0.044, "#fff", "center", "800");
+    T("It is on Seiko until you step away", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+  } else if (mall.tkind === "arcade") {
+    g.fillStyle = "#050607"; roundRect(g, vx, vy, vw, vh, 18); g.fill();
+    const ph = vh * 0.94, pw = ph * 4 / 3, px = vx + (vw - pw) / 2, py = vy + vh * 0.03;
+    g.imageSmoothingEnabled = false;
+    if (arcade.cv) g.drawImage(arcade.cv, px, py, Math.min(pw, vw), ph);
+    g.fillStyle = "rgba(0,0,0,0.16)"; for (let yy = py; yy < py + ph; yy += 4) g.fillRect(px, yy, Math.min(pw, vw), 1.6);
+    g.imageSmoothingEnabled = true;
+    T("Demo unit", rx + W * 0.02, H * 0.25, H * 0.038, "#fff", "left", "800");
+    T(mall.what.name, rx + W * 0.02, H * 0.31, H * 0.028, "#ffd21c", "left", "600");
+    T("Arrows / D-pad and A play", rx + W * 0.02, H * 0.37, H * 0.024, "#c3c9cf", "left", "500");
+    wheelIcon(g, mall.what.kind === "game" ? { kind: "game", id: mall.what.id } : { kind: "gear", id: mall.what.id, item: mall.what }, rx + W * 0.145, H * 0.62, H * 0.17, false);
+    T(yenText(mall.what.price), rx + W * 0.145, H * 0.82, H * 0.044, "#fff", "center", "800");
+    T("Arrows / D-pad play   A action   B back", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
   }
 }
 
@@ -15424,6 +15538,7 @@ function drawMall() {
   T(s.city || "", W * 0.36, H * 0.054, H * 0.030, "#ffd0d5", "left", "600");
   T(yenText(purse.yen), W * 0.97, H * 0.052, H * 0.040, "#fff", "right", "700");
 
+  if (mall.mode === "dir") { drawMallDirectory(g, W, H, T); return; }
   if (mall.mode === "lift" || mall.mode === "ride") {
     // the lift doors, and the floors beside them
     const dx = W * 0.14, dy = H * 0.18, dw = W * 0.34, dh = H * 0.72;
@@ -15439,16 +15554,16 @@ function drawMall() {
     T(MALL_FLOORS.find(f => f.id === shown).label, dx + dw / 2, dy - H * 0.057, H * 0.055, "#ff9a3a", "center", "800");
     // panel
     const px = W * 0.56, py = H * 0.20, pw = W * 0.34;
-    g.fillStyle = "rgba(20,22,26,0.86)"; roundRect(g, px, py, pw, H * 0.64, 16); g.fill();
-    T("Which floor?", px + pw * 0.06, py + H * 0.055, H * 0.040, "#fff", "left", "800");
+    g.fillStyle = "rgba(20,22,26,0.86)"; roundRect(g, px, py, pw, H * 0.70, 16); g.fill();
+    T("Which floor?", px + pw * 0.06, py + H * 0.05, H * 0.040, "#fff", "left", "800");
     MALL_FLOORS.forEach((f, i) => {
-      const y = py + H * 0.11 + i * H * 0.115, on = i === mall.sel;
-      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)"; roundRect(g, px + pw * 0.04, y, pw * 0.92, H * 0.095, 10); g.fill();
-      g.fillStyle = f.id === mall.floor ? "#ff9a3a" : "#e9edf0"; g.beginPath(); g.arc(px + pw * 0.13, y + H * 0.0475, H * 0.034, 0, 7); g.fill();
-      T(f.label, px + pw * 0.13, y + H * 0.0475, H * 0.032, "#111", "center", "800");
-      T(f.name, px + pw * 0.24, y + H * 0.0475, H * 0.034, on ? "#fff" : "#c3c9cf", "left", on ? "700" : "500");
+      const y = py + H * 0.10 + i * H * 0.1, on = i === mall.sel;
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)"; roundRect(g, px + pw * 0.04, y, pw * 0.92, H * 0.085, 10); g.fill();
+      g.fillStyle = f.id === mall.floor ? "#ff9a3a" : "#e9edf0"; g.beginPath(); g.arc(px + pw * 0.13, y + H * 0.0425, H * 0.030, 0, 7); g.fill();
+      T(f.label, px + pw * 0.13, y + H * 0.0425, H * 0.028, "#111", "center", "800");
+      T(f.name, px + pw * 0.24, y + H * 0.0425, H * 0.030, on ? "#fff" : "#c3c9cf", "left", on ? "700" : "500");
     });
-    T(ride ? "Going " + (mall.to > mall.floor ? "up" : "down") + "…" : "▲ ▼ floor     A press     B leave the shop", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
+    T(ride ? "Going " + (mall.to > mall.floor ? "up" : "down") + "…" : "▲ ▼ floor     A press     Y directory     B leave the shop", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
     return;
   }
 
@@ -15476,10 +15591,11 @@ function drawMall() {
     T(gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube", rx + W * 0.15, H * 0.74, H * 0.026, "#a9b0b8", "center", "500");
     T(yenText(gm.price), rx + W * 0.15, H * 0.82, H * 0.052, "#ffd21c", "center", "800");
     T(bag.games[gm.id] ? "Already in your bag" : "A  buy the disc", rx + W * 0.15, H * 0.87, H * 0.026, "#fff", "center", "600");
-    T("◀ ▶ ▲ ▼ browse     A buy     B lift", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+    T("◀ ▶ ▲ ▼ browse     Y try it     A buy     B lift", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
     return;
   }
 
+  if (mall.mode === "test" && it && mall.tkind !== "phone") { drawMallTest(g, W, H, T, it); return; }
   if (mall.mode === "test" && it) {
     // the camera, with the zoom a real one would give
     const d = DEVICES[it.id], zmax = mallZoomMax(it.id);
@@ -15532,6 +15648,8 @@ function drawMall() {
       const gx = Object.assign({}, e);
       wheelIcon(g, { kind: "gear", id: e.id, item: e }, x, cy, H * 0.22 * scale, false);
     }
+    else if (e.kind === "audio") drawAudioProduct(g, e.id, x, cy, H * 0.22 * scale);
+    else if (e.kind === "tv") drawTVProduct(g, x, cy, W * 0.30 * scale, TV_BY_ID[e.id], dim ? -1 : 0, performance.now() / 1000);
     g.restore();
   };
   const floorY = H * 0.68;
@@ -15549,9 +15667,9 @@ function drawMall() {
     if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) T("Colour: " + CONSOLE_COLOURS[it.id][mall.colour % CONSOLE_COLOURS[it.id].length][0] + "   \u00b7   sent by delivery", cx, H * 0.912, H * 0.028, "#4a4d52", "center", "600");
     T((cur + 1) + " / " + list.length, W * 0.97, H * 0.165, H * 0.028, "#4a4d52", "right", "600");
   }
-  const hint = mall.floor === 1 ? "◀ ▶ model   ▲ ▼ colour   Y try it   A buy   B lift"
-             : mall.floor === 0 ? "◀ ▶ case   A fit it   B lift"
-             : "◀ ▶ browse   ▲ ▼ colour   A buy   B lift";
+  const hint = mall.floor === 1 ? "\u25c0 \u25b6 model   \u25b2 \u25bc colour   Y try it   A buy   B lift"
+             : mall.floor === 0 ? "\u25c0 \u25b6 case   A fit it   B lift"
+             : "\u25c0 \u25b6 browse   \u25b2 \u25bc colour   Y try it   A buy   B lift";
   T(hint, W * 0.5, H * 0.962, H * 0.025, "#4a4d52", "center", "600");
 }
 
@@ -16549,7 +16667,8 @@ function drawHome() {
   }
 
   // The television, on the left, showing something.
-  const tx = W * 0.165, ty = H * 0.34, tw = W * 0.26, th = tw * 0.58;
+  const tvSize = home.tvModel ? TV_BY_ID[home.tvModel].size : 32;
+  const tw = W * 0.26 * (0.78 + tvSize / 140), th = tw * 0.58, tx = W * 0.165 + W * 0.26 - tw, ty = H * 0.34 + H * 0.15 - th * 0.55;
   g.fillStyle = "#15171b";
   roundRect(g, tx - W * 0.012, ty - H * 0.012, tw + W * 0.024, th + H * 0.024, W * 0.012); g.fill();
   const shows = [["#2c4f7c", "#87b4d8"], ["#7c3a2c", "#d8a187"], ["#2c7c52", "#87d8ad"], ["#555", "#aaa"]];
@@ -18040,6 +18159,199 @@ ITEMS.push(
 ITEMS.forEach(i => { ITEM[i.id] = i; });
 WHEEL_CATS.splice(7, 0, { id: "med", name: "Medicine", colour: "#e0587a", empty: "No medicine" });
 
+// ---- Dokoto Camera, more floors: TVs, audio, and what you wear -------------------------
+// Televisions on the top floor, earphones and headphones with the watches. Each
+// can be tried: a TV shows its channels, an arcade demo runs on a console or a
+// game, and anything you wear is put on Seiko in front of a mirror. Whatever
+// Seiko is wearing - bought, or only tried - is on him: Pods in his ears, Studio
+// headphones over his head, a watch on his left wrist.
+const TVS = [
+  { id: "tv43", name: "SOTI Vista 43\"",    maker: "soti",     size: 43, price: 68000,  note: "4K · 60 Hz · the sensible one" },
+  { id: "tv55", name: "Pear Vision 55\"",   maker: "pear",     size: 55, price: 148000, note: "4K · 120 Hz · thin to the point of worry" },
+  { id: "tv65", name: "Kurogane OLED 65\"", maker: "kurogane", size: 65, price: 298000, note: "OLED · black is actually black" },
+  { id: "tv77", name: "SOTI Wall 77\"",     maker: "soti",     size: 77, price: 498000, note: "A wall. It is also a television" }
+];
+const TV_BY_ID = {}; TVS.forEach(t => { TV_BY_ID[t.id] = t; });
+const AUDIO_NAMES = { earbuds: "SOTI Buds 3", headphones: "SOTI Studio", pods: "Pear Pods", podspro: "Pear Pods Pro" };
+const AUDIO_PRICE = { pods: 24800, podspro: 39800 };
+ITEMS.push(
+  { id: "pods",    name: "Pear Pods",     cat: "audio", note: "Put on" },
+  { id: "podspro", name: "Pear Pods Pro", cat: "audio", note: "Put on" });
+ITEM.pods = ITEMS[ITEMS.length - 2]; ITEM.podspro = ITEMS[ITEMS.length - 1];
+function audioOwned() { return phone.owns.earbuds || phone.owns.headphones || phone.owns.pods || phone.owns.podspro; }
+function audioLabel(id) { return AUDIO_NAMES[id] || "headphones"; }
+
+// ---- product pictures
+function drawAudioProduct(g, id, cx, cy, r) {
+  const u = r / 50;
+  g.save(); g.translate(cx, cy); g.lineCap = "round"; g.lineJoin = "round";
+  const rr = (x, y, w, h, rad, c) => { roundRect(g, x * u, y * u, w * u, h * u, rad * u); g.fillStyle = c; g.fill(); };
+  if (id === "pods" || id === "podspro") {
+    rr(-26, -6, 52, 38, 14, "#f4f5f7"); rr(-26, -6, 52, 12, 10, "#e3e6ea");
+    g.fillStyle = "#cfd3d8"; g.beginPath(); g.arc(0, 8*u, 3*u, 0, 7); g.fill();
+    [[-12, -22], [12, -22]].forEach(p => {
+      g.fillStyle = "#f9fafb"; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 8*u, 7.5*u, 0, 0, 7); g.fill();
+      rr(p[0] - 2.4, p[1] + 3, 4.8, 22, 2.4, "#f9fafb");
+      if (id === "podspro") { g.fillStyle = "#9aa1a9"; g.beginPath(); g.arc(p[0]*u, (p[1] - 6)*u, 4*u, 0, 7); g.fill(); }
+      g.strokeStyle = "rgba(0,0,0,0.15)"; g.lineWidth = 1.2*u; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 8*u, 7.5*u, 0, 0, 7); g.stroke();
+    });
+  } else if (id === "earbuds") {
+    rr(-26, -4, 52, 36, 16, "#23272d"); g.fillStyle = "#4a90ff"; g.beginPath(); g.arc(0, 8*u, 2.6*u, 0, 7); g.fill();
+    [[-13, -20], [13, -20]].forEach(p => { g.fillStyle = "#31363e"; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 10*u, 12*u, 0.3, 0, 7); g.fill(); g.fillStyle = "#4a90ff"; g.beginPath(); g.arc(p[0]*u, (p[1] + 3)*u, 2.2*u, 0, 7); g.fill(); });
+  } else {
+    g.strokeStyle = "#2a2d33"; g.lineWidth = 7*u; g.beginPath(); g.arc(0, 4*u, 30*u, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+    [[-30, 6], [30, 6]].forEach(p => { rr(p[0] - 9, p[1] - 15, 18, 30, 8, "#1b1d21"); rr(p[0] - 11 + (p[0] < 0 ? 8 : 0), p[1] - 12, 6, 24, 3, "#c9ced4"); });
+  }
+  g.restore();
+}
+function drawTVProduct(g, cx, cy, w, tv, ch, t) {
+  const h = w * 0.58;
+  g.save(); g.translate(cx, cy);
+  const dark = tv.maker === "pear" ? "#c9ccd2" : tv.maker === "kurogane" ? "#0e0f12" : "#16181c";
+  g.fillStyle = "rgba(0,0,0,0.16)"; g.beginPath(); g.ellipse(0, h * 0.62, w * 0.42, h * 0.07, 0, 0, 7); g.fill();
+  g.fillStyle = dark; roundRect(g, -w / 2, -h / 2, w, h, w * 0.012); g.fill();
+  const sw = w * 0.965, sh = h * 0.93;
+  if (ch >= 0) drawChannel(g, -sw / 2, -sh / 2, sw, sh, ch, t || 0);
+  else { const gr = g.createLinearGradient(-sw / 2, -sh / 2, sw / 2, sh / 2); gr.addColorStop(0, "#0a0c10"); gr.addColorStop(1, "#1a2030"); g.fillStyle = gr; g.fillRect(-sw / 2, -sh / 2, sw, sh); }
+  g.fillStyle = dark; g.fillRect(-w * 0.14, h / 2, w * 0.28, h * 0.07); roundRect(g, -w * 0.22, h * 0.56, w * 0.44, h * 0.03, 2); g.fill();
+  g.fillStyle = tv.maker === "pear" ? "#6a6e75" : "#8d949c"; g.font = "700 " + Math.max(8, Math.round(w * 0.028)) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(tv.maker.toUpperCase(), 0, h / 2 - h * 0.0 + h * 0.035 * 0);
+  g.restore();
+}
+
+// ---- what Seiko is wearing
+const wear = { audio: null, watch: null, groups: { audio: null, watch: null }, tryAudio: null, tryWatch: null };
+function wornAudio() { return wear.tryAudio || wheel.wearing; }
+function wornWatch() { return wear.tryWatch || bag.watchOn || null; }
+function findBone(re) { let hit = null; if (player.glb) player.glb.traverse(o => { if (!hit && o.isBone && re.test(o.name)) hit = o; }); return hit; }
+function clearWear(kind) { const g = wear.groups[kind]; if (g && g.parent) g.parent.remove(g); wear.groups[kind] = null; wear[kind] = null; }
+function seikoWear() {
+  if (!player.glb) return;
+  const want = { audio: wornAudio() || null, watch: wornWatch() || null };
+  ["audio", "watch"].forEach(kind => {
+    const stillThere = wear.groups[kind] && wear.groups[kind].parent && findBoneParent(wear.groups[kind]);
+    if (wear[kind] === want[kind] && stillThere) return;
+    clearWear(kind);
+    if (!want[kind]) return;
+    try { wear.groups[kind] = kind === "audio" ? buildAudioWear(want[kind]) : buildWatchWear(want[kind]); wear[kind] = want[kind]; } catch (e) { /* no skeleton: nothing to hang it on */ }
+  });
+}
+function findBoneParent(g) { let p = g.parent; while (p) { if (p === player.glb) return true; p = p.parent; } return false; }
+function wearFrame() {
+  const obj = player.glb; obj.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(obj);
+  const sc = new THREE.Vector3(); obj.getWorldScale(sc);
+  const q = new THREE.Quaternion(); obj.getWorldQuaternion(q);
+  return { obj: obj, box: box, h: box.max.y - box.min.y, q: q, sc: sc.x };
+}
+function attachAt(bone, worldPos, worldQuat, group) {
+  bone.updateMatrixWorld(true);
+  const bq = new THREE.Quaternion(); bone.getWorldQuaternion(bq);
+  const bs = new THREE.Vector3(); bone.getWorldScale(bs);
+  group.position.copy(bone.worldToLocal(worldPos.clone()));
+  group.quaternion.copy(bq.clone().invert().multiply(worldQuat));
+  group.scale.setScalar(1 / (bs.x || 1));
+  bone.add(group);
+}
+function buildAudioWear(id) {
+  const bone = findBone(/^head$/i); if (!bone) return null;
+  const f = wearFrame(), s = f.h / 1.74;
+  const headTop = f.box.max.y, headC = new THREE.Vector3((f.box.min.x + f.box.max.x) / 2, headTop - 0.112 * s, 0);
+  const objPos = new THREE.Vector3(); f.obj.getWorldPosition(objPos);
+  // head centre in world: above the object's origin, not the box's x/z centre (a box includes the arms)
+  const hb = new THREE.Vector3(); bone.getWorldPosition(hb);
+  const wp = new THREE.Vector3(hb.x, headC.y, hb.z);
+  const grp = new THREE.Group();
+  const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.45, metalness: 0.0 }, o || {}));
+  const sph = (r, mat, sx, sy, sz) => { const m = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat); m.scale.set(sx || 1, sy || 1, sz || 1); return m; };
+  const k = s;                           // sizes are in metres for a 1.74 m man
+  if (id === "pods" || id === "podspro") {
+    const white = M(0xf8f9fb, { roughness: 0.3 });
+    [-1, 1].forEach(side => {
+      const x = side * 0.081 * k;
+      const bud = sph(0.0105 * k, white); bud.position.set(x, -0.004 * k, 0.004 * k); grp.add(bud);
+      const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.0042 * k, 0.0036 * k, 0.034 * k, 10), white); stem.position.set(x + side * 0.003 * k, -0.026 * k, 0.006 * k); grp.add(stem);
+      const mic = sph(0.0016 * k, M(0x2a2d33)); mic.position.set(x + side * 0.004 * k, -0.043 * k, 0.009 * k); grp.add(mic);
+      if (id === "podspro") { const tip = sph(0.006 * k, M(0xaab0b8, { roughness: 0.8 })); tip.position.set(side * 0.073 * k, -0.004 * k, 0.004 * k); grp.add(tip); }
+    });
+  } else if (id === "earbuds") {
+    const dark = M(0x23272d, { roughness: 0.35 });
+    [-1, 1].forEach(side => {
+      const bud = sph(0.0115 * k, dark, 0.85, 1.1, 0.9); bud.position.set(side * 0.080 * k, -0.002 * k, 0.003 * k); grp.add(bud);
+      const led = sph(0.0020 * k, M(0x4a90ff, { emissive: new THREE.Color(0x3a70e0), emissiveIntensity: 1.2 })); led.position.set(side * 0.089 * k, 0.003 * k, 0.010 * k); grp.add(led);
+    });
+  } else {
+    const black = M(0x1d1f23, { roughness: 0.5 }), metal = M(0xc9ced4, { metalness: 0.7, roughness: 0.3 });
+    const band = new THREE.Mesh(new THREE.TorusGeometry(0.106 * k, 0.0055 * k, 8, 28, Math.PI), black); band.scale.set(0.9, 1, 1); band.position.set(0, 0.0, -0.004 * k); grp.add(band);
+    [-1, 1].forEach(side => {
+      const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.046 * k, 0.046 * k, 0.026 * k, 20), black); cup.rotation.z = Math.PI / 2; cup.position.set(side * 0.094 * k, -0.010 * k, 0.0); grp.add(cup);
+      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.047 * k, 0.047 * k, 0.006 * k, 20), metal); ring.rotation.z = Math.PI / 2; ring.position.set(side * 0.108 * k, -0.010 * k, 0.0); grp.add(ring);
+      const pad = new THREE.Mesh(new THREE.TorusGeometry(0.036 * k, 0.010 * k, 8, 16), M(0x2a2d33, { roughness: 0.9 })); pad.rotation.y = Math.PI / 2; pad.position.set(side * 0.081 * k, -0.010 * k, 0.0); grp.add(pad);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.006 * k, 0.05 * k, 0.008 * k), metal); arm.position.set(side * 0.100 * k, 0.034 * k, -0.004 * k); grp.add(arm);
+    });
+  }
+  attachAt(bone, wp, f.q, grp);
+  return grp;
+}
+function buildWatchWear(id) {
+  const hand = findBone(/^hand.?l$/i), fore = findBone(/^forearm.?l$/i);
+  if (!hand || !fore) return null;
+  const f = wearFrame(), s = f.h / 1.74;
+  const hp = new THREE.Vector3(), fp = new THREE.Vector3(); hand.getWorldPosition(hp); fore.getWorldPosition(fp);
+  const dir = hp.clone().sub(fp).normalize();
+  const wrist = hp.clone().lerp(fp, 0.20);
+  const objPos = new THREE.Vector3(); f.obj.getWorldPosition(objPos);
+  const out = hp.clone().sub(objPos); out.y = 0; out.applyQuaternion(f.q.clone().invert()); out.set(Math.sign(out.x) || 1, 0, 0).applyQuaternion(f.q);
+  const z = out.clone().sub(dir.clone().multiplyScalar(out.dot(dir))).normalize();
+  const x = new THREE.Vector3().crossVectors(dir, z).normalize();
+  const basis = new THREE.Matrix4().makeBasis(x, dir, z);
+  const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+  const grp = new THREE.Group(), k = s, ultra = id === "pearwatchu";
+  const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.4, metalness: 0.2 }, o || {}));
+  const strap = new THREE.Mesh(new THREE.CylinderGeometry(0.0285 * k, 0.0285 * k, 0.026 * k, 20, 1, true), new THREE.MeshStandardMaterial({ color: ultra ? 0xe8711a : 0x23262b, roughness: 0.7, side: THREE.DoubleSide }));
+  grp.add(strap);
+  const cw = (ultra ? 0.046 : 0.038) * k, ch = (ultra ? 0.048 : 0.044) * k;
+  const c = new THREE.Mesh(new THREE.BoxGeometry(cw, ch, 0.012 * k), M(ultra ? 0xb9b2a6 : 0xc9ccd2, { metalness: 0.6, roughness: 0.3 })); c.position.z = 0.031 * k; grp.add(c);
+  const scr = new THREE.Mesh(new THREE.BoxGeometry(cw * 0.86, ch * 0.86, 0.002 * k), new THREE.MeshStandardMaterial({ color: 0x08090c, emissive: new THREE.Color(0x203858), emissiveIntensity: 0.8, roughness: 0.2 })); scr.position.z = 0.0375 * k; grp.add(scr);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.0055 * k, 12), new THREE.MeshBasicMaterial({ color: 0xff453a })); dot.position.set(0, 0, 0.0387 * k); grp.add(dot);
+  attachAt(hand, wrist, q, grp);
+  return grp;
+}
+
+// A little portrait of Seiko as he is now, for the mirror: drawn once into a
+// canvas by a throwaway renderer, with him borrowed into a throwaway scene and
+// given straight back.
+let portraitR = null;
+function seikoPortrait(mode) {
+  if (!player.glb) return null;
+  const obj = player.glb, parent = obj.parent;
+  const keep = { pos: obj.position.clone(), rot: obj.rotation.clone(), vis: obj.visible };
+  try {
+    if (!portraitR) { portraitR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); portraitR.setSize(512, 512); portraitR.outputEncoding = THREE.sRGBEncoding; }
+    portraitR.setClearColor(0x000000, 0);
+    const sc = new THREE.Scene();
+    sc.add(new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.95));
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.1); key.position.set(2, 3, 5); sc.add(key);
+    const fill = new THREE.DirectionalLight(0xbfd4ff, 0.5); fill.position.set(-3, 1, 3); sc.add(fill);
+    if (parent) parent.remove(obj);
+    sc.add(obj); obj.visible = true; obj.position.set(0, 0, 0); obj.rotation.set(0, 0, 0); obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj), h = box.max.y - box.min.y, top = box.max.y;
+    const cam = new THREE.PerspectiveCamera(16, 1, 0.1, 60);
+    const region = mode === "watch" ? { c: top - h * 0.30, e: h * 0.62 } : { c: top - h * 0.085, e: h * 0.25 };
+    const dist = (region.e / 2) / Math.tan(cam.fov * Math.PI / 360);
+    const xs = mode === "watch" ? -h * 0.06 : 0;
+    cam.position.set(xs, region.c, dist + 0.2); cam.lookAt(xs, region.c, 0);
+    portraitR.render(sc, cam);
+    const c = document.createElement("canvas"); c.width = c.height = 512; c.getContext("2d").drawImage(portraitR.domElement, 0, 0);
+    return c;
+  } catch (e) { return null; }
+  finally {
+    if (obj.parent) obj.parent.remove(obj);
+    if (parent) parent.add(obj);
+    obj.position.copy(keep.pos); obj.rotation.copy(keep.rot); obj.visible = keep.vis;
+  }
+}
+
 // Changing into a shirt: the albedo is one texture, so the shirt is found in it
 // by being bright and grey, and re-tinted; skin and hair and trousers are left.
 const seikoSkin = { base: null, canvas: null };
@@ -18208,6 +18520,7 @@ function equipFromWheel() {
       wheel.wearing = wheel.wearing === it.id ? null : it.id;
       say(wheel.wearing ? it.name + " on." : it.name + " off.", 2.5);
       phone.dirty = true;
+      seikoWear();
       break;
     case "phone":
       if (it.current) { say(it.name + " is already in your pocket.", 2.5); break; }
@@ -18467,7 +18780,8 @@ function wheelGlyph(g, kind, id, cx, cy, r, on, tint) {
 // each, at a size where an onigiri has to read as an onigiri.
 function wheelIcon(g, e, cx, cy, r, ghost) {
   if (e.kind === "item" && e.item && e.item.store) { shelfIcon(g, e.item.store, cx, cy, r); return; }
-  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun" || e.item.cat === "audio")) {
+  if (e.kind === "item" && e.item.cat === "audio") { drawAudioProduct(g, e.id, cx, cy, r); return; }
+  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun")) {
     wheelGlyph(g, e.item.cat, e.id, cx, cy, r, false, mixHex((WHEEL_CATS.find(c => c.id === e.item.cat) || WHEEL_CATS[0]).colour, "#ffffff", 0.55));
     return;
   }
@@ -18980,6 +19294,7 @@ function giveItem(kind, id, colour) {
   else if (kind === "phone") bag.phones[id] = colour || 0;
   else if (kind === "game") bag.games[id] = true;
   else if (kind === "gear") bag.gear[id] = true;
+  else if (kind === "tv") { home.tvModel = id; say("The new " + TV_BY_ID[id].name + " is in the flat in Mizuho.", 5); }
   else if (id === "umbrella") wheel.umbrellaOwned = true;
   else bagAdd(id, 1);
   phone.dirty = true;
