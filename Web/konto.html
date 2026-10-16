@@ -5238,6 +5238,11 @@ function buildScene(w) {
   gfx.env = bakeEnvironment();
   scene.environment = gfx.env || null;
   solids.length = 0;
+  // The grid indexes into the list that was just emptied. Left in place it
+  // answers questions about buildings that no longer exist, by index, and the
+  // first caller to ask during a rebuild - the street trees, which want to know
+  // whether a spot is inside a wall - reads past the end of an empty array.
+  solidGrid = null;
   // Station names are collected into one shared atlas of sixteen rows, so a
   // regenerated island has to start that list again or the seventeenth station
   // wraps onto the first one's board.
@@ -5277,6 +5282,10 @@ function buildScene(w) {
   sea.geometry.rotateX(-Math.PI / 2);
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
   root.add(sea);
+
+  // The garage lot has to be known before a single house is placed.
+  findHome(w);
+  planGarageReserve();
 
   // ---- city ground overlays
   w.cities.forEach(city => {
@@ -5379,6 +5388,11 @@ function buildScene(w) {
           const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5),
                      -p.size[1] * 0.5 + cellZ * (iz + 0.5) + back];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
+          if (garageReserve.on && city.name === garageReserve.city) {
+            const lr = toRectLocal(wc[0], wc[1], garageReserve.cx, garageReserve.cz, garageReserve.yawDeg);
+            if (Math.abs(lr[0]) < garageReserve.w * 0.5 + hs[0] * 0.5 + 0.4 &&
+                Math.abs(lr[1]) < garageReserve.d * 0.5 + hs[1] * 0.5 + 0.4) continue;
+          }
           boxes.push({ c: wc, size: hs, yaw: p.yaw, y: p.groundY, h: hh,
                        style: facadeStyleFor("houses", region) });
         }
@@ -5544,6 +5558,7 @@ function buildScene(w) {
     }
 
     // Street trees and park planting.
+    buildSolidGrid();          // this city's buildings are in `solids` now; the trees ask where they are
     // Street trees. A Japanese arterial has a line of them down each side at
     // a very regular spacing, and their absence is most of why an empty road
     // here read as a runway. Keyaki in the city, pine on the coast.
@@ -5615,9 +5630,11 @@ function buildScene(w) {
   buildShopSigns(root);
   findHome(w);
   placeHospitals(w);
+  buildGarage(root);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
+  restoreOwnedCars();
   document.body.classList.remove("driving", "phone-up");
   phone.open = false;
 
@@ -10705,6 +10722,53 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.restore();
       });
     }
+
+    // The garage, and a key for every car of yours that is not in it. A key
+    // is gold on a dark disc, because a pale mark on this map is a mark on the
+    // roads, which are pale too.
+    if (garage.built && across < 3200) {
+      const gx = garage.centre[0], gz = garage.centre[1];
+      if (gx > vx0 && gx < vx1 && gz > vz0 && gz < vz1) {
+        const gr = Math.max(10 * mPerPx, 26);
+        ctx.save(); ctx.translate(gx, gz); ctx.rotate(-rot);
+        ctx.fillStyle = "rgba(12,14,18,0.86)";
+        ctx.beginPath(); ctx.arc(0, 0, gr * 0.86, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,0.30)"; ctx.lineWidth = gr * 0.07; ctx.stroke();
+        // a garage: a roof over a door with a car-shaped dark bay
+        ctx.fillStyle = "#e8b23c";
+        ctx.beginPath();
+        ctx.moveTo(-gr * 0.62, -gr * 0.05); ctx.lineTo(0, -gr * 0.58); ctx.lineTo(gr * 0.62, -gr * 0.05);
+        ctx.lineTo(gr * 0.52, -gr * 0.05); ctx.lineTo(gr * 0.52, gr * 0.52); ctx.lineTo(-gr * 0.52, gr * 0.52);
+        ctx.lineTo(-gr * 0.52, -gr * 0.05); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#1b1e23";
+        ctx.fillRect(-gr * 0.34, gr * 0.10, gr * 0.68, gr * 0.42);
+        ctx.fillStyle = "#e8b23c";
+        ctx.fillRect(-gr * 0.34, gr * 0.20, gr * 0.68, gr * 0.05);
+        ctx.fillRect(-gr * 0.34, gr * 0.31, gr * 0.68, gr * 0.05);
+        ctx.restore();
+      }
+    }
+    if (garage.cars.length && across < 6500) {
+      const kr = Math.max(8 * mPerPx, 21);
+      garage.cars.forEach(rec => {
+        if (drive.car && drive.car.rec === rec) return;       // you are in it
+        const kx = rec.pos.x, kz = rec.pos.z;
+        if (kx < vx0 || kx > vx1 || kz < vz0 || kz > vz1) return;
+        // one parked in its own bay is already marked by the garage
+        if (rec.atGarage && garage.built && Math.hypot(kx - garage.centre[0], kz - garage.centre[1]) < 14) return;
+        ctx.save(); ctx.translate(kx, kz); ctx.rotate(-rot);
+        ctx.fillStyle = "rgba(12,14,18,0.88)";
+        ctx.beginPath(); ctx.arc(0, 0, kr * 0.86, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "#e8b23c"; ctx.lineWidth = kr * 0.09; ctx.stroke();
+        // the key: a ring, a shaft and two teeth
+        ctx.strokeStyle = "#f2c24a"; ctx.lineWidth = kr * 0.15; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.arc(-kr * 0.30, -kr * 0.28, kr * 0.22, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(-kr * 0.15, -kr * 0.13); ctx.lineTo(kr * 0.46, kr * 0.46);
+        ctx.moveTo(kr * 0.26, kr * 0.26); ctx.lineTo(kr * 0.46, kr * 0.06);
+        ctx.moveTo(kr * 0.40, kr * 0.40); ctx.lineTo(kr * 0.60, kr * 0.20); ctx.stroke();
+        ctx.restore();
+      });
+    }
   }
   ctx.restore();
 
@@ -11021,6 +11085,10 @@ function runMapMenu(i) {
     // on the spot; only the material work - clearcoat, reflections, the real
     // road surface - needs the meshes rebuilt, and that is skipped unless the
     // move actually crosses the line between low and the other two.
+    // A rebuild empties the street, so a car you are sitting in goes back to
+    // being parked - the same record, where you were - before it happens,
+    // rather than being thrown away with the scene.
+    if (drive.car) leaveCar();
     const wasHigh = gfx.high, wasTex = TEXQ.scale, wasRelief = TEXQ.normals;
     const next = TIER_ORDER[(TIER_ORDER.indexOf(gfx.tier) + 1) % TIER_ORDER.length];
     applyTier(next);
@@ -11111,6 +11179,7 @@ const phone = {
   app: null,            // null is the home screen
   sub: 0,               // selection inside whatever app is open
   scroll: 0,
+  paint: 0,             // which colour is picked on a car page
   owns: { earbuds: false, headphones: false, icCard: true },
   gallery: [],          // photographs taken with the camera
   dial: "",
@@ -12008,6 +12077,148 @@ function shelfItem(g, W, H, it, y, on, accent) {
   }
 }
 
+// A car in profile, drawn from a handful of measurements and not from a
+// photograph. Each kind is described by where its glass starts and stops and how
+// high its nose, roof and tail sit, as fractions of its length; the outline is
+// those points rounded, and the same routine draws a kei and a supercar. The
+// nose points right, because that is how a showroom turns a car.
+const CAR_PROFILE = {
+  //            roof   belt   nose   tail   roofX0 roofX1 wsBase rwBase wheel  tyre
+  kei:     { roof: 0.50, belt: 0.27, nose: 0.31, tail: 0.38, r0: 0.25, r1: 0.70, ws: 0.80, rw: 0.15, wheel: 0.085 },
+  keivan:  { roof: 0.57, belt: 0.28, nose: 0.31, tail: 0.54, r0: 0.17, r1: 0.74, ws: 0.82, rw: 0.10, wheel: 0.085 },
+  sedan:   { roof: 0.36, belt: 0.21, nose: 0.22, tail: 0.25, r0: 0.30, r1: 0.62, ws: 0.74, rw: 0.20, wheel: 0.078 },
+  saloon:  { roof: 0.31, belt: 0.19, nose: 0.20, tail: 0.23, r0: 0.31, r1: 0.60, ws: 0.76, rw: 0.19, wheel: 0.076 },
+  sports:  { roof: 0.30, belt: 0.18, nose: 0.15, tail: 0.20, r0: 0.38, r1: 0.60, ws: 0.73, rw: 0.25, wheel: 0.080 },
+  super:   { roof: 0.26, belt: 0.155, nose: 0.12, tail: 0.17, r0: 0.40, r1: 0.58, ws: 0.72, rw: 0.22, wheel: 0.082 },
+  hatch:   { roof: 0.38, belt: 0.22, nose: 0.24, tail: 0.32, r0: 0.28, r1: 0.70, ws: 0.76, rw: 0.14, wheel: 0.078 }
+};
+
+function shade(c, k) {
+  return "rgb(" + [0, 1, 2].map(i => clamp(Math.round(c[i] * 255 * k), 0, 255)).join(",") + ")";
+}
+function lighten(c, k) {
+  return "rgb(" + [0, 1, 2].map(i => clamp(Math.round((c[i] + (1 - c[i]) * k) * 255), 0, 255)).join(",") + ")";
+}
+
+function drawCarSide(g, x, y, w, kind, rgb, opts) {
+  opts = opts || {};
+  const baseline = y;
+  const X = u => x + u * w;
+  const Y = v => baseline - v * w;
+  // contact shadow
+  g.fillStyle = "rgba(0,0,0,0.38)";
+  g.beginPath(); g.ellipse(x + w * 0.5, baseline + w * 0.012, w * 0.50, w * 0.034, 0, 0, Math.PI * 2); g.fill();
+
+  if (kind === "scooter") {
+    const wr = w * 0.115;
+    // wheels
+    [[0.20, 1], [0.80, 1]].forEach(wh => {
+      g.fillStyle = "#16181b";
+      g.beginPath(); g.arc(X(wh[0]), baseline - wr, wr, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#9aa1a9";
+      g.beginPath(); g.arc(X(wh[0]), baseline - wr, wr * 0.52, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#2b2f34";
+      g.beginPath(); g.arc(X(wh[0]), baseline - wr, wr * 0.2, 0, Math.PI * 2); g.fill();
+    });
+    // floor board and the body round the rider's legs
+    g.fillStyle = shade(rgb, 0.78);
+    roundRect(g, X(0.22), baseline - wr * 1.35, w * 0.50, w * 0.045, w * 0.02); g.fill();
+    const grd = g.createLinearGradient(0, baseline - w * 0.32, 0, baseline - w * 0.1);
+    grd.addColorStop(0, lighten(rgb, 0.30)); grd.addColorStop(1, shade(rgb, 0.82));
+    g.fillStyle = grd;
+    g.beginPath();
+    g.moveTo(X(0.70), baseline - wr * 1.2);
+    g.quadraticCurveTo(X(0.82), baseline - w * 0.12, X(0.78), baseline - w * 0.30);
+    g.lineTo(X(0.68), baseline - w * 0.30);
+    g.quadraticCurveTo(X(0.62), baseline - w * 0.16, X(0.52), baseline - wr * 1.2);
+    g.closePath(); g.fill();
+    // rear body and seat
+    g.fillStyle = grd;
+    roundRect(g, X(0.08), baseline - w * 0.205, w * 0.34, w * 0.105, w * 0.04); g.fill();
+    g.fillStyle = "#1c1f23";
+    roundRect(g, X(0.11), baseline - w * 0.235, w * 0.28, w * 0.04, w * 0.02); g.fill();
+    // steering column, bars, headlamp
+    g.strokeStyle = "#2b2f34"; g.lineWidth = w * 0.016; g.lineCap = "round";
+    g.beginPath(); g.moveTo(X(0.77), baseline - w * 0.30); g.lineTo(X(0.74), baseline - w * 0.44);
+    g.lineTo(X(0.66), baseline - w * 0.46); g.stroke();
+    g.fillStyle = "#f4efd0";
+    g.beginPath(); g.ellipse(X(0.80), baseline - w * 0.34, w * 0.022, w * 0.018, 0, 0, Math.PI * 2); g.fill();
+    return;
+  }
+
+  const P = CAR_PROFILE[kind] || CAR_PROFILE.sedan;
+  const gc = 0.045;
+  const pts = [
+    [0.015, gc], [0.0, P.tail * 0.62], [0.02, P.tail],
+    [P.rw, P.belt + 0.004], [P.r0, P.roof], [P.r1, P.roof], [P.ws, P.belt + 0.004],
+    [0.935, P.nose], [1.0, P.nose * 0.66], [0.985, gc]
+  ];
+  // body: a rounded polygon, with a vertical gradient so it has a top and a belly
+  const roundedPoly = (pp, r) => {
+    g.beginPath();
+    const n = pp.length;
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    let m0 = mid(pp[n - 1], pp[0]);
+    g.moveTo(X(m0[0]), Y(m0[1]));
+    for (let i = 0; i < n; i++) {
+      const cur = pp[i], nxt = pp[(i + 1) % n];
+      const m = mid(cur, nxt);
+      g.quadraticCurveTo(X(cur[0]), Y(cur[1]), X(m[0]), Y(m[1]));
+    }
+    g.closePath();
+  };
+  const grd = g.createLinearGradient(0, Y(P.roof), 0, Y(gc));
+  grd.addColorStop(0, lighten(rgb, 0.34));
+  grd.addColorStop(0.35, shade(rgb, 1.0));
+  grd.addColorStop(1, shade(rgb, 0.62));
+  roundedPoly(pts, 0.02);
+  g.fillStyle = grd; g.fill();
+  g.strokeStyle = "rgba(0,0,0,0.35)"; g.lineWidth = Math.max(1, w * 0.004); g.stroke();
+
+  // glass
+  const gp = [[P.rw + 0.025, P.belt + 0.012], [P.r0 + 0.018, P.roof - 0.022],
+              [P.r1 - 0.018, P.roof - 0.022], [P.ws - 0.020, P.belt + 0.012]];
+  g.beginPath();
+  g.moveTo(X(gp[0][0]), Y(gp[0][1])); gp.slice(1).forEach(q => g.lineTo(X(q[0]), Y(q[1]))); g.closePath();
+  const glass = g.createLinearGradient(0, Y(P.roof), 0, Y(P.belt));
+  glass.addColorStop(0, "#9fb3c4"); glass.addColorStop(1, "#33424f");
+  g.fillStyle = glass; g.fill();
+  // pillar
+  g.strokeStyle = shade(rgb, 0.7); g.lineWidth = w * 0.012;
+  const pm = (gp[1][0] + gp[2][0]) / 2;
+  g.beginPath(); g.moveTo(X(pm), Y(P.roof - 0.02)); g.lineTo(X(pm - 0.012), Y(P.belt + 0.012)); g.stroke();
+  // shoulder line, the one highlight that makes a flat shape read as sheet metal
+  g.strokeStyle = "rgba(255,255,255,0.32)"; g.lineWidth = w * 0.006;
+  g.beginPath(); g.moveTo(X(0.05), Y(P.belt - 0.012)); g.lineTo(X(0.94), Y(P.belt - 0.012)); g.stroke();
+  // door cut
+  g.strokeStyle = "rgba(0,0,0,0.30)"; g.lineWidth = Math.max(1, w * 0.004);
+  g.beginPath(); g.moveTo(X(pm - 0.012), Y(P.belt)); g.lineTo(X(pm - 0.012), Y(gc + 0.02)); g.stroke();
+  // lamps
+  g.fillStyle = "#fff6cf"; roundRect(g, X(0.955), Y(P.nose * 0.93), w * 0.04, w * 0.018, w * 0.008); g.fill();
+  g.fillStyle = "#d4262c"; roundRect(g, X(0.0), Y(P.tail * 0.88), w * 0.026, w * 0.020, w * 0.008); g.fill();
+
+  // wheels, in their arches
+  const R = P.wheel * w;
+  [0.215, 0.775].forEach(cx => {
+    const wx = X(cx), wy = baseline - gc * w - R * 0.55 + R * 0.12;
+    g.fillStyle = "#0b0c0e";
+    g.beginPath(); g.arc(wx, wy, R * 1.22, Math.PI, 0); g.lineTo(wx + R * 1.22, wy + R); g.lineTo(wx - R * 1.22, wy + R); g.closePath(); g.fill();
+    g.fillStyle = "#17191c";
+    g.beginPath(); g.arc(wx, wy, R, 0, Math.PI * 2); g.fill();
+    const rim = g.createRadialGradient(wx - R * 0.2, wy - R * 0.2, R * 0.1, wx, wy, R * 0.66);
+    rim.addColorStop(0, "#e6e9ec"); rim.addColorStop(1, "#7d858d");
+    g.fillStyle = rim;
+    g.beginPath(); g.arc(wx, wy, R * 0.66, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#3b4047"; g.lineWidth = Math.max(1, R * 0.07);
+    for (let k = 0; k < 5; k++) {
+      const a = k / 5 * Math.PI * 2 + 0.3;
+      g.beginPath(); g.moveTo(wx, wy); g.lineTo(wx + Math.cos(a) * R * 0.64, wy + Math.sin(a) * R * 0.64); g.stroke();
+    }
+    g.fillStyle = "#2b2f34";
+    g.beginPath(); g.arc(wx, wy, R * 0.14, 0, Math.PI * 2); g.fill();
+  });
+}
+
 const CAR_STOCK = {
   luxury: [
     { name: "Kurogane GT-R Coupe",  price: 9800000, rent: 42000, kind: "sports" },
@@ -12078,54 +12289,75 @@ function drawSiteBody(g, W, H, site) {
 
   if (site.kind === "cars") {
     const lux = site.tier === "luxury";
-    siteChrome(g, W, H, site, lux ? "#0e1013" : "#f6f6f4");
+    const bg = lux ? "#0e1013" : "#f6f6f4";
+    siteChrome(g, W, H, site, bg);
     const ink = lux ? "#ffffff" : "#14171b";
     const dim = lux ? "#8a919a" : "#6a717a";
+    const stock = CAR_STOCK[site.tier];
+    const sel = clamp(phone.sub, 0, stock.length - 1);
+    const car = stock[sel];
+    const paint = PAINTS[clamp(phone.paint || 0, 0, PAINTS.length - 1)];
+
     g.fillStyle = ink;
-    g.font = "800 " + Math.round(W * PL.title) + "px " + UI;
-    clipText(g, site.title, W * PL.pad, H * 0.135, W * 0.86);
+    g.font = "800 " + Math.round(W * 0.062) + "px " + UI;
+    g.textAlign = "left";
+    clipText(g, site.title, W * PL.pad, H * 0.122, W * 0.62);
+    g.fillStyle = dim;
+    g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText(yenText(purse.yen), W * (1 - PL.pad), H * 0.122);
+    g.textAlign = "left";
+
+    // the showroom: a floor, a wall, and the car in the colour you have picked
+    const hx = W * PL.pad, hy = H * 0.148, hw = W * (1 - PL.pad * 2), hh = H * 0.205;
+    const wall = g.createLinearGradient(0, hy, 0, hy + hh);
+    wall.addColorStop(0, lux ? "#1b2027" : "#e5e7e9"); wall.addColorStop(0.72, lux ? "#10141a" : "#cfd3d6");
+    wall.addColorStop(0.72, lux ? "#262b32" : "#bfc4c8"); wall.addColorStop(1, lux ? "#1a1e24" : "#aeb3b8");
+    g.fillStyle = wall;
+    roundRect(g, hx, hy, hw, hh, W * 0.035); g.fill();
+    g.save();
+    roundRect(g, hx, hy, hw, hh, W * 0.035); g.clip();
+    drawCarSide(g, hx + hw * 0.13, hy + hh * 0.80, hw * 0.74, car.kind, paint[1]);
+    g.restore();
+
+    g.fillStyle = ink;
+    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
+    clipText(g, car.name, W * PL.pad, H * 0.382, W * 0.84);
     g.fillStyle = dim;
     g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-    g.fillText(lux ? "Approved used \u00b7 finance available"
-                   : "Honest cars, honest prices, no haggling",
-               W * PL.pad, H * 0.172);
-    const stock = CAR_STOCK[site.tier];
-    const rowH = H * 0.128;
-    stock.forEach((c, i) => {
-      const y = H * 0.21 + i * (rowH + H * 0.016);
-      phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i,
-               lux ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
-      // A car in profile rather than a lozenge: a body, a cabin and two wheels
-      // is enough to tell a coupe from a one-box at this size.
-      const cx = W * (PL.pad + 0.035), cy = y + rowH * 0.50, cw = W * 0.165;
-      const low = c.kind === "sports" || c.kind === "super";
-      const tall = c.kind === "keivan";
-      g.fillStyle = lux ? "#7d8a9e" : "#9aa2ab";
-      const bodyH = cw * (low ? 0.17 : 0.21);
-      roundRect(g, cx, cy - bodyH * 0.1, cw, bodyH, bodyH * 0.38); g.fill();
-      const cabW = cw * (tall ? 0.62 : low ? 0.42 : 0.50);
-      const cabH = cw * (tall ? 0.30 : low ? 0.13 : 0.19);
-      roundRect(g, cx + cw * (tall ? 0.16 : 0.26), cy - bodyH * 0.1 - cabH + 1,
-                cabW, cabH, cabH * 0.42); g.fill();
-      g.fillStyle = lux ? "#3b4350" : "#5f6771";
-      [0.22, 0.76].forEach(f => {
-        g.beginPath(); g.arc(cx + cw * f, cy + bodyH * 0.92, cw * 0.072, 0, Math.PI * 2); g.fill();
-      });
+    g.fillText(yenText(car.price) + "  ·  " + paint[0], W * PL.pad, H * 0.409);
 
-      const textX = W * (PL.pad + 0.235);
-      const textW = W * (1 - PL.pad) - W * 0.03 - textX;
-      g.fillStyle = ink;
-      g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
-      clipText(g, c.name, textX, y + rowH * 0.33, textW);
-      g.fillStyle = dim;
-      g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-      clipText(g, "Buy " + yenText(c.price), textX, y + rowH * 0.60, textW);
-      clipText(g, "Rent " + yenText(c.rent) + " a day", textX, y + rowH * 0.84, textW);
+    // the paint swatches, with the one in use ringed
+    const sw = W * 0.0345, gap = (W * (1 - PL.pad * 2) - sw * 2 * PAINTS.length) / (PAINTS.length - 1);
+    PAINTS.forEach((pc, i) => {
+      const cx = W * PL.pad + sw + i * (sw * 2 + gap), cy = H * 0.449;
+      g.fillStyle = shade(pc[1], 1);
+      g.beginPath(); g.arc(cx, cy, sw, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = lux ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.25)"; g.lineWidth = W * 0.004; g.stroke();
+      if (i === (phone.paint || 0)) {
+        g.strokeStyle = appAccent(); g.lineWidth = W * 0.008;
+        g.beginPath(); g.arc(cx, cy, sw + W * 0.012, 0, Math.PI * 2); g.stroke();
+      }
     });
     g.fillStyle = dim;
-    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-    g.fillText("Balance " + yenText(purse.yen), W * PL.pad, H * 0.915);
-    g.fillText("Nowhere to keep one yet \u2014 garages come later.", W * PL.pad, H * 0.945);
+    g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+    g.fillText("◀ ▶ colour   ▲ ▼ car   A buy", W * PL.pad, H * 0.485);
+
+    const rowH = H * 0.056;
+    stock.forEach((c, i) => {
+      const y = H * 0.508 + i * (rowH + H * 0.007);
+      phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, sel === i,
+               lux ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)");
+      g.font = "700 " + Math.round(W * PL.small) + "px " + UI;
+      const pr = yenText(c.price);
+      const prW = g.measureText(pr).width;
+      g.fillStyle = ink; g.textAlign = "right";
+      g.fillText(pr, W * (1 - PL.pad) - W * 0.03, y + rowH * 0.54);
+      g.textAlign = "left";
+      g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+      clipText(g, c.name, W * (PL.pad + 0.035), y + rowH * 0.54, W * (1 - PL.pad) - W * 0.07 - prW - W * (PL.pad + 0.035));
+    });
+    g.textBaseline = "alphabetic";
     return;
   }
 
@@ -12773,6 +13005,11 @@ function phoneCount() {
 
 function phoneMove(dx, dy) {
   if (!phone.open) return;
+  if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
+    phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
+    phone.dirty = true;
+    return;
+  }
   if (phone.app) {
     const n = phoneCount();
     if (!n) return;
@@ -12841,9 +13078,15 @@ function phoneAct() {
           }
         }
       } else if (site.kind === "cars") {
-        const c = CAR_STOCK[site.tier][phone.sub];
-        if (purse.yen < c.rent) say("Not enough even to rent that.", 4);
-        else say(c.name + " \u2014 nowhere to keep it yet. Garages come later.", 5);
+        const c = CAR_STOCK[site.tier][clamp(phone.sub, 0, CAR_STOCK[site.tier].length - 1)];
+        if (purse.yen < c.price) {
+          say("Not enough. " + c.name + " is " + yenText(c.price) + "; you have " + yenText(purse.yen) + ".", 5);
+        } else {
+          purse.yen -= c.price;
+          const rec = ownCar(c, phone.paint || 0);
+          say(c.name + " in " + PAINTS[rec.paint][0] + " \u00b7 " +
+              (rec.atGarage ? "waiting in your garage in Mizuho. The key is on the map." : "parked near you. The key is on the map."), 7);
+        }
       }
     }
   } else if (app === "Music") {
@@ -13353,6 +13596,241 @@ function updateCollapse(dt) {
   enterThrough(() => { collapse(); collapse.busy = false; });
 }
 
+// ---- the garage, and the cars you own --------------------------------------
+// A car you have bought is not a car in the traffic and not something a
+// stranger left at a kerb. It is a record, and the record is the car: where it
+// is parked, what colour it is, what you paid. Everything else - the instance
+// drawn in the street, the key on the map - is made from it.
+//
+// The records live here and not in drive.parked, because a rebuild of the scene
+// (which changing the graphics setting does) empties drive.parked, and a car
+// you paid ¥9,800,000 for should not vanish because you turned the shadows off.
+const garage = { cars: [], built: false, bays: [], spill: [], centre: null, front: [0, 1], yaw: 0, nextId: 1 };
+
+// Paint, with names, because "colour 3" is not something anybody buys.
+const PAINTS = [
+  ["Pearl white", [0.93, 0.93, 0.91]], ["Midnight",  [0.05, 0.055, 0.07]],
+  ["Silver",      [0.62, 0.64, 0.66]], ["Racing red", [0.72, 0.07, 0.09]],
+  ["Deep blue",   [0.08, 0.18, 0.52]], ["Forest",     [0.07, 0.30, 0.17]],
+  ["Sunburst",    [0.92, 0.66, 0.08]], ["Graphite",   [0.20, 0.21, 0.23]]
+];
+
+function carKindIndex(name) {
+  const i = CAR_KINDS.findIndex(k => k.name === name);
+  return i < 0 ? 0 : i;
+}
+
+// A site for the garage is found, not placed by hand: an oriented rectangle
+// near the front door where nothing is built, no road runs, and the ground is
+// level, with its open side turned to the nearest street so a car leaves
+// forwards. Searching outwards from the door and taking the nearest that fits
+// keeps it a garage that belongs to the house and not a car park down the road.
+function findGarageSite() {
+  const RW = 11.4, RD = 6.2;
+  // The reserved lot, when there is one, is the site: it was cleared for this.
+  if (garageReserve.on) {
+    const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
+    return { r: 0, cx: garageReserve.cx, cz: garageReserve.cz, front: out,
+             yaw: Math.atan2(out[0], out[1]), lat: [out[1], -out[0]], ratio: 1, score: 999 };
+  }
+  const hx = home.at[0], hz = home.at[1];
+  const g0 = world.surfaceY(hx, hz);
+  let best = null;
+  for (let r = 7; r <= 48; r += 2.5) {
+    for (let k = 0; k < 28; k++) {
+      const ang = (k / 28) * Math.PI * 2 + r * 0.37;
+      const cx = home.door[0] + Math.cos(ang) * r * 0.62 + Math.sin(home.yaw) * r * 0.38;
+      const cz = home.door[1] + Math.sin(ang) * r * 0.62 + Math.cos(home.yaw) * r * 0.38;
+      // the roads close enough to matter, fetched once for this candidate
+      const segs = [];
+      indexNear(nav.idx.roads, cx - 50, cz - 50, cx + 50, cz + 50, e => {
+        const road = world.cities[e.c].roads[e.r];
+        segs.push([road.pts[e.s], road.pts[e.s + 1], road.halfWidth]);
+      });
+      if (!segs.length) continue;
+      let nearD = Infinity, nearP = null;
+      segs.forEach(sg => {
+        const a = sg[0], b = sg[1];
+        const dx = b[0] - a[0], dz = b[2] - a[2], L2 = dx * dx + dz * dz || 1;
+        const t = clamp(((cx - a[0]) * dx + (cz - a[2]) * dz) / L2, 0, 1);
+        const px = a[0] + dx * t, pz = a[2] + dz * t;
+        const d = Math.hypot(cx - px, cz - pz) - sg[2];
+        if (d < nearD) { nearD = d; nearP = [px, pz]; }
+      });
+      if (!nearP || nearD > 30) continue;
+      const fx = nearP[0] - cx, fz = nearP[1] - cz, fl = Math.hypot(fx, fz) || 1;
+      const front = [fx / fl, fz / fl];
+      const yaw = Math.atan2(front[0], front[1]);
+      const lat = [front[1], -front[0]];
+      let ok = 0, total = 0;
+      // Every metre and a half, so no wall or fence can fall between two samples:
+      // at three metres a thin building slipped through and a car was parked in it.
+      for (let u = -RW / 2 - 1.0; u <= RW / 2 + 1.0; u += 1.5) {
+        for (let v = -RD / 2 - 1.0; v <= RD / 2 + 1.0; v += 1.5) {
+          const x = cx + lat[0] * u + front[0] * v, z = cz + lat[1] * u + front[1] * v;
+          total++;
+          if (insideBuilding(x, z, 0.9)) continue;
+          if (Math.abs(world.surfaceY(x, z) - g0) > 0.7) continue;
+          let onRoad = false;
+          for (let i = 0; i < segs.length && !onRoad; i++) {
+            const sg = segs[i];
+            if (distToSeg(x, z, sg[0][0], sg[0][2], sg[1][0], sg[1][2]) < sg[2] + 1.6) onRoad = true;
+          }
+          if (!onRoad) ok++;
+        }
+      }
+      const ratio = ok / total;
+      // nearer is better, and a site that fits entirely beats one that does not
+      const score = ratio * 100 - r * 0.9;
+      if (ratio >= 0.999 && (!best || r < best.r)) best = { r: r, cx: cx, cz: cz, front: front, yaw: yaw, lat: lat, ratio: ratio, score: 999 - r };
+      else if (!best || (best.ratio < 0.999 && score > best.score)) best = { r: r, cx: cx, cz: cz, front: front, yaw: yaw, lat: lat, ratio: ratio, score: score };
+    }
+    if (best && best.ratio >= 0.999) break;
+  }
+  return best;
+}
+
+function garageSignTexture() {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 128;
+  const g = c.getContext("2d");
+  g.fillStyle = "#16324a"; g.fillRect(0, 0, 512, 128);
+  g.fillStyle = "#f4f1e8"; g.fillRect(8, 8, 496, 112);
+  g.fillStyle = "#16324a"; g.fillRect(14, 14, 484, 100);
+  g.fillStyle = "#f4f1e8";
+  g.font = "800 58px sans-serif"; g.textBaseline = "middle"; g.textAlign = "left";
+  g.fillText("GARAGE", 120, 52);
+  g.font = "600 30px sans-serif"; g.fillStyle = "#e8b23c";
+  g.fillText("ガレージ  ·  Seiko", 124, 94);
+  // a key, drawn
+  g.strokeStyle = "#e8b23c"; g.lineWidth = 9; g.lineCap = "round";
+  g.beginPath(); g.arc(62, 54, 20, 0, Math.PI * 2); g.stroke();
+  g.beginPath(); g.moveTo(80, 70); g.lineTo(100, 92); g.moveTo(92, 82); g.lineTo(84, 90); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding;
+  return t;
+}
+
+function buildGarage(root) {
+  garage.built = false;
+  garage.bays.length = 0; garage.spill.length = 0;
+  if (!home.at || !home.door || !nav.ready) return;
+  const site = findGarageSite();
+  if (!site) return;
+  const RW = 11.4, RD = 6.2;
+  const gy = world.surfaceY(site.cx, site.cz);
+  const f = site.front, l = site.lat;
+  const at = (u, v) => [site.cx + l[0] * u + f[0] * v, site.cz + l[1] * u + f[1] * v];
+  const yawDeg = site.yaw * 180 / Math.PI;
+  const mk = (geo, mat, u, y, v, rot) => {
+    const m = new THREE.Mesh(geo, mat);
+    const p = at(u, v);
+    m.position.set(p[0], y, p[1]);
+    m.rotation.y = site.yaw;
+    if (rot) m.rotation.x = rot;
+    m.castShadow = true; m.receiveShadow = true;
+    root.add(m);
+    return m;
+  };
+  const std = (color, rough, extra) => gfx.high
+    ? new THREE.MeshStandardMaterial(Object.assign({ color: color, roughness: rough, metalness: 0.0 }, extra || {}))
+    : new THREE.MeshLambertMaterial(Object.assign({ color: color }, extra && extra.emissive ? { emissive: extra.emissive } : {}));
+
+  // slab, and the lines that make three bays
+  mk(new THREE.BoxGeometry(RW + 0.8, 0.16, RD + 0.6), std(0x7b7f84, 0.95), 0, gy + 0.08, 0);
+  const line = std(0xeeeeea, 0.8);
+  [-RW / 2, -RW / 6, RW / 6, RW / 2].forEach(u => {
+    const m = mk(new THREE.BoxGeometry(0.12, 0.03, RD - 0.4), line, u, gy + 0.175, 0);
+    m.castShadow = false;
+  });
+  // back wall: concrete block, and it stops cars and people
+  mk(new THREE.BoxGeometry(RW + 0.6, 2.7, 0.24), std(0xb4afa2, 0.95), 0, gy + 1.35, -RD / 2 - 0.1);
+  // two steel posts at the front corners, and a roof on them
+  const steel = std(0x30353a, 0.55, { metalness: 0.5 });
+  [-1, 1].forEach(sd => mk(new THREE.BoxGeometry(0.2, 2.95, 0.2), steel, sd * (RW / 2 + 0.2), gy + 1.475, RD / 2 + 0.55));
+  const roof = mk(new THREE.BoxGeometry(RW + 1.4, 0.16, RD + 1.7), std(0x6d7479, 0.55, { metalness: 0.4 }), 0, gy + 3.02, 0.35, 0.05);
+  mk(new THREE.BoxGeometry(RW + 1.4, 0.34, 0.1), std(0x3c4247, 0.6), 0, gy + 2.86, RD / 2 + 1.15);
+  // the sign, lit at night with everything else
+  const signMat = new THREE.MeshStandardMaterial({ map: garageSignTexture(), roughness: 0.6,
+    emissive: new THREE.Color(1, 0.95, 0.85), emissiveMap: null, emissiveIntensity: 0 });
+  signMat.emissiveMap = signMat.map;
+  const sign = mk(new THREE.BoxGeometry(RW * 0.5, 1.15, 0.12), signMat, 0, gy + 3.55, RD / 2 + 1.2);
+  sign.castShadow = false;
+  nightMats.push({ m: signMat, gain: 0.9 });
+  // a strip light under the roof
+  const lamp = new THREE.MeshStandardMaterial({ color: 0xf4eedc, emissive: new THREE.Color(1, 0.85, 0.6), emissiveIntensity: 0, roughness: 0.4 });
+  mk(new THREE.BoxGeometry(RW - 1.0, 0.07, 0.24), lamp, 0, gy + 2.9, 0.4).castShadow = false;
+  nightMats.push({ m: lamp, gain: 2.4 });
+
+  // a collider for the back wall, so nothing drives or walks through it
+  const wc = at(0, -RD / 2 - 0.1);
+  solids.push({ c: [wc[0], wc[1]], size: [RW + 0.6, 0.24], yaw: yawDeg, y: gy, h: 2.7 });
+  buildSolidGrid();
+
+  // where the cars go: three bays, nose out, and an overflow row in front
+  [-RW / 3, 0, RW / 3].forEach(u => {
+    const p = at(u, -0.35);
+    garage.bays.push({ x: p[0], z: p[1], yaw: site.yaw });
+  });
+  [-RW / 3, 0, RW / 3].forEach(u => {
+    const p = at(u, RD / 2 + 4.6);
+    garage.spill.push({ x: p[0], z: p[1], yaw: site.yaw });
+  });
+  garage.centre = [site.cx, site.cz];
+  garage.front = f; garage.yaw = site.yaw; garage.gy = gy;
+  garage.built = true;
+}
+
+// Which of the bays are taken: a parked car within a couple of metres.
+function garageFreeSpot() {
+  const all = garage.bays.concat(garage.spill);
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i];
+    let taken = false;
+    for (let k = 0; k < drive.parked.length; k++) {
+      const p = drive.parked[k];
+      if (Math.hypot(p.pos.x - b.x, p.pos.z - b.z) < 2.4) { taken = true; break; }
+    }
+    if (drive.car && Math.hypot(drive.car.pos.x - b.x, drive.car.pos.z - b.z) < 2.4) taken = true;
+    if (!taken) return b;
+  }
+  return null;
+}
+
+// Buy a car: it appears in a bay, and the key goes on the map.
+function ownCar(spec, paintIdx) {
+  const spot = garage.built ? garageFreeSpot() : null;
+  const kindIdx = carKindIndex(spec.kind);
+  const kind = CAR_KINDS[kindIdx];
+  let uv = [0, 0];
+  if (kind.marques && kind.marques.length > 1) {
+    const base = badgeUV(kind.marques[0]), pick = badgeUV(kind.marques[(garage.nextId) % kind.marques.length]);
+    uv = [pick.u0 - base.u0, pick.v0 - base.v0];
+  }
+  let pos, yaw;
+  if (spot) { pos = new THREE.Vector3(spot.x, world.surfaceY(spot.x, spot.z) + 0.04, spot.z); yaw = spot.yaw; }
+  else {
+    // no garage, or it is full: in front of the house, which is at least findable
+    const o = player.pos;
+    pos = new THREE.Vector3(o.x + Math.sin(player.yaw) * 6, world.surfaceY(o.x, o.z) + 0.04, o.z + Math.cos(player.yaw) * 6);
+    yaw = player.yaw;
+  }
+  const rec = { owned: true, id: garage.nextId++, name: spec.name, kind: kindIdx, kindName: spec.kind,
+                price: spec.price, paint: paintIdx, pos: pos, yaw: yaw,
+                colour: PAINTS[paintIdx][1].slice(), uv: uv, atGarage: !!spot };
+  garage.cars.push(rec);
+  drive.parked.push(rec);
+  return rec;
+}
+
+// After a rebuild the instances are gone but the cars are not.
+function restoreOwnedCars() {
+  garage.cars.forEach(rec => {
+    if (drive.car && drive.car.rec === rec) return;
+    if (drive.parked.indexOf(rec) < 0) drive.parked.push(rec);
+  });
+}
+
 // ---- home ------------------------------------------------------------------
 // The flat in Mizuho Seiko grew up in, and the one place on the island that is
 // his. Four things to do in it, and between them they are the whole loop the
@@ -13387,6 +13865,27 @@ function findHome(w) {
     home.city = c.name;
     break;
   }
+}
+
+// Room for the garage. Mizuho's house block is a solid grid with lanes four to
+// six metres wide between the houses, so there is no clear ground within reach
+// of the door for a three-bay garage, and a search for it can only fail. The
+// room is made instead, the way a lot would be: a garage-sized rectangle beside
+// the door is reserved before any house is laid out, and the houses that would
+// stand in it are not built. Axes are the plot's own: u along the frontage, v
+// out from the door.
+const garageReserve = { on: false, cx: 0, cz: 0, yawDeg: 0, w: 14.2, d: 8.6, city: "" };
+function planGarageReserve() {
+  garageReserve.on = false;
+  if (!home.at || !home.door) return;
+  const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
+  const lat = [Math.cos(home.yaw), -Math.sin(home.yaw)];
+  const u = garageReserve.w * 0.5 + 3.4, v = garageReserve.d * 0.5 - 0.4;
+  garageReserve.cx = home.door[0] + lat[0] * u + out[0] * v;
+  garageReserve.cz = home.door[1] + lat[1] * u + out[1] * v;
+  garageReserve.yawDeg = home.yaw * 180 / Math.PI;
+  garageReserve.city = home.city;
+  garageReserve.on = true;
 }
 
 function homeNear(x, z) {
@@ -14363,16 +14862,32 @@ function enterParked(i) {
   const p = drive.parked.splice(i, 1)[0];
   drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
                 pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0,
-                colour: p.colour.slice(), uv: p.uv.slice() };
+                colour: p.colour.slice(), uv: p.uv.slice(),
+                rec: p.owned ? p : null };
   document.body.classList.add("driving");
 }
 
 function leaveCar() {
   if (!drive.car) return;
   const c = drive.car;
-  drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
-                      colour: c.colour.slice(), uv: c.uv.slice() });
-  while (drive.parked.length > 6) drive.parked.shift();
+  if (c.rec) {
+    // Your own car goes back into the list as the same record, wherever you
+    // left it, and is never the one that gets forgotten.
+    c.rec.pos.copy(c.pos); c.rec.yaw = c.yaw;
+    c.rec.atGarage = garage.built && garage.bays.concat(garage.spill)
+      .some(b => Math.hypot(b.x - c.pos.x, b.z - c.pos.z) < 3.2);
+    drive.parked.push(c.rec);
+  } else {
+    drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
+                        colour: c.colour.slice(), uv: c.uv.slice() });
+  }
+  // Only strangers' cars are forgotten, oldest first.
+  let strangers = drive.parked.filter(q => !q.owned).length;
+  while (strangers > 6) {
+    const at = drive.parked.findIndex(q => !q.owned);
+    drive.parked.splice(at, 1);
+    strangers--;
+  }
   // Step out on the near side, and not into a wall.
   const side = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw));
   const kind = CAR_KINDS[c.kind];
@@ -14841,12 +15356,40 @@ function setNightLights(lit) {
     n.m.emissiveIntensity = lit * n.gain;
     // The reflections are a daytime sky. Left on, a glass tower is a pale blue
     // mirror at midnight and no window in it can show.
-    if (n.env !== undefined) n.m.envMapIntensity = n.env * (1 - 0.88 * lit);
   });
   nightState.glows.forEach(gl => {
     gl.sprite.material.opacity = lit * gl.peak;
     gl.sprite.visible = lit > 0.02;
   });
+}
+
+// Reflections are a daytime sky, and at night there is not one. Every material
+// in the scene that carries the environment map has its reflection turned down
+// as the lights come up - cars, roofs, trim, glass, anything loaded later -
+// instead of each being taught about night one by one. The list is rebuilt now
+// and then, because the car models arrive after the scene does.
+const nightEnv = { list: [], stamp: -99 };
+function applyNightEnv(lit) {
+  if (!scene) return;
+  if (clock - nightEnv.stamp > 4 || nightEnv.list.length === 0) {
+    const seen = new Set();
+    nightEnv.list.length = 0;
+    scene.traverse(o => {
+      const ms = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+      ms.forEach(m => {
+        if (!m || seen.has(m.uuid) || !m.envMap || m.envMapIntensity === undefined) return;
+        seen.add(m.uuid);
+        if (m.userData.env0 === undefined) m.userData.env0 = m.envMapIntensity;
+        nightEnv.list.push(m);
+      });
+    });
+    nightEnv.stamp = clock;
+  }
+  const k = 1 - 0.86 * lit;
+  for (let i = 0; i < nightEnv.list.length; i++) {
+    const m = nightEnv.list[i];
+    m.envMapIntensity = m.userData.env0 * k;
+  }
 }
 
 function updateWorldSky(dt, force) {
@@ -14862,7 +15405,9 @@ function updateWorldSky(dt, force) {
   // Lights come on while the sky is still orange, which is when a street's
   // actually do, and are at full strength by the time the sun is a little
   // under the horizon.
-  setNightLights(clamp01(0.52 - h * 3.4));
+  const lit = clamp01(0.52 - h * 3.4);
+  setNightLights(lit);
+  applyNightEnv(lit);
 }
 
 // The glow over a town. From the countryside at night a city is not a place,
