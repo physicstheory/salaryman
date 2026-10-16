@@ -896,6 +896,7 @@
     <div class="menucol" id="mapmenu">
       <button class="menu-btn sel" id="kresume" type="button">Resume</button>
       <button class="menu-btn" id="kwaypoint" type="button">Set waypoint</button>
+      <button class="menu-btn" id="koverlay" type="button">Transport: off</button>
       <button class="menu-btn" id="kshadows" type="button">Shadows: on</button>
       <button class="menu-btn" id="kquality" type="button">Graphics: high</button>
       <button class="menu-btn" id="kres" type="button">Resolution: 100%</button>
@@ -904,11 +905,10 @@
     <p id="maphint"></p>
   </div>
   <div id="maplegend">
-    <span><i style="background:#e8b23c"></i>Expressway</span>
-    <span><i style="background:#f1f1ec"></i>Arterial</span>
-    <span><i style="background:#8d98a2"></i>Street</span>
-    <span><i style="background:#3fae76"></i>NHRail</span>
-    <span><i style="background:#d8483c"></i>Waypoint</span>
+    <span><i style="background:#f0b72a"></i>Highway</span>
+    <span><i style="background:#3fae76"></i>Rail (overlay)</span>
+    <span><i style="background:#f08a2c"></i>Bus (overlay)</span>
+    <span><i style="background:#15894f"></i>Waypoint and route</span>
   </div>
 </div>
 
@@ -6129,6 +6129,7 @@ let hudTimer = 0;
 function updateHud(dt, force) {
   updateSound(dt);
   updateRadio(dt);
+  updateRoute();
   hudTimer -= dt;
   if (hudTimer > 0 && !force) return;
   hudTimer = 1 / 14;
@@ -10388,15 +10389,16 @@ const MAPC = {
   sea: "#122630",
   land: "#2d333a", block: "#3c434b",
   street: "#79838d", alley: "#5e6771",
-  arterial: "#f1f1ec", express: "#e8b23c", rail: "#3fae76",
+  arterial: "#222830", express: "#f0b72a", rail: "#3fae76", bus: "#f08a2c",
   plot: "#4d555e", park: "#32492b",
-  ink: "#f2f4f0", shadow: "rgba(0,0,0,0.8)", waypoint: "#d8483c",
+  ink: "#f2f4f0", shadow: "rgba(0,0,0,0.8)", waypoint: "#15894f",
   player: "#55b9ff"
 };
 
 const nav = {
   base: null, wash: [], idx: null, ready: false,
   waypoint: null,                      // {x, z}
+  route: null, overlay: 0,             // the line along the roads; 0 off, 1 rail, 2 bus, 3 both
   mapOpen: false, mapZoom: 1, mapCx: 0, mapCz: 0, mapSel: 0,
   place: null
 };
@@ -10596,6 +10598,136 @@ function placeAt(x, z) {
 // ---- the renderer ------------------------------------------------------
 // One function, two users. across is how many metres the canvas is wide, which
 // is the only thing that changes between the minimap and the island map.
+// ---- map marks and the route -------------------------------------------------------
+// Every place that has a logo gets its logo on the map, at any zoom: the two
+// convenience chains, Dokoto Camera, the armourers (a pistol, not a name),
+// and each station with a convenience store beside it, because every station
+// has one. Marks are drawn in map space and keep a minimum size on screen.
+function drawBrandMark(ctx, brand, r) {
+  ctx.save();
+  ctx.lineWidth = r * 0.16; ctx.strokeStyle = "rgba(8,10,14,0.9)";
+  const disc = (fill) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); };
+  if (brand === "eleven") {
+    disc("#0a6b42");
+    ctx.fillStyle = "#e8711a"; ctx.fillRect(-r * 0.78, r * 0.18, r * 1.56, r * 0.22);
+    ctx.fillStyle = "#cf2027"; ctx.fillRect(-r * 0.7, r * 0.42, r * 1.4, r * 0.2);
+    ctx.fillStyle = "#ffffff"; ctx.font = "900 " + Math.round(r * 0.9) + "px " + UI; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("11", 0, -r * 0.18);
+  } else if (brand === "petmart") {
+    disc("#ffffff");
+    ctx.fillStyle = "#1272d6"; ctx.fillRect(-r * 0.78, r * 0.52, r * 1.56, r * 0.22);
+    ctx.fillStyle = "#13a150"; ctx.fillRect(-r * 0.7, -r * 0.74, r * 1.4, r * 0.2);
+    ctx.fillStyle = "#1272d6";
+    ctx.beginPath(); ctx.ellipse(0, r * 0.14, r * 0.30, r * 0.24, 0, 0, 7); ctx.fill();
+    [[-0.34, -0.2], [-0.12, -0.38], [0.12, -0.38], [0.34, -0.2]].forEach(p => { ctx.beginPath(); ctx.arc(p[0] * r, p[1] * r, r * 0.11, 0, 7); ctx.fill(); });
+  } else if (brand === "dokoto") {
+    disc("#d4152c");
+    ctx.fillStyle = "#ffd21c"; ctx.beginPath(); ctx.arc(0, 0, r * 0.64, 0, 7); ctx.fill();
+    ctx.fillStyle = "#14171b"; ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, 7); ctx.fill();
+    ctx.fillStyle = "#3a4a8a"; ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.8)"; ctx.beginPath(); ctx.arc(-r * 0.1, -r * 0.1, r * 0.08, 0, 7); ctx.fill();
+  } else if (brand === "arms") {
+    disc("#1d2026");
+    // a pistol in profile
+    ctx.fillStyle = "#e0b867";
+    ctx.fillRect(-r * 0.62, -r * 0.30, r * 1.1, r * 0.30);
+    ctx.fillRect(-r * 0.62, -r * 0.34, r * 0.86, r * 0.08);
+    ctx.beginPath(); ctx.moveTo(-r * 0.46, 0); ctx.lineTo(-r * 0.20, 0); ctx.lineTo(-r * 0.30, r * 0.60); ctx.lineTo(-r * 0.54, r * 0.60); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "#e0b867"; ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.arc(-r * 0.06, r * 0.08, r * 0.15, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else if (brand === "station") {
+    ctx.fillStyle = "#15894f"; roundRect(ctx, -r, -r, r * 2, r * 2, r * 0.3); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#ffffff"; roundRect(ctx, -r * 0.5, -r * 0.62, r, r * 1.0, r * 0.18); ctx.fill();
+    ctx.fillStyle = "#15894f"; ctx.fillRect(-r * 0.36, -r * 0.46, r * 0.72, r * 0.36);
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(-r * 0.62, r * 0.50, r * 1.24, r * 0.12);
+  }
+  ctx.restore();
+}
+
+// ---- the route: along the roads there are, from you to the waypoint.
+const routeNet = { nodes: null, adj: null, grid: null };
+function routeBuild() {
+  if (routeNet.nodes) return;
+  const nodes = [], adj = [], cell = 28, grid = new Map();
+  const key = (i, j) => i + "," + j;
+  const add = (x, z) => {
+    const id = nodes.length; nodes.push([x, z]); adj.push([]);
+    const k = key(Math.floor(x / cell), Math.floor(z / cell));
+    let l = grid.get(k); if (!l) { l = []; grid.set(k, l); } l.push(id); return id;
+  };
+  const link = (a, b) => {
+    const d = Math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]);
+    adj[a].push([b, d]); adj[b].push([a, d]);
+  };
+  world.cities.forEach(city => {
+    city.roads.forEach(road => {
+      if (road.cls === "expressway" || road.elevated || !road.pts) return;
+      let prev = -1;
+      for (let i = 0; i < road.pts.length; i++) {
+        const q = road.pts[i];
+        const id = add(q[0], q[2]);
+        if (prev >= 0) link(prev, id);
+        prev = id;
+      }
+      if (road.loop && road.pts.length > 2) link(prev, nodes.length - road.pts.length);
+    });
+  });
+  // where two roads pass within a few metres of each other they meet
+  for (let a = 0; a < nodes.length; a++) {
+    const ci = Math.floor(nodes[a][0] / cell), cj = Math.floor(nodes[a][1] / cell);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      const l = grid.get(key(ci + di, cj + dj)); if (!l) continue;
+      for (const b of l) {
+        if (b <= a) continue;
+        if (Math.hypot(nodes[a][0] - nodes[b][0], nodes[a][1] - nodes[b][1]) < 14 && !adj[a].some(e => e[0] === b)) link(a, b);
+      }
+    }
+  }
+  routeNet.nodes = nodes; routeNet.adj = adj; routeNet.grid = grid; routeNet.cell = cell;
+}
+function routeNearest(x, z, maxR) {
+  const n = routeNet.nodes, cell = routeNet.cell;
+  let best = -1, bd = maxR * maxR;
+  const r = Math.ceil(maxR / cell);
+  const ci = Math.floor(x / cell), cj = Math.floor(z / cell);
+  for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) {
+    const l = routeNet.grid.get((ci + di) + "," + (cj + dj)); if (!l) continue;
+    for (const id of l) { const d = (n[id][0] - x) * (n[id][0] - x) + (n[id][1] - z) * (n[id][1] - z); if (d < bd) { bd = d; best = id; } }
+  }
+  return best;
+}
+function routeSolve(from, to) {
+  routeBuild();
+  const a = routeNearest(from.x, from.z, 900), b = routeNearest(to.x, to.z, 900);
+  if (a < 0 || b < 0) return [[from.x, from.z], [to.x, to.z]];
+  const n = routeNet.nodes, adj = routeNet.adj;
+  const dist = new Float64Array(n.length).fill(Infinity), prev = new Int32Array(n.length).fill(-1), done = new Uint8Array(n.length);
+  const heap = [[0, a]];
+  dist[a] = 0;
+  const h = id => Math.hypot(n[id][0] - n[b][0], n[id][1] - n[b][1]);
+  const push = (it) => { heap.push(it); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = i * 2 + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  let guard = 0;
+  while (heap.length && guard++ < 60000) {
+    const [, u] = pop();
+    if (done[u]) continue; done[u] = 1;
+    if (u === b) break;
+    adj[u].forEach(e => { const v = e[0], nd = dist[u] + e[1]; if (nd < dist[v]) { dist[v] = nd; prev[v] = u; push([nd + h(v), v]); } });
+  }
+  const path = [];
+  if (prev[b] < 0 && a !== b) return [[from.x, from.z], [to.x, to.z]];
+  for (let v = b; v >= 0; v = prev[v]) path.push([n[v][0], n[v][1]]);
+  path.reverse();
+  return [[from.x, from.z]].concat(path, [[to.x, to.z]]);
+}
+function updateRoute() {
+  if (!nav.waypoint || !player.placed) { nav.route = null; return; }
+  const at = drive.car ? drive.car.pos : player.pos;
+  const r = nav.route;
+  const moved = !r || Math.hypot(r.fx - at.x, r.fz - at.z) > 70 || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
+  if (!moved) return;
+  nav.route = { pts: routeSolve({ x: at.x, z: at.z }, nav.waypoint), fx: at.x, fz: at.z, wx: nav.waypoint.x, wz: nav.waypoint.z };
+}
+
 function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   opts = opts || {};
   const S = pw / across;
@@ -10628,63 +10760,11 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     ctx.restore();
   });
 
-  // The streets themselves. They are not stored anywhere - the city paints
-  // them as a grid per ward - so they are walked the same way here, clipped to
-  // the ward's own cell and to the city's footprint, which is the baked mask.
-  if (across < 3400) {
-    world.cities.forEach((city, ci) => {
-      const cells = nav.cells[ci], wash = nav.wash[ci];
-      if (!cells || !wash) return;
-      city.wards.forEach((wd, wi) => {
-        const rad = Math.max(wd.radius * 1.7, 420);
-        if (wd.centre[0] + rad < vx0 || wd.centre[0] - rad > vx1 ||
-            wd.centre[1] + rad < vz0 || wd.centre[1] - rad > vz1) return;
-        const poly = cells[wi];
-        if (!poly || poly.length < 3) return;
-        ctx.save();
-        ctx.beginPath();
-        ctx.moveTo(poly[0][0], poly[0][1]);
-        for (let i = 1; i < poly.length; i++) ctx.lineTo(poly[i][0], poly[i][1]);
-        ctx.closePath();
-        ctx.clip();
-        const reach = rad;
-        const steps = Math.min(90, Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1);
-        ctx.lineCap = "butt";
-        for (let k = -steps; k <= steps; k++) {
-          const isAlley = wd.alleys && (k & 1) !== 0;
-          if (isAlley && across > 1100) continue;
-          ctx.strokeStyle = isAlley ? MAPC.alley : MAPC.street;
-          ctx.lineWidth = Math.max((isAlley ? wd.alley : wd.street), mPerPx * 1.1);
-          for (let axis = 0; axis < 2; axis++) {
-            // Walked in pieces so the run stops where the city does.
-            const N = 12;
-            let run = null;
-            for (let t = 0; t <= N; t++) {
-              const u = (t / N * 2 - 1) * reach;
-              const p = axis === 0
-                ? fromRectLocal(k * wd.sx, u, wd.centre[0], wd.centre[1], wd.yaw)
-                : fromRectLocal(u, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
-              const inside = washAt(wash, p[0], p[1]) > 96;
-              if (inside) { if (!run) { run = []; } run.push(p); }
-              else if (run) {
-                if (run.length > 1) { ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
-                  for (let q = 1; q < run.length; q++) ctx.lineTo(run[q][0], run[q][1]); ctx.stroke(); }
-                run = null;
-              }
-            }
-            if (run && run.length > 1) {
-              ctx.beginPath(); ctx.moveTo(run[0][0], run[0][1]);
-              for (let q = 1; q < run.length; q++) ctx.lineTo(run[q][0], run[q][1]);
-              ctx.stroke();
-            }
-          }
-        }
-        ctx.restore();
-      });
-    });
-  }
+  // There are no street lines. The streets are the gaps between the blocks and the
+  // plots, which is how a map of a city actually reads; the arterials and the
+  // highways are the only roads drawn as roads.
   // Plots, once you are close enough for a block to be more than a smudge.
-  if (across < 700) {
+  if (across < 1500) {
     indexNear(nav.idx.plots, vx0, vz0, vx1, vz1, e => {
       const p = e.p;
       ctx.fillStyle = (p.kind === "park" || p.kind === "shrine") ? MAPC.park : MAPC.plot;
@@ -10712,33 +10792,37 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     if (dash) ctx.setLineDash([]);
   }
 
+  const isHighway = road => road.cls === "expressway" || /Kanj\u014d [34]/.test(road.name || "");
   world.cities.forEach(city => {
-    city.rails.forEach(line => stroke(line.pts, line.loop, line.halfWidth * 0.75, MAPC.rail,
-      line.cls === "shinkansen" ? null : [3, 2]));
+    // arterials are cut through the blocks in the ground colour, so they read as
+    // spaces; the highways, and only the highways, are yellow
     city.roads.forEach(road => {
-      if (road.cls === "expressway") return;
+      if (road.cls === "expressway" || isHighway(road)) return;
       stroke(road.pts, road.loop, road.halfWidth * 2, MAPC.arterial);
     });
     city.roads.forEach(road => {
-      if (road.cls !== "expressway") return;
-      stroke(road.pts, road.loop, road.halfWidth * 2, MAPC.express);
+      if (!isHighway(road)) return;
+      stroke(road.pts, road.loop, Math.max(road.halfWidth * 1.35, 6 * mPerPx), MAPC.express);
+    });
+    // the transport overlay: rail, and the buses that run along the arterials
+    if (nav.overlay & 1) city.rails.forEach(line => stroke(line.pts, line.loop, Math.max(line.halfWidth * 0.75, 3.5 * mPerPx), MAPC.rail,
+      line.cls === "shinkansen" ? null : [3, 2]));
+    if (nav.overlay & 2) city.roads.forEach(road => {
+      if (isHighway(road) || road.halfWidth < 8) return;
+      stroke(road.pts, road.loop, Math.max(4 * mPerPx, 5), MAPC.bus, [2, 2]);
     });
   });
 
   // Markers: stations, shrines and the places worth going.
   if (opts.markers !== false && across < 9000) {
-    const r = Math.max(5 * mPerPx, 14);
+    const r = Math.max(6 * mPerPx, 11);
     world.cities.forEach(city => {
-      ctx.fillStyle = MAPC.rail;
       city.stations.forEach(st => {
         if (st.centre[0] < vx0 || st.centre[0] > vx1 || st.centre[1] < vz0 || st.centre[1] > vz1) return;
-        ctx.save();
-        ctx.translate(st.centre[0], st.centre[1]);
-        ctx.rotate(-rot);
-        ctx.fillRect(-r * 0.5, -r * 0.5, r, r);
-        ctx.fillStyle = "#0d2a1c";
-        ctx.fillRect(-r * 0.22, -r * 0.34, r * 0.44, r * 0.68);
-        ctx.fillStyle = MAPC.rail;
+        ctx.save(); ctx.translate(st.centre[0], st.centre[1]); ctx.rotate(-rot);
+        drawBrandMark(ctx, "station", r * 0.9);
+        // every station has a convenience store in it
+        if (across < 9000) { ctx.translate(r * 1.5, -r * 0.2); drawBrandMark(ctx, ((st.centre[0] * 7 + st.centre[1] * 3) | 0) % 2 ? "petmart" : "eleven", r * 0.62); }
         ctx.restore();
       });
     });
@@ -10779,22 +10863,15 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.restore();
       }
     }
-    if (shops.list.length && across < 1400) {
-      const sr = Math.max(4 * mPerPx, 11);
+    if (shops.list.length) {
+      const sr = Math.max(6 * mPerPx, 9);
       shops.list.forEach(sh => {
         if (sh.at[0] < vx0 || sh.at[0] > vx1 || sh.at[1] < vz0 || sh.at[1] > vz1) return;
+        if (!sh.mall && across > 5200) return;            // the malls are always on; the corner shops come with the zoom
         ctx.save();
         ctx.translate(sh.at[0], sh.at[1]);
         ctx.rotate(-rot);
-        ctx.fillStyle = sh.brand === "eleven" ? "#0a6b42"
-                      : sh.brand === "dokoto" ? "#d4152c"
-                      : sh.brand === "arms" ? "#8a6a2a" : "#1272d6";
-        ctx.beginPath();
-        ctx.arc(0, 0, sr * (sh.mall ? 0.72 : 0.5), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = "rgba(10,12,16,0.85)";
-        ctx.lineWidth = sr * 0.22;
-        ctx.stroke();
+        drawBrandMark(ctx, sh.brand, sr * (sh.mall ? 1.25 : 0.95));
         ctx.restore();
       });
     }
@@ -10903,13 +10980,14 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   // ---- the waypoint, and the line to it
   if (nav.waypoint) {
     const p = toScreen(nav.waypoint.x, nav.waypoint.z);
-    if (opts.route !== false && player.placed) {
-      const me = toScreen(player.pos.x, player.pos.z);
-      ctx.strokeStyle = "rgba(216, 72, 60, 0.85)";
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([7, 6]);
-      ctx.beginPath(); ctx.moveTo(me[0], me[1]); ctx.lineTo(p[0], p[1]); ctx.stroke();
-      ctx.setLineDash([]);
+    if (opts.route !== false && player.placed && nav.route && nav.route.pts.length > 1) {
+      ctx.save();
+      ctx.lineJoin = "round"; ctx.lineCap = "round";
+      const pts = nav.route.pts.map(q => toScreen(q[0], q[1]));
+      const draw = () => { ctx.beginPath(); pts.forEach((q, i) => { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
+      ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.lineWidth = opts.labels === false ? 6 : 8; draw();
+      ctx.strokeStyle = MAPC.waypoint; ctx.lineWidth = opts.labels === false ? 3.6 : 5; draw();
+      ctx.restore();
     }
     ctx.fillStyle = MAPC.waypoint;
     ctx.strokeStyle = "rgba(0,0,0,0.65)";
@@ -10979,7 +11057,7 @@ function drawMinimap() {
 // ---- the island map ----------------------------------------------------
 // Konto has one seed. There is no "generate a new island" any more, because a
 // place you can reroll is a demo, not somewhere you live.
-const MAP_MENU = ["kresume", "kwaypoint", "kshadows", "kquality", "kres", "kfinish"];
+const MAP_MENU = ["kresume", "kwaypoint", "koverlay", "kshadows", "kquality", "kres", "kfinish"];
 
 function mapAcross() {
   // Zoom 1 is the whole island in the window, whatever shape the window is;
@@ -11156,6 +11234,11 @@ function runMapMenu(i) {
   else if (id === "kres") cycleResolution();
   else if (id === "kfinish") toggleFinish();
   else if (id === "kwaypoint") { if (nav.waypoint) clearWaypoint(); else setWaypointHere(); }
+  else if (id === "koverlay") {
+    nav.overlay = (nav.overlay + 1) % 4;
+    const el = document.getElementById("koverlay");
+    if (el) el.textContent = "Transport: " + ["off", "trains", "buses", "trains and buses"][nav.overlay];
+  }
   else if (id === "kshadows") {
     if (!renderer) return;
     renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
