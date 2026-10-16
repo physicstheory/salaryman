@@ -2833,6 +2833,17 @@ const MYNET = [
 ];
 
 function appMyNet(g, W, H) {
+  if (phone.realVideo && !isBasic()) {
+    g.fillStyle = "#0b0d10"; g.fillRect(0, 0, W, H);
+    phoneStatusBar(g, W, H);
+    g.fillStyle = "#e9edf0"; g.font = "800 " + Math.round(W * 0.06) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText("MyNet", W * 0.05, H * 0.095);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center";
+    g.fillText("Loading real video\u2026 (needs the internet)", W / 2, H * 0.48);
+    g.fillStyle = "#79818b"; g.fillText("A  back to the footage of Konto", W / 2, H * 0.90);
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+    return;
+  }
   const i = ((phone.sub % MYNET.length) + MYNET.length) % MYNET.length;
   const post = MYNET[i];
   // The video is the world. Every clip is a crop of what the game is actually
@@ -3316,6 +3327,7 @@ function settingsRows() {
     rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)].name],
                       ["Accent colour  \u25c0 \u25b6", PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][0]]);
   }
+  rows.push(["Video source  A", /list=|[?&]v=|youtu\.be/.test(video.src) || video.src === DEFAULT_CM ? (video.src === DEFAULT_CM ? "Japanese CM playlist" : "Your link") : String(video.src).slice(0, 18)]);
   rows.splice(isPear() ? 3 : 1, 0, ["Handset  \u25c0 \u25b6", dev().name + (dev().colours ? "  \u00b7  " + dev().colours[clamp(phone.colourIdx || 0, 0, dev().colours.length - 1)][0] : "")]);
   return rows;
 }
@@ -3525,6 +3537,17 @@ function phoneAct() {
     }
   } else if (app === "Wallet") {
     walletAct();
+  } else if (app === "Settings") {
+    const row = (settingsRows()[phone.sub] || [""])[0];
+    if (/^Video source/.test(row)) {
+      let v = null;
+      try { v = window.prompt("YouTube playlist or video link (blank for the default Japanese CM playlist):", ""); } catch (e) { v = null; }
+      if (v === null || v === undefined) say("Open the game with ?cm=<YouTube link> to choose your own.", 5);
+      else { video.src = v.trim() || DEFAULT_CM; say("Video source set.", 3); }
+    }
+  } else if (app === "MyNet") {
+    phone.realVideo = !phone.realVideo;
+    say(phone.realVideo ? "MyNet: real video on. It needs the internet." : "MyNet: back to the footage of Konto.", 3);
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -3562,6 +3585,10 @@ const PAINTS = [
   ["Deep blue",   [0.08, 0.18, 0.52]], ["Forest",     [0.07, 0.30, 0.17]],
   ["Sunburst",    [0.92, 0.66, 0.08]], ["Graphite",   [0.20, 0.21, 0.23]]
 ];
+
+const DEFAULT_CM = "PLTNhweghpLi1u-LgDe3aD8BhHv6kn2iOr";
+
+const video = { src: DEFAULT_CM, on: false, where: "" };
 
 const WHEEL_CATS = [
   { id: "hand",  name: "Hands",    colour: "#e4a62f", empty: "Nothing to hold" },

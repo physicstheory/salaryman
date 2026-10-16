@@ -6133,6 +6133,7 @@ function updateHud(dt, force) {
   updateSound(dt);
   updateRadio(dt);
   updateRoute();
+  updateVideo();
   hudTimer -= dt;
   if (hudTimer > 0 && !force) return;
   hudTimer = 1 / 14;
@@ -14100,6 +14101,17 @@ const MYNET = [
   { who: "@nhrail_fan",    text: "The 07:12 was 19 seconds late. An apology was issued.", tag: "#nhrail", l: "15.7k" }
 ];
 function appMyNet(g, W, H) {
+  if (phone.realVideo && !isBasic()) {
+    g.fillStyle = "#0b0d10"; g.fillRect(0, 0, W, H);
+    phoneStatusBar(g, W, H);
+    g.fillStyle = "#e9edf0"; g.font = "800 " + Math.round(W * 0.06) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText("MyNet", W * 0.05, H * 0.095);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center";
+    g.fillText("Loading real video\u2026 (needs the internet)", W / 2, H * 0.48);
+    g.fillStyle = "#79818b"; g.fillText("A  back to the footage of Konto", W / 2, H * 0.90);
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+    return;
+  }
   const i = ((phone.sub % MYNET.length) + MYNET.length) % MYNET.length;
   const post = MYNET[i];
   // The video is the world. Every clip is a crop of what the game is actually
@@ -14735,6 +14747,7 @@ function settingsRows() {
     rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)].name],
                       ["Accent colour  \u25c0 \u25b6", PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][0]]);
   }
+  rows.push(["Video source  A", /list=|[?&]v=|youtu\.be/.test(video.src) || video.src === DEFAULT_CM ? (video.src === DEFAULT_CM ? "Japanese CM playlist" : "Your link") : String(video.src).slice(0, 18)]);
   rows.splice(isPear() ? 3 : 1, 0, ["Handset  \u25c0 \u25b6", dev().name + (dev().colours ? "  \u00b7  " + dev().colours[clamp(phone.colourIdx || 0, 0, dev().colours.length - 1)][0] : "")]);
   return rows;
 }
@@ -14945,6 +14958,17 @@ function phoneAct() {
     }
   } else if (app === "Wallet") {
     walletAct();
+  } else if (app === "Settings") {
+    const row = (settingsRows()[phone.sub] || [""])[0];
+    if (/^Video source/.test(row)) {
+      let v = null;
+      try { v = window.prompt("YouTube playlist or video link (blank for the default Japanese CM playlist):", ""); } catch (e) { v = null; }
+      if (v === null || v === undefined) say("Open the game with ?cm=<YouTube link> to choose your own.", 5);
+      else { video.src = v.trim() || DEFAULT_CM; say("Video source set.", 3); }
+    }
+  } else if (app === "MyNet") {
+    phone.realVideo = !phone.realVideo;
+    say(phone.realVideo ? "MyNet: real video on. It needs the internet." : "MyNet: back to the footage of Konto.", 3);
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -16811,6 +16835,62 @@ function radioPadFrame(leftHeld, stickX, stickY, dt) {
   }
 }
 
+// ---- real video ----------------------------------------------------------------
+// MyNet and one television channel can play real YouTube video in an iframe laid
+// over the screen. The source is a playlist or a video: the default is a Japanese
+// advertising playlist, and ?cm=<link or id> on the page address (or Settings >
+// Video source, where the browser allows a prompt) replaces it. It needs the
+// network; without it the old footage-of-Konto feed is still there underneath.
+const DEFAULT_CM = "PLTNhweghpLi1u-LgDe3aD8BhHv6kn2iOr";
+const video = { src: DEFAULT_CM, on: false, where: "" };
+(function () { try { const q = new URLSearchParams(location.search).get("cm"); if (q) video.src = q; } catch (e) { /* none */ } })();
+function videoUrl() {
+  let s = String(video.src || DEFAULT_CM).trim(), m;
+  if ((m = /[?&]list=([\w-]+)/.exec(s))) return "https://www.youtube.com/embed/videoseries?list=" + m[1] + "&autoplay=1&rel=0&playsinline=1";
+  if ((m = /[?&]v=([\w-]{11})/.exec(s)) || (m = /youtu\.be\/([\w-]{11})/.exec(s))) return "https://www.youtube.com/embed/" + m[1] + "?autoplay=1&rel=0&playsinline=1";
+  if (/^(PL|UU|OL|FL|RD)[\w-]{10,}$/.test(s)) return "https://www.youtube.com/embed/videoseries?list=" + s + "&autoplay=1&rel=0&playsinline=1";
+  if (/^[\w-]{11}$/.test(s)) return "https://www.youtube.com/embed/" + s + "?autoplay=1&rel=0&playsinline=1";
+  return "https://www.youtube.com/embed/videoseries?list=" + DEFAULT_CM + "&autoplay=1&rel=0&playsinline=1";
+}
+// Show the video in a rectangle given in client pixels; keep it where it is
+// if it is already playing the same thing.
+function videoShow(x, y, w, h, where) {
+  let layer = document.getElementById("videolayer");
+  if (!layer) { layer = document.createElement("div"); layer.id = "videolayer"; document.body.appendChild(layer); }
+  let f = layer.querySelector("iframe");
+  const url = videoUrl();
+  if (!f) { f = document.createElement("iframe"); f.allow = "autoplay; encrypted-media; picture-in-picture"; f.setAttribute("allowfullscreen", ""); f.referrerPolicy = "strict-origin-when-cross-origin"; layer.appendChild(f); }
+  if (f.getAttribute("data-url") !== url) { f.src = url; f.setAttribute("data-url", url); }
+  layer.style.cssText = "position:fixed;left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px;z-index:40;background:#000;overflow:hidden;border-radius:" + (where === "phone" ? "14px" : "6px") + ";";
+  f.style.cssText = "width:100%;height:100%;border:0;display:block;";
+  video.on = true; video.where = where;
+}
+function videoHide() {
+  const layer = document.getElementById("videolayer");
+  if (layer) layer.remove();       // removing it stops the sound
+  video.on = false; video.where = "";
+}
+// The rectangle of a canvas that is scaled with object-fit: cover to the page.
+function coverRect(cv, fx, fy, fw, fh) {
+  const r = cv.getBoundingClientRect(), cw = cv.width, ch = cv.height;
+  const sc = Math.max(r.width / cw, r.height / ch);
+  const ox = r.left + (r.width - cw * sc) / 2, oy = r.top + (r.height - ch * sc) / 2;
+  return [ox + fx * cw * sc, oy + fy * ch * sc, fw * cw * sc, fh * ch * sc];
+}
+function updateVideo() {
+  const want = [];
+  if (home.inside && tvui.mode === "tv" && tvui.ch === CHANNELS.indexOf("CM Channel")) {
+    const cv = document.getElementById("homecanvas");
+    if (cv) { const r = coverRect(cv, 0.06, 0.05, 0.88, 0.80); videoShow(r[0], r[1], r[2], r[3], "tv"); return; }
+  }
+  if (phone.open && phone.app === "MyNet" && phone.realVideo && !isBasic()) {
+    const cv = document.getElementById("phonecanvas");
+    if (cv) { const r = cv.getBoundingClientRect(); videoShow(r.left + r.width * 0.02, r.top + r.height * 0.13, r.width * 0.96, r.height * 0.70, "phone"); return; }
+  }
+  if (video.on) videoHide();
+  void want;
+}
+
 // ---- the arcade ---------------------------------------------------------------
 // Fourteen small games, one engine. Every title on a disc is one of these ideas
 // with a name and two colours on it, which is how a shelf of them can all be
@@ -17261,7 +17341,7 @@ const CONSOLES = {
   playbox5: { id: "playbox5", name: "SOTI PlayBox 5", on: "playbox", a: "#0e7a4a", b: "#7dffb0", bg: "#07120c" },
   pearcube: { id: "pearcube", name: "Pear Cube",      on: "pearcube", a: "#6f7bd8", b: "#e9ecff", bg: "#0d0f1c" }
 };
-const CHANNELS = ["NHB News", "Tokonto 43 Variety", "Commercials", "Evening Drama", "Shopping Channel"];
+const CHANNELS = ["NHB News", "Tokonto 43 Variety", "Commercials", "Evening Drama", "Shopping Channel", "CM Channel"];
 function ownedConsoles() { return Object.keys(CONSOLES).filter(id => bag.gear[id]); }
 function homeActs() {
   if (home.cur) return [
@@ -17407,6 +17487,10 @@ function drawChannel(g, x, y, w, h, ch, t) {
     g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(x, y + h * 0.82, w, h * 0.12);
     const lines = ["“You promised you would be home by nine.”", "“The train was late.”", "“The train is always late. You are always late.”", "“I was at the office.” “Everyone is always at the office.”"];
     say2(lines[((t / 5) | 0) % lines.length], x + w / 2, y + h * 0.88, 30, "#fff", "center");
+  } else if (ch === 5) {
+    bg("#101216", "#1c2128");
+    say2("\u65e5\u672cCM\u30c1\u30e3\u30f3\u30cd\u30eb", x + w / 2, y + h * 0.44, 70, "#ffffff", "center");
+    say2("Real Japanese commercials, from YouTube. Needs the internet.", x + w / 2, y + h * 0.58, 30, "#a9b0b8", "center");
   } else {
     bg("#ffe9a8", "#ff9a5a");
     const pulse = 1 + Math.sin(t * 4) * 0.05;
