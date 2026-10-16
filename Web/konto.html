@@ -10903,7 +10903,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
       const sr = Math.max(6 * mPerPx, 9);
       shops.list.forEach(sh => {
         if (sh.at[0] < vx0 || sh.at[0] > vx1 || sh.at[1] < vz0 || sh.at[1] > vz1) return;
-        if (!sh.mall && !sh.plaza && across > 5200) return;            // the malls are always on; the corner shops come with the zoom
+        if (!sh.mall && !sh.plaza && across > 14000) return;            // the malls are always on; the corner shops come with the zoom
         ctx.save();
         ctx.translate(sh.at[0], sh.at[1]);
         ctx.rotate(-rot);
@@ -15102,8 +15102,8 @@ const shops = { list: [], inside: null, shelf: 0, item: 0, basket: [], ready: fa
 function placeShops(city) {
   shops.list.length = 0;
   if (!city || !city.plots) return;
-  const want = 26;
-  const spacing = 320;
+  const want = 40;
+  const spacing = 240;
   const candidates = city.plots.filter(p =>
     p.size[0] > 14 && p.size[0] < 46 && p.size[1] > 12 && p.size[1] < 46);
   let seed = 4471;
@@ -15120,7 +15120,7 @@ function placeShops(city) {
     // One in seven is a back-street armourer, and they are not on the main
     // streets: a hardware shop with a shutter, a nod, and a price list.
     const n = shops.list.length;
-    const CYCLE = ["eleven", "petmart", "ramen", "eleven", "pharmacy", "petmart", "books", "eleven", "sushi", "clothes", "petmart", "ramen"];
+    const CYCLE = ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"];
     const brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
@@ -15193,7 +15193,7 @@ function enterShop(s) {
   if (s.safe) { enterSafehouse(s); return; }
   if (s.plaza) { enterPlaza(s); return; }
   shops.inside = s;
-  shops.shelf = 0; shops.item = 0; shops.basket = [];
+  shops.shelf = 0; shops.item = 0; shops.basket = []; shops.ask = null;
   const el = document.getElementById("shop");
   if (el) el.hidden = false;
   document.body.classList.add("inshop");
@@ -15202,6 +15202,7 @@ function enterShop(s) {
 }
 function leaveShop() {
   if (!shops.inside) return;
+  if (shops.ask) { shops.ask = null; drawShop(); return; }
   if (shops.inside.mall && mallBack()) { drawMall(); return; }
   if (shops.inside.parent) { shops.inside = shops.inside.parent; plaza.mode = "floor"; drawPlaza(); return; }
   if (shops.inside.plaza && plazaBack()) return;
@@ -15645,7 +15646,7 @@ function placeTownShops(w) {
   w.cities.forEach((city, ci) => {
     if (ci === 0 || !city.plots) return;
     const big = city.name === "Isobe" || city.name === "Nagisa" || city.name === "Shiokawa";
-    const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen"] : big ? ["eleven", "petmart", "ramen", "pharmacy", "books", "clothes", "sushi"] : ["eleven", "ramen", "pharmacy"];
+    const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen", "sushi"] : big ? ["eleven", "petmart", "ramen", "sushi", "pharmacy", "books", "clothes", "ramen", "sushi"] : ["eleven", "ramen", "sushi", "pharmacy"];
     const pool = city.plots.filter(p => p.size[0] > 12 && p.size[0] < 46 && p.size[1] > 10 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "houses"));
     recipe.forEach(brand => {
       for (let g = 0; g < 500 && pool.length; g++) {
@@ -15787,6 +15788,38 @@ function drawPlaza() {
   T("◀ ▶ choose a shop     A go in     B back to the lift", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
 }
 
+// Buy something edible and the till asks: have it now, or keep it for later.
+// Kept food goes in the bag, and the wheel eats it when you let go on it.
+function shopConsumable(it) { const e = ITEM[it.id]; return !!e && (e.cat === "food" || e.cat === "drink" || e.cat === "med"); }
+function askVerb(it) { const c = ITEM[it.id].cat; return c === "drink" ? "Drink it now" : c === "med" ? "Take it now" : "Eat it now"; }
+function resolveAsk() {
+  const a = shops.ask, s = shops.inside; shops.ask = null;
+  if (!a || !s) return;
+  const it = a.it;
+  if (purse.yen < it.price) { say("Not enough for that.", 3); drawShop(); return; }
+  purse.yen -= it.price; noteBuy(s.brand, it.price); shops.basket.push(it.name);
+  bagAdd(it.id, 1);
+  if (a.choice === 0) consumeItem(it.id);
+  else say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 kept. Hold LB to eat it later.", 4);
+  drawShop();
+}
+function drawAsk(g, W, H) {
+  const a = shops.ask; if (!a) return;
+  g.fillStyle = "rgba(8,10,14,0.62)"; g.fillRect(0, 0, W, H);
+  const bw = W * 0.46, bh = H * 0.34, x = (W - bw) / 2, y = H * 0.30;
+  g.fillStyle = "#f4f5f3"; roundRect(g, x, y, bw, bh, 18); g.fill();
+  shelfIcon(g, a.it, W / 2, y + bh * 0.24, bh * 0.14);
+  g.fillStyle = "#14171b"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "800 " + Math.round(H * 0.034) + "px " + UI; g.fillText(a.it.name + "  " + yenText(a.it.price), W / 2, y + bh * 0.50);
+  [askVerb(a.it), "Keep it for later"].forEach((t, i) => {
+    const bx = x + bw * (0.06 + i * 0.47), bww = bw * 0.41, by = y + bh * 0.62, on = a.choice === i;
+    g.fillStyle = on ? "#14171b" : "rgba(20,23,28,0.10)"; roundRect(g, bx, by, bww, bh * 0.24, 12); g.fill();
+    g.fillStyle = on ? "#ffffff" : "#4a5058"; g.font = "700 " + Math.round(H * 0.028) + "px " + UI; g.fillText(t, bx + bww / 2, by + bh * 0.12);
+  });
+  g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(H * 0.024) + "px " + UI; g.fillText("\u25c0 \u25b6 choose     A confirm     B cancel", W / 2, y + bh * 0.93);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
 // Taking something off the shelf pays for it there and then, which is what a
 // convenience store is.
 function takeFromShelf() {
@@ -15794,8 +15827,10 @@ function takeFromShelf() {
   if (!s) return;
   if (s.mall) { mallAct(); return; }
   if (s.plaza) { plazaAct(); return; }
+  if (shops.ask) { resolveAsk(); return; }
   const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
+  if (shopConsumable(it)) { shops.ask = { it: it, choice: 0 }; drawShop(); return; }
   purse.yen -= it.price;
   noteBuy(s.brand, it.price);
   shops.basket.push(it.name);
@@ -15839,6 +15874,7 @@ function takeFromShelf() {
 
 function shopMove(dx, dy) {
   if (!shops.inside) return;
+  if (shops.ask) { if (dx || dy) { shops.ask.choice = 1 - shops.ask.choice; drawShop(); } return; }
   if (shops.inside.mall) { mallMove(dx, dy); return; }
   if (shops.inside.plaza) { plazaMove(dx, dy); return; }
   const shelves = shopShelves(shops.inside);
@@ -15977,6 +16013,7 @@ function drawShop() {
   g.font = "600 " + Math.round(H * 0.026) + "px " + UI;
   g.fillText("\u25c0 \u25b6 aisle     \u25b2 \u25bc shelf     A take     B leave", W * 0.955, H * 0.92);
   g.textAlign = "left";
+  drawAsk(g, W, H);
 }
 
 // ---- walking through doors -------------------------------------------------
@@ -17992,6 +18029,14 @@ ITEMS.push(
   { id: "vitamins",   name: "Vitamins",    cat: "med", health: 0.10, stress: -0.02, note: "Orange" },
   { id: "sleepaid",   name: "Sleep aid",   cat: "med", health: 0.00, stress: -0.22, note: "Drowsy", min: 90 },
   { id: "plasters",   name: "Plasters",    cat: "med", health: 0.08, stress: 0, note: "For scrapes" });
+// Anything eaten at a counter can also be taken away: each becomes a bag item.
+(function () {
+  const drinks = { beer: 1, barleytea: 1, colaglass: 1, greentea: 1 };
+  Object.keys(STORE_SHELVES).forEach(b => STORE_SHELVES[b].forEach(sh => sh.items.forEach(i => {
+    if (!i.eat || ITEMS.some(x => x.id === i.id)) return;
+    ITEMS.push({ id: i.id, name: i.name, cat: drinks[i.id] ? "drink" : "food", stress: i.stress, health: i.health, min: i.min, note: "Takeaway", store: i });
+  })));
+})();
 ITEMS.forEach(i => { ITEM[i.id] = i; });
 WHEEL_CATS.splice(7, 0, { id: "med", name: "Medicine", colour: "#e0587a", empty: "No medicine" });
 
@@ -18026,7 +18071,7 @@ function setSeikoShirt(hex) {
 
 // What is on a shelf, drawn as the thing it is.
 function shelfIcon(g, it, cx, cy, r) {
-  if (ITEM[it.id]) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] }, cx, cy, r, false); return; }
+  if (ITEM[it.id] && !ITEM[it.id].store) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] }, cx, cy, r, false); return; }
   if (it.phone) { wheelIcon(g, { kind: "phone", id: it.id }, cx, cy, r, false); return; }
   if (it.carry) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] || { cat: "audio" } }, cx, cy, r, false); return; }
   const u = r / 50;
@@ -18421,6 +18466,7 @@ function wheelGlyph(g, kind, id, cx, cy, r, on, tint) {
 // colour before their shape, so these are drawn flat and bright, one silhouette
 // each, at a size where an onigiri has to read as an onigiri.
 function wheelIcon(g, e, cx, cy, r, ghost) {
+  if (e.kind === "item" && e.item && e.item.store) { shelfIcon(g, e.item.store, cx, cy, r); return; }
   if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun" || e.item.cat === "audio")) {
     wheelGlyph(g, e.item.cat, e.id, cx, cy, r, false, mixHex((WHEEL_CATS.find(c => c.id === e.item.cat) || WHEEL_CATS[0]).colour, "#ffffff", 0.55));
     return;
