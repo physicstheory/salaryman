@@ -5730,8 +5730,10 @@ function buildScene(w) {
   buildNav(w);
   placeShops(w.cities[0]);
   placeMalls(w);
+  placeSafehouses(w);
   buildShopSigns(root);
   buildMallSigns(root);
+  buildSafeSigns(root);
   findHome(w);
   placeHospitals(w);
   buildGarage(root);
@@ -10635,6 +10637,11 @@ function drawBrandMark(ctx, brand, r) {
     ctx.fillRect(-r * 0.62, -r * 0.34, r * 0.86, r * 0.08);
     ctx.beginPath(); ctx.moveTo(-r * 0.46, 0); ctx.lineTo(-r * 0.20, 0); ctx.lineTo(-r * 0.30, r * 0.60); ctx.lineTo(-r * 0.54, r * 0.60); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#e0b867"; ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.arc(-r * 0.06, r * 0.08, r * 0.15, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else if (brand === "capsule") {
+    disc("#1d2430");
+    ctx.fillStyle = "#7ad0ff"; roundRect(ctx, -r * 0.62, -r * 0.12, r * 1.24, r * 0.48, r * 0.14); ctx.fill();
+    ctx.fillStyle = "#ffffff"; roundRect(ctx, -r * 0.58, -r * 0.40, r * 0.44, r * 0.30, r * 0.12); ctx.fill();
+    ctx.fillStyle = "#7ad0ff"; ctx.fillRect(-r * 0.62, r * 0.36, r * 0.1, r * 0.2); ctx.fillRect(r * 0.52, r * 0.36, r * 0.1, r * 0.2);
   } else if (brand === "station") {
     ctx.fillStyle = "#15894f"; roundRect(ctx, -r, -r, r * 2, r * 2, r * 0.3); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#ffffff"; roundRect(ctx, -r * 0.5, -r * 0.62, r, r * 1.0, r * 0.18); ctx.fill();
@@ -15084,7 +15091,7 @@ function placeShops(city) {
 // metres - which is what a convenience store sign is for.
 function buildShopSigns(root) {
   const byBrand = {};
-  shops.list.filter(s => !s.mall).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
+  shops.list.filter(s => !s.mall && !s.safe).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
   Object.keys(byBrand).forEach(brand => {
     const list = byBrand[brand];
     const b = SHOP_BRANDS[brand];
@@ -15133,6 +15140,7 @@ function shopNear(x, z, radius) {
 
 function enterShop(s) {
   if (!s) return;
+  if (s.safe) { enterSafehouse(s); return; }
   shops.inside = s;
   shops.shelf = 0; shops.item = 0; shops.basket = [];
   const el = document.getElementById("shop");
@@ -15491,6 +15499,88 @@ function drawMall() {
              : mall.floor === 0 ? "◀ ▶ case   A fit it   B lift"
              : "◀ ▶ browse   ▲ ▼ colour   A buy   B lift";
   T(hint, W * 0.5, H * 0.962, H * 0.025, "#4a4d52", "center", "600");
+}
+
+// ---- more safehouses ------------------------------------------------------------
+// The family flat in Mizuho is the only one that is yours. Everywhere else a
+// bed is rented: a capsule hotel, three in Tōkonto and one in each of the bigger
+// towns. You walk in, as everywhere, and the room is a capsule: sleep (the fee
+// is at the desk), a little television, and out again. Parcels are left at
+// whichever of them you are nearest when they arrive.
+const CAPSULE_FEE = 3500;
+SHOP_BRANDS.capsule = { name: "Capsule Hotel", band: "#1d2430", ink: "#ffffff", stripes: ["#7ad0ff", "#1d2430"], tag: "Beds by the night" };
+function placeSafehouses(w) {
+  if (!w || !w.cities) return;
+  const rng = (() => { let sd = 5521; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  w.cities.forEach((city, ci) => {
+    if (!city.plots || city.name === "Mizuho" || city.name === "Tomari") return;
+    const want = ci === 0 ? 3 : 1;
+    const pool = city.plots.filter(p => p.size[0] > 22 && p.size[0] < 52 && p.size[1] > 18 && p.size[1] < 52 && (p.kind === "midrise" || p.kind === "office" || p.kind === "shop"));
+    let placed = 0;
+    for (let g = 0; g < 900 && placed < want && pool.length; g++) {
+      const p = pool[(rng() * pool.length) | 0];
+      const tooNear = shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < (s.mall ? 60 : s.safe ? (ci === 0 ? 900 : 100) : 25));
+      if (tooNear) continue;
+      const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
+      shops.list.push({ brand: "capsule", safe: true, name: "Capsule Hotel Kapuseru", city: city.name,
+        at: [p.centre[0], p.centre[1]], door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
+        yaw: yaw, groundY: p.groundY, size: p.size });
+      placed++;
+    }
+  });
+}
+function buildSafeSigns(root) {
+  const list = shops.list.filter(s => s.safe);
+  if (!list.length) return;
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#1a2230"; g.fillRect(0, 0, 512, 128);
+  g.strokeStyle = "#7ad0ff"; g.lineWidth = 6; g.strokeRect(6, 6, 500, 116);
+  g.fillStyle = "#ffffff"; g.font = "900 54px " + JP; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("カプセルホテル", 256, 48);
+  g.fillStyle = "#7ad0ff"; g.font = "800 32px " + UI; g.fillText("CAPSULE HOTEL  ·  ¥" + CAPSULE_FEE, 256, 96);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding;
+  const mat = new THREE.MeshBasicMaterial({ map: t });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x151a22 });
+  list.forEach(s => {
+    const gr = new THREE.Group();
+    const w = clamp(s.size[0] * 0.8, 9, 16);
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(w, w / 4, 0.5), [dark, dark, dark, dark, mat, dark]);
+    sign.position.set(0, 4.6, 0.1); gr.add(sign);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3.2, 1.8), [mat, mat, dark, dark, dark, dark]);
+    blade.position.set(w / 2 + 0.4, 6.2, 0.9); gr.add(blade);
+    gr.position.set(s.door[0], s.groundY, s.door[1]); gr.rotation.y = s.yaw; root.add(gr);
+  });
+}
+function houseList() {
+  const out = [];
+  if (home.door) out.push({ name: "the flat in Mizuho", door: home.door, yaw: home.yaw, groundY: home.groundY });
+  shops.list.filter(s => s.safe).forEach(s => out.push({ name: s.name + ", " + s.city, door: s.door, yaw: s.yaw, groundY: s.groundY }));
+  return out;
+}
+function enterSafehouse(s) { home.cur = s; enterHome(); }
+
+function drawCapsuleRoom(g, W, H) {
+  const wall = g.createLinearGradient(0, 0, 0, H);
+  wall.addColorStop(0, "#232a34"); wall.addColorStop(0.62, "#1b2028"); wall.addColorStop(0.62, "#3a4049"); wall.addColorStop(1, "#262b32");
+  g.fillStyle = wall; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 5; i++) { g.fillStyle = "rgba(190,225,255,0.55)"; g.fillRect(W * (0.05 + i * 0.2), H * 0.06, W * 0.12, H * 0.008); }
+  // two rows of pods down the corridor
+  for (let row = 0; row < 2; row++) {
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.02 + i * 0.145), y = H * (0.16 + row * 0.22), w = W * 0.13, h = H * 0.17;
+      const mine = row === 1 && i === 2;
+      g.fillStyle = "#e8edf2"; roundRect(g, x, y, w, h, h * 0.22); g.fill();
+      g.fillStyle = mine ? "#fff1b8" : "#141820"; roundRect(g, x + w * 0.10, y + h * 0.16, w * 0.80, h * 0.66, h * 0.18); g.fill();
+      if (mine) { g.fillStyle = "#e9a53a"; g.fillRect(x + w * 0.10, y + h * 0.60, w * 0.80, h * 0.22); }
+      g.fillStyle = "#7a8590"; g.font = "700 " + Math.round(h * 0.13) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(row * 4 + i + 1), x + w / 2, y + h * 0.92);
+    }
+  }
+  // the desk, and a vending machine, because there is always one
+  g.fillStyle = "#5a4630"; roundRect(g, W * 0.64, H * 0.18, W * 0.30, H * 0.12, W * 0.01); g.fill();
+  g.fillStyle = "#e8edf2"; g.font = "800 " + Math.round(H * 0.045) + "px " + JP; g.textAlign = "center"; g.fillText("受付", W * 0.79, H * 0.24);
+  g.fillStyle = "#c43a3a"; roundRect(g, W * 0.60, H * 0.36, W * 0.07, H * 0.26, W * 0.006); g.fill();
+  g.fillStyle = "#fff"; for (let k = 0; k < 6; k++) g.fillRect(W * 0.612, H * 0.385 + k * H * 0.034, W * 0.046, H * 0.016);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
 // Taking something off the shelf pays for it there and then, which is what a
@@ -16117,7 +16207,9 @@ function leaveHome() {
   if (!home.inside) return;
   tvui.mode = "menu"; arcadeStop();
   home.inside = false;
-  stepOutFrom(home.door, home.yaw);
+  const hh = home.cur || home;
+  home.cur = null;
+  stepOutFrom(hh.door, hh.yaw);
   document.body.classList.remove("inhome");
   const el = document.getElementById("homeview");
   if (el) setTimeout(() => { if (!home.inside) el.hidden = true; }, 200);
@@ -16130,6 +16222,10 @@ function homeAct() {
   const a = homeActs()[home.sel] || HOME_ACTS[HOME_ACTS.length - 1];
   if (a.id === "leave") { leaveHome(); return; }
   if (a.id === "sleep") {
+    if (home.cur) {
+      if (purse.yen < CAPSULE_FEE) { say("Not enough for a capsule. " + yenText(CAPSULE_FEE) + " at the desk.", 4); return; }
+      purse.yen -= CAPSULE_FEE;
+    }
     vitals.stress = 0;
     vitals.health = 1;
     vitals.slept = 60 * 8; vitals.awake = 0;
@@ -16156,6 +16252,7 @@ function drawHome() {
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
   if (tvui.mode !== "menu") { drawTVScreen(g, W, H); return; }
+  if (home.cur) { drawCapsuleRoom(g, W, H); drawHomePanel(g, W, H); return; }
 
   // Walls, tatami floor, a window with the evening outside it.
   g.fillStyle = "#22201c"; g.fillRect(0, 0, W, H);
@@ -16235,6 +16332,10 @@ function drawHome() {
   g.fillStyle = "#b9b099";
   roundRect(g, W * 0.23, H * 0.805, W * 0.10, H * 0.055, W * 0.012); g.fill();
 
+  drawHomePanel(g, W, H);
+}
+
+function drawHomePanel(g, W, H) {
   // The panel of things to do.
   const px = W * 0.615, py = H * 0.50, pw = W * 0.325;
   g.fillStyle = "rgba(10,11,14,0.82)";
@@ -16242,10 +16343,10 @@ function drawHome() {
   g.fillStyle = "#e9edf0";
   g.font = "700 " + Math.round(H * 0.040) + "px " + UI;
   g.textAlign = "left"; g.textBaseline = "middle";
-  g.fillText("Home", px + W * 0.022, py + H * 0.045);
+  g.fillText(home.cur ? "Capsule hotel" : "Home", px + W * 0.022, py + H * 0.045);
   g.fillStyle = "#79818b";
   g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
-  g.fillText(home.city ? home.city : "Mizuho", px + W * 0.022, py + H * 0.080);
+  g.fillText(home.cur ? home.cur.city : (home.city ? home.city : "Mizuho"), px + W * 0.022, py + H * 0.080);
   homeActs().forEach((a, i) => {
     const y = py + H * 0.115 + i * H * 0.072;
     const on = i === home.sel;
@@ -17163,6 +17264,10 @@ const CONSOLES = {
 const CHANNELS = ["NHB News", "Tokonto 43 Variety", "Commercials", "Evening Drama", "Shopping Channel"];
 function ownedConsoles() { return Object.keys(CONSOLES).filter(id => bag.gear[id]); }
 function homeActs() {
+  if (home.cur) return [
+    { id: "sleep", name: "Sleep  \u00a5" + CAPSULE_FEE, note: "At the desk. Until morning.", detail: "" },
+    { id: "tv", name: "Watch the pod television", note: "It is very small.", detail: "" },
+    { id: "leave", name: "Check out", note: "", detail: "" }];
   const list = HOME_ACTS.slice();
   if (ownedConsoles().length) list.splice(list.length - 1, 0, { id: "console", name: "Play console", note: ownedConsoles().map(id => CONSOLES[id].name).join(" · "), detail: "" });
   return list;
@@ -18387,7 +18492,7 @@ function updateHail(dt) {
 // flat in Mizuho because it is the only one there is yet; you walk up to it,
 // press Y and what was in it goes into the bag, where the wheel finds it.
 const deliveries = [];
-const parcels = { list: [], group: null, root: null, tex: null };
+const parcels = { list: [], group: null, root: null, tex: null, house: null };
 
 // One place everything that can be owned goes through, so that a phone from a
 // parcel, a phone from a shop and a phone from a prize all land the same way.
@@ -18409,18 +18514,26 @@ function updateDeliveries() {
   for (let i = deliveries.length - 1; i >= 0; i--) {
     if (clock < deliveries[i].at) continue;
     const d = deliveries.splice(i, 1)[0];
+    // left at whichever safehouse you are nearest, unless there is already a pile somewhere
+    if (!parcels.list.length) {
+      const at = drive.car ? drive.car.pos : player.pos;
+      let best = null, bd = Infinity;
+      houseList().forEach(h => { const dd = Math.hypot(h.door[0] - at.x, h.door[1] - at.z); if (dd < bd) { bd = dd; best = h; } });
+      parcels.house = best;
+    }
     parcels.list.push(d);
     refreshParcels();
-    say("Hayabin: " + d.name + " is on the step in Mizuho. Walk up and press Y.", 6);
+    say("Hayabin: " + d.name + " is on the step at " + (parcels.house ? parcels.house.name : "the flat in Mizuho") + ". Walk up and press Y.", 6);
     phone.dirty = true;
   }
 }
 
 function parcelSpot() {
-  if (!home.door) return null;
-  const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
-  const lat = [Math.cos(home.yaw), -Math.sin(home.yaw)];
-  return [home.door[0] + lat[0] * 2.7 + out[0] * 1.5, home.door[1] + lat[1] * 2.7 + out[1] * 1.5];
+  const h = parcels.house || (home.door ? { door: home.door, yaw: home.yaw, name: "the flat in Mizuho" } : null);
+  if (!h) return null;
+  const out = [Math.sin(h.yaw), Math.cos(h.yaw)];
+  const lat = [Math.cos(h.yaw), -Math.sin(h.yaw)];
+  return [h.door[0] + lat[0] * 2.7 + out[0] * 1.5, h.door[1] + lat[1] * 2.7 + out[1] * 1.5];
 }
 function parcelNear(x, z) {
   if (!parcels.list.length) return false;
@@ -18468,7 +18581,7 @@ function refreshParcels() {
     gr.add(m);
   }
   gr.position.set(spot[0] - 0.3, world.surfaceY(spot[0], spot[1]), spot[1]);
-  gr.rotation.y = home.yaw;
+  gr.rotation.y = (parcels.house ? parcels.house.yaw : home.yaw);
   parcels.root.add(gr);
   parcels.group = gr;
 }
