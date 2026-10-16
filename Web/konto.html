@@ -558,8 +558,6 @@
     display: none;
     background: rgba(9, 11, 14, 0.93);
   }
-  body.mapopen #mapscreen { display: block; }
-  body.mapopen #pause { display: none !important; }
   #mapcanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
   #mapside {
     position: absolute;
@@ -796,6 +794,39 @@
     text-transform: uppercase; color: #6b727a;
   }
 
+
+  /* ---- the pause menu, GTA-style: it opens on the map, and LB / RB slide across
+     to the next page. The pages sit side by side in one strip. */
+  body.mapopen #pause { display: flex !important; }
+  #mapscreen { position: absolute; inset: 0; z-index: 1; display: block; background: rgba(9, 11, 14, 0.96); }
+  #pausetabs { gap: 10px; align-items: flex-end; padding-top: 18px; position: relative; }
+  #pausetablist { display: flex; position: relative; align-items: flex-end; }
+  .pkey { font: 800 11px/1 var(--data); letter-spacing: 0.08em; color: #cfd5da; border: 1.5px solid #5d646c; border-radius: 6px; padding: 5px 8px; margin: 0 4px 12px; background: rgba(255,255,255,0.06); }
+  #pausebar { position: absolute; bottom: -1px; height: 3px; background: #fff; border-radius: 2px; left: 0; width: 60px; transition: left 380ms cubic-bezier(0.22,0.8,0.25,1), width 380ms cubic-bezier(0.22,0.8,0.25,1); pointer-events: none; }
+  .ptab { padding: 12px 18px 14px; border-bottom: 0 !important; }
+  .ptab.sel { color: #fff; }
+  #pausewin { flex: 1; overflow: hidden; position: relative; min-height: 0; }
+  #pausestrip { display: flex; height: 100%; width: 100%; transition: transform 380ms cubic-bezier(0.22, 0.8, 0.25, 1); will-change: transform; }
+  #pausestrip .ppage { flex: 0 0 100%; min-width: 100%; box-sizing: border-box; padding: 30px clamp(24px, 6vw, 90px); overflow: auto; display: grid; grid-template-columns: minmax(240px, 340px) 1fr; gap: clamp(28px, 6vw, 90px); align-content: start; }
+  #pausestrip .ppage.ppmap { padding: 0; position: relative; display: block; overflow: hidden; }
+  #pausestrip .ppage.ppinfo, #pausestrip .ppage[data-page="stats"], #pausestrip .ppage[data-page="items"], #pausestrip .ppage[data-page="radio"] { display: block; }
+  .ppage[hidden] { display: none; }
+  #pinfo { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px 48px; max-width: 1180px; }
+  #pinfo h3 { margin: 0 0 8px; font: 800 12px/1 var(--data); letter-spacing: 0.18em; text-transform: uppercase; color: #8d949c; }
+  #pinfo p { margin: 0 0 10px; color: #aeb5bc; font-size: 14px; line-height: 1.6; max-width: 54ch; }
+  #pinfo .kv { display: flex; justify-content: space-between; gap: 14px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.07); font-size: 13px; color: #c3c9cf; }
+  #pinfo .kv b { color: #fff; font-weight: 600; font-family: var(--data); font-size: 12px; text-align: right; }
+  .gbar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); margin: 6px 0 16px; overflow: hidden; }
+  .gbar i { display: block; height: 100%; }
+  #pradio { display: grid; gap: 8px; max-width: 760px; }
+  .radrow { display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 2px solid transparent; cursor: pointer; }
+  .radrow.sel { background: rgba(255,255,255,0.12); border-color: #fff; }
+  .radrow.on { border-left: 6px solid var(--rc, #fff); }
+  .radrow img { height: 44px; width: 96px; object-fit: contain; border-radius: 6px; background: #000; }
+  .radrow .rl { width: 96px; height: 44px; border-radius: 6px; display: grid; place-items: center; font: 800 12px var(--data); color: #fff; text-align: center; }
+  .radrow b { display: block; color: #fff; font-size: 15px; }
+  .radrow span { color: #9aa1a9; font-size: 12px; }
+
   #maplegend {
     position: absolute;
     right: 22px;
@@ -918,43 +949,37 @@
 <div id="pause" hidden>
   <div id="pausetabs">
     <canvas id="pausesign" width="380" height="165"></canvas>
-    <button class="ptab sel" data-tab="game" type="button">Game</button>
-    <button class="ptab" data-tab="map" type="button">Map</button>
-    <button class="ptab" data-tab="stats" type="button">Stats</button>
-    <button class="ptab" data-tab="inv" type="button">Items</button>
-    <button class="ptab" data-tab="phone" type="button">Phone</button>
-    <button class="ptab" data-tab="settings" type="button">Settings</button>
+    <span class="pkey">LB</span>
+    <div id="pausetablist">
+      <button class="ptab sel" data-tab="map" type="button">Map</button>
+      <button class="ptab" data-tab="game" type="button">Game</button>
+      <button class="ptab" data-tab="info" type="button">Info</button>
+      <button class="ptab" data-tab="stats" type="button">Stats</button>
+      <button class="ptab" data-tab="items" type="button">Items</button>
+      <button class="ptab" data-tab="phone" type="button">Phone</button>
+      <button class="ptab" data-tab="radio" type="button">Radio</button>
+      <button class="ptab" data-tab="settings" type="button">Settings</button>
+      <i id="pausebar"></i>
+    </div>
+    <span class="pkey">RB</span>
   </div>
-  <div id="pausebody">
-    <div class="ppage" data-page="game">
+  <div id="pausewin"><div id="pausestrip">
+    <section class="ppage ppmap" data-page="map"></section>
+    <section class="ppage" data-page="game">
       <div class="menucol" id="pgame">
         <button class="menu-btn sel" id="mresume" type="button">Resume</button>
-        <button class="menu-btn" id="mmapopen" type="button">Open the map</button>
         <button class="menu-btn" id="mtitle" type="button">Return to main menu</button>
       </div>
-      <div class="pside">
-        <p class="pkicker">Where you are</p>
-        <p class="pbig" id="pausewhere">&nbsp;</p>
-        <p class="pkicker">On you</p>
-        <p class="pbig" id="pausemoney">&yen;500,000</p>
-      </div>
-    </div>
-    <div class="ppage" data-page="map" hidden>
-      <p class="pkicker">The island</p>
-      <p class="pnote">Press <b>M</b> or <b>Menu</b> for the full map, where you can zoom in to the streets and drop a waypoint.</p>
-      <canvas id="pausemap" width="520" height="380"></canvas>
-    </div>
-    <div class="ppage" data-page="stats" hidden>
-      <div class="statcol" id="pstats"></div>
-    </div>
-    <div class="ppage" data-page="inv" hidden>
-      <div class="statcol" id="pinv"></div>
-    </div>
-    <div class="ppage" data-page="phone" hidden>
-      <p class="pkicker" id="pphonename">SOTI So24</p>
-      <div class="statcol" id="pphone"></div>
-    </div>
-    <div class="ppage" data-page="settings" hidden>
+      <div class="pside" id="pgamelive"></div>
+    </section>
+    <section class="ppage ppinfo" data-page="info"><div id="pinfo"></div></section>
+    <section class="ppage" data-page="stats"><div class="statcol" id="pstats"></div></section>
+    <section class="ppage" data-page="items"><div class="statcol" id="pinv"></div></section>
+    <section class="ppage" data-page="phone">
+      <div><p class="pkicker" id="pphonename">SOTI So24</p><div class="statcol" id="pphone"></div></div>
+    </section>
+    <section class="ppage" data-page="radio"><div id="pradio"></div></section>
+    <section class="ppage" data-page="settings">
       <div class="menucol" id="psettings">
         <button class="menu-btn sel" id="mquality" type="button">Graphics: high</button>
         <button class="menu-btn" id="mres" type="button">Resolution: 100%</button>
@@ -967,8 +992,8 @@
         <p class="pkicker">Keys</p>
         <p class="pausehint" id="pausekeys"></p>
       </div>
-    </div>
-  </div>
+    </section>
+  </div></div>
   <div id="pausefoot"><span id="pausehintbar"></span></div>
 </div>
 
@@ -4638,8 +4663,11 @@ function initThree() {
       if (e.code === "Minus" || e.code === "NumpadSubtract") setMapZoom(nav.mapZoom - 0.6);
       if (e.code === "Enter" || e.code === "Space") mapAct();
       if (e.code === "Delete" || e.code === "KeyC" || e.code === "KeyX") { if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared.", 2.5); } }
-      if (e.code === "Escape" || e.code === "KeyM" || e.code === "Tab") setMapOpen(false);
-      drawBigMap();
+      if (e.code === "Escape" || e.code === "KeyM" || e.code === "Tab") setPaused(false);
+      if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
+      if (e.code === "KeyE" || e.code === "BracketRight" || e.code === "PageDown") pauseMove(1, 0);
+      if (e.code === "KeyX") runMapMenu(MAP_MENU.indexOf("koverlay"));
+      if (nav.mapOpen) drawBigMap();
       e.preventDefault();
       return;
     }
@@ -4663,6 +4691,8 @@ function initThree() {
     if (e.code === "KeyP") setPhone(!phone.open);
     if (e.code === "KeyH") toggleSiren();
     if (paused) {
+      if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
+      if (e.code === "KeyE" || e.code === "BracketRight" || e.code === "PageDown") pauseMove(1, 0);
       if (e.code === "ArrowLeft") pauseMove(-1, 0);
       if (e.code === "ArrowRight") pauseMove(1, 0);
       if (e.code === "ArrowUp") pauseMove(0, -1);
@@ -4702,8 +4732,8 @@ function initThree() {
     }
     if (e.code === "Space" && player.mode === "walk" && !drive.car && !drive.train
         && player.down <= 0 && player.jump <= 0) { player.jump = 0.42; e.preventDefault(); }
-    if (e.code === "KeyM" || e.code === "Tab") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
-    if (e.code === "Escape") { setMapOpen(!nav.mapOpen); e.preventDefault(); }
+    if (e.code === "KeyM" || e.code === "Tab") { if (!paused) setPaused(true); else if (nav.mapOpen) setPaused(false); else setPauseTab(0); e.preventDefault(); }
+    if (e.code === "Escape") { setPaused(!paused); e.preventDefault(); }
   });
   window.addEventListener("keyup", e => {
     keys[e.code] = false;
@@ -4814,7 +4844,7 @@ function pollPad(dt) {
   }
 
   // Menu opens the map. View closes whatever is open, which is what B does too.
-  if (pressed(PAD.START)) setMapOpen(!nav.mapOpen);
+  if (pressed(PAD.START)) setPaused(!paused);
   if (pressed(PAD.BACK)) { if (nav.mapOpen) setMapOpen(false); else if (phone.open) setPhone(false); }
 
   if (nav.mapOpen) {
@@ -4828,7 +4858,9 @@ function pollPad(dt) {
     if (pressed(PAD.A)) mapAct();
     if (pressed(PAD.Y)) { if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared.", 2.5); } }
     if (pressed(PAD.X)) runMapMenu(nav.mapSel);
-    if (pressed(PAD.B)) setMapOpen(false);
+    if (pressed(PAD.LB)) pauseMove(-1, 0);
+    if (pressed(PAD.RB)) pauseMove(1, 0);
+    if (pressed(PAD.B)) setPaused(false);
     pad.x = pad.y = pad.up = 0;
     pad.run = pad.handbrake = false;
     pad.throttle = pad.brake = 0;
@@ -4976,15 +5008,13 @@ function showPad() {
 showPad.had = false;
 
 // ---------------------------------------------------------------- pause
-function setPaused(on) {
+function setPaused(on, tabName) {
   paused = !!on;
   document.body.classList.toggle("paused", paused);
   const panel = document.getElementById("pause");
   if (panel) {
     if (paused) {
       panel.hidden = false;
-      // A frame later, so the browser has laid it out before the opacity
-      // changes and the transition has something to run from.
       requestAnimationFrame(() => { if (paused) panel.classList.add("up"); });
     } else {
       panel.classList.remove("up");
@@ -4996,47 +5026,73 @@ function setPaused(on) {
     move.x = move.y = move.up = 0;
     look.x = look.y = 0;
     for (const k in keys) keys[k] = false;
-    const where = document.getElementById("pausewhere");
-    if (where) {
-      where.textContent = player.mode === "walk"
-        ? "On foot in Tokonto"
-        : "Free camera, " + Math.round(camPos.y) + " m up";
-    }
+    // It opens on the map, centred on you.
+    const at = player.placed ? player.pos : camPos;
+    nav.mapCx = at.x; nav.mapCz = at.z; nav.mapZoom = 6; nav.mapSel = 0;
+    syncMapMenu();
     const shadows = document.getElementById("mshadows");
     if (shadows && renderer) shadows.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
-    const money = document.getElementById("pausemoney");
-    if (money) money.textContent = yenText(purse.yen);
     syncQualityLabels();
-    fillPauseStats();
-    const resume = document.getElementById("mresume");
-    if (resume) resume.focus();
-    if (pause.tab === 1) drawPauseMap();
+    const where = document.getElementById("mapwhere");
+    void where;
+    const idx = tabName ? PAUSE_TABS.indexOf(tabName) : 0;
+    setPauseTab(idx < 0 ? 0 : idx, true);
+  } else {
+    nav.mapOpen = false;
+    document.body.classList.remove("mapopen");
   }
 }
 
 // ---- the tabs --------------------------------------------------------------
-const PAUSE_TABS = ["game", "map", "stats", "inv", "phone", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mmapopen", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
+const PAUSE_TABS = ["map", "game", "info", "stats", "items", "phone", "radio", "settings"];
+const PAUSE_ROWS = { game: ["mresume", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
 const pause = { tab: 0, row: 0 };
+const PAUSE_HINT = {
+  map: "Stick pans · triggers zoom · A waypoint · Y clear · X transport · LB RB pages · B resume",
+  game: "▲ ▼ choose · A select · LB RB pages · B resume",
+  radio: "▲ ▼ choose · A tune it for the next drive · LB RB pages · B resume",
+  settings: "▲ ▼ choose · A select · LB RB pages · B resume"
+};
 
-function setPauseTab(i) {
-  pause.tab = (i + PAUSE_TABS.length) % PAUSE_TABS.length;
+function setPauseTab(i, instant) {
+  const n = PAUSE_TABS.length;
+  pause.tab = ((i % n) + n) % n;
   pause.row = 0;
   const name = PAUSE_TABS[pause.tab];
-  document.querySelectorAll(".ptab").forEach(el =>
-    el.classList.toggle("sel", el.getAttribute("data-tab") === name));
-  document.querySelectorAll(".ppage").forEach(el =>
-    el.hidden = el.getAttribute("data-page") !== name);
-  if (name === "map") drawPauseMap();
-  if (name === "stats" || name === "phone" || name === "inv") fillPauseStats();
+  const strip = document.getElementById("pausestrip");
+  if (strip) {
+    if (instant) strip.style.transition = "none";
+    strip.style.transform = "translateX(" + (-pause.tab * 100) + "%)";
+    if (instant) { void strip.offsetWidth; strip.style.transition = ""; }
+  }
+  let selEl = null;
+  document.querySelectorAll(".ptab").forEach(el => {
+    const on = el.getAttribute("data-tab") === name;
+    el.classList.toggle("sel", on);
+    if (on) selEl = el;
+  });
+  const bar = document.getElementById("pausebar");
+  if (bar && selEl) {
+    if (instant) bar.style.transition = "none";
+    bar.style.left = selEl.offsetLeft + "px"; bar.style.width = selEl.offsetWidth + "px";
+    if (instant) { void bar.offsetWidth; bar.style.transition = ""; }
+  }
+  const onMap = name === "map";
+  nav.mapOpen = onMap;
+  document.body.classList.toggle("mapopen", onMap);
+  if (onMap) drawBigMap();
+  fillPause(name);
   syncPauseRows();
   const foot = document.getElementById("pausehintbar");
-  if (foot) foot.textContent = PAUSE_ROWS[name]
-    ? "\u25c0 \u25b6 tab     \u25b2 \u25bc choose     A select     B resume"
-    : "\u25c0 \u25b6 tab     B resume";
+  if (foot) foot.textContent = PAUSE_HINT[name] || "LB RB pages · B resume";
+}
+function pauseRows() {
+  const name = PAUSE_TABS[pause.tab];
+  if (name === "radio") return RADIO_STATIONS.map((_, i) => "prad" + i);
+  return PAUSE_ROWS[name];
 }
 function syncPauseRows() {
-  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  const rows = pauseRows();
   if (!rows) return;
   pause.row = clamp(pause.row, 0, rows.length - 1);
   rows.forEach((id, i) => {
@@ -5046,60 +5102,77 @@ function syncPauseRows() {
 }
 function pauseMove(dx, dy) {
   if (dx) { setPauseTab(pause.tab + dx); return; }
-  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  const rows = pauseRows();
   if (!rows || !dy) return;
   pause.row = (pause.row + dy + rows.length) % rows.length;
   syncPauseRows();
 }
 function pauseAct() {
-  const rows = PAUSE_ROWS[PAUSE_TABS[pause.tab]];
+  const rows = pauseRows();
   if (!rows) { setPaused(false); return; }
   const el = document.getElementById(rows[pause.row]);
   if (el) el.click();
 }
 
-// The two reading pages: what he is carrying, and what the phone knows.
-function fillPauseStats() {
-  const rows = [
-    ["Money", yenText(purse.yen)],
-    ["Health", Math.round(vitals.health * 100) + "%"],
-    ["Stress", Math.round(vitals.stress * 100) + "%"],
-    ["Where", nav.place && nav.place.street ? nav.place.street : "Tōkonto"],
-    ["Photographs taken", String(phone.gallery.length)],
-    ["Things bought", String(shops.basket.length)],
-    ["Driving", drive.car ? CAR_KINDS[drive.car.kind].name : "on foot"]
-  ];
-  const el = document.getElementById("pstats");
-  if (el) el.innerHTML = rows.map(r =>
-    '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
-  const prows = [
-    ["Balance", yenText(purse.yen)],
-    ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
-    ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) : audioOwned() ? "In the bag" : "None"],
-    ["Ryde", phone.ryde ? phone.ryde.cls + ", " + Math.ceil(phone.ryde.eta) + " min away" : "No car booked"],
-    ["Deliveries", deliveries.length ? deliveries.map(d => d.name).join(", ") : "Nothing on the way"],
-    ["Gallery", phone.gallery.length + " photographs"]
-  ];
-  const pn = document.getElementById("pphonename"); if (pn) pn.textContent = DEVICES[phone.device].name;
-  const inv = document.getElementById("pinv");
-  if (inv) {
+const kvRow = (a, b) => '<div class="kv"><span>' + a + '</span><b>' + b + '</b></div>';
+const gbar = (v, c) => '<div class="gbar"><i style="width:' + Math.round(clamp01(v) * 100) + '%;background:' + c + '"></i></div>';
+function fillPause(name) {
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  const t = phoneTime();
+  if (name === "game") {
+    const where = nav.place && nav.place.street ? nav.place.street : "Tōkonto";
+    set("pgamelive",
+      '<p class="pkicker">Where you are</p><p class="pbig">' + (player.mode === "walk" ? "On foot" : drive.car ? CAR_KINDS[drive.car.kind].name : "Free camera") + ' · ' + where + '</p>' +
+      '<p class="pkicker">The time</p><p class="pbig">' + t.h + ':' + two(t.m) + '</p>' +
+      '<p class="pkicker">On you</p><p class="pbig">' + yenText(purse.yen) + '</p>' +
+      '<p class="pkicker">Health</p>' + gbar(vitals.health, "#ff453a") +
+      '<p class="pkicker">Stress</p>' + gbar(vitals.stress, "#3f8fe0") +
+      '<p class="pkicker">Wanted</p><p class="pbig">' + (wanted.stars ? "★".repeat(wanted.stars) : "Nobody is looking") + '</p>');
+  } else if (name === "info") {
+    const towns = world.cities.map(c => {
+      const mine = shops.list.filter(s => s.city === c.name || (c === world.cities[0] && !s.city));
+      const n = b => mine.filter(s => s.brand === b).length;
+      return kvRow(c.name, (n("eleven") + n("petmart")) + " konbini · " + (n("ramen") + n("sushi")) + " ramen/sushi" + (mine.some(s => s.mall) ? " · Dokoto" : "") + (mine.some(s => s.plaza) ? " · Plaza" : ""));
+    }).join("");
+    set("pinfo",
+      '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
+      '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
+      '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      '<div><h3>The island</h3>' + towns + '</div>' +
+      '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
+      '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
+      '<p>Parcels are left at the safehouse nearest you. Press Y at the pile to open them.</p></div>');
+  } else if (name === "stats") {
+    set("pstats", [["Money", yenText(purse.yen)], ["Health", Math.round(vitals.health * 100) + "%"], ["Stress", Math.round(vitals.stress * 100) + "%"],
+      ["Awake for", hm(vitals.awake || 0)], ["Where", nav.place && nav.place.street ? nav.place.street : "Tōkonto"], ["Photographs taken", String(phone.gallery.length)],
+      ["Things bought", String(shops.basket.length)], ["Cars owned", String(garage.cars.length)], ["Driving", drive.car ? CAR_KINDS[drive.car.kind].name : "on foot"]]
+      .map(r => '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join(""));
+  } else if (name === "items") {
     const rowsI = [];
-    WHEEL_CATS.forEach(cat => wheelList(cat.id).forEach(e => rowsI.push([cat.name, e.name + (e.count > 1 ? "  \u00d7" + e.count : ""), cat.colour])));
+    WHEEL_CATS.forEach(cat => wheelList(cat.id).forEach(e => rowsI.push([cat.name, e.name + (e.count > 1 ? "  ×" + e.count : ""), cat.colour])));
     if (!rowsI.length) rowsI.push(["", "Nothing yet", "#79818b"]);
-    inv.innerHTML = rowsI.map(r => '<div class="statrow"><span style="color:' + r[2] + '">' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
+    set("pinv", rowsI.map(r => '<div class="statrow"><span style="color:' + r[2] + '">' + r[0] + '</span><b>' + r[1] + '</b></div>').join(""));
+  } else if (name === "phone") {
+    const pn = document.getElementById("pphonename"); if (pn) pn.textContent = DEVICES[phone.device].name;
+    set("pphone", [["Balance", yenText(purse.yen)], ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
+      ["NH Tolls", wallet.toll ? (wallet.toll.active ? yenText(wallet.toll.bal) + " · active" : "Not activated") : "Not added"],
+      ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) : audioOwned() ? "In the bag" : "None"],
+      ["Ryde", phone.ryde ? phone.ryde.cls + ", " + Math.ceil(phone.ryde.eta) + " min away" : "No car booked"],
+      ["Deliveries", deliveries.length ? deliveries.map(d => d.name).join(", ") : "Nothing on the way"],
+      ["Gallery", phone.gallery.length + " photographs"]].map(r => '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join(""));
+  } else if (name === "radio") {
+    radioLoadImgs();
+    set("pradio", RADIO_STATIONS.map((st, i) => {
+      const info = radioInfo(st);
+      const logo = RADIO_LOGOS[st.logo] ? '<img src="' + RADIO_LOGOS[st.logo] + '" alt="">' : '<div class="rl" style="background:' + st.colour + '">' + st.name + '</div>';
+      return '<div class="radrow' + (i === radio.st ? " on" : "") + '" id="prad' + i + '" style="--rc:' + st.colour + '">' + logo +
+        '<div><b>' + st.name + ' · ' + st.freq + '</b><span>' + (st.talk ? st.genre + ' · ' + info.title : info.title + ' — ' + info.artist) + '</span></div></div>';
+    }).join(""));
+    RADIO_STATIONS.forEach((st, i) => { const el = document.getElementById("prad" + i); if (el) el.addEventListener("click", () => { radio.st = i; radio.tuned = -1; fillPause("radio"); syncPauseRows(); say(st.name + " is set for the next drive.", 3); }); });
   }
-  const pel = document.getElementById("pphone");
-  if (pel) pel.innerHTML = prows.map(r =>
-    '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
 }
-
-function drawPauseMap() {
-  const cv = document.getElementById("pausemap");
-  if (!cv || !nav.ready) return;
-  const g = cv.getContext("2d");
-  const at = player.placed ? player.pos : camPos;
-  drawMapView(g, cv.width, cv.height, at.x, at.z, 1400, 0);
-}
+function fillPauseStats() { fillPause(PAUSE_TABS[pause.tab]); }
 
 function initPause() {
   const on = (id, fn) => {
@@ -5122,7 +5195,9 @@ function initPause() {
   document.querySelectorAll(".ptab").forEach((el, i) => {
     el.addEventListener("click", () => setPauseTab(i));
   });
-  on("mmapopen", () => { setPaused(false); setMapOpen(true); });
+  // the map is the first page of the pause menu
+  const mp = document.querySelector('.ppage[data-page="map"]'), ms = document.getElementById("mapscreen");
+  if (mp && ms) mp.appendChild(ms);
   on("mresume", () => setPaused(false));
   on("mtitle", returnToTitle);
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
@@ -5145,7 +5220,7 @@ function initPause() {
       : "Esc resumes. Controller: left stick moves, right stick looks, right trigger runs, Y walks or flies, Start pauses.";
   }
   document.getElementById("pause").addEventListener("pointerdown", e => {
-    if (e.target.id === "pause") setPaused(false);   // tapping the dimmed area
+    // (the whole screen is the menu now; there is no dimmed area to tap)
   });
 }
 
@@ -11174,32 +11249,8 @@ function clearWaypoint() {
 }
 
 function setMapOpen(on) {
-  nav.mapOpen = !!on;
-  document.body.classList.toggle("mapopen", nav.mapOpen);
-  if (nav.mapOpen) {
-    paused = true;
-    document.body.classList.add("paused");
-    move.x = move.y = move.up = 0;
-    look.x = look.y = 0;
-    for (const k in keys) keys[k] = false;
-    const at = player.placed ? player.pos : camPos;
-    nav.mapCx = at.x; nav.mapCz = at.z;
-    nav.mapZoom = 6;
-    nav.mapSel = 0;
-    syncMapMenu();
-    const sh = document.getElementById("kshadows");
-    if (sh && renderer) sh.textContent = "Shadows: " + (renderer.shadowMap.enabled ? "on" : "off");
-    const q = document.getElementById("kquality");
-    if (q) q.textContent = "Graphics: " + (gfx.high ? "high" : "medium");
-    const hint = document.getElementById("maphint");
-    if (hint) hint.textContent = pad.index >= 0
-      ? "Left stick pans · triggers zoom · A drops a waypoint · D-pad picks an option · B closes"
-      : "Drag to pan · scroll to zoom · click to drop a waypoint · Esc or M closes";
-    drawBigMap();
-  } else {
-    paused = false;
-    document.body.classList.remove("paused");
-  }
+  if (on) { if (!paused) setPaused(true); else setPauseTab(0); }
+  else if (paused) setPaused(false);
 }
 
 // What the resolution row says, including the buffer it actually produces, so
@@ -20033,7 +20084,7 @@ function returnToTitle() {
   if (shops.inside) leaveShop();
   tvui.mode = "menu"; arcadeStop(); setRadioWheel(false); setWheel(false);
   setPhone(false);
-  if (nav.mapOpen) setMapOpen(false);
+  if (paused) setPaused(false);
   if (player.placed) title.resume = { x: player.pos.x, z: player.pos.z, yaw: player.yaw };
   setPaused(false);
   title.from = null; title.t = 0; title.sel = 0;
@@ -20042,7 +20093,7 @@ function returnToTitle() {
 }
 function titleChoose() {
   const id = titleItems()[title.sel];
-  if (id === "tsettings") { setTitle(false); setPaused(true); return; }
+  if (id === "tsettings") { setTitle(false); setPaused(true, "settings"); return; }
   // New game and continue both land you on the ground in Tokonto. The
   // difference will matter once there is something to save.
   setTitle(false);
