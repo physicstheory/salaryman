@@ -41,6 +41,8 @@ def main():
     a = html.index("\n", a) + 1
     b = html.index("/* PHONE-CSS-END */")
     css = html[a:b]
+    f0 = html.index("/* GRAND-HOTEL-BEGIN")
+    css += "\n" + html[f0:html.index("/* GRAND-HOTEL-END */", f0) + len("/* GRAND-HOTEL-END */")] + "\n"
 
     shell = io.open(SHELL, encoding="utf-8").read()
     assert "/*__PHONE_CSS__*/" in shell and "/*__GAME_JS__*/" in shell
