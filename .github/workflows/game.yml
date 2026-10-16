@@ -22,7 +22,7 @@ jobs:
         include:
           - os: windows-latest
             name: windows
-            out: "Game/dist/*.exe"
+            out: "Game/dist/win-unpacked/**"
           - os: ubuntu-latest
             name: linux
             out: "Game/dist/*.AppImage"

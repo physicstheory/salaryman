@@ -21,11 +21,31 @@
   "build": {
     "appId": "com.physicstheory.salaryman",
     "productName": "Salary Man",
-    "directories": { "output": "dist", "buildResources": "build" },
-    "files": ["main.js", "preload.js", "app/**", "vendor/**", "package.json"],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**",
+      "vendor/**",
+      "package.json"
+    ],
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "artifactName": "SalaryMan-${version}-${arch}.${ext}"
     },
@@ -36,7 +56,17 @@
       "createDesktopShortcut": true,
       "shortcutName": "Salary Man"
     },
-    "linux": { "target": ["AppImage"], "category": "Game" },
-    "mac": { "target": ["dmg"], "category": "public.app-category.games" }
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game"
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.games"
+    }
   }
 }

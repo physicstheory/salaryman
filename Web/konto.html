@@ -225,23 +225,26 @@
     z-index: 20;
   }
   #boot .inner { text-align: center; padding: 0 16px; }
-  #boot .mark {
-    font-family: var(--data);
-    font-size: 11px;
-    letter-spacing: 0.30em;
-    text-transform: uppercase;
-    color: #70777f;
-    margin: 0 0 18px;
-  }
   #boot h2 {
-    font: 800 clamp(42px, 9vw, 96px)/0.98 var(--ui);
-    letter-spacing: -0.01em;
-    margin: 0 0 10px;
+    font: 800 clamp(40px, 7.4vw, 86px)/0.98 var(--ui);
+    letter-spacing: 0.02em;
+    margin: 0 0 clamp(18px, 3vh, 38px);
     color: #f4f6f8;
   }
+  /* The artwork sits under the title and above the bar, sized off the
+     viewport height so it never pushes the bar off a short window. */
+  #bootart {
+    display: block;
+    width: min(760px, 78vw);
+    max-height: 46vh;
+    object-fit: contain;
+    margin: 0 auto;
+    filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
+  }
   #bootbar {
-    width: min(300px, 64vw); height: 2px;
-    background: rgba(255,255,255,0.12); margin: 34px auto 0;
+    width: min(340px, 64vw); height: 3px; border-radius: 2px;
+    background: rgba(255,255,255,0.12); margin: clamp(20px, 4vh, 44px) auto 0;
+    overflow: hidden;
   }
   #bootbar i { display: block; height: 100%; width: 0; background: #e7ebee; transition: width 0.2s linear; }
   #bootstage {
@@ -501,16 +504,6 @@
   body.phone-up #phone { transform: translateY(calc(-18px - env(safe-area-inset-bottom, 0px))); }
   @media (prefers-reduced-motion: reduce) { #phone { transition: none; } }
 
-  #phonemark {
-    text-align: center;
-    margin: 0 0 9px;
-    font-family: var(--serif);
-    font-weight: 400;
-    font-size: 25px;
-    letter-spacing: 0.12em;
-    color: #f4f5f2;
-    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
-  }
   #phonebody {
     position: relative;
     border-radius: 26px;
@@ -599,6 +592,15 @@
   /* ---- the line that tells you something ------------------------------------
      Low on the screen, above the minimap's eye line, gone on its own. The game
      talks to you here and nowhere else. */
+  /* A quarter-second dip to black, used for doorways and for waking up in
+     hospital. It never swallows input: it is painted over everything and
+     takes no pointer events. */
+  #fade {
+    position: fixed; inset: 0; z-index: 28;
+    background: #000; opacity: 0; pointer-events: none;
+    transition: opacity 120ms linear;
+  }
+
   /* ---- the wheel ------------------------------------------------------------
      Held, not toggled: it is up only while LB is down. */
   #wheel {
@@ -820,7 +822,6 @@
   </div>
   <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
   <div id="phone">
-    <p id="phonemark">SOTI</p>
     <div id="phonebody">
       <div id="phonescreen">
         <canvas id="phonecanvas" width="540" height="1170"></canvas>
@@ -854,6 +855,7 @@
 <div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
 <div id="wheel" hidden><canvas id="wheelcanvas" width="860" height="860"></canvas></div>
 <canvas id="stars" width="260" height="46" hidden></canvas>
+<div id="fade"></div>
 <div id="money">&yen;500,000</div>
 <div id="notice"></div>
 
@@ -955,8 +957,8 @@
 
 <div id="boot">
   <div class="inner">
-    <p class="mark">Konto &middot; Tōkonto</p>
     <h2>SALARY MAN</h2>
+    <img id="bootart" src="art/splash.png" alt="">
     <div id="bootbar"><i></i></div>
     <p id="bootstage">starting</p>
   </div>
@@ -4066,10 +4068,11 @@ function updatePrompt() {
   // A shop door takes precedence over a car parked outside it, because you
   // are standing at the door.
   if (player.placed && player.mode === "walk") {
-    if (homeNear(player.pos.x, player.pos.z)) { setPromptText("Go inside"); return; }
+    // Doors are walked through, not pressed, so the prompt only says so.
+    if (homeNear(player.pos.x, player.pos.z)) { setPromptText(null); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     drive.nearShop = sh;
-    if (sh) { setPromptText("Enter " + sh.name); return; }
+    if (sh) { setPromptText(null); return; }
   } else drive.nearShop = null;
   const r = findRide();
   drive.near = r;
@@ -4742,6 +4745,7 @@ function buildScene(w) {
   placeShops(w.cities[0]);
   buildShopSigns(root);
   findHome(w);
+  placeHospitals(w);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
@@ -4829,7 +4833,13 @@ function updateSeikoClip(dt) {
     if (player.action) player.action.setEffectiveTimeScale(1);
   } else if (sp < WALK_SPEED * 1.6) {
     playSeikoClip("walk", 0.22);
-    if (player.action) player.action.setEffectiveTimeScale(clamp(sp / WALK_SPEED, 0.55, 1.5));
+    // Backing up runs the same clip in reverse, which is close enough to a
+    // back-step to read as one and is the only honest thing to do without a
+    // dedicated clip.
+    const sign = player.back ? -1 : 1;
+    if (player.action) {
+      player.action.setEffectiveTimeScale(sign * clamp(sp / WALK_SPEED, 0.55, 1.5));
+    }
   } else {
     playSeikoClip("run", 0.20);
     if (player.action) player.action.setEffectiveTimeScale(clamp(sp / RUN_SPEED, 0.62, 1.45));
@@ -4964,9 +4974,31 @@ function updateWalk(dt) {
     wishDir.normalize();
     player.speed = lerp(player.speed, Math.max(WALK_SPEED * 0.45, top * push),
                         1 - Math.pow(0.002, dt));
-    player.targetYaw = Math.atan2(wishDir.x, wishDir.z);
+
+    // Where the body would like to point, and how far that is from where it
+    // points now. Slaving the body straight to the movement vector - which is
+    // what this used to do - makes him spin on the spot the moment you press
+    // back, and swing bodily sideways when you strafe. Neither is what a
+    // person does.
+    const want = Math.atan2(wishDir.x, wishDir.z);
+    let off = want - player.yaw;
+    while (off > Math.PI) off -= Math.PI * 2;
+    while (off < -Math.PI) off += Math.PI * 2;
+
+    // Nearly behind him, and not running: step backwards rather than turn
+    // round. Short reverse steps are a thing people do and a thing the walk
+    // clip can play backwards.
+    const backing = Math.abs(off) > 2.15 && player.speed < WALK_SPEED * 1.35;
+    player.back = backing ? 1 : 0;
+    if (!backing) player.targetYaw = want;
+
+    // Sideways-ness, kept for the animation layer and for the lean. +1 is
+    // pure right, -1 pure left.
+    player.strafe = clamp(Math.sin(off), -1, 1);
   } else {
     player.speed = lerp(player.speed, 0, 1 - Math.pow(0.0005, dt));
+    player.back = 0;
+    player.strafe = lerp(player.strafe || 0, 0, 1 - Math.pow(0.004, dt));
   }
 
   if (player.speed > 0.01) {
@@ -4978,10 +5010,20 @@ function updateWalk(dt) {
   player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
 
   // Turn toward where he is going, by the shorter way round.
+  // Turning is rate limited, so he arcs round rather than snapping. A standing
+  // man can turn faster than a running one, which is why the cap falls off
+  // with speed - and it is what stops the 180-degree flip.
   let d = player.targetYaw - player.yaw;
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
-  player.yaw += d * (1 - Math.pow(0.0001, dt));
+  const maxTurn = lerp(9.5, 4.2, clamp01(player.speed / RUN_SPEED)) * dt;
+  player.yaw += clamp(d * (1 - Math.pow(0.0001, dt)), -maxTurn, maxTurn);
+
+  // Lean into the turn, and into a strafe, the way a body does. Small: this is
+  // a salaryman in a suit, not a motorcyclist.
+  const wantRoll = clamp(-d * 0.22 + (player.strafe || 0) * 0.07, -0.16, 0.16)
+                 * clamp01(player.speed / WALK_SPEED);
+  player.roll = lerp(player.roll || 0, wantRoll, 1 - Math.pow(0.004, dt));
 
   player.obj.position.copy(player.pos);
   if (player.jump > 0) {
@@ -4992,6 +5034,7 @@ function updateWalk(dt) {
     if (player.jump < 0) player.jump = 0;
   }
   player.obj.rotation.y = player.yaw;
+  player.obj.rotation.z = player.roll || 0;
   if (player.usingGlb) {
     if (player.mixer) updateSeikoClip(dt);
     else {
@@ -5435,6 +5478,8 @@ function tick(dt) {
   updateDeliveries();
   updateJacking(dt);
   updateWanted(dt);
+  updateDoorways(dt);
+  updateCollapse(dt);
   // Spotify is asked how it is getting on twice a second, and only while the
   // app is actually open.
   if (phone.open && phone.app === "Music" && spotify.state === "ready") {
@@ -11291,6 +11336,7 @@ function enterShop(s) {
 }
 function leaveShop() {
   if (!shops.inside) return;
+  stepOutFrom(shops.inside.door, shops.inside.yaw);
   shops.inside = null;
   document.body.classList.remove("inshop");
   const el = document.getElementById("shop");
@@ -11461,6 +11507,139 @@ function drawShop() {
   g.textAlign = "left";
 }
 
+// ---- walking through doors -------------------------------------------------
+// A door you press a button at is a menu with a doorframe drawn round it.
+// Walking into one and having it open is how a place feels like a place. The
+// trigger is a small circle at the threshold: cross it on foot and you are
+// inside, with a short fade so it does not snap.
+//
+// Coming out puts you a stride clear of the door and facing away from it, so
+// you never re-enter the moment you leave.
+const doorway = { fade: 0, going: null, cool: 0 };
+
+function updateDoorways(dt) {
+  if (doorway.cool > 0) doorway.cool -= dt;
+  if (doorway.fade > 0) {
+    doorway.fade -= dt * 2.6;
+    const el = document.getElementById("fade");
+    if (el) el.style.opacity = String(clamp01(doorway.fade));
+    if (doorway.fade <= 0 && doorway.going) {
+      const go = doorway.going;
+      doorway.going = null;
+      go();
+    }
+    return;
+  }
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
+  if (home.inside || shops.inside || doorway.cool > 0) return;
+
+  const px = player.pos.x, pz = player.pos.z;
+  if (home.door && Math.hypot(home.door[0] - px, home.door[1] - pz) < 1.5) {
+    enterThrough(() => enterHome());
+    return;
+  }
+  const sh = shopNear(px, pz, 1.6);
+  if (sh) enterThrough(() => enterShop(sh));
+}
+
+// A quarter-second dip to black, then whatever is on the other side.
+function enterThrough(go) {
+  doorway.going = go;
+  doorway.fade = 1;
+  doorway.cool = 1.4;
+  const el = document.getElementById("fade");
+  if (el) el.style.opacity = "1";
+}
+
+// Put him back outside, a stride clear and facing the street.
+function stepOutFrom(at, yaw) {
+  if (!at) return;
+  const out = [Math.sin(yaw), Math.cos(yaw)];
+  const x = at[0] + out[0] * 2.4, z = at[1] + out[1] * 2.4;
+  placeSeiko(new THREE.Vector3(x, world.surfaceY(x, z), z));
+  player.yaw = player.targetYaw = yaw;
+  doorway.cool = 1.4;
+}
+
+// ---- hospitals -------------------------------------------------------------
+// Four of them, one per quarter of the city, plus one in Mizuho. Running out
+// of health wakes you outside the nearest, fifty thousand yen lighter and
+// facing the road, which is the only punishment the game has.
+const hospitals = { list: [], ready: false };
+const HOSPITAL_FEE = 50000;
+
+function placeHospitals(w) {
+  hospitals.list.length = 0;
+  w.cities.forEach(city => {
+    if (!city.plots || !city.plots.length) return;
+    const big = city.plots.filter(p => p.size[0] > 34 && p.size[1] > 26);
+    if (!big.length) return;
+    // One per quadrant of a city, so there is always one within a run.
+    const b = city.bounds;
+    const mx = b ? (b.x0 + b.x1) * 0.5 : 0, mz = b ? (b.z0 + b.z1) * 0.5 : 0;
+    const quads = [[], [], [], []];
+    big.forEach(p => {
+      const q = (p.centre[0] > mx ? 1 : 0) + (p.centre[1] > mz ? 2 : 0);
+      quads[q].push(p);
+    });
+    quads.forEach(list => {
+      if (!list.length) return;
+      // The biggest plot in the quadrant: a hospital is a large building.
+      list.sort((a, c) => c.size[0] * c.size[1] - a.size[0] * a.size[1]);
+      const p = list[0];
+      const yaw = p.yaw * Math.PI / 180;
+      const half = p.size[1] * 0.5 + 2.2;
+      hospitals.list.push({
+        name: city.name + " General",
+        at: [p.centre[0], p.centre[1]],
+        door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
+        yaw: yaw, groundY: p.groundY
+      });
+    });
+  });
+  hospitals.ready = true;
+}
+
+function nearestHospital(x, z) {
+  let best = null, bestD = Infinity;
+  hospitals.list.forEach(h => {
+    const d = Math.hypot(h.door[0] - x, h.door[1] - z);
+    if (d < bestD) { bestD = d; best = h; }
+  });
+  return best;
+}
+
+function collapse() {
+  const h = nearestHospital(player.pos.x, player.pos.z);
+  const fee = Math.min(purse.yen, HOSPITAL_FEE);
+  purse.yen -= fee;
+  vitals.health = 1;
+  vitals.stress = clamp01(vitals.stress * 0.5 + 0.2);
+  wanted.stars = 0;
+  wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
+  wanted.cops.length = 0;
+  toggleSiren(false);
+  if (drive.car) leaveCar();
+  if (home.inside) leaveHome();
+  if (shops.inside) leaveShop();
+  if (h) {
+    // Outside the doors, facing the road rather than the wall.
+    stepOutFrom(h.door, h.yaw);
+    say("Woke up outside " + h.name + ". " + yenText(fee) + " gone.", 7);
+  } else {
+    say("Woke up somewhere. " + yenText(fee) + " gone.", 6);
+  }
+  player.down = 0;
+  player.speed = 0;
+}
+
+function updateCollapse(dt) {
+  if (!player.placed || vitals.health > 0.001) return;
+  if (collapse.busy) return;
+  collapse.busy = true;
+  enterThrough(() => { collapse(); collapse.busy = false; });
+}
+
 // ---- home ------------------------------------------------------------------
 // The flat in Mizuho Seiko grew up in, and the one place on the island that is
 // his. Four things to do in it, and between them they are the whole loop the
@@ -11513,6 +11692,7 @@ function enterHome() {
 function leaveHome() {
   if (!home.inside) return;
   home.inside = false;
+  stepOutFrom(home.door, home.yaw);
   document.body.classList.remove("inhome");
   const el = document.getElementById("homeview");
   if (el) setTimeout(() => { if (!home.inside) el.hidden = true; }, 200);

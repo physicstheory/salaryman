@@ -30,34 +30,33 @@ the Actions tab is empty.
 After about five minutes:
 
 1. Open the run, scroll to **Artifacts**, download **SalaryMan-windows**.
-2. Unzip it. `SalaryMan-0.5.0-x64.exe` is the installer: it installs to your user
-   folder, makes a desktop shortcut and shows up in Add or Remove Programs. No
-   administrator rights needed.
-3. Windows will say *"Windows protected your PC"*, because the build is not code
-   signed. **More info → Run anyway.** Signing costs a few hundred pounds a year
-   and is the only thing standing between you and that dialog.
+2. Unzip it. Inside is a folder with **Salary Man.exe** in it, next to its
+   libraries. Double-click that and the game starts.
 
-**Or, without touching the default branch:** a pushed tag runs the workflow from
-the tagged commit, whatever branch it is on, and attaches the installers to a
-GitHub release. From a checkout of this branch:
+### Why this avoids "Windows protected your PC"
 
-```
-git tag v0.5.0
-git push origin v0.5.0
-```
+That dialog is SmartScreen, and it appears because the build is not code
+signed. A certificate costs £200–400 a year, and an ordinary one does not even
+silence it straight away — only an Extended Validation certificate does that
+immediately. So the build sidesteps it instead.
 
-Then **Releases** on the repository front page, five minutes later, has the
-`.exe` on it. Tags are permanent and public, which is why this is your call to
-make rather than something already done for you.
+Windows marks a **downloaded file** with a hidden flag called the mark of the
+web, and SmartScreen checks that flag. A downloaded `.exe` carries it. An
+`.exe` that you extracted out of a zip usually does not, because the flag
+lands on the zip rather than on every file inside it. That is why the build
+ships as a zipped folder rather than as an installer: unzip, run the `.exe`
+inside, no dialog.
 
-**On the download itself.** It is about 40 MB, and nearly all of that is the
-Chromium runtime an Electron application carries inside it; the game is about
-2 MB. GitHub serves artifact downloads as a single stream with no resume, so a
-VPN hurts it badly — turn one off before downloading, and do not cancel and
-retry, because each attempt starts again from zero.
+If you ever do see it anyway, two fixes, in order:
 
-If neither appeals, skip to **the longer way** below — it is four commands and it
-works today.
+1. **Unblock the zip before extracting.** Right-click the downloaded zip →
+   **Properties** → tick **Unblock** at the bottom → **OK**, then extract. The
+   flag is removed from everything inside.
+2. **More info → Run anyway**, as before. It is the same binary either way.
+
+The installer is still built as well, under `SalaryMan-0.5.0-x64.exe`, if you
+would rather have a Start-menu entry and are happy to click through the
+warning once.
 
 **What it needs:** 64-bit Windows 10 or 11, 8 GB of RAM, and a graphics card made
 after about 2015 — including the integrated one in a laptop CPU. The first thing
