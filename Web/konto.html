@@ -4628,6 +4628,7 @@ function initThree() {
       if (e.code === "Enter" || e.code === "Space") { pauseAct(); e.preventDefault(); return; }
     }
     if (home.inside) {
+      if (tvui.mode !== "menu") { tvKey(e.code); e.preventDefault(); return; }
       if (e.code === "ArrowUp") homeMove(-1);
       if (e.code === "ArrowDown") homeMove(1);
       if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") homeAct();
@@ -4716,6 +4717,20 @@ function pollPad(dt) {
     return v > 0.06 ? v : 0;
   };
 
+  if (home.inside && tvui.mode !== "menu") {
+    const P = arcade.pad;
+    P.l = held(PAD.LEFT) || (gp.axes[0] || 0) < -0.5; P.r = held(PAD.RIGHT) || (gp.axes[0] || 0) > 0.5;
+    P.u = held(PAD.UP) || (gp.axes[1] || 0) < -0.5;   P.d = held(PAD.DOWN) || (gp.axes[1] || 0) > 0.5;
+    P.a = held(PAD.A);
+    const aEdge = pressed(PAD.A), bEdge = pressed(PAD.B);
+    const lE = pressed(PAD.LEFT), rE = pressed(PAD.RIGHT), uE = pressed(PAD.UP), dE = pressed(PAD.DOWN);
+    if (tvui.mode === "play") { if (bEdge) tvEvent("b"); }
+    else {
+      if (lE) tvEvent("left"); if (rE) tvEvent("right"); if (uE) tvEvent("up"); if (dE) tvEvent("down");
+      if (aEdge) tvEvent("a"); if (bEdge) tvEvent("b");
+    }
+    return;
+  }
   if (home.inside) {
     if (pressed(PAD.UP)) homeMove(-1);
     if (pressed(PAD.DOWN)) homeMove(1);
@@ -6942,6 +6957,7 @@ function tick(dt) {
   updateJacking(dt);
   updateWanted(dt);
   updateDoorways(dt);
+  updateTV(dt);
   updateCollapse(dt);
   // Spotify is asked how it is getting on twice a second, and only while the
   // app is actually open.
@@ -15189,6 +15205,7 @@ function enterHome() {
 }
 function leaveHome() {
   if (!home.inside) return;
+  tvui.mode = "menu"; arcadeStop();
   home.inside = false;
   stepOutFrom(home.door, home.yaw);
   document.body.classList.remove("inhome");
@@ -15196,11 +15213,11 @@ function leaveHome() {
   if (el) setTimeout(() => { if (!home.inside) el.hidden = true; }, 200);
 }
 function homeMove(d) {
-  home.sel = clamp(home.sel + d, 0, HOME_ACTS.length - 1);
+  home.sel = clamp(home.sel + d, 0, homeActs().length - 1);
   drawHome();
 }
 function homeAct() {
-  const a = HOME_ACTS[home.sel];
+  const a = homeActs()[home.sel] || HOME_ACTS[HOME_ACTS.length - 1];
   if (a.id === "leave") { leaveHome(); return; }
   if (a.id === "sleep") {
     vitals.stress = 0;
@@ -15216,12 +15233,8 @@ function homeAct() {
     vitals.health = clamp01(vitals.health + 0.30);
     say("Ate. Not much, but something.", 4);
   }
-  if (a.id === "tv") {
-    home.tv = (home.tv + 1) % 4;
-    vitals.stress = clamp01(vitals.stress - 0.10);
-    advanceGameMinutes(30);
-    say("Half an hour of television.", 3.5);
-  }
+  if (a.id === "tv") { enterTV(); return; }
+  if (a.id === "console") { enterConsole(); return; }
   drawHome();
 }
 
@@ -15232,6 +15245,7 @@ function drawHome() {
   if (!cv || !home.inside) return;
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
+  if (tvui.mode !== "menu") { drawTVScreen(g, W, H); return; }
 
   // Walls, tatami floor, a window with the evening outside it.
   g.fillStyle = "#22201c"; g.fillRect(0, 0, W, H);
@@ -15322,7 +15336,7 @@ function drawHome() {
   g.fillStyle = "#79818b";
   g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
   g.fillText(home.city ? home.city : "Mizuho", px + W * 0.022, py + H * 0.080);
-  HOME_ACTS.forEach((a, i) => {
+  homeActs().forEach((a, i) => {
     const y = py + H * 0.115 + i * H * 0.072;
     const on = i === home.sel;
     g.fillStyle = on ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.05)";
@@ -15341,6 +15355,726 @@ function drawHome() {
   g.font = "500 " + Math.round(H * 0.024) + "px " + UI;
   g.fillText("Health " + Math.round(vitals.health * 100) + "%   Stress " +
              Math.round(vitals.stress * 100) + "%", px + W * 0.022, py + H * 0.405);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
+// ---- the arcade ---------------------------------------------------------------
+// Fourteen small games, one engine. Every title on a disc is one of these ideas
+// with a name and two colours on it, which is how a shelf of them can all be
+// playable without anyone writing fifty games. 320 x 240, drawn small and
+// scaled up onto the television with scanlines over it, which is the look.
+const AW = 320, AH = 240;
+const arcade = { on: false, id: null, kind: null, gm: null, s: null, over: false, score: 0, t: 0,
+                 held: {}, pad: {}, was: {}, hi: {}, cv: null, g: null };
+const ARC = {};
+
+function R(g, x, y, w, h, c) { g.fillStyle = c; g.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); }
+function Tx(g, s, x, y, sz, c, al) {
+  g.fillStyle = c; g.font = "800 " + sz + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle";
+  g.fillText(s, x, y);
+}
+function rnd(a, b) { return a + Math.random() * (b - a); }
+
+function arcadeStart(id) {
+  const gm = GAME_BY_ID[id];
+  if (!gm || !ARC[gm.kind]) return false;
+  if (!arcade.cv) { arcade.cv = document.createElement("canvas"); arcade.cv.width = AW; arcade.cv.height = AH; arcade.g = arcade.cv.getContext("2d"); }
+  arcade.on = true; arcade.id = id; arcade.kind = gm.kind; arcade.gm = gm;
+  arcade.over = false; arcade.score = 0; arcade.t = 0; arcade.s = {};
+  ARC[gm.kind].init(arcade.s, gm);
+  return true;
+}
+function arcadeOver(msg) { if (arcade.over) return; arcade.over = true; arcade.msg = msg || "GAME OVER"; arcade.hi[arcade.id] = Math.max(arcade.hi[arcade.id] || 0, Math.floor(arcade.score)); }
+function arcadeStop() { arcade.on = false; }
+
+function arcadeInput() {
+  const k = keys, p = arcade.pad;
+  const cur = {
+    l: !!(k.ArrowLeft || k.KeyA || p.l), r: !!(k.ArrowRight || k.KeyD || p.r),
+    u: !!(k.ArrowUp || k.KeyW || p.u),   d: !!(k.ArrowDown || k.KeyS || p.d),
+    a: !!(k.Enter || k.Space || k.KeyE || p.a)
+  };
+  const i = { l: cur.l, r: cur.r, u: cur.u, d: cur.d, a: cur.a };
+  ["l", "r", "u", "d", "a"].forEach(n => { i["p" + n] = cur[n] && !arcade.was[n]; arcade.was[n] = cur[n]; });
+  i.x = (i.r ? 1 : 0) - (i.l ? 1 : 0); i.y = (i.d ? 1 : 0) - (i.u ? 1 : 0);
+  return i;
+}
+
+function updateArcade(dt) {
+  if (!arcade.on) return;
+  const inp = arcadeInput();
+  const gm = arcade.gm, g = arcade.g;
+  if (arcade.over) {
+    if (inp.pa) arcadeStart(arcade.id);
+  } else {
+    arcade.t += dt;
+    // Playing is the one thing in this city that lowers stress.
+    vitals.stress = clamp01(vitals.stress - dt * 0.012);
+    let left = Math.min(dt, 0.1);
+    while (left > 0) { const h = Math.min(left, 1 / 60); ARC[arcade.kind].upd(arcade.s, h, inp); left -= h; }
+  }
+  const bg = g.createLinearGradient(0, 0, 0, AH);
+  bg.addColorStop(0, mixHex(gm.a, "#000000", 0.55)); bg.addColorStop(1, mixHex(gm.a, "#000000", 0.82));
+  g.fillStyle = bg; g.fillRect(0, 0, AW, AH);
+  ARC[arcade.kind].draw(arcade.s, g, gm);
+  Tx(g, String(Math.floor(arcade.score)).padStart(6, "0"), 6, 8, 11, gm.b, "left");
+  Tx(g, "HI " + String(arcade.hi[arcade.id] || 0).padStart(6, "0"), AW - 6, 8, 11, "#ffffff", "right");
+  if (arcade.over) {
+    R(g, 40, 90, 240, 60, "rgba(0,0,0,0.78)");
+    Tx(g, arcade.msg || "GAME OVER", AW / 2, 112, 20, gm.b, "center");
+    Tx(g, "A: again     B: quit", AW / 2, 136, 11, "#ffffff", "center");
+  }
+}
+
+// ---- falling blocks
+const BLK = [
+  [[1,1,1,1]], [[1,1],[1,1]], [[0,1,0],[1,1,1]], [[0,1,1],[1,1,0]], [[1,1,0],[0,1,1]], [[1,0,0],[1,1,1]], [[0,0,1],[1,1,1]]
+];
+ARC.blocks = {
+  init(s, gm) { s.g = Array.from({ length: 20 }, () => Array(10).fill(0)); s.lines = 0; s.mv = 0; s.drop = 0; s.bag = []; s.next = this.pick(s); this.spawn(s); },
+  pick(s) { if (!s.bag.length) s.bag = [0,1,2,3,4,5,6].sort(() => Math.random() - 0.5); return s.bag.pop(); },
+  spawn(s) { s.k = s.next; s.next = this.pick(s); s.m = BLK[s.k].map(r => r.slice()); s.x = 3; s.y = 0; if (this.hit(s, s.m, s.x, s.y)) arcadeOver(); },
+  hit(s, m, x, y) { for (let j = 0; j < m.length; j++) for (let i = 0; i < m[0].length; i++) if (m[j][i]) { const X = x + i, Y = y + j; if (X < 0 || X > 9 || Y > 19 || (Y >= 0 && s.g[Y][X])) return true; } return false; },
+  upd(s, dt, i) {
+    s.mv -= dt;
+    if (i.x && s.mv <= 0) { if (!this.hit(s, s.m, s.x + i.x, s.y)) s.x += i.x; s.mv = 0.11; }
+    if (!i.x) s.mv = 0;
+    if (i.pu) { const r = s.m[0].map((_, c) => s.m.map(row => row[c]).reverse()); for (const dx of [0, -1, 1]) if (!this.hit(s, r, s.x + dx, s.y)) { s.m = r; s.x += dx; break; } }
+    if (i.pa) { while (!this.hit(s, s.m, s.x, s.y + 1)) { s.y++; arcade.score += 2; } s.drop = 9; }
+    s.drop += dt * (i.d ? 14 : 1.6 + s.lines * 0.12);
+    if (s.drop >= 1) {
+      s.drop = 0;
+      if (!this.hit(s, s.m, s.x, s.y + 1)) s.y++;
+      else {
+        s.m.forEach((row, j) => row.forEach((v, c) => { if (v && s.y + j >= 0) s.g[s.y + j][s.x + c] = s.k + 1; }));
+        let n = 0;
+        for (let j = 19; j >= 0; j--) if (s.g[j].every(v => v)) { s.g.splice(j, 1); s.g.unshift(Array(10).fill(0)); n++; j++; }
+        if (n) { s.lines += n; arcade.score += [0, 100, 300, 500, 800][n]; }
+        this.spawn(s);
+      }
+    }
+  },
+  draw(s, g, gm) {
+    const cols = ["#000", "#5ad7ff", "#ffd84a", "#c06bff", "#5adf7a", "#ff5a5a", "#5a7aff", "#ff9a3a"];
+    R(g, 100, 10, 122, 222, "rgba(0,0,0,0.5)");
+    const cell = (x, y, c) => { R(g, 101 + x * 12, 11 + y * 11, 11, 10, cols[c]); R(g, 101 + x * 12, 11 + y * 11, 11, 2, "rgba(255,255,255,0.35)"); };
+    s.g.forEach((row, j) => row.forEach((v, i) => { if (v) cell(i, j, v); }));
+    if (!arcade.over) s.m.forEach((row, j) => row.forEach((v, i) => { if (v) cell(s.x + i, s.y + j, s.k + 1); }));
+    Tx(g, "NEXT", 252, 40, 10, gm.b, "center");
+    BLK[s.next].forEach((row, j) => row.forEach((v, i) => { if (v) R(g, 234 + i * 11, 54 + j * 11, 10, 10, cols[s.next + 1]); }));
+    Tx(g, "LINES " + s.lines, 252, 120, 10, "#fff", "center");
+  }
+};
+
+// ---- snake
+ARC.snake = {
+  init(s) { s.b = [[10, 7], [9, 7], [8, 7]]; s.d = [1, 0]; s.q = []; s.t = 0; s.ap = this.apple(s); },
+  apple(s) { for (;;) { const a = [(Math.random() * 20) | 0, (Math.random() * 14) | 0]; if (!s.b.some(c => c[0] === a[0] && c[1] === a[1])) return a; } },
+  upd(s, dt, i) {
+    const want = i.pl ? [-1, 0] : i.pr ? [1, 0] : i.pu ? [0, -1] : i.pd ? [0, 1] : null;
+    if (want) s.q.push(want);
+    s.t += dt;
+    const step = Math.max(0.055, 0.12 - s.b.length * 0.0015);
+    if (s.t < step) return;
+    s.t = 0;
+    const nd = s.q.shift();
+    if (nd && !(nd[0] === -s.d[0] && nd[1] === -s.d[1])) s.d = nd;
+    const h = [s.b[0][0] + s.d[0], s.b[0][1] + s.d[1]];
+    if (h[0] < 0 || h[0] > 19 || h[1] < 0 || h[1] > 13 || s.b.some(c => c[0] === h[0] && c[1] === h[1])) { arcadeOver(); return; }
+    s.b.unshift(h);
+    if (h[0] === s.ap[0] && h[1] === s.ap[1]) { arcade.score += 10; s.ap = this.apple(s); } else s.b.pop();
+  },
+  draw(s, g, gm) {
+    R(g, 0, 20, 320, 220, "rgba(0,0,0,0.35)");
+    s.b.forEach((c, k) => R(g, c[0] * 16 + 1, 20 + c[1] * 16 + 1, 14, 14, k ? gm.b : "#ffffff"));
+    R(g, s.ap[0] * 16 + 3, 20 + s.ap[1] * 16 + 3, 10, 10, "#ff5a5a");
+  }
+};
+
+// ---- breakout
+ARC.breakout = {
+  init(s, gm) { s.p = 140; s.br = []; for (let j = 0; j < 5; j++) for (let i = 0; i < 10; i++) s.br.push({ x: 10 + i * 30, y: 30 + j * 12, c: j }); s.ball = null; s.lives = 3; this.serve(s); },
+  serve(s) { s.ball = { x: s.p + 20, y: 214, vx: 0, vy: 0, stuck: true }; },
+  upd(s, dt, i) {
+    s.p = clamp(s.p + i.x * 230 * dt, 4, 276);
+    const b = s.ball;
+    if (b.stuck) { b.x = s.p + 20; if (i.pa) { b.stuck = false; b.vx = rnd(-70, 70); b.vy = -150; } return; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.x < 4) { b.x = 4; b.vx = Math.abs(b.vx); } if (b.x > 316) { b.x = 316; b.vx = -Math.abs(b.vx); }
+    if (b.y < 22) { b.y = 22; b.vy = Math.abs(b.vy); }
+    if (b.vy > 0 && b.y > 214 && b.y < 224 && b.x > s.p - 3 && b.x < s.p + 43) { b.vy = -Math.abs(b.vy); b.vx = (b.x - (s.p + 20)) * 7; }
+    for (const k of s.br) if (!k.dead && b.x > k.x - 3 && b.x < k.x + 31 && b.y > k.y - 3 && b.y < k.y + 13) {
+      k.dead = true; b.vy = -b.vy * 1.015; arcade.score += 10 + (4 - k.c) * 5; break;
+    }
+    if (s.br.every(k => k.dead)) { arcade.score += 200; this.init(s); }
+    if (b.y > 244) { s.lives--; if (s.lives < 0) arcadeOver(); else this.serve(s); }
+  },
+  draw(s, g, gm) {
+    const cs = ["#ff5a7a", "#ff9a5a", "#ffd84a", "#6adf7a", "#5ab4ff"];
+    s.br.forEach(k => { if (!k.dead) { R(g, k.x, k.y, 28, 10, cs[k.c]); R(g, k.x, k.y, 28, 2, "rgba(255,255,255,0.35)"); } });
+    R(g, s.p, 218, 40, 6, gm.b);
+    R(g, s.ball.x - 3, s.ball.y - 3, 6, 6, "#ffffff");
+    Tx(g, "♥".repeat(Math.max(0, s.lives)), 160, 8, 11, "#ff5a7a", "center");
+  }
+};
+
+// ---- pong
+ARC.pong = {
+  init(s) { s.y = 100; s.ay = 100; s.sc = [0, 0]; this.serve(s, 1); },
+  serve(s, d) { s.b = { x: 160, y: 120, vx: 120 * d, vy: rnd(-70, 70) }; },
+  upd(s, dt, i) {
+    s.y = clamp(s.y + i.y * 190 * dt, 22, 198);
+    s.ay += clamp(s.b.y - 22 - s.ay, -1, 1) * 120 * dt; s.ay = clamp(s.ay, 22, 198);
+    const b = s.b; b.x += b.vx * dt; b.y += b.vy * dt;
+    if (b.y < 22 || b.y > 236) { b.vy = -b.vy; b.y = clamp(b.y, 22, 236); }
+    if (b.vx < 0 && b.x < 22 && b.x > 12 && b.y > s.y - 4 && b.y < s.y + 44) { b.vx = Math.abs(b.vx) * 1.06; b.vy = (b.y - s.y - 20) * 5; }
+    if (b.vx > 0 && b.x > 298 && b.x < 308 && b.y > s.ay - 4 && b.y < s.ay + 44) { b.vx = -Math.abs(b.vx) * 1.04; b.vy = (b.y - s.ay - 20) * 5; }
+    if (b.x < 0) { s.sc[1]++; this.serve(s, 1); } if (b.x > 320) { s.sc[0]++; arcade.score += 100; this.serve(s, -1); }
+    if (s.sc[0] >= 7) arcadeOver("YOU WIN"); else if (s.sc[1] >= 7) arcadeOver();
+  },
+  draw(s, g, gm) {
+    for (let y = 24; y < 240; y += 14) R(g, 159, y, 2, 8, "rgba(255,255,255,0.3)");
+    R(g, 10, s.y, 6, 44, gm.b); R(g, 304, s.ay, 6, 44, "#ffffff");
+    R(g, s.b.x - 3, s.b.y - 3, 6, 6, "#ffffff");
+    Tx(g, s.sc[0] + "   " + s.sc[1], 160, 8, 12, gm.b, "center");
+  }
+};
+
+// ---- invaders
+ARC.invaders = {
+  init(s) { s.x = 150; s.al = []; for (let j = 0; j < 4; j++) for (let i = 0; i < 8; i++) s.al.push({ x: 30 + i * 28, y: 34 + j * 20, j: j }); s.dir = 1; s.bu = []; s.bo = []; s.cd = 0; s.lives = 3; s.t = 0; s.wave = 1; },
+  upd(s, dt, i) {
+    s.x = clamp(s.x + i.x * 170 * dt, 8, 296); s.cd -= dt;
+    if ((i.a || i.pu) && s.cd <= 0) { s.bu.push({ x: s.x + 8, y: 214 }); s.cd = 0.38; }
+    s.bu.forEach(b => b.y -= 260 * dt); s.bu = s.bu.filter(b => b.y > 14);
+    const sp = 18 + s.wave * 7 + (32 - s.al.length) * 2.2;
+    let edge = false;
+    s.al.forEach(a => { a.x += s.dir * sp * dt; if (a.x < 6 || a.x > 298) edge = true; });
+    if (edge) { s.dir = -s.dir; s.al.forEach(a => { a.y += 9; }); }
+    if (Math.random() < dt * (0.9 + s.wave * 0.3) && s.al.length) { const a = s.al[(Math.random() * s.al.length) | 0]; s.bo.push({ x: a.x + 8, y: a.y + 10 }); }
+    s.bo.forEach(b => b.y += 90 * dt);
+    s.bu.forEach(b => { for (const a of s.al) if (!a.d && b.x > a.x && b.x < a.x + 16 && b.y > a.y && b.y < a.y + 12) { a.d = true; b.y = -9; arcade.score += 10 + (3 - a.j) * 5; break; } });
+    s.al = s.al.filter(a => !a.d);
+    s.bo = s.bo.filter(b => { if (b.y > 218 && b.y < 232 && b.x > s.x && b.x < s.x + 16) { s.lives--; if (s.lives <= 0) arcadeOver(); return false; } return b.y < 240; });
+    if (s.al.some(a => a.y > 200)) arcadeOver();
+    if (!s.al.length) { const w = s.wave + 1, l = s.lives, x = s.x; this.init(s); s.wave = w; s.lives = l; s.x = x; arcade.score += 100; }
+  },
+  draw(s, g, gm) {
+    s.al.forEach(a => { R(g, a.x + 2, a.y, 12, 8, gm.b); R(g, a.x, a.y + 3, 16, 5, gm.b); R(g, a.x + 3, a.y + 3, 3, 3, "#000"); R(g, a.x + 10, a.y + 3, 3, 3, "#000"); R(g, a.x + 2 + ((arcade.t * 4 | 0) % 2) * 8, a.y + 8, 4, 3, gm.b); });
+    R(g, s.x, 220, 16, 6, "#ffffff"); R(g, s.x + 6, 214, 4, 6, "#ffffff");
+    s.bu.forEach(b => R(g, b.x - 1, b.y, 2, 8, "#ffffff")); s.bo.forEach(b => R(g, b.x - 1, b.y, 3, 8, "#ff5a5a"));
+    Tx(g, "♥".repeat(Math.max(0, s.lives)), 160, 8, 11, "#ff5a7a", "center");
+  }
+};
+
+// ---- the two road games: drift lets the car slide, racer does not
+function roadInit(s) { s.x = 160; s.vx = 0; s.sp = 150; s.ob = []; s.sc = 0; s.t = 0; }
+function roadUpd(s, dt, i, drift) {
+  s.sp = Math.min(380, s.sp + dt * 9);
+  if (drift) { s.vx += i.x * 560 * dt; s.vx *= Math.pow(0.12, dt); s.vx = clamp(s.vx, -230, 230); s.x += s.vx * dt; }
+  else s.x += i.x * 190 * dt;
+  s.x = clamp(s.x, 82, 238);
+  s.sc += s.sp * dt; arcade.score = s.sc / 8 + (drift ? Math.abs(s.vx) * 0.02 * s.t : 0);
+  s.t += dt;
+  if (Math.random() < dt * (1.2 + s.sp / 200)) s.ob.push({ x: rnd(92, 228), y: -20, w: 16, c: Math.random() });
+  s.ob.forEach(o => o.y += (s.sp - 60) * dt);
+  s.ob = s.ob.filter(o => o.y < 250);
+  if (s.ob.some(o => Math.abs(o.x - s.x) < 15 && o.y > 190 && o.y < 226)) arcadeOver("CRASH");
+}
+function roadDraw(s, g, gm, drift) {
+  R(g, 76, 0, 168, 240, "#2a2c33"); R(g, 72, 0, 4, 240, gm.b); R(g, 244, 0, 4, 240, gm.b);
+  for (let y = -((s.sc * 0.5) % 40); y < 240; y += 40) R(g, 159, y, 3, 20, "rgba(255,255,255,0.7)");
+  R(g, 0, 0, 72, 240, mixHex(gm.a, "#000000", 0.4)); R(g, 248, 0, 72, 240, mixHex(gm.a, "#000000", 0.4));
+  s.ob.forEach(o => { R(g, o.x - 8, o.y, 16, 28, o.c > 0.5 ? "#ff6a3a" : "#4aa8ff"); R(g, o.x - 6, o.y + 6, 12, 8, "rgba(0,0,0,0.5)"); });
+  const tilt = drift ? s.vx / 230 * 8 : 0;
+  g.save(); g.translate(s.x, 208); g.rotate(tilt * Math.PI / 180 * 2.5);
+  R(g, -8, -14, 16, 28, gm.b); R(g, -6, -6, 12, 8, "rgba(0,0,0,0.55)"); R(g, -9, -12, 3, 7, "#111"); R(g, 6, -12, 3, 7, "#111"); R(g, -9, 6, 3, 7, "#111"); R(g, 6, 6, 3, 7, "#111");
+  g.restore();
+  if (drift && Math.abs(s.vx) > 110) { R(g, s.x - 10, 220, 4, 8, "rgba(255,255,255,0.5)"); R(g, s.x + 6, 220, 4, 8, "rgba(255,255,255,0.5)"); }
+}
+ARC.drift = { init: roadInit, upd(s, dt, i) { roadUpd(s, dt, i, true); }, draw(s, g, gm) { roadDraw(s, g, gm, true); } };
+ARC.racer = { init: roadInit, upd(s, dt, i) { roadUpd(s, dt, i, false); }, draw(s, g, gm) { roadDraw(s, g, gm, false); } };
+
+// ---- runner
+ARC.runner = {
+  init(s) { s.y = 0; s.vy = 0; s.ob = []; s.sp = 150; s.next = 0.8; s.sc = 0; },
+  upd(s, dt, i) {
+    s.sp = Math.min(340, s.sp + dt * 6); s.sc += s.sp * dt; arcade.score = s.sc / 10;
+    if ((i.pa || i.pu) && s.y <= 0.5) s.vy = 300;
+    s.vy -= 900 * dt; s.y = Math.max(0, s.y + s.vy * dt); if (s.y === 0 && s.vy < 0) s.vy = 0;
+    s.next -= dt; if (s.next <= 0) { s.ob.push({ x: 340, w: rnd(12, 26), h: rnd(16, 34) }); s.next = rnd(0.7, 1.5) * 170 / s.sp; }
+    s.ob.forEach(o => o.x -= s.sp * dt); s.ob = s.ob.filter(o => o.x > -40);
+    if (s.ob.some(o => o.x < 62 && o.x + o.w > 40 && s.y < o.h - 2)) arcadeOver();
+  },
+  draw(s, g, gm) {
+    R(g, 0, 190, 320, 50, mixHex(gm.a, "#000000", 0.2)); R(g, 0, 190, 320, 3, gm.b);
+    for (let x = -((s.sc) % 40); x < 320; x += 40) R(g, x, 205, 20, 2, "rgba(255,255,255,0.25)");
+    for (let k = 0; k < 6; k++) R(g, ((k * 71 - s.sc * 0.2) % 360 + 360) % 360 - 20, 120 - (k % 3) * 18, 24, 70 + (k % 3) * 18, "rgba(255,255,255,0.07)");
+    s.ob.forEach(o => R(g, o.x, 190 - o.h, o.w, o.h, "#ff6a3a"));
+    const py = 190 - s.y;
+    R(g, 40, py - 26, 14, 18, "#e9edf0"); R(g, 42, py - 36, 10, 10, "#f2c9a0"); R(g, 40, py - 8, 6, 8, "#1d2630"); R(g, 48, py - 8 - (s.y > 0 ? 3 : 0), 6, 8, "#1d2630"); R(g, 47, py - 26, 3, 14, "#c0392b");
+  }
+};
+
+// ---- catch
+ARC.catch = {
+  init(s) { s.x = 150; s.it = []; s.lives = 3; s.t = 0; },
+  upd(s, dt, i) {
+    s.x = clamp(s.x + i.x * 240 * dt, 20, 300); s.t += dt;
+    if (Math.random() < dt * (1.3 + s.t * 0.03)) s.it.push({ x: rnd(14, 306), y: 14, bad: Math.random() < 0.22, c: (Math.random() * 3) | 0 });
+    s.it.forEach(o => o.y += (70 + s.t * 2.2) * dt);
+    s.it = s.it.filter(o => {
+      if (o.y > 206 && o.y < 224 && Math.abs(o.x - s.x) < 24) { if (o.bad) { s.lives--; if (s.lives <= 0) arcadeOver(); } else arcade.score += 10; return false; }
+      if (o.y > 236) { if (!o.bad) { s.lives--; if (s.lives <= 0) arcadeOver(); } return false; }
+      return true;
+    });
+  },
+  draw(s, g, gm) {
+    const cs = ["#ff5a5a", "#ffd84a", "#7ae05a"];
+    s.it.forEach(o => { if (o.bad) { R(g, o.x - 6, o.y - 6, 12, 12, "#222"); R(g, o.x - 2, o.y - 9, 4, 4, "#ff5a5a"); } else { R(g, o.x - 6, o.y - 6, 12, 12, cs[o.c]); R(g, o.x - 1, o.y - 9, 2, 4, "#5a3a1a"); } });
+    R(g, s.x - 24, 214, 48, 10, gm.b); R(g, s.x - 24, 208, 4, 8, gm.b); R(g, s.x + 20, 208, 4, 8, gm.b);
+    Tx(g, "♥".repeat(Math.max(0, s.lives)), 160, 8, 11, "#ff5a7a", "center");
+  }
+};
+
+// ---- crossing
+ARC.crossing = {
+  init(s) { s.c = 8; s.r = 11; s.lives = 3; s.ln = []; for (let j = 1; j <= 10; j++) { const d = j % 2 ? 1 : -1, sp = rnd(30, 70) + j * 3, cars = []; for (let k = 0; k < 3; k++) cars.push(k * 112 + rnd(0, 40)); s.ln.push({ j: j, d: d, sp: sp, cars: cars, w: 26 + (j % 3) * 8 }); } },
+  upd(s, dt, i) {
+    s.ln.forEach(l => { for (let k = 0; k < l.cars.length; k++) { l.cars[k] += l.d * l.sp * dt; if (l.cars[k] > 340) l.cars[k] = -40; if (l.cars[k] < -40) l.cars[k] = 340; } });
+    if (i.pl) s.c = Math.max(0, s.c - 1); if (i.pr) s.c = Math.min(15, s.c + 1); if (i.pu) s.r = Math.max(0, s.r - 1); if (i.pd) s.r = Math.min(11, s.r + 1);
+    if (s.r === 0) { arcade.score += 10; s.r = 11; s.c = 8; }
+    const l = s.ln.find(l => l.j === s.r);
+    if (l) { const px = s.c * 20 + 10; if (l.cars.some(c => px > c - 2 && px < c + l.w + 2)) { s.lives--; s.r = 11; s.c = 8; if (s.lives <= 0) arcadeOver(); } }
+  },
+  draw(s, g, gm) {
+    for (let j = 0; j < 12; j++) R(g, 0, 20 + j * 18, 320, 18, j === 0 || j === 11 ? "#2c6a3a" : "#2a2c33");
+    s.ln.forEach(l => l.cars.forEach(c => R(g, c, 20 + l.j * 18 + 3, l.w, 12, l.j % 2 ? "#ff6a3a" : "#4aa8ff")));
+    R(g, s.c * 20 + 3, 20 + s.r * 18 + 2, 14, 14, gm.b); R(g, s.c * 20 + 6, 20 + s.r * 18 + 4, 3, 3, "#000"); R(g, s.c * 20 + 11, 20 + s.r * 18 + 4, 3, 3, "#000");
+    Tx(g, "♥".repeat(Math.max(0, s.lives)), 160, 8, 11, "#ff5a7a", "center");
+  }
+};
+
+// ---- maze
+const MAZE = [
+  "###################", "#........#........#", "#.##.###.#.###.##.#", "#.................#", "#.##.#.#####.#.##.#",
+  "#....#...#...#....#", "####.###.#.###.####", "#....#.......#....#", "#.##.#.##.##.#.##.#", "#.................#",
+  "#.##.###.#.###.##.#", "#........#........#", "###################"];
+ARC.maze = {
+  init(s) { s.d = MAZE.map(r => r.split("").map(c => c === "." ? 1 : 0)); s.p = { x: 9, y: 9, dx: 0, dy: 0, t: 0 }; s.gh = [{ x: 9, y: 5, t: 0, dx: 0, dy: 0 }, { x: 1, y: 1, t: 0, dx: 0, dy: 0 }]; s.n = s.d.flat().filter(v => v).length; s.fr = 0; },
+  wall(x, y) { return MAZE[y] === undefined || MAZE[y][x] === "#"; },
+  upd(s, dt, i) {
+    const p = s.p;
+    if (i.l) { p.wx = -1; p.wy = 0; } else if (i.r) { p.wx = 1; p.wy = 0; } else if (i.u) { p.wx = 0; p.wy = -1; } else if (i.d) { p.wx = 0; p.wy = 1; }
+    p.t -= dt;
+    if (p.t <= 0) {
+      if (p.wx !== undefined && !this.wall(p.x + p.wx, p.y + p.wy)) { p.dx = p.wx; p.dy = p.wy; }
+      if (!this.wall(p.x + p.dx, p.y + p.dy)) { p.x += p.dx; p.y += p.dy; } else { p.dx = p.dy = 0; }
+      p.t = 0.13;
+      if (s.d[p.y][p.x]) { s.d[p.y][p.x] = 0; arcade.score += 10; s.n--; if (s.n <= 0) { arcade.score += 300; this.init(s); } }
+    }
+    s.gh.forEach(h => {
+      h.t -= dt;
+      if (h.t <= 0) {
+        const opts = [[1, 0], [-1, 0], [0, 1], [0, -1]].filter(o => !this.wall(h.x + o[0], h.y + o[1]) && !(o[0] === -h.dx && o[1] === -h.dy));
+        if (opts.length) {
+          opts.sort((a, b) => (Math.abs(p.x - h.x - a[0]) + Math.abs(p.y - h.y - a[1])) - (Math.abs(p.x - h.x - b[0]) + Math.abs(p.y - h.y - b[1])));
+          const pick = Math.random() < 0.55 ? opts[0] : opts[(Math.random() * opts.length) | 0];
+          h.dx = pick[0]; h.dy = pick[1]; h.x += h.dx; h.y += h.dy;
+        } else { h.dx = -h.dx; h.dy = -h.dy; }
+        h.t = 0.19;
+      }
+      if (h.x === p.x && h.y === p.y) arcadeOver();
+    });
+  },
+  draw(s, g, gm) {
+    const ox = 8, oy = 24;
+    MAZE.forEach((r, y) => r.split("").forEach((c, x) => {
+      if (c === "#") R(g, ox + x * 16, oy + y * 16, 16, 16, mixHex(gm.b, "#000000", 0.55));
+      else if (s.d[y][x]) R(g, ox + x * 16 + 7, oy + y * 16 + 7, 3, 3, "#ffe9a8");
+    }));
+    const p = s.p; g.fillStyle = gm.b; g.beginPath(); g.arc(ox + p.x * 16 + 8, oy + p.y * 16 + 8, 6.5, 0.4, Math.PI * 2 - 0.4); g.lineTo(ox + p.x * 16 + 8, oy + p.y * 16 + 8); g.fill();
+    s.gh.forEach((h, k) => { const c = k ? "#ff9ad8" : "#ff5a5a"; R(g, ox + h.x * 16 + 2, oy + h.y * 16 + 3, 12, 11, c); R(g, ox + h.x * 16 + 4, oy + h.y * 16 + 6, 3, 3, "#fff"); R(g, ox + h.x * 16 + 9, oy + h.y * 16 + 6, 3, 3, "#fff"); });
+  }
+};
+
+// ---- pachinko, as a plinko board
+ARC.pachi = {
+  init(s) { s.x = 160; s.balls = 10; s.b = []; s.pins = []; for (let j = 0; j < 9; j++) for (let i = 0; i < 12; i++) s.pins.push([20 + i * 26 + (j % 2) * 13, 56 + j * 18]); s.pop = []; },
+  upd(s, dt, i) {
+    s.x = clamp(s.x + i.x * 150 * dt, 20, 300);
+    if (i.pa && s.balls > 0) { s.balls--; s.b.push({ x: s.x, y: 24, vx: rnd(-10, 10), vy: 0 }); }
+    s.b.forEach(b => {
+      b.vy += 380 * dt; b.x += b.vx * dt; b.y += b.vy * dt;
+      for (const p of s.pins) { const dx = b.x - p[0], dy = b.y - p[1], d = Math.hypot(dx, dy); if (d < 7 && d > 0.01) { const nx = dx / d, ny = dy / d, dot = b.vx * nx + b.vy * ny; b.vx -= 1.7 * dot * nx; b.vy -= 1.7 * dot * ny; b.vx += rnd(-12, 12); b.x = p[0] + nx * 7.1; b.y = p[1] + ny * 7.1; } }
+      if (b.x < 5) { b.x = 5; b.vx = Math.abs(b.vx); } if (b.x > 315) { b.x = 315; b.vx = -Math.abs(b.vx); }
+      if (b.y > 226) { const slot = clamp(Math.floor(b.x / 45.7), 0, 6), v = [100, 50, 200, 1000, 200, 50, 100][slot]; arcade.score += v; s.pop.push({ x: b.x, v: v, t: 1 }); b.dead = true; }
+    });
+    s.b = s.b.filter(b => !b.dead); s.pop.forEach(p => p.t -= dt); s.pop = s.pop.filter(p => p.t > 0);
+    if (s.balls <= 0 && !s.b.length) arcadeOver("OUT OF BALLS");
+  },
+  draw(s, g, gm) {
+    s.pins.forEach(p => { g.fillStyle = gm.b; g.beginPath(); g.arc(p[0], p[1], 2.4, 0, 7); g.fill(); });
+    [100, 50, 200, 1000, 200, 50, 100].forEach((v, k) => { R(g, k * 45.7, 228, 44, 12, v === 1000 ? "#ffd84a" : "rgba(255,255,255,0.18)"); Tx(g, String(v), k * 45.7 + 22, 234, 9, "#000", "center"); });
+    s.b.forEach(b => { g.fillStyle = "#e9edf0"; g.beginPath(); g.arc(b.x, b.y, 4, 0, 7); g.fill(); });
+    R(g, s.x - 6, 18, 12, 4, gm.b);
+    s.pop.forEach(p => Tx(g, "+" + p.v, p.x, 220 - (1 - p.t) * 20, 12, "#ffd84a", "center"));
+    Tx(g, "BALLS " + s.balls, 160, 8, 11, "#fff", "center");
+  }
+};
+
+// ---- memory pairs, wearing a board game's name
+ARC.board = {
+  init(s) { const v = [0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7].sort(() => Math.random() - 0.5); s.c = v.map(k => ({ k: k, up: false, ok: false })); s.cx = 0; s.cy = 0; s.first = -1; s.wait = 0; s.moves = 0; },
+  upd(s, dt, i) {
+    if (s.wait > 0) { s.wait -= dt; if (s.wait <= 0) { s.c.forEach(c => { if (!c.ok) c.up = false; }); } return; }
+    if (i.pl) s.cx = (s.cx + 3) % 4; if (i.pr) s.cx = (s.cx + 1) % 4; if (i.pu) s.cy = (s.cy + 3) % 4; if (i.pd) s.cy = (s.cy + 1) % 4;
+    if (i.pa) {
+      const k = s.cy * 4 + s.cx, c = s.c[k]; if (c.up || c.ok) return;
+      c.up = true;
+      if (s.first < 0) s.first = k;
+      else { s.moves++; const o = s.c[s.first]; if (o.k === c.k) { o.ok = c.ok = true; arcade.score += 100; } else { s.wait = 0.8; arcade.score = Math.max(0, arcade.score - 5); } s.first = -1; if (s.c.every(c => c.ok)) { arcade.score += Math.max(0, 300 - s.moves * 10); arcadeOver("CLEARED"); } }
+    }
+  },
+  draw(s, g, gm) {
+    const sy = ["☖", "☗", "♞", "♜", "♔", "♕", "♝", "♟"];
+    s.c.forEach((c, k) => {
+      const x = 70 + (k % 4) * 46, y = 30 + ((k / 4) | 0) * 50;
+      R(g, x, y, 42, 46, c.ok ? "rgba(255,255,255,0.12)" : c.up ? "#f2dcb0" : gm.b);
+      if (c.up || c.ok) Tx(g, ["鹿", "馬", "龍", "虎", "王", "金", "銀", "歩"][c.k], x + 21, y + 24, 26, c.ok ? "rgba(255,255,255,0.4)" : "#4a2a14", "center");
+    });
+    R(g, 70 + s.cx * 46 - 2, 30 + s.cy * 50 - 2, 46, 3, "#fff"); R(g, 70 + s.cx * 46 - 2, 30 + s.cy * 50 + 45, 46, 3, "#fff");
+  }
+};
+
+// ---- fishing: keep the float on the fish
+ARC.fish = {
+  init(s) { s.f = 100; s.fv = 0; s.b = 120; s.bv = 0; s.m = 30; s.caught = 0; s.esc = 0; s.ft = 0; },
+  upd(s, dt, i) {
+    s.ft -= dt; if (s.ft <= 0) { s.fv = rnd(-90, 90); s.ft = rnd(0.5, 1.4); }
+    s.f = clamp(s.f + s.fv * dt, 20, 200); if (s.f <= 20 || s.f >= 200) s.fv = -s.fv;
+    s.bv += (i.a || i.u ? -420 : 300) * dt; s.bv *= Math.pow(0.05, dt); s.b = clamp(s.b + s.bv * dt, 20, 190);
+    const on = Math.abs((s.b + 20) - s.f) < 24;
+    s.m = clamp(s.m + (on ? 22 : -14) * dt, 0, 100);
+    if (s.m >= 100) { s.caught++; arcade.score += 100; s.m = 30; }
+    if (s.m <= 0) { s.esc++; s.m = 30; if (s.esc >= 3) arcadeOver("IT GOT AWAY"); }
+  },
+  draw(s, g, gm) {
+    R(g, 120, 24, 80, 196, "rgba(80,170,230,0.35)");
+    R(g, 120, s.b, 80, 40, "rgba(255,216,74,0.35)");
+    R(g, 150, s.f - 4, 22, 8, gm.b); R(g, 170, s.f - 6, 6, 12, gm.b);
+    R(g, 216, 24, 14, 196, "rgba(0,0,0,0.5)"); R(g, 216, 220 - s.m * 1.96, 14, s.m * 1.96, "#6adf7a");
+    Tx(g, "CAUGHT " + s.caught + "   LOST " + s.esc + "/3", 160, 232, 10, "#fff", "center");
+    Tx(g, "hold A to reel", 60, 120, 10, "#fff", "center");
+  }
+};
+
+// ---- rhythm
+ARC.rhythm = {
+  init(s) { s.n = []; s.t = 0; s.nx = 1; s.combo = 0; s.msg = ""; s.mt = 0; },
+  upd(s, dt, i) {
+    s.t += dt; s.nx -= dt;
+    if (s.nx <= 0) { s.n.push({ l: (Math.random() * 4) | 0, y: 20 }); s.nx = 0.46 * (Math.random() < 0.2 ? 0.5 : 1); }
+    s.n.forEach(n => n.y += 130 * dt);
+    const hits = [i.pl, i.pd, i.pu, i.pr];
+    hits.forEach((h, lane) => {
+      if (!h) return;
+      const n = s.n.filter(n => n.l === lane && Math.abs(n.y - 200) < 22).sort((a, b) => Math.abs(a.y - 200) - Math.abs(b.y - 200))[0];
+      if (n) { n.dead = true; s.combo++; const d = Math.abs(n.y - 200); arcade.score += (d < 8 ? 100 : 50) * (1 + Math.floor(s.combo / 10)); s.msg = d < 8 ? "PERFECT" : "GOOD"; s.mt = 0.5; }
+      else { s.combo = 0; s.msg = "MISS"; s.mt = 0.5; }
+    });
+    s.n = s.n.filter(n => { if (!n.dead && n.y > 226) { s.combo = 0; s.msg = "MISS"; s.mt = 0.5; return false; } return !n.dead; });
+    s.mt -= dt;
+    if (s.t > 75) arcadeOver("ENCORE!");
+  },
+  draw(s, g, gm) {
+    const cs = ["#ff5a7a", "#5ab4ff", "#7ae05a", "#ffd84a"], gl = ["◀", "▼", "▲", "▶"];
+    for (let k = 0; k < 4; k++) { R(g, 90 + k * 36, 20, 34, 220, "rgba(255,255,255,0.06)"); R(g, 90 + k * 36, 192, 34, 16, "rgba(255,255,255,0.18)"); Tx(g, gl[k], 107 + k * 36, 200, 11, cs[k], "center"); }
+    s.n.forEach(n => R(g, 92 + n.l * 36, n.y - 6, 30, 12, cs[n.l]));
+    if (s.mt > 0) Tx(g, s.msg, 160, 60, 14, "#fff", "center");
+    if (s.combo > 1) Tx(g, s.combo + " COMBO", 160, 80, 11, gm.b, "center");
+  }
+};
+
+// ---- the television, the console, and the disc library -------------------------
+// "Watch television" in the flat now puts you in front of it: up and down or
+// left and right change the channel. Once a console has been delivered the last
+// input is HDMI 1, the first time you go there it asks to be set up, and from
+// then on it is a console menu: a row of installed games and, at the front, the
+// disc library. A disc takes fifteen to twenty seconds to install the first
+// time it goes in; after that it is a tile for good.
+const tvui = { mode: "menu", ch: 0, sel: 0, con: null, setup: {}, installed: {}, prog: 0, goal: 18, disc: null, pick: 0, lib: 0, t: 0 };
+const CONSOLES = {
+  playbox5: { id: "playbox5", name: "SOTI PlayBox 5", on: "playbox", a: "#0e7a4a", b: "#7dffb0", bg: "#07120c" },
+  pearcube: { id: "pearcube", name: "Pear Cube",      on: "pearcube", a: "#6f7bd8", b: "#e9ecff", bg: "#0d0f1c" }
+};
+const CHANNELS = ["NHB News", "Tokonto 43 Variety", "Commercials", "Evening Drama", "Shopping Channel"];
+function ownedConsoles() { return Object.keys(CONSOLES).filter(id => bag.gear[id]); }
+function homeActs() {
+  const list = HOME_ACTS.slice();
+  if (ownedConsoles().length) list.splice(list.length - 1, 0, { id: "console", name: "Play console", note: ownedConsoles().map(id => CONSOLES[id].name).join(" · "), detail: "" });
+  return list;
+}
+function consoleGames(con) {
+  return GAMES.filter(g => (g.on === "both" || g.on === con.on) && bag.games[g.id]);
+}
+function enterTV() {
+  tvui.mode = "tv"; tvui.ch = 0; tvui.t = 0;
+  home.tvWatched = 0;
+  drawHome();
+}
+function enterConsole() {
+  const own = ownedConsoles();
+  if (!own.length) return;
+  tvui.pick = 0;
+  if (own.length > 1) { tvui.mode = "pick"; }
+  else { tvui.con = own[0]; tvui.mode = tvui.setup[tvui.con] ? "console" : "setup"; tvui.sel = 0; }
+  drawHome();
+}
+function tvEvent(ev) {
+  const mode = tvui.mode;
+  if (mode === "tv") {
+    const n = CHANNELS.length + (Object.keys(tvui.setup).some(k => tvui.setup[k]) ? 1 : 0);
+    if (ev === "left" || ev === "up") tvui.ch = (tvui.ch + n - 1) % n;
+    else if (ev === "right" || ev === "down") tvui.ch = (tvui.ch + 1) % n;
+    else if (ev === "b") tvui.mode = "menu";
+    else if (ev === "a" && tvui.ch === CHANNELS.length) {
+      const id = Object.keys(tvui.setup).find(k => tvui.setup[k]);
+      tvui.con = id; tvui.mode = "console"; tvui.sel = 0;
+    }
+  } else if (mode === "pick") {
+    const own = ownedConsoles();
+    if (ev === "up" || ev === "left") tvui.pick = (tvui.pick + own.length - 1) % own.length;
+    else if (ev === "down" || ev === "right") tvui.pick = (tvui.pick + 1) % own.length;
+    else if (ev === "b") tvui.mode = "menu";
+    else if (ev === "a") { tvui.con = own[tvui.pick]; tvui.mode = tvui.setup[tvui.con] ? "console" : "setup"; tvui.sel = 0; }
+  } else if (mode === "setup") {
+    if (ev === "a") { tvui.setup[tvui.con] = true; tvui.mode = "console"; tvui.sel = 0; say(CONSOLES[tvui.con].name + " connected on HDMI 1.", 4); }
+    else if (ev === "b") tvui.mode = "menu";
+  } else if (mode === "console") {
+    const con = CONSOLES[tvui.con];
+    const tiles = consoleGames(con).filter(g => tvui.installed[g.id]);
+    const n = tiles.length + 1;
+    if (ev === "left") tvui.sel = (tvui.sel + n - 1) % n;
+    else if (ev === "right") tvui.sel = (tvui.sel + 1) % n;
+    else if (ev === "b") tvui.mode = "menu";
+    else if (ev === "a") {
+      if (tvui.sel === 0) { tvui.mode = "lib"; tvui.lib = 0; }
+      else { const g = tiles[tvui.sel - 1]; if (arcadeStart(g.id)) tvui.mode = "play"; }
+    }
+  } else if (mode === "lib") {
+    const list = consoleGames(CONSOLES[tvui.con]);
+    if (ev === "up") tvui.lib = Math.max(0, tvui.lib - 1);
+    else if (ev === "down") tvui.lib = Math.min(Math.max(0, list.length - 1), tvui.lib + 1);
+    else if (ev === "b") tvui.mode = "console";
+    else if (ev === "a" && list[tvui.lib]) {
+      const g = list[tvui.lib];
+      if (tvui.installed[g.id]) { say(g.name + " is already installed.", 3); }
+      else { tvui.disc = g.id; tvui.prog = 0; tvui.goal = 15 + Math.random() * 5; tvui.mode = "install"; }
+    }
+  } else if (mode === "install") {
+    if (ev === "b") { tvui.mode = "lib"; }
+  } else if (mode === "play") {
+    if (ev === "b") { arcadeStop(); tvui.mode = "console"; }
+  }
+  drawHome();
+}
+function tvKey(code) {
+  const m = { ArrowUp: "up", KeyW: "up", ArrowDown: "down", KeyS: "down", ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right",
+              Enter: "a", Space: "a", KeyE: "a", Escape: "b", Backspace: "b", KeyF: "b" };
+  const ev = m[code];
+  if (!ev) return;
+  // In a game the direction keys belong to the game; only B comes out here.
+  if (tvui.mode === "play" && ev !== "b") return;
+  tvEvent(ev);
+}
+function updateTV(dt) {
+  if (!home.inside || tvui.mode === "menu") return;
+  tvui.t += dt;
+  if (tvui.mode === "install") {
+    tvui.prog += dt;
+    if (tvui.prog >= tvui.goal) {
+      tvui.installed[tvui.disc] = true;
+      say(GAME_BY_ID[tvui.disc].name + " installed. It is on the home row now.", 5);
+      tvui.mode = "console"; tvui.sel = 0;
+      const tiles = consoleGames(CONSOLES[tvui.con]).filter(g => tvui.installed[g.id]);
+      tvui.sel = 1 + Math.max(0, tiles.findIndex(g => g.id === tvui.disc));
+    }
+  }
+  if (tvui.mode === "tv" || tvui.mode === "console" || tvui.mode === "lib" || tvui.mode === "install") {
+    // Sitting and watching is what the stress ring wants.
+    vitals.stress = clamp01(vitals.stress - dt * (tvui.mode === "tv" ? 0.008 : 0.004));
+  }
+  if (tvui.mode === "play") updateArcade(dt);
+  drawHome();
+}
+
+// ---- drawing
+function drawChannel(g, x, y, w, h, ch, t) {
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  const s = h / 540;
+  const bg = (a, b) => { const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(x, y, w, h); };
+  const say2 = (txt, px, py, sz, c, al) => { g.fillStyle = c; g.font = "800 " + Math.round(sz * s) + "px " + JP; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, px, py); };
+  if (ch === 0) {
+    bg("#0f2a54", "#1e5fa8");
+    g.fillStyle = "#e9edf0"; g.beginPath(); g.arc(x + w * 0.5, y + h * 0.36, h * 0.09, 0, 7); g.fill();
+    g.fillStyle = "#1b2430"; g.fillRect(x + w * 0.42, y + h * 0.46, w * 0.16, h * 0.30);
+    g.fillStyle = "#c9ced4"; g.fillRect(x + w * 0.30, y + h * 0.72, w * 0.40, h * 0.05);
+    g.fillStyle = "#b8141c"; g.fillRect(x, y + h * 0.84, w, h * 0.16);
+    g.fillStyle = "#fff"; g.fillRect(x, y + h * 0.84, w * 0.16, h * 0.16);
+    say2("NHB", x + w * 0.08, y + h * 0.92, 40, "#b8141c", "center");
+    const heads = ["Committee formed to study why committees are formed", "Tokonto commuters set record: 4h12 average", "Cat appointed station master for third year", "Vending machine elected to ward council", "Ministry of Paperwork announces more paperwork"];
+    const txt = heads[((t / 7) | 0) % heads.length];
+    say2(txt, x + w * 0.19, y + h * 0.92, 32, "#fff", "left");
+    say2("ニュース", x + w * 0.04, y + h * 0.07, 30, "#ffffff", "left");
+  } else if (ch === 1) {
+    const hue = (t * 40) % 360; bg("hsl(" + hue + ",70%,40%)", "hsl(" + (hue + 60) + ",80%,55%)");
+    for (let i = 0; i < 12; i++) { g.fillStyle = "hsla(" + (hue + i * 30) + ",90%,70%,0.35)"; g.beginPath(); g.arc(x + ((i * 97 + t * 40) % w), y + h * 0.5 + Math.sin(t * 2 + i) * h * 0.3, h * 0.05, 0, 7); g.fill(); }
+    const words = ["爆笑！", "大食い王決定戦", "ドッキリ！", "さらりーまん大喜利"];
+    say2(words[((t / 3) | 0) % words.length], x + w / 2, y + h * 0.45 + Math.sin(t * 5) * h * 0.02, 110, "#ffffff", "center");
+    say2("Tokonto 43", x + w * 0.04, y + h * 0.07, 34, "#fff", "left");
+    g.fillStyle = "rgba(0,0,0,0.6)"; g.fillRect(x, y + h * 0.84, w, h * 0.10);
+    say2("ここで笑ってください", x + w / 2, y + h * 0.89, 34, "#ffe96a", "center");
+  } else if (ch === 2) {
+    const ads = [["#0a6b42", "#e8711a", "11 ELEVEN", "いつでもあいてる"], ["#1272d6", "#13a150", "Pet Mart", "どうぶつと　ともに"],
+                 ["#d4152c", "#ffd21c", "DOKOTO", "どこでも　カメラ"], ["#1b1d21", "#6aa8ff", "SOTI", "もっと　鮮やかに"], ["#e8e6e1", "#4b4e54", "Pear", "やさしい　テクノロジー"]];
+    const a = ads[((t / 5) | 0) % ads.length];
+    bg(a[0], a[1]);
+    say2(a[2], x + w / 2, y + h * 0.42, 130, a[0] === "#e8e6e1" ? "#222" : "#fff", "center");
+    say2(a[3], x + w / 2, y + h * 0.64, 54, a[0] === "#e8e6e1" ? "#222" : "#fff", "center");
+    say2("CM", x + w * 0.95, y + h * 0.06, 28, "rgba(255,255,255,0.6)", "right");
+  } else if (ch === 3) {
+    bg("#3a2a1c", "#7a5a3a");
+    g.fillStyle = "#1b1511"; g.beginPath(); g.arc(x + w * 0.34, y + h * 0.45, h * 0.10, 0, 7); g.fill(); g.fillRect(x + w * 0.27, y + h * 0.54, w * 0.14, h * 0.4);
+    g.beginPath(); g.arc(x + w * 0.66, y + h * 0.47, h * 0.09, 0, 7); g.fill(); g.fillRect(x + w * 0.60, y + h * 0.55, w * 0.12, h * 0.4);
+    g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(x, y + h * 0.82, w, h * 0.12);
+    const lines = ["“You promised you would be home by nine.”", "“The train was late.”", "“The train is always late. You are always late.”", "“I was at the office.” “Everyone is always at the office.”"];
+    say2(lines[((t / 5) | 0) % lines.length], x + w / 2, y + h * 0.88, 30, "#fff", "center");
+  } else {
+    bg("#ffe9a8", "#ff9a5a");
+    const pulse = 1 + Math.sin(t * 4) * 0.05;
+    g.fillStyle = "#14171b"; g.save(); g.translate(x + w * 0.36, y + h * 0.5); g.scale(pulse, pulse); roundRect(g, -h * 0.14, -h * 0.2, h * 0.28, h * 0.4, 14); g.fill(); g.restore();
+    say2("タイムセール！", x + w * 0.66, y + h * 0.30, 70, "#c0172b", "center");
+    say2("¥" + (9800 - ((t * 37) | 0) % 5000), x + w * 0.66, y + h * 0.55, 90, "#14171b", "center");
+    say2("あと " + (59 - ((t) | 0) % 60) + " 秒", x + w * 0.66, y + h * 0.76, 44, "#c0172b", "center");
+  }
+  // the glass
+  g.fillStyle = "rgba(0,0,0,0.10)";
+  for (let yy = y; yy < y + h; yy += 4) g.fillRect(x, yy, w, 1.5);
+  g.restore();
+}
+
+function drawConsoleUI(g, x, y, w, h) {
+  const con = CONSOLES[tvui.con];
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  g.fillStyle = con.bg; g.fillRect(x, y, w, h);
+  const gr = g.createRadialGradient(x + w * 0.7, y + h * 0.1, 10, x + w * 0.5, y + h * 0.4, w * 0.8);
+  gr.addColorStop(0, mixHex(con.a, "#000000", 0.45)); gr.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = gr; g.fillRect(x, y, w, h);
+  const T = (txt, px, py, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + Math.round(sz * h / 540) + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, px, py); };
+  T(con.name, x + w * 0.04, y + h * 0.07, 34, con.b, "left", "800");
+  const t = phoneTime(); T(t.h + ":" + two(t.m), x + w * 0.96, y + h * 0.07, 30, "#fff", "right", "500");
+
+  if (tvui.mode === "setup") {
+    g.fillStyle = "rgba(255,255,255,0.08)"; roundRect(g, x + w * 0.2, y + h * 0.28, w * 0.6, h * 0.44, 18); g.fill();
+    T("Connect " + con.name + " to the television?", x + w / 2, y + h * 0.38, 38, "#fff", "center");
+    T("Plug the HDMI lead into HDMI 1 and switch the input.", x + w / 2, y + h * 0.48, 26, "#a9b0b8", "center", "500");
+    g.fillStyle = con.a; roundRect(g, x + w * 0.35, y + h * 0.58, w * 0.30, h * 0.09, 14); g.fill();
+    T("Connect  (A)", x + w / 2, y + h * 0.625, 30, "#fff", "center");
+    g.restore(); return;
+  }
+  const tiles = consoleGames(con).filter(g2 => tvui.installed[g2.id]);
+  const cw = w * 0.15, ch = cw * 1.32, gap = w * 0.02;
+  const all = [{ lib: true }].concat(tiles);
+  const x0 = x + w * 0.5 - (tvui.sel * (cw + gap)) - cw / 2;
+  all.forEach((tl, i) => {
+    const px = x0 + i * (cw + gap), py = y + h * 0.30 + (i === tvui.sel ? -h * 0.02 : 0);
+    if (tvui.mode === "lib" || tvui.mode === "install") { /* dim behind the library */ g.globalAlpha = 0.35; }
+    if (tl.lib) {
+      g.fillStyle = "#1c2128"; roundRect(g, px, py, cw, ch, 12); g.fill();
+      T("◎", px + cw / 2, py + ch * 0.42, 70, con.b, "center");
+      T("Disc library", px + cw / 2, py + ch * 0.78, 22, "#fff", "center");
+    } else {
+      wheelIcon(g, { kind: "game", id: tl.id, item: null }, px + cw / 2, py + ch / 2, cw * 0.62 * 1.0, false);
+    }
+    if (i === tvui.sel) { g.strokeStyle = "#fff"; g.lineWidth = 4; roundRect(g, px - 5, py - 5, cw + 10, ch + 10, 14); g.stroke(); }
+    g.globalAlpha = 1;
+  });
+  const cur = all[tvui.sel];
+  if (tvui.mode === "console") {
+    T(cur.lib ? "Open game disc library" : GAME_BY_ID[cur.id].name, x + w / 2, y + h * 0.74, 34, "#fff", "center");
+    T(cur.lib ? (consoleGames(con).length + " disc" + (consoleGames(con).length === 1 ? "" : "s") + " in your bag") : GAME_BY_ID[cur.id].genre + "   ·   best " + (arcade.hi[cur.id] || 0), x + w / 2, y + h * 0.80, 24, "#a9b0b8", "center", "500");
+    T("◀ ▶ browse     A open     B back to TV", x + w / 2, y + h * 0.93, 22, "#79818b", "center", "500");
+  } else if (tvui.mode === "lib") {
+    const list = consoleGames(con);
+    g.fillStyle = "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.18, y + h * 0.16, w * 0.64, h * 0.72, 18); g.fill();
+    T("Game disc library", x + w * 0.22, y + h * 0.23, 32, con.b, "left", "800");
+    if (!list.length) T("No discs for this console in your bag.", x + w / 2, y + h * 0.5, 28, "#a9b0b8", "center", "500");
+    const start = clamp(tvui.lib - 3, 0, Math.max(0, list.length - 7));
+    list.slice(start, start + 7).forEach((gm, k) => {
+      const li = start + k, ry = y + h * 0.29 + k * h * 0.075, on = li === tvui.lib;
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x + w * 0.20, ry, w * 0.60, h * 0.066, 10); g.fill();
+      g.fillStyle = gm.a; roundRect(g, x + w * 0.21, ry + h * 0.008, w * 0.03, h * 0.05, 5); g.fill();
+      T(gm.name, x + w * 0.26, ry + h * 0.033, 26, "#fff", "left");
+      T(tvui.installed[gm.id] ? "Installed" : "Insert disc", x + w * 0.78, ry + h * 0.033, 22, tvui.installed[gm.id] ? "#7dffb0" : "#a9b0b8", "right", "500");
+    });
+    T("▲ ▼ choose     A insert disc     B back", x + w / 2, y + h * 0.93, 22, "#79818b", "center", "500");
+  } else if (tvui.mode === "install") {
+    const gm = GAME_BY_ID[tvui.disc], p = clamp01(tvui.prog / tvui.goal);
+    g.fillStyle = "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.22, y + h * 0.28, w * 0.56, h * 0.44, 18); g.fill();
+    wheelIcon(g, { kind: "game", id: gm.id, item: null }, x + w * 0.5, y + h * 0.43, h * 0.085, false);
+    T("Installing " + gm.name, x + w / 2, y + h * 0.58, 30, "#fff", "center");
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44, h * 0.025, 8); g.fill();
+    g.fillStyle = con.b; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44 * p, h * 0.025, 8); g.fill();
+    T(Math.round(p * 100) + "%   ·   keep the disc in the drive", x + w / 2, y + h * 0.69, 22, "#a9b0b8", "center", "500");
+  }
+  g.restore();
+}
+
+function drawTVScreen(g, W, H) {
+  g.fillStyle = "#050607"; g.fillRect(0, 0, W, H);
+  const sx = W * 0.06, sy = H * 0.05, sw = W * 0.88, sh = H * 0.80;
+  g.fillStyle = "#15171b"; roundRect(g, sx - W * 0.012, sy - H * 0.018, sw + W * 0.024, sh + H * 0.036, 18); g.fill();
+  const hdmi = tvui.mode !== "tv" || tvui.ch === CHANNELS.length;
+  if (tvui.mode === "tv" && !hdmi) {
+    drawChannel(g, sx, sy, sw, sh, tvui.ch, tvui.t);
+    // the channel banner
+    g.fillStyle = "rgba(0,0,0,0.65)"; roundRect(g, sx + sw * 0.03, sy + sh * 0.04, sw * 0.26, sh * 0.075, 8); g.fill();
+    g.fillStyle = "#fff"; g.font = "700 " + Math.round(H * 0.030) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText((tvui.ch + 1) + "  " + CHANNELS[tvui.ch], sx + sw * 0.045, sy + sh * 0.078);
+  } else if (tvui.mode === "tv" && hdmi) {
+    const id = Object.keys(tvui.setup).find(k => tvui.setup[k]);
+    g.fillStyle = "#101216"; g.fillRect(sx, sy, sw, sh);
+    g.fillStyle = "#fff"; g.font = "700 " + Math.round(H * 0.04) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("HDMI 1   ·   " + CONSOLES[id].name, sx + sw / 2, sy + sh * 0.46);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
+    g.fillText("Press A to open the console", sx + sw / 2, sy + sh * 0.56);
+  } else if (tvui.mode === "pick") {
+    g.fillStyle = "#101216"; g.fillRect(sx, sy, sw, sh);
+    g.fillStyle = "#fff"; g.font = "800 " + Math.round(H * 0.045) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("Which console?", sx + sw / 2, sy + sh * 0.25);
+    ownedConsoles().forEach((id, i) => {
+      const on = i === tvui.pick, yy = sy + sh * (0.40 + i * 0.16);
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)"; roundRect(g, sx + sw * 0.3, yy, sw * 0.4, sh * 0.12, 14); g.fill();
+      g.fillStyle = on ? "#fff" : "#a9b0b8"; g.font = "700 " + Math.round(H * 0.034) + "px " + UI;
+      g.fillText(CONSOLES[id].name, sx + sw / 2, yy + sh * 0.06);
+    });
+  } else if (tvui.mode === "play") {
+    // 4:3 inside the 16:9 glass, scaled up, with scanlines
+    const ph = sh, pw = ph * 4 / 3, px = sx + (sw - pw) / 2;
+    g.fillStyle = "#000"; g.fillRect(sx, sy, sw, sh);
+    g.imageSmoothingEnabled = false;
+    if (arcade.cv) g.drawImage(arcade.cv, px, sy, pw, ph);
+    g.fillStyle = "rgba(0,0,0,0.16)";
+    for (let yy = sy; yy < sy + sh; yy += 4) g.fillRect(px, yy, pw, 1.6);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(H * 0.024) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("Arrows / D-pad move   A action   B quit", W / 2, H * 0.935);
+    return;
+  } else {
+    drawConsoleUI(g, sx, sy, sw, sh);
+  }
+  g.fillStyle = "#79818b"; g.font = "500 " + Math.round(H * 0.026) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+  if (tvui.mode === "tv") g.fillText("◀ ▶ channel      B stand up", W / 2, H * 0.93);
   g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
@@ -15439,7 +16173,15 @@ const GEAR = {
 
 // The watch and the consoles are defined with the phone, below. These are the
 // hooks the consoles fill in when a game goes in.
-function consoleInsertGame(id) { return false; }
+// Handing a disc to a console from the wheel: the disc library does the same thing
+// from the TV, which is where it normally happens.
+function consoleInsertGame(id) {
+  if (!home.inside || (tvui.mode !== "lib" && tvui.mode !== "console")) return false;
+  const gm = GAME_BY_ID[id];
+  if (!gm || !tvui.con || tvui.installed[id]) return false;
+  tvui.disc = id; tvui.prog = 0; tvui.goal = 15 + Math.random() * 5; tvui.mode = "install";
+  return true;
+}
 function phoneSwapped(id) { phone.dirty = true; }
 
 // What is in the bag. Phones are a set of the ones you are not using: the one
