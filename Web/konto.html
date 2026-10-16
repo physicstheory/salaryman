@@ -4625,6 +4625,7 @@ function initThree() {
       e.preventDefault();
       return;
     }
+    if (phone.open && phone.app === "Poodle" && phone.site == null && searchUI.on && searchKey(e)) { e.preventDefault(); return; }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (nav.mapOpen) {
       // The map takes the arrows and the zoom keys while it is up.
@@ -11417,6 +11418,178 @@ const WEB = [
   { host: "tokonto-city.kn",  title: "T\u014dkonto City Hall",  kind: "gov" }
 ];
 
+// ---- Poodle search, and the rest of the web ---------------------------------------
+// The search pill on the new-tab page now takes text: from the keyboard if you
+// have one, from the on-screen keys if you do not. Results are matched against
+// every site there is, and there are rather more of those now.
+const FILLER_SITES = [
+  { host: "paperwork.go.kn", title: "Ministry of Paperwork", kw: "forms ministry government paper stamp hanko", col: "#2a3d63", tag: "Forms for forms", lines: [
+    "Form 7-B replaces Form 7-A. Form 7-A remains in force.", "To obtain Form 7-B, complete Form 7-C in triplicate.", "Allow 6 to 8 working weeks. Allow 6 to 8 working weeks more if you allow 6 to 8 working weeks.",
+    "Stamps are accepted in red ink only. Red ink may be requisitioned using Form 12.", "The Ministry thanks you for your patience, which is on file." ] },
+  { host: "vending.review.kn", title: "Vending Machine Reviews", kw: "vending machine drink coffee soup review", col: "#c4663b", tag: "Honest reviews of the street's quiet friends", lines: [
+    "Platform 6, Tōkonto Central: 4.9 stars. Hot soup in a can. Cried a little.", "Outside the Isobe laundromat: 3.1 stars. Eats coins, offers hope.", "Kaido, by the shrine: 5 stars. Sells only one drink. It is the right one.",
+    "Reader question: is it normal to have a favourite?", "Answer: yes. Ours is the one with the kind light." ] },
+  { host: "is-it-raining.hamaura.kn", title: "Is It Raining In Hamaura?", kw: "weather rain hamaura umbrella", col: "#3a6a8a", tag: "A service of Hamaura", lines: [
+    "YES.", "Check back later.", "(It will still be raining.)", "Sponsored by the Clear Vinyl Umbrella Association." ] },
+  { host: "densha-okure.kn", title: "Train Delay Excuse Generator", kw: "train delay excuse late rail densha", col: "#157a46", tag: "Never be late for the right reason again", lines: [
+    "Today's excuse: a cat boarded at Kaido and was appointed conductor.", "Alternative: signal failure caused by a signal having feelings.", "Premium excuse: the train was on time. You were early to be late.",
+    "Print a certificate of delay at any NHRail gate (not really)." ] },
+  { host: "konbini-rank.kn", title: "Konbini Rankings", kw: "konbini convenience store 11 eleven pet mart ranking onigiri", col: "#0a6b42", tag: "The only list that matters", lines: [
+    "1. Egg sandwich, 11 Eleven. Crusts off. Life on.", "2. Onigiri, two, anywhere. The seaweed has opinions.", "3. Cup ramen, at 2 a.m., standing up.",
+    "Pet Mart is not a konbini. It insists it is a konbini." ] },
+  { host: "cat-station.kn", title: "Cat Station Masters Fan Club", kw: "cat station master kaido neko", col: "#d9a84a", tag: "Three consecutive years of service", lines: [
+    "Kaido's station master has now been in post for three years.", "Duties: sitting, observing, blocking the ticket machine.", "Promotion to Head of Platforms is pending a nap.",
+    "Union sources say the cat is doing fine." ] },
+  { host: "overtime-games.kn", title: "Overtime Olympics", kw: "overtime work olympics office salaryman sport", col: "#8a2a2a", tag: "Faster, higher, later", lines: [
+    "Events: the 100-metre dash to the last train, synchronised bowing, competitive apologising.", "Gold: Mr Tanaka, 61 hours of overtime in one week, no break, no complaint.",
+    "Disqualified: Ms Ito, who went home." ] },
+  { host: "hanko-hub.kn", title: "Hanko Hub", kw: "hanko stamp seal inkan", col: "#a8272a", tag: "Your name, in red, permanently", lines: [
+    "Custom seals from ¥1,200. Same-day for important documents.", "Warning: a seal is you. Do not lend it to a boss.", "Tip: if everyone's seal is the same, the paperwork is simply faster." ] },
+  { host: "meishi.exchange", title: "Meishi Exchange", kw: "business card meishi network social career", col: "#5a6b7a", tag: "A social network where you hand over cards with both hands", lines: [
+    "Exchange protocol: both hands, slight bow, read it before you pocket it.", "You have 412 connections and have spoken to four.", "Trending: a man whose card just says 'Manager'." ] },
+  { host: "nappods.kn", title: "Nap Pods Direct", kw: "sleep nap pod capsule hotel rest", col: "#6a4a8a", tag: "Eight minutes you will not get back", lines: [
+    "Our new pod fits one adult and no regrets.", "Pay by the minute. Dream by the second.", "Customer review: 'I woke up in 2029.'" ] },
+  { host: "mizuho-tourism.kn", title: "Mizuho Tourism Board", kw: "mizuho tourism village shrine travel", col: "#5a7a4a", tag: "Almost nobody will want anything from you", lines: [
+    "A shrine. A very old tree. A vending machine of impressive loyalty.", "Population: sufficient. Traffic: a bicycle.", "Come for the quiet. Leave when the quiet becomes too much." ] },
+  { host: "ramen-wars.kn", title: "Tonkotsu or Shoyu?", kw: "ramen tonkotsu shoyu noodle debate forum food", col: "#b0782a", tag: "The debate that ended three friendships", lines: [
+    "Thread: 18,402 replies. Last reply: 'you are all wrong, it's miso'.", "Moderator note: please stop. We are all hungry.", "Pinned: the correct answer is whichever one is in front of you." ] },
+  { host: "pension.calc.kn", title: "Salaryman Pension Calculator", kw: "pension retire retirement money calculator", col: "#3a3a46", tag: "Plan for the future", lines: [
+    "Enter your age: 34", "Enter your savings: ¥500,000", "Result: you may retire at 94, if the numbers hold and nobody checks.", "Disclaimer: the numbers do not hold." ] },
+  { host: "knitting.lasttrain.kn", title: "Last Train Knitting Circle", kw: "knitting last train circle hobby craft", col: "#9a4a6a", tag: "Meets on the 23:41, car four", lines: [
+    "This week: a scarf long enough to reach Kaido.", "All welcome. Needles provided. Seats not.", "Please do not wake the man in the corner. He has been there since Tuesday." ] },
+  { host: "toll-fans.kn", title: "Highway Toll Fans", kw: "toll highway gate express etc card barrier", col: "#c28a12", tag: "The beep is the best part", lines: [
+    "Ranking the tones of every gate on Kanjō 3 and 4.", "Tip: a Toll Express card is cheaper than cash and much cooler.", "The barrier lifts for you. Remember that on bad days." ] },
+  { host: "sararii-despair.kn", title: "Sararii Daily Despair", kw: "sararii despair news daily salaryman", col: "#2a2f38", tag: "All the news that is fit to endure", lines: [
+    "Monday: it is Monday.", "Tuesday: yesterday was not as bad as this.", "Wednesday: the halfway point, which is a rumour.", "Friday: the weekend approaches, as does another Monday." ] }
+];
+FILLER_SITES.forEach(f => WEB.push({ host: f.host, title: f.title, kind: "page", kw: f.kw, col: f.col, tag: f.tag, lines: f.lines }));
+// the originals get searchable words too
+WEB.forEach(w => { if (!w.kw) w.kw = ({ shop: "shop store buy food drink konbini phone", cars: "car cars buy drive vehicle", tech: "phone phones camera games console watch pear soti dokoto", news: "news shimbun paper", forum: "forum sararii talk", scam: "win prize free money", gov: "city hall government forms" })[w.kind] || ""; });
+
+const searchUI = { on: false, q: "", focus: "kb", r: 0, c: 0, res: 0 };
+const KB_ROWS = ["qwertyuiop", "asdfghjkl-", "zxcvbnm.", ""];
+const KB_BOTTOM = ["space", "back", "go"];
+function webSearch(q) {
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!toks.length) return [];
+  return WEB.map((w, i) => {
+    const hay = (w.title + " " + w.host + " " + (w.kw || "")).toLowerCase();
+    let s = 0; toks.forEach(t => { if (hay.indexOf(t) >= 0) s += t.length + (w.title.toLowerCase().indexOf(t) >= 0 ? 3 : 0); });
+    return { i: i, s: s };
+  }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
+}
+function searchOpen() { searchUI.on = true; searchUI.q = ""; searchUI.focus = "kb"; searchUI.r = 1; searchUI.c = 4; searchUI.res = 0; phone.dirty = true; }
+function searchClose() { searchUI.on = false; phone.dirty = true; }
+function searchType(ch) { if (searchUI.q.length < 28) searchUI.q += ch; searchUI.res = 0; phone.dirty = true; }
+function searchOpenResult() {
+  const r = webSearch(searchUI.q);
+  const pick = r[clamp(searchUI.res, 0, Math.max(0, r.length - 1))];
+  if (!pick) { say("Nothing matches that. Poodle suggests a different word.", 3); return; }
+  searchUI.on = false; phone.site = pick.i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
+}
+function searchMove(dx, dy) {
+  const res = webSearch(searchUI.q);
+  if (searchUI.focus === "results") {
+    if (dy) { searchUI.res += dy; if (searchUI.res < 0) { searchUI.res = 0; } if (searchUI.res >= res.length) { searchUI.focus = "kb"; searchUI.r = 0; searchUI.res = Math.max(0, res.length - 1); } }
+  } else {
+    if (dy < 0 && searchUI.r === 0 && res.length) { searchUI.focus = "results"; searchUI.res = Math.min(searchUI.res, res.length - 1); phone.dirty = true; return; }
+    if (dy) searchUI.r = clamp(searchUI.r + dy, 0, 3);
+    if (dx) {
+      if (searchUI.r === 3) searchUI.c = clamp(searchUI.c + dx, 0, 2);
+      else searchUI.c = clamp(searchUI.c + dx, 0, KB_ROWS[searchUI.r].length - 1);
+    }
+    if (searchUI.r === 3) searchUI.c = clamp(searchUI.c, 0, 2);
+    else searchUI.c = clamp(searchUI.c, 0, KB_ROWS[searchUI.r].length - 1);
+  }
+  phone.dirty = true;
+}
+function searchAct() {
+  if (searchUI.focus === "results") { searchOpenResult(); return; }
+  if (searchUI.r === 3) {
+    const k = KB_BOTTOM[searchUI.c];
+    if (k === "space") searchType(" "); else if (k === "back") { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchOpenResult();
+  } else searchType(KB_ROWS[searchUI.r][searchUI.c]);
+}
+function searchBack() {
+  if (searchUI.q.length) { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchClose();
+}
+// A real keyboard, if there is one. Returns true when it ate the key.
+function searchKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (e.key.length === 1 && /[a-zA-Z0-9 .\-]/.test(e.key)) { searchType(e.key.toLowerCase()); return true; }
+  if (e.code === "Backspace") { searchBack(); return true; }
+  if (e.code === "Enter") { searchOpenResult(); return true; }
+  if (e.code === "Escape") { searchClose(); return true; }
+  if (e.code === "ArrowDown") { if (searchUI.focus === "kb") { searchUI.focus = "results"; } searchMove(0, 1); return true; }
+  if (e.code === "ArrowUp") { searchUI.focus = "results"; searchUI.res = Math.max(0, searchUI.res - 1); phone.dirty = true; return true; }
+  return false;
+}
+
+function drawSearchPage(g, W, H) {
+  g.fillStyle = "#15181b"; g.fillRect(0, 0, W, H);
+  poodleTabStrip(g, W, H, "Search", "#5b6b7a");
+  poodleOmnibox(g, W, H, searchUI.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
+  const res = webSearch(searchUI.q);
+  const x = W * 0.05, w = W * 0.90, rowH = H * 0.062;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  if (!searchUI.q) {
+    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+    g.fillText("Type to search every site on the island.", x, H * 0.20);
+  } else if (!res.length) {
+    g.fillStyle = "#c3c9ce"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
+    g.fillText("Nothing matches “" + searchUI.q + "”.", x, H * 0.19);
+    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("Poodle suggests: ramen, train, cat, forms, toll.", x, H * 0.235);
+  }
+  const first = clamp(searchUI.res - 3, 0, Math.max(0, res.length - 6));
+  res.slice(first, first + 6).forEach((r, k) => {
+    const site = WEB[r.i], y = H * 0.158 + k * (rowH + H * 0.004), on = searchUI.focus === "results" && first + k === searchUI.res;
+    g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
+    if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
+    g.fillStyle = POODLE_TILE[r.i % POODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
+    g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText((site.title.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase(), x + W * 0.045, y + rowH / 2 + 1); g.textAlign = "left";
+    g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; clipText(g, site.title, x + W * 0.095, y + rowH * 0.36, w - W * 0.12);
+    g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, site.host, x + W * 0.095, y + rowH * 0.72, w - W * 0.12);
+  });
+  // the keys
+  const ky = H * 0.585, kh = H * 0.060, gap = W * 0.012;
+  KB_ROWS.forEach((row, r) => {
+    const keys = r === 3 ? KB_BOTTOM : row.split("");
+    const n = keys.length, kw = r === 3 ? W * 0.28 : (W * 0.92 - gap * (10 - 1)) / 10;
+    const total = n * kw + (n - 1) * gap, x0 = (W - total) / 2;
+    keys.forEach((k, c) => {
+      const kx = x0 + c * (kw + gap), y = ky + r * (kh + gap), on = searchUI.focus === "kb" && searchUI.r === r && searchUI.c === c;
+      g.fillStyle = on ? "#ffffff" : r === 3 && k === "go" ? "#2f8a4c" : "#2f3438"; roundRect(g, kx, y, kw, kh, W * 0.014); g.fill();
+      g.fillStyle = on ? "#14171b" : "#e6e9ec"; g.font = "600 " + Math.round(W * 0.042) + "px " + UI; g.textAlign = "center";
+      g.fillText(k === "space" ? "space" : k === "back" ? "⌫" : k === "go" ? "Go" : k, kx + kw / 2, y + kh / 2 + 1);
+    });
+  });
+  g.textAlign = "left";
+  poodleToolbar(g, W, H);
+}
+
+function wrapLines(g, text, maxW) {
+  const words = text.split(" "), out = []; let line = "";
+  words.forEach(w => { const t = line ? line + " " + w : w; if (g.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; });
+  if (line) out.push(line);
+  return out;
+}
+function drawPageSite(g, W, H, site) {
+  siteChrome(g, W, H, site, "#fbfaf6");
+  g.fillStyle = site.col; g.fillRect(0, H * 0.082, W, H * 0.085);
+  g.fillStyle = "#ffffff"; g.font = "800 " + Math.round(W * 0.056) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+  clipText(g, site.title, W * PL.pad, H * 0.108, W * 0.84);
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI;
+  clipText(g, site.tag, W * PL.pad, H * 0.143, W * 0.84);
+  g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+  const out = []; site.lines.forEach(t => { wrapLines(g, t, W * 0.84).forEach(l => out.push(l)); out.push(""); });
+  const per = 14, first = clamp(phone.sub, 0, Math.max(0, out.length - per));
+  g.fillStyle = "#2a2f34";
+  out.slice(first, first + per).forEach((l, k) => g.fillText(l, W * PL.pad, H * (0.215 + k * 0.047)));
+  if (out.length > per) { g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; g.textAlign = "right"; g.fillText((first > 0 ? "▲ " : "") + (first + per < out.length ? "▼" : ""), W * (1 - PL.pad), H * 0.84); g.textAlign = "left"; }
+  site._n = out.length;
+}
+
 // The world clock. `clock` is real seconds since the game began; everything
 // that cares what time it is asks here, so the phone, the sun and the lights in
 // the windows cannot disagree.
@@ -13103,6 +13276,7 @@ function poodleToolbar(g, W, H) {
 
 function appPoodle(g, W, H) {
   const site = phone.site != null ? WEB[phone.site] : null;
+  if (!site && searchUI.on) { drawSearchPage(g, W, H); return; }
   if (!site) {
     // The new tab page. A wordmark, a search pill you cannot type in, and the
     // shortcut tiles, which is what a phone browser opens on.
@@ -13119,10 +13293,11 @@ function appPoodle(g, W, H) {
 
     g.fillStyle = "#23272b";
     roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.fill();
+    if (phone.sub === -1) { g.strokeStyle = "rgba(255,255,255,0.6)"; g.lineWidth = W * 0.006; roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.stroke(); }
     g.fillStyle = "#7d858d";
     g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
     g.textAlign = "left";
-    g.fillText("Search Poodle", W * 0.175, H * 0.351);
+    g.fillText(phone.sub === -1 ? "Search Poodle  \u00b7  press A to type" : "Search Poodle", W * 0.175, H * 0.351);
     // the little magnifier
     g.strokeStyle = "#7d858d"; g.lineWidth = W * 0.008;
     g.beginPath(); g.arc(W * 0.132, H * 0.3495, W * 0.017, 0, 6.2832); g.stroke();
@@ -13130,9 +13305,12 @@ function appPoodle(g, W, H) {
 
     // the shortcut grid: four across, a coloured disc with the initial on it
     const cols = 4, tileW = W * 0.84 / cols, top = H * 0.425;
+    const rowsN = Math.ceil(WEB.length / cols), curRow = phone.sub < 0 ? 0 : (phone.sub / cols) | 0;
+    const firstRow = clamp(curRow - 2, 0, Math.max(0, rowsN - 4));
     WEB.forEach((w, i) => {
-      const c = i % cols, r = (i / cols) | 0;
-      const cx = W * 0.08 + tileW * (c + 0.5), cy = top + r * H * 0.115;
+      const c = i % cols, r = ((i / cols) | 0) - firstRow;
+      if (r < 0 || r > 3) return;
+      const cx = W * 0.08 + tileW * (c + 0.5), cy = top + r * H * 0.105;
       const rad = W * 0.058;
       if (phone.sub === i) {
         g.fillStyle = "rgba(255,255,255,0.10)";
@@ -13623,6 +13801,7 @@ function drawSite(g, W, H, site) {
 }
 
 function drawSiteBody(g, W, H, site) {
+  if (site.kind === "page") { drawPageSite(g, W, H, site); return; }
   if (site.kind === "tech") { drawDokoto(g, W, H, site); return; }
   if (site.kind === "shop") {
     const eleven = site.brand === "eleven";
@@ -14533,6 +14712,7 @@ function phoneCount() {
     if (site.kind === "shop") return SHOP_ITEMS.length + 1;
     if (site.kind === "cars") return CAR_STOCK[site.tier].length;
     if (site.kind === "tech") return dokotoCur().list.length;
+    if (site.kind === "page") return Math.max(1, (site._n || 1));
     return 0;
   }
   if (phone.app === "Wallet") return wallet.add ? WALLET_ADD.length : walletCards().length;
@@ -14569,6 +14749,14 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchMove(dx, dy); return; }
+  if (phone.app === "Poodle" && phone.site == null) {
+    const cols = 4;
+    if (phone.sub === -1) { if (dy > 0) phone.sub = 0; phone.dirty = true; return; }
+    if (dy < 0 && phone.sub < cols) { phone.sub = -1; phone.dirty = true; return; }
+    const n = WEB.length;
+    phone.sub = clamp(phone.sub + dx + dy * cols, 0, n - 1); phone.dirty = true; return;
+  }
   if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "tech") { dokotoMove(dx, dy); return; }
   if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
     phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
@@ -14627,7 +14815,9 @@ function phoneAct() {
       }
     }
   } else if (app === "Poodle") {
-    if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; }
+    if (phone.site == null && searchUI.on) { searchAct(); }
+    else if (phone.site == null && phone.sub === -1) { searchOpen(); }
+    else if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; }
     else {
       const site = WEB[phone.site];
       if (site.kind === "shop") {
@@ -14697,6 +14887,7 @@ function phoneBack() {
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
+  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
   if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
