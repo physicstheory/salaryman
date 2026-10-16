@@ -6,7 +6,7 @@
 <title>Konto Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
 <style>
   :root {
     --ink: #15171d;
@@ -233,6 +233,7 @@
   }
   /* The artwork sits under the title and above the bar, sized off the
      viewport height so it never pushes the bar off a short window. */
+  #bootsign { display: block; width: min(640px, 80vw); height: auto; margin: 0 auto; }
   #bootart {
     display: block;
     width: min(760px, 78vw);
@@ -748,8 +749,9 @@
   /* The ground legend belonged to the generator, like the masthead did. */
   #legend { display: none !important; }
 
+  #pausesign { height: 62px; width: auto; margin: -8px 28px 6px 0; align-self: flex-end; }
   #pausetabs {
-    display: flex; gap: 0;
+    display: flex; gap: 0; align-items: flex-end;
     padding: 26px clamp(24px, 6vw, 90px) 0;
     border-bottom: 1px solid rgba(255,255,255,0.12);
   }
@@ -863,7 +865,7 @@
 <div id="title" hidden>
   <div id="titleveil"></div>
   <div id="titlepanel">
-    <canvas id="titlelogo" width="760" height="470"></canvas>
+    <canvas id="titlelogo" width="760" height="330"></canvas>
     <div class="menucol" id="titlemenu">
       <button class="title-btn sel" id="tnew" type="button">New game</button>
       <button class="title-btn" id="tcontinue" type="button" hidden>Continue</button>
@@ -893,7 +895,7 @@
     <h2>Map</h2>
     <div class="menucol" id="mapmenu">
       <button class="menu-btn sel" id="kresume" type="button">Resume</button>
-      <button class="menu-btn" id="kwaypoint" type="button">Clear waypoint</button>
+      <button class="menu-btn" id="kwaypoint" type="button">Set waypoint</button>
       <button class="menu-btn" id="kshadows" type="button">Shadows: on</button>
       <button class="menu-btn" id="kquality" type="button">Graphics: high</button>
       <button class="menu-btn" id="kres" type="button">Resolution: 100%</button>
@@ -915,9 +917,11 @@
      the world still visible behind the whole thing. -->
 <div id="pause" hidden>
   <div id="pausetabs">
+    <canvas id="pausesign" width="380" height="165"></canvas>
     <button class="ptab sel" data-tab="game" type="button">Game</button>
     <button class="ptab" data-tab="map" type="button">Map</button>
     <button class="ptab" data-tab="stats" type="button">Stats</button>
+    <button class="ptab" data-tab="inv" type="button">Items</button>
     <button class="ptab" data-tab="phone" type="button">Phone</button>
     <button class="ptab" data-tab="settings" type="button">Settings</button>
   </div>
@@ -926,6 +930,7 @@
       <div class="menucol" id="pgame">
         <button class="menu-btn sel" id="mresume" type="button">Resume</button>
         <button class="menu-btn" id="mmapopen" type="button">Open the map</button>
+        <button class="menu-btn" id="mtitle" type="button">Return to main menu</button>
       </div>
       <div class="pside">
         <p class="pkicker">Where you are</p>
@@ -942,8 +947,11 @@
     <div class="ppage" data-page="stats" hidden>
       <div class="statcol" id="pstats"></div>
     </div>
+    <div class="ppage" data-page="inv" hidden>
+      <div class="statcol" id="pinv"></div>
+    </div>
     <div class="ppage" data-page="phone" hidden>
-      <p class="pkicker">SOTI So24</p>
+      <p class="pkicker" id="pphonename">SOTI So24</p>
       <div class="statcol" id="pphone"></div>
     </div>
     <div class="ppage" data-page="settings" hidden>
@@ -987,8 +995,7 @@
 
 <div id="boot">
   <div class="inner">
-    <h2>SALARY MAN</h2>
-    <img id="bootart" src="art/splash.png" alt="">
+    <canvas id="bootsign" width="760" height="330"></canvas>
     <div id="bootbar"><i></i></div>
     <p id="bootstage">starting</p>
   </div>
@@ -4628,7 +4635,8 @@ function initThree() {
       if (e.code === "ArrowDown") mapPan(0, step);
       if (e.code === "Equal" || e.code === "NumpadAdd") setMapZoom(nav.mapZoom + 0.6);
       if (e.code === "Minus" || e.code === "NumpadSubtract") setMapZoom(nav.mapZoom - 0.6);
-      if (e.code === "Enter" || e.code === "Space") setWaypointHere();
+      if (e.code === "Enter" || e.code === "Space") mapAct();
+      if (e.code === "Delete" || e.code === "KeyC" || e.code === "KeyX") { if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared.", 2.5); } }
       if (e.code === "Escape" || e.code === "KeyM" || e.code === "Tab") setMapOpen(false);
       drawBigMap();
       e.preventDefault();
@@ -4808,7 +4816,8 @@ function pollPad(dt) {
     if (z) setMapZoom(nav.mapZoom + z * dt * 3.2);
     if (pressed(PAD.UP)) { nav.mapSel = (nav.mapSel + MAP_MENU.length - 1) % MAP_MENU.length; syncMapMenu(); }
     if (pressed(PAD.DOWN)) { nav.mapSel = (nav.mapSel + 1) % MAP_MENU.length; syncMapMenu(); }
-    if (pressed(PAD.A)) setWaypointHere();
+    if (pressed(PAD.A)) mapAct();
+    if (pressed(PAD.Y)) { if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared.", 2.5); } }
     if (pressed(PAD.X)) runMapMenu(nav.mapSel);
     if (pressed(PAD.B)) setMapOpen(false);
     pad.x = pad.y = pad.up = 0;
@@ -4997,8 +5006,8 @@ function setPaused(on) {
 }
 
 // ---- the tabs --------------------------------------------------------------
-const PAUSE_TABS = ["game", "map", "stats", "phone", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mmapopen"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
+const PAUSE_TABS = ["game", "map", "stats", "inv", "phone", "settings"];
+const PAUSE_ROWS = { game: ["mresume", "mmapopen", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
 const pause = { tab: 0, row: 0 };
 
 function setPauseTab(i) {
@@ -5010,7 +5019,7 @@ function setPauseTab(i) {
   document.querySelectorAll(".ppage").forEach(el =>
     el.hidden = el.getAttribute("data-page") !== name);
   if (name === "map") drawPauseMap();
-  if (name === "stats" || name === "phone") fillPauseStats();
+  if (name === "stats" || name === "phone" || name === "inv") fillPauseStats();
   syncPauseRows();
   const foot = document.getElementById("pausehintbar");
   if (foot) foot.textContent = PAUSE_ROWS[name]
@@ -5063,6 +5072,14 @@ function fillPauseStats() {
     ["Deliveries", deliveries.length ? deliveries.map(d => d.name).join(", ") : "Nothing on the way"],
     ["Gallery", phone.gallery.length + " photographs"]
   ];
+  const pn = document.getElementById("pphonename"); if (pn) pn.textContent = DEVICES[phone.device].name;
+  const inv = document.getElementById("pinv");
+  if (inv) {
+    const rowsI = [];
+    WHEEL_CATS.forEach(cat => wheelList(cat.id).forEach(e => rowsI.push([cat.name, e.name + (e.count > 1 ? "  \u00d7" + e.count : ""), cat.colour])));
+    if (!rowsI.length) rowsI.push(["", "Nothing yet", "#79818b"]);
+    inv.innerHTML = rowsI.map(r => '<div class="statrow"><span style="color:' + r[2] + '">' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
+  }
   const pel = document.getElementById("pphone");
   if (pel) pel.innerHTML = prows.map(r =>
     '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
@@ -5099,6 +5116,7 @@ function initPause() {
   });
   on("mmapopen", () => { setPaused(false); setMapOpen(true); });
   on("mresume", () => setPaused(false));
+  on("mtitle", returnToTitle);
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
   on("mres", cycleResolution);
   on("mfinish", toggleFinish);
@@ -6289,127 +6307,88 @@ function runner(g, x, groundY, h, phase, fill, opacity, caseColour) {
   g.restore();
 }
 
-// The artwork, keyed onto transparency. The drawn version below is kept as the
-// fallback for when the file is missing - opening the page straight off disk,
-// where a fetch is not allowed, is the usual case.
-const logoArt = new Image();
-let logoReady = false;
-logoArt.onload = () => { logoReady = true; drawTitleLogo(); };
-logoArt.onerror = () => { logoReady = false; };
-logoArt.src = "art/logo.png";
+// ---- the logo, as a station sign -------------------------------------------------
+// One sign, drawn once, used everywhere the game puts its name: the title, the
+// loading screen, the pause menu, the favicon. It is a Japanese station name
+// board: line colour along the top, the station number in a ring, the name big
+// in katakana with the romaji under it, and the neighbouring stops on a dark
+// strip along the bottom. The green is the game's own colour, and it is what
+// the waypoint route is drawn in.
+const SIGN = { green: "#15894f", ink: "#14213a", paper: "#fbfbf6" };
+const SIGNF = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif';
+function drawStationSign(g, x, y, W, H, opt) {
+  opt = opt || {};
+  g.save();
+  g.translate(x, y);
+  g.textBaseline = "middle";
+  const r = H * 0.07;
+  g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = H * 0.08; g.shadowOffsetY = H * 0.03;
+  g.fillStyle = SIGN.paper; roundRect(g, 0, 0, W, H, r); g.fill();
+  g.shadowColor = "transparent";
+  g.save(); roundRect(g, 0, 0, W, H, r); g.clip();
+  g.fillStyle = SIGN.green; g.fillRect(0, 0, W, H * 0.13);
+  g.fillStyle = SIGN.ink; g.fillRect(0, H * 0.84, W, H * 0.16);
+  g.fillStyle = "#ffffff";
+  g.font = "700 " + Math.round(H * 0.075) + "px " + SIGNF; g.textAlign = "left";
+  g.fillText("NHRail  \u00b7  \u65e5\u672c\u30ec\u30fc\u30eb", W * 0.045, H * 0.066);
+  g.textAlign = "right"; g.fillText("KT 01", W * 0.955, H * 0.066);
+  g.restore();
+  // the station number
+  const cx = W * 0.115, cy = H * 0.475, cr = H * 0.20;
+  g.fillStyle = SIGN.green; g.beginPath(); g.arc(cx, cy, cr, 0, 7); g.fill();
+  g.fillStyle = "#ffffff"; g.beginPath(); g.arc(cx, cy, cr * 0.80, 0, 7); g.fill();
+  g.fillStyle = SIGN.ink; g.textAlign = "center";
+  g.font = "800 " + Math.round(cr * 0.46) + "px " + SIGNF; g.fillText("KT", cx, cy - cr * 0.30);
+  g.font = "900 " + Math.round(cr * 0.82) + "px " + SIGNF; g.fillText("01", cx, cy + cr * 0.26);
+  // the name
+  const nx = W * 0.58;
+  g.fillStyle = SIGN.ink;
+  let fs = H * 0.30; g.font = "900 " + Math.round(fs) + "px " + SIGNF;
+  const jp = "\u30b5\u30e9\u30ea\u30fc\u30de\u30f3";
+  while (g.measureText(jp).width > W * 0.60 && fs > 8) { fs *= 0.97; g.font = "900 " + Math.round(fs) + "px " + SIGNF; }
+  g.fillText(jp, nx, H * 0.385);
+  g.font = "800 " + Math.round(H * 0.125) + "px " + SIGNF;
+  if ("letterSpacing" in g) g.letterSpacing = Math.round(H * 0.022) + "px";
+  g.fillText("SALARY MAN", nx, H * 0.640);
+  if ("letterSpacing" in g) g.letterSpacing = "0px";
+  g.fillStyle = SIGN.green; g.fillRect(W * 0.27, H * 0.735, W * 0.62, H * 0.012);
+  // the neighbours
+  g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(H * 0.075) + "px " + SIGNF;
+  g.textAlign = "left"; g.fillText("\u25c0  Mizuho  \u307f\u305a\u307b", W * 0.045, H * 0.92);
+  g.textAlign = "right"; g.fillText("T\u014dkonto  \u6771\u4eac\u90fd  \u25b6", W * 0.955, H * 0.92);
+  g.restore();
+}
 
 function drawTitleLogo() {
   const c = document.getElementById("titlelogo");
   if (!c) return;
   const g = c.getContext("2d");
-  const W = c.width, H = c.height;
-  g.clearRect(0, 0, W, H);
-
-  if (logoReady && logoArt.naturalWidth) {
-    g.textAlign = "left";
-    g.fillStyle = "#f4f6f8";
-    g.font = "800 94px 'Zen Kaku Gothic New', system-ui, sans-serif";
-    g.fillText("SALARY", 8, 96);
-    g.fillText("MAN", 8, 190);
-    g.fillStyle = "#5f666e";
-    g.fillRect(12, 214, 286, 2);
-    g.font = "600 18px 'M PLUS 1 Code', ui-monospace, monospace";
-    g.fillStyle = "#8d949c";
-    g.fillText("KONTO \u00b7 T\u014dKONTO", 12, 244);
-
-    // The crowd walks in from the left and Seiko is out ahead on the right, so
-    // the art is laid across the full width under the wordmark. It is drawn
-    // light-on-dark here, which the original is not: the figures are near
-    // black on white, so they are lifted to a pale ink first.
-    const availH = H - 262;
-    const sc = Math.min(W / logoArt.naturalWidth, availH / logoArt.naturalHeight);
-    const dw = logoArt.naturalWidth * sc, dh = logoArt.naturalHeight * sc;
-    const dx = 4, dy = 262 + (availH - dh) * 0.5;
-    const t = document.createElement("canvas");
-    t.width = Math.max(1, Math.round(dw)); t.height = Math.max(1, Math.round(dh));
-    const tg = t.getContext("2d");
-    // The crowd and the man are treated differently, which is the whole point
-    // of the picture: everyone behind him is a flat silhouette and he is the
-    // only one with any colour in him.
-    //
-    // They are separated by where they are in the frame rather than by any
-    // clever masking: the art has the pack on the left and the lone figure on
-    // the right, so a vertical split at 68% puts each on its own side.
-    const splitAt = Math.round(t.width * 0.68);
-
-    // The crowd: one flat tone, no modelling, so it reads as a mass.
-    tg.save();
-    tg.beginPath(); tg.rect(0, 0, splitAt, t.height); tg.clip();
-    tg.drawImage(logoArt, 0, 0, t.width, t.height);
-    tg.globalCompositeOperation = "source-in";
-    tg.fillStyle = "#4b525b";
-    tg.fillRect(0, 0, splitAt, t.height);
-    tg.restore();
-
-    // Seiko: inverted so he lifts off the dark panel, then warmed, so he is
-    // the one figure carrying any colour at all.
-    tg.save();
-    tg.beginPath(); tg.rect(splitAt, 0, t.width - splitAt, t.height); tg.clip();
-    tg.filter = "invert(1) brightness(1.04)";
-    tg.drawImage(logoArt, 0, 0, t.width, t.height);
-    tg.filter = "none";
-    tg.globalCompositeOperation = "source-atop";
-    const warm = tg.createLinearGradient(splitAt, 0, t.width, t.height);
-    warm.addColorStop(0.00, "rgba(74,124,201,0.82)");
-    warm.addColorStop(0.55, "rgba(96,148,214,0.70)");
-    warm.addColorStop(1.00, "rgba(214,158,86,0.62)");
-    tg.fillStyle = warm;
-    tg.fillRect(splitAt, 0, t.width - splitAt, t.height);
-    tg.restore();
-
-    g.drawImage(t, dx, dy);
-    return;
-  }
-
-  // ---- the wordmark, along the top
-  g.textAlign = "left";
-  g.fillStyle = "#f4f6f8";
-  g.font = "800 94px 'Zen Kaku Gothic New', system-ui, sans-serif";
-  g.fillText("SALARY", 8, 96);
-  g.fillText("MAN", 8, 190);
-  g.fillStyle = "#5f666e";
-  g.fillRect(12, 214, 286, 2);
-  g.font = "600 18px 'M PLUS 1 Code', ui-monospace, monospace";
-  g.fillStyle = "#8d949c";
-  g.fillText("KONTO \u00b7 T\u014dKONTO", 12, 244);
-
-  // ---- the pack, below it, running left out of frame
-  // Its own little generator, so the crowd is the same crowd every launch.
-  let seedN = 8812;
-  const rnd = () => {
-    seedN = (seedN * 1664525 + 1013904223) >>> 0;
-    return seedN / 4294967296;
-  };
-  const ground = H - 14;
-  const pack = [];
-  for (let row = 0; row < 4; row++) {
-    const depth = row / 3;                       // 0 near, 1 far
-    const n = 4 + row * 3;
-    for (let i = 0; i < n; i++) {
-      pack.push({
-        x: W * (0.33 + rnd() * 0.72) - depth * 10,
-        y: ground - depth * 17,
-        h: (104 - depth * 30) * (0.93 + rnd() * 0.14),
-        phase: rnd() * Math.PI * 2,
-        shade: 0.13 + depth * 0.13,
-        alpha: 0.95 - depth * 0.40
-      });
-    }
-  }
-  pack.sort((a, b) => a.h - b.h);
-  pack.forEach(p => {
-    const v = Math.round(p.shade * 255);
-    runner(g, p.x, p.y, p.h, p.phase, "rgb(" + v + "," + (v + 2) + "," + (v + 7) + ")", p.alpha, null);
-  });
-
-  // ---- Seiko, out in front and the only one with any colour in him
-  runner(g, W * 0.155, ground + 2, 132, 1.07, "#2f5389", 1, "#a2703a");
+  g.clearRect(0, 0, c.width, c.height);
+  const m = c.width * 0.03;
+  drawStationSign(g, m, m, c.width - m * 2, c.height - m * 2);
 }
+function drawLogoElements() {
+  drawTitleLogo();
+  [["bootsign", 0.03], ["pausesign", 0.03]].forEach(p => {
+    const c = document.getElementById(p[0]);
+    if (!c) return;
+    const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
+    const m = c.width * p[1];
+    drawStationSign(g, m, m, c.width - m * 2, c.height - m * 2);
+  });
+  // the tab icon: the sign's green and its ring
+  try {
+    const f = document.createElement("canvas"); f.width = f.height = 64;
+    const g = f.getContext("2d");
+    g.fillStyle = SIGN.green; roundRect(g, 0, 0, 64, 64, 14); g.fill();
+    g.fillStyle = "#fff"; g.beginPath(); g.arc(32, 32, 22, 0, 7); g.fill();
+    g.fillStyle = SIGN.ink; g.font = "900 22px " + SIGNF; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("SM", 32, 34);
+    let l = document.querySelector("link[rel=icon]"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); }
+    l.href = f.toDataURL("image/png");
+  } catch (e) { /* no icon */ }
+}
+window.addEventListener("DOMContentLoaded", drawLogoElements);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLogoElements);
 
 // ---- holding on to a frame -------------------------------------------------
 // The camera app and MyNet both want the picture the game just drew. A WebGL
@@ -7545,8 +7524,8 @@ function buildRoadSurfaces(w, city, root) {
 // cells. Advertisements are long bands, because that is the shape of the side
 // of a bus and of a sign over a Tokyo street, so they get eight panels at 8:1.
 
-const JP = '"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
-const UI = '"Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
+const UI = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
 
 // The eight makers, and who each one is a joke about. The badge is described
@@ -11055,6 +11034,12 @@ function setMapZoom(v) {
   nav.mapZoom = clamp(v, 1, 13);
 }
 
+// A on the map: if there is already a waypoint it is cleared first, and the
+// next press sets the new one. X clears without setting.
+function mapAct() {
+  if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared. Press A to set a new one.", 3); return; }
+  setWaypointHere();
+}
 function setWaypointHere() {
   nav.waypoint = { x: nav.mapCx, z: nav.mapCz };
   const b = document.getElementById("kwaypoint");
@@ -11063,7 +11048,7 @@ function setWaypointHere() {
 function clearWaypoint() {
   nav.waypoint = null;
   const b = document.getElementById("kwaypoint");
-  if (b) b.textContent = "Clear waypoint";
+  if (b) b.textContent = "Set waypoint";
 }
 
 function setMapOpen(on) {
@@ -18781,6 +18766,22 @@ function titleMove(d) {
   title.sel = (title.sel + d + items.length) % items.length;
   titleSync();
 }
+// Out of the game and back to the title, over the same world. Continue puts
+// you where you stood; New game starts at the flat in Mizuho.
+function returnToTitle() {
+  if (drive.car) leaveCar();
+  if (drive.train) leaveTrain();
+  if (home.inside) leaveHome();
+  if (shops.inside) leaveShop();
+  tvui.mode = "menu"; arcadeStop(); setRadioWheel(false); setWheel(false);
+  setPhone(false);
+  if (nav.mapOpen) setMapOpen(false);
+  if (player.placed) title.resume = { x: player.pos.x, z: player.pos.z, yaw: player.yaw };
+  setPaused(false);
+  title.from = null; title.t = 0; title.sel = 0;
+  const c = document.getElementById("tcontinue"); if (c) c.hidden = !title.resume;
+  setTitle(true);
+}
 function titleChoose() {
   const id = titleItems()[title.sel];
   if (id === "tsettings") { setTitle(false); setPaused(true); return; }
@@ -18790,6 +18791,14 @@ function titleChoose() {
   title.started = true;
   tour = false;
   setMode("walk");
+  if (id === "tcontinue" && title.resume) {
+    const r = title.resume;
+    placeSeiko(new THREE.Vector3(r.x, world.surfaceY(r.x, r.z), r.z));
+    player.placed = true;
+    updateWorldSky(0, true);
+    player.yaw = player.targetYaw = r.yaw; yaw = r.yaw + Math.PI;
+    return;
+  }
   placeSeiko(seikoSpawn(world));
   player.placed = true;
   updateWorldSky(0, true);          // the title's sky is a screensaver; the world's is the clock
