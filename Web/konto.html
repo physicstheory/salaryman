@@ -5056,7 +5056,7 @@ function fillPauseStats() {
     '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join("");
   const prows = [
     ["Balance", yenText(purse.yen)],
-    ["IC card", phone.owns.icCard ? "Added" : "Not added"],
+    ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Audio device", phone.owns.headphones ? "SOTI Studio"
       : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
     ["Ryde", phone.ryde ? phone.ryde.cls + ", " + Math.ceil(phone.ryde.eta) + " min away" : "No car booked"],
@@ -5717,6 +5717,7 @@ function buildScene(w) {
   placeHospitals(w);
   buildGarage(root);
   buildParcels(root);
+  buildTolls(root);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
@@ -7021,6 +7022,7 @@ function tick(dt) {
   followSun();
 
   if (drive.car) {
+    updateTolls(dt);
     updateDrive(dt);
     updateTraffic(dt, drive.car.pos);
     updateRail(dt, drive.car.pos);
@@ -11282,7 +11284,7 @@ const phone = {
   pad: { on: false, sel: 0 },   // keypad focus on a basic phone
   watch: null,          // a Pear Watch, once you have one
   health: false,        // the Health app, once the watch is connected
-  owns: { earbuds: false, headphones: false, icCard: true },
+  owns: { earbuds: false, headphones: false },
   gallery: [],          // photographs taken with the camera
   dial: "",
   ryde: null            // a car on its way, once one is called
@@ -12718,48 +12720,192 @@ function appRyde(g, W, H) {
 }
 
 // ---- Soti Wallet
-function appWallet(g, W, H) {
-  phoneChrome(g, W, H, dev().maker === "soti" ? "SOTI Wallet" : dev().maker === "pear" ? "Pear Wallet" : "Wallet", "Balance");
-  g.fillStyle = "#ffffff";
-  g.font = "300 " + Math.round(W * 0.145) + "px " + UI;
-  g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
+// ---- the wallet ---------------------------------------------------------------
+// One card to begin with, the NHB Debit that is the yen you can spend, and a
+// plus. Added cards are the IC card that opens the ticket gates and the Toll
+// Express card that opens the toll barriers. Shop loyalty cards cannot be added
+// from here at all: they are activated on the shop's own website, after enough
+// things have been bought from it, in person or online.
+const wallet = { ic: null, toll: null, loyal: {}, buys: { eleven: 0, petmart: 0, dokoto: 0 }, pts: { eleven: 0, petmart: 0, dokoto: 0 }, add: false };
+const LOYALTY = {
+  eleven:  { name: "Eleven Points", sub: "11 Eleven", a: "#0a6b42", b: "#e8711a", need: 3 },
+  petmart: { name: "Pet Club",      sub: "Pet Mart",  a: "#1272d6", b: "#13a150", need: 3 },
+  dokoto:  { name: "Dokoto Point",  sub: "Dokoto Camera", a: "#d4152c", b: "#a30f20", need: 3 }
+};
+const TOLL_FEE = 700, TOLL_CASH = 1500;
 
-  // Stacked cards, the way a wallet app does it.
-  const cards = [
-    { name: "IC Card",        sub: "Suika \u00b7 NHRail",  a: "#1d7a4c", b: "#0d4a2d",
-      val: phone.owns.icCard ? yenText(3240) : "Not added" },
-    { name: "SOTI Pay",       sub: "Debit \u00b7 \u2022\u2022\u2022\u2022 4417", a: "#2a2f38", b: "#15181d",
-      val: yenText(purse.yen) },
-    { name: "Konto Point",    sub: "Loyalty",           a: "#8a5a1c", b: "#4a2f0d",
-      val: "812 pt" }
-  ];
-  cards.forEach((c, i) => {
-    const y = H * 0.235 + i * H * 0.155;
-    const x = W * 0.075, w = W * 0.85, h = H * 0.185;
-    const grad = g.createLinearGradient(x, y, x + w, y + h);
-    grad.addColorStop(0, c.a); grad.addColorStop(1, c.b);
-    g.fillStyle = grad;
-    roundRect(g, x, y, w, h, W * 0.05); g.fill();
-    if (phone.sub === i) {
-      g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = W * 0.008;
-      roundRect(g, x, y, w, h, W * 0.05); g.stroke();
-    }
-    g.fillStyle = "#ffffff";
-    g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
-    g.fillText(c.name, x + W * 0.055, y + H * 0.036);
-    g.fillStyle = "rgba(255,255,255,0.65)";
-    g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-    g.fillText(c.sub, x + W * 0.055, y + H * 0.064);
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
-    g.textAlign = "right";
-    g.fillText(c.val, x + w - W * 0.055, y + H * 0.036);
-    g.textAlign = "left";
+// Everything that is bought from a brand's shop counts towards its card, and
+// once the card is active it earns a point for every hundred yen.
+function noteBuy(brand, yen) {
+  if (!(brand in wallet.buys)) return;
+  wallet.buys[brand]++;
+  if (wallet.loyal[brand]) wallet.pts[brand] += Math.floor(yen / 100);
+}
+function walletCards() {
+  const list = [{ id: "nhb", name: "NHB Debit", sub: "Konto Bank · •••• 4417", a: "#2a2f38", b: "#15181d", val: yenText(purse.yen) }];
+  if (wallet.ic) list.push({ id: "ic", name: "IC Card", sub: "Suika · NHRail", a: "#1d7a4c", b: "#0d4a2d", val: yenText(wallet.ic.bal), top: true });
+  if (wallet.toll) list.push({ id: "toll", name: "Toll Express", sub: "Highway barriers", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true });
+  Object.keys(LOYALTY).forEach(k => { if (wallet.loyal[k]) { const L = LOYALTY[k]; list.push({ id: "loy-" + k, name: L.name, sub: L.sub + " · loyalty", a: L.a, b: L.b, val: wallet.pts[k] + " pt" }); } });
+  list.push({ id: "add", add: true });
+  return list;
+}
+const WALLET_ADD = [
+  { id: "ic",   name: "IC Card",      sub: "Opens the ticket gates", price: 2000, credit: 1500, a: "#1d7a4c" },
+  { id: "toll", name: "Toll Express", sub: "Opens toll barriers",    price: 5000, credit: 4000, a: "#c28a12" }
+];
+function walletAct() {
+  if (wallet.add) {
+    const o = WALLET_ADD[clamp(phone.sub, 0, WALLET_ADD.length - 1)];
+    if (wallet[o.id]) { say(o.name + " is already in your wallet.", 3); return; }
+    if (purse.yen < o.price) { say("Not enough. " + o.name + " costs " + yenText(o.price) + ".", 4); return; }
+    purse.yen -= o.price; wallet[o.id] = { bal: o.credit };
+    wallet.add = false; phone.sub = 0;
+    say(o.name + " added with " + yenText(o.credit) + " on it.", 5);
+    return;
+  }
+  const c = walletCards()[clamp(phone.sub, 0, walletCards().length - 1)];
+  if (c.add) { wallet.add = true; phone.sub = 0; return; }
+  if (c.top) {
+    if (purse.yen < 1000) { say("Not enough to top up.", 3); return; }
+    purse.yen -= 1000; wallet[c.id].bal += 1000; say(c.name + " topped up ¥1,000.", 3);
+  }
+}
+function loyaltyActivate(brand) {
+  const L = LOYALTY[brand];
+  if (wallet.loyal[brand]) { say(L.name + " is already in your wallet.", 3); return; }
+  if ((wallet.buys[brand] || 0) < L.need) { say("Buy " + (L.need - (wallet.buys[brand] || 0)) + " more from " + L.sub + " first.", 4); return; }
+  wallet.loyal[brand] = true; say(L.name + " card activated. It is in your wallet.", 5);
+}
+function walletBack() { if (wallet.add) { wallet.add = false; phone.sub = 0; return true; } return false; }
+
+function drawWalletCard(g, W, x, y, w, h, c, on) {
+  const grad = g.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, c.a); grad.addColorStop(1, c.b);
+  g.fillStyle = grad; roundRect(g, x, y, w, h, W * 0.05); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.07)"; g.beginPath(); g.arc(x + w * 0.88, y + h * 0.1, h * 0.7, 0, 7); g.fill();
+  if (on) { g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = W * 0.008; roundRect(g, x, y, w, h, W * 0.05); g.stroke(); }
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.052) + "px " + UI; g.textAlign = "left";
+  g.fillText(c.name, x + W * 0.055, y + h * 0.34);
+  g.fillStyle = "rgba(255,255,255,0.68)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText(c.sub, x + W * 0.055, y + h * 0.58);
+  g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.046) + "px " + UI; g.textAlign = "right";
+  g.fillText(c.val, x + w - W * 0.055, y + h * 0.34); g.textAlign = "left";
+  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText("A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
+}
+
+function appWallet(g, W, H) {
+  phoneChrome(g, W, H, dev().maker === "soti" ? "SOTI Wallet" : dev().maker === "pear" ? "Pear Wallet" : "Wallet", wallet.add ? "Add a card" : "Cards");
+  const x = W * 0.075, w = W * 0.85;
+  if (wallet.add) {
+    WALLET_ADD.forEach((o, i) => {
+      const y = H * 0.22 + i * H * 0.17, on = i === phone.sub;
+      drawWalletCard(g, W, x, y, w, H * 0.145, { name: o.name, sub: o.sub, a: o.a, b: mixHex(o.a, "#000000", 0.5), val: yenText(o.price) }, on);
+      g.fillStyle = "rgba(255,255,255,0.6)"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+      g.fillText(yenText(o.credit) + " credit included", x + W * 0.055, y + H * 0.126);
+    });
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+    g.fillText("Shop loyalty cards are not here.", W * PL.pad, H * 0.62);
+    g.fillText("Buy from the shop, then ask its site.", W * PL.pad, H * 0.652);
+    return;
+  }
+  const cards = walletCards();
+  const sel = clamp(phone.sub, 0, cards.length - 1);
+  g.fillStyle = "#ffffff"; g.font = "300 " + Math.round(W * 0.125) + "px " + UI;
+  g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
+  const vis = 4, first = clamp(sel - 2, 0, Math.max(0, cards.length - vis));
+  for (let k = 0; k < vis && first + k < cards.length; k++) {
+    const i = first + k, c = cards[i], y = H * 0.215 + k * H * 0.150;
+    if (c.add) {
+      g.strokeStyle = i === sel ? "#ffffff" : "rgba(255,255,255,0.35)"; g.lineWidth = W * 0.006; g.setLineDash([W * 0.02, W * 0.016]);
+      roundRect(g, x, y, w, H * 0.13, W * 0.05); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = i === sel ? "#ffffff" : "rgba(255,255,255,0.6)"; g.lineWidth = W * 0.012; g.lineCap = "round";
+      g.beginPath(); g.moveTo(W / 2 - W * 0.045, y + H * 0.065); g.lineTo(W / 2 + W * 0.045, y + H * 0.065); g.moveTo(W / 2, y + H * 0.065 - W * 0.045); g.lineTo(W / 2, y + H * 0.065 + W * 0.045); g.stroke();
+      g.fillStyle = "rgba(255,255,255,0.65)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText("Add a card", W / 2, y + H * 0.118); g.textAlign = "left";
+    } else drawWalletCard(g, W, x, y, w, H * 0.135, c, i === sel);
+  }
+  g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText(wallet.ic ? "IC opens the gates; Toll Express the barriers." : "An IC card or a Toll Express card can be added.", W * PL.pad, H * 0.835);
+}
+
+// ---- the toll gates
+// On the two outer ring roads of Tōkonto, which are the highways. A barrier
+// across the carriageway with a sign over it. With a Toll Express card it lifts
+// as you come, and takes the fee off the card. Without one you stop, and the
+// booth takes cash.
+const tolls = { list: [], root: null };
+function buildTolls(root) {
+  tolls.list.length = 0; tolls.root = root;
+  const city = world.cities[0];
+  if (!city) return;
+  const hw = city.roads.filter(r => r.cls === "arterial" && /Kanjō [34]/.test(r.name) && r.pts && r.pts.length > 8);
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#0b5a3a"; g.fillRect(0, 0, 512, 128);
+  g.strokeStyle = "#fff"; g.lineWidth = 6; g.strokeRect(6, 6, 500, 116);
+  g.fillStyle = "#fff"; g.font = "800 46px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("料金所  TOLL", 256, 42);
+  g.fillStyle = "#ffd21c"; g.font = "800 34px " + UI; g.fillText("ETC  ¥" + TOLL_FEE + "    CASH ¥" + TOLL_CASH, 256, 92);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
+  const signMat = new THREE.MeshBasicMaterial({ map: tex });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x2a2d33 });
+  const stripe = new THREE.MeshLambertMaterial({ color: 0xd8483c });
+  const white = new THREE.MeshLambertMaterial({ color: 0xf4f4f0 });
+  hw.forEach((road, ri) => {
+    const n = road.pts.length;
+    [0.18, 0.62].forEach((f, k) => {
+      const i = clamp(Math.floor(n * (f + ri * 0.07)), 2, n - 3);
+      const a = road.pts[i - 1], b = road.pts[i + 1], p = road.pts[i];
+      const dx = b[0] - a[0], dz = b[2] - a[2], L = Math.hypot(dx, dz) || 1;
+      const dir = [dx / L, dz / L], half = road.halfWidth;
+      const gr = new THREE.Group();
+      const post = (sx) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 7.2, 0.7), dark); m.position.set(sx, 3.6, 0); m.castShadow = true; gr.add(m); };
+      post(-(half + 1.4)); post(half + 1.4);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 3.4, 1.5, 0.5), [dark, dark, dark, dark, signMat, signMat]);
+      beam.position.set(0, 6.6, 0); gr.add(beam);
+      const isle = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.35, 5.5), white); isle.position.set(0, 0.2, 0); gr.add(isle);
+      const booth = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.4, 2.2), dark); booth.position.set(0, 1.3, 0); gr.add(booth);
+      // the arm: pivots about the roadside post and lifts
+      const pivot = new THREE.Group(); pivot.position.set(-(half + 0.6), 1.15, 0.2);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 1.0, 0.26, 0.26), stripe); arm.position.set((half * 2 + 1.0) / 2, 0, 0); pivot.add(arm);
+      gr.add(pivot);
+      gr.position.set(p[0], p[1], p[2]);
+      gr.rotation.y = Math.atan2(dir[0], dir[1]) + Math.PI / 2 * 0;      // local +z along the road
+      root.add(gr);
+      tolls.list.push({ x: p[0], z: p[2], y: p[1], dir: dir, hw: half, grp: gr, pivot: pivot, open: 0, hold: 0, paid: false, name: road.name + " " + (k + 1) });
+    });
   });
-  g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillText("An IC card opens the ticket gates", W * PL.pad, H * 0.80);
-  g.fillText("without stopping.", W * PL.pad, H * 0.832);
+}
+function updateTolls(dt) {
+  const c = drive.car;
+  tolls.list.forEach(t => {
+    t.open = Math.max(0, t.open - dt);
+    const target = t.open > 0 ? -1.35 : 0;
+    t.pivot.rotation.z += (target - t.pivot.rotation.z) * Math.min(1, dt * 6);
+    if (!c) { t.paid = false; t.hold = 0; return; }
+    const rx = c.pos.x - t.x, rz = c.pos.z - t.z;
+    const along = rx * t.dir[0] + rz * t.dir[1];
+    const lat = Math.abs(rx * t.dir[1] - rz * t.dir[0]);
+    if (lat > t.hw + 4 || Math.abs(along) > 50) { t.paid = false; t.hold = 0; return; }
+    if (t.paid || Math.abs(along) > 16) return;
+    if (wallet.toll && wallet.toll.bal >= TOLL_FEE) {
+      wallet.toll.bal -= TOLL_FEE; t.paid = true; t.open = 3.5;
+      say("Toll " + yenText(TOLL_FEE) + " · Toll Express " + yenText(wallet.toll.bal) + " left", 4);
+      return;
+    }
+    // no card: the barrier is down, so you stop, and the booth takes cash
+    const heading = c.speed >= 0 ? 1 : -1;
+    const approaching = along * heading < 0 || Math.abs(along) < 4;
+    if (approaching && Math.abs(along) < 9) {
+      if (Math.abs(c.speed) > 3.5) c.speed *= Math.pow(0.02, dt);
+      if (Math.abs(c.speed) < 4.5) t.hold += dt;
+      if (t.hold === 0 || t.hold < 1.8) { if (t.hold > 0.05 && Math.floor(t.hold * 4) % 2 === 0) { /* waiting */ } }
+      if (t.hold > 1.8) {
+        if (purse.yen >= TOLL_CASH) { purse.yen -= TOLL_CASH; say("Toll paid in cash · " + yenText(TOLL_CASH) + ". A Toll Express card is cheaper.", 5); t.open = 3.5; t.paid = true; }
+        else { say("No card and not enough cash for the toll.", 4); t.hold = 0; }
+      } else if (t.hold === 0 && Math.abs(c.speed) > 1) { /* slowing */ }
+    }
+  });
 }
 
 // ---- Poodle, and the web behind it
@@ -12957,6 +13103,22 @@ const PAGE_TOP = 0.142, PAGE_BOTTOM = 0.918;
 function siteChrome(g, W, H, site, bg) {
   g.fillStyle = bg || "#ffffff";
   g.fillRect(0, 0, W, H);
+}
+
+// The loyalty card, as a row at the end of a shop's page. It cannot be had from
+// the wallet; it is switched on here, once enough has been bought from the shop.
+function loyaltyRow(g, W, H, brand, y, on) {
+  const L = LOYALTY[brand], rowH = H * 0.104, n = wallet.buys[brand] || 0, ready = n >= L.need && !wallet.loyal[brand];
+  phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, on, "rgba(0,0,0,0.05)");
+  const gr = g.createLinearGradient(0, y, W, y + rowH); gr.addColorStop(0, L.a); gr.addColorStop(1, mixHex(L.a, "#000000", 0.45));
+  g.fillStyle = gr; roundRect(g, W * (PL.pad + 0.028), y + rowH * 0.18, W * 0.092, rowH * 0.64, W * 0.014); g.fill();
+  g.fillStyle = "#14171b"; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.font = "700 " + Math.round(W * PL.body) + "px " + UI;
+  const tx = W * (PL.pad + 0.155);
+  clipText(g, L.name + " card", tx, y + rowH * 0.38, W * 0.62);
+  g.fillStyle = wallet.loyal[brand] ? "#1d7a4c" : ready ? "#c0172b" : "#6a717a";
+  g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
+  clipText(g, wallet.loyal[brand] ? "Active \u00b7 " + wallet.pts[brand] + " points" : ready ? "Ready. Press A to activate it." : "Buy " + L.need + " things from " + L.sub + " to unlock it \u00b7 " + Math.min(n, L.need) + " / " + L.need, tx, y + rowH * 0.68, W * 0.66);
 }
 
 function shelfItem(g, W, H, it, y, on, accent) {
@@ -13157,7 +13319,8 @@ const CAR_STOCK = {
 const DOKOTO_TABS = [
   { id: "phones", name: "Phones" },
   { id: "wear",   name: "Watch & Console" },
-  { id: "games",  name: "Games" }
+  { id: "games",  name: "Games" },
+  { id: "card",   name: "Card" }
 ];
 function dokotoList(tab) {
   const out = [];
@@ -13171,6 +13334,8 @@ function dokotoList(tab) {
       const gr = GEAR[id];
       out.push({ kind: "gear", id: id, name: gr.name, price: gr.price, days: 2, note: gr.note });
     });
+  } else if (tab === 3) {
+    out.push({ kind: "card", id: "dokoto", name: "Dokoto Point card", price: 0, days: 0, note: "Switched on here, after three purchases from Dokoto Camera" });
   } else {
     GAMES.forEach(gm => out.push({ kind: "game", id: gm.id, name: gm.name, price: gm.price, days: 1,
       note: gm.genre + " · " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
@@ -13205,8 +13370,9 @@ function dokotoBuy() {
   if (phone.tabsOn) { phone.tabsOn = false; phone.dirty = true; return; }
   const it = dokotoCur().item;
   if (!it) return;
+  if (it.kind === "card") { loyaltyActivate("dokoto"); return; }
   if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + "; you have " + yenText(purse.yen) + ".", 5); return; }
-  purse.yen -= it.price;
+  purse.yen -= it.price; noteBuy("dokoto", it.price);
   let colour = 0;
   if (it.kind === "phone") colour = clamp(phone.paint || 0, 0, DEVICES[it.id].colours.length - 1);
   orderDelivery(it.kind, it.id, it.name + (it.kind === "phone" ? ", " + DEVICES[it.id].colours[colour][0] : ""), it.days, colour);
@@ -13310,6 +13476,13 @@ function drawDokoto(g, W, H, site) {
     if (it.kind === "phone") {
       const d = DEVICES[it.id];
       drawHandset(g, pcx, pcy, sh * 0.84, d, d.colours[clamp(phone.paint || 0, 0, d.colours.length - 1)][1]);
+    } else if (it.kind === "card") {
+      const L = LOYALTY.dokoto, cw = sw * 0.46, ch = cw * 0.62;
+      const gr = g.createLinearGradient(pcx - cw / 2, pcy - ch / 2, pcx + cw / 2, pcy + ch / 2); gr.addColorStop(0, L.a); gr.addColorStop(1, L.b);
+      g.fillStyle = gr; roundRect(g, pcx - cw / 2, pcy - ch / 2, cw, ch, 14); g.fill();
+      g.fillStyle = "#ffd21c"; g.fillRect(pcx - cw / 2, pcy + ch * 0.18, cw, ch * 0.12);
+      g.fillStyle = "#fff"; g.font = "800 " + Math.round(ch * 0.2) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+      g.fillText("DOKOTO POINT", pcx - cw / 2 + cw * 0.07, pcy - ch * 0.22);
     } else {
       wheelIcon(g, { kind: it.kind, id: it.id, item: it }, pcx, pcy, sh * 0.5, false);
     }
@@ -13320,7 +13493,7 @@ function drawDokoto(g, W, H, site) {
     g.textBaseline = "alphabetic";
     g.fillStyle = "#14171b"; g.font = "800 " + Math.round(W * 0.050) + "px " + UI;
     clipText(g, it.name, W * PL.pad, H * 0.406, W * 0.60);
-    g.textAlign = "right"; g.fillText(yenText(it.price), W * (1 - PL.pad), H * 0.406); g.textAlign = "left";
+    g.textAlign = "right"; g.fillText(it.kind === "card" ? (wallet.loyal.dokoto ? "Active" : (wallet.buys.dokoto || 0) + " / " + LOYALTY.dokoto.need) : yenText(it.price), W * (1 - PL.pad), H * 0.406); g.textAlign = "left";
     g.fillStyle = "#6a717a"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
     let spec = it.note;
     if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + " · " + d.chip + " · " + d.camera; }
@@ -13342,7 +13515,7 @@ function drawDokoto(g, W, H, site) {
       g.fillStyle = "#8d949c"; g.fillText(it.days + " day delivery", W * PL.pad, H * 0.466);
     }
     g.fillStyle = "#8d949c"; g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
-    g.fillText(it.kind === "phone" ? "◀ ▶ colour   ▲ ▼ model   A order" : "▲ ▼ browse   A order", W * PL.pad, H * 0.499);
+    g.fillText(it.kind === "phone" ? "◀ ▶ colour   ▲ ▼ model   A order" : it.kind === "card" ? "A activate" : "▲ ▼ browse   A order", W * PL.pad, H * 0.499);
   }
 
   // the list, six at a time around the selection
@@ -13409,10 +13582,16 @@ function drawSiteBody(g, W, H, site) {
     g.fillText(eleven ? "Open 24 hours \u00b7 delivery to your door"
                       : "Your neighbourhood store \u00b7 delivery available",
                W * PL.pad, H * 0.196);
-    SHOP_ITEMS.forEach((it, i) => {
-      shelfItem(g, W, H, it, H * 0.215 + i * H * 0.117, phone.sub === i,
-                eleven ? "#0a6b42" : "#1272d6");
-    });
+    // The shelves, and at the bottom the shop's own card. Five rows fit; the page
+    // slides so the one you are on is always showing.
+    const rows = SHOP_ITEMS.concat([{ loyalty: true }]);
+    const first = clamp(phone.sub - 3, 0, rows.length - 5);
+    for (let k = 0; k < 5; k++) {
+      const i = first + k, it = rows[i];
+      const y = H * 0.215 + k * H * 0.117;
+      if (it.loyalty) loyaltyRow(g, W, H, site.brand, y, phone.sub === i);
+      else shelfItem(g, W, H, it, y, phone.sub === i, eleven ? "#0a6b42" : "#1272d6");
+    }
     g.fillStyle = "#8d949c";
     g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
     g.fillText("Balance " + yenText(purse.yen), W * PL.pad, H * 0.945);
@@ -14241,7 +14420,7 @@ function appSettings(g, W, H) {
     ["Balance", yenText(purse.yen)],
     ["Network", "NHMobile \u00b7 5G"],
     ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
-    ["IC card", phone.owns.icCard ? "Added" : "Not added"],
+    ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
     ["Storage", "126 GB of 256 GB"],
     ["Spotify", spotify.state === "ready" ? "Signed in"
@@ -14283,12 +14462,12 @@ function phoneCount() {
   if (phone.app === "Poodle") {
     if (phone.site == null) return WEB.length;
     const site = WEB[phone.site];
-    if (site.kind === "shop") return SHOP_ITEMS.length;
+    if (site.kind === "shop") return SHOP_ITEMS.length + 1;
     if (site.kind === "cars") return CAR_STOCK[site.tier].length;
     if (site.kind === "tech") return dokotoCur().list.length;
     return 0;
   }
-  if (phone.app === "Wallet") return 3;
+  if (phone.app === "Wallet") return wallet.add ? WALLET_ADD.length : walletCards().length;
   if (phone.app === "Camera") return 1;
   if (phone.app === "MyNet") return MYNET.length;
   if (phone.app === "Nihon") return 5;
@@ -14385,9 +14564,10 @@ function phoneAct() {
       const site = WEB[phone.site];
       if (site.kind === "shop") {
         const it = SHOP_ITEMS[phone.sub];
-        if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
+        if (!it) { loyaltyActivate(site.brand); }
+        else if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
         else {
-          purse.yen -= it.price;
+          purse.yen -= it.price; noteBuy(site.brand, it.price);
           if (it.days > 0) {
             // Delivered, not instant: that is the whole point of ordering it.
             orderDelivery(it.id === "earbuds" || it.id === "headphones" ? "audio" : "item", it.id, it.name, it.days);
@@ -14422,6 +14602,8 @@ function phoneAct() {
                                spotify.clientId || "");
       if (id !== null) { spotify.clientId = id.trim(); spotifySave(); say("Saved.", 3); }
     }
+  } else if (app === "Wallet") {
+    walletAct();
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -14447,6 +14629,7 @@ function phoneBack() {
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
+  if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
   return false;
@@ -14799,13 +14982,13 @@ function mallAct() {
   if (!it) return;
   if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) {
     if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return; }
-    purse.yen -= it.price;
+    purse.yen -= it.price; noteBuy("dokoto", it.price);
     orderDelivery("gear", it.id, it.name + ", " + CONSOLE_COLOURS[it.id][mall.colour][0], 2, mall.colour);
     say(it.name + " ordered for delivery · " + yenText(it.price) + ". Consoles are sent, not carried.", 6);
     drawMall(); return;
   }
   if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return; }
-  purse.yen -= it.price;
+  purse.yen -= it.price; noteBuy("dokoto", it.price);
   if (it.kind === "phone") { const c = clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1); giveItem("phone", it.id, c); say(it.name + ", " + DEVICES[it.id].colours[c][0] + " · " + yenText(it.price) + " · in your bag.", 5); }
   else if (it.kind === "gear") { giveItem("gear", it.id); say(it.name + " · " + yenText(it.price) + " · in your bag.", 5); }
   else if (it.kind === "game") { giveItem("game", it.id); say(it.name + " disc · " + yenText(it.price) + " · in your bag.", 5); }
@@ -14983,6 +15166,7 @@ function takeFromShelf() {
   const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   purse.yen -= it.price;
+  noteBuy(s.brand, it.price);
   shops.basket.push(it.name);
   if (ARMS_STOCK.some(a => a.id === it.id)) {
     // It goes on the wheel rather than in your bag.
