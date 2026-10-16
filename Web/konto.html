@@ -5730,6 +5730,8 @@ function buildScene(w) {
   buildNav(w);
   placeShops(w.cities[0]);
   placeMalls(w);
+  placePlazas(w);
+  placeTownShops(w);
   placeSafehouses(w);
   buildShopSigns(root);
   buildMallSigns(root);
@@ -5906,6 +5908,7 @@ function adoptSeiko(fitted) {
   player.obj.position.copy(player.pos);
   player.obj.rotation.set(0, player.yaw, 0);
   parent.add(player.obj);
+  if (player.shirtHex) setSeikoShirt(player.shirtHex);
 }
 
 // ---------------------------------------------------------------- the player
@@ -6984,6 +6987,7 @@ function tick(dt) {
   updateDoorways(dt);
   updateTV(dt);
   updateMall(dt);
+  updatePlaza(dt);
   updateCollapse(dt);
   // Spotify is asked how it is getting on twice a second, and only while the
   // app is actually open.
@@ -10638,6 +10642,29 @@ function drawBrandMark(ctx, brand, r) {
     ctx.fillRect(-r * 0.62, -r * 0.34, r * 0.86, r * 0.08);
     ctx.beginPath(); ctx.moveTo(-r * 0.46, 0); ctx.lineTo(-r * 0.20, 0); ctx.lineTo(-r * 0.30, r * 0.60); ctx.lineTo(-r * 0.54, r * 0.60); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "#e0b867"; ctx.lineWidth = r * 0.07; ctx.beginPath(); ctx.arc(-r * 0.06, r * 0.08, r * 0.15, 0.2, Math.PI - 0.2); ctx.stroke();
+  } else if (brand === "ramen") {
+    disc("#b3201f");
+    ctx.fillStyle = "#f4efe0"; ctx.beginPath(); ctx.moveTo(-r * 0.62, -r * 0.05); ctx.lineTo(r * 0.62, -r * 0.05); ctx.quadraticCurveTo(r * 0.55, r * 0.62, 0, r * 0.64); ctx.quadraticCurveTo(-r * 0.55, r * 0.62, -r * 0.62, -r * 0.05); ctx.fill();
+    ctx.strokeStyle = "#f2c230"; ctx.lineWidth = r * 0.09; ctx.beginPath(); ctx.moveTo(-r * 0.2, -r * 0.1); ctx.lineTo(-r * 0.05, -r * 0.62); ctx.moveTo(r * 0.12, -r * 0.1); ctx.lineTo(r * 0.3, -r * 0.6); ctx.stroke();
+  } else if (brand === "sushi") {
+    disc("#ffffff");
+    ctx.fillStyle = "#f08a6a"; roundRect(ctx, -r * 0.6, -r * 0.34, r * 1.2, r * 0.42, r * 0.2); ctx.fill();
+    ctx.fillStyle = "#f4efe0"; ctx.strokeStyle = "#c9c2b0"; ctx.lineWidth = r * 0.05; roundRect(ctx, -r * 0.56, r * 0.02, r * 1.12, r * 0.36, r * 0.14); ctx.fill(); ctx.stroke();
+  } else if (brand === "pharmacy") {
+    disc("#0f8a52");
+    ctx.fillStyle = "#ffffff"; ctx.fillRect(-r * 0.18, -r * 0.6, r * 0.36, r * 1.2); ctx.fillRect(-r * 0.6, -r * 0.18, r * 1.2, r * 0.36);
+  } else if (brand === "books") {
+    disc("#5a3a22");
+    ctx.fillStyle = "#e8c46a"; ctx.fillRect(-r * 0.55, -r * 0.45, r * 0.5, r * 0.9); ctx.fillStyle = "#f4efe0"; ctx.fillRect(r * 0.05, -r * 0.45, r * 0.5, r * 0.9);
+    ctx.fillStyle = "#5a3a22"; ctx.fillRect(-r * 0.04, -r * 0.45, r * 0.08, r * 0.9);
+  } else if (brand === "clothes") {
+    disc("#1d2b4a");
+    ctx.fillStyle = "#e8edf2"; ctx.beginPath(); ctx.moveTo(-r * 0.2, -r * 0.55); ctx.lineTo(-r * 0.62, -r * 0.3); ctx.lineTo(-r * 0.46, -r * 0.05); ctx.lineTo(-r * 0.3, -r * 0.16); ctx.lineTo(-r * 0.3, r * 0.56); ctx.lineTo(r * 0.3, r * 0.56); ctx.lineTo(r * 0.3, -r * 0.16); ctx.lineTo(r * 0.46, -r * 0.05); ctx.lineTo(r * 0.62, -r * 0.3); ctx.lineTo(r * 0.2, -r * 0.55); ctx.lineTo(0, -r * 0.36); ctx.fill();
+    ctx.fillStyle = "#c0392b"; ctx.fillRect(-r * 0.05, -r * 0.34, r * 0.1, r * 0.5);
+  } else if (brand === "plaza") {
+    disc("#5a3a8a");
+    ctx.fillStyle = "#ffd21c"; roundRect(ctx, -r * 0.5, -r * 0.18, r, r * 0.74, r * 0.1); ctx.fill();
+    ctx.strokeStyle = "#ffd21c"; ctx.lineWidth = r * 0.1; ctx.beginPath(); ctx.arc(0, -r * 0.18, r * 0.28, Math.PI, 0); ctx.stroke();
   } else if (brand === "capsule") {
     disc("#1d2430");
     ctx.fillStyle = "#7ad0ff"; roundRect(ctx, -r * 0.62, -r * 0.12, r * 1.24, r * 0.48, r * 0.14); ctx.fill();
@@ -10876,11 +10903,11 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
       const sr = Math.max(6 * mPerPx, 9);
       shops.list.forEach(sh => {
         if (sh.at[0] < vx0 || sh.at[0] > vx1 || sh.at[1] < vz0 || sh.at[1] > vz1) return;
-        if (!sh.mall && across > 5200) return;            // the malls are always on; the corner shops come with the zoom
+        if (!sh.mall && !sh.plaza && across > 5200) return;            // the malls are always on; the corner shops come with the zoom
         ctx.save();
         ctx.translate(sh.at[0], sh.at[1]);
         ctx.rotate(-rot);
-        drawBrandMark(ctx, sh.brand, sr * (sh.mall ? 1.25 : 0.95));
+        drawBrandMark(ctx, sh.brand, sr * (sh.mall || sh.plaza ? 1.25 : 0.95));
         ctx.restore();
       });
     }
@@ -15093,7 +15120,8 @@ function placeShops(city) {
     // One in seven is a back-street armourer, and they are not on the main
     // streets: a hardware shop with a shutter, a nod, and a price list.
     const n = shops.list.length;
-    const brand = (n % 7 === 3) ? "arms" : (n % 2 ? "petmart" : "eleven");
+    const CYCLE = ["eleven", "petmart", "ramen", "eleven", "pharmacy", "petmart", "books", "eleven", "sushi", "clothes", "petmart", "ramen"];
+    const brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
     const half = p.size[1] * 0.5 + 1.6;
@@ -15120,30 +15148,28 @@ function buildShopSigns(root) {
     const list = byBrand[brand];
     const b = SHOP_BRANDS[brand];
     const geo = new THREE.BoxGeometry(1, 1, 0.5);
-    const mat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(brand === "eleven" ? 0x0a6b42 : 0xf4f6f5),
-      emissive: new THREE.Color(brand === "eleven" ? 0x083d27 : 0x9fb7cf),
-      emissiveIntensity: 0.75, roughness: 0.55, metalness: 0.0
-    });
+    // every chain's sign has its name on it; the armourer's has nothing
+    const plain = brand === "arms";
+    const mat = new THREE.MeshStandardMaterial(plain
+      ? { color: new THREE.Color(0x1a1c20), emissive: new THREE.Color(0x14110a), emissiveIntensity: 0.5, roughness: 0.6 }
+      : { color: new THREE.Color(0xffffff), map: brandSignTex(brand), emissive: new THREE.Color(0xffffff), emissiveMap: brandSignTex(brand), emissiveIntensity: 0.7, roughness: 0.55, metalness: 0.0 });
     const band = new THREE.InstancedMesh(geo, mat, list.length);
-    const stripeMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(brand === "eleven" ? 0xe8711a : 0x1272d6),
-      emissive: new THREE.Color(brand === "eleven" ? 0x7a3608 : 0x0a3a67),
-      emissiveIntensity: 0.6, roughness: 0.6
-    });
+    const sc = new THREE.Color(b.stripes[0]);
+    const stripeMat = new THREE.MeshStandardMaterial({ color: sc, emissive: sc.clone().multiplyScalar(0.5), emissiveIntensity: 0.6, roughness: 0.6 });
     const stripe = new THREE.InstancedMesh(geo, stripeMat, list.length);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
     const pos = new THREE.Vector3(), scl = new THREE.Vector3();
     list.forEach((s, i) => {
-      const w = Math.min(14, s.size[0] * 0.82);
+      const big = !!s.plaza;
+      const w = Math.min(big ? 26 : 14, s.size[0] * 0.82);
       e.set(0, s.yaw, 0); q.setFromEuler(e);
-      pos.set(s.door[0], s.groundY + 4.3, s.door[1]);
-      scl.set(w, 1.5, 0.5);
+      pos.set(s.door[0], s.groundY + (big ? 6.6 : 4.3), s.door[1]);
+      scl.set(w, big ? 3.0 : 1.5, 0.5);
       m.compose(pos, q, scl); band.setMatrixAt(i, m);
-      pos.set(s.door[0], s.groundY + 3.42, s.door[1]);
-      scl.set(w, 0.26, 0.52);
+      pos.set(s.door[0], s.groundY + (big ? 4.8 : 3.42), s.door[1]);
+      scl.set(w, big ? 0.4 : 0.26, 0.52);
       m.compose(pos, q, scl); stripe.setMatrixAt(i, m);
-      s.signY = s.groundY + 4.3;
+      s.signY = s.groundY + (big ? 6.6 : 4.3);
     });
     band.instanceMatrix.needsUpdate = true;
     stripe.instanceMatrix.needsUpdate = true;
@@ -15165,6 +15191,7 @@ function shopNear(x, z, radius) {
 function enterShop(s) {
   if (!s) return;
   if (s.safe) { enterSafehouse(s); return; }
+  if (s.plaza) { enterPlaza(s); return; }
   shops.inside = s;
   shops.shelf = 0; shops.item = 0; shops.basket = [];
   const el = document.getElementById("shop");
@@ -15176,6 +15203,8 @@ function enterShop(s) {
 function leaveShop() {
   if (!shops.inside) return;
   if (shops.inside.mall && mallBack()) { drawMall(); return; }
+  if (shops.inside.parent) { shops.inside = shops.inside.parent; plaza.mode = "floor"; drawPlaza(); return; }
+  if (shops.inside.plaza && plazaBack()) return;
   frameGrab.want = false;
   stepOutFrom(shops.inside.door, shops.inside.yaw);
   shops.inside = null;
@@ -15607,18 +15636,184 @@ function drawCapsuleRoom(g, W, H) {
   g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
+// ---- town shops, brand signs and the plazas ----------------------------------------
+// Every town gets its own shops, not just Tōkonto, and every brand its own sign
+// with its name on it. A plaza is the big one: a lift, four floors, and on each
+// floor the stores you would expect. Walk in and the lift is in front of you.
+function placeTownShops(w) {
+  const rng = (() => { let sd = 3307; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  w.cities.forEach((city, ci) => {
+    if (ci === 0 || !city.plots) return;
+    const big = city.name === "Isobe" || city.name === "Nagisa" || city.name === "Shiokawa";
+    const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen"] : big ? ["eleven", "petmart", "ramen", "pharmacy", "books", "clothes", "sushi"] : ["eleven", "ramen", "pharmacy"];
+    const pool = city.plots.filter(p => p.size[0] > 12 && p.size[0] < 46 && p.size[1] > 10 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "houses"));
+    recipe.forEach(brand => {
+      for (let g = 0; g < 500 && pool.length; g++) {
+        const p = pool[(rng() * pool.length) | 0];
+        if (shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < 110)) continue;
+        const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
+        shops.list.push({ brand: brand, name: SHOP_BRANDS[brand].name, city: city.name, at: [p.centre[0], p.centre[1]],
+          door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size });
+        break;
+      }
+    });
+  });
+}
+function placePlazas(w) {
+  const rng = (() => { let sd = 8123; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  w.cities.forEach((city, ci) => {
+    if (!city.plots) return;
+    const want = ci === 0 ? 2 : (city.name === "Isobe" || city.name === "Nagisa" ? 1 : 0);
+    const minA = ci === 0 ? 30 : 26, minB = ci === 0 ? 24 : 20;
+    const pool = city.plots.filter(p => p.size[0] > minA && p.size[1] > minB && p.size[0] < 80 && p.size[1] < 70 && (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
+    let placed = 0;
+    for (let g = 0; g < 700 && placed < want && pool.length; g++) {
+      const p = pool[(rng() * pool.length) | 0];
+      if (shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < (s.mall || s.plaza ? (ci === 0 ? 700 : 100) : 45))) continue;
+      const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
+      shops.list.push({ brand: "plaza", plaza: true, name: "Konto Plaza", city: city.name, at: [p.centre[0], p.centre[1]],
+        door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size });
+      placed++;
+    }
+  });
+}
+
+const brandTexCache = {};
+function brandSignTex(brand) {
+  if (brandTexCache[brand]) return brandTexCache[brand];
+  const b = SHOP_BRANDS[brand];
+  const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 128;
+  const g = cv.getContext("2d");
+  g.fillStyle = b.band; g.fillRect(0, 0, 1024, 128);
+  g.fillStyle = b.stripes[0]; g.fillRect(0, 108, 1024, 20);
+  g.fillStyle = b.ink; g.textBaseline = "middle"; g.textAlign = "left";
+  g.font = "900 70px " + UI; g.fillText(b.name, 36, 56);
+  if (b.jp) { g.textAlign = "right"; g.font = "800 46px " + JP; g.globalAlpha = 0.85; g.fillText(b.jp, 990, 56); g.globalAlpha = 1; }
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return (brandTexCache[brand] = t);
+}
+
+// ---- inside a plaza
+const PLAZA_FLOORS = [
+  { id: 3, label: "3F", name: "Books",     stores: ["books"] },
+  { id: 2, label: "2F", name: "Fashion",   stores: ["clothes"] },
+  { id: 1, label: "1F", name: "Everyday",  stores: ["pharmacy", "petmart", "eleven"] },
+  { id: 0, label: "B1", name: "Food hall", stores: ["ramen", "sushi"] }
+];
+const plaza = { floor: 1, mode: "lift", sel: 2, tile: 0, ride: 0, to: 1 };
+function enterPlaza(s) {
+  shops.inside = s; shops.shelf = 0; shops.item = 0; shops.basket = [];
+  const el = document.getElementById("shop"); if (el) el.hidden = false;
+  document.body.classList.add("inshop");
+  plaza.floor = 1; plaza.mode = "lift"; plaza.sel = 2; plaza.tile = 0; plaza.ride = 0;
+  drawPlaza();
+}
+function plazaBack() {
+  if (plaza.mode === "floor") { plaza.mode = "lift"; plaza.sel = PLAZA_FLOORS.findIndex(f => f.id === plaza.floor); drawPlaza(); return true; }
+  return plaza.mode === "ride";
+}
+function plazaMove(dx, dy) {
+  if (plaza.mode === "lift") { if (dy) plaza.sel = clamp(plaza.sel + dy, 0, PLAZA_FLOORS.length - 1); }
+  else if (plaza.mode === "floor") { const n = PLAZA_FLOORS.find(f => f.id === plaza.floor).stores.length; if (dx) plaza.tile = clamp(plaza.tile + dx, 0, n - 1); }
+  drawPlaza();
+}
+function plazaAct() {
+  if (plaza.mode === "lift") {
+    plaza.to = PLAZA_FLOORS[plaza.sel].id;
+    if (plaza.to === plaza.floor) { plaza.mode = "floor"; plaza.tile = 0; } else { plaza.mode = "ride"; plaza.ride = 0; }
+    drawPlaza(); return;
+  }
+  if (plaza.mode === "floor") {
+    const p = shops.inside, brand = PLAZA_FLOORS.find(f => f.id === plaza.floor).stores[plaza.tile];
+    shops.inside = { brand: brand, name: SHOP_BRANDS[brand].name, door: p.door, yaw: p.yaw, groundY: p.groundY, city: p.city, parent: p };
+    shops.shelf = 0; shops.item = 0; drawShop();
+  }
+}
+function updatePlaza(dt) {
+  const s = shops.inside;
+  if (!s || !s.plaza || plaza.mode !== "ride") return;
+  plaza.ride += dt;
+  if (plaza.ride > 1.4) { plaza.floor = plaza.to; plaza.mode = "floor"; plaza.tile = 0; }
+  drawPlaza();
+}
+function drawPlaza() {
+  const cv = document.getElementById("shopcanvas"), s = shops.inside;
+  if (!cv || !s || !s.plaza) return;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  const T = (txt, x, y, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + Math.round(sz) + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, x, y); };
+  const wall = g.createLinearGradient(0, 0, 0, H);
+  wall.addColorStop(0, "#f2eefa"); wall.addColorStop(0.62, "#e2dcee"); wall.addColorStop(0.62, "#b4aec4"); wall.addColorStop(1, "#8c869c");
+  g.fillStyle = wall; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 6; i++) { g.fillStyle = "rgba(255,255,255,0.9)"; g.fillRect(W * (0.06 + i * 0.16), H * 0.14, W * 0.10, H * 0.010); }
+  g.fillStyle = "#5a3a8a"; g.fillRect(0, 0, W, H * 0.105);
+  g.fillStyle = "#ffd21c"; g.fillRect(0, H * 0.105, W, H * 0.014);
+  T("KONTO PLAZA", W * 0.03, H * 0.052, H * 0.055, "#fff", "left", "900");
+  T("コント・プラザ  ·  " + (s.city || ""), W * 0.34, H * 0.054, H * 0.032, "#e6d9ff", "left", "700");
+  T(yenText(purse.yen), W * 0.97, H * 0.052, H * 0.040, "#fff", "right", "700");
+  const fl = PLAZA_FLOORS.find(f => f.id === plaza.floor);
+  if (plaza.mode === "lift" || plaza.mode === "ride") {
+    const dx = W * 0.14, dy = H * 0.18, dw = W * 0.34, dh = H * 0.72, ride = plaza.mode === "ride";
+    g.fillStyle = "#4a4d52"; g.fillRect(dx - 14, dy - 14, dw + 28, dh + 14);
+    g.fillStyle = "#b8bcc2"; g.fillRect(dx, dy, dw / 2 - 2, dh); g.fillRect(dx + dw / 2 + 2, dy, dw / 2 - 2, dh);
+    g.fillStyle = "#111"; roundRect(g, dx + dw * 0.35, dy - H * 0.095, dw * 0.30, H * 0.075, 8); g.fill();
+    const shown = ride ? (plaza.ride < 0.7 ? plaza.floor : plaza.to) : plaza.floor;
+    T(PLAZA_FLOORS.find(f => f.id === shown).label, dx + dw / 2, dy - H * 0.057, H * 0.055, "#ff9a3a", "center", "800");
+    const px = W * 0.56, py = H * 0.20, pw = W * 0.34;
+    g.fillStyle = "rgba(20,22,26,0.86)"; roundRect(g, px, py, pw, H * 0.64, 16); g.fill();
+    T("Which floor?", px + pw * 0.06, py + H * 0.055, H * 0.040, "#fff", "left", "800");
+    PLAZA_FLOORS.forEach((f, i) => {
+      const y = py + H * 0.11 + i * H * 0.115, on = i === plaza.sel;
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)"; roundRect(g, px + pw * 0.04, y, pw * 0.92, H * 0.095, 10); g.fill();
+      g.fillStyle = f.id === plaza.floor ? "#ff9a3a" : "#e9edf0"; g.beginPath(); g.arc(px + pw * 0.13, y + H * 0.0475, H * 0.034, 0, 7); g.fill();
+      T(f.label, px + pw * 0.13, y + H * 0.0475, H * 0.032, "#111", "center", "800");
+      T(f.name, px + pw * 0.24, y + H * 0.0475, H * 0.034, on ? "#fff" : "#c3c9cf", "left", on ? "700" : "500");
+    });
+    T(ride ? "Going " + (plaza.to > plaza.floor ? "up" : "down") + "…" : "▲ ▼ floor     A press     B leave", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
+    return;
+  }
+  T(fl.label + "   " + fl.name, W * 0.03, H * 0.165, H * 0.046, "#2a1a4a", "left", "800");
+  const n = fl.stores.length, cw = Math.min(W * 0.27, (W * 0.92) / n - W * 0.02), ch = H * 0.56, x0 = W * 0.5 - (n * cw + (n - 1) * W * 0.02) / 2;
+  fl.stores.forEach((b, i) => {
+    const B = SHOP_BRANDS[b], x = x0 + i * (cw + W * 0.02), y = H * 0.22, on = i === plaza.tile;
+    g.fillStyle = on ? "#ffffff" : "rgba(255,255,255,0.7)"; roundRect(g, x, y, cw, ch, 18); g.fill();
+    g.fillStyle = B.band; roundRect(g, x, y, cw, ch * 0.30, 18); g.fill(); g.fillRect(x, y + ch * 0.20, cw, ch * 0.10);
+    g.fillStyle = B.stripes[0]; g.fillRect(x, y + ch * 0.30, cw, ch * 0.025);
+    T(B.name, x + cw / 2, y + ch * 0.12, Math.min(H * 0.044, cw * 0.14), B.ink, "center", "900");
+    if (B.jp) { g.font = "700 " + Math.round(H * 0.026) + "px " + JP; g.textAlign = "center"; g.fillStyle = B.ink; g.globalAlpha = 0.8; g.fillText(B.jp, x + cw / 2, y + ch * 0.235); g.globalAlpha = 1; }
+    g.save(); g.translate(x + cw / 2, y + ch * 0.60); drawBrandMark(g, b, Math.min(cw * 0.22, ch * 0.16)); g.restore();
+    T(B.tag, x + cw / 2, y + ch * 0.86, H * 0.024, "#4a4d52", "center", "600");
+    if (on) { g.strokeStyle = "#5a3a8a"; g.lineWidth = 6; roundRect(g, x - 4, y - 4, cw + 8, ch + 8, 20); g.stroke(); }
+  });
+  T("◀ ▶ choose a shop     A go in     B back to the lift", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
+}
+
 // Taking something off the shelf pays for it there and then, which is what a
 // convenience store is.
 function takeFromShelf() {
   const s = shops.inside;
   if (!s) return;
   if (s.mall) { mallAct(); return; }
+  if (s.plaza) { plazaAct(); return; }
   const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   purse.yen -= it.price;
   noteBuy(s.brand, it.price);
   shops.basket.push(it.name);
-  if (ARMS_STOCK.some(a => a.id === it.id)) {
+  if (it.eat) {
+    // eaten there and then, at the counter
+    vitals.stress = clamp01(vitals.stress + (it.stress || 0)); vitals.health = clamp01(vitals.health + (it.health || 0));
+    advanceGameMinutes(it.min || 10);
+    say("Ate " + it.name.toLowerCase() + " \u00b7 " + yenText(it.price), 3);
+  } else if (it.read) {
+    vitals.stress = clamp01(vitals.stress + (it.stress || 0));
+    advanceGameMinutes(it.min || 30);
+    say("Read " + it.name + " for " + (it.min || 30) + " minutes \u00b7 " + yenText(it.price), 4);
+  } else if (it.shirt) {
+    setSeikoShirt(it.shirt);
+    say("Changed into the " + it.name.toLowerCase() + " \u00b7 " + yenText(it.price), 4);
+  } else if (it.plain) {
+    say(it.name + " \u00b7 " + yenText(it.price), 3);
+  } else if (ARMS_STOCK.some(a => a.id === it.id)) {
     // It goes on the wheel rather than in your bag.
     wheel[it.id + "Owned"] = true;
     say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB for it.", 5);
@@ -15645,6 +15840,7 @@ function takeFromShelf() {
 function shopMove(dx, dy) {
   if (!shops.inside) return;
   if (shops.inside.mall) { mallMove(dx, dy); return; }
+  if (shops.inside.plaza) { plazaMove(dx, dy); return; }
   const shelves = shopShelves(shops.inside);
   if (dx) shops.shelf = (shops.shelf + dx + shelves.length) % shelves.length;
   const n = shelves[shops.shelf].items.length;
@@ -15659,6 +15855,7 @@ function shopShelves(s) {
     return [{ name: "Hardware", items: ARMS_STOCK.filter(i => i.id === "baton") },
             { name: "Under the counter", items: ARMS_STOCK.filter(i => i.id !== "baton") }];
   }
+  if (s && STORE_SHELVES[s.brand]) return STORE_SHELVES[s.brand];
   // Each chain only stocks its own handset.
   return SHELVES.map(sh => ({ name: sh.name, items: sh.items.filter(i => !i.only || (s && i.only === s.brand)) }));
 }
@@ -15668,6 +15865,7 @@ function drawShop() {
   const s = shops.inside;
   if (!cv || !s) return;
   if (s.mall) { drawMall(); return; }
+  if (s.plaza) { drawPlaza(); return; }
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
   const brand = SHOP_BRANDS[s.brand];
@@ -15712,6 +15910,7 @@ function drawShop() {
   g.font = "800 " + Math.round(H * 0.048) + "px " + UI;
   g.textAlign = "left"; g.textBaseline = "middle";
   g.fillText(brand.name, W * 0.045, H * 0.122);
+  if (brand.jp) { g.font = "700 " + Math.round(H * 0.030) + "px " + JP; g.fillStyle = brand.ink === "#ffffff" ? "rgba(255,255,255,0.7)" : "rgba(40,40,40,0.65)"; g.fillText(brand.jp, W * 0.045 + (g.measureText(brand.name).width) * 0 + W * 0.30, H * 0.122); g.fillStyle = brand.ink; }
   g.font = "500 " + Math.round(H * 0.026) + "px " + UI;
   g.fillStyle = brand.ink === "#ffffff" ? "rgba(255,255,255,0.80)" : "rgba(18,114,214,0.75)";
   g.textAlign = "right";
@@ -15748,11 +15947,7 @@ function drawShop() {
     g.fillStyle = on ? "#ffffff" : "#eceeed";
     g.fillRect(x + bw * 0.06, shelfY + shelfH * (on ? 0.10 : 0.16),
                bw * 0.88, shelfH * (on ? 0.74 : 0.62));
-    // a product block, coloured by shelf
-    const cols = ["#8a3f2c", "#2f6f3c", "#2a4f8a", "#4a4a52"];
-    g.fillStyle = cols[shops.shelf % cols.length];
-    g.fillRect(x + bw * 0.22, shelfY + shelfH * (on ? 0.18 : 0.24),
-               bw * 0.56, shelfH * (on ? 0.40 : 0.32));
+    shelfIcon(g, it, x + bw * 0.5, shelfY + shelfH * (on ? 0.38 : 0.45), Math.min(bw * 0.30, shelfH * (on ? 0.22 : 0.17)));
     if (on) {
       g.strokeStyle = "#15181d"; g.lineWidth = Math.max(2, W * 0.004);
       g.strokeRect(x + bw * 0.06, shelfY + shelfH * 0.10, bw * 0.88, shelfH * 0.74);
@@ -17725,6 +17920,154 @@ function consoleInsertGame(id) {
 }
 function phoneSwapped(id) { phone.dirty = true; }
 
+// ---- more kinds of shop -------------------------------------------------------------
+// Convenience stores were all there was. Now: a ramen counter and a conveyor
+// sushi bar (you eat there and then), a pharmacy (medicine goes in the bag and is
+// taken from the wheel), a bookshop (you read it there, which takes time and
+// takes the edge off) and a shirt shop (you change into what you buy).
+Object.assign(SHOP_BRANDS, {
+  ramen:    { name: "Menya Ippai",   jp: "麺屋一杯", band: "#b3201f", ink: "#ffffff", stripes: ["#f2c230", "#14171b"], tag: "Ramen · open late" },
+  sushi:    { name: "Sushi Go-Go",   jp: "すしゴーゴー", band: "#ffffff", ink: "#c0172b", stripes: ["#c0172b", "#14171b"], tag: "Plates from ¥150" },
+  pharmacy: { name: "Kusuri Plus",   jp: "クスリプラス", band: "#0f8a52", ink: "#ffffff", stripes: ["#ffffff", "#0b5a37"], tag: "Pharmacy · beauty · health" },
+  books:    { name: "Hon-no-Mori",   jp: "本の森", band: "#5a3a22", ink: "#ffffff", stripes: ["#e8c46a", "#3a2414"], tag: "Books · manga · magazines" },
+  clothes:  { name: "Suit Select",   jp: "スーツセレクト", band: "#1d2b4a", ink: "#ffffff", stripes: ["#c9ced4", "#0e1626"], tag: "Shirts · ties · socks" },
+  plaza:    { name: "Konto Plaza",   jp: "コント・プラザ", band: "#5a3a8a", ink: "#ffffff", stripes: ["#ffd21c", "#2a1a4a"], tag: "Four floors of everything" }
+});
+const SHIRTS = [["White", "#f2f4f6"], ["Sky blue", "#8fc1ea"], ["Pale pink", "#f0b4c4"], ["Grey", "#aeb4bb"], ["Lavender", "#b8a6e0"], ["Mint", "#a6dcc0"]];
+const STORE_SHELVES = {
+  ramen: [
+    { name: "Ramen", items: [
+      { id: "shoyu", name: "Shoyu ramen", price: 850, eat: true, stress: -0.10, health: 0.12, min: 25 },
+      { id: "tonkotsu", name: "Tonkotsu ramen", price: 980, eat: true, stress: -0.12, health: 0.12, min: 30 },
+      { id: "miso", name: "Miso ramen", price: 920, eat: true, stress: -0.11, health: 0.12, min: 30 },
+      { id: "tsukemen", name: "Tsukemen", price: 1100, eat: true, stress: -0.13, health: 0.14, min: 35 }] },
+    { name: "Sides", items: [
+      { id: "gyoza", name: "Gyoza, six", price: 480, eat: true, stress: -0.04, health: 0.05, min: 10 },
+      { id: "karaage", name: "Karaage", price: 520, eat: true, stress: -0.05, health: 0.04, min: 10 },
+      { id: "rice", name: "Small rice", price: 150, eat: true, stress: -0.01, health: 0.03, min: 5 }] },
+    { name: "Drinks", items: [
+      { id: "beer", name: "Draught beer", price: 600, eat: true, stress: -0.10, health: -0.02, min: 15 },
+      { id: "barleytea", name: "Barley tea", price: 150, eat: true, stress: -0.02, health: 0.01, min: 3 },
+      { id: "colaglass", name: "Cola", price: 200, eat: true, stress: -0.02, health: 0, min: 3 }] }],
+  sushi: [
+    { name: "Plates", items: [
+      { id: "nigiri", name: "Nigiri set", price: 1800, eat: true, stress: -0.12, health: 0.14, min: 30 },
+      { id: "salmon", name: "Salmon plate", price: 300, eat: true, stress: -0.03, health: 0.04, min: 6 },
+      { id: "tuna", name: "Tuna roll", price: 450, eat: true, stress: -0.04, health: 0.05, min: 8 },
+      { id: "tamago", name: "Tamago", price: 150, eat: true, stress: -0.015, health: 0.02, min: 4 }] },
+    { name: "Soup and tea", items: [
+      { id: "misosoup", name: "Miso soup", price: 200, eat: true, stress: -0.03, health: 0.04, min: 5 },
+      { id: "greentea", name: "Green tea", price: 150, eat: true, stress: -0.02, health: 0.01, min: 3 }] }],
+  pharmacy: [
+    { name: "Medicine", items: [
+      { id: "painkiller", name: "Painkillers", price: 780 }, { id: "eyedrops", name: "Eye drops", price: 620 },
+      { id: "vitamins", name: "Vitamin tablets", price: 980 }, { id: "sleepaid", name: "Sleep aid", price: 1480 },
+      { id: "plasters", name: "Plasters", price: 380 }] },
+    { name: "Care", items: [
+      { id: "mask", name: "Face masks, 30", price: 400, plain: true }, { id: "handcream", name: "Hand cream", price: 520, plain: true },
+      { id: "tissues", name: "Pocket tissues", price: 120, plain: true }] }],
+  books: [
+    { name: "Manga", items: [
+      { id: "mangaA", name: "Shonen Salaryman 12", price: 680, read: true, stress: -0.06, min: 30 },
+      { id: "mangaB", name: "Last Train Romance 3", price: 680, read: true, stress: -0.06, min: 30 },
+      { id: "mangaC", name: "Cat Station Master 1", price: 700, read: true, stress: -0.07, min: 30 }] },
+    { name: "Novels", items: [
+      { id: "novelA", name: "The Quiet Platform", price: 1200, read: true, stress: -0.08, min: 60 },
+      { id: "novelB", name: "A Year in Mizuho", price: 1300, read: true, stress: -0.09, min: 60 }] },
+    { name: "Business", items: [
+      { id: "bizA", name: "How to Say No (Gently)", price: 1600, read: true, stress: -0.04, min: 45 },
+      { id: "bizB", name: "Nap Better", price: 1400, read: true, stress: -0.05, min: 45 },
+      { id: "bizC", name: "Going Home on Time", price: 1500, read: true, stress: 0.03, min: 45 }] }],
+  clothes: [
+    { name: "Dress shirts", items: SHIRTS.map((c, i) => ({ id: "shirt" + i, name: c[0] + " shirt", price: 3900, shirt: c[1] })) },
+    { name: "Everyday", items: [
+      { id: "socks", name: "Business socks, black", price: 390, plain: true },
+      { id: "towel", name: "Face towel", price: 480, plain: true },
+      { id: "umbrella", name: "Clear vinyl umbrella", price: 550 }] }]
+};
+// medicine lives in the bag
+ITEMS.push(
+  { id: "painkiller", name: "Painkillers", cat: "med", health: 0.18, stress: -0.01, note: "For the head" },
+  { id: "eyedrops",   name: "Eye drops",   cat: "med", health: 0.02, stress: -0.04, note: "Screens" },
+  { id: "vitamins",   name: "Vitamins",    cat: "med", health: 0.10, stress: -0.02, note: "Orange" },
+  { id: "sleepaid",   name: "Sleep aid",   cat: "med", health: 0.00, stress: -0.22, note: "Drowsy", min: 90 },
+  { id: "plasters",   name: "Plasters",    cat: "med", health: 0.08, stress: 0, note: "For scrapes" });
+ITEMS.forEach(i => { ITEM[i.id] = i; });
+WHEEL_CATS.splice(7, 0, { id: "med", name: "Medicine", colour: "#e0587a", empty: "No medicine" });
+
+// Changing into a shirt: the albedo is one texture, so the shirt is found in it
+// by being bright and grey, and re-tinted; skin and hair and trousers are left.
+const seikoSkin = { base: null, canvas: null };
+function setSeikoShirt(hex) {
+  player.shirtHex = hex;
+  const o = player.glb; if (!o) return;
+  o.traverse(m => {
+    if (!m.isMesh) return;
+    const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+    if (!mat || !mat.map || !mat.map.image) return;
+    try {
+      if (!seikoSkin.base) {
+        const img = mat.map.image, c = document.createElement("canvas");
+        c.width = img.width; c.height = img.height; const cg = c.getContext("2d"); cg.drawImage(img, 0, 0);
+        seikoSkin.base = cg.getImageData(0, 0, c.width, c.height); seikoSkin.canvas = c; seikoSkin.flip = mat.map.flipY; seikoSkin.enc = mat.map.encoding;
+      }
+      const b = seikoSkin.base, id = new ImageData(new Uint8ClampedArray(b.data), b.width, b.height), d = id.data, t = hexRGB(hex);
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i + 1], bl = d[i + 2], mx = Math.max(r, g, bl), mn = Math.min(r, g, bl), lum = (r + g + bl) / 3;
+        if (lum > 140 && (mx - mn) < 0.16 * mx) { const k = 0.55 + 0.45 * lum / 255; d[i] = t[0] * k; d[i + 1] = t[1] * k; d[i + 2] = t[2] * k; }
+      }
+      seikoSkin.canvas.getContext("2d").putImageData(id, 0, 0);
+      const tex = new THREE.CanvasTexture(seikoSkin.canvas);
+      tex.flipY = seikoSkin.flip; tex.encoding = seikoSkin.enc; tex.anisotropy = 4;
+      mat.map = tex; mat.needsUpdate = true;
+    } catch (e) { /* a tainted texture cannot be read; he keeps his shirt */ }
+  });
+}
+
+// What is on a shelf, drawn as the thing it is.
+function shelfIcon(g, it, cx, cy, r) {
+  if (ITEM[it.id]) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] }, cx, cy, r, false); return; }
+  if (it.phone) { wheelIcon(g, { kind: "phone", id: it.id }, cx, cy, r, false); return; }
+  if (it.carry) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] || { cat: "audio" } }, cx, cy, r, false); return; }
+  const u = r / 50;
+  g.save(); g.translate(cx, cy); g.lineCap = "round"; g.lineJoin = "round";
+  const rect = (x, y, w, h, rad, c) => { roundRect(g, x * u, y * u, w * u, h * u, rad * u); g.fillStyle = c; g.fill(); };
+  const id = it.id;
+  if (it.shirt) {
+    g.fillStyle = it.shirt; g.beginPath();
+    g.moveTo(-14*u, -36*u); g.lineTo(-38*u, -22*u); g.lineTo(-30*u, -2*u); g.lineTo(-20*u, -8*u); g.lineTo(-20*u, 38*u); g.lineTo(20*u, 38*u); g.lineTo(20*u, -8*u); g.lineTo(30*u, -2*u); g.lineTo(38*u, -22*u); g.lineTo(14*u, -36*u); g.lineTo(0, -26*u); g.closePath(); g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 2*u; g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.beginPath(); g.moveTo(-14*u, -36*u); g.lineTo(0, -22*u); g.lineTo(14*u, -36*u); g.lineTo(0, -26*u); g.closePath(); g.fill();
+    g.fillStyle = "rgba(0,0,0,0.28)"; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(0, (-12 + k * 12) * u, 1.8*u, 0, 7); g.fill(); }
+  } else if (it.read) {
+    const cols = { mangaA: "#e8503a", mangaB: "#e87aa8", mangaC: "#e8b23a", novelA: "#2a4a7a", novelB: "#2f6f4a", bizA: "#14213a", bizB: "#6a4a8a", bizC: "#c0392b" };
+    rect(-24, -38, 48, 76, 3, cols[id] || "#445"); rect(-24, -38, 7, 76, 2, "rgba(0,0,0,0.3)");
+    rect(-12, -26, 30, 24, 2, "rgba(255,255,255,0.88)"); rect(-12, 6, 24, 4, 1, "rgba(255,255,255,0.7)"); rect(-12, 14, 16, 4, 1, "rgba(255,255,255,0.5)");
+  } else if (it.eat) {
+    const soupy = /ramen|tsukemen|soup/i.test(it.name);
+    if (soupy) {
+      g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 3*u; for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(k*12*u, -22*u); g.quadraticCurveTo(k*12*u+5*u, -30*u, k*12*u, -38*u); g.stroke(); }
+      g.fillStyle = "#e8e2d4"; g.beginPath(); g.moveTo(-38*u, -8*u); g.lineTo(38*u, -8*u); g.quadraticCurveTo(34*u, 34*u, 0, 36*u); g.quadraticCurveTo(-34*u, 34*u, -38*u, -8*u); g.fill();
+      g.fillStyle = id === "miso" ? "#c98a3a" : id === "tonkotsu" ? "#efe3c4" : "#a8642a"; g.beginPath(); g.ellipse(0, -8*u, 34*u, 9*u, 0, 0, 7); g.fill();
+      g.fillStyle = "#f6d34a"; g.beginPath(); g.arc(-10*u, -10*u, 6*u, 0, 7); g.fill(); g.fillStyle = "#e9795a"; g.fillRect(8*u, -14*u, 14*u, 6*u);
+    } else if (/nigiri|salmon|tuna|tamago/.test(id)) {
+      rect(-34, 4, 68, 30, 6, "#f4efe0"); rect(-34, -12, 68, 20, 8, id === "tuna" ? "#c0392b" : id === "tamago" ? "#f2c230" : "#f08a6a"); rect(-6, -12, 12, 46, 0, "#14171b");
+    } else if (id === "beer") {
+      rect(-18, -30, 36, 64, 6, "#f0b429"); rect(-20, -38, 40, 14, 7, "#fff"); rect(18, -16, 14, 32, 7, "rgba(255,255,255,0.0)");
+      g.strokeStyle = "#cfd5da"; g.lineWidth = 4*u; g.beginPath(); g.arc(26*u, 0, 12*u, -1.2, 1.2); g.stroke();
+    } else if (/gyoza|karaage/.test(id)) {
+      for (let k = 0; k < 3; k++) { g.fillStyle = id === "gyoza" ? "#e8c88a" : "#c9822a"; g.beginPath(); g.ellipse((-20 + k*20)*u, (k % 2 ? 6 : -8)*u, 15*u, 10*u, 0.3, 0, 7); g.fill(); }
+    } else { rect(-24, -8, 48, 36, 8, "#f4efe0"); rect(-20, -16, 40, 12, 6, "#fff"); }
+  } else if (id === "mask") { rect(-30, -16, 60, 32, 10, "#f2f6f8"); g.strokeStyle = "#9fb4c4"; g.lineWidth = 3*u; [-6, 0, 6].forEach(y => { g.beginPath(); g.moveTo(-22*u, y*u); g.lineTo(22*u, y*u); g.stroke(); });
+  } else if (id === "handcream") { rect(-14, -30, 28, 56, 8, "#f0a8c0"); rect(-10, -38, 20, 12, 4, "#fff"); rect(-14, -4, 28, 14, 0, "#fff");
+  } else if (id === "tissues") { rect(-26, -20, 52, 40, 6, "#8fc1ea"); rect(-18, -26, 36, 10, 4, "#fff");
+  } else if (id === "socks") { g.fillStyle = "#1c1e23"; g.beginPath(); g.moveTo(-10*u, -36*u); g.lineTo(14*u, -36*u); g.lineTo(14*u, 8*u); g.lineTo(34*u, 20*u); g.quadraticCurveTo(38*u, 36*u, 20*u, 36*u); g.lineTo(-10*u, 20*u); g.closePath(); g.fill(); rect(-10, -36, 24, 8, 2, "#8d96a3");
+  } else if (id === "towel") { rect(-30, -26, 60, 52, 6, "#9fd0e8"); for (let k = 0; k < 4; k++) rect(-30, -26 + k * 14, 60, 5, 0, "rgba(255,255,255,0.5)");
+  } else { rect(-26, -26, 52, 52, 8, "#8d96a3"); }
+  g.restore();
+}
+
+
 // What is in the bag. Phones are a set of the ones you are not using: the one
 // in your hand is `phone.device`, and swapping to another throws the old one
 // away, because nobody keeps three phones. Games, consoles and the watch are
@@ -17801,7 +18144,8 @@ function consumeItem(id) {
   if (!it || !bagTake(id)) return false;
   if (it.stress) vitals.stress = clamp01(vitals.stress + it.stress);
   if (it.health) vitals.health = clamp01(vitals.health + it.health);
-  say((it.cat === "drink" ? "Drank " : "Ate ") + it.name.toLowerCase() + ".", 3);
+  if (it.min) advanceGameMinutes(it.min);
+  say((it.cat === "drink" ? "Drank " : it.cat === "med" ? "Took " : "Ate ") + it.name.toLowerCase() + ".", 3);
   return true;
 }
 
@@ -17829,7 +18173,7 @@ function equipFromWheel() {
       if (typeof consoleInsertGame === "function" && consoleInsertGame(it.id)) break;
       say(it.name + " in hand.", 2.5);
       break;
-    case "food": case "drink":
+    case "food": case "drink": case "med":
       consumeItem(it.id);
       break;
     case "tech":
@@ -18190,6 +18534,11 @@ function wheelIcon(g, e, cx, cy, r, ghost) {
     case "cola":
       rect(-17, -38, 34, 76, 6, "#c4161c"); rect(-17, -38, 34, 9, 5, "#c9ccd2"); rect(-17, 29, 34, 9, 5, "#c9ccd2");
       g.beginPath(); g.moveTo(-17*u, -6*u); g.quadraticCurveTo(0, 10*u, 17*u, -6*u); g.lineTo(17*u, 4*u); g.quadraticCurveTo(0, 20*u, -17*u, 4*u); g.closePath(); fill("#ffffff"); break;
+    case "painkiller": rect(-22, -30, 44, 60, 5, "#f2f4f6"); rect(-22, -30, 44, 16, 5, "#d8483c"); g.fillStyle = "#d8483c"; g.fillRect(-4*u, -4*u, 8*u, 24*u); g.fillRect(-12*u, 4*u, 24*u, 8*u); break;
+    case "eyedrops": rect(-9, -8, 18, 44, 7, "#8fc1ea"); rect(-6, -30, 12, 24, 3, "#f2f4f6"); rect(-3, -38, 6, 10, 2, "#1d6fd6"); g.fillStyle = "#8fc1ea"; g.beginPath(); g.arc(20*u, 28*u, 4*u, 0, 7); g.fill(); break;
+    case "vitamins": rect(-20, -30, 40, 58, 8, "#f08a2c"); rect(-20, -34, 40, 12, 5, "#ffffff"); g.fillStyle = "#fff"; g.beginPath(); g.arc(0, 4*u, 12*u, 0, 7); g.fill(); g.fillStyle = "#f08a2c"; g.font = "900 " + Math.round(16*u) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("C", 0, 5*u); break;
+    case "sleepaid": rect(-28, -22, 56, 44, 7, "#3a2a7a"); g.fillStyle = "#ffe08a"; g.beginPath(); g.arc(-6*u, 0, 12*u, 0.5, 5.8); g.fill(); g.fillStyle = "#3a2a7a"; g.beginPath(); g.arc(0, -3*u, 10*u, 0.5, 5.8); g.fill(); break;
+    case "plasters": rect(-34, -12, 68, 24, 12, "#f0c9a0"); rect(-12, -12, 24, 24, 0, "#f8e6cf"); g.fillStyle = "rgba(0,0,0,0.18)"; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc((-26 + k*8)*u, 0, 1.4*u, 0, 7); g.fill(); g.beginPath(); g.arc((18 + k*8)*u, 0, 1.4*u, 0, 7); g.fill(); } break;
     case "charger":
       rect(-20, -20, 40, 44, 7, "#f4f5f7"); rect(-10, -32, 5, 13, 1.5, "#9aa0a8"); rect(5, -32, 5, 13, 1.5, "#9aa0a8");
       rect(-6, 28, 12, 14, 3, "#f4f5f7"); g.fillStyle = "#31b36b"; g.beginPath(); g.arc(0, 2*u, 5*u, 0, 7); g.fill(); break;
