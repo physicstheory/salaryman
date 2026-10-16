@@ -720,11 +720,14 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.fillStyle = colour;
     g.beginPath(); g.arc(c, m, u * 0.2, 0, 6.2832); g.fill();
   } else if (glyph === "mynet") {
-    const q = g.createLinearGradient(x, y + s, x + s, y); q.addColorStop(0, "#7b2cbf"); q.addColorStop(0.5, "#e8435a"); q.addColorStop(1, "#fdb54e");
+    // the warm-to-cool wash of the photo apps, from the bottom left, with a camera drawn on it
+    const q = g.createRadialGradient(x + s * 0.28, y + s * 1.02, s * 0.02, x + s * 0.28, y + s * 1.02, s * 1.25);
+    q.addColorStop(0, "#fdf497"); q.addColorStop(0.08, "#fdf497"); q.addColorStop(0.42, "#fd5949"); q.addColorStop(0.62, "#d6249f"); q.addColorStop(0.95, "#285aeb");
     g.fillStyle = q; g.fillRect(x, y, s, s);
-    g.strokeStyle = "#ffffff"; g.lineWidth = s * 0.07; g.lineJoin = "round";
-    g.beginPath(); g.moveTo(c - u * 0.52, m + u * 0.40); g.lineTo(c - u * 0.52, m - u * 0.38); g.lineTo(c, m + u * 0.10); g.lineTo(c + u * 0.52, m - u * 0.38); g.lineTo(c + u * 0.52, m + u * 0.40); g.stroke();
-    g.fillStyle = "#ffffff"; g.beginPath(); g.arc(c + u * 0.50, m - u * 0.62, s * 0.045, 0, 7); g.fill();
+    g.strokeStyle = "#ffffff"; g.fillStyle = "#ffffff"; g.lineWidth = s * 0.075;
+    roundRect(g, x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6, s * 0.17); g.stroke();
+    g.beginPath(); g.arc(c, m, s * 0.14, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.arc(x + s * 0.675, y + s * 0.325, s * 0.04, 0, Math.PI * 2); g.fill();
   } else if (glyph === "soti") {
     g.fillStyle = "#f4f6f8";
     g.font = "400 " + Math.round(s * 0.26) + "px " + SERIF;
@@ -3304,6 +3307,7 @@ function mnImg(p) { if (!p.img) p.img = p.you ? p.photo : mnScene(p.scene, 320);
 function mynetInit() {
   if (mynet.ready) return;
   mynet.ready = true;
+  try { if (document.fonts && document.fonts.load) document.fonts.load('40px "Grand Hotel"').then(() => { phone.dirty = true; }).catch(() => {}); } catch (e) {}
   mynetLoadKey();
   for (let i = 0; i < 7; i++) mynet.feed.push(mnFeedPost(10 + i * 37 + Math.random() * 20));
   mynet.feed.sort((a, b) => b.t - a.t);
@@ -3673,10 +3677,12 @@ function mnWrap(g, text, x, y, max, lh, lines, size, col, weight) {
   return Math.min(all.length, lines);
 }
 
+const MN_SCRIPT = '"Grand Hotel", "Segoe Script", "Snell Roundhand", "Brush Script MT", "Lucida Handwriting", "URW Chancery L", "Z003", cursive';
+
 function mnGradText(g, text, x, y, size) {
-  g.font = "italic 800 " + Math.round(size) + "px " + UI; g.textAlign = "left"; g.textBaseline = "alphabetic";
-  const w = g.measureText(text).width, q = g.createLinearGradient(x, y - size, x + w, y); q.addColorStop(0, "#c13584"); q.addColorStop(0.55, "#fd5949"); q.addColorStop(1, "#fdb54e");
-  g.fillStyle = q; g.fillText(text, x, y);
+  // a hand-lettered wordmark, white like the one it is not quite copying
+  g.font = "400 " + Math.round(size * 1.25) + "px " + MN_SCRIPT; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = MN_INK; g.fillText(text, x, y);
 }
 
 function mnHeader(g, W, H) {
