@@ -14658,11 +14658,11 @@ function buildMallSigns(root) {
     g.fillStyle = "#d4152c"; g.fillRect(0, 0, 1024, 256);
     g.fillStyle = "#ffd21c"; g.fillRect(0, 214, 1024, 42);
     g.fillStyle = "#14171b"; for (let x = 0; x < 1024; x += 64) g.fillRect(x, 214, 32, 42);
-    g.fillStyle = "#ffffff"; g.font = "900 120px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
-    g.fillText("DOKOTO", 150, 90);
-    g.fillStyle = "#ffd21c"; g.font = "800 72px " + UI; g.fillText("CAMERA", 150, 170);
+    g.fillStyle = "#ffffff"; g.font = "900 100px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText("DOKOTO", 150, 84);
+    g.fillStyle = "#ffd21c"; g.font = "800 66px " + UI; g.fillText("CAMERA", 150, 164);
     g.fillStyle = "#ffffff"; g.font = "900 78px " + JP; g.textAlign = "right"; g.fillText("ドコトカメラ", 990, 80);
-    g.font = "700 40px " + JP; g.fillStyle = "#ffe9a0"; g.fillText("スマホ・ゲーム・カメラ", 990, 160);
+    g.font = "700 36px " + JP; g.fillStyle = "#ffe9a0"; g.fillText("スマホ・ゲーム・カメラ", 990, 160);
     g.fillStyle = "#ffffff"; g.beginPath(); g.arc(78, 120, 52, 0, 7); g.fill();
     g.fillStyle = "#14171b"; g.beginPath(); g.arc(78, 120, 38, 0, 7); g.fill();
     g.fillStyle = "#3a4a8a"; g.beginPath(); g.arc(78, 120, 22, 0, 7); g.fill();
@@ -14804,7 +14804,7 @@ function drawMall() {
   g.fillStyle = "#d4152c"; g.fillRect(0, 0, W, H * 0.105);
   g.fillStyle = "#ffd21c"; g.fillRect(0, H * 0.105, W, H * 0.014);
   T("DOKOTO CAMERA", W * 0.03, H * 0.052, H * 0.055, "#fff", "left", "900");
-  T(s.city || "", W * 0.30, H * 0.054, H * 0.030, "#ffd0d5", "left", "600");
+  T(s.city || "", W * 0.36, H * 0.054, H * 0.030, "#ffd0d5", "left", "600");
   T(yenText(purse.yen), W * 0.97, H * 0.052, H * 0.040, "#fff", "right", "700");
 
   if (mall.mode === "lift" || mall.mode === "ride") {
@@ -14923,19 +14923,19 @@ function drawMall() {
   if (list[cur + 1]) show(list[cur + 1], cx + W * 0.28, 0.62, true);
   if (it) show(it, cx, 1, false);
   if (it) {
-    T(it.name, cx, H * 0.77, H * 0.048, "#14171b", "center", "800");
+    T(it.name, cx, H * 0.755, H * 0.046, "#14171b", "center", "800");
     let spec = it.note;
-    if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + "  ·  " + d.chip + "  ·  " + d.camera; }
-    T(spec, cx, H * 0.82, H * 0.026, "#4a4d52", "center", "500");
-    T(yenText(it.price), cx, H * 0.885, H * 0.058, "#c0172b", "center", "800");
-    if (it.kind === "phone") T(DEVICES[it.id].colours[clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1)][0], cx, H * 0.925, H * 0.028, "#4a4d52", "center", "600");
-    if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) T("Colour: " + CONSOLE_COLOURS[it.id][mall.colour % CONSOLE_COLOURS[it.id].length][0] + "   ·   sent by delivery", cx, H * 0.925, H * 0.028, "#4a4d52", "center", "600");
+    if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + "  \u00b7  " + d.chip + "  \u00b7  " + d.camera; }
+    T(spec, cx, H * 0.800, H * 0.025, "#4a4d52", "center", "500");
+    T(yenText(it.price), cx, H * 0.860, H * 0.054, "#c0172b", "center", "800");
+    if (it.kind === "phone") T(DEVICES[it.id].colours[clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1)][0], cx, H * 0.912, H * 0.028, "#4a4d52", "center", "600");
+    if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) T("Colour: " + CONSOLE_COLOURS[it.id][mall.colour % CONSOLE_COLOURS[it.id].length][0] + "   \u00b7   sent by delivery", cx, H * 0.912, H * 0.028, "#4a4d52", "center", "600");
     T((cur + 1) + " / " + list.length, W * 0.97, H * 0.165, H * 0.028, "#4a4d52", "right", "600");
   }
   const hint = mall.floor === 1 ? "◀ ▶ model   ▲ ▼ colour   Y try it   A buy   B lift"
              : mall.floor === 0 ? "◀ ▶ case   A fit it   B lift"
              : "◀ ▶ browse   ▲ ▼ colour   A buy   B lift";
-  T(hint, W * 0.5, H * 0.965, H * 0.026, "#4a4d52", "center", "600");
+  T(hint, W * 0.5, H * 0.962, H * 0.025, "#4a4d52", "center", "600");
 }
 
 // Taking something off the shelf pays for it there and then, which is what a
