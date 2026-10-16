@@ -13970,41 +13970,93 @@ function drawSiteBody(g, W, H, site) {
 }
 
 // ---- Camera
+// What the lens and the sensor in your hand can do. The SOTIs take the better
+// photographs and the Pears have the nicer software, which is the argument.
+function cameraProfile() {
+  const d = dev();
+  const z = /(\d+)x zoom/.exec(d.camera || ""), m = /(\d+(?:\.\d+)?) MP/.exec(d.camera || "");
+  return { zmax: d.ui === "basic" ? 1 : (z ? +z[1] : 2), mp: m ? +m[1] : 0.3, cam: d.cam, soti: d.maker === "soti", basic: d.ui === "basic" };
+}
+let lensGrainTex = null;
+function lensGrain() {
+  if (lensGrainTex) return lensGrainTex;
+  const c = document.createElement("canvas"); c.width = c.height = 96;
+  const g = c.getContext("2d"), id = g.createImageData(96, 96);
+  for (let i = 0; i < id.data.length; i += 4) { const v = Math.random() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
+  g.putImageData(id, 0, 0); lensGrainTex = c; return c;
+}
+// Draw the world into a rectangle as this phone would see it: cropped for the
+// zoom, softer the more it is zoomed and the worse the sensor, grainy when
+// the sensor is poor, chunky on a keypad phone, and given the maker's look.
+function drawThroughLens(g, src, x, y, w, h, zoom, prof) {
+  const ar = w / h;
+  let sw = src.width / zoom, sh = sw / ar;
+  if (sh > src.height / zoom) { sh = src.height / zoom; sw = sh * ar; }
+  const sx = (src.width - sw) / 2, sy = (src.height - sh) / 2;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  if (prof.basic) {
+    const t = document.createElement("canvas"); t.width = 80; t.height = Math.round(80 / ar);
+    t.getContext("2d").drawImage(src, sx, sy, sw, sh, 0, 0, t.width, t.height);
+    g.imageSmoothingEnabled = false; g.filter = "saturate(0.65) contrast(0.92)";
+    g.drawImage(t, x, y, w, h); g.filter = "none"; g.imageSmoothingEnabled = true;
+  } else {
+    const soft = Math.max(0, (zoom / prof.zmax) * (10 - prof.cam) * 0.34 + (10 - prof.cam) * 0.10);
+    const look = prof.soti ? "saturate(1.22) contrast(1.08)" : "saturate(1.06) contrast(1.02) sepia(0.06)";
+    g.filter = (soft > 0.25 ? "blur(" + soft.toFixed(1) + "px) " : "") + look;
+    g.drawImage(src, sx, sy, sw, sh, x, y, w, h);
+    g.filter = "none";
+  }
+  const noise = (10 - prof.cam) * 0.011 + (zoom - 1) * 0.004;
+  if (noise > 0.01) { g.globalAlpha = Math.min(0.22, noise); g.globalCompositeOperation = "overlay"; g.fillStyle = g.createPattern(lensGrain(), "repeat"); g.fillRect(x, y, w, h); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+  g.restore();
+}
+
 function appCamera(g, W, H) {
+  const prof = cameraProfile(), pear = isPear(), zoom = clamp(phone.zoom || 1, 1, prof.zmax);
   g.fillStyle = "#000000";
   g.fillRect(0, 0, W, H);
-  // The viewfinder shows the last frame the game drew, which is what the
-  // camera is actually pointed at.
   const src = frameGrab.ok ? frameGrab.canvas : null;
   const vy = H * 0.14, vh = H * 0.56;
-  if (src) {
-    try {
-      const ar = src.width / Math.max(1, src.height);
-      const dw = W * 0.90, dh = dw / ar;
-      g.drawImage(src, W * 0.05, vy + (vh - dh) * 0.5, dw, dh);
-    } catch (e) {}
-  }
+  if (src) { try { drawThroughLens(g, src, W * 0.05, vy, W * 0.90, vh, zoom, prof); } catch (e) {} }
   g.strokeStyle = "rgba(255,255,255,0.30)"; g.lineWidth = W * 0.004;
   g.strokeRect(W * 0.05, vy, W * 0.90, vh);
-  // rule of thirds
   g.strokeStyle = "rgba(255,255,255,0.14)";
   for (let i = 1; i < 3; i++) {
     g.beginPath(); g.moveTo(W * 0.05, vy + vh * i / 3); g.lineTo(W * 0.95, vy + vh * i / 3); g.stroke();
     g.beginPath(); g.moveTo(W * 0.05 + W * 0.9 * i / 3, vy); g.lineTo(W * 0.05 + W * 0.9 * i / 3, vy + vh); g.stroke();
   }
-  g.fillStyle = "#ffffff";
-  g.font = "600 " + Math.round(W * 0.042) + "px " + UI;
+  g.textAlign = "center"; g.textBaseline = "middle";
+  // zoom stops: the ones this lens has, with the one you are on lit
+  if (prof.zmax > 1) {
+    const stops = [1, 2, 3, 5, 8, 10].filter(v => v <= prof.zmax);
+    const cur = stops.reduce((a, v) => Math.abs(v - zoom) < Math.abs(a - zoom) ? v : a, 1);
+    const cw = W * 0.092, gap = W * 0.016, total = stops.length * cw + (stops.length - 1) * gap;
+    stops.forEach((v, i) => {
+      const cx = (W - total) / 2 + i * (cw + gap) + cw / 2, cy = vy + vh - H * 0.035, on = v === cur;
+      g.fillStyle = on ? (pear ? "#ffd60a" : "#ffffff") : "rgba(0,0,0,0.5)"; g.beginPath(); g.arc(cx, cy, cw / 2, 0, 7); g.fill();
+      g.fillStyle = on ? "#000" : "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.fillText(on ? zoom.toFixed(zoom % 1 ? 1 : 0) : String(v), cx, cy + 1);
+    });
+  }
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI; g.textAlign = "left";
+  g.fillText(prof.mp + " MP" + (prof.basic ? "  \u00b7  fixed focus" : ""), W * 0.07, vy + H * 0.028);
   g.textAlign = "center";
-  g.fillText("PHOTO", W * 0.5, H * 0.755);
-  // shutter
+  if (pear) {
+    g.fillStyle = "#ffd60a"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI; g.fillText("PHOTO", W * 0.5, H * 0.752);
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("VIDEO", W * 0.30, H * 0.752); g.fillText("PORTRAIT", W * 0.72, H * 0.752);
+  } else {
+    g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI; g.fillText("PHOTO", W * 0.5, H * 0.752);
+    g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+    g.fillText("MORE", W * 0.24, H * 0.752); g.fillText("VIDEO", W * 0.76, H * 0.752);
+  }
   g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.012;
   g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.105, 0, Math.PI * 2); g.stroke();
   g.fillStyle = phone.sub === 0 ? "#ffffff" : "rgba(255,255,255,0.85)";
   g.beginPath(); g.arc(W * 0.5, H * 0.845, W * 0.088, 0, Math.PI * 2); g.fill();
   g.fillStyle = "rgba(255,255,255,0.65)";
-  g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-  g.fillText(phone.gallery.length + " in the gallery", W * 0.5, H * 0.935);
-  g.textAlign = "left";
+  g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText(phone.gallery.length + " in the gallery" + (prof.zmax > 1 ? "   \u00b7   \u25b2 \u25bc zoom" : ""), W * 0.5, H * 0.935);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
   g.fillStyle = "rgba(255,255,255,0.55)";
   phoneNavBar(g, W, H);
 }
@@ -14660,8 +14712,7 @@ function appHealth(g, W, H) {
   g.fillText("Games and food take the edge off. Days awake add to it.", px, H * 0.855);
 }
 
-function appSettings(g, W, H) {
-  phoneChrome(g, W, H, "Settings", "SOTI So24");
+function settingsRows() {
   const rows = [
     ["Owner", "Shigu Seiko"],
     ["Balance", yenText(purse.yen)],
@@ -14673,10 +14724,23 @@ function appSettings(g, W, H) {
     ["Spotify", spotify.state === "ready" ? "Signed in"
       : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
   ];
-  rows.forEach((r, i) => {
+  if (isPear()) {
+    rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)].name],
+                      ["Accent colour  \u25c0 \u25b6", PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][0]]);
+  }
+  rows.splice(isPear() ? 3 : 1, 0, ["Handset  \u25c0 \u25b6", dev().name + (dev().colours ? "  \u00b7  " + dev().colours[clamp(phone.colourIdx || 0, 0, dev().colours.length - 1)][0] : "")]);
+  return rows;
+}
+function appSettings(g, W, H) {
+  phoneChrome(g, W, H, "Settings", dev().name);
+  const rows = settingsRows();
+  const vis = 8, first = clamp(phone.sub - 5, 0, Math.max(0, rows.length - vis));
+  rows.forEach((r, i0) => {
+    const i = i0 - first;
+    if (i < 0 || i >= vis) return;
     const rowH = H * 0.070;
     const y = H * PL.listY + i * (rowH + H * 0.011);
-    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i0);
     g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
     g.fillStyle = "#79818b";
     g.textAlign = "right";
@@ -14723,7 +14787,7 @@ function phoneCount() {
   if (phone.app === "Mail") return SCAM_MAIL.length;
   if (phone.app === "Photos") return Math.min(12, phone.gallery.length);
   if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
-  if (phone.app === "Settings") return 8;
+  if (phone.app === "Settings") return settingsRows().length;
   return 0;
 }
 
@@ -14749,6 +14813,18 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Settings" && dx) {
+    const row = settingsRows()[phone.sub] || [""];
+    if (/^Wallpaper/.test(row[0])) { phone.pearWall = ((phone.pearWall || 0) + dx + PEAR_WALLPAPERS.length) % PEAR_WALLPAPERS.length; phone.dirty = true; }
+    else if (/^Accent/.test(row[0])) { phone.pearAccent = ((phone.pearAccent || 0) + dx + PEAR_ACCENTS.length) % PEAR_ACCENTS.length; phone.dirty = true; }
+    else if (/^Handset/.test(row[0]) && dev().colours) { const n = dev().colours.length; phone.colourIdx = ((phone.colourIdx || 0) + dx + n) % n; applyDeviceSkin(); }
+    return;
+  }
+  if (phone.app === "Camera") {
+    const z = cameraProfile().zmax;
+    if (dy && z > 1) { phone.zoom = clamp((phone.zoom || 1) - dy * 0.5, 1, z); phone.dirty = true; }
+    return;
+  }
   if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchMove(dx, dy); return; }
   if (phone.app === "Poodle" && phone.site == null) {
     const cols = 4;
@@ -14898,14 +14974,15 @@ function phoneBack() {
 function takePhotograph() {
   const src = frameGrab.ok ? frameGrab.canvas : null;
   if (!src) { frameGrab.want = true; say("Hold still\u2026", 1.5); return; }
+  const prof = cameraProfile(), zoom = clamp(phone.zoom || 1, 1, prof.zmax);
   const c = document.createElement("canvas");
   c.width = 240; c.height = 240;
   const g2 = c.getContext("2d");
-  const side = Math.min(src.width, src.height);
   try {
-    g2.drawImage(src, (src.width - side) / 2, (src.height - side) / 2, side, side, 0, 0, 240, 240);
+    drawThroughLens(g2, src, 0, 0, 240, 240, zoom, prof);
+    c.meta = { phone: dev().name, zoom: zoom, mp: prof.mp };
     phone.gallery.push(c);
-    say("Photograph saved.", 2.5);
+    say("Photograph saved \u00b7 " + dev().name + " \u00b7 " + (zoom > 1 ? zoom.toFixed(1) + "\u00d7" : prof.mp + " MP"), 3);
   } catch (e) { say("The camera could not save that.", 3); }
 }
 
