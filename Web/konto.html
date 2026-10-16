@@ -1791,7 +1791,10 @@ function planCity(world, F, seed, report, progressBase) {
   const arc = world.arc;
   const citySeed = seed + 611 + site.code.charCodeAt(0) * 37;
   const meanR = Math.sqrt(site.alongRadius * site.inlandRadius);
-  const L = { name: site.name, code: site.code, wards: [], blocks: [], plots: [], roads: [], rails: [], stations: [], fills: [], sites: [], moat: null, scramble: null, bounds: null };
+  // The site definition travels with the city, so anything downstream can ask
+  // what kind of place this is - which is how the coastal towns get built
+  // differently from the capital.
+  const L = { name: site.name, code: site.code, site: site, wards: [], blocks: [], plots: [], roads: [], rails: [], stations: [], fills: [], sites: [], moat: null, scramble: null, bounds: null };
 
   const h01 = (a, b) => rnd(a, b, citySeed + 7717);
   let core = site.coreOffset.slice();
@@ -3061,7 +3064,17 @@ const FACADE_STYLES = {
   houses: { cell: [9.0, 6.0], roof: "tile" },
   shed:   { cell: [14.0, 7.0], roof: "tin" },
   civic:  { cell: [14.0, 13.8], roof: "plant" },
-  deck:   { cell: [8.0, 4.0], roof: "plain" }
+  deck:   { cell: [8.0, 4.0], roof: "plain" },
+
+  // ---- the country styles ---------------------------------------------
+  // Mizuho is Nara: a machiya town. Dark stained timber posts standing proud
+  // of pale plaster, a deep tiled eave, latticed ground floors and a low
+  // first floor with a slatted mushikomado window. The coastal towns are the
+  // same bones in a harder climate - boarded walls, corrugated sheet, rust -
+  // because that is what the sea does to a building.
+  machiya: { cell: [7.2, 5.4], roof: "kawara" },
+  kura:    { cell: [8.4, 6.6], roof: "kawara" },
+  coast:   { cell: [8.0, 5.6], roof: "tin" }
 };
 
 function facadeTexture(style) {
@@ -3078,6 +3091,112 @@ function facadeTexture(style) {
     grd.addColorStop(1, base);
     g.fillStyle = grd;
     g.fillRect(x, y, w, h);
+  }
+
+  // ---- Nara, and the coast ------------------------------------------------
+  // A machiya is read from the street as four horizontal bands: a dark timber
+  // base, a latticed shopfront, a plaster band with a slatted window in it,
+  // and the shadow under a deep eave. Getting those bands and their
+  // proportions right matters far more than any detail inside them.
+  if (style === "machiya" || style === "kura" || style === "coast") {
+    const coast = style === "coast";
+    const kura = style === "kura";
+    // Plaster: pale and warm inland, greyer and saltier on the coast.
+    const wall = coast ? "#b9bcb6" : kura ? "#d8d4c6" : "#cdc6b4";
+    const timber = coast ? "#4a4038" : "#3a2c21";
+    const dark = coast ? "#38302a" : "#271d16";
+    g.fillStyle = wall; g.fillRect(0, 0, S, S);
+
+    // A faint plaster tooth, so it is not a flat fill.
+    for (let i = 0; i < 1400; i++) {
+      const x = R(i, 11) * S, y = R(i, 12) * S;
+      g.fillStyle = R(i, 13) > 0.5 ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.045)";
+      g.fillRect(x, y, 2, 2);
+    }
+
+    // The eave shadow across the top: the single strongest cue that a roof
+    // overhangs, and the thing that makes these read as Japanese rather than
+    // as any old render.
+    const eave = g.createLinearGradient(0, 0, 0, S * 0.17);
+    eave.addColorStop(0, "rgba(0,0,0,0.62)");
+    eave.addColorStop(1, "rgba(0,0,0,0.00)");
+    g.fillStyle = eave; g.fillRect(0, 0, S, S * 0.17);
+    g.fillStyle = timber; g.fillRect(0, 0, S, S * 0.045);
+
+    if (kura) {
+      // A storehouse: thick white plaster, few openings, a black boarded skirt
+      // and the horizontal banding where the plaster was built up in courses.
+      g.fillStyle = "rgba(0,0,0,0.10)";
+      for (let y = S * 0.20; y < S * 0.74; y += S * 0.09) g.fillRect(0, y, S, 2);
+      g.fillStyle = dark; g.fillRect(0, S * 0.74, S, S * 0.26);
+      g.fillStyle = "rgba(255,255,255,0.07)";
+      for (let x = 0; x < S; x += 14) g.fillRect(x, S * 0.74, 2, S * 0.26);
+      // one small barred window, high up
+      g.fillStyle = "#1b1713";
+      g.fillRect(S * 0.40, S * 0.26, S * 0.20, S * 0.13);
+      g.fillStyle = wall;
+      for (let x = 0; x < 4; x++) g.fillRect(S * 0.42 + x * S * 0.045, S * 0.26, 2, S * 0.13);
+    } else {
+      // The first floor: a mushikomado, the slatted plaster window, sitting in
+      // the upper band.
+      const my = S * 0.20, mh = S * 0.20;
+      g.fillStyle = coast ? "#6e6a62" : "#8a8070";
+      g.fillRect(S * 0.12, my, S * 0.76, mh);
+      g.fillStyle = dark;
+      for (let x = S * 0.14; x < S * 0.86; x += S * 0.055) g.fillRect(x, my + 2, S * 0.030, mh - 4);
+      g.fillStyle = "rgba(0,0,0,0.35)";
+      g.fillRect(S * 0.12, my, S * 0.76, 3);
+
+      // The band between the floors, with the timber beam under it.
+      g.fillStyle = timber;
+      g.fillRect(0, S * 0.455, S, S * 0.035);
+      g.fillStyle = "rgba(0,0,0,0.30)";
+      g.fillRect(0, S * 0.490, S, 4);
+
+      // The ground floor: koshi, the timber lattice, over a dark interior.
+      const gy = S * 0.52, gh = S * 0.36;
+      g.fillStyle = coast ? "#2e2a26" : "#201812";
+      g.fillRect(S * 0.06, gy, S * 0.88, gh);
+      g.fillStyle = timber;
+      const bars = coast ? 14 : 22;
+      for (let i = 0; i <= bars; i++) {
+        g.fillRect(S * 0.06 + i * (S * 0.88 / bars), gy, coast ? 3.5 : 2.4, gh);
+      }
+      // two horizontal rails, which every lattice has
+      g.fillRect(S * 0.06, gy + gh * 0.33, S * 0.88, 3);
+      g.fillRect(S * 0.06, gy + gh * 0.70, S * 0.88, 3);
+      // the posts either side, standing proud of the plaster
+      g.fillStyle = timber;
+      g.fillRect(0, S * 0.17, S * 0.055, S * 0.83);
+      g.fillRect(S * 0.945, S * 0.17, S * 0.055, S * 0.83);
+      if (coast) {
+        // Boarding over the plaster, and rust where the fixings are.
+        g.fillStyle = "rgba(60,52,44,0.30)";
+        for (let y = S * 0.20; y < S * 0.46; y += S * 0.035) g.fillRect(0, y, S, S * 0.022);
+        for (let i = 0; i < 26; i++) {
+          const x = R(i, 21) * S, y = S * 0.18 + R(i, 22) * S * 0.30;
+          g.fillStyle = "rgba(128,74,36,0.30)";
+          g.fillRect(x, y, 3, 7 + R(i, 23) * 9);
+        }
+      }
+    }
+
+    // A sill-line stain down the plaster, which every real wall has.
+    for (let i = 0; i < 9; i++) {
+      const x = R(i, 31) * S;
+      const grd = g.createLinearGradient(0, S * 0.17, 0, S * 0.50);
+      grd.addColorStop(0, "rgba(70,62,50,0.16)");
+      grd.addColorStop(1, "rgba(70,62,50,0)");
+      g.fillStyle = grd;
+      g.fillRect(x, S * 0.17, 4 + R(i, 32) * 7, S * 0.33);
+    }
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.anisotropy = renderer && renderer.capabilities.getMaxAnisotropy
+      ? renderer.capabilities.getMaxAnisotropy() : 1;
+    tex.encoding = THREE.sRGBEncoding;
+    return tex;
   }
 
   if (style === "glass") {
@@ -3212,6 +3331,31 @@ function roofTexture(kind) {
   const c = document.createElement("canvas");
   c.width = S; c.height = S;
   const g = c.getContext("2d");
+  if (kind === "kawara") {
+    // Japanese pantiles: a run of half-round ridges with a dark shadow in
+    // every valley, which is what makes a Nara roof read at a distance.
+    g.fillStyle = "#3f4348"; g.fillRect(0, 0, S, S);
+    const pitch = 16;
+    for (let x = 0; x < S; x += pitch) {
+      const grd = g.createLinearGradient(x, 0, x + pitch, 0);
+      grd.addColorStop(0.00, "#2b2f34");
+      grd.addColorStop(0.34, "#5a6068");
+      grd.addColorStop(0.62, "#4a5058");
+      grd.addColorStop(1.00, "#2b2f34");
+      g.fillStyle = grd;
+      g.fillRect(x, 0, pitch, S);
+    }
+    // the courses running across, with the lap shadow under each
+    for (let y = 0; y < S; y += 22) {
+      g.fillStyle = "rgba(0,0,0,0.34)";
+      g.fillRect(0, y, S, 3);
+      g.fillStyle = "rgba(255,255,255,0.05)";
+      g.fillRect(0, y + 3, S, 2);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }
   if (kind === "tile") {
     g.fillStyle = "#3a4048"; g.fillRect(0, 0, S, S);
     g.fillStyle = "#454c55";
@@ -3482,7 +3626,29 @@ function buildSotiTower(plot) {
   return group;
 }
 
-function facadeStyleFor(kind) {
+// Which town a building stands in decides how it is built. Tokonto is the
+// modern city; Mizuho is a Nara machiya town; the coastal towns are the same
+// bones weathered by the sea. Without this every settlement on the island is
+// the same grey boxes at different sizes, which is what they were.
+function facadeStyleFor(kind, region) {
+  if (region === "nara") {
+    switch (kind) {
+      case "houses": case "flats": return "machiya";
+      case "shop": return "machiya";
+      case "civic": case "campus": return "kura";
+      case "factory": case "shed": case "wharf": return "kura";
+      case "midrise": case "office": return "machiya";
+      default: return "machiya";
+    }
+  }
+  if (region === "coast") {
+    switch (kind) {
+      case "houses": case "flats": case "shop": return "coast";
+      case "factory": case "shed": case "wharf": return "coast";
+      case "civic": case "campus": return "kura";
+      default: return "coast";
+    }
+  }
   switch (kind) {
     case "landmark": case "tower": return "glass";
     case "office": return rnd(0, 0, 1) > 2 ? "glass" : "office";
@@ -4493,6 +4659,10 @@ function buildScene(w) {
 
   // ---- city ground overlays
   w.cities.forEach(city => {
+    // Mizuho is the Nara town; the six on the coast are its weathered
+    // cousins; Tokonto is the modern city and keeps the glass and concrete.
+    const region = city.name === "Mizuho" ? "nara"
+                 : (city.site && city.site.coastal) ? "coast" : null;
     const paint = paintCity(w, city, city.plots.length > 200 ? 3072 : 1024);
     const tex = new THREE.CanvasTexture(paint.canvas);
     tex.encoding = THREE.sRGBEncoding;
@@ -4558,14 +4728,25 @@ function buildScene(w) {
           const cellX = p.size[0] / nx, cellZ = p.size[1] / nz;
           const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5), -p.size[1] * 0.5 + cellZ * (iz + 0.5)];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
-          boxes.push({ c: wc, size: [cellX * 0.78, cellZ * 0.78], yaw: p.yaw, y: p.groundY, h: lerp(5.5, p.height, hr * 0.7), style: "houses" });
+          // A machiya is narrow, deep and two storeys; a generic house box is
+          // square and squat. The footprint changes with the region, not only
+          // the texture, or it still reads as a suburb with a new paint job.
+          const hs = region === "nara"
+            ? [cellX * 0.90, cellZ * 0.62]
+            : region === "coast" ? [cellX * 0.84, cellZ * 0.74]
+            : [cellX * 0.78, cellZ * 0.78];
+          const hh = region === "nara" ? lerp(6.4, 7.8, hr)
+                   : region === "coast" ? lerp(4.6, 6.4, hr)
+                   : lerp(5.5, p.height, hr * 0.7);
+          boxes.push({ c: wc, size: hs, yaw: p.yaw, y: p.groundY, h: hh,
+                       style: facadeStyleFor("houses", region) });
         }
         return;
       }
       const setback = p.kind === "shop" ? 0.6 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
       const size = [Math.max(3, p.size[0] - setback * 2), Math.max(3, p.size[1] - setback * 2)];
       const top = p.kind === "landmark" ? p.height : p.height * lerp(0.55, 1, r);
-      const style = facadeStyleFor(p.kind);
+      const style = facadeStyleFor(p.kind, region);
       // A shopping street is a run of narrow buildings sharing party walls, not
       // one slab. Split the frontage so the skyline in close has a rhythm.
       const SPLIT = { shop: 9.5, midrise: 13, flats: 15, office: 21 };
@@ -4595,7 +4776,7 @@ function buildScene(w) {
           boxes.push({
             c: p.centre, size: [size[0] * lerp(0.55, 0.78, r2), size[1] * lerp(0.55, 0.78, r2)],
             yaw: p.yaw, y: p.groundY + top, h: top * lerp(0.18, 0.42, r),
-            style: facadeStyleFor(p.kind), landmark: p.kind === "landmark"
+            style: facadeStyleFor(p.kind, region), landmark: p.kind === "landmark"
           });
         }
       }
