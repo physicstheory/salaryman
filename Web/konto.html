@@ -3750,6 +3750,109 @@ function roofTexture(kind) {
   return sharpTex(tex);
 }
 
+// ---- lit windows -----------------------------------------------------------
+// Every facade texture already has its windows in it: they are the dark panes.
+// Finding them and lighting some is cheaper than drawing a second set, and it
+// means a style added tomorrow has night windows without anybody drawing any.
+//
+// The panes are found as connected dark regions, and each region is lit or not
+// as a whole. Lighting by pixel gave a speckle; a window is a window, and the
+// thing that makes a lit building read is some rooms on and some off.
+const lightsCache = new Map();
+const nightMats = [];                       // { m: material, gain } - turned up at night
+function windowLightsTexture(src, key) {
+  if (lightsCache.has(key)) return lightsCache.get(key);
+  const S = Math.min(384, src.width);
+  const c = document.createElement("canvas");
+  c.width = c.height = S;
+  const g = c.getContext("2d");
+  g.drawImage(src, 0, 0, S, S);
+  let px;
+  try { px = g.getImageData(0, 0, S, S).data; } catch (e) { return null; }
+
+  const n = S * S;
+  const dark = new Uint8Array(n);
+  // A glass curtain wall's panes are mid blue-grey, a good deal brighter than a
+  // plaster building's black window openings, so what counts as "a window"
+  // depends on what kind of wall it is.
+  const isGlass = /glass/.test(key);
+  const cutoff = 0.33;
+  for (let i = 0; i < n; i++) {
+    const l = (px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114) / 255;
+    // plaster: the window is the darkest thing on the wall. glass: the panes
+    // are brighter than the frame between them, so the window is a band of
+    // tone, and a plain "dark" cutoff joins every pane through the frame into
+    // one region that is then thrown out as a wall.
+    dark[i] = isGlass ? ((l > 0.345 && l < 0.72) ? 1 : 0) : (l < cutoff ? 1 : 0);
+  }
+  // The frame between glass panes is two pixels wide and the downsample
+  // blurs it up to nearly the colour of a pane, which is enough to join every
+  // pane on the wall into one region. Shrinking the mask by a couple of pixels
+  // cuts those joins; the lit area loses a border nobody can see.
+  if (isGlass) {
+    for (let pass = 0; pass < 2; pass++) {
+      const eroded = new Uint8Array(n);
+      for (let y = 1; y < S - 1; y++) for (let x = 1; x < S - 1; x++) {
+        const i = y * S + x;
+        eroded[i] = (dark[i] && dark[i - 1] && dark[i + 1] && dark[i - S] && dark[i + S]) ? 1 : 0;
+      }
+      dark.set(eroded);
+    }
+  }
+
+  // connected components, 4-connected, by scanline flood fill
+  const label = new Int32Array(n);
+  const sizes = [0];
+  let next = 1;
+  const stack = [];
+  for (let start = 0; start < n; start++) {
+    if (!dark[start] || label[start]) continue;
+    let count = 0;
+    stack.length = 0; stack.push(start); label[start] = next;
+    while (stack.length) {
+      const i = stack.pop(); count++;
+      const x = i % S, y = (i / S) | 0;
+      if (x > 0     && dark[i - 1] && !label[i - 1]) { label[i - 1] = next; stack.push(i - 1); }
+      if (x < S - 1 && dark[i + 1] && !label[i + 1]) { label[i + 1] = next; stack.push(i + 1); }
+      if (y > 0     && dark[i - S] && !label[i - S]) { label[i - S] = next; stack.push(i - S); }
+      if (y < S - 1 && dark[i + S] && !label[i + S]) { label[i + S] = next; stack.push(i + S); }
+    }
+    sizes.push(count);
+    next++;
+  }
+  // Too small is dirt in the plaster and too large is a wall that happens to
+  // be dark; neither is a window.
+  const lo = n * 0.0009, hi = n * 0.30;
+  const lit = new Array(next).fill(null);
+  for (let k = 1; k < next; k++) {
+    if (sizes[k] < lo || sizes[k] > hi) continue;
+    const r = rnd(k, key.length, 7331);
+    if (r < (/glass/.test(key) ? 0.55 : 0.42)) continue;      // dark room
+    const warm = rnd(k, 3, 7333);
+    // mostly warm white, some cooler (a television), a few amber
+    const tint = warm < 0.62 ? [1.00, 0.84, 0.55] : warm < 0.86 ? [0.86, 0.93, 1.00] : [1.00, 0.68, 0.38];
+    const level = 0.55 + rnd(k, 5, 7337) * 0.45;
+    lit[k] = [tint[0] * level, tint[1] * level, tint[2] * level];
+  }
+  const out = g.createImageData(S, S), o = out.data;
+  for (let i = 0; i < n; i++) {
+    const k = label[i];
+    const c2 = k ? lit[k] : null;
+    o[i * 4 + 3] = 255;
+    if (!c2) continue;
+    o[i * 4]     = Math.round(255 * c2[0]);
+    o[i * 4 + 1] = Math.round(255 * c2[1]);
+    o[i * 4 + 2] = Math.round(255 * c2[2]);
+  }
+  g.putImageData(out, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.encoding = THREE.sRGBEncoding;
+  sharpTex(tex);
+  lightsCache.set(key, tex);
+  return tex;
+}
+
 // One material set per style. The vertex shader multiplies the box UVs by a per
 // instance tile count, so one geometry and one draw call cover a whole ward.
 const facadeCache = {};
@@ -3773,6 +3876,17 @@ function facadeMaterials(style) {
         "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = vec2(uv.x * tileH, uv.y * aTile.z);\n#endif");
   };
   side.customProgramCacheKey = () => "konto-facade";
+  // Windows that can light. Intensity stays at zero in daylight and is turned
+  // up by the world clock; nothing here is ever lit until it asks.
+  if (side.map && side.map.image) {
+    const lights = windowLightsTexture(side.map.image, style);
+    if (lights) {
+      side.emissiveMap = lights;
+      side.emissive = new THREE.Color(1, 1, 1);
+      side.emissiveIntensity = nightState.lit > 0 ? nightState.lit * (glassy ? 1.5 : 1.25) : 0;
+      nightMats.push({ m: side, gain: glassy ? 1.5 : 1.25, env: side.envMapIntensity });
+    }
+  }
   // Window reveals and board laps get their depth back. Glass is the exception:
   // a curtain wall is flat, and relief on it reads as a dented building.
   if (!glassy) addRelief(side, style === "machiya" || style === "coast" ? 2.6 : 1.9);
@@ -4010,6 +4124,14 @@ function buildSotiTower(plot) {
     ? new THREE.MeshStandardMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide,
         roughness: 0.11, metalness: 0.55, envMap: gfx.env || null, envMapIntensity: 1.3 })
     : new THREE.MeshLambertMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide });
+  if (glass.map && glass.map.image) {
+    const lights = windowLightsTexture(glass.map.image, "sotiglass");
+    if (lights) {
+      glass.emissiveMap = lights; glass.emissive = new THREE.Color(1, 1, 1);
+      glass.emissiveIntensity = nightState.lit > 0 ? nightState.lit * 1.6 : 0;
+      nightMats.push({ m: glass, gain: 1.35, env: glass.envMapIntensity });
+    }
+  }
   const shellMesh = new THREE.Mesh(shell, glass);
   shellMesh.castShadow = shellMesh.receiveShadow = true;
   group.add(shellMesh);
@@ -4344,6 +4466,7 @@ function makeSkyMesh() {
 const solids = [];          // building footprints, for walking into
 let solidGrid = null;
 let clock = 0;
+let hemiLight = null;
 const player = {
   mode: "fly", obj: null, proc: null, glb: null, usingGlb: false, placed: false,
   pos: new THREE.Vector3(), yaw: 0, targetYaw: 0, speed: 0,
@@ -5080,7 +5203,8 @@ function buildScene(w) {
     scene.add(sun);
     scene.add(sun.target);
     sunLight = sun;
-    scene.add(new THREE.HemisphereLight(0xa8c6e0, 0x3a382f, 0.42));
+    hemiLight = new THREE.HemisphereLight(0xa8c6e0, 0x3a382f, 0.42);
+    scene.add(hemiLight);
     scene.add(makeSky());
   }
   clearScene();
@@ -5107,6 +5231,9 @@ function buildScene(w) {
     delete roofMatCache[k];
   });
   normalCache.clear();
+  lightsCache.forEach(t => t.dispose());
+  lightsCache.clear();
+  nightMats.length = 0;
   if (gfx.env && gfx.env.dispose) gfx.env.dispose();
   gfx.env = bakeEnvironment();
   scene.environment = gfx.env || null;
@@ -5507,6 +5634,10 @@ function buildScene(w) {
   const target = new THREE.Vector3(look.at[0], look.at[1] + 80, look.at[2]);
   camPos.set(target.x + 1500, 560, target.z + 1750);
   aimAt(target);
+
+  buildCityGlows(root, w);
+  nightState.lit = 0;
+  updateWorldSky(0, true);
 
   // Last of all, the sweep: every texture in the finished world gets the
   // sampling it should have had, including the ones built by parts of the
@@ -6775,6 +6906,7 @@ function tick(dt) {
   }
 
   clock += dt;
+  updateWorldSky(dt);
   followSun();
 
   if (drive.car) {
@@ -11032,10 +11164,21 @@ const WEB = [
   { host: "tokonto-city.kn",  title: "T\u014dkonto City Hall",  kind: "gov" }
 ];
 
-// The clock starts at six in the evening, which is when a salaryman's day
-// stops being his own, and runs at a minute to the second.
+// The world clock. `clock` is real seconds since the game began; everything
+// that cares what time it is asks here, so the phone, the sun and the lights in
+// the windows cannot disagree.
+//
+// It used to run a game minute to the real second, which is a day in 24
+// minutes: a sunset every twelve and a sky in a hurry. It is now two and a half
+// seconds to the minute, so a day is an hour. It starts a little after five in
+// the evening, the end of a salaryman's working day, which puts the first sunset
+// about two minutes in and gives anybody who just wants to look at the city
+// both ends of the light inside the first five.
+const TIME = { rate: 0.4, startMin: 17 * 60 + 10 };       // game minutes per real second
+function gameMinutes() { return (TIME.startMin + clock * TIME.rate) % (24 * 60); }
+function advanceGameMinutes(m) { clock += m / TIME.rate; }
 function phoneTime() {
-  const mins = Math.floor(18 * 60 + 4 + clock / 1.0) % (24 * 60);
+  const mins = Math.floor(gameMinutes());
   return { h: Math.floor(mins / 60), m: mins % 60, mins: mins };
 }
 function two(n) { return (n < 10 ? "0" : "") + n; }
@@ -13277,7 +13420,7 @@ function homeAct() {
   if (a.id === "sleep") {
     vitals.stress = 0;
     vitals.health = 1;
-    clock += 60 * 8;                       // morning
+    advanceGameMinutes(60 * 8);            // morning
     say("Slept until morning. You feel human.", 5);
     leaveHome();
     return;
@@ -13290,7 +13433,7 @@ function homeAct() {
   if (a.id === "tv") {
     home.tv = (home.tv + 1) % 4;
     vitals.stress = clamp01(vitals.stress - 0.10);
-    clock += 60 * 0.5;
+    advanceGameMinutes(30);
     say("Half an hour of television.", 3.5);
   }
   drawHome();
@@ -14651,6 +14794,7 @@ function titleChoose() {
   setMode("walk");
   placeSeiko(seikoSpawn(world));
   player.placed = true;
+  updateWorldSky(0, true);          // the title's sky is a screensaver; the world's is the clock
   player.yaw = player.targetYaw = home.yaw || 0;
   yaw = (home.yaw || 0) + Math.PI;
   say("Home, in Mizuho. Press Y to go inside, M for the map, P for the phone.", 7);
@@ -14684,6 +14828,79 @@ function skyAt(h) {
     haze: [mix(a.haze[0], b.haze[0]), mix(a.haze[1], b.haze[1]), mix(a.haze[2], b.haze[2])],
     sun: mix(a.sun, b.sun)
   };
+}
+
+// What the world clock does to the world. Run a couple of times a second: the
+// sun does not move fast enough to need more.
+const nightState = { lit: 0, glows: [], next: 0 };
+
+function setNightLights(lit) {
+  if (Math.abs(lit - nightState.lit) < 0.004) return;
+  nightState.lit = lit;
+  nightMats.forEach(n => {
+    n.m.emissiveIntensity = lit * n.gain;
+    // The reflections are a daytime sky. Left on, a glass tower is a pale blue
+    // mirror at midnight and no window in it can show.
+    if (n.env !== undefined) n.m.envMapIntensity = n.env * (1 - 0.88 * lit);
+  });
+  nightState.glows.forEach(gl => {
+    gl.sprite.material.opacity = lit * gl.peak;
+    gl.sprite.visible = lit > 0.02;
+  });
+}
+
+function updateWorldSky(dt, force) {
+  nightState.next -= dt;
+  if (nightState.next > 0 && !force) return;
+  nightState.next = 0.4;
+  const hour = gameMinutes() / 60;
+  // Six is sunrise, noon is overhead, eighteen is sunset: the sun's height is
+  // a sine of the time with its zero crossings at those two hours.
+  const ang = (hour - 6) / 24 * Math.PI * 2;
+  const h = Math.sin(ang);
+  applySky(h, Math.cos(ang) * 0.72, 0.46);
+  // Lights come on while the sky is still orange, which is when a street's
+  // actually do, and are at full strength by the time the sun is a little
+  // under the horizon.
+  setNightLights(clamp01(0.52 - h * 3.4));
+}
+
+// The glow over a town. From the countryside at night a city is not a place,
+// it is a colour on the horizon, and Tokonto is a very bright one: a flat
+// radial gradient, additive, ignoring fog, parked over the middle of each
+// built-up area and scaled to how much city there is.
+function buildCityGlows(root, w) {
+  nightState.glows.length = 0;
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d");
+  const gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  gr.addColorStop(0.00, "rgba(255,226,170,0.95)");
+  gr.addColorStop(0.16, "rgba(255,196,128,0.58)");
+  gr.addColorStop(0.45, "rgba(255,150,92,0.20)");
+  gr.addColorStop(1.00, "rgba(255,130,80,0.00)");
+  g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c);
+  tex.encoding = THREE.sRGBEncoding;
+  w.cities.forEach((city, i) => {
+    const b = city.bounds;
+    if (!b) return;
+    const core = city.wards.find(x => x.kind === "Core");
+    const cx = core ? core.centre[0] : (b.x0 + b.x1) * 0.5;
+    const cz = core ? core.centre[1] : (b.z0 + b.z1) * 0.5;
+    const size = Math.max(b.x1 - b.x0, b.z1 - b.z0);
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0,
+      depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false });
+    const sp = new THREE.Sprite(mat);
+    // The capital is wider than it is tall as a glow, the way a real one is.
+    sp.scale.set(size * (i === 0 ? 1.35 : 2.0), size * (i === 0 ? 0.42 : 0.7), 1);
+    const gy = world.sampleHeight(clamp(cx, 0, WORLD_X), clamp(cz, 0, WORLD_Z));
+    sp.position.set(cx, gy + (i === 0 ? 330 : 90), cz);
+    sp.renderOrder = 5;
+    sp.visible = false;
+    root.add(sp);
+    nightState.glows.push({ sprite: sp, peak: i === 0 ? 0.50 : 0.30 });
+  });
 }
 
 function titleSky(t) {
@@ -14720,7 +14937,11 @@ function applySky(h, dirX, dirZ) {
     }
   }
   if (scene && scene.fog) scene.fog.color.setRGB(k.haze[0], k.haze[1], k.haze[2]);
-  if (renderer) renderer.toneMappingExposure = lerp(1.04, 0.52, clamp01(-h * 2.2));
+  if (renderer) renderer.toneMappingExposure = lerp(1.04, 0.62, clamp01(-h * 2.2));
+  // The sky light is most of what is lighting the shaded side of everything,
+  // and at night there is almost none of it. Left at its daytime value the
+  // streets were as bright at midnight as at noon and no window could show.
+  if (hemiLight) hemiLight.intensity = 0.10 + k.sun * 0.34;
 }
 
 function updateTitle(dt) {
