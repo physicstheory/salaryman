@@ -4573,6 +4573,7 @@ function initThree() {
   });
   dom.addEventListener("pointerup", e => { dragging = false; });
   dom.addEventListener("wheel", e => {
+    if (wheel.open) { wheelItem(e.deltaY > 0 ? 1 : -1); e.preventDefault(); return; }
     speed = clamp(speed * (e.deltaY > 0 ? 1.15 : 0.87), 20, 4000);
     e.preventDefault();
   }, { passive: false });
@@ -4610,6 +4611,8 @@ function initThree() {
     if (wheel.open) {
       if (e.code === "ArrowLeft") { wheelStep(-1); e.preventDefault(); return; }
       if (e.code === "ArrowRight") { wheelStep(1); e.preventDefault(); return; }
+      if (e.code === "ArrowUp") { wheelItem(-1); e.preventDefault(); return; }
+      if (e.code === "ArrowDown") { wheelItem(1); e.preventDefault(); return; }
       if (e.code === "Enter" || e.code === "Space") { setWheel(false); e.preventDefault(); return; }
     }
     if (e.code === "KeyP") setPhone(!phone.open);
@@ -4782,6 +4785,10 @@ function pollPad(dt) {
   if (lbDown && !phone.open && !nav.mapOpen) {
     if (!wheel.open) setWheel(true);
     wheelPoint(deadzone(gp.axes[2] || 0, 0.30), deadzone(gp.axes[3] || 0, 0.30));
+    if (pressed(PAD.LEFT)) wheelItem(-1);
+    if (pressed(PAD.RIGHT)) wheelItem(1);
+    if (pressed(PAD.UP)) wheelItem(-1);
+    if (pressed(PAD.DOWN)) wheelItem(1);
     // Everything else is frozen while it is up.
     pad.x = pad.y = pad.up = 0;
     pad.throttle = pad.brake = 0;
@@ -14025,14 +14032,20 @@ const SHOP_BRANDS = {
 // app is dead until a pair of them arrives.
 const SHELVES = [
   { name: "Drinks", items: [
-    { id: "coffee",  name: "Canned coffee, black", price: 130, stress: -0.06 },
-    { id: "tea",     name: "Barley tea, cold",     price: 150, stress: -0.04 },
-    { id: "energy",  name: "Ganbare Energy",       price: 210, stress: -0.10, health: 0.04 }
+    { id: "coffee",  name: "Canned coffee, black", price: 130 },
+    { id: "tea",     name: "Barley tea, cold",     price: 150 },
+    { id: "water",   name: "Mineral water",        price: 110 },
+    { id: "cola",    name: "Cola, ice cold",       price: 160 },
+    { id: "energy",  name: "Ganbare Energy",       price: 210 }
   ]},
   { name: "Food", items: [
-    { id: "bento",   name: "Katsu bento",          price: 580, stress: -0.12, health: 0.18 },
-    { id: "onigiri", name: "Onigiri, two",         price: 260, stress: -0.05, health: 0.08 },
-    { id: "sando",   name: "Egg sandwich",         price: 320, stress: -0.06, health: 0.10 }
+    { id: "bento",     name: "Katsu bento",        price: 580 },
+    { id: "onigiri",   name: "Onigiri, two",       price: 260 },
+    { id: "sando",     name: "Egg sandwich",       price: 320 },
+    { id: "meatbun",   name: "Nikuman, steamed",   price: 240 },
+    { id: "ramen",     name: "Cup ramen",          price: 230 },
+    { id: "chips",     name: "Potato chips",       price: 170 },
+    { id: "chocolate", name: "Milk chocolate",     price: 150 }
   ]},
   { name: "Everyday", items: [
     { id: "umbrella", name: "Clear vinyl umbrella", price: 550 },
@@ -14042,7 +14055,9 @@ const SHELVES = [
   { name: "Electronics", items: [
     { id: "earbuds",    name: "SOTI Buds 3",          price: 24800, carry: true },
     { id: "headphones", name: "SOTI Studio Over-Ear", price: 41200, carry: true },
-    { id: "charger",    name: "Fast charger, 45 W",   price: 3900 }
+    { id: "charger",    name: "Fast charger, 45 W",   price: 3900 },
+    { id: "eleven",     name: "11 Phone, keypad",       price: 5980, phone: true, only: "eleven" },
+    { id: "petmart",    name: "Peto Phone, keypad",     price: 6480, phone: true, only: "petmart" }
   ]}
 ];
 
@@ -14174,10 +14189,18 @@ function takeFromShelf() {
   } else if (it.carry) {
     // The big things are carried out, not delivered, if you buy them in person.
     phone.owns[it.id] = true;
-    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag now.", 5);
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB for it.", 5);
+  } else if (it.phone) {
+    bag.phones[it.id] = 0;
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB, Phones.", 5);
+  } else if (it.id === "umbrella") {
+    wheel.umbrellaOwned = true;
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB for it.", 5);
+  } else if (ITEM[it.id]) {
+    // Food and drink go in the bag now and are eaten from the wheel.
+    bagAdd(it.id, 1);
+    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag.", 3);
   } else {
-    if (it.stress) vitals.stress = clamp01(vitals.stress + it.stress);
-    if (it.health) vitals.health = clamp01(vitals.health + it.health);
     say(it.name + " \u00b7 " + yenText(it.price), 3);
   }
   drawShop();
@@ -14199,7 +14222,8 @@ function shopShelves(s) {
     return [{ name: "Hardware", items: ARMS_STOCK.filter(i => i.id === "baton") },
             { name: "Under the counter", items: ARMS_STOCK.filter(i => i.id !== "baton") }];
   }
-  return SHELVES;
+  // Each chain only stocks its own handset.
+  return SHELVES.map(sh => ({ name: sh.name, items: sh.items.filter(i => !i.only || (s && i.only === s.brand)) }));
 }
 
 function drawShop() {
@@ -14929,22 +14953,152 @@ function drawHome() {
 // It is not only weapons. Earbuds and headphones live on it too, because
 // putting a pair on is the same gesture as drawing something: pick it, let go,
 // it is on you.
-const WHEEL_SLOTS = [
-  { id: "none",       name: "Unarmed",      kind: "hand",  owned: true },
-  { id: "earbuds",    name: "SOTI Buds 3",  kind: "audio" },
-  { id: "headphones", name: "SOTI Studio",  kind: "audio" },
-  { id: "umbrella",   name: "Umbrella",     kind: "melee" },
-  { id: "baton",      name: "Baton",        kind: "melee" },
-  { id: "pistol",     name: "Pistol",       kind: "gun" },
-  { id: "smg",        name: "Machine Pistol", kind: "gun" },
-  { id: "shotgun",    name: "Shotgun",      kind: "gun" }
+// ---- what you carry ----------------------------------------------------------
+// Eight categories round the ring, each its own colour. A category is an empty
+// dashed outline until you own something in it, and when you do it shows the
+// thing you have selected there; the D-pad scrolls through the rest, which is
+// how a bag of onigiri, a can of coffee and two kinds of chocolate share a slot.
+const WHEEL_CATS = [
+  { id: "hand",  name: "Hands",    colour: "#e4a62f", empty: "Nothing to hold" },
+  { id: "gun",   name: "Firearms", colour: "#d8483c", empty: "No firearms" },
+  { id: "phone", name: "Phones",   colour: "#3b8cf0", empty: "No phones" },
+  { id: "audio", name: "Audio",    colour: "#9a6bf0", empty: "No earphones" },
+  { id: "game",  name: "Games",    colour: "#31b36b", empty: "No games" },
+  { id: "food",  name: "Food",     colour: "#f08a2c", empty: "No food" },
+  { id: "drink", name: "Drinks",   colour: "#2fb7d9", empty: "No drinks" },
+  { id: "tech",  name: "Tech",     colour: "#8d96a3", empty: "No tech" }
 ];
-const wheel = { open: false, sel: 0, held: 0, equipped: "none", wearing: null };
 
-function wheelOwned(slot) {
-  if (slot.owned) return true;
-  if (slot.kind === "audio") return !!phone.owns[slot.id];
-  return !!wheel[slot.id + "Owned"];
+// Stackable things and the fixed kit. stress and health are what eating or
+// drinking it does; a negative stress is relief.
+const ITEMS = [
+  { id: "none",       name: "Unarmed",        cat: "hand", always: true, note: "" },
+  { id: "umbrella",   name: "Clear umbrella", cat: "hand", note: "Melee" },
+  { id: "baton",      name: "Baton",          cat: "hand", note: "Melee" },
+  { id: "pistol",     name: "Pistol",         cat: "gun",  note: "Firearm" },
+  { id: "smg",        name: "Machine pistol", cat: "gun",  note: "Firearm" },
+  { id: "shotgun",    name: "Shotgun",        cat: "gun",  note: "Firearm" },
+  { id: "earbuds",    name: "SOTI Buds 3",    cat: "audio", note: "Put on" },
+  { id: "headphones", name: "SOTI Studio",    cat: "audio", note: "Put on" },
+  { id: "onigiri",    name: "Onigiri",        cat: "food",  stress: -0.05, health: 0.08, note: "Two rice balls" },
+  { id: "bento",      name: "Katsu bento",    cat: "food",  stress: -0.12, health: 0.18, note: "A proper meal" },
+  { id: "sando",      name: "Egg sandwich",   cat: "food",  stress: -0.06, health: 0.10, note: "Crusts off" },
+  { id: "chips",      name: "Potato chips",   cat: "food",  stress: -0.07, health: 0.01, note: "Salty" },
+  { id: "chocolate",  name: "Chocolate bar",  cat: "food",  stress: -0.09, health: 0.00, note: "Milk" },
+  { id: "ramen",      name: "Cup ramen",      cat: "food",  stress: -0.08, health: 0.10, note: "Three minutes" },
+  { id: "meatbun",    name: "Nikuman",        cat: "food",  stress: -0.06, health: 0.09, note: "Steamed pork bun" },
+  { id: "coffee",     name: "Canned coffee",  cat: "drink", stress: -0.06, health: 0.00, note: "Black" },
+  { id: "tea",        name: "Barley tea",     cat: "drink", stress: -0.04, health: 0.02, note: "Cold" },
+  { id: "energy",     name: "Ganbare Energy", cat: "drink", stress: -0.10, health: 0.04, note: "Fight on" },
+  { id: "water",      name: "Mineral water",  cat: "drink", stress: -0.01, health: 0.04, note: "Still" },
+  { id: "cola",       name: "Cola",           cat: "drink", stress: -0.05, health: 0.00, note: "Ice cold" },
+  { id: "charger",    name: "Fast charger",   cat: "tech",  note: "45 W" }
+];
+const ITEM = {}; ITEMS.forEach(i => { ITEM[i.id] = i; });
+
+// ---- games and consoles ------------------------------------------------------
+// Every game is one of a dozen small arcade ideas wearing a different name and
+// colour; the cover is drawn from the same two colours so a shelf of them
+// reads as a shelf of different games. `kind` is the archetype the mini-game
+// engine runs when it exists; `on` is which consoles take the disc.
+const GAMES = [
+  { id: "blockfall",  name: "Blockfall DX",        genre: "Falling blocks",  kind: "blocks",   a: "#2a6fd6", b: "#7fd0ff", price: 3980, on: "both" },
+  { id: "tetrix",     name: "Tetrix Sensei",       genre: "Falling blocks",  kind: "blocks",   a: "#7a2fd0", b: "#ffd35a", price: 4480, on: "both" },
+  { id: "stackcity",  name: "Stack City 99",       genre: "Falling blocks",  kind: "blocks",   a: "#d6552a", b: "#ffe0a0", price: 2980, on: "playbox" },
+  { id: "snakerun",   name: "Snake Run",           genre: "Arcade",          kind: "snake",    a: "#25a05a", b: "#d8ff8a", price: 1980, on: "both" },
+  { id: "brickbreak", name: "Brick Breaker Neo",   genre: "Arcade",          kind: "breakout", a: "#d63a6a", b: "#ffd0e0", price: 2480, on: "both" },
+  { id: "pongsmash",  name: "Pong Smash",          genre: "Sports",          kind: "pong",     a: "#1c1f2b", b: "#7dffb0", price: 1480, on: "both" },
+  { id: "invaders",   name: "Moon Invaders",       genre: "Shooter",         kind: "invaders", a: "#101a44", b: "#8be0ff", price: 3480, on: "playbox" },
+  { id: "starhawk",   name: "Starhawk Zero",       genre: "Shooter",         kind: "invaders", a: "#2d1450", b: "#ff7ad9", price: 4980, on: "playbox" },
+  { id: "driftking",  name: "Touge Drift King",    genre: "Racing",          kind: "drift",    a: "#e8532b", b: "#fff2c4", price: 5480, on: "both" },
+  { id: "midnightdr", name: "Midnight Drift 2",    genre: "Racing",          kind: "drift",    a: "#241046", b: "#4de1ff", price: 5980, on: "both" },
+  { id: "kartrush",   name: "Kei Kart Rush",       genre: "Racing",          kind: "racer",    a: "#f2b81c", b: "#d63a2a", price: 4480, on: "pearcube" },
+  { id: "salaryrun",  name: "Salaryman Sprint",    genre: "Runner",          kind: "runner",   a: "#2b3a55", b: "#ffd35a", price: 1980, on: "both" },
+  { id: "trainrush",  name: "Last Train Rush",     genre: "Runner",          kind: "runner",   a: "#0f6a52", b: "#e8fff4", price: 2480, on: "both" },
+  { id: "konbinidash",name: "Konbini Dash",        genre: "Runner",          kind: "runner",   a: "#17a05c", b: "#ffffff", price: 2480, on: "pearcube" },
+  { id: "catchfruit", name: "Fruit Catcher",       genre: "Casual",          kind: "catch",    a: "#f06a3a", b: "#fff0a0", price: 1480, on: "both" },
+  { id: "sushicatch", name: "Sushi Belt Panic",    genre: "Casual",          kind: "catch",    a: "#e63950", b: "#fff6e8", price: 1980, on: "pearcube" },
+  { id: "crossing",   name: "Crossy Kanda",        genre: "Casual",          kind: "crossing", a: "#3a8f4c", b: "#ffe86a", price: 1980, on: "both" },
+  { id: "frogcross",  name: "Frog Crossing",       genre: "Casual",          kind: "crossing", a: "#2a7f6a", b: "#c9ff6a", price: 1480, on: "pearcube" },
+  { id: "mazeman",    name: "Maze Muncher",        genre: "Arcade",          kind: "maze",     a: "#12163a", b: "#ffd21c", price: 2980, on: "both" },
+  { id: "ghostmaze",  name: "Obake Maze",          genre: "Arcade",          kind: "maze",     a: "#2a1744", b: "#9be8ff", price: 2480, on: "playbox" },
+  { id: "pachinko",   name: "Pachinko Parlour",    genre: "Casual",          kind: "pachi",    a: "#a8143c", b: "#ffe38a", price: 3480, on: "both" },
+  { id: "shogiduel",  name: "Shogi Duel",          genre: "Board",           kind: "board",    a: "#6b4a2a", b: "#f2dcb0", price: 2980, on: "both" },
+  { id: "fishing",    name: "Lake Biwa Fishing",   genre: "Sports",          kind: "fish",     a: "#1f6fa8", b: "#cfeeff", price: 3980, on: "both" },
+  { id: "karaoke",    name: "Karaoke Night",       genre: "Rhythm",           kind: "rhythm",   a: "#b02a8f", b: "#ffe0f6", price: 4980, on: "both" }
+];
+const GAME_BY_ID = {}; GAMES.forEach(g => { GAME_BY_ID[g.id] = g; });
+
+// The things you plug in. The watch is worn rather than used; the consoles
+// only arrive by delivery, because nobody carries one out of a mall.
+const GEAR = {
+  playbox5: { id: "playbox5", name: "SOTI PlayBox 5", note: "Console · plug into a TV", maker: "soti", price: 69800 },
+  pearcube: { id: "pearcube", name: "Pear Cube",      note: "Console · plug into a TV", maker: "pear", price: 74800 },
+  pearwatch:{ id: "pearwatch",name: "Pear Watch",     note: "Wear it and connect",           maker: "pear", price: 54800 }
+};
+
+// Hooks the rest of the game fills in as the consoles and the watch arrive.
+// Until then, using one just says what it is.
+function useGear(id) {
+  const gr = GEAR[id];
+  if (!gr) return;
+  if (id === "pearwatch") { bag.watchOn = !bag.watchOn; say(bag.watchOn ? "Pear Watch on." : "Pear Watch off.", 3); phone.dirty = true; return; }
+  say(gr.name + ". Plug it into a TV at home.", 4);
+}
+function consoleInsertGame(id) { return false; }
+function phoneSwapped(id) { phone.dirty = true; }
+
+// What is in the bag. Phones are a set of the ones you are not using: the one
+// in your hand is `phone.device`, and swapping to another throws the old one
+// away, because nobody keeps three phones. Games, consoles and the watch are
+// whole objects, not counts.
+const bag = { counts: {}, phones: {}, games: {}, gear: {}, heldGame: null, watchOn: false };
+function bagAdd(id, n) { bag.counts[id] = (bag.counts[id] || 0) + (n || 1); }
+function bagTake(id) {
+  if (!bag.counts[id]) return false;
+  if (--bag.counts[id] <= 0) delete bag.counts[id];
+  return true;
+}
+
+function itemCount(id) {
+  const it = ITEM[id];
+  if (!it) return 0;
+  if (it.always) return 1;
+  if (it.cat === "gun" || id === "baton" || id === "umbrella") return wheel[id + "Owned"] ? 1 : 0;
+  if (it.cat === "audio") return phone.owns[id] ? 1 : 0;
+  return bag.counts[id] || 0;
+}
+
+// Every owned thing in one category, in the order the strip shows them.
+function wheelList(cat) {
+  const out = [];
+  if (cat === "phone") {
+    out.push({ key: "phone:" + phone.device, id: phone.device, name: DEVICES[phone.device].name, note: "In use", current: true, kind: "phone" });
+    Object.keys(bag.phones).forEach(id => out.push({ key: "phone:" + id, id: id, name: DEVICES[id].name, note: "In the bag", kind: "phone" }));
+    return out;
+  }
+  if (cat === "game") {
+    Object.keys(bag.games).forEach(id => {
+      const g = GAME_BY_ID[id];
+      if (g) out.push({ key: "game:" + id, id: id, name: g.name, note: (bag.heldGame === id ? "In hand · " : "") + g.genre, kind: "game" });
+    });
+    return out;
+  }
+  ITEMS.filter(i => i.cat === cat && itemCount(i.id) > 0).forEach(i => out.push({
+    key: i.id, id: i.id, name: i.name, note: i.note, count: itemCount(i.id), kind: "item", item: i }));
+  if (cat === "tech") {
+    Object.keys(bag.gear).forEach(id => { const gr = GEAR[id]; if (gr) out.push({ key: "gear:" + id, id: id, name: gr.name, note: gr.note, kind: "gear" }); });
+  }
+  return out;
+}
+
+const wheel = { open: false, sel: 0, held: 0, equipped: "none", wearing: null, idx: {} };
+
+function wheelCur() {
+  const cat = WHEEL_CATS[wheel.sel];
+  const list = wheelList(cat.id);
+  const i = list.length ? clamp(wheel.idx[cat.id] || 0, 0, list.length - 1) : 0;
+  return { cat: cat, list: list, i: i, item: list[i] || null };
 }
 
 function setWheel(on) {
@@ -14964,30 +15118,77 @@ function setWheel(on) {
   }
 }
 
-function equipFromWheel() {
-  const slot = WHEEL_SLOTS[wheel.sel];
-  if (!slot || !wheelOwned(slot)) { say("You do not have that.", 2.5); return; }
-  if (slot.kind === "audio") {
-    // Putting them on, rather than holding them.
-    wheel.wearing = wheel.wearing === slot.id ? null : slot.id;
-    say(wheel.wearing ? slot.name + " on." : slot.name + " off.", 2.5);
-    phone.dirty = true;
-    return;
-  }
-  wheel.equipped = slot.id;
-  say(slot.id === "none" ? "Put away." : slot.name + " out.", 2.5);
+// Eating and drinking: it leaves the bag and does what it says on the packet.
+function consumeItem(id) {
+  const it = ITEM[id];
+  if (!it || !bagTake(id)) return false;
+  if (it.stress) vitals.stress = clamp01(vitals.stress + it.stress);
+  if (it.health) vitals.health = clamp01(vitals.health + it.health);
+  say((it.cat === "drink" ? "Drank " : "Ate ") + it.name.toLowerCase() + ".", 3);
+  return true;
 }
 
-// The stick picks a segment by its angle; the keyboard steps round it.
+// Letting go of LB uses whatever is under the pointer.
+function equipFromWheel() {
+  const cur = wheelCur();
+  if (!cur.item) { say(cur.cat.empty + " yet.", 2.5); return; }
+  const it = cur.item;
+  switch (cur.cat.id) {
+    case "hand": case "gun":
+      wheel.equipped = it.id;
+      say(it.id === "none" ? "Put away." : it.name + " out.", 2.5);
+      break;
+    case "audio":
+      wheel.wearing = wheel.wearing === it.id ? null : it.id;
+      say(wheel.wearing ? it.name + " on." : it.name + " off.", 2.5);
+      phone.dirty = true;
+      break;
+    case "phone":
+      if (it.current) { say(it.name + " is already in your pocket.", 2.5); break; }
+      swapPhone(it.id);
+      break;
+    case "game":
+      bag.heldGame = it.id;
+      if (typeof consoleInsertGame === "function" && consoleInsertGame(it.id)) break;
+      say(it.name + " in hand.", 2.5);
+      break;
+    case "food": case "drink":
+      consumeItem(it.id);
+      break;
+    case "tech":
+      if (it.kind === "gear" && typeof useGear === "function") useGear(it.id);
+      else say(it.name + ".", 2);
+      break;
+  }
+}
+
+// The new phone replaces the old one. The old one is not kept in a drawer.
+function swapPhone(id) {
+  const colour = bag.phones[id] || 0;
+  const old = DEVICES[phone.device].name;
+  delete bag.phones[id];
+  equipPhone(id, colour);
+  say(DEVICES[id].name + " is your phone now. The " + old + " is gone.", 5);
+  if (typeof phoneSwapped === "function") phoneSwapped(id);
+}
+
+// The stick picks a category by its angle; the keyboard steps round it.
 function wheelPoint(x, y) {
   if (Math.hypot(x, y) < 0.42) return;
   const a = Math.atan2(x, -y);                       // 0 at the top, clockwise
-  const n = WHEEL_SLOTS.length;
+  const n = WHEEL_CATS.length;
   const i = Math.round(a / (Math.PI * 2 / n) + n) % n;
   if (i !== wheel.sel) { wheel.sel = i; drawWheel(); }
 }
 function wheelStep(d) {
-  wheel.sel = (wheel.sel + d + WHEEL_SLOTS.length) % WHEEL_SLOTS.length;
+  wheel.sel = (wheel.sel + d + WHEEL_CATS.length) % WHEEL_CATS.length;
+  drawWheel();
+}
+// The D-pad scrolls what is in the category.
+function wheelItem(d) {
+  const cur = wheelCur();
+  if (cur.list.length < 2) return;
+  wheel.idx[cur.cat.id] = (cur.i + d + cur.list.length) % cur.list.length;
   drawWheel();
 }
 
@@ -14996,9 +15197,9 @@ function wheelStep(d) {
 // slide and a frame and a trigger guard, a band and two cups, a canopy and a
 // crook - because at this size the silhouette is the whole icon and a wrong
 // silhouette is the only thing anyone notices.
-function wheelGlyph(g, kind, id, cx, cy, r, on) {
-  const ink = on ? "#0f1114" : "#e7ebee";
-  const dim = on ? "rgba(15,17,20,0.55)" : "rgba(231,235,238,0.45)";
+function wheelGlyph(g, kind, id, cx, cy, r, on, tint) {
+  const ink = tint || (on ? "#0f1114" : "#e7ebee");
+  const dim = tint ? "rgba(255,255,255,0.55)" : on ? "rgba(15,17,20,0.55)" : "rgba(231,235,238,0.45)";
   g.save();
   g.translate(cx, cy);
   g.lineCap = "round"; g.lineJoin = "round";
@@ -15194,55 +15395,225 @@ function wheelGlyph(g, kind, id, cx, cy, r, on) {
   g.restore();
 }
 
+// ---- coloured icons -----------------------------------------------------------
+// The wheel used to be white line art. Food and drink are recognisable by their
+// colour before their shape, so these are drawn flat and bright, one silhouette
+// each, at a size where an onigiri has to read as an onigiri.
+function wheelIcon(g, e, cx, cy, r, ghost) {
+  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun" || e.item.cat === "audio")) {
+    wheelGlyph(g, e.item.cat, e.id, cx, cy, r, false, mixHex((WHEEL_CATS.find(c => c.id === e.item.cat) || WHEEL_CATS[0]).colour, "#ffffff", 0.55));
+    return;
+  }
+  g.save();
+  g.translate(cx, cy);
+  g.lineCap = "round"; g.lineJoin = "round";
+  const u = r / 50;
+  const fill = (c) => { g.fillStyle = c; g.fill(); };
+  const rect = (x, y, w, h, rad, c) => { roundRect(g, x*u, y*u, w*u, h*u, rad*u); fill(c); };
+  const id = e.id;
+
+  if (e.kind === "phone") {
+    const d = DEVICES[id] || DEVICES.so24;
+    if (d.ui === "basic") {
+      rect(-17, -40, 34, 80, 7, d.body ? d.body[0] : "#3a3d44");
+      rect(-12, -34, 24, 22, 2, "#9fd2a8");
+      for (let i = 0; i < 12; i++) rect(-12 + (i % 3) * 8.5, -6 + Math.floor(i / 3) * 9, 6.5, 6, 2, "rgba(255,255,255,0.75)");
+    } else {
+      const body = d.colours ? d.colours[0][1] : "#3a3d44";
+      rect(-21, -42, 42, 84, 9, body);
+      rect(-18, -39, 36, 78, 6.5, "#0b0d12");
+      const grad = g.createLinearGradient(-18*u, -39*u, 18*u, 39*u);
+      grad.addColorStop(0, d.maker === "pear" ? "#2f6bd8" : "#4a3cc0"); grad.addColorStop(1, d.maker === "pear" ? "#e46aa8" : "#1fb5a5");
+      rect(-18, -39, 36, 78, 6.5, grad);
+      g.fillStyle = "#050608";
+      if (d.top === "punch") { g.beginPath(); g.arc(0, -33*u, 2.6*u, 0, 7); g.fill(); }
+      else if (d.top === "notch") rect(-9, -39, 18, 6, 3, "#050608");
+      else rect(-7, -35, 14, 5, 2.5, "#050608");
+    }
+    g.restore(); return;
+  }
+  if (e.kind === "game") {
+    const gm = GAME_BY_ID[id] || { a: "#444", b: "#ccc", name: "?" };
+    rect(-28, -40, 56, 80, 4, "#14161b");
+    const gr = g.createLinearGradient(0, -37*u, 0, 37*u);
+    gr.addColorStop(0, gm.a); gr.addColorStop(1, mixHex(gm.a, "#000000", 0.45));
+    rect(-25, -37, 50, 74, 2, gr);
+    g.fillStyle = gm.b; g.globalAlpha = 0.9;
+    g.beginPath(); g.arc(0, -6*u, 14*u, 0, 7); g.fill();
+    g.globalAlpha = 1;
+    rect(-25, 18, 50, 19, 0, "rgba(0,0,0,0.45)");
+    g.fillStyle = "#fff"; g.font = "800 " + Math.round(11*u) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(gm.name.split(" ")[0].slice(0, 9), 0, 27.5*u);
+    g.fillStyle = gm.a; g.font = "900 " + Math.round(20*u) + "px " + UI; g.fillText(gm.name[0], 0, -5*u);
+    g.restore(); return;
+  }
+  if (e.kind === "gear") {
+    if (id === "playbox5") {
+      rect(-14, -40, 28, 80, 6, "#f2f4f7"); rect(-6, -40, 12, 80, 3, "#16181d");
+      g.fillStyle = "#16181d"; g.beginPath(); g.arc(0, 30*u, 3*u, 0, 7); g.fill();
+      rect(-9, -34, 18, 3, 1.5, "#4fa8ff");
+    } else if (id === "pearcube") {
+      rect(-32, -22, 64, 52, 8, "#d9dce1"); rect(-32, -22, 64, 14, 8, "#eef0f3");
+      g.fillStyle = "#30d158"; g.beginPath(); g.arc(0, 8*u, 5*u, 0, 7); g.fill();
+    } else {
+      rect(-12, -44, 24, 20, 4, "#2a2c31"); rect(-12, 24, 24, 20, 4, "#2a2c31");
+      rect(-22, -26, 44, 52, 13, "#c9ccd2"); rect(-18, -22, 36, 44, 10, "#0a0b0e");
+      g.fillStyle = "#ff453a"; g.beginPath(); g.arc(0, 0, 7*u, 0, 7); g.fill();
+      rect(21, -8, 4, 10, 2, "#e84a3a");
+    }
+    g.restore(); return;
+  }
+
+  switch (id) {
+    case "onigiri":
+      g.beginPath(); g.moveTo(0, -38*u); g.quadraticCurveTo(8*u, -34*u, 34*u, 26*u);
+      g.quadraticCurveTo(36*u, 36*u, 24*u, 36*u); g.lineTo(-24*u, 36*u); g.quadraticCurveTo(-36*u, 36*u, -34*u, 26*u);
+      g.quadraticCurveTo(-8*u, -34*u, 0, -38*u); g.closePath(); fill("#f7f6f0");
+      g.beginPath(); g.moveTo(-26*u, 14*u); g.lineTo(26*u, 14*u); g.lineTo(31*u, 26*u); g.quadraticCurveTo(33*u, 36*u, 24*u, 36*u);
+      g.lineTo(-24*u, 36*u); g.quadraticCurveTo(-33*u, 36*u, -31*u, 26*u); g.closePath(); fill("#1b2a22");
+      rect(-8, -10, 16, 7, 3.5, "#e9795a"); break;
+    case "bento":
+      rect(-36, -18, 72, 44, 6, "#2a1a14"); rect(-33, -15, 32, 38, 3, "#e6b04a"); rect(-1, -15, 34, 18, 3, "#f4efe0");
+      rect(-1, 5, 34, 18, 3, "#6fae4d"); rect(-31, -13, 28, 10, 3, "#c4852a"); rect(-36, -26, 72, 10, 5, "#8b2f2a"); break;
+    case "sando":
+      g.beginPath(); g.moveTo(-34*u, 18*u); g.lineTo(0, -34*u); g.lineTo(34*u, 18*u); g.closePath(); fill("#f1deb4");
+      g.beginPath(); g.moveTo(-28*u, 12*u); g.lineTo(0, -26*u); g.lineTo(28*u, 12*u); g.closePath(); fill("#f6c933");
+      rect(-34, 14, 68, 10, 4, "#f1deb4"); rect(-34, 14, 68, 3, 1.5, "#e8c97a"); break;
+    case "chips":
+      g.beginPath(); g.moveTo(-26*u, -38*u); g.lineTo(26*u, -38*u); g.lineTo(32*u, 38*u); g.lineTo(-32*u, 38*u); g.closePath(); fill("#e3402f");
+      rect(-30, -38, 60, 7, 1, "#b02a1f"); g.beginPath(); g.ellipse(0, 4*u, 17*u, 15*u, 0, 0, 7); fill("#f6d04a");
+      g.beginPath(); g.ellipse(-4*u, 1*u, 7*u, 5*u, -0.6, 0, 7); fill("#fff2a8"); break;
+    case "chocolate":
+      rect(-18, -38, 36, 76, 4, "#ba7a3a"); rect(-18, -38, 36, 14, 4, "#c8252a");
+      g.fillStyle = "#4a2b18"; for (let i = 0; i < 4; i++) { for (let j = 0; j < 2; j++) { rect(-14 + j * 15, -18 + i * 14, 12, 11, 2, "#5a3520"); } }
+      break;
+    case "ramen":
+      g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 3*u;
+      for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(i*10*u, -22*u); g.quadraticCurveTo(i*10*u + 5*u, -30*u, i*10*u, -38*u); g.stroke(); }
+      g.beginPath(); g.moveTo(-34*u, -16*u); g.lineTo(34*u, -16*u); g.lineTo(24*u, 38*u); g.lineTo(-24*u, 38*u); g.closePath(); fill("#f2f2ee");
+      g.beginPath(); g.moveTo(-31*u, -4*u); g.lineTo(31*u, -4*u); g.lineTo(27*u, 20*u); g.lineTo(-27*u, 20*u); g.closePath(); fill("#d92f2f");
+      rect(-36, -22, 72, 8, 3, "#e8c46a"); break;
+    case "meatbun":
+      g.beginPath(); g.ellipse(0, 6*u, 36*u, 30*u, 0, 0, 7); fill("#fbf5e8");
+      g.strokeStyle = "#e1d4b6"; g.lineWidth = 2.4*u;
+      for (let i = 0; i < 7; i++) { const a = -2.3 + i * 0.28; g.beginPath(); g.moveTo(Math.cos(a) * 3*u, -12*u); g.quadraticCurveTo(Math.cos(a) * 10*u, -20*u, Math.cos(a) * 12*u, -22*u); g.stroke(); }
+      g.beginPath(); g.ellipse(-12*u, -2*u, 10*u, 6*u, -0.5, 0, 7); g.fillStyle = "rgba(255,255,255,0.7)"; g.fill(); break;
+    case "coffee":
+      rect(-17, -38, 34, 76, 6, "#5a3520"); rect(-17, -38, 34, 10, 5, "#c9ccd2"); rect(-17, 28, 34, 10, 5, "#c9ccd2");
+      rect(-17, -10, 34, 22, 0, "#f2e5c9"); g.fillStyle = "#3a2214"; g.beginPath(); g.ellipse(0, 1*u, 6*u, 8*u, 0, 0, 7); g.fill(); break;
+    case "tea":
+      rect(-9, -42, 18, 10, 3, "#1e5f3a"); rect(-18, -32, 36, 74, 12, "rgba(190,120,50,0.92)");
+      rect(-18, -10, 36, 28, 0, "#2f8f55"); rect(-12, -2, 24, 12, 3, "#f6f1e0"); break;
+    case "energy":
+      rect(-14, -40, 28, 80, 7, "#1f4fd6"); rect(-14, -40, 28, 9, 4, "#c9ccd2"); rect(-14, 31, 28, 9, 4, "#c9ccd2");
+      g.beginPath(); g.moveTo(3*u, -24*u); g.lineTo(-9*u, 6*u); g.lineTo(-1*u, 6*u); g.lineTo(-4*u, 28*u); g.lineTo(10*u, -4*u); g.lineTo(2*u, -4*u); g.closePath(); fill("#ffe23a"); break;
+    case "water":
+      rect(-7, -44, 14, 9, 2, "#2c6fd1"); rect(-17, -35, 34, 78, 13, "rgba(175,220,245,0.92)");
+      rect(-17, -6, 34, 22, 0, "#2c8fe0"); g.beginPath(); g.moveTo(0, -2*u); g.quadraticCurveTo(8*u, 8*u, 0, 14*u); g.quadraticCurveTo(-8*u, 8*u, 0, -2*u); fill("#ffffff"); break;
+    case "cola":
+      rect(-17, -38, 34, 76, 6, "#c4161c"); rect(-17, -38, 34, 9, 5, "#c9ccd2"); rect(-17, 29, 34, 9, 5, "#c9ccd2");
+      g.beginPath(); g.moveTo(-17*u, -6*u); g.quadraticCurveTo(0, 10*u, 17*u, -6*u); g.lineTo(17*u, 4*u); g.quadraticCurveTo(0, 20*u, -17*u, 4*u); g.closePath(); fill("#ffffff"); break;
+    case "charger":
+      rect(-20, -20, 40, 44, 7, "#f4f5f7"); rect(-10, -32, 5, 13, 1.5, "#9aa0a8"); rect(5, -32, 5, 13, 1.5, "#9aa0a8");
+      rect(-6, 28, 12, 14, 3, "#f4f5f7"); g.fillStyle = "#31b36b"; g.beginPath(); g.arc(0, 2*u, 5*u, 0, 7); g.fill(); break;
+    default:
+      rect(-26, -26, 52, 52, 8, "#8d96a3");
+  }
+  g.restore();
+}
+
 function drawWheel() {
   const cv = document.getElementById("wheelcanvas");
   if (!cv) return;
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
   g.clearRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2;
-  const outer = Math.min(W, H) * 0.40, inner = outer * 0.40;
-  const n = WHEEL_SLOTS.length, step = Math.PI * 2 / n;
+  const cx = W / 2, cy = H * 0.43;
+  const outer = W * 0.355, inner = outer * 0.43;
+  const n = WHEEL_CATS.length, step = Math.PI * 2 / n;
+  const cur = wheelCur();
 
-  WHEEL_SLOTS.forEach((slot, i) => {
+  WHEEL_CATS.forEach((cat, i) => {
     const mid = i * step - Math.PI / 2;
-    const a0 = mid - step / 2 + 0.012, a1 = mid + step / 2 - 0.012;
+    const a0 = mid - step / 2 + 0.016, a1 = mid + step / 2 - 0.016;
     const on = i === wheel.sel;
-    const have = wheelOwned(slot);
-    g.beginPath();
-    g.arc(cx, cy, outer, a0, a1);
-    g.arc(cx, cy, inner, a1, a0, true);
-    g.closePath();
-    g.fillStyle = on ? "rgba(255,255,255,0.90)"
-                     : have ? "rgba(16,18,22,0.72)" : "rgba(16,18,22,0.42)";
-    g.fill();
-    if (!on) {
-      g.strokeStyle = "rgba(255,255,255,0.10)";
-      g.lineWidth = 1.5;
-      g.stroke();
+    const list = wheelList(cat.id);
+    const have = list.length > 0;
+    const path = () => { g.beginPath(); g.arc(cx, cy, outer, a0, a1); g.arc(cx, cy, inner, a1, a0, true); g.closePath(); };
+    path();
+    if (have) {
+      g.fillStyle = on ? mixHex(cat.colour, "#ffffff", 0.18) : mixHex(cat.colour, "#12141a", 0.52);
+      g.fill();
+      g.strokeStyle = on ? "#ffffff" : mixHex(cat.colour, "#12141a", 0.25);
+      g.lineWidth = on ? 4 : 2; g.stroke();
+    } else {
+      // Nothing owned: an empty outline you can still point at.
+      g.fillStyle = on ? "rgba(255,255,255,0.14)" : "rgba(14,16,20,0.30)";
+      g.fill();
+      g.setLineDash([9, 8]);
+      g.strokeStyle = on ? "#ffffff" : cat.colour;
+      g.globalAlpha = on ? 0.9 : 0.55;
+      g.lineWidth = 2.5; g.stroke();
+      g.setLineDash([]); g.globalAlpha = 1;
     }
     const gr = (inner + outer) * 0.5;
     const gx = cx + Math.cos(mid) * gr, gy = cy + Math.sin(mid) * gr;
-    g.globalAlpha = have ? 1 : 0.32;
-    wheelGlyph(g, slot.kind, slot.id, gx, gy, outer * 0.22, on);
-    g.globalAlpha = 1;
+    if (have) {
+      const ci = clamp(wheel.idx[cat.id] || 0, 0, list.length - 1);
+      const entry = list[ci];
+      wheelIcon(g, entry, gx, gy, outer * 0.21, false);
+      if (entry.count > 1) {
+        g.fillStyle = "#0e1014"; g.beginPath(); g.arc(gx + outer * 0.17, gy + outer * 0.16, 17, 0, 7); g.fill();
+        g.fillStyle = "#fff"; g.font = "800 20px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+        g.fillText("×" + entry.count, gx + outer * 0.17, gy + outer * 0.16 + 1);
+      }
+    } else {
+      g.globalAlpha = on ? 0.55 : 0.28;
+      g.fillStyle = cat.colour; g.strokeStyle = cat.colour;
+      g.beginPath(); g.arc(gx, gy, outer * 0.085, 0, 7); g.lineWidth = 3; g.stroke();
+      g.globalAlpha = 1;
+    }
   });
 
-  // The middle: what is under the pointer, and whether you own it.
-  const slot = WHEEL_SLOTS[wheel.sel];
-  const have = wheelOwned(slot);
-  g.fillStyle = "rgba(10,11,14,0.86)";
-  g.beginPath(); g.arc(cx, cy, inner - 6, 0, Math.PI * 2); g.fill();
+  // The middle: the category, what is selected in it, and where you are in the list.
+  g.fillStyle = "rgba(10,11,14,0.88)";
+  g.beginPath(); g.arc(cx, cy, inner - 8, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = cur.cat.colour; g.lineWidth = 4;
+  g.beginPath(); g.arc(cx, cy, inner - 8, 0, Math.PI * 2); g.stroke();
   g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillStyle = have ? "#ffffff" : "#6b727a";
-  g.font = "700 " + Math.round(outer * 0.115) + "px " + UI;
-  g.fillText(slot.name, cx, cy - outer * 0.045);
-  g.fillStyle = "#79818b";
-  g.font = "500 " + Math.round(outer * 0.085) + "px " + UI;
-  g.fillText(have ? (slot.kind === "audio"
-                      ? (wheel.wearing === slot.id ? "Wearing" : "Put on")
-                      : slot.kind === "gun" ? "Firearm" : slot.kind === "melee" ? "Melee" : "")
-                  : "Not owned", cx, cy + outer * 0.07);
+  g.fillStyle = cur.cat.colour;
+  g.font = "800 " + Math.round(outer * 0.075) + "px " + UI;
+  g.fillText(cur.cat.name.toUpperCase(), cx, cy - outer * 0.14);
+  g.fillStyle = cur.item ? "#ffffff" : "#7a828c";
+  g.font = "700 " + Math.round(outer * 0.098) + "px " + UI;
+  g.fillText(cur.item ? cur.item.name : cur.cat.empty, cx, cy - outer * 0.02);
+  g.fillStyle = "#8a929c";
+  g.font = "500 " + Math.round(outer * 0.07) + "px " + UI;
+  const sub = cur.item ? ((cur.item.count > 1 ? "×" + cur.item.count + " · " : "") + (cur.item.note || "")) : "";
+  if (sub) g.fillText(sub, cx, cy + outer * 0.09);
+  if (cur.list.length > 1) {
+    g.fillStyle = "#6b737d";
+    g.fillText((cur.i + 1) + " / " + cur.list.length, cx, cy + outer * 0.18);
+  }
+
+  // The strip under the ring: everything else in this category, the selected
+  // one lifted and framed, with arrows when there is more either side.
+  if (cur.list.length > 1) {
+    const sy = cy + outer + 82, cell = 92, vis = Math.min(cur.list.length, 7);
+    let start = clamp(cur.i - Math.floor(vis / 2), 0, cur.list.length - vis);
+    const x0 = cx - (vis * cell) / 2 + cell / 2;
+    for (let k = 0; k < vis; k++) {
+      const li = start + k, ent = cur.list[li];
+      const x = x0 + k * cell, sel = li === cur.i;
+      g.fillStyle = sel ? mixHex(cur.cat.colour, "#12141a", 0.35) : "rgba(14,16,20,0.62)";
+      roundRect(g, x - 40, sy - 40, 80, 80, 14); g.fill();
+      g.strokeStyle = sel ? "#ffffff" : "rgba(255,255,255,0.12)"; g.lineWidth = sel ? 3.5 : 1.5; g.stroke();
+      wheelIcon(g, ent, x, sy, sel ? 29 : 24, false);
+    }
+    g.fillStyle = "#c9ced4"; g.font = "700 28px " + UI; g.textBaseline = "middle";
+    if (start > 0) { g.textAlign = "right"; g.fillText("‹", x0 - cell / 2 - 8, sy); }
+    if (start + vis < cur.list.length) { g.textAlign = "left"; g.fillText("›", x0 + (vis - 1) * cell + cell / 2 + 8, sy); }
+  }
   g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
