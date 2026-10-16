@@ -4642,6 +4642,7 @@ function initThree() {
       if (e.code === "ArrowUp") shopMove(0, -1);
       if (e.code === "ArrowDown") shopMove(0, 1);
       if (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") takeFromShelf();
+      if ((e.code === "KeyT" || e.code === "Tab") && shops.inside.mall) mallTest();
       if (e.code === "Escape" || e.code === "Backspace" || e.code === "KeyF") leaveShop();
       e.preventDefault();
       return;
@@ -4746,7 +4747,8 @@ function pollPad(dt) {
     if (pressed(PAD.UP)) shopMove(0, -1);
     if (pressed(PAD.DOWN)) shopMove(0, 1);
     if (pressed(PAD.A)) takeFromShelf();
-    if (pressed(PAD.B) || pressed(PAD.Y)) leaveShop();
+    if (shops.inside.mall) { if (pressed(PAD.Y)) mallTest(); if (pressed(PAD.B)) leaveShop(); }
+    else if (pressed(PAD.B) || pressed(PAD.Y)) leaveShop();
     return;
   }
 
@@ -5673,7 +5675,9 @@ function buildScene(w) {
   buildRailStops();
   buildNav(w);
   placeShops(w.cities[0]);
+  placeMalls(w);
   buildShopSigns(root);
+  buildMallSigns(root);
   findHome(w);
   placeHospitals(w);
   buildGarage(root);
@@ -6958,6 +6962,7 @@ function tick(dt) {
   updateWanted(dt);
   updateDoorways(dt);
   updateTV(dt);
+  updateMall(dt);
   updateCollapse(dt);
   // Spotify is asked how it is getting on twice a second, and only while the
   // app is actually open.
@@ -10765,9 +10770,10 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.translate(sh.at[0], sh.at[1]);
         ctx.rotate(-rot);
         ctx.fillStyle = sh.brand === "eleven" ? "#0a6b42"
+                      : sh.brand === "dokoto" ? "#d4152c"
                       : sh.brand === "arms" ? "#8a6a2a" : "#1272d6";
         ctx.beginPath();
-        ctx.arc(0, 0, sr * 0.5, 0, Math.PI * 2);
+        ctx.arc(0, 0, sr * (sh.mall ? 0.72 : 0.5), 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = "rgba(10,12,16,0.85)";
         ctx.lineWidth = sr * 0.22;
@@ -11560,6 +11566,7 @@ function mixHex(a, b, k) { const A = hexRGB(a), B = hexRGB(b); return rgbHex([0,
 // The shell colour of the phone you are holding.
 function deviceShell() {
   const d = dev();
+  if (phone.cases && phone.cases[phone.device]) return phone.cases[phone.device];
   if (d.ui === "basic") return d.body[0];
   const list = d.colours;
   return list[clamp(phone.colourIdx || 0, 0, list.length - 1)][1];
@@ -14522,7 +14529,7 @@ function placeShops(city) {
 // metres - which is what a convenience store sign is for.
 function buildShopSigns(root) {
   const byBrand = {};
-  shops.list.forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
+  shops.list.filter(s => !s.mall).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
   Object.keys(byBrand).forEach(brand => {
     const list = byBrand[brand];
     const b = SHOP_BRANDS[brand];
@@ -14576,10 +14583,13 @@ function enterShop(s) {
   const el = document.getElementById("shop");
   if (el) el.hidden = false;
   document.body.classList.add("inshop");
+  if (s.mall) { enterMall(s); return; }
   drawShop();
 }
 function leaveShop() {
   if (!shops.inside) return;
+  if (shops.inside.mall && mallBack()) { drawMall(); return; }
+  frameGrab.want = false;
   stepOutFrom(shops.inside.door, shops.inside.yaw);
   shops.inside = null;
   document.body.classList.remove("inshop");
@@ -14587,11 +14597,353 @@ function leaveShop() {
   if (el) setTimeout(() => { if (!shops.inside) el.hidden = true; }, 200);
 }
 
+// ---- Dokoto Camera, in person ---------------------------------------------------
+// Three in Tōkonto and one in every other town: a big red-and-yellow box with a
+// blade sign you can see from the next street. Walk in and you are in a lift
+// lobby. Four floors, because that is how this kind of shop works: games on the
+// top, watches and consoles below, phones on the ground floor, cases in the
+// basement. You can try a phone (colours, and the camera, zoomed) before you buy
+// it, and everything on the shelves but the consoles is carried out in the bag.
+const MALL_FLOORS = [
+  { id: 3, label: "3F", name: "Games & Arcade" },
+  { id: 2, label: "2F", name: "Watches & Consoles" },
+  { id: 1, label: "1F", name: "Phones & Cameras" },
+  { id: 0, label: "B1", name: "Cases & Accessories" }
+];
+const CASES = [["Clear", "#cfe0ea", 2980], ["Black", "#17181b", 2980], ["Red", "#c0392b", 2980], ["Sky", "#4aa8e0", 2980],
+               ["Sakura", "#f0a8c0", 2980], ["Forest", "#2f6a47", 2980], ["Rugged orange", "#e8711a", 5980], ["Rugged grey", "#5a6068", 5980]];
+const CONSOLE_COLOURS = { playbox5: [["White", "#f2f4f7"], ["Black", "#1c1e23"], ["Green", "#1f9a5f"], ["Red", "#c43a3a"]],
+                          pearcube: [["Silver", "#d9dce1"], ["Graphite", "#4b4e54"], ["Mint", "#8fd9c2"]] };
+SHOP_BRANDS.dokoto = { name: "Dokoto Camera", band: "#d4152c", ink: "#ffffff", stripes: ["#ffd21c", "#14171b"], tag: "Cameras · Phones · Games" };
+const mall = { floor: 1, mode: "lift", sel: 0, colour: 0, zoom: 1, ride: 0, to: 1, case: 0, flash: 0 };
+
+function placeMalls(w) {
+  if (!w || !w.cities) return;
+  const taken = [];
+  const rng = (() => { let sd = 9137; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  const make = (p, city) => {
+    const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
+    const s = { brand: "dokoto", mall: true, name: "Dokoto Camera", city: city.name,
+      at: [p.centre[0], p.centre[1]], door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
+      yaw: yaw, groundY: p.groundY, size: p.size };
+    shops.list.push(s); taken.push(s);
+  };
+  w.cities.forEach((city, ci) => {
+    if (!city.plots) return;
+    const near = (p, d) => shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < d);
+    let pool = city.plots.filter(p => p.size[0] > 30 && p.size[1] > 24 && p.size[0] < 80 && p.size[1] < 70 &&
+                                      (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
+    if (!pool.length) pool = city.plots.filter(p => p.size[0] > 24 && p.size[1] > 20);
+    if (!pool.length) return;
+    const want = ci === 0 ? 3 : 1;
+    for (let k = 0; k < want; k++) {
+      let best = null;
+      for (let g = 0; g < 400 && pool.length; g++) {
+        const p = pool[(rng() * pool.length) | 0];
+        if (near(p, ci === 0 ? 1000 : 40)) continue;
+        if (!best || p.size[0] * p.size[1] > best.size[0] * best.size[1]) best = p;
+        if (g > 60 && best) break;
+      }
+      if (best) make(best, city);
+    }
+  });
+}
+
+function buildMallSigns(root) {
+  const malls = shops.list.filter(s => s.mall);
+  if (!malls.length) return;
+  const tex = (() => {
+    const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 256;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#d4152c"; g.fillRect(0, 0, 1024, 256);
+    g.fillStyle = "#ffd21c"; g.fillRect(0, 214, 1024, 42);
+    g.fillStyle = "#14171b"; for (let x = 0; x < 1024; x += 64) g.fillRect(x, 214, 32, 42);
+    g.fillStyle = "#ffffff"; g.font = "900 120px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillText("DOKOTO", 150, 90);
+    g.fillStyle = "#ffd21c"; g.font = "800 72px " + UI; g.fillText("CAMERA", 150, 170);
+    g.fillStyle = "#ffffff"; g.font = "900 78px " + JP; g.textAlign = "right"; g.fillText("ドコトカメラ", 990, 80);
+    g.font = "700 40px " + JP; g.fillStyle = "#ffe9a0"; g.fillText("スマホ・ゲーム・カメラ", 990, 160);
+    g.fillStyle = "#ffffff"; g.beginPath(); g.arc(78, 120, 52, 0, 7); g.fill();
+    g.fillStyle = "#14171b"; g.beginPath(); g.arc(78, 120, 38, 0, 7); g.fill();
+    g.fillStyle = "#3a4a8a"; g.beginPath(); g.arc(78, 120, 22, 0, 7); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.beginPath(); g.arc(70, 110, 6, 0, 7); g.fill();
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  })();
+  const blade = (() => {
+    const cv = document.createElement("canvas"); cv.width = 128; cv.height = 512;
+    const g = cv.getContext("2d");
+    g.fillStyle = "#d4152c"; g.fillRect(0, 0, 128, 512);
+    g.fillStyle = "#ffd21c"; g.fillRect(0, 0, 14, 512); g.fillRect(114, 0, 14, 512);
+    g.fillStyle = "#fff"; g.font = "900 64px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+    "ドコト".split("").forEach((c, i) => g.fillText(c, 64, 70 + i * 78));
+    g.fillStyle = "#ffd21c"; g.font = "800 40px " + UI; g.save(); g.translate(64, 400); g.rotate(-Math.PI / 2); g.fillText("CAMERA", 0, 0); g.restore();
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t;
+  })();
+  const mat = new THREE.MeshBasicMaterial({ map: tex });
+  const bmat = new THREE.MeshBasicMaterial({ map: blade });
+  const dark = new THREE.MeshLambertMaterial({ color: 0x15171b });
+  malls.forEach(s => {
+    const gr = new THREE.Group();
+    const w = clamp(s.size[0] * 0.9, 14, 34);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(w, w / 4, 0.7), [dark, dark, dark, dark, mat, dark]);
+    face.position.set(0, 7.2 + w / 8, 0.2); gr.add(face);
+    const awn = new THREE.Mesh(new THREE.BoxGeometry(Math.min(w, 12), 0.35, 2.2), new THREE.MeshLambertMaterial({ color: 0xd4152c }));
+    awn.position.set(0, 3.7, 1.0); awn.rotation.x = 0.18; gr.add(awn);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(Math.min(w, 12), 0.12, 0.2), new THREE.MeshBasicMaterial({ color: 0xffd21c }));
+    stripe.position.set(0, 3.48, 2.0); gr.add(stripe);
+    const bl = new THREE.Mesh(new THREE.BoxGeometry(2.6, 13, 0.5), [dark, dark, dark, dark, bmat, bmat]);
+    bl.position.set(w / 2 - 1.2, 9, 1.6); gr.add(bl);
+    const glow = new THREE.PointLight(0xff6a4a, 0.8, 30); glow.position.set(0, 5, 3); gr.add(glow);
+    gr.position.set(s.door[0], s.groundY, s.door[1]);
+    gr.rotation.y = s.yaw;
+    root.add(gr);
+    s.signY = s.groundY + 14;
+  });
+}
+
+// ---- inside
+function mallZoomMax(id) { const d = DEVICES[id]; const m = d && /(\d+)x zoom/.exec(d.camera || ""); return m ? +m[1] : 2; }
+function mallList(floor) {
+  if (floor === 1) return dokotoList(0);
+  if (floor === 2) return dokotoList(1);
+  if (floor === 3) return dokotoList(2);
+  return CASES.map((c, i) => ({ kind: "case", id: "case" + i, name: c[0] + " case", price: c[2], note: "For the " + dev().name, colour: c[1], idx: i }));
+}
+function enterMall(s) {
+  mall.floor = 1; mall.mode = "lift"; mall.sel = 2; mall.colour = 0; mall.zoom = 1; mall.ride = 0; mall.flash = 0;
+  drawMall();
+}
+function mallBack() {
+  if (mall.mode === "test") { mall.mode = "floor"; return true; }
+  if (mall.mode === "floor") { mall.mode = "lift"; mall.sel = MALL_FLOORS.findIndex(f => f.id === mall.floor); drawMall(); return true; }
+  if (mall.mode === "ride") return true;
+  return false;
+}
+function mallTest() {
+  if (mall.mode === "floor") {
+    const it = mallList(mall.floor)[mall.sel2 || 0];
+    if (it && it.kind === "phone") { mall.mode = "test"; mall.zoom = 1; frameGrab.want = true; }
+    else if (it) say("Nothing to try on this one.", 2.5);
+  } else if (mall.mode === "test") mall.mode = "floor";
+  drawMall();
+}
+function mallMove(dx, dy) {
+  if (mall.mode === "lift") {
+    if (dy) mall.sel = clamp(mall.sel + dy, 0, MALL_FLOORS.length - 1);
+  } else if (mall.mode === "floor") {
+    const list = mallList(mall.floor), cur = mall.sel2 || 0;
+    if (mall.floor === 3) {
+      let c = cur % 4, r = (cur / 4) | 0;
+      c = clamp(c + dx, 0, 3); r = clamp(r + dy, 0, Math.ceil(list.length / 4) - 1);
+      mall.sel2 = clamp(r * 4 + c, 0, list.length - 1);
+    } else {
+      if (dx) { mall.sel2 = clamp(cur + dx, 0, list.length - 1); mall.colour = 0; }
+      const it = list[mall.sel2 || 0];
+      if (dy && it) {
+        const cols = it.kind === "phone" ? DEVICES[it.id].colours.length : it.kind === "gear" && CONSOLE_COLOURS[it.id] ? CONSOLE_COLOURS[it.id].length : 0;
+        if (cols) mall.colour = (mall.colour + dy + cols) % cols;
+      }
+    }
+  } else if (mall.mode === "test") {
+    const it = mallList(mall.floor)[mall.sel2 || 0];
+    if (dy) mall.zoom = clamp(mall.zoom - dy * 0.5, 1, mallZoomMax(it.id));
+    if (dx) { const n = DEVICES[it.id].colours.length; mall.colour = (mall.colour + dx + n) % n; }
+  }
+  drawMall();
+}
+function mallAct() {
+  if (mall.mode === "lift") {
+    mall.to = MALL_FLOORS[mall.sel].id;
+    if (mall.to === mall.floor) { mall.mode = "floor"; mall.sel2 = 0; mall.colour = 0; }
+    else { mall.mode = "ride"; mall.ride = 0; }
+    drawMall(); return;
+  }
+  if (mall.mode === "test") { mall.flash = 0.25; return; }
+  const list = mallList(mall.floor), it = list[mall.sel2 || 0];
+  if (!it) return;
+  if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) {
+    if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return; }
+    purse.yen -= it.price;
+    orderDelivery("gear", it.id, it.name + ", " + CONSOLE_COLOURS[it.id][mall.colour][0], 2, mall.colour);
+    say(it.name + " ordered for delivery · " + yenText(it.price) + ". Consoles are sent, not carried.", 6);
+    drawMall(); return;
+  }
+  if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return; }
+  purse.yen -= it.price;
+  if (it.kind === "phone") { const c = clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1); giveItem("phone", it.id, c); say(it.name + ", " + DEVICES[it.id].colours[c][0] + " · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "gear") { giveItem("gear", it.id); say(it.name + " · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "game") { giveItem("game", it.id); say(it.name + " disc · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "case") { phone.cases = phone.cases || {}; phone.cases[phone.device] = it.colour; applyDeviceSkin(); say(it.name + " fitted · " + yenText(it.price), 4); }
+  drawMall();
+}
+function updateMall(dt) {
+  const s = shops.inside;
+  if (!s || !s.mall) return;
+  if (mall.mode === "ride") {
+    mall.ride += dt;
+    if (mall.ride > 1.5) { mall.floor = mall.to; mall.mode = "floor"; mall.sel2 = 0; mall.colour = 0; say(MALL_FLOORS.find(f => f.id === mall.floor).label + "  " + MALL_FLOORS.find(f => f.id === mall.floor).name, 3); }
+    drawMall();
+  } else if (mall.mode === "test") {
+    frameGrab.want = true; mall.flash = Math.max(0, mall.flash - dt); drawMall();
+  }
+}
+
+function drawMall() {
+  const cv = document.getElementById("shopcanvas");
+  const s = shops.inside;
+  if (!cv || !s || !s.mall) return;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  const T = (txt, x, y, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + Math.round(sz) + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, x, y); };
+  const fl = MALL_FLOORS.find(f => f.id === mall.floor);
+  // the room
+  const wall = g.createLinearGradient(0, 0, 0, H);
+  wall.addColorStop(0, "#f4f1ea"); wall.addColorStop(0.62, "#e6e2d8"); wall.addColorStop(0.62, "#b8b3a6"); wall.addColorStop(1, "#8f8a7e");
+  g.fillStyle = wall; g.fillRect(0, 0, W, H);
+  for (let i = 0; i < 6; i++) { g.fillStyle = "rgba(255,255,255,0.9)"; g.fillRect(W * (0.06 + i * 0.16), H * 0.14, W * 0.10, H * 0.010); }
+  // header
+  g.fillStyle = "#d4152c"; g.fillRect(0, 0, W, H * 0.105);
+  g.fillStyle = "#ffd21c"; g.fillRect(0, H * 0.105, W, H * 0.014);
+  T("DOKOTO CAMERA", W * 0.03, H * 0.052, H * 0.055, "#fff", "left", "900");
+  T(s.city || "", W * 0.30, H * 0.054, H * 0.030, "#ffd0d5", "left", "600");
+  T(yenText(purse.yen), W * 0.97, H * 0.052, H * 0.040, "#fff", "right", "700");
+
+  if (mall.mode === "lift" || mall.mode === "ride") {
+    // the lift doors, and the floors beside them
+    const dx = W * 0.14, dy = H * 0.18, dw = W * 0.34, dh = H * 0.72;
+    g.fillStyle = "#4a4d52"; g.fillRect(dx - 14, dy - 14, dw + 28, dh + 14);
+    const open = mall.mode === "lift" ? 0.0 : clamp(Math.sin((mall.ride / 1.5) * Math.PI), 0, 1) * 0.0;
+    const ride = mall.mode === "ride";
+    g.fillStyle = "#b8bcc2"; g.fillRect(dx, dy, dw / 2 - 2, dh); g.fillRect(dx + dw / 2 + 2, dy, dw / 2 - 2, dh);
+    g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(dx + dw * 0.06, dy, dw * 0.04, dh); g.fillRect(dx + dw * 0.56, dy, dw * 0.04, dh);
+    if (!ride) { g.fillStyle = "rgba(0,0,0,0.06)"; for (let i = 0; i < 10; i++) g.fillRect(dx, dy + i * dh / 10, dw, 2); }
+    // floor indicator above
+    g.fillStyle = "#111"; roundRect(g, dx + dw * 0.35, dy - H * 0.095, dw * 0.30, H * 0.075, 8); g.fill();
+    const shown = ride ? (mall.ride < 0.75 ? mall.floor : mall.to) : mall.floor;
+    T(MALL_FLOORS.find(f => f.id === shown).label, dx + dw / 2, dy - H * 0.057, H * 0.055, "#ff9a3a", "center", "800");
+    // panel
+    const px = W * 0.56, py = H * 0.20, pw = W * 0.34;
+    g.fillStyle = "rgba(20,22,26,0.86)"; roundRect(g, px, py, pw, H * 0.64, 16); g.fill();
+    T("Which floor?", px + pw * 0.06, py + H * 0.055, H * 0.040, "#fff", "left", "800");
+    MALL_FLOORS.forEach((f, i) => {
+      const y = py + H * 0.11 + i * H * 0.115, on = i === mall.sel;
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.06)"; roundRect(g, px + pw * 0.04, y, pw * 0.92, H * 0.095, 10); g.fill();
+      g.fillStyle = f.id === mall.floor ? "#ff9a3a" : "#e9edf0"; g.beginPath(); g.arc(px + pw * 0.13, y + H * 0.0475, H * 0.034, 0, 7); g.fill();
+      T(f.label, px + pw * 0.13, y + H * 0.0475, H * 0.032, "#111", "center", "800");
+      T(f.name, px + pw * 0.24, y + H * 0.0475, H * 0.034, on ? "#fff" : "#c3c9cf", "left", on ? "700" : "500");
+    });
+    T(ride ? "Going " + (mall.to > mall.floor ? "up" : "down") + "…" : "▲ ▼ floor     A press     B leave the shop", W * 0.5, H * 0.945, H * 0.026, "#4a4d52", "center", "600");
+    return;
+  }
+
+  T(fl.label + "   " + fl.name, W * 0.03, H * 0.165, H * 0.046, "#14171b", "left", "800");
+  const list = mallList(mall.floor), cur = clamp(mall.sel2 || 0, 0, list.length - 1), it = list[cur];
+
+  if (mall.floor === 3) {
+    // the wall of games: cover art in a grid, the way a rack of boxes looks
+    const cols = 4, cw = W * 0.135, chh = cw * 1.25, gx = W * 0.025, x0 = W * 0.06, y0 = H * 0.22;
+    const rows = Math.ceil(list.length / cols), curRow = (cur / cols) | 0, first = clamp(curRow - 1, 0, Math.max(0, rows - 2));
+    for (let r = first; r < Math.min(rows, first + 2); r++) for (let c = 0; c < cols; c++) {
+      const i = r * cols + c; if (i >= list.length) continue;
+      const x = x0 + c * (cw + gx), y = y0 + (r - first) * (chh + H * 0.04);
+      g.fillStyle = "rgba(0,0,0,0.12)"; g.fillRect(x - 6, y + chh - 6, cw + 12, 14);
+      wheelIcon(g, { kind: "game", id: list[i].id }, x + cw / 2, y + chh / 2, cw * 0.62, false);
+      if (i === cur) { g.strokeStyle = "#d4152c"; g.lineWidth = 5; roundRect(g, x - 8, y - 8, cw + 16, chh + 16, 10); g.stroke(); }
+      if (bag.games[list[i].id]) { g.fillStyle = "#31b36b"; g.beginPath(); g.arc(x + cw - 4, y + 6, 14, 0, 7); g.fill(); T("✓", x + cw - 4, y + 7, 18, "#fff", "center", "800"); }
+    }
+    // the selected one, large, on the right
+    const gm = GAME_BY_ID[it.id], rx = W * 0.68;
+    g.fillStyle = "rgba(20,22,26,0.9)"; roundRect(g, rx, H * 0.20, W * 0.30, H * 0.70, 16); g.fill();
+    wheelIcon(g, { kind: "game", id: gm.id }, rx + W * 0.15, H * 0.42, W * 0.12, false);
+    T(gm.name, rx + W * 0.15, H * 0.63, H * 0.040, "#fff", "center", "800");
+    T(gm.genre, rx + W * 0.15, H * 0.69, H * 0.028, "#a9b0b8", "center", "500");
+    T(gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube", rx + W * 0.15, H * 0.74, H * 0.026, "#a9b0b8", "center", "500");
+    T(yenText(gm.price), rx + W * 0.15, H * 0.82, H * 0.052, "#ffd21c", "center", "800");
+    T(bag.games[gm.id] ? "Already in your bag" : "A  buy the disc", rx + W * 0.15, H * 0.87, H * 0.026, "#fff", "center", "600");
+    T("◀ ▶ ▲ ▼ browse     A buy     B lift", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+    return;
+  }
+
+  if (mall.mode === "test" && it) {
+    // the camera, with the zoom a real one would give
+    const d = DEVICES[it.id], zmax = mallZoomMax(it.id);
+    const vx = W * 0.05, vy = H * 0.19, vw = W * 0.60, vh = H * 0.72;
+    g.save(); roundRect(g, vx, vy, vw, vh, 18); g.clip();
+    g.fillStyle = "#101216"; g.fillRect(vx, vy, vw, vh);
+    const src = frameGrab.ok ? frameGrab.canvas : null;
+    const blur = Math.max(0, (mall.zoom / zmax) * (10 - d.cam) * 0.45);
+    g.filter = blur > 0.2 ? "blur(" + blur.toFixed(1) + "px)" : "none";
+    if (src) {
+      const sw = src.width / mall.zoom, sh = src.height / mall.zoom;
+      g.drawImage(src, (src.width - sw) / 2, (src.height - sh) / 2, sw, sh, vx, vy, vw, vh);
+    } else {
+      const sky = g.createLinearGradient(0, vy, 0, vy + vh); sky.addColorStop(0, "#f0a070"); sky.addColorStop(1, "#40506a");
+      g.fillStyle = sky; g.fillRect(vx, vy, vw, vh);
+      g.fillStyle = "#1c2230"; for (let i = 0; i < 14; i++) { const bw = (60 + (i * 37) % 70) * mall.zoom, bx = vx + ((i * 97 * mall.zoom) % (vw + 80)) - 40; g.fillRect(bx, vy + vh - (120 + (i * 53) % 200) * mall.zoom * 0.7, bw, 600); }
+    }
+    g.filter = "none";
+    g.restore();
+    g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 2;
+    g.strokeRect(vx + vw * 0.44, vy + vh * 0.44, vw * 0.12, vh * 0.12);
+    T(mall.zoom.toFixed(1) + "×", vx + vw / 2, vy + vh * 0.92, H * 0.050, "#fff", "center", "800");
+    T(d.name, vx + vw * 0.03, vy + vh * 0.05, H * 0.032, "#fff", "left", "700");
+    T(d.camera.split(",")[0], vx + vw * 0.97, vy + vh * 0.05, H * 0.026, "#ffd21c", "right", "600");
+    if (mall.flash > 0) { g.fillStyle = "rgba(255,255,255," + (mall.flash * 3).toFixed(2) + ")"; g.fillRect(vx, vy, vw, vh); }
+    // the tester's notes
+    const rx = W * 0.68;
+    g.fillStyle = "rgba(20,22,26,0.9)"; roundRect(g, rx, H * 0.19, W * 0.29, H * 0.72, 16); g.fill();
+    T("Camera test", rx + W * 0.02, H * 0.25, H * 0.038, "#fff", "left", "800");
+    T("Zoom up to " + zmax + "×", rx + W * 0.02, H * 0.31, H * 0.028, "#ffd21c", "left", "600");
+    T("Score " + d.cam + " / 10", rx + W * 0.02, H * 0.355, H * 0.028, "#c3c9cf", "left", "500");
+    g.fillStyle = "rgba(255,255,255,0.12)"; g.fillRect(rx + W * 0.02, H * 0.395, W * 0.25, 8);
+    g.fillStyle = "#ffd21c"; g.fillRect(rx + W * 0.02, H * 0.395, W * 0.25 * d.cam / 10, 8);
+    drawHandset(g, rx + W * 0.145, H * 0.60, H * 0.32, d, d.colours[clamp(mall.colour, 0, d.colours.length - 1)][1]);
+    T(d.colours[clamp(mall.colour, 0, d.colours.length - 1)][0], rx + W * 0.145, H * 0.80, H * 0.030, "#fff", "center", "600");
+    T("▲ ▼ zoom   ◀ ▶ colour   A shutter   B back", W * 0.5, H * 0.955, H * 0.026, "#4a4d52", "center", "600");
+    return;
+  }
+
+  // the carousel: one big thing in the middle, its neighbours either side
+  const cx = W * 0.5, cy = H * 0.50;
+  const show = (e, x, scale, dim) => {
+    g.save(); g.globalAlpha = dim ? 0.45 : 1;
+    if (e.kind === "phone") { const d = DEVICES[e.id]; drawHandset(g, x, cy, H * 0.36 * scale, d, d.colours[(dim ? 0 : clamp(mall.colour, 0, d.colours.length - 1))][1]); }
+    else if (e.kind === "case") {
+      const base = dev().colours ? dev().colours[0][1] : "#333";
+      drawHandset(g, x, cy, H * 0.36 * scale, dev().ui === "basic" ? DEVICES.so24 : dev(), dim ? base : e.colour);
+    }
+    else if (e.kind === "gear") {
+      const gx = Object.assign({}, e);
+      wheelIcon(g, { kind: "gear", id: e.id, item: e }, x, cy, H * 0.22 * scale, false);
+    }
+    g.restore();
+  };
+  const floorY = H * 0.68;
+  g.fillStyle = "rgba(0,0,0,0.10)"; g.beginPath(); g.ellipse(cx, floorY + H * 0.04, W * 0.18, H * 0.03, 0, 0, 7); g.fill();
+  if (list[cur - 1]) show(list[cur - 1], cx - W * 0.28, 0.62, true);
+  if (list[cur + 1]) show(list[cur + 1], cx + W * 0.28, 0.62, true);
+  if (it) show(it, cx, 1, false);
+  if (it) {
+    T(it.name, cx, H * 0.77, H * 0.048, "#14171b", "center", "800");
+    let spec = it.note;
+    if (it.kind === "phone") { const d = DEVICES[it.id]; spec = d.screen + "  ·  " + d.chip + "  ·  " + d.camera; }
+    T(spec, cx, H * 0.82, H * 0.026, "#4a4d52", "center", "500");
+    T(yenText(it.price), cx, H * 0.885, H * 0.058, "#c0172b", "center", "800");
+    if (it.kind === "phone") T(DEVICES[it.id].colours[clamp(mall.colour, 0, DEVICES[it.id].colours.length - 1)][0], cx, H * 0.925, H * 0.028, "#4a4d52", "center", "600");
+    if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) T("Colour: " + CONSOLE_COLOURS[it.id][mall.colour % CONSOLE_COLOURS[it.id].length][0] + "   ·   sent by delivery", cx, H * 0.925, H * 0.028, "#4a4d52", "center", "600");
+    T((cur + 1) + " / " + list.length, W * 0.97, H * 0.165, H * 0.028, "#4a4d52", "right", "600");
+  }
+  const hint = mall.floor === 1 ? "◀ ▶ model   ▲ ▼ colour   Y try it   A buy   B lift"
+             : mall.floor === 0 ? "◀ ▶ case   A fit it   B lift"
+             : "◀ ▶ browse   ▲ ▼ colour   A buy   B lift";
+  T(hint, W * 0.5, H * 0.965, H * 0.026, "#4a4d52", "center", "600");
+}
+
 // Taking something off the shelf pays for it there and then, which is what a
 // convenience store is.
 function takeFromShelf() {
   const s = shops.inside;
   if (!s) return;
+  if (s.mall) { mallAct(); return; }
   const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   purse.yen -= it.price;
@@ -14622,6 +14974,7 @@ function takeFromShelf() {
 
 function shopMove(dx, dy) {
   if (!shops.inside) return;
+  if (shops.inside.mall) { mallMove(dx, dy); return; }
   const shelves = shopShelves(shops.inside);
   if (dx) shops.shelf = (shops.shelf + dx + shelves.length) % shelves.length;
   const n = shelves[shops.shelf].items.length;
@@ -14644,6 +14997,7 @@ function drawShop() {
   const cv = document.getElementById("shopcanvas");
   const s = shops.inside;
   if (!cv || !s) return;
+  if (s.mall) { drawMall(); return; }
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
   const brand = SHOP_BRANDS[s.brand];
@@ -15373,7 +15727,7 @@ function Tx(g, s, x, y, sz, c, al) {
   g.fillStyle = c; g.font = "800 " + sz + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle";
   g.fillText(s, x, y);
 }
-function rnd(a, b) { return a + Math.random() * (b - a); }
+function arcRnd(a, b) { return a + Math.random() * (b - a); }
 
 function arcadeStart(id) {
   const gm = GAME_BY_ID[id];
@@ -15498,7 +15852,7 @@ ARC.breakout = {
   upd(s, dt, i) {
     s.p = clamp(s.p + i.x * 230 * dt, 4, 276);
     const b = s.ball;
-    if (b.stuck) { b.x = s.p + 20; if (i.pa) { b.stuck = false; b.vx = rnd(-70, 70); b.vy = -150; } return; }
+    if (b.stuck) { b.x = s.p + 20; if (i.pa) { b.stuck = false; b.vx = arcRnd(-70, 70); b.vy = -150; } return; }
     b.x += b.vx * dt; b.y += b.vy * dt;
     if (b.x < 4) { b.x = 4; b.vx = Math.abs(b.vx); } if (b.x > 316) { b.x = 316; b.vx = -Math.abs(b.vx); }
     if (b.y < 22) { b.y = 22; b.vy = Math.abs(b.vy); }
@@ -15521,7 +15875,7 @@ ARC.breakout = {
 // ---- pong
 ARC.pong = {
   init(s) { s.y = 100; s.ay = 100; s.sc = [0, 0]; this.serve(s, 1); },
-  serve(s, d) { s.b = { x: 160, y: 120, vx: 120 * d, vy: rnd(-70, 70) }; },
+  serve(s, d) { s.b = { x: 160, y: 120, vx: 120 * d, vy: arcRnd(-70, 70) }; },
   upd(s, dt, i) {
     s.y = clamp(s.y + i.y * 190 * dt, 22, 198);
     s.ay += clamp(s.b.y - 22 - s.ay, -1, 1) * 120 * dt; s.ay = clamp(s.ay, 22, 198);
@@ -15576,7 +15930,7 @@ function roadUpd(s, dt, i, drift) {
   s.x = clamp(s.x, 82, 238);
   s.sc += s.sp * dt; arcade.score = s.sc / 8 + (drift ? Math.abs(s.vx) * 0.02 * s.t : 0);
   s.t += dt;
-  if (Math.random() < dt * (1.2 + s.sp / 200)) s.ob.push({ x: rnd(92, 228), y: -20, w: 16, c: Math.random() });
+  if (Math.random() < dt * (1.2 + s.sp / 200)) s.ob.push({ x: arcRnd(92, 228), y: -20, w: 16, c: Math.random() });
   s.ob.forEach(o => o.y += (s.sp - 60) * dt);
   s.ob = s.ob.filter(o => o.y < 250);
   if (s.ob.some(o => Math.abs(o.x - s.x) < 15 && o.y > 190 && o.y < 226)) arcadeOver("CRASH");
@@ -15602,7 +15956,7 @@ ARC.runner = {
     s.sp = Math.min(340, s.sp + dt * 6); s.sc += s.sp * dt; arcade.score = s.sc / 10;
     if ((i.pa || i.pu) && s.y <= 0.5) s.vy = 300;
     s.vy -= 900 * dt; s.y = Math.max(0, s.y + s.vy * dt); if (s.y === 0 && s.vy < 0) s.vy = 0;
-    s.next -= dt; if (s.next <= 0) { s.ob.push({ x: 340, w: rnd(12, 26), h: rnd(16, 34) }); s.next = rnd(0.7, 1.5) * 170 / s.sp; }
+    s.next -= dt; if (s.next <= 0) { s.ob.push({ x: 340, w: arcRnd(12, 26), h: arcRnd(16, 34) }); s.next = arcRnd(0.7, 1.5) * 170 / s.sp; }
     s.ob.forEach(o => o.x -= s.sp * dt); s.ob = s.ob.filter(o => o.x > -40);
     if (s.ob.some(o => o.x < 62 && o.x + o.w > 40 && s.y < o.h - 2)) arcadeOver();
   },
@@ -15621,7 +15975,7 @@ ARC.catch = {
   init(s) { s.x = 150; s.it = []; s.lives = 3; s.t = 0; },
   upd(s, dt, i) {
     s.x = clamp(s.x + i.x * 240 * dt, 20, 300); s.t += dt;
-    if (Math.random() < dt * (1.3 + s.t * 0.03)) s.it.push({ x: rnd(14, 306), y: 14, bad: Math.random() < 0.22, c: (Math.random() * 3) | 0 });
+    if (Math.random() < dt * (1.3 + s.t * 0.03)) s.it.push({ x: arcRnd(14, 306), y: 14, bad: Math.random() < 0.22, c: (Math.random() * 3) | 0 });
     s.it.forEach(o => o.y += (70 + s.t * 2.2) * dt);
     s.it = s.it.filter(o => {
       if (o.y > 206 && o.y < 224 && Math.abs(o.x - s.x) < 24) { if (o.bad) { s.lives--; if (s.lives <= 0) arcadeOver(); } else arcade.score += 10; return false; }
@@ -15639,7 +15993,7 @@ ARC.catch = {
 
 // ---- crossing
 ARC.crossing = {
-  init(s) { s.c = 8; s.r = 11; s.lives = 3; s.ln = []; for (let j = 1; j <= 10; j++) { const d = j % 2 ? 1 : -1, sp = rnd(30, 70) + j * 3, cars = []; for (let k = 0; k < 3; k++) cars.push(k * 112 + rnd(0, 40)); s.ln.push({ j: j, d: d, sp: sp, cars: cars, w: 26 + (j % 3) * 8 }); } },
+  init(s) { s.c = 8; s.r = 11; s.lives = 3; s.ln = []; for (let j = 1; j <= 10; j++) { const d = j % 2 ? 1 : -1, sp = arcRnd(30, 70) + j * 3, cars = []; for (let k = 0; k < 3; k++) cars.push(k * 112 + arcRnd(0, 40)); s.ln.push({ j: j, d: d, sp: sp, cars: cars, w: 26 + (j % 3) * 8 }); } },
   upd(s, dt, i) {
     s.ln.forEach(l => { for (let k = 0; k < l.cars.length; k++) { l.cars[k] += l.d * l.sp * dt; if (l.cars[k] > 340) l.cars[k] = -40; if (l.cars[k] < -40) l.cars[k] = 340; } });
     if (i.pl) s.c = Math.max(0, s.c - 1); if (i.pr) s.c = Math.min(15, s.c + 1); if (i.pu) s.r = Math.max(0, s.r - 1); if (i.pd) s.r = Math.min(11, s.r + 1);
@@ -15703,10 +16057,10 @@ ARC.pachi = {
   init(s) { s.x = 160; s.balls = 10; s.b = []; s.pins = []; for (let j = 0; j < 9; j++) for (let i = 0; i < 12; i++) s.pins.push([20 + i * 26 + (j % 2) * 13, 56 + j * 18]); s.pop = []; },
   upd(s, dt, i) {
     s.x = clamp(s.x + i.x * 150 * dt, 20, 300);
-    if (i.pa && s.balls > 0) { s.balls--; s.b.push({ x: s.x, y: 24, vx: rnd(-10, 10), vy: 0 }); }
+    if (i.pa && s.balls > 0) { s.balls--; s.b.push({ x: s.x, y: 24, vx: arcRnd(-10, 10), vy: 0 }); }
     s.b.forEach(b => {
       b.vy += 380 * dt; b.x += b.vx * dt; b.y += b.vy * dt;
-      for (const p of s.pins) { const dx = b.x - p[0], dy = b.y - p[1], d = Math.hypot(dx, dy); if (d < 7 && d > 0.01) { const nx = dx / d, ny = dy / d, dot = b.vx * nx + b.vy * ny; b.vx -= 1.7 * dot * nx; b.vy -= 1.7 * dot * ny; b.vx += rnd(-12, 12); b.x = p[0] + nx * 7.1; b.y = p[1] + ny * 7.1; } }
+      for (const p of s.pins) { const dx = b.x - p[0], dy = b.y - p[1], d = Math.hypot(dx, dy); if (d < 7 && d > 0.01) { const nx = dx / d, ny = dy / d, dot = b.vx * nx + b.vy * ny; b.vx -= 1.7 * dot * nx; b.vy -= 1.7 * dot * ny; b.vx += arcRnd(-12, 12); b.x = p[0] + nx * 7.1; b.y = p[1] + ny * 7.1; } }
       if (b.x < 5) { b.x = 5; b.vx = Math.abs(b.vx); } if (b.x > 315) { b.x = 315; b.vx = -Math.abs(b.vx); }
       if (b.y > 226) { const slot = clamp(Math.floor(b.x / 45.7), 0, 6), v = [100, 50, 200, 1000, 200, 50, 100][slot]; arcade.score += v; s.pop.push({ x: b.x, v: v, t: 1 }); b.dead = true; }
     });
@@ -15751,7 +16105,7 @@ ARC.board = {
 ARC.fish = {
   init(s) { s.f = 100; s.fv = 0; s.b = 120; s.bv = 0; s.m = 30; s.caught = 0; s.esc = 0; s.ft = 0; },
   upd(s, dt, i) {
-    s.ft -= dt; if (s.ft <= 0) { s.fv = rnd(-90, 90); s.ft = rnd(0.5, 1.4); }
+    s.ft -= dt; if (s.ft <= 0) { s.fv = arcRnd(-90, 90); s.ft = arcRnd(0.5, 1.4); }
     s.f = clamp(s.f + s.fv * dt, 20, 200); if (s.f <= 20 || s.f >= 200) s.fv = -s.fv;
     s.bv += (i.a || i.u ? -420 : 300) * dt; s.bv *= Math.pow(0.05, dt); s.b = clamp(s.b + s.bv * dt, 20, 190);
     const on = Math.abs((s.b + 20) - s.f) < 24;
