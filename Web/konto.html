@@ -1856,6 +1856,74 @@ function makeWorld(seed, report) {
   }
   for (let i = 0; i < n; i++) if (height[i] < -SEA_DEPTH + 2) height[i] = -SEA_DEPTH + 2;
 
+  // ---- no inland pits ----------------------------------------------------
+  // The coastline noise leaves a couple of hundred little holes in the
+  // countryside that go all the way down to the seabed: round blue ponds with
+  // cliffs round them, which is not what the Japanese interior looks like. Any
+  // body of water that is not the sea is filled. The fill is not a flat lid:
+  // the surface across the hole and a few cells of the bank round it is
+  // relaxed, so the ground rolls over where the hole was.
+  (function fillPits() {
+    const wetC = new Int32Array(n).fill(-1);
+    const comps = [];
+    const stack = [];
+    for (let s0 = 0; s0 < n; s0++) {
+      if (height[s0] >= 0.6 || wetC[s0] >= 0) continue;
+      const id = comps.length, cells = [];
+      stack.length = 0; stack.push(s0); wetC[s0] = id;
+      let touches = false;
+      while (stack.length) {
+        const i = stack.pop(); cells.push(i);
+        const x = i % GRID_X, z = (i / GRID_X) | 0;
+        if (x < 2 || z < 2 || x > GRID_X - 3 || z > GRID_Z - 3) touches = true;
+        if (x > 0 && height[i - 1] < 0.6 && wetC[i - 1] < 0) { wetC[i - 1] = id; stack.push(i - 1); }
+        if (x < GRID_X - 1 && height[i + 1] < 0.6 && wetC[i + 1] < 0) { wetC[i + 1] = id; stack.push(i + 1); }
+        if (z > 0 && height[i - GRID_X] < 0.6 && wetC[i - GRID_X] < 0) { wetC[i - GRID_X] = id; stack.push(i - GRID_X); }
+        if (z < GRID_Z - 1 && height[i + GRID_X] < 0.6 && wetC[i + GRID_X] < 0) { wetC[i + GRID_X] = id; stack.push(i + GRID_X); }
+      }
+      comps.push({ cells: cells, sea: touches || cells.length > 6000 });
+    }
+    const mark = new Int32Array(n).fill(-1);
+    comps.forEach((C, id) => {
+      if (C.sea) return;
+      const R = clamp(Math.round(Math.sqrt(C.cells.length) * 0.30), 3, 12);
+      // the hole and a ring of bank round it
+      let region = C.cells.slice();
+      mark.fill(-1, 0, 0);
+      region.forEach(i => { mark[i] = id * 2; });
+      let frontier = region;
+      const fixed = [];
+      for (let r = 0; r < R; r++) {
+        const next = [];
+        frontier.forEach(i => {
+          const x = i % GRID_X, z = (i / GRID_X) | 0;
+          [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(d => {
+            const xx = x + d[0], zz = z + d[1];
+            if (xx < 1 || zz < 1 || xx >= GRID_X - 1 || zz >= GRID_Z - 1) return;
+            const j = zz * GRID_X + xx;
+            if (mark[j] === id * 2) return;
+            // a neighbouring pit that is not yet filled belongs to the same patch
+            mark[j] = id * 2; next.push(j);
+          });
+        });
+        region = region.concat(next); frontier = next;
+      }
+      // the outermost ring keeps its height; everything inside is relaxed
+      const ring = new Set(frontier);
+      let lo = 1e9;
+      frontier.forEach(i => { if (height[i] < lo) lo = height[i]; });
+      region.forEach(i => { if (!ring.has(i) && height[i] < 1.2) height[i] = Math.max(1.4, Math.min(lo, 1.4 + (lo - 1.4) * 0.5)); });
+      for (let it = 0; it < 90; it++) {
+        for (let k = 0; k < region.length; k++) {
+          const i = region[k]; if (ring.has(i)) continue;
+          const v = (height[i - 1] + height[i + 1] + height[i - GRID_X] + height[i + GRID_X]) * 0.25;
+          height[i] += (v - height[i]) * 1.6;
+        }
+      }
+      region.forEach(i => { if (height[i] < 1.2) height[i] = 1.2; if (landMask[i] < 1) landMask[i] = 1; });
+    });
+  })();
+
   const world = {
     seed: seed, arc: arc, height: height, landMask: landMask, coast: coast,
     arcT: arcT, arcLat: arcLat, flow: flow, river: river, urban: urban,
@@ -1912,7 +1980,358 @@ function makeWorld(seed, report) {
     report("planning " + site.name, t);
     world.cities.push(planCity(world, frames[i], seed + i * 5, report, t));
   }
+  report("laying the coastal expressway", 0.985);
+  planHighway(world);
   return world;
+}
+
+// ============================================================================
+// THE COASTAL EXPRESSWAY
+// ============================================================================
+// One road all the way round the island. It is found by asking the terrain, not
+// drawn by hand: a cheapest-path search over the heightfield that prefers flat
+// ground a few hundred metres inside the shore, shies from towns and rivers,
+// and pays dearly to cross open water (which is where the bridges come from).
+// It is routed through a via point at every town, so it passes them all, then
+// smoothed, given a gradient-limited profile, and cut into the ground.
+const HWY = { hw: 10, name: "Konto Coastal Expressway", maxGrade: 0.042, step: 12 };
+
+function planHighway(world) {
+  const GX = GRID_X, GZ = GRID_Z, n = GX * GZ, H = world.height;
+  if (window.__keepRaw) { world.__raw = { h: H.slice(), r: world.river.slice(), b: world.bridgeY }; }
+  const at = (x, z) => z * GX + x;
+  const wet = new Uint8Array(n);
+  for (let i = 0; i < n; i++) wet[i] = H[i] < 0.6 ? 1 : 0;
+
+  // distance to the sea in cells, and the main body of land
+  const dSea = new Uint8Array(n).fill(255);
+  let q = new Int32Array(n), qh = 0, qt = 0;
+  // The ocean is any big body of water (the island runs off both ends of the
+  // map, so there are two seas), plus the edge of the map, where
+  // the island simply carries on off the paper. Ponds and moats are not sea.
+  const wcomp = new Int32Array(n).fill(-1);
+  const wsize = [];
+  let nw = 0;
+  for (let s0 = 0; s0 < n; s0++) {
+    if (!wet[s0] || wcomp[s0] >= 0) continue;
+    let size = 0; qh = 0; qt = 0; q[qt++] = s0; wcomp[s0] = nw;
+    while (qh < qt) {
+      const i = q[qh++]; size++;
+      const x = i % GX, z = (i / GX) | 0;
+      if (x > 0 && wet[i - 1] && wcomp[i - 1] < 0) { wcomp[i - 1] = nw; q[qt++] = i - 1; }
+      if (x < GX - 1 && wet[i + 1] && wcomp[i + 1] < 0) { wcomp[i + 1] = nw; q[qt++] = i + 1; }
+      if (z > 0 && wet[i - GX] && wcomp[i - GX] < 0) { wcomp[i - GX] = nw; q[qt++] = i - GX; }
+      if (z < GZ - 1 && wet[i + GX] && wcomp[i + GX] < 0) { wcomp[i + GX] = nw; q[qt++] = i + GX; }
+    }
+    wsize[nw] = size;
+    nw++;
+  }
+  qh = 0; qt = 0;
+  for (let i = 0; i < n; i++) {
+    const x = i % GX, z = (i / GX) | 0;
+    if ((wcomp[i] >= 0 && wsize[wcomp[i]] > 6000) || x < 3 || z < 3 || x >= GX - 3 || z >= GZ - 3) { dSea[i] = 0; q[qt++] = i; }
+  }
+  while (qh < qt) {
+    const i = q[qh++], x = i % GX, z = (i / GX) | 0, d = dSea[i] + 1;
+    if (d > 250) continue;
+    if (x > 0 && dSea[i - 1] > d) { dSea[i - 1] = d; q[qt++] = i - 1; }
+    if (x < GX - 1 && dSea[i + 1] > d) { dSea[i + 1] = d; q[qt++] = i + 1; }
+    if (z > 0 && dSea[i - GX] > d) { dSea[i - GX] = d; q[qt++] = i - GX; }
+    if (z < GZ - 1 && dSea[i + GX] > d) { dSea[i + GX] = d; q[qt++] = i + GX; }
+  }
+  const comp = new Int32Array(n).fill(-1);
+  let bestComp = -1, bestSize = 0, ncomp = 0;
+  for (let s0 = 0; s0 < n; s0++) {
+    if (wet[s0] || comp[s0] >= 0) continue;
+    let size = 0; qh = 0; qt = 0; q[qt++] = s0; comp[s0] = ncomp;
+    while (qh < qt) {
+      const i = q[qh++]; size++;
+      const x = i % GX, z = (i / GX) | 0;
+      if (x > 0 && !wet[i - 1] && comp[i - 1] < 0) { comp[i - 1] = ncomp; q[qt++] = i - 1; }
+      if (x < GX - 1 && !wet[i + 1] && comp[i + 1] < 0) { comp[i + 1] = ncomp; q[qt++] = i + 1; }
+      if (z > 0 && !wet[i - GX] && comp[i - GX] < 0) { comp[i - GX] = ncomp; q[qt++] = i - GX; }
+      if (z < GZ - 1 && !wet[i + GX] && comp[i + GX] < 0) { comp[i + GX] = ncomp; q[qt++] = i + GX; }
+    }
+    if (size > bestSize) { bestSize = size; bestComp = ncomp; }
+    ncomp++;
+  }
+  // a river that reaches the sea cuts the island in two as far as a flood-fill
+  // can tell, so anything big enough to have a town on it counts
+  const compSize = [];
+  for (let i = 0; i < n; i++) if (comp[i] >= 0) compSize[comp[i]] = (compSize[comp[i]] || 0) + 1;
+  const mainland = i => comp[i] >= 0 && compSize[comp[i]] > 4000;
+
+  // where the towns are, with a margin
+  const urb = new Float32Array(n);
+  world.cities.forEach(city => {
+    const b = city.bounds; if (!b || !city.footprint) return;
+    const x0 = Math.max(0, Math.floor(b.x0 / CELL) - 1), x1 = Math.min(GX - 1, Math.ceil(b.x1 / CELL) + 1);
+    const z0 = Math.max(0, Math.floor(b.z0 / CELL) - 1), z1 = Math.min(GZ - 1, Math.ceil(b.z1 / CELL) + 1);
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      const f = city.footprint(x * CELL, z * CELL);
+      if (f > urb[at(x, z)]) urb[at(x, z)] = f;
+    }
+  });
+  const urbD = new Float32Array(n), tmp = new Float32Array(n);
+  const R = 3;
+  for (let z = 0; z < GZ; z++) for (let x = 0; x < GX; x++) {
+    let m = 0; for (let k = -R; k <= R; k++) { const xx = x + k; if (xx >= 0 && xx < GX && urb[at(xx, z)] > m) m = urb[at(xx, z)]; }
+    tmp[at(x, z)] = m;
+  }
+  for (let z = 0; z < GZ; z++) for (let x = 0; x < GX; x++) {
+    let m = 0; for (let k = -R; k <= R; k++) { const zz = z + k; if (zz >= 0 && zz < GZ && tmp[at(x, zz)] > m) m = tmp[at(x, zz)]; }
+    urbD[at(x, z)] = m;
+  }
+
+  // ---- the search ------------------------------------------------------
+  const g = new Float32Array(n), from = new Int32Array(n);
+  const hp = [];   // binary heap of [f, cell]
+  const hpush = it => { hp.push(it); let i = hp.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (hp[p][0] <= hp[i][0]) break; const t = hp[p]; hp[p] = hp[i]; hp[i] = t; i = p; } };
+  const hpop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r < hp.length && hp[r][0] < hp[m][0]) m = r; if (m === i) break; const t = hp[m]; hp[m] = hp[i]; hp[i] = t; i = m; } } return top; };
+  const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [-1, 1, 1.4142], [1, -1, 1.4142], [-1, -1, 1.4142]];
+  function cellCost(i, j, step) {
+    let c = step;
+    const hi = Math.max(H[i], 0), hj = Math.max(H[j], 0);
+    const grade = Math.abs(hj - hi) / (step * CELL);
+    c += grade * grade * 260;
+    if (wet[j]) c += step * 44;
+    else {
+      if (hj > 120) c += (hj - 120) * 0.05;
+      if (world.river[j] > 0.25) c += 26;
+      if (urbD[j] > 0.02) c += 30 + urbD[j] * 50;
+      c += Math.min(Math.abs(dSea[j] - 9), 80) * 0.45;
+    }
+    return c;
+  }
+  // cells already taken by an earlier leg are dear, so a detour to a town goes
+  // out by one road and comes back by another instead of doubling the first
+  const used = new Uint8Array(n);
+  function search(a, b) {
+    g.fill(1e30); from.fill(-1); hp.length = 0;
+    const bx = b % GX, bz = (b / GX) | 0, ax = a % GX, az = (a / GX) | 0;
+    g[a] = 0; hpush([0, a]);
+    while (hp.length) {
+      const top = hpop(), i = top[1];
+      if (i === b) break;
+      const gi = g[i];
+      if (top[0] > gi + Math.hypot((i % GX) - bx, ((i / GX) | 0) - bz) + 1e-3) continue;
+      const x = i % GX, z = (i / GX) | 0;
+      for (let k = 0; k < 8; k++) {
+        const xx = x + NB[k][0], zz = z + NB[k][1];
+        if (xx < 3 || zz < 3 || xx >= GX - 3 || zz >= GZ - 3) continue;
+        const j = at(xx, zz);
+        let ng = gi + cellCost(i, j, NB[k][2]);
+        if (used[j] && Math.hypot(xx - ax, zz - az) > 16 && Math.hypot(xx - bx, zz - bz) > 16) ng += 70;
+        if (ng < g[j]) { g[j] = ng; from[j] = i; hpush([ng + Math.hypot(xx - bx, zz - bz), j]); }
+      }
+    }
+    const out = [];
+    for (let v = b; v >= 0; v = from[v]) { out.push(v); if (v === a) break; }
+    return out.reverse();
+  }
+
+  // ---- via points ------------------------------------------------------
+  const towns = [];
+  world.cities.forEach(city => {
+    if (!city.centre) return;
+    const cx = Math.round(city.centre[0] / CELL), cz = Math.round(city.centre[1] / CELL);
+    const reach = Math.round(Math.max(city.site.alongRadius, city.site.inlandRadius) * 1.7 / CELL);
+    const coastal = !!(city.site.coastal || city.site.capital);
+    let best = -1, bd = 1e30;
+    for (let pass = 0; pass < 2 && best < 0; pass++) {
+      const lim = pass === 0 ? 0.02 : 0.30;
+      for (let z = Math.max(4, cz - reach); z <= Math.min(GZ - 5, cz + reach); z++) for (let x = Math.max(4, cx - reach); x <= Math.min(GX - 5, cx + reach); x++) {
+        const i = at(x, z);
+        if (wet[i] || !mainland(i) || urbD[i] > lim || H[i] < 1.5) continue;
+        if (coastal && pass === 0 && (dSea[i] < 5 || dSea[i] > 18)) continue;
+        const d = Math.hypot(x - cx, z - cz);
+        if (d < bd) { bd = d; best = i; }
+      }
+    }
+    if (best < 0 || dSea[best] > 150) return;
+    towns.push({ name: city.name, cell: best, lat: world.arcLat[best], t: world.arcT[best], big: !!city.site.capital });
+  });
+
+  // extra points down both coasts so the loop stays near the sea between towns
+  let mx = 0, mz = 0, mc = 0;
+  for (let i = 0; i < n; i += 7) if (mainland(i)) { mx += i % GX; mz += (i / GX) | 0; mc++; }
+  mx /= mc; mz /= mc;
+  const SECT = 48, bucket = new Array(SECT).fill(null);
+  for (let i = 0; i < n; i++) {
+    if (wet[i] || !mainland(i) || dSea[i] < 8 || dSea[i] > 10 || H[i] < 1.5) continue;
+    const x = i % GX, z = (i / GX) | 0;
+    const k = Math.min(SECT - 1, Math.floor((Math.atan2(z - mz, x - mx) + Math.PI) / (Math.PI * 2) * SECT));
+    const d = Math.hypot(x - mx, z - mz);
+    if (!bucket[k] || d > bucket[k].d) bucket[k] = { cell: i, d: d };
+  }
+  const extras = [];
+  bucket.forEach(b => {
+    if (!b) return;
+    const i = b.cell, cx = i % GX, cz = (i / GX) | 0;
+    if (towns.some(t => Math.hypot((t.cell % GX) - cx, ((t.cell / GX) | 0) - cz) < 45)) return;
+    extras.push({ name: "", cell: i, lat: world.arcLat[i], t: world.arcT[i] });
+  });
+  const all = towns.concat(extras);
+  all.forEach(v => { v.ang = Math.atan2(((v.cell / GX) | 0) - mz, (v.cell % GX) - mx); });
+  const order = all.sort((a, b) => a.ang - b.ang);
+  // thin: two extras that sit close together help nobody
+  const stops = [];
+  order.forEach(v => {
+    const last = stops[stops.length - 1];
+    if (last && !v.name && !last.name) {
+      const dx = (v.cell % GX) - (last.cell % GX), dz = ((v.cell / GX) | 0) - ((last.cell / GX) | 0);
+      if (Math.hypot(dx, dz) < 70) return;
+    }
+    stops.push(v);
+  });
+
+  // ---- run the legs ----------------------------------------------------
+  const cells = [], townAt = [];
+  for (let k = 0; k < stops.length; k++) {
+    const a = stops[k].cell, b = stops[(k + 1) % stops.length].cell;
+    const leg = search(a, b);
+    if (window.__keepRaw) { (world.__legs = world.__legs || []).push({ a: a, b: b, len: leg.length, name: stops[k].name }); }
+    leg.forEach(c => {
+      const cx = c % GX, cz = (c / GX) | 0;
+      for (let dz = -6; dz <= 6; dz++) for (let dx = -6; dx <= 6; dx++) {
+        const xx = cx + dx, zz = cz + dz;
+        if (xx >= 0 && zz >= 0 && xx < GX && zz < GZ && dx * dx + dz * dz <= 36) used[at(xx, zz)] = 1;
+      }
+    });
+    if (stops[k].name) townAt.push({ name: stops[k].name, big: stops[k].big, idx: cells.length });
+    for (let m = 0; m < leg.length - 1; m++) cells.push(leg[m]);
+  }
+  // to world metres, then smoothed: a moving average takes the zig-zag out
+  // of the grid path, and two rounds of corner-cutting round off what is left
+  let pts = cells.map(i => [(i % GX) * CELL, ((i / GX) | 0) * CELL]);
+  const cyc = (a, i) => a[((i % a.length) + a.length) % a.length];
+  const average = (arr, r) => arr.map((_, i) => {
+    let sx = 0, sz = 0;
+    for (let k = -r; k <= r; k++) { const p = cyc(arr, i + k); sx += p[0]; sz += p[1]; }
+    return [sx / (2 * r + 1), sz / (2 * r + 1)];
+  });
+  const townIdx = townAt.map(t => t.idx);
+  pts = average(average(pts, 4), 4);
+  for (let r = 0; r < 2; r++) {
+    const nx = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[i], b = pts[(i + 1) % pts.length];
+      nx.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+    }
+    pts = nx;
+  }
+  // resample to an even step
+  const step = HWY.step;
+  let total = 0; const cum = [0];
+  for (let i = 0; i < pts.length; i++) { const b = pts[(i + 1) % pts.length]; total += Math.hypot(b[0] - pts[i][0], b[1] - pts[i][1]); cum.push(total); }
+  const N = Math.floor(total / step), res = [];
+  let seg = 0;
+  for (let s = 0; s < N; s++) {
+    const d = s * total / N;
+    while (cum[seg + 1] < d) seg++;
+    const a = pts[seg % pts.length], b = pts[(seg + 1) % pts.length];
+    const f = (d - cum[seg]) / Math.max(1e-6, cum[seg + 1] - cum[seg]);
+    res.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+  }
+  // which sample each town belongs to
+  const hwTowns = townAt.map(t => {
+    const c = cells[t.idx], px = (c % GX) * CELL, pz = ((c / GX) | 0) * CELL;
+    let bi = 0, bd = 1e30;
+    res.forEach((p, i) => { const d = Math.hypot(p[0] - px, p[1] - pz); if (d < bd) { bd = d; bi = i; } });
+    return { name: t.name, big: t.big, i: bi };
+  });
+
+  // ---- profile ---------------------------------------------------------
+  const M = res.length, ds = total / M;
+  const ground = res.map(p => world.sampleHeight(p[0], p[1]));
+  let lowRun = ground.map(h => h < 0.9);
+  // grow a run by a few samples each way so a bridge starts on solid ground
+  const lowD = lowRun.slice();
+  for (let i = 0; i < M; i++) if (lowRun[i]) for (let k = -3; k <= 3; k++) lowD[(i + k + M) % M] = true;
+  let prof = ground.map((h, i) => Math.max(h, 1.6));
+  // over a wet run the deck is straight between its two shores
+  for (let i = 0; i < M; i++) {
+    if (!lowD[i] || lowD[(i - 1 + M) % M]) continue;
+    let j = i; while (lowD[(j + 1) % M] && j < i + M) j++;
+    const a = prof[(i - 1 + M) % M], b = prof[(j + 1) % M], len = j - i + 2;
+    // ...with an arch over it, because a ship has to get under a bridge. A
+    // short river crossing hardly rises; the long bay crossing climbs well clear.
+    const arch = (j - i) < 12 ? 1.0 : (j - i) < 40 ? 6 : 13;
+    for (let k = i; k <= j; k++) {
+      const u = (k - i + 1) / len;
+      prof[k % M] = Math.max(a + (b - a) * u + arch * clamp01(Math.sin(Math.PI * u) * 2.2), 2.2);
+    }
+  }
+  // smooth, then limit the grade in both directions until it settles
+  for (let pass = 0; pass < 3; pass++) {
+    const nx = prof.slice();
+    for (let i = 0; i < M; i++) {
+      let s = 0; for (let k = -6; k <= 6; k++) s += prof[(i + k + M) % M];
+      nx[i] = lowD[i] ? prof[i] : s / 13;
+    }
+    prof = nx;
+  }
+  const gm = HWY.maxGrade * ds;
+  for (let pass = 0; pass < 4; pass++) {
+    for (let i = 1; i < M * 2; i++) { const a = (i - 1) % M, b = i % M; if (prof[b] > prof[a] + gm) prof[b] = prof[a] + gm; if (prof[b] < prof[a] - gm) prof[b] = prof[a] - gm; }
+    for (let i = M * 2; i > 0; i--) { const a = i % M, b = (i - 1) % M; if (prof[b] > prof[a] + gm) prof[b] = prof[a] + gm; if (prof[b] < prof[a] - gm) prof[b] = prof[a] - gm; }
+  }
+  for (let i = 0; i < M; i++) prof[i] = Math.max(prof[i], lowD[i] ? 2.2 : 1.6);
+
+  // ---- cut the road bed into the ground --------------------------------
+  const bedR = HWY.hw + 2, edgeR = HWY.hw + 46;
+  const bestD = new Float32Array(n).fill(1e9), bestP = new Float32Array(n), bestB = new Uint8Array(n);
+  for (let s = 0; s < M; s++) {
+    const px = res[s][0], pz = res[s][1];
+    const cx0 = Math.max(0, Math.floor((px - edgeR) / CELL)), cx1 = Math.min(GX - 1, Math.ceil((px + edgeR) / CELL));
+    const cz0 = Math.max(0, Math.floor((pz - edgeR) / CELL)), cz1 = Math.min(GZ - 1, Math.ceil((pz + edgeR) / CELL));
+    for (let z = cz0; z <= cz1; z++) for (let x = cx0; x <= cx1; x++) {
+      const d = Math.hypot(x * CELL - px, z * CELL - pz), i = at(x, z);
+      if (d < bestD[i]) { bestD[i] = d; bestP[i] = prof[s]; bestB[i] = lowD[s] ? 1 : 0; }
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (bestD[i] >= edgeR || bestB[i]) continue;
+    const w = 1 - sstep(bedR, edgeR, bestD[i]);
+    H[i] = lerp(H[i], bestP[i] - 0.45, w);
+    if (world.river[i] > 0 && w > 0.5) world.river[i] *= 1 - w;
+  }
+
+  // ---- the lookup that lets a car stand on it --------------------------
+  const cellSize = 64, gridMap = new Map();
+  const segs = [];
+  for (let i = 0; i < M; i++) {
+    const a = res[i], b = res[(i + 1) % M], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const sg = { ax: a[0], az: a[1], ux: (b[0] - a[0]) / len, uz: (b[1] - a[1]) / len, len: len,
+                 ya: prof[i] + 0.05, yb: prof[(i + 1) % M] + 0.05 };
+    segs.push(sg);
+    const x0 = Math.floor((Math.min(a[0], b[0]) - HWY.hw - 2) / cellSize), x1 = Math.floor((Math.max(a[0], b[0]) + HWY.hw + 2) / cellSize);
+    const z0 = Math.floor((Math.min(a[1], b[1]) - HWY.hw - 2) / cellSize), z1 = Math.floor((Math.max(a[1], b[1]) + HWY.hw + 2) / cellSize);
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+      const k = x + "," + z; let l = gridMap.get(k); if (!l) { l = []; gridMap.set(k, l); } l.push(sg);
+    }
+  }
+  const hwy = {
+    name: HWY.name, hw: HWY.hw, loop: true, pts: res.map((p, i) => [p[0], prof[i], p[1]]),
+    bridge: lowD, ds: ds, length: total, towns: hwTowns, segs: segs,
+    // The height of the carriageway under a point, or null if it is not on it.
+    yAt: (px, pz) => {
+      const l = gridMap.get(Math.floor(px / cellSize) + "," + Math.floor(pz / cellSize));
+      if (!l) return null;
+      let best = null, bl = HWY.hw + 1.5;
+      for (let i = 0; i < l.length; i++) {
+        const s = l[i], dx = px - s.ax, dz = pz - s.az;
+        const along = dx * s.ux + dz * s.uz;
+        if (along < -1 || along > s.len + 1) continue;
+        const lat = Math.abs(dx * s.uz - dz * s.ux);
+        if (lat < bl) { bl = lat; best = s.ya + (s.yb - s.ya) * clamp01(along / s.len); }
+      }
+      return best;
+    }
+  };
+  world.highway = hwy;
+  const prevBridgeY = world.bridgeY;
+  world.bridgeY = (px, pz) => { const y = hwy.yAt(px, pz); return y !== null ? y : prevBridgeY(px, pz); };
 }
 
 // ============================================================================
@@ -3002,6 +3421,7 @@ function planCity(world, F, seed, report, progressBase) {
   L.railKm = L.rails.reduce((s, r) => s + pathLength(r.pts, r.loop), 0) / 1000;
   L.plotArea = L.plots.reduce((s, p) => s + p.size[0] * p.size[1], 0) / 1e6;
   L.footprint = footprint;
+  L.centre = coreW;
   L.plotCode = p => L.code + "-" + wardCode(L.wards[p.ward] ? L.wards[p.ward].name : "XXX") + "-B" + String(p.blockNo).padStart(3, "0") + "-P" + String(p.index).padStart(2, "0");
   return L;
 }
@@ -5822,6 +6242,7 @@ function buildScene(w) {
   placeHospitals(w);
   buildGarage(root);
   buildParcels(root);
+  buildHighwayMesh(root);
   buildTolls(root);
   drive.car = null;
   drive.train = null;
@@ -10790,6 +11211,31 @@ function routeBuild() {
       if (road.loop && road.pts.length > 2) link(prev, nodes.length - road.pts.length);
     });
   });
+  // the coastal expressway, and the slip roads that join it to the towns: any
+  // town road within a few hundred metres, and the nearest one to each town
+  const cityEnd = nodes.length;
+  if (world.highway) {
+    const hp = world.highway.pts, first = nodes.length;
+    for (let i = 0; i < hp.length; i++) { const id = add(hp[i][0], hp[i][2]); if (i) link(id - 1, id); }
+    link(nodes.length - 1, first);
+    const near = (x, z, maxR) => {
+      let best = -1, bd = maxR * maxR;
+      for (let k = 0; k < cityEnd; k++) { const d = (nodes[k][0] - x) * (nodes[k][0] - x) + (nodes[k][1] - z) * (nodes[k][1] - z); if (d < bd) { bd = d; best = k; } }
+      return best;
+    };
+    for (let i = 0; i < hp.length; i += 10) {
+      const k = near(hp[i][0], hp[i][2], 420);
+      if (k >= 0) link(first + i, k);
+    }
+    world.highway.towns.forEach(t => { const k = near(hp[t.i][0], hp[t.i][2], 3200); if (k >= 0) link(first + t.i, k); });
+    world.cities.forEach(city => {
+      if (!city.centre) return;
+      let bi = 0, bd = 1e30;
+      for (let i = 0; i < hp.length; i += 3) { const d = Math.hypot(hp[i][0] - city.centre[0], hp[i][2] - city.centre[1]); if (d < bd) { bd = d; bi = i; } }
+      const k = near(city.centre[0], city.centre[1], 700);
+      if (k >= 0 && bd < 6000) link(first + bi, k);
+    });
+  }
   // where two roads pass within a few metres of each other they meet
   for (let a = 0; a < nodes.length; a++) {
     const ci = Math.floor(nodes[a][0] / cell), cj = Math.floor(nodes[a][1] / cell);
@@ -10911,7 +11357,8 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     if (dash) ctx.setLineDash([]);
   }
 
-  const isHighway = road => road.cls === "expressway" || /Kanj\u014d [34]/.test(road.name || "");
+  const isHighway = road => road.cls === "expressway";
+  if (world.highway) stroke(world.highway.pts, true, Math.max(world.highway.hw * 1.1, 6 * mPerPx), MAPC.express);
   world.cities.forEach(city => {
     // arterials are cut through the blocks in the ground colour, so they read as
     // spaces; the highways, and only the highways, are yellow
@@ -11552,7 +11999,7 @@ const FILLER_SITES = [
   { host: "knitting.lasttrain.kn", title: "Last Train Knitting Circle", kw: "knitting last train circle hobby craft", col: "#9a4a6a", tag: "Meets on the 23:41, car four", lines: [
     "This week: a scarf long enough to reach Kaido.", "All welcome. Needles provided. Seats not.", "Please do not wake the man in the corner. He has been there since Tuesday." ] },
   { host: "toll-fans.kn", title: "Highway Toll Fans", kw: "toll highway gate express etc card barrier", col: "#c28a12", tag: "The beep is the best part", lines: [
-    "Ranking the tones of every gate on Kanjō 3 and 4.", "Tip: a Toll Express card is cheaper than cash and much cooler.", "The barrier lifts for you. Remember that on bad days." ] },
+    "Ranking the tones of every toll gate on the coast.", "Tip: an activated NH Tolls card means no stopping at the toll.", "The barrier lifts for you. Remember that on bad days." ] },
   { host: "sararii-despair.kn", title: "Sararii Daily Despair", kw: "sararii despair news daily salaryman", col: "#2a2f38", tag: "All the news that is fit to endure", lines: [
     "Monday: it is Monday.", "Tuesday: yesterday was not as bad as this.", "Wednesday: the halfway point, which is a rumour.", "Friday: the weekend approaches, as does another Monday." ] }
 ];
@@ -13067,7 +13514,6 @@ const LOYALTY = {
   petmart: { name: "Pet Club",      sub: "Pet Mart",  a: "#1272d6", b: "#13a150", need: 3 },
   dokoto:  { name: "Dokoto Point",  sub: "Dokoto Camera", a: "#d4152c", b: "#a30f20", need: 3 }
 };
-const TOLL_FEE = 700, TOLL_CASH = 1500;
 
 // Everything that is bought from a brand's shop counts towards its card, and
 // once the card is active it earns a point for every hundred yen.
@@ -13079,27 +13525,28 @@ function noteBuy(brand, yen) {
 function walletCards() {
   const list = [{ id: "nhb", name: "NHB Debit", sub: "Konto Bank · •••• 4417", a: "#2a2f38", b: "#15181d", val: yenText(purse.yen) }];
   if (wallet.ic) list.push({ id: "ic", name: "IC Card", sub: "Suika · NHRail", a: "#1d7a4c", b: "#0d4a2d", val: yenText(wallet.ic.bal), top: true });
-  if (wallet.toll) list.push({ id: "toll", name: "Toll Express", sub: "Highway barriers", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true });
+  if (wallet.toll) list.push({ id: "toll", name: "NH Tolls", sub: wallet.toll.active ? "Coastal Expressway · ETC active" : "Coastal Expressway · not activated", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true, act: !wallet.toll.active });
   Object.keys(LOYALTY).forEach(k => { if (wallet.loyal[k]) { const L = LOYALTY[k]; list.push({ id: "loy-" + k, name: L.name, sub: L.sub + " · loyalty", a: L.a, b: L.b, val: wallet.pts[k] + " pt" }); } });
   list.push({ id: "add", add: true });
   return list;
 }
 const WALLET_ADD = [
   { id: "ic",   name: "IC Card",      sub: "Opens the ticket gates", price: 2000, credit: 1500, a: "#1d7a4c" },
-  { id: "toll", name: "Toll Express", sub: "Opens toll barriers",    price: 5000, credit: 4000, a: "#c28a12" }
+  { id: "toll", name: "NH Tolls",     sub: "ETC lanes on the expressway", price: 5000, credit: 4000, a: "#c28a12" }
 ];
 function walletAct() {
   if (wallet.add) {
     const o = WALLET_ADD[clamp(phone.sub, 0, WALLET_ADD.length - 1)];
     if (wallet[o.id]) { say(o.name + " is already in your wallet.", 3); return; }
     if (purse.yen < o.price) { say("Not enough. " + o.name + " costs " + yenText(o.price) + ".", 4); return; }
-    purse.yen -= o.price; wallet[o.id] = { bal: o.credit };
+    purse.yen -= o.price; wallet[o.id] = o.id === "toll" ? { bal: o.credit, active: false } : { bal: o.credit };
     wallet.add = false; phone.sub = 0;
-    say(o.name + " added with " + yenText(o.credit) + " on it.", 5);
+    say(o.name + " added with " + yenText(o.credit) + " on it." + (o.id === "toll" ? " Press A on the card to activate it." : ""), 5);
     return;
   }
   const c = walletCards()[clamp(phone.sub, 0, walletCards().length - 1)];
   if (c.add) { wallet.add = true; phone.sub = 0; return; }
+  if (c.id === "toll" && !wallet.toll.active) { wallet.toll.active = true; say("NH Tolls activated. The ETC lanes will open for you.", 5); return; }
   if (c.top) {
     if (purse.yen < 1000) { say("Not enough to top up.", 3); return; }
     purse.yen -= 1000; wallet[c.id].bal += 1000; say(c.name + " topped up ¥1,000.", 3);
@@ -13126,7 +13573,7 @@ function drawWalletCard(g, W, x, y, w, h, c, on) {
   g.fillText(c.sub, x + W * 0.055, y + h * 0.58);
   g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.046) + "px " + UI; g.textAlign = "right";
   g.fillText(c.val, x + w - W * 0.055, y + h * 0.34); g.textAlign = "left";
-  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText("A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
+  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText(c.act ? "A  activate" : "A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
 }
 
 function appWallet(g, W, H) {
@@ -13160,85 +13607,311 @@ function appWallet(g, W, H) {
     } else drawWalletCard(g, W, x, y, w, H * 0.135, c, i === sel);
   }
   g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillText(wallet.ic ? "IC opens the gates; Toll Express the barriers." : "An IC card or a Toll Express card can be added.", W * PL.pad, H * 0.835);
+  g.fillText(wallet.ic ? "IC opens the gates; NH Tolls the ETC lanes." : "An IC card or an NH Tolls card can be added.", W * PL.pad, H * 0.835);
 }
 
-// ---- the toll gates
-// On the two outer ring roads of Tōkonto, which are the highways. A barrier
-// across the carriageway with a sign over it. With a Toll Express card it lifts
-// as you come, and takes the fee off the card. Without one you stop, and the
-// booth takes cash.
+// ---- the coastal expressway, and its tolls
+// world.highway is the line (see planHighway); this is the road. A carriageway
+// ribbon with the lanes painted on it, a median barrier, guard rails, bridge
+// piers where it leaves the ground, and lamps down the middle.
+let hwyTex = null;
+function highwayTexture() {
+  if (hwyTex) return hwyTex;
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 256;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#3b3e43"; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 2600; i++) {
+    const v = 52 + ((i * 7919) % 26);
+    g.fillStyle = "rgba(" + v + "," + v + "," + (v + 3) + ",0.55)";
+    g.fillRect((i * 97) % 256, (i * 61) % 256, 2, 2);
+  }
+  const m = 256 / 20;                 // pixels per metre across the road
+  const X = metre => metre * m;
+  // the median strip is concrete
+  g.fillStyle = "#8d9094"; g.fillRect(X(9), 0, X(2), 256);
+  g.fillStyle = "#e8e8e2";
+  const line = (at, w) => g.fillRect(X(at) - w * m / 2, 0, w * m, 256);
+  line(2.5, 0.2); line(17.5, 0.2); line(9.05, 0.18); line(10.95, 0.18);
+  // lane dividers: 8 m of paint and 12 m of gap
+  [5.75, 14.25].forEach(at => g.fillRect(X(at) - 0.1 * m, 0, 0.2 * m, 8 * m));
+  hwyTex = new THREE.CanvasTexture(cv);
+  hwyTex.wrapS = hwyTex.wrapT = THREE.RepeatWrapping;
+  hwyTex.encoding = THREE.sRGBEncoding;
+  hwyTex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  return hwyTex;
+}
+
+const hwyMeshes = { group: null };
+function buildHighwayMesh(root) {
+  const hw = world.highway;
+  if (!hw) return;
+  const P = hw.pts, M = P.length, HW = hw.hw;
+  const grp = new THREE.Group(); grp.name = "expressway";
+  hwyMeshes.group = grp;
+  const tanAt = i => {
+    const a = P[(i - 1 + M) % M], b = P[(i + 1) % M];
+    const dx = b[0] - a[0], dz = b[2] - a[2], L = Math.hypot(dx, dz) || 1;
+    return [dx / L, dz / L];
+  };
+  // chunk the ribbon so the far parts can be culled
+  const CH = 90, dist = [0];
+  for (let i = 1; i <= M; i++) dist.push(dist[i - 1] + Math.hypot(P[i % M][0] - P[i - 1][0], P[i % M][2] - P[i - 1][2]));
+  const matRoad = new THREE.MeshLambertMaterial({ map: highwayTexture() });
+  const matConc = new THREE.MeshLambertMaterial({ color: 0x9fa2a2, side: THREE.DoubleSide });
+  const matRail = new THREE.MeshLambertMaterial({ color: 0xc6c9c9, side: THREE.DoubleSide });
+  for (let c0 = 0; c0 < M; c0 += CH) {
+    const c1 = Math.min(M, c0 + CH);
+    const road = { p: [], uv: [], ix: [] }, conc = { p: [], uv: [], ix: [] }, rail = { p: [], uv: [], ix: [] };
+    // a strip between two lateral offsets (and heights), over the chunk
+    const strip = (B, offA, yA, offB, yB, vScale) => {
+      const base = B.p.length / 3;
+      for (let i = c0; i <= c1; i++) {
+        const q = P[i % M], t = tanAt(i % M), nx = -t[1], nz = t[0];
+        B.p.push(q[0] + nx * offA, q[1] + yA, q[2] + nz * offA, q[0] + nx * offB, q[1] + yB, q[2] + nz * offB);
+        const v = dist[i] / (vScale || 20);
+        B.uv.push(0, v, 1, v);
+      }
+      for (let i = 0; i < c1 - c0; i++) {
+        const a = base + i * 2;
+        B.ix.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+      }
+    };
+    strip(road, -HW, 0.05, HW, 0.05, 20);
+    // median: a low concrete barrier
+    strip(conc, -1.0, 0.9, 1.0, 0.9);
+    strip(conc, -1.0, 0.05, -1.0, 0.9); strip(conc, 1.0, 0.05, 1.0, 0.9);
+    // guard rails on both edges: a wall from below the road up to knee height
+    [-1, 1].forEach(sd => { strip(rail, sd * (HW - 0.2), -0.5, sd * (HW - 0.2), 0.85); strip(rail, sd * (HW - 0.2), 0.85, sd * (HW + 0.05), 0.85); });
+    // bridges: a deck slab under the road, down both sides and across the bottom
+    const bridged = [];
+    for (let i = c0; i <= c1; i++) bridged.push(hw.bridge[i % M]);
+    if (bridged.some(Boolean)) {
+      const sub = (B, offA, yA, offB, yB) => {
+        const base = B.p.length / 3; let n = 0;
+        for (let i = c0; i <= c1; i++) {
+          const q = P[i % M], t = tanAt(i % M), nx = -t[1], nz = t[0];
+          B.p.push(q[0] + nx * offA, q[1] + yA, q[2] + nz * offA, q[0] + nx * offB, q[1] + yB, q[2] + nz * offB);
+          B.uv.push(0, 0, 1, 0); n++;
+        }
+        for (let i = 0; i < c1 - c0; i++) {
+          if (!(bridged[i] && bridged[i + 1])) continue;
+          const a = base + i * 2;
+          B.ix.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+        }
+      };
+      sub(conc, -HW, -1.5, HW, -1.5);
+      sub(conc, -HW, -1.5, -HW, 0.05); sub(conc, HW, -1.5, HW, 0.05);
+    }
+    [[road, matRoad, true], [conc, matConc, false], [rail, matRail, false]].forEach(([B, mat, recv]) => {
+      if (!B.ix.length) return;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.Float32BufferAttribute(B.p, 3));
+      geo.setAttribute("uv", new THREE.Float32BufferAttribute(B.uv, 2));
+      geo.setIndex(B.ix);
+      geo.computeVertexNormals();
+      const m = new THREE.Mesh(geo, mat);
+      m.receiveShadow = recv; m.castShadow = false;
+      grp.add(m);
+    });
+  }
+  // piers under every bridge, two to a stand, and lamps down the median
+  const piers = [], lamps = [];
+  for (let i = 0; i < M; i += 3) {
+    if (!hw.bridge[i]) continue;
+    const q = P[i], t = tanAt(i), nx = -t[1], nz = t[0];
+    const ground = world.sampleHeight(q[0], q[2]);
+    const top = q[1] - 1.5, h = top - ground;
+    if (h < 1.2) continue;
+    [-1, 1].forEach(sd => piers.push({ x: q[0] + nx * sd * 4.2, z: q[2] + nz * sd * 4.2, y: ground, h: h, yaw: Math.atan2(t[0], t[1]) }));
+  }
+  for (let i = 4; i < M; i += 7) {
+    const q = P[i], t = tanAt(i);
+    lamps.push({ x: q[0], y: q[1], z: q[2], nx: -t[1], nz: t[0], yaw: Math.atan2(t[0], t[1]) });
+  }
+  const dummy = new THREE.Object3D();
+  if (piers.length) {
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0xb4b6b3 }), piers.length);
+    piers.forEach((p, k) => {
+      dummy.position.set(p.x, p.y + p.h / 2, p.z); dummy.rotation.set(0, p.yaw, 0); dummy.scale.set(2.2, p.h, 2.6); dummy.updateMatrix();
+      im.setMatrixAt(k, dummy.matrix);
+    });
+    im.frustumCulled = false; grp.add(im);
+  }
+  if (lamps.length) {
+    const pole = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 9, 0.3), new THREE.MeshLambertMaterial({ color: 0x5b6066 }), lamps.length);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xf0ece0, emissive: new THREE.Color(1, 0.82, 0.55), emissiveIntensity: 0 });
+    nightMats.push({ m: headMat, gain: 2.2 });
+    const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, 0.25, 0.7), headMat, lamps.length * 2);
+    lamps.forEach((l, k) => {
+      dummy.position.set(l.x, l.y + 4.5, l.z); dummy.rotation.set(0, l.yaw, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix();
+      pole.setMatrixAt(k, dummy.matrix);
+      [-1, 1].forEach((sd, j) => {
+        dummy.position.set(l.x + l.nx * sd * 1.9, l.y + 8.7, l.z + l.nz * sd * 1.9); dummy.rotation.set(0, l.yaw + Math.PI / 2, 0); dummy.updateMatrix();
+        heads.setMatrixAt(k * 2 + j, dummy.matrix);
+      });
+    });
+    pole.frustumCulled = false; heads.frustumCulled = false;
+    grp.add(pole); grp.add(heads);
+  }
+  root.add(grp);
+}
+
+// ---- the toll plazas
+// Six of them, on the straight dry stretches nearest the big towns. Each is a
+// gantry across the whole carriageway, four lanes through it: the two inner
+// ones are ETC (no stopping, if the NH Tolls card is switched on), the two
+// outer ones are cash booths. A car that is not entitled to the fast lane is
+// slowed and stopped by the barrier either way.
+const TOLL_PRICES = [500, 300, 400, 200, 300, 400];
 const tolls = { list: [], root: null };
+const TOLL_LANES = [{ x: -5.875, kind: "cash" }, { x: -2.625, kind: "etc" }, { x: 2.625, kind: "etc" }, { x: 5.875, kind: "cash" }];
+function tollSign(w, h, bg, fg, l1, l2) {
+  const cv = document.createElement("canvas"); cv.width = 512; cv.height = Math.round(512 * h / w);
+  const g = cv.getContext("2d");
+  g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height);
+  g.strokeStyle = fg; g.lineWidth = 7; g.strokeRect(8, 8, cv.width - 16, cv.height - 16);
+  g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "800 " + Math.round(cv.height * (l2 ? 0.40 : 0.55)) + "px " + JP; g.fillText(l1, cv.width / 2, cv.height * (l2 ? 0.34 : 0.52));
+  if (l2) { g.font = "700 " + Math.round(cv.height * 0.30) + "px " + UI; g.fillText(l2, cv.width / 2, cv.height * 0.72); }
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+  return new THREE.MeshBasicMaterial({ map: tex });
+}
 function buildTolls(root) {
   tolls.list.length = 0; tolls.root = root;
-  const city = world.cities[0];
-  if (!city) return;
-  const hw = city.roads.filter(r => r.cls === "arterial" && /Kanjō [34]/.test(r.name) && r.pts && r.pts.length > 8);
-  const cv = document.createElement("canvas"); cv.width = 512; cv.height = 128;
-  const g = cv.getContext("2d");
-  g.fillStyle = "#0b5a3a"; g.fillRect(0, 0, 512, 128);
-  g.strokeStyle = "#fff"; g.lineWidth = 6; g.strokeRect(6, 6, 500, 116);
-  g.fillStyle = "#fff"; g.font = "800 46px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillText("料金所  TOLL", 256, 42);
-  g.fillStyle = "#ffd21c"; g.font = "800 34px " + UI; g.fillText("ETC  ¥" + TOLL_FEE + "    CASH ¥" + TOLL_CASH, 256, 92);
-  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
-  const signMat = new THREE.MeshBasicMaterial({ map: tex });
-  const dark = new THREE.MeshLambertMaterial({ color: 0x2a2d33 });
-  const stripe = new THREE.MeshLambertMaterial({ color: 0xd8483c });
-  const white = new THREE.MeshLambertMaterial({ color: 0xf4f4f0 });
-  hw.forEach((road, ri) => {
-    const n = road.pts.length;
-    [0.18, 0.62].forEach((f, k) => {
-      const i = clamp(Math.floor(n * (f + ri * 0.07)), 2, n - 3);
-      const a = road.pts[i - 1], b = road.pts[i + 1], p = road.pts[i];
-      const dx = b[0] - a[0], dz = b[2] - a[2], L = Math.hypot(dx, dz) || 1;
-      const dir = [dx / L, dz / L], half = road.halfWidth;
-      const gr = new THREE.Group();
-      const post = (sx) => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.7, 7.2, 0.7), dark); m.position.set(sx, 3.6, 0); m.castShadow = true; gr.add(m); };
-      post(-(half + 1.4)); post(half + 1.4);
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 3.4, 1.5, 0.5), [dark, dark, dark, dark, signMat, signMat]);
-      beam.position.set(0, 6.6, 0); gr.add(beam);
-      const isle = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.35, 5.5), white); isle.position.set(0, 0.2, 0); gr.add(isle);
-      const booth = new THREE.Mesh(new THREE.BoxGeometry(1.3, 2.4, 2.2), dark); booth.position.set(0, 1.3, 0); gr.add(booth);
-      // the arm: pivots about the roadside post and lifts
-      const pivot = new THREE.Group(); pivot.position.set(-(half + 0.6), 1.15, 0.2);
-      const arm = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 1.0, 0.26, 0.26), stripe); arm.position.set((half * 2 + 1.0) / 2, 0, 0); pivot.add(arm);
-      gr.add(pivot);
-      gr.position.set(p[0], p[1], p[2]);
-      gr.rotation.y = Math.atan2(dir[0], dir[1]) + Math.PI / 2 * 0;      // local +z along the road
-      root.add(gr);
-      tolls.list.push({ x: p[0], z: p[2], y: p[1], dir: dir, hw: half, grp: gr, pivot: pivot, open: 0, hold: 0, paid: false, name: road.name + " " + (k + 1) });
-    });
+  const hw = world.highway;
+  if (!hw) return;
+  const P = hw.pts, M = P.length;
+  // choose places: near the towns the road passes, spread round the loop
+  const cand = [];
+  world.cities.forEach(city => {
+    if (!city.centre) return;
+    let bi = -1, bd = 1e30;
+    for (let i = 0; i < M; i++) { const d = Math.hypot(P[i][0] - city.centre[0], P[i][2] - city.centre[1]); if (d < bd) { bd = d; bi = i; } }
+    if (bi >= 0 && bd < 4200) cand.push({ i: bi, name: city.name, rank: city.site.capital ? 0 : 1 });
   });
+  cand.sort((a, b) => a.rank - b.rank);
+  const gapMin = Math.floor(M / 9), kept = [];
+  const cdist = (a, b) => { const d = Math.abs(a - b); return Math.min(d, M - d); };
+  cand.forEach(c => { if (kept.length < 6 && kept.every(k => cdist(k.i, c.i) > gapMin)) kept.push(c); });
+  for (let k = 0; kept.length < 6 && k < 24; k++) {
+    const i = Math.floor(M * (k + 0.5) / 24);
+    if (kept.every(q => cdist(q.i, i) > gapMin)) kept.push({ i: i, name: "" });
+  }
+  // slide each to the nearest straight, dry, level run
+  const flat = i => {
+    for (let k = -14; k <= 14; k++) { if (hw.bridge[(i + k + M) % M]) return 1e9; }
+    const a = P[(i - 14 + M) % M], b = P[i], c = P[(i + 14) % M];
+    const t1 = Math.atan2(b[0] - a[0], b[2] - a[2]), t2 = Math.atan2(c[0] - b[0], c[2] - b[2]);
+    let dt = Math.abs(t2 - t1); if (dt > Math.PI) dt = Math.PI * 2 - dt;
+    return dt * 100 + Math.abs(c[1] - a[1]) * 2;
+  };
+  kept.forEach(c => {
+    let best = c.i, bs = flat(c.i);
+    for (let k = -120; k <= 120; k++) { const j = (c.i + k + M) % M, sc = flat(j) + Math.abs(k) * 0.02; if (sc < bs) { bs = sc; best = j; } }
+    c.i = best;
+  });
+  kept.sort((a, b) => a.i - b.i);
+  const dark = new THREE.MeshLambertMaterial({ color: 0x2a2d33 });
+  const steel = new THREE.MeshLambertMaterial({ color: 0x6b7077 });
+  const white = new THREE.MeshLambertMaterial({ color: 0xe6e6e0 });
+  const roof = new THREE.MeshLambertMaterial({ color: 0x1d6fbf });
+  const glass = new THREE.MeshLambertMaterial({ color: 0x20323d });
+  const stripe = new THREE.MeshLambertMaterial({ color: 0xe5453a });
+  const etcSign = tollSign(3.0, 1.6, "#0b7a3e", "#ffffff", "ETC", "ゲート");
+  kept.forEach((c, n) => {
+    const price = TOLL_PRICES[n % TOLL_PRICES.length];
+    const q = P[c.i], a = P[(c.i - 1 + M) % M], b = P[(c.i + 1) % M];
+    let dx = b[0] - a[0], dz = b[2] - a[2]; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+    const gr = new THREE.Group();
+    gr.position.set(q[0], q[1], q[2]);
+    gr.rotation.y = Math.atan2(dx, dz);
+    let near = c.name, nd = 1e30;
+    if (!near) world.cities.forEach(ct => { if (!ct.centre) return; const d = Math.hypot(ct.centre[0] - q[0], ct.centre[1] - q[2]); if (d < nd) { nd = d; near = ct.name; } });
+    const name = (near || "Coast") + " Toll";
+    // posts and the beam
+    [-11, 11].forEach(x => { const m = new THREE.Mesh(new THREE.BoxGeometry(0.9, 7.6, 0.9), dark); m.position.set(x, 3.8, 0); m.castShadow = true; gr.add(m); });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(23, 1.0, 1.1), dark); beam.position.set(0, 7.1, 0); beam.castShadow = true; gr.add(beam);
+    // signs, facing both ways
+    const cash = tollSign(3.0, 1.6, "#1b4f9c", "#ffffff", "一般", "CASH ¥" + price);
+    const mid = tollSign(5.0, 1.8, "#0b5a3a", "#ffffff", "料金所", name.toUpperCase() + " ¥" + price);
+    const panel = (x, w, h, mat, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.2), [dark, dark, dark, dark, mat, mat]); m.position.set(x, y, 0); gr.add(m); };
+    TOLL_LANES.forEach(l => panel(l.x, 3.0, 1.6, l.kind === "etc" ? etcSign : cash, 5.7));
+    panel(0, 3.6, 1.8, mid, 5.7);
+    // islands, with a booth on the two between the lanes and the outside
+    const isle = x => { const m = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 16), white); m.position.set(x, 0.2, 0); m.receiveShadow = true; gr.add(m); };
+    [-7.7, -4.25, 4.25, 7.7].forEach(x => {
+      isle(x);
+      const booth = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.5, 3.2), glass); booth.position.set(x, 1.55, 0.5); booth.castShadow = true; gr.add(booth);
+      const bp = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.25, 3.8), roof); bp.position.set(x, 2.95, 0.5); gr.add(bp);
+    });
+    // each lane: a barrier arm that lifts, and a light
+    const lanes = TOLL_LANES.map(l => {
+      const dir = l.x < 0 ? -1 : 1;
+      // the arm pivots at the island on the outside of an ETC lane, and at the inside island of a cash lane
+      const px = l.kind === "etc" ? dir * 1.2 : dir * 4.85;
+      const pivot = new THREE.Group(); pivot.position.set(px, 1.05, -0.8);
+      const len = 3.0;
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(len, 0.16, 0.16), stripe); arm.position.set(dir * len / 2, 0, 0); pivot.add(arm);
+      gr.add(pivot);
+      const sigMat = new THREE.MeshBasicMaterial({ color: 0xff2a22 });
+      [-1, 1].forEach(f => { const s = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.1), sigMat); s.position.set(l.x, 4.45, f * 0.25); gr.add(s); });
+      return { x: l.x, kind: l.kind, dir: dir, pivot: pivot, sig: sigMat, open: 0, hold: 0 };
+    });
+    root.add(gr);
+    tolls.list.push({ x: q[0], z: q[2], y: q[1], dir: [dx, dz], price: price, name: name, grp: gr, lanes: lanes, paid: false, free: false, said: 0 });
+  });
+}
+function tollLaneOf(t, lat) {
+  if (Math.abs(lat) > 11.5) return null;
+  return t.lanes[lat < -4.25 ? 0 : lat < 0 ? 1 : lat < 4.25 ? 2 : 3];
 }
 function updateTolls(dt) {
   const c = drive.car;
   tolls.list.forEach(t => {
-    t.open = Math.max(0, t.open - dt);
-    const target = t.open > 0 ? -1.35 : 0;
-    t.pivot.rotation.z += (target - t.pivot.rotation.z) * Math.min(1, dt * 6);
-    if (!c) { t.paid = false; t.hold = 0; return; }
+    t.lanes.forEach(l => {
+      l.open = Math.max(0, l.open - dt);
+      const target = l.open > 0 ? 1.35 : 0;
+      l.pivot.rotation.z += (target * (l.dir > 0 ? 1 : -1) - l.pivot.rotation.z) * Math.min(1, dt * 6);
+      l.sig.color.setHex(l.open > 0 ? 0x2cff6a : 0xff2a22);
+    });
+    t.said = Math.max(0, t.said - dt);
+    if (!c) { t.paid = false; t.free = false; t.hold = 0; return; }
     const rx = c.pos.x - t.x, rz = c.pos.z - t.z;
     const along = rx * t.dir[0] + rz * t.dir[1];
-    const lat = Math.abs(rx * t.dir[1] - rz * t.dir[0]);
-    if (lat > t.hw + 4 || Math.abs(along) > 50) { t.paid = false; t.hold = 0; return; }
-    if (t.paid || Math.abs(along) > 16) return;
-    if (wallet.toll && wallet.toll.bal >= TOLL_FEE) {
-      wallet.toll.bal -= TOLL_FEE; t.paid = true; t.open = 3.5;
-      say("Toll " + yenText(TOLL_FEE) + " · Toll Express " + yenText(wallet.toll.bal) + " left", 4);
+    const lat = rx * t.dir[1] - rz * t.dir[0];
+    const lane = tollLaneOf(t, lat);
+    if (!lane || Math.abs(along) > 70 || Math.abs(c.pos.y - t.y) > 8) { t.paid = false; t.free = false; t.hold = 0; return; }
+    // which way is the car going through the gantry?
+    const fwd = (Math.sin(c.yaw) * t.dir[0] + Math.cos(c.yaw) * t.dir[1]) * (c.speed >= 0 ? 1 : -1);
+    const toward = along * fwd < 0;
+    if (t.paid || !toward) return;
+    const d = Math.abs(along);
+    const card = wallet.toll && wallet.toll.active && wallet.toll.bal >= t.price;
+    if (lane.kind === "etc" && card) {
+      // the fast lane: the antenna reads the card as you come, and the bar is up before you are
+      if (d < 38) lane.open = Math.max(lane.open, 1.5);
+      if (d < 14) {
+        wallet.toll.bal -= t.price; t.paid = true; lane.open = 3.5;
+        say("ETC " + yenText(t.price) + " · NH Tolls " + yenText(wallet.toll.bal) + " left", 4);
+      }
       return;
     }
-    // no card: the barrier is down, so you stop, and the booth takes cash
-    const heading = c.speed >= 0 ? 1 : -1;
-    const approaching = along * heading < 0 || Math.abs(along) < 4;
-    if (approaching && Math.abs(along) < 9) {
-      if (Math.abs(c.speed) > 3.5) c.speed *= Math.pow(0.02, dt);
-      if (Math.abs(c.speed) < 4.5) t.hold += dt;
-      if (t.hold === 0 || t.hold < 1.8) { if (t.hold > 0.05 && Math.floor(t.hold * 4) % 2 === 0) { /* waiting */ } }
-      if (t.hold > 1.8) {
-        if (purse.yen >= TOLL_CASH) { purse.yen -= TOLL_CASH; say("Toll paid in cash · " + yenText(TOLL_CASH) + ". A Toll Express card is cheaper.", 5); t.open = 3.5; t.paid = true; }
-        else { say("No card and not enough cash for the toll.", 4); t.hold = 0; }
-      } else if (t.hold === 0 && Math.abs(c.speed) > 1) { /* slowing */ }
+    // everyone else: slow down, stop at the bar, and pay
+    const allowed = d <= 3.2 ? 0 : Math.min(40, 1.2 + (d - 3.2) * 0.62);
+    const sp = Math.abs(c.speed);
+    if (sp > allowed) c.speed -= Math.sign(c.speed) * Math.min(sp - allowed, 30 * dt);
+    if (d < 11 && sp < 1.4) t.hold += dt;
+    const wait = lane.kind === "etc" ? 2.6 : 1.7;
+    if (t.hold > wait) {
+      if (purse.yen >= t.price) {
+        purse.yen -= t.price; t.paid = true; lane.open = 3.5; t.hold = 0;
+        say(lane.kind === "etc"
+          ? "The ETC lane wants an active NH Tolls card. Paid " + yenText(t.price) + " in cash."
+          : "Toll paid in cash · " + yenText(t.price) + ". An active NH Tolls card skips the queue.", 5);
+      } else {
+        if (t.said <= 0) { say("The toll is " + yenText(t.price) + " and you don't have it in cash.", 4); t.said = 4.5; }
+        t.hold = wait - 0.4;
+      }
     }
   });
 }

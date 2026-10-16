@@ -343,6 +343,8 @@ function wish() {
   };
 }
 
+const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
+
 const UI = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
 
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
@@ -1827,7 +1829,7 @@ function noteBuy(brand, yen) {
 function walletCards() {
   const list = [{ id: "nhb", name: "NHB Debit", sub: "Konto Bank · •••• 4417", a: "#2a2f38", b: "#15181d", val: yenText(purse.yen) }];
   if (wallet.ic) list.push({ id: "ic", name: "IC Card", sub: "Suika · NHRail", a: "#1d7a4c", b: "#0d4a2d", val: yenText(wallet.ic.bal), top: true });
-  if (wallet.toll) list.push({ id: "toll", name: "Toll Express", sub: "Highway barriers", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true });
+  if (wallet.toll) list.push({ id: "toll", name: "NH Tolls", sub: wallet.toll.active ? "Coastal Expressway · ETC active" : "Coastal Expressway · not activated", a: "#c28a12", b: "#6b4a06", val: yenText(wallet.toll.bal), top: true, act: !wallet.toll.active });
   Object.keys(LOYALTY).forEach(k => { if (wallet.loyal[k]) { const L = LOYALTY[k]; list.push({ id: "loy-" + k, name: L.name, sub: L.sub + " · loyalty", a: L.a, b: L.b, val: wallet.pts[k] + " pt" }); } });
   list.push({ id: "add", add: true });
   return list;
@@ -1835,7 +1837,7 @@ function walletCards() {
 
 const WALLET_ADD = [
   { id: "ic",   name: "IC Card",      sub: "Opens the ticket gates", price: 2000, credit: 1500, a: "#1d7a4c" },
-  { id: "toll", name: "Toll Express", sub: "Opens toll barriers",    price: 5000, credit: 4000, a: "#c28a12" }
+  { id: "toll", name: "NH Tolls",     sub: "ETC lanes on the expressway", price: 5000, credit: 4000, a: "#c28a12" }
 ];
 
 function walletAct() {
@@ -1843,13 +1845,14 @@ function walletAct() {
     const o = WALLET_ADD[clamp(phone.sub, 0, WALLET_ADD.length - 1)];
     if (wallet[o.id]) { say(o.name + " is already in your wallet.", 3); return; }
     if (purse.yen < o.price) { say("Not enough. " + o.name + " costs " + yenText(o.price) + ".", 4); return; }
-    purse.yen -= o.price; wallet[o.id] = { bal: o.credit };
+    purse.yen -= o.price; wallet[o.id] = o.id === "toll" ? { bal: o.credit, active: false } : { bal: o.credit };
     wallet.add = false; phone.sub = 0;
-    say(o.name + " added with " + yenText(o.credit) + " on it.", 5);
+    say(o.name + " added with " + yenText(o.credit) + " on it." + (o.id === "toll" ? " Press A on the card to activate it." : ""), 5);
     return;
   }
   const c = walletCards()[clamp(phone.sub, 0, walletCards().length - 1)];
   if (c.add) { wallet.add = true; phone.sub = 0; return; }
+  if (c.id === "toll" && !wallet.toll.active) { wallet.toll.active = true; say("NH Tolls activated. The ETC lanes will open for you.", 5); return; }
   if (c.top) {
     if (purse.yen < 1000) { say("Not enough to top up.", 3); return; }
     purse.yen -= 1000; wallet[c.id].bal += 1000; say(c.name + " topped up ¥1,000.", 3);
@@ -1878,7 +1881,7 @@ function drawWalletCard(g, W, x, y, w, h, c, on) {
   g.fillText(c.sub, x + W * 0.055, y + h * 0.58);
   g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * 0.046) + "px " + UI; g.textAlign = "right";
   g.fillText(c.val, x + w - W * 0.055, y + h * 0.34); g.textAlign = "left";
-  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText("A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
+  if (c.top && on) { g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(W * 0.032) + "px " + UI; g.textAlign = "right"; g.fillText(c.act ? "A  activate" : "A  top up ¥1,000", x + w - W * 0.055, y + h * 0.86); g.textAlign = "left"; }
 }
 
 function appWallet(g, W, H) {
@@ -1912,7 +1915,7 @@ function appWallet(g, W, H) {
     } else drawWalletCard(g, W, x, y, w, H * 0.135, c, i === sel);
   }
   g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillText(wallet.ic ? "IC opens the gates; Toll Express the barriers." : "An IC card or a Toll Express card can be added.", W * PL.pad, H * 0.835);
+  g.fillText(wallet.ic ? "IC opens the gates; NH Tolls the ETC lanes." : "An IC card or an NH Tolls card can be added.", W * PL.pad, H * 0.835);
 }
 
 function poodleMark(g, W, cx, cy, size) {
@@ -2307,7 +2310,8 @@ const CAR_STOCK = {
 
 const DOKOTO_TABS = [
   { id: "phones", name: "Phones" },
-  { id: "wear",   name: "Watch & Console" },
+  { id: "wear",   name: "Watch & Audio" },
+  { id: "tv",     name: "TVs" },
   { id: "games",  name: "Games" },
   { id: "card",   name: "Card" }
 ];
@@ -2324,11 +2328,15 @@ function dokotoList(tab) {
       const gr = GEAR[id];
       out.push({ kind: "gear", id: id, name: gr.name, price: gr.price, days: 2, note: gr.note });
     });
-  } else if (tab === 3) {
+    [["pods", 24800, "Pear \u00b7 wireless, with a stem"], ["podspro", 39800, "Pear \u00b7 noise cancelling, silicone tips"], ["earbuds", 24800, "SOTI \u00b7 wireless, no stem"], ["headphones", 41200, "SOTI \u00b7 over-ear, louder about it"]].forEach(a =>
+      out.push({ kind: "audio", id: a[0], name: AUDIO_NAMES[a[0]], price: a[1], days: 1, note: a[2] }));
+  } else if (tab === 2) {
+    TVS.forEach(t => out.push({ kind: "tv", id: t.id, name: t.name, price: t.price, days: 3, note: t.note, size: t.size, maker: t.maker }));
+  } else if (tab === 4) {
     out.push({ kind: "card", id: "dokoto", name: "Dokoto Point card", price: 0, days: 0, note: "Switched on here, after three purchases from Dokoto Camera" });
   } else {
     GAMES.forEach(gm => out.push({ kind: "game", id: gm.id, name: gm.name, price: gm.price, days: 1,
-      note: gm.genre + " · " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
+      note: gm.genre + " \u00b7 " + (gm.on === "both" ? "PlayBox 5 / Pear Cube" : gm.on === "playbox" ? "PlayBox 5" : "Pear Cube") }));
   }
   return out;
 }
@@ -2465,6 +2473,10 @@ function drawDokoto(g, W, H, site) {
     if (it.kind === "phone") {
       const d = DEVICES[it.id];
       drawHandset(g, pcx, pcy, sh * 0.84, d, d.colours[clamp(phone.paint || 0, 0, d.colours.length - 1)][1]);
+    } else if (it.kind === "audio") {
+      drawAudioProduct(g, it.id, pcx, pcy, sh * 0.5);
+    } else if (it.kind === "tv") {
+      drawTVProduct(g, pcx, pcy, sh * 1.35, TV_BY_ID[it.id], 0, performance.now() / 1000);
     } else if (it.kind === "card") {
       const L = LOYALTY.dokoto, cw = sw * 0.46, ch = cw * 0.62;
       const gr = g.createLinearGradient(pcx - cw / 2, pcy - ch / 2, pcx + cw / 2, pcy + ch / 2); gr.addColorStop(0, L.a); gr.addColorStop(1, L.b);
@@ -3061,7 +3073,7 @@ function appContacts(g, W, H) {
 function appMusic(g, W, H) {
   const worn = wheel.wearing || (phone.owns.headphones ? null : null);
   const has = !!wheel.wearing;
-  const owns = phone.owns.earbuds || phone.owns.headphones;
+  const owns = audioOwned();
   phoneChrome(g, W, H, "SOTI Music",
     spotify.state === "ready" ? (spotify.device || "Spotify") : "Spotify");
 
@@ -3085,7 +3097,7 @@ function appMusic(g, W, H) {
     g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
     g.textAlign = "center";
     g.fillText("Hold LB and pick your", W * 0.5, H * 0.46);
-    g.fillText(phone.owns.headphones ? "headphones" : "earbuds", W * 0.5, H * 0.505);
+    g.fillText("earphones or headphones", W * 0.5, H * 0.505);
     g.fillText("to put them on.", W * 0.5, H * 0.55);
     g.textAlign = "left";
     return;
@@ -3194,7 +3206,7 @@ function appMusic(g, W, H) {
   g.font = "500 " + Math.round(W * PL.tiny) + "px " + UI;
   g.textAlign = "center";
   g.fillText("Playing through " + (spotify.device || "Spotify") +
-             " \u00b7 " + (wheel.wearing === "headphones" ? "SOTI Studio" : "SOTI Buds 3"),
+             " \u00b7 " + audioLabel(wheel.wearing),
              W * 0.5, H * 0.90);
   g.textAlign = "left";
 }
@@ -3316,7 +3328,7 @@ function settingsRows() {
     ["Owner", "Shigu Seiko"],
     ["Balance", yenText(purse.yen)],
     ["Network", "NHMobile \u00b7 5G"],
-    ["Audio device", phone.owns.headphones ? "SOTI Studio" : phone.owns.earbuds ? "SOTI Buds 3" : "None"],
+    ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) + " (on)" : audioOwned() ? "In the bag" : "None"],
     ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
     ["Storage", "126 GB of 256 GB"],
@@ -3590,6 +3602,64 @@ const DEFAULT_CM = "PLTNhweghpLi1u-LgDe3aD8BhHv6kn2iOr";
 
 const video = { src: DEFAULT_CM, on: false, where: "" };
 
+function drawChannel(g, x, y, w, h, ch, t) {
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  const s = h / 540;
+  const bg = (a, b) => { const gr = g.createLinearGradient(x, y, x + w, y + h); gr.addColorStop(0, a); gr.addColorStop(1, b); g.fillStyle = gr; g.fillRect(x, y, w, h); };
+  const say2 = (txt, px, py, sz, c, al) => { g.fillStyle = c; g.font = "800 " + Math.round(sz * s) + "px " + JP; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, px, py); };
+  if (ch === 0) {
+    bg("#0f2a54", "#1e5fa8");
+    g.fillStyle = "#e9edf0"; g.beginPath(); g.arc(x + w * 0.5, y + h * 0.36, h * 0.09, 0, 7); g.fill();
+    g.fillStyle = "#1b2430"; g.fillRect(x + w * 0.42, y + h * 0.46, w * 0.16, h * 0.30);
+    g.fillStyle = "#c9ced4"; g.fillRect(x + w * 0.30, y + h * 0.72, w * 0.40, h * 0.05);
+    g.fillStyle = "#b8141c"; g.fillRect(x, y + h * 0.84, w, h * 0.16);
+    g.fillStyle = "#fff"; g.fillRect(x, y + h * 0.84, w * 0.16, h * 0.16);
+    say2("NHB", x + w * 0.08, y + h * 0.92, 40, "#b8141c", "center");
+    const heads = ["Committee formed to study why committees are formed", "Tokonto commuters set record: 4h12 average", "Cat appointed station master for third year", "Vending machine elected to ward council", "Ministry of Paperwork announces more paperwork"];
+    const txt = heads[((t / 7) | 0) % heads.length];
+    say2(txt, x + w * 0.19, y + h * 0.92, 32, "#fff", "left");
+    say2("ニュース", x + w * 0.04, y + h * 0.07, 30, "#ffffff", "left");
+  } else if (ch === 1) {
+    const hue = (t * 40) % 360; bg("hsl(" + hue + ",70%,40%)", "hsl(" + (hue + 60) + ",80%,55%)");
+    for (let i = 0; i < 12; i++) { g.fillStyle = "hsla(" + (hue + i * 30) + ",90%,70%,0.35)"; g.beginPath(); g.arc(x + ((i * 97 + t * 40) % w), y + h * 0.5 + Math.sin(t * 2 + i) * h * 0.3, h * 0.05, 0, 7); g.fill(); }
+    const words = ["爆笑！", "大食い王決定戦", "ドッキリ！", "さらりーまん大喜利"];
+    say2(words[((t / 3) | 0) % words.length], x + w / 2, y + h * 0.45 + Math.sin(t * 5) * h * 0.02, 110, "#ffffff", "center");
+    say2("Tokonto 43", x + w * 0.04, y + h * 0.07, 34, "#fff", "left");
+    g.fillStyle = "rgba(0,0,0,0.6)"; g.fillRect(x, y + h * 0.84, w, h * 0.10);
+    say2("ここで笑ってください", x + w / 2, y + h * 0.89, 34, "#ffe96a", "center");
+  } else if (ch === 2) {
+    const ads = [["#0a6b42", "#e8711a", "11 ELEVEN", "いつでもあいてる"], ["#1272d6", "#13a150", "Pet Mart", "どうぶつと　ともに"],
+                 ["#d4152c", "#ffd21c", "DOKOTO", "どこでも　カメラ"], ["#1b1d21", "#6aa8ff", "SOTI", "もっと　鮮やかに"], ["#e8e6e1", "#4b4e54", "Pear", "やさしい　テクノロジー"]];
+    const a = ads[((t / 5) | 0) % ads.length];
+    bg(a[0], a[1]);
+    say2(a[2], x + w / 2, y + h * 0.42, 130, a[0] === "#e8e6e1" ? "#222" : "#fff", "center");
+    say2(a[3], x + w / 2, y + h * 0.64, 54, a[0] === "#e8e6e1" ? "#222" : "#fff", "center");
+    say2("CM", x + w * 0.95, y + h * 0.06, 28, "rgba(255,255,255,0.6)", "right");
+  } else if (ch === 3) {
+    bg("#3a2a1c", "#7a5a3a");
+    g.fillStyle = "#1b1511"; g.beginPath(); g.arc(x + w * 0.34, y + h * 0.45, h * 0.10, 0, 7); g.fill(); g.fillRect(x + w * 0.27, y + h * 0.54, w * 0.14, h * 0.4);
+    g.beginPath(); g.arc(x + w * 0.66, y + h * 0.47, h * 0.09, 0, 7); g.fill(); g.fillRect(x + w * 0.60, y + h * 0.55, w * 0.12, h * 0.4);
+    g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(x, y + h * 0.82, w, h * 0.12);
+    const lines = ["“You promised you would be home by nine.”", "“The train was late.”", "“The train is always late. You are always late.”", "“I was at the office.” “Everyone is always at the office.”"];
+    say2(lines[((t / 5) | 0) % lines.length], x + w / 2, y + h * 0.88, 30, "#fff", "center");
+  } else if (ch === 5) {
+    bg("#101216", "#1c2128");
+    say2("\u65e5\u672cCM\u30c1\u30e3\u30f3\u30cd\u30eb", x + w / 2, y + h * 0.44, 70, "#ffffff", "center");
+    say2("Real Japanese commercials, from YouTube. Needs the internet.", x + w / 2, y + h * 0.58, 30, "#a9b0b8", "center");
+  } else {
+    bg("#ffe9a8", "#ff9a5a");
+    const pulse = 1 + Math.sin(t * 4) * 0.05;
+    g.fillStyle = "#14171b"; g.save(); g.translate(x + w * 0.36, y + h * 0.5); g.scale(pulse, pulse); roundRect(g, -h * 0.14, -h * 0.2, h * 0.28, h * 0.4, 14); g.fill(); g.restore();
+    say2("タイムセール！", x + w * 0.66, y + h * 0.30, 70, "#c0172b", "center");
+    say2("¥" + (9800 - ((t * 37) | 0) % 5000), x + w * 0.66, y + h * 0.55, 90, "#14171b", "center");
+    say2("あと " + (59 - ((t) | 0) % 60) + " 秒", x + w * 0.66, y + h * 0.76, 44, "#c0172b", "center");
+  }
+  // the glass
+  g.fillStyle = "rgba(0,0,0,0.10)";
+  for (let yy = y; yy < y + h; yy += 4) g.fillRect(x, yy, w, 1.5);
+  g.restore();
+}
+
 const WHEEL_CATS = [
   { id: "hand",  name: "Hands",    colour: "#e4a62f", empty: "Nothing to hold" },
   { id: "gun",   name: "Firearms", colour: "#d8483c", empty: "No firearms" },
@@ -3600,6 +3670,32 @@ const WHEEL_CATS = [
   { id: "drink", name: "Drinks",   colour: "#2fb7d9", empty: "No drinks" },
   { id: "tech",  name: "Tech",     colour: "#8d96a3", empty: "No tech" }
 ];
+
+const ITEMS = [
+  { id: "none",       name: "Unarmed",        cat: "hand", always: true, note: "" },
+  { id: "umbrella",   name: "Clear umbrella", cat: "hand", note: "Melee" },
+  { id: "baton",      name: "Baton",          cat: "hand", note: "Melee" },
+  { id: "pistol",     name: "Pistol",         cat: "gun",  note: "Firearm" },
+  { id: "smg",        name: "Machine pistol", cat: "gun",  note: "Firearm" },
+  { id: "shotgun",    name: "Shotgun",        cat: "gun",  note: "Firearm" },
+  { id: "earbuds",    name: "SOTI Buds 3",    cat: "audio", note: "Put on" },
+  { id: "headphones", name: "SOTI Studio",    cat: "audio", note: "Put on" },
+  { id: "onigiri",    name: "Onigiri",        cat: "food",  stress: -0.05, health: 0.08, note: "Two rice balls" },
+  { id: "bento",      name: "Katsu bento",    cat: "food",  stress: -0.12, health: 0.18, note: "A proper meal" },
+  { id: "sando",      name: "Egg sandwich",   cat: "food",  stress: -0.06, health: 0.10, note: "Crusts off" },
+  { id: "chips",      name: "Potato chips",   cat: "food",  stress: -0.07, health: 0.01, note: "Salty" },
+  { id: "chocolate",  name: "Chocolate bar",  cat: "food",  stress: -0.09, health: 0.00, note: "Milk" },
+  { id: "ramen",      name: "Cup ramen",      cat: "food",  stress: -0.08, health: 0.10, note: "Three minutes" },
+  { id: "meatbun",    name: "Nikuman",        cat: "food",  stress: -0.06, health: 0.09, note: "Steamed pork bun" },
+  { id: "coffee",     name: "Canned coffee",  cat: "drink", stress: -0.06, health: 0.00, note: "Black" },
+  { id: "tea",        name: "Barley tea",     cat: "drink", stress: -0.04, health: 0.02, note: "Cold" },
+  { id: "energy",     name: "Ganbare Energy", cat: "drink", stress: -0.10, health: 0.04, note: "Fight on" },
+  { id: "water",      name: "Mineral water",  cat: "drink", stress: -0.01, health: 0.04, note: "Still" },
+  { id: "cola",       name: "Cola",           cat: "drink", stress: -0.05, health: 0.00, note: "Ice cold" },
+  { id: "charger",    name: "Fast charger",   cat: "tech",  note: "45 W" }
+];
+
+const ITEM = {}; ITEMS.forEach(i => { ITEM[i.id] = i; });
 
 const GAMES = [
   { id: "blockfall",  name: "Blockfall DX",        genre: "Falling blocks",  kind: "blocks",   a: "#2a6fd6", b: "#7fd0ff", price: 3980, on: "both" },
@@ -3636,6 +3732,101 @@ const GEAR = {
   pearwatch:{ id: "pearwatch",name: "Pear Watch",     note: "Wear it and connect",           maker: "pear", price: 54800 },
   pearwatchu:{ id: "pearwatchu",name: "Pear Watch Ultra", note: "Wear it and connect",        maker: "pear", price: 129800 }
 };
+
+const TVS = [
+  { id: "tv43", name: "SOTI Vista 43\"",    maker: "soti",     size: 43, price: 68000,  note: "4K · 60 Hz · the sensible one" },
+  { id: "tv55", name: "Pear Vision 55\"",   maker: "pear",     size: 55, price: 148000, note: "4K · 120 Hz · thin to the point of worry" },
+  { id: "tv65", name: "Kurogane OLED 65\"", maker: "kurogane", size: 65, price: 298000, note: "OLED · black is actually black" },
+  { id: "tv77", name: "SOTI Wall 77\"",     maker: "soti",     size: 77, price: 498000, note: "A wall. It is also a television" }
+];
+
+const TV_BY_ID = {}; TVS.forEach(t => { TV_BY_ID[t.id] = t; });
+
+const AUDIO_NAMES = { earbuds: "SOTI Buds 3", headphones: "SOTI Studio", pods: "Pear Pods", podspro: "Pear Pods Pro" };
+
+function audioOwned() { return phone.owns.earbuds || phone.owns.headphones || phone.owns.pods || phone.owns.podspro; }
+
+function audioLabel(id) { return AUDIO_NAMES[id] || "headphones"; }
+
+function drawAudioProduct(g, id, cx, cy, r) {
+  const u = r / 50;
+  g.save(); g.translate(cx, cy); g.lineCap = "round"; g.lineJoin = "round";
+  const rr = (x, y, w, h, rad, c) => { roundRect(g, x * u, y * u, w * u, h * u, rad * u); g.fillStyle = c; g.fill(); };
+  if (id === "pods" || id === "podspro") {
+    rr(-26, -6, 52, 38, 14, "#f4f5f7"); rr(-26, -6, 52, 12, 10, "#e3e6ea");
+    g.fillStyle = "#cfd3d8"; g.beginPath(); g.arc(0, 8*u, 3*u, 0, 7); g.fill();
+    [[-12, -22], [12, -22]].forEach(p => {
+      g.fillStyle = "#f9fafb"; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 8*u, 7.5*u, 0, 0, 7); g.fill();
+      rr(p[0] - 2.4, p[1] + 3, 4.8, 22, 2.4, "#f9fafb");
+      if (id === "podspro") { g.fillStyle = "#9aa1a9"; g.beginPath(); g.arc(p[0]*u, (p[1] - 6)*u, 4*u, 0, 7); g.fill(); }
+      g.strokeStyle = "rgba(0,0,0,0.15)"; g.lineWidth = 1.2*u; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 8*u, 7.5*u, 0, 0, 7); g.stroke();
+    });
+  } else if (id === "earbuds") {
+    rr(-26, -4, 52, 36, 16, "#23272d"); g.fillStyle = "#4a90ff"; g.beginPath(); g.arc(0, 8*u, 2.6*u, 0, 7); g.fill();
+    [[-13, -20], [13, -20]].forEach(p => { g.fillStyle = "#31363e"; g.beginPath(); g.ellipse(p[0]*u, p[1]*u, 10*u, 12*u, 0.3, 0, 7); g.fill(); g.fillStyle = "#4a90ff"; g.beginPath(); g.arc(p[0]*u, (p[1] + 3)*u, 2.2*u, 0, 7); g.fill(); });
+  } else {
+    g.strokeStyle = "#2a2d33"; g.lineWidth = 7*u; g.beginPath(); g.arc(0, 4*u, 30*u, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+    [[-30, 6], [30, 6]].forEach(p => { rr(p[0] - 9, p[1] - 15, 18, 30, 8, "#1b1d21"); rr(p[0] - 11 + (p[0] < 0 ? 8 : 0), p[1] - 12, 6, 24, 3, "#c9ced4"); });
+  }
+  g.restore();
+}
+
+function drawTVProduct(g, cx, cy, w, tv, ch, t) {
+  const h = w * 0.58;
+  g.save(); g.translate(cx, cy);
+  const dark = tv.maker === "pear" ? "#c9ccd2" : tv.maker === "kurogane" ? "#0e0f12" : "#16181c";
+  g.fillStyle = "rgba(0,0,0,0.16)"; g.beginPath(); g.ellipse(0, h * 0.62, w * 0.42, h * 0.07, 0, 0, 7); g.fill();
+  g.fillStyle = dark; roundRect(g, -w / 2, -h / 2, w, h, w * 0.012); g.fill();
+  const sw = w * 0.965, sh = h * 0.93;
+  if (ch >= 0) drawChannel(g, -sw / 2, -sh / 2, sw, sh, ch, t || 0);
+  else { const gr = g.createLinearGradient(-sw / 2, -sh / 2, sw / 2, sh / 2); gr.addColorStop(0, "#0a0c10"); gr.addColorStop(1, "#1a2030"); g.fillStyle = gr; g.fillRect(-sw / 2, -sh / 2, sw, sh); }
+  g.fillStyle = dark; g.fillRect(-w * 0.14, h / 2, w * 0.28, h * 0.07); roundRect(g, -w * 0.22, h * 0.56, w * 0.44, h * 0.03, 2); g.fill();
+  g.fillStyle = tv.maker === "pear" ? "#6a6e75" : "#8d949c"; g.font = "700 " + Math.max(8, Math.round(w * 0.028)) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(tv.maker.toUpperCase(), 0, h / 2 - h * 0.0 + h * 0.035 * 0);
+  g.restore();
+}
+
+function shelfIcon(g, it, cx, cy, r) {
+  if (ITEM[it.id] && !ITEM[it.id].store) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] }, cx, cy, r, false); return; }
+  if (it.phone) { wheelIcon(g, { kind: "phone", id: it.id }, cx, cy, r, false); return; }
+  if (it.carry) { wheelIcon(g, { kind: "item", id: it.id, item: ITEM[it.id] || { cat: "audio" } }, cx, cy, r, false); return; }
+  const u = r / 50;
+  g.save(); g.translate(cx, cy); g.lineCap = "round"; g.lineJoin = "round";
+  const rect = (x, y, w, h, rad, c) => { roundRect(g, x * u, y * u, w * u, h * u, rad * u); g.fillStyle = c; g.fill(); };
+  const id = it.id;
+  if (it.shirt) {
+    g.fillStyle = it.shirt; g.beginPath();
+    g.moveTo(-14*u, -36*u); g.lineTo(-38*u, -22*u); g.lineTo(-30*u, -2*u); g.lineTo(-20*u, -8*u); g.lineTo(-20*u, 38*u); g.lineTo(20*u, 38*u); g.lineTo(20*u, -8*u); g.lineTo(30*u, -2*u); g.lineTo(38*u, -22*u); g.lineTo(14*u, -36*u); g.lineTo(0, -26*u); g.closePath(); g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 2*u; g.stroke();
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.beginPath(); g.moveTo(-14*u, -36*u); g.lineTo(0, -22*u); g.lineTo(14*u, -36*u); g.lineTo(0, -26*u); g.closePath(); g.fill();
+    g.fillStyle = "rgba(0,0,0,0.28)"; for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(0, (-12 + k * 12) * u, 1.8*u, 0, 7); g.fill(); }
+  } else if (it.read) {
+    const cols = { mangaA: "#e8503a", mangaB: "#e87aa8", mangaC: "#e8b23a", novelA: "#2a4a7a", novelB: "#2f6f4a", bizA: "#14213a", bizB: "#6a4a8a", bizC: "#c0392b" };
+    rect(-24, -38, 48, 76, 3, cols[id] || "#445"); rect(-24, -38, 7, 76, 2, "rgba(0,0,0,0.3)");
+    rect(-12, -26, 30, 24, 2, "rgba(255,255,255,0.88)"); rect(-12, 6, 24, 4, 1, "rgba(255,255,255,0.7)"); rect(-12, 14, 16, 4, 1, "rgba(255,255,255,0.5)");
+  } else if (it.eat) {
+    const soupy = /ramen|tsukemen|soup/i.test(it.name);
+    if (soupy) {
+      g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 3*u; for (let k = -1; k <= 1; k++) { g.beginPath(); g.moveTo(k*12*u, -22*u); g.quadraticCurveTo(k*12*u+5*u, -30*u, k*12*u, -38*u); g.stroke(); }
+      g.fillStyle = "#e8e2d4"; g.beginPath(); g.moveTo(-38*u, -8*u); g.lineTo(38*u, -8*u); g.quadraticCurveTo(34*u, 34*u, 0, 36*u); g.quadraticCurveTo(-34*u, 34*u, -38*u, -8*u); g.fill();
+      g.fillStyle = id === "miso" ? "#c98a3a" : id === "tonkotsu" ? "#efe3c4" : "#a8642a"; g.beginPath(); g.ellipse(0, -8*u, 34*u, 9*u, 0, 0, 7); g.fill();
+      g.fillStyle = "#f6d34a"; g.beginPath(); g.arc(-10*u, -10*u, 6*u, 0, 7); g.fill(); g.fillStyle = "#e9795a"; g.fillRect(8*u, -14*u, 14*u, 6*u);
+    } else if (/nigiri|salmon|tuna|tamago/.test(id)) {
+      rect(-34, 4, 68, 30, 6, "#f4efe0"); rect(-34, -12, 68, 20, 8, id === "tuna" ? "#c0392b" : id === "tamago" ? "#f2c230" : "#f08a6a"); rect(-6, -12, 12, 46, 0, "#14171b");
+    } else if (id === "beer") {
+      rect(-18, -30, 36, 64, 6, "#f0b429"); rect(-20, -38, 40, 14, 7, "#fff"); rect(18, -16, 14, 32, 7, "rgba(255,255,255,0.0)");
+      g.strokeStyle = "#cfd5da"; g.lineWidth = 4*u; g.beginPath(); g.arc(26*u, 0, 12*u, -1.2, 1.2); g.stroke();
+    } else if (/gyoza|karaage/.test(id)) {
+      for (let k = 0; k < 3; k++) { g.fillStyle = id === "gyoza" ? "#e8c88a" : "#c9822a"; g.beginPath(); g.ellipse((-20 + k*20)*u, (k % 2 ? 6 : -8)*u, 15*u, 10*u, 0.3, 0, 7); g.fill(); }
+    } else { rect(-24, -8, 48, 36, 8, "#f4efe0"); rect(-20, -16, 40, 12, 6, "#fff"); }
+  } else if (id === "mask") { rect(-30, -16, 60, 32, 10, "#f2f6f8"); g.strokeStyle = "#9fb4c4"; g.lineWidth = 3*u; [-6, 0, 6].forEach(y => { g.beginPath(); g.moveTo(-22*u, y*u); g.lineTo(22*u, y*u); g.stroke(); });
+  } else if (id === "handcream") { rect(-14, -30, 28, 56, 8, "#f0a8c0"); rect(-10, -38, 20, 12, 4, "#fff"); rect(-14, -4, 28, 14, 0, "#fff");
+  } else if (id === "tissues") { rect(-26, -20, 52, 40, 6, "#8fc1ea"); rect(-18, -26, 36, 10, 4, "#fff");
+  } else if (id === "socks") { g.fillStyle = "#1c1e23"; g.beginPath(); g.moveTo(-10*u, -36*u); g.lineTo(14*u, -36*u); g.lineTo(14*u, 8*u); g.lineTo(34*u, 20*u); g.quadraticCurveTo(38*u, 36*u, 20*u, 36*u); g.lineTo(-10*u, 20*u); g.closePath(); g.fill(); rect(-10, -36, 24, 8, 2, "#8d96a3");
+  } else if (id === "towel") { rect(-30, -26, 60, 52, 6, "#9fd0e8"); for (let k = 0; k < 4; k++) rect(-30, -26 + k * 14, 60, 5, 0, "rgba(255,255,255,0.5)");
+  } else { rect(-26, -26, 52, 52, 8, "#8d96a3"); }
+  g.restore();
+}
 
 const bag = { counts: {}, phones: {}, games: {}, gear: {}, heldGame: null, watchOn: false };    // watchOn is the id of the watch on your wrist
 
@@ -3840,7 +4031,9 @@ function wheelGlyph(g, kind, id, cx, cy, r, on, tint) {
 }
 
 function wheelIcon(g, e, cx, cy, r, ghost) {
-  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun" || e.item.cat === "audio")) {
+  if (e.kind === "item" && e.item && e.item.store) { shelfIcon(g, e.item.store, cx, cy, r); return; }
+  if (e.kind === "item" && e.item.cat === "audio") { drawAudioProduct(g, e.id, cx, cy, r); return; }
+  if (e.kind === "item" && (e.item.cat === "hand" || e.item.cat === "gun")) {
     wheelGlyph(g, e.item.cat, e.id, cx, cy, r, false, mixHex((WHEEL_CATS.find(c => c.id === e.item.cat) || WHEEL_CATS[0]).colour, "#ffffff", 0.55));
     return;
   }
@@ -3972,6 +4165,7 @@ function giveItem(kind, id, colour) {
   else if (kind === "phone") bag.phones[id] = colour || 0;
   else if (kind === "game") bag.games[id] = true;
   else if (kind === "gear") bag.gear[id] = true;
+  else if (kind === "tv") { home.tvModel = id; say("The new " + TV_BY_ID[id].name + " is in the flat in Mizuho.", 5); }
   else if (id === "umbrella") wheel.umbrellaOwned = true;
   else bagAdd(id, 1);
   phone.dirty = true;
