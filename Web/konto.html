@@ -491,9 +491,26 @@
     width: calc(var(--screen-h) * 9 / 19.5 + 14px);
     margin: 0 auto;
     padding: 7px;
-    background: linear-gradient(145deg, #4a4e55 0%, #22262c 38%, #15181d 62%, #3c4047 100%);
+    background: linear-gradient(145deg, var(--shell-hi, #4a4e55) 0%, var(--shell, #22262c) 38%, var(--shell-lo, #15181d) 62%, var(--shell-hi, #3c4047) 100%);
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.07);
   }
+  /* ---- the handsets: what is round the glass differs from one to the next -- */
+  #phone.d-flat #phonebody { border-radius: 9px; padding: 6px; }
+  #phone.d-flat #phonescreen { border-radius: 5px; }
+  #phone.d-pear #phonebody {
+    border-radius: 40px; padding: 6px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.10),
+                inset 0 0 0 2px rgba(255, 255, 255, 0.14);
+  }
+  #phone.d-pear #phonescreen { border-radius: 34px; }
+  #phone.d-pear #phonebody::before, #phone.d-pear #phonebody::after {
+    background: linear-gradient(180deg, var(--shell-hi, #8e949c), var(--shell, #5a6068));
+  }
+  /* a basic phone draws its own body on the canvas, so the CSS one steps aside */
+  #phone.d-basic #phonebody { padding: 0; background: none; border-radius: 34px 34px 50px 50px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.62); }
+  #phone.d-basic #phonebody::before, #phone.d-basic #phonebody::after { display: none; }
+  #phone.d-basic #phonescreen { border-radius: 34px 34px 50px 50px; }
   /* the metal rail down each side, which is what a flagship phone looks like */
   #phonebody::before, #phonebody::after {
     content: "";
@@ -11180,6 +11197,13 @@ const phone = {
   sub: 0,               // selection inside whatever app is open
   scroll: 0,
   paint: 0,             // which colour is picked on a car page
+  device: "so24",       // the handset in your hand: a key into DEVICES
+  colourIdx: 0,         // its shell colour
+  pearWall: 0, pearAccent: 0,   // what a Pear lets you change
+  call: null,           // { number, t0ms } while you are on one
+  pad: { on: false, sel: 0 },   // keypad focus on a basic phone
+  watch: null,          // a Pear Watch, once you have one
+  health: false,        // the Health app, once the watch is connected
   owns: { earbuds: false, headphones: false, icCard: true },
   gallery: [],          // photographs taken with the camera
   dial: "",
@@ -11203,6 +11227,17 @@ const PHONE_APPS = [
   ["Settings",  "#6b7076", "gear"]
 ];
 const PHONE_DOCK = [0, 1, 6, 3];
+
+// What is on the home screen of the phone in your hand. A basic phone has a
+// handful; a smartphone has all twelve; and a Pear with a connected watch has a
+// thirteenth, a red heart.
+const BASIC_APPS = ["Phone", "Mail", "Camera", "Photos", "Music", "Contacts", "Wallet", "Settings"];
+function homeApps() {
+  let list = PHONE_APPS;
+  if (isBasic()) list = PHONE_APPS.filter(a => BASIC_APPS.indexOf(a[0]) >= 0);
+  else if (phone.health) list = list.concat([["Health", "#ff2d55", "heart"]]);
+  return list;
+}
 
 // ---- the things you can buy, and the places that sell them ----------------
 const SHOP_ITEMS = [
@@ -11386,6 +11421,792 @@ function phoneIcon(g, x, y, s, colour, glyph) {
 
 // Tōkonto at dusk from across the bay. Drawn, not photographed, because the
 // city on the wallpaper should be the city out of the window.
+// =============================================================================
+// DEVICES
+// -----------------------------------------------------------------------------
+// A phone is a catalogue entry. Everything that differs between one and the
+// next - the cut-out in the glass, what runs along the bottom, how good the
+// camera is, what the software looks like - is a field here, and the drawing
+// code asks the active entry rather than knowing about any particular phone.
+//
+//   top   punch   a hole in the glass            (SOTI)
+//         notch   a black tab hanging off the top   (Pear P15, which is meant to
+//                 look like a phone from 2020)
+//         island  a pill that grows to show what is happening  (P16)
+//         island2 the same, a generation on: smaller at rest, more it can show (P17)
+//   nav   buttons recents, home, back, drawn and doing nothing, as on the
+//                 Korean phones they are modelled on
+//         bar     a thin bar, drawn and doing nothing, as on the American ones
+//   ui    soti    one coloured wash and a flat list
+//         pear    large titles, translucent bars, rounded cards, widgets
+//         basic   a small screen and a keypad you press with the D-pad
+//
+// Cameras are scored out of ten and the SOTIs are better, on purpose: the Pears
+// have the nicer software and the SOTIs take the nicer photographs, which is
+// the argument anyone who owns either will make.
+// =============================================================================
+const SO_COLOURS = [["Titan Grey", "#6a6f77"], ["Obsidian", "#1b1d21"], ["Lavender", "#8d83b8"], ["Jade", "#3f7d6b"], ["Amber", "#b9803a"]];
+const PEAR_COLOURS = [["Graphite", "#4b4e54"], ["Silver", "#d6d8da"], ["Gold", "#d7bfa0"], ["Pacific", "#37556f"], ["Violet", "#6b5a86"], ["Alpine", "#4f6f58"]];
+const PEAR_PRO_COLOURS = [["Space Black", "#2a2b2e"], ["Natural Titanium", "#b9b2a6"], ["Blue Titanium", "#4a5568"], ["White Titanium", "#e8e6e1"], ["Desert Titanium", "#b79a82"]];
+
+const DEVICES = {
+  so24:  { id: "so24", maker: "soti", name: "SOTI So24", ui: "soti", top: "punch", nav: "buttons", cam: 5, price: 0,
+           screen: '6.1"', chip: "S3 Quad", camera: "50 MP, 2x zoom", colours: SO_COLOURS,
+           note: "Yours. A very good phone, two years ago." },
+  so25:  { id: "so25", maker: "soti", name: "SOTI So25", ui: "soti", top: "punch", nav: "buttons", cam: 6, price: 98000,
+           screen: '6.2"', chip: "S4", camera: "50 MP + 12 MP ultrawide, 3x zoom", colours: SO_COLOURS,
+           note: "A year of small improvements, and the camera is one." },
+  so25u: { id: "so25u", maker: "soti", name: "SOTI So25 Ultra", ui: "soti", top: "punch", nav: "buttons", cam: 9, price: 168000, flat: true,
+           screen: '6.9"', chip: "S4 Max", camera: "200 MP + 50 MP periscope, 10x zoom", colours: SO_COLOURS,
+           note: "Flat glass, a stylus in the corner and the best camera on the island." },
+  so26:  { id: "so26", maker: "soti", name: "SOTI So26", ui: "soti", top: "punch", nav: "buttons", cam: 7, price: 128000,
+           screen: '6.3"', chip: "S5", camera: "50 MP + 50 MP ultrawide, 3x zoom, night mode", colours: SO_COLOURS,
+           note: "Faster in the dark, and a lot of people can tell." },
+  so26u: { id: "so26u", maker: "soti", name: "SOTI So26 Ultra", ui: "soti", top: "punch", nav: "buttons", cam: 10, price: 208000, flat: true,
+           screen: '6.9"', chip: "S5 Max", camera: "200 MP + 50 MP periscope, 12x zoom, night mode", colours: SO_COLOURS,
+           note: "The best camera ever put in a phone, according to the people who sell it." },
+
+  p15:   { id: "p15", maker: "pear", name: "Pear P15", ui: "pear", top: "notch", nav: "bar", cam: 4, price: 89800,
+           screen: '6.1"', chip: "P-A15", camera: "12 MP dual, 2x zoom", colours: PEAR_COLOURS,
+           note: "The notch is back. Somebody at Pear thinks this is a feature." },
+  p15p:  { id: "p15p", maker: "pear", name: "Pear P15 Pro", ui: "pear", top: "notch", nav: "bar", cam: 5, price: 128000,
+           screen: '6.1"', chip: "P-A15 Pro", camera: "12 MP triple, 3x zoom", colours: PEAR_PRO_COLOURS,
+           note: "Steel edges and a third lens." },
+  p15pm: { id: "p15pm", maker: "pear", name: "Pear P15 Pro Max", ui: "pear", top: "notch", nav: "bar", cam: 6, price: 148000,
+           screen: '6.7"', chip: "P-A15 Pro", camera: "12 MP triple, 5x zoom", colours: PEAR_PRO_COLOURS,
+           note: "The same phone, bigger, with a longer lens." },
+  p16:   { id: "p16", maker: "pear", name: "Pear P16", ui: "pear", top: "island", nav: "bar", cam: 5, price: 109000,
+           screen: '6.1"', chip: "P-A16", camera: "48 MP dual, 2x zoom", colours: PEAR_COLOURS,
+           note: "The notch becomes a pill, and the pill does things." },
+  p16p:  { id: "p16p", maker: "pear", name: "Pear P16 Pro", ui: "pear", top: "island", nav: "bar", cam: 6, price: 148000,
+           screen: '6.3"', chip: "P-A16 Pro", camera: "48 MP triple, 3x zoom", colours: PEAR_PRO_COLOURS,
+           note: "A 120 Hz screen, which you will notice for a week." },
+  p16pm: { id: "p16pm", maker: "pear", name: "Pear P16 Pro Max", ui: "pear", top: "island", nav: "bar", cam: 7, price: 168000,
+           screen: '6.9"', chip: "P-A16 Pro", camera: "48 MP triple, 5x zoom", colours: PEAR_PRO_COLOURS,
+           note: "Eighteen hours of video, if you do not look at it." },
+  p17:   { id: "p17", maker: "pear", name: "Pear P17", ui: "pear", top: "island2", nav: "bar", cam: 6, price: 129000,
+           screen: '6.3"', chip: "P-A17", camera: "48 MP dual, 3x zoom", colours: PEAR_COLOURS,
+           note: "A smaller island, a brighter screen and a great deal of marketing." },
+  p17p:  { id: "p17p", maker: "pear", name: "Pear P17 Pro", ui: "pear", top: "island2", nav: "bar", cam: 7, price: 178000,
+           screen: '6.3"', chip: "P-A17 Pro", camera: "48 MP triple, 4x zoom, night mode", colours: PEAR_PRO_COLOURS,
+           note: "The one reviewers keep calling 'the iPhone of Android'." },
+  p17pm: { id: "p17pm", maker: "pear", name: "Pear P17 Pro Max", ui: "pear", top: "island2", nav: "bar", cam: 8, price: 198000,
+           screen: '6.9"', chip: "P-A17 Pro", camera: "48 MP triple, 8x zoom, night mode", colours: PEAR_PRO_COLOURS,
+           note: "The largest phone Pear has ever made, which is the whole pitch." },
+
+  eleven:  { id: "eleven", maker: "eleven", name: "11 Phone", ui: "basic", top: "none", nav: "keypad", cam: 1, price: 5980,
+             screen: '2.4"', chip: "none worth naming", camera: "0.3 MP", colours: [["11 Green", "#0a6b42"]],
+             body: ["#0d7a4c", "#08492d"], accent: "#e8711a", stripes: ["#e8711a", "#cf2027"],
+             note: "Sold at the till, next to the batteries." },
+  petmart: { id: "petmart", maker: "petmart", name: "Peto Phone", ui: "basic", top: "none", nav: "keypad", cam: 1, price: 6480,
+             screen: '2.4"', chip: "none worth naming", camera: "0.3 MP", colours: [["Pet Mart Blue", "#1272d6"]],
+             body: ["#2a86e8", "#0e4f9a"], accent: "#ffffff", stripes: ["#13a150", "#1272d6"],
+             note: "Comes with a paw-print wallpaper you cannot remove." }
+};
+const DEVICE_ORDER = ["so24", "so25", "so25u", "so26", "so26u", "p15", "p15p", "p15pm", "p16", "p16p", "p16pm", "p17", "p17p", "p17pm", "eleven", "petmart"];
+
+function dev() { return DEVICES[phone.device] || DEVICES.so24; }
+function isPear() { return dev().ui === "pear"; }
+function isBasic() { return dev().ui === "basic"; }
+
+// ---- colour helpers, for shells and swatches --------------------------------
+function hexRGB(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function rgbHex(c) { return "#" + c.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, "0")).join(""); }
+function mixHex(a, b, k) { const A = hexRGB(a), B = hexRGB(b); return rgbHex([0, 1, 2].map(i => A[i] + (B[i] - A[i]) * k)); }
+
+// The shell colour of the phone you are holding.
+function deviceShell() {
+  const d = dev();
+  if (d.ui === "basic") return d.body[0];
+  const list = d.colours;
+  return list[clamp(phone.colourIdx || 0, 0, list.length - 1)][1];
+}
+
+// The accent a Pear lets you choose, and the one a SOTI is stuck with.
+const PEAR_ACCENTS = [["Blue", "#0a84ff"], ["Pink", "#ff375f"], ["Green", "#30d158"], ["Orange", "#ff9f0a"], ["Purple", "#bf5af2"], ["Red", "#ff453a"]];
+const PEAR_WALLPAPERS = [
+  { name: "Aurora",  a: "#0a1a3c", b: "#1f6f8b", c: "#58d6a4", d: "#7a4bd1" },
+  { name: "Sakura",  a: "#3a1530", b: "#b5476b", c: "#ffb3c7", d: "#ffd9a0" },
+  { name: "Midnight", a: "#04060d", b: "#101a33", c: "#26346b", d: "#5c3fa8" },
+  { name: "Fuji",    a: "#14203f", b: "#e0684b", c: "#ffb16a", d: "#ffe3a3" }
+];
+function phoneAccent() {
+  if (isPear()) return PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][1];
+  if (isBasic()) return dev().accent;
+  return appAccent();
+}
+
+// Put the right body round the glass. The shell is CSS and the cut-out is
+// canvas, so this only sets what CSS needs to know.
+function applyDeviceSkin() {
+  const el = document.getElementById("phone");
+  if (!el) return;
+  const d = dev();
+  el.className = el.className.replace(/\b(d|dt)-\S+/g, "").replace(/\s+/g, " ").trim();
+  el.classList.add("d-" + d.ui, "dt-" + d.top);
+  if (d.flat) el.classList.add("d-flat");
+  const shell = deviceShell();
+  el.style.setProperty("--shell", shell);
+  el.style.setProperty("--shell-hi", mixHex(shell, "#ffffff", 0.34));
+  el.style.setProperty("--shell-lo", mixHex(shell, "#000000", 0.55));
+  const hole = document.getElementById("phonehole");
+  if (hole) hole.style.display = d.top === "punch" ? "" : "none";
+  phone.dirty = true;
+}
+
+// Swap the handset. The old one is not kept in a drawer: it is replaced.
+function equipPhone(id, colourIdx) {
+  if (!DEVICES[id]) return false;
+  phone.device = id;
+  phone.colourIdx = colourIdx || 0;
+  phone.app = null; phone.sub = 0; phone.sel = 0; phone.site = null; phone.pad = { on: false, sel: 0 };
+  applyDeviceSkin();
+  if (phone.open) drawPhone();
+  return true;
+}
+
+// ---- the glass: status bar, cut-outs, bottom controls ----------------------
+function drawBattery(g, x, y, w, h, pct, ink) {
+  g.strokeStyle = ink; g.globalAlpha = 0.78; g.lineWidth = Math.max(1, w * 0.07);
+  roundRect(g, x, y - h / 2, w, h, h * 0.30); g.stroke();
+  g.globalAlpha = 1;
+  g.fillStyle = ink;
+  g.fillRect(x + w + w * 0.05, y - h * 0.20, w * 0.07, h * 0.40);
+  roundRect(g, x + w * 0.07, y - h / 2 + w * 0.07, (w - w * 0.14) * pct, h - w * 0.14, h * 0.18); g.fill();
+}
+function drawSignal(g, x, y, W, ink, bars) {
+  g.fillStyle = ink;
+  for (let i = 0; i < 4; i++) {
+    const bh = (i + 1) * W * 0.011;
+    g.globalAlpha = i < bars ? 1 : 0.35;
+    g.fillRect(x + i * W * 0.024, y + W * 0.020 - bh, W * 0.016, bh);
+  }
+  g.globalAlpha = 1;
+}
+
+// One status bar for every screen of every phone. A SOTI puts the time at the
+// left and the radio at the right of a punch-hole; a Pear splits them round
+// whatever is at the top, with the time centred in the left ear.
+function phoneStatusBar(g, W, H, o) {
+  o = o || {};
+  const d = dev(), t = phoneTime();
+  if (d.ui === "basic") return;                       // a basic phone draws its own
+  const ink = o.ink || "#f3f6f8";
+  const y = (o.y || 0.031) * H, size = Math.round(W * (o.size || 0.050));
+  g.save();
+  g.textBaseline = "middle"; g.fillStyle = ink;
+  const time = t.h + ":" + two(t.m);
+  if (d.ui === "pear") {
+    g.font = "700 " + size + "px " + UI;
+    g.textAlign = "center";
+    g.fillText(time, W * 0.165, y);
+    if (d.top === "notch") {
+      // the notch takes the middle 43%, which leaves the right ear room for
+      // the signal and the battery and nothing else: no "5G", as on the phone
+      // it imitates
+      drawSignal(g, W * 0.752, y - W * 0.020, W, ink, 4);
+      drawBattery(g, W * 0.868, y, W * 0.078, W * 0.040, 0.82, ink);
+    } else {
+      // an island phone's right ear is the same two things as a notch phone's
+      drawSignal(g, W * 0.752, y - W * 0.020, W, ink, 4);
+      drawBattery(g, W * 0.868, y, W * 0.078, W * 0.040, 0.82, ink);
+    }
+  } else {
+    g.font = "600 " + size + "px " + UI;
+    g.textAlign = "left";
+    g.fillText(time, W * 0.09, y);
+    // The carrier's name used to run along here and straight under the camera
+    // hole in the middle of the glass. The hole is where the middle of the
+    // screen is, so the status line is two clusters and nothing between them.
+    g.font = "600 " + Math.round(W * 0.036) + "px " + UI;
+    g.textAlign = "right";
+    g.fillText("5G", W * 0.715, y);
+    drawSignal(g, W * 0.735, y - W * 0.020, W, ink, 4);
+    drawBattery(g, W * 0.855, y, W * 0.082, W * 0.042, 0.68, ink);
+  }
+  g.restore();
+}
+
+// Recents, home and back on a SOTI; a thin bar on a Pear. Neither does anything.
+// They are there because a phone without them looks like a drawing of one.
+function phoneNavBar(g, W, H, o) {
+  o = o || {};
+  const d = dev();
+  if (d.ui === "basic") return;
+  const ink = o.ink || "rgba(255,255,255,0.78)";
+  g.save();
+  g.fillStyle = ink; g.strokeStyle = ink; g.lineCap = "round"; g.lineJoin = "round";
+  if (d.nav === "buttons") {
+    const y = H * 0.9735, u = W * 0.0165;
+    g.lineWidth = Math.max(2, W * 0.0065);
+    // recents: three upright bars
+    for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(W * 0.24 + i * u * 0.95, y - u * 1.05); g.lineTo(W * 0.24 + i * u * 0.95, y + u * 1.05); g.stroke(); }
+    // home: a ring
+    g.beginPath(); g.arc(W * 0.5, y, u * 1.25, 0, Math.PI * 2); g.stroke();
+    // back: a chevron
+    g.beginPath(); g.moveTo(W * 0.78 + u * 0.7, y - u * 1.15); g.lineTo(W * 0.78 - u * 0.7, y); g.lineTo(W * 0.78 + u * 0.7, y + u * 1.15); g.stroke();
+  } else {
+    g.fillRect(W * 0.33, H * 0.9805, W * 0.34, Math.max(3, H * 0.0050));
+  }
+  g.restore();
+}
+
+// ---- the Dynamic Island ------------------------------------------------------
+// It works the way the real one does: at rest it is a black pill; when
+// something is going on it widens to show it, grows to a full card for a couple
+// of seconds when that something starts, and shrinks back to a compact pill with
+// a glyph at one end and the live figure at the other.
+//
+//   a call     a green handset and the time you have been on it
+//   music      the album art, small, and a bar graph that moves
+//   a Ryde     a car and the minutes left
+const island = { kind: null, since: 0, w: 0.32, h: 0.0435, vw: 0, vh: 0, flashUntil: 0, last: 0 };
+
+// A true stadium: circular ends, not the squared-off corners a quadratic curve
+// gives. The Island is the one shape on the phone whose whole identity is how
+// round it is, so it does not use the shared rounded rectangle.
+function pill(g, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+}
+
+function islandActivity() {
+  if (phone.call) return "call";
+  if (phone.ryde) return "ryde";
+  if (typeof spotify === "object" && spotify.state === "ready" && spotify.playing) return "music";
+  return null;
+}
+function islandBusy() {
+  const d = dev();
+  if (!d.top.startsWith("island")) return false;
+  const kind = islandActivity();
+  const tg = islandTarget(d, kind);
+  return !!kind || Math.abs(island.w - tg.w) > 0.003 || Math.abs(island.h - tg.h) > 0.0015
+      || Math.abs(island.vw) > 0.001 || Math.abs(island.vh) > 0.0005;
+}
+// The sizes are the real phone's, scaled to this screen: 126 x 37 points on a
+// 393 x 852 display is 32% of the width and 4.3% of the height at rest, a compact
+// activity is a little over half the width at the same height, and a card is
+// nearly the whole width and a good deal taller.
+function islandTarget(d, kind) {
+  const rest = d.top === "island2" ? { w: 0.285, h: 0.0405 } : { w: 0.32, h: 0.0435 };
+  if (!kind) return rest;
+  if (performance.now() < island.flashUntil) {
+    return { w: 0.915, h: kind === "music" ? 0.168 : 0.128 };
+  }
+  return { w: 0.44, h: rest.h };
+}
+function mmss(sec) { sec = Math.max(0, Math.floor(sec)); return Math.floor(sec / 60) + ":" + two(sec % 60); }
+
+// The front camera: a ring, deep glass with a hint of blue-violet in it, and the
+// small bright reflection that makes it look like a lens and not a dot.
+function drawLens(g, cx, cy, r) {
+  g.fillStyle = "#101118"; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+  const glass = g.createRadialGradient(cx - r * 0.25, cy - r * 0.25, r * 0.05, cx, cy, r * 0.78);
+  glass.addColorStop(0, "#26305a"); glass.addColorStop(0.45, "#0d1330"); glass.addColorStop(1, "#04050b");
+  g.fillStyle = glass; g.beginPath(); g.arc(cx, cy, r * 0.76, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "rgba(120,100,200,0.30)"; g.lineWidth = Math.max(1, r * 0.10);
+  g.beginPath(); g.arc(cx, cy, r * 0.52, 0.5, 2.2); g.stroke();
+  g.fillStyle = "rgba(255,255,255,0.55)"; g.beginPath(); g.arc(cx - r * 0.30, cy - r * 0.32, r * 0.13, 0, Math.PI * 2); g.fill();
+}
+
+function drawIsland(g, W, H) {
+  const d = dev(), now = performance.now();
+  const kind = islandActivity();
+  if (kind !== island.kind) {            // something started, or stopped
+    island.kind = kind; island.since = now;
+    island.flashUntil = kind ? now + 2800 : 0;
+  }
+  const tgt = islandTarget(d, kind);
+  // A spring, not an ease: it overshoots a hair and settles, which is the thing
+  // about the real one that a plain ease cannot fake.
+  island.vw += (tgt.w - island.w) * 0.30; island.vw *= 0.58; island.w += island.vw;
+  island.vh += (tgt.h - island.h) * 0.30; island.vh *= 0.58; island.h += island.vh;
+  const w = Math.max(0.1, island.w) * W, h = Math.max(0.02, island.h) * H;
+  const x = (W - w) / 2, y = H * (d.top === "island2" ? 0.0115 : 0.0125);
+  const rest = islandTarget(d, null);
+  const grow = clamp01((h - rest.h * H) / (H * 0.07));          // 0 = a pill, 1 = a card
+  const wide = clamp01((w - rest.w * W) / (W * 0.16));          // 0 = at rest, 1 = compact or more
+  g.save();
+  // the body: pure black, true round ends, and the corners of a card tighten as it grows
+  g.fillStyle = "#000";
+  pill(g, x, y, w, h, Math.min(h / 2, W * 0.105 + (1 - grow) * h));
+  g.fill();
+  // a hairline of light on the top edge, which is all the glass shows of it
+  g.strokeStyle = "rgba(255,255,255,0.06)"; g.lineWidth = Math.max(1, W * 0.0022);
+  pill(g, x + 0.5, y + 0.5, w - 1, h - 1, Math.min(h / 2, W * 0.105 + (1 - grow) * h)); g.stroke();
+
+  const lensR = rest.h * H * 0.285;
+  // The lens stays where it is: at the right of the pill when it is at rest and
+  // a card is not covering it; a compact pill shows it too, at its right end.
+  if (!kind) {
+    drawLens(g, x + w - rest.h * H * 0.5, y + h / 2, lensR);
+    // and a faint sensor dot at the other end, the way the real thing has one
+    g.fillStyle = "#0d0e14"; g.beginPath(); g.arc(x + rest.h * H * 0.5, y + h / 2, lensR * 0.34, 0, Math.PI * 2); g.fill();
+  }
+  if (!kind) { g.restore(); return; }
+
+  const cy = y + h / 2, ink = "#fff";
+  const sec = (now - island.since) / 1000;
+  const cardA = clamp01((grow - 0.55) / 0.35);                  // card content fades in late
+  const compA = clamp01(wide * (1 - grow * 1.6));               // compact content fades out early
+  const bars = (bx, base, bw, bh, col, n, a) => {
+    g.fillStyle = col; g.globalAlpha = a;
+    for (let i = 0; i < n; i++) {
+      const hh = bh * (0.28 + 0.72 * Math.abs(Math.sin(now / 160 + i * 1.9)) * (0.55 + 0.45 * Math.sin(now / 430 + i * 0.8)));
+      pill(g, bx + i * bw * 1.75, base - hh, bw, hh, bw / 2); g.fill();
+    }
+    g.globalAlpha = 1;
+  };
+  g.textBaseline = "middle";
+
+  if (kind === "call") {
+    const num = (phone.call && phone.call.number) || "Unknown";
+    const t = mmss((now - ((phone.call && phone.call.t0ms) || now)) / 1000);
+    if (compA > 0.02) {
+      g.globalAlpha = compA;
+      g.fillStyle = "#30d158"; g.beginPath(); g.arc(x + h * 0.55, cy, h * 0.30, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#000"; g.font = "700 " + Math.round(h * 0.40) + "px " + UI; g.textAlign = "center";
+      g.fillText("☎", x + h * 0.55, cy + h * 0.02);
+      g.textAlign = "right"; g.fillStyle = "#30d158"; g.font = "700 " + Math.round(h * 0.40) + "px " + UI;
+      g.fillText(t, x + w - h * 0.52, cy + 1);
+      g.globalAlpha = 1;
+    }
+    if (cardA > 0.02) {
+      g.globalAlpha = cardA;
+      const av = h * 0.50, ax = x + h * 0.16 + av / 2, ay = y + h * 0.36;
+      const gr = g.createLinearGradient(ax - av / 2, ay - av / 2, ax + av / 2, ay + av / 2);
+      gr.addColorStop(0, "#7a8396"); gr.addColorStop(1, "#444b5a");
+      g.fillStyle = gr; g.beginPath(); g.arc(ax, ay, av / 2, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.font = "700 " + Math.round(av * 0.46) + "px " + UI;
+      g.fillText("☎", ax, ay + 1);
+      g.textAlign = "left"; g.fillStyle = ink; g.font = "600 " + Math.round(W * 0.046) + "px " + UI;
+      g.fillText(num, ax + av / 2 + W * 0.035, ay - h * 0.09);
+      g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+      g.fillText("mobile  ·  " + t, ax + av / 2 + W * 0.035, ay + h * 0.15);
+      // the two buttons along the bottom: speaker, and end
+      const by = y + h * 0.80, bh = h * 0.22;
+      g.fillStyle = "rgba(255,255,255,0.16)"; pill(g, x + w * 0.06, by - bh / 2, w * 0.40, bh, bh / 2); g.fill();
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.font = "600 " + Math.round(W * 0.034) + "px " + UI;
+      g.fillText("Speaker", x + w * 0.26, by + 1);
+      g.fillStyle = "#ff453a"; pill(g, x + w * 0.54, by - bh / 2, w * 0.40, bh, bh / 2); g.fill();
+      g.fillStyle = "#fff"; g.fillText("End", x + w * 0.74, by + 1);
+      g.globalAlpha = 1;
+    }
+  } else if (kind === "music") {
+    const tr = (typeof spotify === "object" && spotify.track) || null;
+    const title = (tr && tr.name) || "Now playing";
+    const artist = (tr && tr.artists && tr.artists[0] && tr.artists[0].name) || "Spotify";
+    const dur = (tr && tr.duration_ms ? tr.duration_ms / 1000 : 214);
+    const seed = title.length * 37 + artist.length * 11;
+    const art = (ax, ay, sz) => {
+      const ag = g.createLinearGradient(ax, ay, ax + sz, ay + sz);
+      ag.addColorStop(0, "hsl(" + (seed * 29) % 360 + ",72%,58%)"); ag.addColorStop(1, "hsl(" + (seed * 29 + 75) % 360 + ",70%,26%)");
+      g.fillStyle = ag; pill(g, ax, ay, sz, sz, sz * 0.24); g.fill();
+      g.fillStyle = "rgba(255,255,255,0.78)"; g.font = "700 " + Math.round(sz * 0.60) + "px " + UI; g.textAlign = "center";
+      g.fillText("♪", ax + sz / 2, ay + sz * 0.54);
+    };
+    if (compA > 0.02) {
+      g.globalAlpha = compA;
+      const sz = h * 0.60; art(x + h * 0.20, cy - sz / 2, sz);
+      g.globalAlpha = 1;
+      bars(x + w - h * 1.18, cy + h * 0.27, h * 0.075, h * 0.54, "#fa2d6a", 5, compA);
+    }
+    if (cardA > 0.02) {
+      g.globalAlpha = cardA;
+      const sz = h * 0.34, ax = x + h * 0.15, ay = y + h * 0.14;
+      art(ax, ay, sz);
+      g.textAlign = "left"; g.fillStyle = ink; g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+      clipText(g, title, ax + sz + W * 0.03, ay + sz * 0.34, w * 0.50);
+      g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+      clipText(g, artist, ax + sz + W * 0.03, ay + sz * 0.74, w * 0.50);
+      bars(x + w - h * 0.62, ay + sz * 0.88, h * 0.040, h * 0.28, "#fa2d6a", 5, cardA);
+      // progress, then the three transport controls
+      const prog = ((sec + 41) % dur) / dur, py = y + h * 0.60, px0 = x + w * 0.07, px1 = x + w * 0.93;
+      g.fillStyle = "rgba(255,255,255,0.22)"; pill(g, px0, py - 2, px1 - px0, 4, 2); g.fill();
+      g.fillStyle = "#fff"; pill(g, px0, py - 2, (px1 - px0) * prog, 4, 2); g.fill();
+      g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.026) + "px " + UI;
+      g.textAlign = "left"; g.fillText(mmss(prog * dur), px0, py + h * 0.115);
+      g.textAlign = "right"; g.fillText("-" + mmss(dur - prog * dur), px1, py + h * 0.115);
+      const cy2 = y + h * 0.845, u = h * 0.075;
+      g.fillStyle = "#fff";
+      // previous, pause, next
+      const tri = (cx, dir) => { g.beginPath(); g.moveTo(cx - dir * u, cy2 - u * 1.1); g.lineTo(cx + dir * u, cy2); g.lineTo(cx - dir * u, cy2 + u * 1.1); g.closePath(); g.fill(); };
+      tri(x + w * 0.30, -1); g.fillRect(x + w * 0.30 - u * 1.25, cy2 - u * 1.1, u * 0.34, u * 2.2);
+      g.fillRect(x + w * 0.5 - u * 0.95, cy2 - u * 1.25, u * 0.62, u * 2.5); g.fillRect(x + w * 0.5 + u * 0.33, cy2 - u * 1.25, u * 0.62, u * 2.5);
+      tri(x + w * 0.70, 1); g.fillRect(x + w * 0.70 + u * 0.95, cy2 - u * 1.1, u * 0.34, u * 2.2);
+      g.globalAlpha = 1;
+    }
+  } else if (kind === "ryde") {
+    const r = phone.ryde;
+    const badge = (bx, by, bs) => {
+      g.fillStyle = "#12b36b"; pill(g, bx, by, bs, bs, bs * 0.30); g.fill();
+      g.fillStyle = "#04170d"; g.font = "800 " + Math.round(bs * 0.66) + "px " + UI; g.textAlign = "center";
+      g.fillText("R", bx + bs / 2, by + bs * 0.54);
+    };
+    if (compA > 0.02) {
+      g.globalAlpha = compA;
+      badge(x + h * 0.22, cy - h * 0.30, h * 0.60);
+      g.textAlign = "right"; g.fillStyle = "#12b36b"; g.font = "700 " + Math.round(h * 0.38) + "px " + UI;
+      g.fillText(Math.max(1, Math.ceil(r.eta)) + " min", x + w - h * 0.50, cy + 1);
+      g.globalAlpha = 1;
+    }
+    if (cardA > 0.02) {
+      g.globalAlpha = cardA;
+      badge(x + h * 0.16, y + h * 0.17, h * 0.34);
+      g.textAlign = "left"; g.fillStyle = ink; g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+      g.fillText(r.cls + " arriving", x + h * 0.16 + h * 0.34 + W * 0.03, y + h * 0.27);
+      g.fillStyle = "rgba(255,255,255,0.55)"; g.font = "500 " + Math.round(W * 0.032) + "px " + UI;
+      g.fillText(r.plate, x + h * 0.16 + h * 0.34 + W * 0.03, y + h * 0.44);
+      // a route line with the car on it
+      const ly = y + h * 0.74, l0 = x + w * 0.08, l1 = x + w * 0.92, f = clamp01(1 - r.eta / Math.max(0.1, r.eta0));
+      g.strokeStyle = "rgba(255,255,255,0.22)"; g.lineWidth = 4; g.lineCap = "round";
+      g.beginPath(); g.moveTo(l0, ly); g.lineTo(l1, ly); g.stroke();
+      g.strokeStyle = "#12b36b"; g.beginPath(); g.moveTo(l0, ly); g.lineTo(l0 + (l1 - l0) * f, ly); g.stroke();
+      g.fillStyle = "#fff"; g.beginPath(); g.arc(l0 + (l1 - l0) * f, ly, 7, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#12b36b"; g.beginPath(); g.arc(l1, ly, 6, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    }
+  }
+  g.restore();
+}
+
+// What sits over the top of whatever the phone is showing.
+function phoneCutout(g, W, H) {
+  const d = dev();
+  if (d.top === "notch") {
+    const w = W * 0.43, x = (W - w) / 2, h = H * 0.0345, r = W * 0.052;
+    g.save(); g.fillStyle = "#000";
+    g.beginPath();
+    g.moveTo(x - W * 0.012, 0);
+    g.quadraticCurveTo(x + W * 0.006, 0, x + W * 0.008, H * 0.006);
+    g.lineTo(x + W * 0.012, h - r * 0.4);
+    g.quadraticCurveTo(x + W * 0.016, h, x + r, h);
+    g.lineTo(x + w - r, h);
+    g.quadraticCurveTo(x + w - W * 0.016, h, x + w - W * 0.012, h - r * 0.4);
+    g.lineTo(x + w - W * 0.008, H * 0.006);
+    g.quadraticCurveTo(x + w - W * 0.006, 0, x + w + W * 0.012, 0);
+    g.closePath(); g.fill();
+    // speaker slot and lens
+    g.fillStyle = "#1a1d24"; roundRect(g, W * 0.435, H * 0.0105, W * 0.13, H * 0.0050, H * 0.0025); g.fill();
+    g.fillStyle = "#0e1118"; g.beginPath(); g.arc(W * 0.635, H * 0.0125, W * 0.0105, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#1c2438"; g.beginPath(); g.arc(W * 0.635, H * 0.0125, W * 0.0045, 0, Math.PI * 2); g.fill();
+    g.restore();
+  } else if (d.top.startsWith("island")) drawIsland(g, W, H);
+}
+
+// A Pear's home screen: a wallpaper you chose, two widgets, a grid of glossy
+// squircles, a search pill and a dock that is made of glass. It is the same four
+// columns and the same selection as a SOTI's, because the D-pad does not know
+// the difference; everything else is a different phone.
+function drawPearHome(g, W, H) {
+  const wp = PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)];
+  const bg = g.createLinearGradient(0, 0, W * 0.4, H);
+  bg.addColorStop(0, wp.a); bg.addColorStop(0.55, wp.b); bg.addColorStop(1, wp.a);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const blob = (cx, cy, r, col, a) => {
+    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    rg.addColorStop(0, col + a); rg.addColorStop(1, col + "00");
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  };
+  blob(W * 0.15, H * 0.22, W * 0.95, wp.c, "cc");
+  blob(W * 0.92, H * 0.58, W * 0.85, wp.d, "bb");
+  blob(W * 0.35, H * 0.95, W * 0.9, wp.c, "88");
+
+  phoneStatusBar(g, W, H);
+  const glass = (x, y, w, h, r, a) => {
+    g.fillStyle = "rgba(255,255,255," + (a || 0.16) + ")";
+    roundRect(g, x, y, w, h, r); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.22)"; g.lineWidth = Math.max(1, W * 0.003);
+    roundRect(g, x, y, w, h, r); g.stroke();
+  };
+  const t = phoneTime();
+  // two widgets
+  const wy = H * 0.082, wh = H * 0.150, ww = W * 0.425, wx0 = W * 0.05, wx1 = W * 0.525;
+  glass(wx0, wy, ww, wh, W * 0.065, 0.17);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = "rgba(255,255,255,0.78)"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
+  g.fillText("TŌKONTO", wx0 + W * 0.04, wy + H * 0.026);
+  g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
+  g.fillText(t.h + ":" + two(t.m), wx0 + W * 0.035, wy + H * 0.093);
+  g.fillStyle = "rgba(255,255,255,0.80)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+  g.fillText("Mon 6 April", wx0 + W * 0.04, wy + H * 0.130);
+
+  glass(wx1, wy, ww, wh, W * 0.065, 0.17);
+  if (phone.health) {
+    const bpm = typeof heartRate === "function" ? Math.round(heartRate()) : 72;
+    g.fillStyle = "#ff375f"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
+    g.fillText("♥ HEART", wx1 + W * 0.04, wy + H * 0.026);
+    g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
+    g.fillText(String(bpm), wx1 + W * 0.04, wy + H * 0.093);
+    g.fillStyle = "rgba(255,255,255,0.80)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("bpm · resting", wx1 + W * 0.04, wy + H * 0.130);
+  } else {
+    g.fillStyle = "rgba(255,255,255,0.78)"; g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
+    g.fillText("WEATHER", wx1 + W * 0.04, wy + H * 0.026);
+    g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
+    g.fillText("18°", wx1 + W * 0.04, wy + H * 0.093);
+    g.fillStyle = "rgba(255,255,255,0.80)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("Clear · H 21° L 12°", wx1 + W * 0.04, wy + H * 0.130);
+  }
+
+  // the grid
+  const apps = homeApps();
+  const cols = 4, pad = W * 0.07, size = W * 0.158;
+  const gx = (W - pad * 2 - size * cols) / (cols - 1);
+  const top = H * 0.268, rowH = H * 0.1075;
+  for (let i = 0; i < apps.length; i++) {
+    const r = (i / cols) | 0, c = i % cols;
+    const x = pad + c * (size + gx), y = top + r * rowH;
+    if (phone.sel === i) {
+      g.fillStyle = "rgba(255,255,255,0.26)";
+      roundRect(g, x - size * 0.16, y - size * 0.16, size * 1.32, size * 1.32 + H * 0.028, size * 0.40); g.fill();
+    }
+    g.save();
+    g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = W * 0.02; g.shadowOffsetY = W * 0.008;
+    phoneIcon(g, x, y, size, apps[i][1], apps[i][2]);
+    g.restore();
+    // the gloss that says it is glass
+    const gl = g.createLinearGradient(0, y, 0, y + size);
+    gl.addColorStop(0, "rgba(255,255,255,0.26)"); gl.addColorStop(0.5, "rgba(255,255,255,0.04)"); gl.addColorStop(1, "rgba(0,0,0,0.10)");
+    g.fillStyle = gl; roundRect(g, x, y, size, size, size * 0.235); g.fill();
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "alphabetic";
+    g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText(apps[i][0], x + size / 2, y + size + H * 0.0215);
+  }
+
+  // search, dots, dock
+  const rowsUsed = Math.ceil(apps.length / cols);
+  const searchY = H * 0.822;
+  glass(W * 0.30, searchY, W * 0.40, H * 0.030, H * 0.015, 0.20);
+  g.fillStyle = "rgba(255,255,255,0.85)"; g.font = "600 " + Math.round(W * 0.030) + "px " + UI; g.textAlign = "center";
+  g.fillText("⌕ Search", W * 0.5, searchY + H * 0.0205);
+  for (let i = 0; i < 3; i++) {
+    g.fillStyle = i === 0 ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.40)";
+    g.beginPath(); g.arc(W / 2 + (i - 1) * W * 0.040, H * 0.806, W * 0.0085, 0, Math.PI * 2); g.fill();
+  }
+  glass(W * 0.045, H * 0.868, W * 0.91, H * 0.098, W * 0.075, 0.22);
+  PHONE_DOCK.forEach((appIdx, k) => {
+    const x = W * 0.045 + W * 0.91 / 4 * (k + 0.5) - size / 2, y = H * 0.868 + (H * 0.098 - size) / 2;
+    g.save(); g.shadowColor = "rgba(0,0,0,0.30)"; g.shadowBlur = W * 0.015; g.shadowOffsetY = W * 0.006;
+    phoneIcon(g, x, y, size, PHONE_APPS[appIdx][1], PHONE_APPS[appIdx][2]); g.restore();
+    const gl = g.createLinearGradient(0, y, 0, y + size);
+    gl.addColorStop(0, "rgba(255,255,255,0.26)"); gl.addColorStop(0.5, "rgba(255,255,255,0.04)"); gl.addColorStop(1, "rgba(0,0,0,0.10)");
+    g.fillStyle = gl; roundRect(g, x, y, size, size, size * 0.235); g.fill();
+  });
+  phoneNavBar(g, W, H);
+}
+
+// =============================================================================
+// THE BASIC PHONES
+// -----------------------------------------------------------------------------
+// The two you can buy at a till. 11 Eleven's is green with an orange and red
+// stripe through it; Pet Mart's is blue and has paws. Each is a small screen and
+// a keypad, the whole face of it drawn here, and the screen runs animation
+// across it because that is what a phone sold next to the batteries does.
+//
+// There is no touch and nothing to point with, so the keypad is something you
+// walk down to: the D-pad moves round the screen as it does on any phone, and
+// pressing down at the bottom of whatever is on it steps onto the keypad, where
+// A presses the key under the cursor.
+// =============================================================================
+const PAD_KEYS = [
+  ["MENU", "menu"],  ["OK", "ok"],       ["BACK", "back"],
+  ["CALL", "call"],  ["C", "clear"],     ["END", "end"],
+  ["1", "1", ""],    ["2", "2", "ABC"],  ["3", "3", "DEF"],
+  ["4", "4", "GHI"], ["5", "5", "JKL"],  ["6", "6", "MNO"],
+  ["7", "7", "PQRS"], ["8", "8", "TUV"], ["9", "9", "WXYZ"],
+  ["∗", "*", ""], ["0", "0", "+"],  ["#", "#", ""]
+];
+
+// The screen sits in the top of the face. Apps are drawn into it at a smaller
+// scale than a smartphone's, which is why they look like they were designed for
+// something else: they were.
+const BASIC_SCREEN = { x: 0.085, y: 0.088, w: 0.83, h: 0.425 };
+
+function drawBasicPhone(g, W, H) {
+  const d = dev(), t = performance.now() / 1000;
+  const [b0, b1] = d.body;
+  // ---- the plastic
+  const body = g.createLinearGradient(0, 0, W * 0.7, H);
+  body.addColorStop(0, b0); body.addColorStop(1, b1);
+  g.fillStyle = body; g.fillRect(0, 0, W, H);
+  // a seam and a gloss, so it is a moulded thing and not a rectangle
+  g.fillStyle = "rgba(255,255,255,0.10)"; g.fillRect(0, 0, W, H * 0.30);
+  const gl = g.createLinearGradient(0, 0, W, 0);
+  gl.addColorStop(0, "rgba(255,255,255,0.20)"); gl.addColorStop(0.18, "rgba(255,255,255,0)");
+  gl.addColorStop(0.85, "rgba(0,0,0,0)"); gl.addColorStop(1, "rgba(0,0,0,0.20)");
+  g.fillStyle = gl; g.fillRect(0, 0, W, H);
+  g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = W * 0.006;
+  g.beginPath(); g.moveTo(W * 0.04, H * 0.545); g.lineTo(W * 0.96, H * 0.545); g.stroke();
+  // earpiece and the name of the shop
+  g.fillStyle = "rgba(0,0,0,0.45)"; roundRect(g, W * 0.38, H * 0.034, W * 0.24, H * 0.007, H * 0.0035); g.fill();
+  g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = "800 " + Math.round(W * 0.042) + "px " + UI;
+  g.fillText(d.maker === "eleven" ? "11 PHONE" : "PETO", W * 0.5, H * 0.060);
+
+  // ---- the screen, and what runs on it
+  const sx = W * BASIC_SCREEN.x, sy = H * BASIC_SCREEN.y, sw = W * BASIC_SCREEN.w, sh = H * BASIC_SCREEN.h;
+  g.fillStyle = "#05070a"; roundRect(g, sx - W * 0.018, sy - W * 0.018, sw + W * 0.036, sh + W * 0.036, W * 0.045); g.fill();
+  const k = sw / W, vh = sh / k;
+  g.save();
+  roundRect(g, sx, sy, sw, sh, W * 0.025); g.clip();
+  g.translate(sx, sy); g.scale(k, k);
+  if (phone.app) {
+    const fn = PHONE_SCREENS[phone.app];
+    if (fn) fn(g, W, vh); else phone.app = null;
+  }
+  if (!phone.app) drawBasicHome(g, W, vh, t);
+  g.restore();
+  // the LCD: a few scanlines over the whole screen, which is what makes it a
+  // cheap screen and not a good one
+  g.save(); roundRect(g, sx, sy, sw, sh, W * 0.025); g.clip();
+  g.fillStyle = "rgba(0,0,0,0.07)";
+  for (let y = sy; y < sy + sh; y += 4) g.fillRect(sx, y, sw, 1.6);
+  const glare = g.createLinearGradient(sx, sy, sx + sw, sy + sh);
+  glare.addColorStop(0, "rgba(255,255,255,0.10)"); glare.addColorStop(0.35, "rgba(255,255,255,0)");
+  g.fillStyle = glare; g.fillRect(sx, sy, sw, sh);
+  g.restore();
+
+  drawKeypad(g, W, H, d);
+  phone.minute = phoneTime().mins; phone.dirty = false;
+}
+
+// The home screen: a status line, an animated wallpaper and a three by three grid.
+function drawBasicHome(g, W, H, t) {
+  const d = dev();
+  if (d.maker === "eleven") {
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#0b7a4b"); bg.addColorStop(1, "#064a2d");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // two diagonal bands, orange and red, sweeping through on a loop
+    const drift = (t * 90) % (W * 1.6);
+    g.save(); g.rotate(-0.28);
+    for (let i = -1; i < 3; i++) {
+      const x = -W * 0.4 + i * W * 0.8 + drift;
+      g.fillStyle = "rgba(232,113,26,0.85)"; g.fillRect(x, H * 0.30, W * 0.34, H * 0.045);
+      g.fillStyle = "rgba(207,32,39,0.85)";  g.fillRect(x + W * 0.04, H * 0.36, W * 0.34, H * 0.030);
+    }
+    g.restore();
+    g.fillStyle = "rgba(255,255,255,0.07)"; g.font = "900 " + Math.round(W * 0.62) + "px " + UI;
+    g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("11", W * 0.5, H * 0.45);
+  } else {
+    const bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#2f8cf0"); bg.addColorStop(1, "#0f55a8");
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    // paw prints walking up the screen, two columns, out of step
+    const paw = (x, y, a) => {
+      g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = "rgba(255,255,255,0.22)";
+      g.beginPath(); g.ellipse(0, 0, W * 0.034, W * 0.028, 0, 0, Math.PI * 2); g.fill();
+      [[-0.040, -0.040], [-0.014, -0.058], [0.014, -0.058], [0.040, -0.040]].forEach(o => {
+        g.beginPath(); g.ellipse(o[0] * W, o[1] * W, W * 0.011, W * 0.015, o[0] * 4, 0, Math.PI * 2); g.fill();
+      });
+      g.restore();
+    };
+    for (let i = 0; i < 9; i++) {
+      const y = H * 1.05 - ((t * 38 + i * H * 0.12) % (H * 1.1));
+      paw(W * (i % 2 ? 0.30 : 0.70), y, i % 2 ? -0.18 : 0.18);
+    }
+  }
+  // status line
+  g.textBaseline = "middle"; g.fillStyle = "#fff";
+  g.fillStyle = "rgba(0,0,0,0.30)"; g.fillRect(0, 0, W, H * 0.085);
+  g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.045) + "px " + UI; g.textAlign = "left";
+  const tm = phoneTime(); g.fillText(tm.h + ":" + two(tm.m), W * 0.05, H * 0.042);
+  g.textAlign = "right"; g.font = "600 " + Math.round(W * 0.036) + "px " + UI;
+  g.fillText(d.maker === "eleven" ? "11 Mobile" : "Peto Link", W * 0.70, H * 0.042);
+  drawSignal(g, W * 0.73, H * 0.042 - W * 0.02, W, "#fff", 4);
+  drawBattery(g, W * 0.86, H * 0.042, W * 0.08, W * 0.040, 0.7, "#fff");
+
+  // the grid: three across
+  const apps = homeApps();
+  const cols = 3, pad = W * 0.085, cw = (W - pad * 2) / cols, size = cw * 0.64, top = H * 0.145, rowH = H * 0.205;
+  apps.forEach((a, i) => {
+    const r = (i / cols) | 0, c = i % cols;
+    const x = pad + c * cw + (cw - size) / 2, y = top + r * rowH;
+    if (phone.sel === i && !phone.pad.on) {
+      g.fillStyle = "rgba(255,255,255,0.32)"; roundRect(g, x - size * 0.16, y - size * 0.12, size * 1.32, size * 1.46, size * 0.24); g.fill();
+      g.strokeStyle = "#fff"; g.lineWidth = W * 0.007; roundRect(g, x - size * 0.16, y - size * 0.12, size * 1.32, size * 1.46, size * 0.24); g.stroke();
+    }
+    phoneIcon(g, x, y, size, a[1], a[2]);
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.font = "700 " + Math.round(W * 0.040) + "px " + UI;
+    g.fillText(a[0], x + size / 2, y + size + H * 0.030);
+  });
+
+  // a ticker along the bottom, which is the other thing that is on this screen
+  g.fillStyle = "rgba(0,0,0,0.38)"; g.fillRect(0, H * 0.925, W, H * 0.075);
+  g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.040) + "px " + UI; g.textAlign = "left";
+  const msg = d.maker === "eleven"
+    ? "● OPEN 24 HOURS  ● ONIGIRI 2 FOR ¥260  ● FRIED CHICKEN NOW  ●   "
+    : "● PET MART  ● YOUR NEIGHBOURHOOD STORE  ● CAT FOOD ¥98  ●   ";
+  const mw = g.measureText(msg).width;
+  const off = -((t * 70) % mw);
+  g.save(); g.beginPath(); g.rect(0, H * 0.925, W, H * 0.075); g.clip();
+  g.fillText(msg, off, H * 0.962); g.fillText(msg, off + mw, H * 0.962);
+  g.restore();
+}
+
+function drawKeypad(g, W, H, d) {
+  const x0 = W * 0.065, kw = W * 0.27, gapX = W * 0.03, y0 = H * 0.567, kh = H * 0.050, gapY = H * 0.0125;
+  PAD_KEYS.forEach((key, i) => {
+    const r = (i / 3) | 0, c = i % 3;
+    const x = x0 + c * (kw + gapX), y = y0 + r * (kh + gapY);
+    const on = phone.pad.on && phone.pad.sel === i;
+    const special = r < 2;
+    let fill = "#f4f1ea", ink = d.body[1];
+    if (key[1] === "call") { fill = "#27b45c"; ink = "#fff"; }
+    else if (key[1] === "end") { fill = "#d2342f"; ink = "#fff"; }
+    else if (key[1] === "ok") { fill = d.accent; ink = d.maker === "petmart" ? "#0e4f9a" : "#fff"; }
+    else if (special) { fill = "rgba(255,255,255,0.20)"; ink = "#fff"; }
+    // the raised key: a darker lip under it, a lighter face over that
+    g.fillStyle = "rgba(0,0,0,0.30)"; roundRect(g, x, y + H * 0.004, kw, kh, kh * 0.34); g.fill();
+    g.fillStyle = fill; roundRect(g, x, y, kw, kh, kh * 0.34); g.fill();
+    const shine = g.createLinearGradient(0, y, 0, y + kh);
+    shine.addColorStop(0, "rgba(255,255,255,0.45)"); shine.addColorStop(0.5, "rgba(255,255,255,0)");
+    g.fillStyle = shine; roundRect(g, x, y, kw, kh, kh * 0.34); g.fill();
+    g.fillStyle = ink; g.textAlign = "center"; g.textBaseline = "middle";
+    if (special) {
+      g.font = "800 " + Math.round(W * 0.040) + "px " + UI; g.fillText(key[0], x + kw / 2, y + kh / 2);
+    } else {
+      g.font = "800 " + Math.round(W * 0.062) + "px " + UI; g.fillText(key[0], x + kw * 0.36, y + kh * 0.52);
+      if (key[2]) { g.font = "700 " + Math.round(W * 0.024) + "px " + UI; g.fillStyle = "rgba(0,0,0,0.45)"; g.fillText(key[2], x + kw * 0.72, y + kh * 0.55); }
+    }
+    if (on) {
+      g.strokeStyle = "#ffe14a"; g.lineWidth = W * 0.012;
+      roundRect(g, x - W * 0.008, y - W * 0.008, kw + W * 0.016, kh + W * 0.016, kh * 0.4); g.stroke();
+    }
+  });
+}
+
+// What pressing a key does. The digits dial in the Phone app and jump to an app
+// on the home screen; the soft keys do what their names say.
+function padPress(id) {
+  if (id === "ok") { phone.pad.on = false; phoneAct(); phone.pad.on = true; return; }
+  if (id === "menu") { phone.app = null; phone.sub = 0; phone.pad.on = false; return; }
+  if (id === "back") { if (!phoneBack()) setPhone(false); return; }
+  if (id === "call") {
+    if (phone.app !== "Phone") { phone.app = "Phone"; phone.sub = 0; phone.dial = ""; phone.vmail = ""; return; }
+    if (phone.dial.length < 3) say("Dial a number first.", 3);
+    else if (!phone.vmail) { phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0]; phone.call = { number: phone.dial, t0ms: performance.now() }; }
+    return;
+  }
+  if (id === "end") { if (phone.call || phone.vmail) { phone.call = null; phone.vmail = ""; } else { phone.app = null; phone.pad.on = false; } return; }
+  if (id === "clear") { if (phone.app === "Phone") phone.dial = phone.dial.slice(0, -1); else phoneBack(); return; }
+  if (/^[0-9*#]$/.test(id)) {
+    if (phone.app === "Phone") { if (!phone.vmail && phone.dial.length < 11) phone.dial += id; return; }
+    if (!phone.app && /[1-9]/.test(id)) {
+      const n = +id - 1, apps = homeApps();
+      if (n < apps.length) { phone.sel = n; phone.pad.on = false; }
+    }
+  }
+}
+
 function phoneWallpaper(g, W, H) {
   const sky = g.createLinearGradient(0, 0, 0, H * 0.72);
   sky.addColorStop(0, "#131a2e");
@@ -11456,6 +12277,14 @@ function drawPhone() {
   if (!cv) return;
   if (!phone.ctx) phone.ctx = cv.getContext("2d");
   const g = phone.ctx, W = cv.width, H = cv.height;
+  if (isBasic() && typeof drawBasicPhone === "function") { drawBasicPhone(g, W, H); return; }
+  drawPhoneScreen();
+  phoneCutout(g, W, H);       // the notch or island goes over whatever was drawn
+}
+
+function drawPhoneScreen() {
+  const cv = document.getElementById("phonecanvas");
+  const g = phone.ctx, W = cv.width, H = cv.height;
   const t = phoneTime();
 
   // An app, if one is open, owns the whole screen.
@@ -11465,27 +12294,10 @@ function drawPhone() {
     phone.app = null;
   }
 
+  if (isPear()) { drawPearHome(g, W, H); phone.minute = t.mins; phone.dirty = false; return; }
   phoneWallpaper(g, W, H);
 
-  // ---- status bar
-  g.fillStyle = "#f3f6f8";
-  g.font = "600 " + Math.round(W * 0.052) + "px " + UI;
-  g.textAlign = "left"; g.textBaseline = "middle";
-  g.fillText(t.h + ":" + two(t.m), W * 0.09, H * 0.031);
-  g.textAlign = "right";
-  g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
-  g.fillText("NHMobile  5G", W * 0.70, H * 0.031);
-  // signal, then a battery at 68%
-  for (let i = 0; i < 4; i++) {
-    const bh = (i + 1) * W * 0.012;
-    g.fillRect(W * 0.735 + i * W * 0.026, H * 0.031 + W * 0.023 - bh, W * 0.018, bh);
-  }
-  const bx = W * 0.855, bw = W * 0.082, bh2 = W * 0.042;
-  g.strokeStyle = "rgba(243,246,248,0.8)";
-  g.lineWidth = W * 0.007;
-  g.strokeRect(bx, H * 0.031 - bh2 / 2, bw, bh2);
-  g.fillRect(bx + bw + W * 0.004, H * 0.031 - bh2 * 0.22, W * 0.008, bh2 * 0.44);
-  g.fillRect(bx + W * 0.005, H * 0.031 - bh2 / 2 + W * 0.005, (bw - W * 0.01) * 0.68, bh2 - W * 0.01);
+  phoneStatusBar(g, W, H);
 
   // ---- lock-screen clock
   g.textAlign = "center";
@@ -11502,7 +12314,8 @@ function drawPhone() {
   const size = gap * 0.70;
   const top = H * 0.255;
   const rowH = H * 0.118;
-  for (let i = 0; i < PHONE_APPS.length; i++) {
+  const apps = homeApps();
+  for (let i = 0; i < apps.length; i++) {
     const r = (i / cols) | 0, c = i % cols;
     const x = pad + c * gap + (gap - size) / 2;
     const y = top + r * rowH;
@@ -11522,11 +12335,11 @@ function drawPhone() {
       g.lineWidth = W * 0.008;
       g.stroke();
     }
-    phoneIcon(g, x, y, size, PHONE_APPS[i][1], PHONE_APPS[i][2]);
+    phoneIcon(g, x, y, size, apps[i][1], apps[i][2]);
     g.fillStyle = "rgba(255,255,255,0.92)";
     g.font = "500 " + Math.round(W * 0.042) + "px " + UI;
     g.textAlign = "center";
-    g.fillText(PHONE_APPS[i][0], x + size / 2, y + size + H * 0.021);
+    g.fillText(apps[i][0], x + size / 2, y + size + H * 0.021);
   }
 
   // ---- page dots and the dock
@@ -11554,7 +12367,7 @@ function drawPhone() {
   });
   // the gesture bar
   g.fillStyle = "rgba(255,255,255,0.65)";
-  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+  phoneNavBar(g, W, H);
 
   phone.minute = t.mins;
   phone.dirty = false;
@@ -11603,6 +12416,7 @@ function clipText(g, text, x, y, max) {
 // it was going to waste: the header, the selection and the accents now take
 // it, so the apps stop being twelve screens of the same grey.
 function appAccent() {
+  if (isPear()) return PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][1];
   const row = PHONE_APPS.find(a => a[0] === phone.app);
   return row ? row[1] : "#4a90d9";
 }
@@ -11620,15 +12434,26 @@ function phoneChrome(g, W, H, title, sub) {
   g.fillStyle = wash;
   g.fillRect(0, 0, W, H * 0.20);
   g.globalAlpha = 1;
-  const t = phoneTime();
-  g.fillStyle = "#f3f6f8";
-  g.font = "600 " + Math.round(W * 0.050) + "px " + UI;
-  g.textAlign = "left"; g.textBaseline = "middle";
-  g.fillText(t.h + ":" + two(t.m), W * 0.09, H * 0.031);
-  g.textAlign = "right";
-  g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
-  g.fillText("NHMobile 5G  \u25ae", W * 0.93, H * 0.031);
+  phoneStatusBar(g, W, H);
 
+  if (isPear()) {
+    // A Pear's header: a back label in the accent, then a large title. Nothing
+    // is drawn behind it, because the glass is what is behind it.
+    g.textAlign = "left"; g.textBaseline = "middle";
+    g.fillStyle = accent;
+    g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
+    g.fillText("\u2039 " + (phone.app === "Poodle" && phone.site != null ? "Poodle" : "Home"), W * 0.055, H * 0.070);
+    g.fillStyle = "#ffffff";
+    g.font = "800 " + Math.round(W * 0.090) + "px " + UI;
+    clipText(g, title, W * 0.055, H * 0.109, W * 0.80);
+    if (sub) {
+      g.fillStyle = "#8d96a0";
+      g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
+      clipText(g, sub, W * 0.058, H * 0.141, W * 0.80);
+    }
+    phoneNavBar(g, W, H);
+    return;
+  }
   // A back chevron, so it is obvious there is somewhere to go back to.
   g.strokeStyle = "rgba(255,255,255,0.80)";
   g.lineWidth = W * 0.009;
@@ -11651,7 +12476,7 @@ function phoneChrome(g, W, H, title, sub) {
     clipText(g, sub, W * (PL.pad + 0.035), H * PL.subY, W * 0.58);
   }
   g.fillStyle = "rgba(255,255,255,0.55)";
-  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+  phoneNavBar(g, W, H);
 }
 
 function roundRect(g, x, y, w, h, r) {
@@ -11668,6 +12493,13 @@ function roundRect(g, x, y, w, h, r) {
 // selected one is painted in the app's own colour with a bar down its leading
 // edge, rather than a slightly lighter grey you have to hunt for.
 function phoneRow(g, W, x, y, w, h, on, fill) {
+  if (isPear()) {
+    const acc = appAccent(), rr = W * 0.05;
+    g.fillStyle = on ? acc + "38" : (fill || "rgba(255,255,255,0.075)");
+    roundRect(g, x, y, w, h, rr); g.fill();
+    if (on) { g.strokeStyle = acc; g.lineWidth = W * 0.008; roundRect(g, x, y, w, h, rr); g.stroke(); }
+    return;
+  }
   const r = W * 0.035;
   const dark = !fill || fill.indexOf("255") >= 0;
   g.fillStyle = on ? (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)")
@@ -11799,7 +12631,7 @@ function appRyde(g, W, H) {
 
 // ---- Soti Wallet
 function appWallet(g, W, H) {
-  phoneChrome(g, W, H, "SOTI Wallet", "Balance");
+  phoneChrome(g, W, H, dev().maker === "soti" ? "SOTI Wallet" : dev().maker === "pear" ? "Pear Wallet" : "Wallet", "Balance");
   g.fillStyle = "#ffffff";
   g.font = "300 " + Math.round(W * 0.145) + "px " + UI;
   g.fillText(yenText(purse.yen), W * 0.075, H * 0.175);
@@ -11866,14 +12698,7 @@ function poodleTabStrip(g, W, H, title, accent) {
   g.fillStyle = "#1f2225";
   g.fillRect(0, 0, W, H * 0.082);
   // the status line, above the tabs
-  const t = phoneTime();
-  g.fillStyle = "#e6e9ec";
-  g.font = "600 " + Math.round(W * 0.038) + "px " + UI;
-  g.textAlign = "left"; g.textBaseline = "middle";
-  g.fillText(t.h + ":" + two(t.m), W * 0.07, H * 0.0195);
-  g.textAlign = "right";
-  g.fillText("5G  ▮", W * 0.93, H * 0.0195);
-  g.textAlign = "left";
+  phoneStatusBar(g, W, H, { y: 0.0195, size: 0.036, ink: "#e6e9ec" });
 
   // the active tab: a rounded tab shape lifted out of the strip
   const ty = H * 0.036, th = H * 0.046;
@@ -11971,7 +12796,7 @@ function poodleToolbar(g, W, H) {
   g.textAlign = "left";
   // the gesture bar
   g.fillStyle = "rgba(255,255,255,0.65)";
-  g.fillRect(W * 0.33, H * 0.982, W * 0.34, H * 0.0045);
+  phoneNavBar(g, W, H);
 }
 
 function appPoodle(g, W, H) {
@@ -12448,7 +13273,7 @@ function appCamera(g, W, H) {
   g.fillText(phone.gallery.length + " in the gallery", W * 0.5, H * 0.935);
   g.textAlign = "left";
   g.fillStyle = "rgba(255,255,255,0.55)";
-  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+  phoneNavBar(g, W, H);
 }
 
 function appPhotos(g, W, H) {
@@ -12554,7 +13379,7 @@ function appMyNet(g, W, H) {
   g.fillText((i + 1) + " / " + MYNET.length, W * 0.5, H * PL.safe + H * 0.052);
   g.textAlign = "left";
   g.fillStyle = "rgba(255,255,255,0.55)";
-  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
+  phoneNavBar(g, W, H);
   // Scrolling costs him something, which is the point of the app.
   vitals.stress = clamp01(vitals.stress + 0.00035);
 }
@@ -12605,7 +13430,7 @@ const VOICEMAILS = [
   "Hello? Hello. I can't hear you. I'll call you back. I won't call you back."
 ];
 function appDialler(g, W, H) {
-  phoneChrome(g, W, H, "Phone", phone.vmail ? "Voicemail" : "Keypad");
+  phoneChrome(g, W, H, "Phone", phone.vmail ? "Voicemail" : (isBasic() ? "" : "Keypad"));
   if (phone.vmail) {
     g.fillStyle = "#e7ebee";
     g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
@@ -12620,6 +13445,17 @@ function appDialler(g, W, H) {
     g.fillStyle = "#6b727a";
     g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
     g.fillText("B to hang up", W * 0.075, ly + H * 0.07);
+    return;
+  }
+  if (isBasic()) {
+    // The keys are on the phone. The screen only has to show what has been
+    // pressed, so it does not draw a second keypad over the top of the first.
+    g.fillStyle = "#ffffff"; g.textAlign = "center";
+    g.font = "300 " + Math.round(W * (phone.dial.length > 9 ? 0.100 : 0.125)) + "px " + UI;
+    g.fillText(phone.dial || "\u2014", W * 0.5, H * 0.30);
+    g.fillStyle = "#8d96a0"; g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+    g.fillText(phone.dial ? "CALL to dial  \u00b7  C to clear" : "Press the number keys", W * 0.5, H * 0.40);
+    g.textAlign = "left";
     return;
   }
   g.fillStyle = "#ffffff";
@@ -12977,12 +13813,12 @@ const PHONE_SCREENS = {
 function setPhone(on) {
   phone.open = !!on;
   document.body.classList.toggle("phone-up", phone.open);
-  if (phone.open) { phone.dirty = true; drawPhone(); }
+  if (phone.open) { applyDeviceSkin(); phone.dirty = true; drawPhone(); }
 }
 
 // How many things there are to move between on whatever is open.
 function phoneCount() {
-  if (!phone.app) return PHONE_APPS.length;
+  if (!phone.app) return homeApps().length;
   if (phone.app === "Ryde") return phone.ryde ? 1 : RYDE_CLASSES.length + 1;
   if (phone.app === "Poodle") {
     if (phone.site == null) return WEB.length;
@@ -13005,6 +13841,26 @@ function phoneCount() {
 
 function phoneMove(dx, dy) {
   if (!phone.open) return;
+  if (isBasic() && phone.pad.on) {
+    // on the keypad: three across, six down, and up off the top row is back to the screen
+    let c = phone.pad.sel % 3, r = (phone.pad.sel / 3) | 0;
+    if (dy < 0 && r === 0) { phone.pad.on = false; phone.dirty = true; return; }
+    c = clamp(c + dx, 0, 2); r = clamp(r + dy, 0, 5);
+    phone.pad.sel = r * 3 + c; phone.dirty = true;
+    return;
+  }
+  if (isBasic()) {
+    // stepping down off the bottom of whatever is on the screen lands on the keypad
+    const before = phone.app ? phone.sub : phone.sel;
+    phoneMoveScreen(dx, dy);
+    const after = phone.app ? phone.sub : phone.sel;
+    if (dy > 0 && before === after) { phone.pad.on = true; phone.pad.sel = 3 + 1; phone.dirty = true; }
+    return;
+  }
+  phoneMoveScreen(dx, dy);
+}
+
+function phoneMoveScreen(dx, dy) {
   if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
     phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
     phone.dirty = true;
@@ -13024,19 +13880,21 @@ function phoneMove(dx, dy) {
     if (next !== phone.sub) { phone.sub = next; phone.dirty = true; }
     return;
   }
-  const cols = 4;
+  const cols = isBasic() ? 3 : 4;
   let c = phone.sel % cols, r = (phone.sel / cols) | 0;
   c = clamp(c + dx, 0, cols - 1);
-  r = clamp(r + dy, 0, Math.ceil(PHONE_APPS.length / cols) - 1);
-  const next = clamp(r * cols + c, 0, PHONE_APPS.length - 1);
+  const apps = homeApps();
+  r = clamp(r + dy, 0, Math.ceil(apps.length / cols) - 1);
+  const next = clamp(r * cols + c, 0, apps.length - 1);
   if (next !== phone.sel) { phone.sel = next; phone.dirty = true; }
 }
 
 // A press of A, wherever you are.
 function phoneAct() {
   if (!phone.open) return;
+  if (isBasic() && phone.pad.on) { padPress(PAD_KEYS[phone.pad.sel][1]); phone.dirty = true; return; }
   if (!phone.app) {
-    phone.app = PHONE_APPS[phone.sel][0];
+    phone.app = (homeApps()[phone.sel] || homeApps()[0])[0];
     phone.sub = 0; phone.site = null; phone.vmail = ""; phone.dial = "";
     phone.dirty = true;
     return;
@@ -13102,10 +13960,13 @@ function phoneAct() {
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
-    if (phone.vmail) { phone.vmail = ""; }
+    if (phone.vmail) { phone.vmail = ""; phone.call = null; }
     else if (phone.sub === 12) {
       if (phone.dial.length < 3) say("Dial a number first.", 3);
-      else phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
+      else {
+        phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
+        phone.call = { number: phone.dial, t0ms: performance.now() };
+      }
     } else {
       const keys = "123456789*0#";
       if (phone.dial.length < 11) phone.dial += keys[phone.sub];
@@ -13117,7 +13978,8 @@ function phoneAct() {
 // A press of B: out of a page, out of an app, then out of the phone.
 function phoneBack() {
   if (!phone.open) return false;
-  if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.dirty = true; return true; }
+  if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
+  if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
@@ -14672,6 +15534,11 @@ function updateDeliveries() {
 function updatePhone() {
   if (!phone.open) return;
   const t = phoneTime();
+  // The Island grows and shrinks and a call has a clock on it, so while either
+  // is going on the glass is redrawn every few frames and not once a minute.
+  const now = performance.now();
+  if (islandBusy() && now - island.last > 45) { island.last = now; phone.dirty = true; }
+  else if (isBasic() && now - island.last > 90) { island.last = now; phone.dirty = true; }
   if (phone.dirty || t.mins !== phone.minute) drawPhone();
 }
 
