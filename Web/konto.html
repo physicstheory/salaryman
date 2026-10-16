@@ -5227,6 +5227,7 @@ function initThree() {
     }
     if (ski.mode === "run") { if (e.code === "Escape" && !skiRun.ended) skiRunEnd("quit"); e.preventDefault(); return; }
     if (ski.mode === "ride") { e.preventDefault(); return; }
+    if (phone.open && phone.app === "MyNet" && mynetKey(e)) { e.preventDefault(); return; }
     if (phone.open && phone.app === "Poodle" && phone.site == null && searchUI.on && searchKey(e)) { e.preventDefault(); return; }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (nav.mapOpen) {
@@ -7095,7 +7096,7 @@ window.addEventListener("DOMContentLoaded", drawLogoElements);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLogoElements);
 
 // ---- holding on to a frame -------------------------------------------------
-// The camera app and MyNet both want the picture the game just drew. A WebGL
+// The camera app wants the picture the game just drew. A WebGL
 // canvas cannot simply be read later: once the frame is composited the drawing
 // buffer is gone, and drawImage returns nothing, which is why both screens
 // came out black. Turning on preserveDrawingBuffer would fix it and slow every
@@ -7103,7 +7104,7 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLogoEl
 // is drawn, and only while something is actually asking for one.
 const frameGrab = { canvas: null, ctx: null, want: false, ok: false };
 function wantFrame() {
-  return phone.open && (phone.app === "Camera" || phone.app === "MyNet");
+  return phone.open && phone.app === "Camera";
 }
 function grabFrame() {
   const src = renderer && renderer.domElement;
@@ -7928,6 +7929,7 @@ function tick(dt) {
   if (ski.mode === "run") { updateSkiRun(dt); return; }
   watchFrameRate(dt);
   updateSki(dt);
+  updateMyNet(dt);
   updateVitals(dt);
   updateHail(dt);
   updateDeliveries();
@@ -12741,6 +12743,12 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.closePath(); g.fill();
     g.fillStyle = colour;
     g.beginPath(); g.arc(c, m, u * 0.2, 0, 6.2832); g.fill();
+  } else if (glyph === "mynet") {
+    const q = g.createLinearGradient(x, y + s, x + s, y); q.addColorStop(0, "#7b2cbf"); q.addColorStop(0.5, "#e8435a"); q.addColorStop(1, "#fdb54e");
+    g.fillStyle = q; g.fillRect(x, y, s, s);
+    g.strokeStyle = "#ffffff"; g.lineWidth = s * 0.07; g.lineJoin = "round";
+    g.beginPath(); g.moveTo(c - u * 0.52, m + u * 0.40); g.lineTo(c - u * 0.52, m - u * 0.38); g.lineTo(c, m + u * 0.10); g.lineTo(c + u * 0.52, m - u * 0.38); g.lineTo(c + u * 0.52, m + u * 0.40); g.stroke();
+    g.fillStyle = "#ffffff"; g.beginPath(); g.arc(c + u * 0.50, m - u * 0.62, s * 0.045, 0, 7); g.fill();
   } else if (glyph === "soti") {
     g.fillStyle = "#f4f6f8";
     g.font = "400 " + Math.round(s * 0.26) + "px " + SERIF;
@@ -12748,6 +12756,14 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.fillText("SOTI", c, m);
   }
   g.restore();
+  if (glyph === "mynet" && mynet.ready) {
+    const n = mynetBadge();
+    if (n > 0) {
+      const bx = x + s * 0.93, by = y + s * 0.07, br = s * 0.19;
+      g.fillStyle = "#ff3b30"; g.beginPath(); g.arc(bx, by, br, 0, 7); g.fill();
+      g.fillStyle = "#fff"; g.font = "800 " + Math.round(br * 1.2) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(n > 9 ? "9+" : String(n), bx, by + br * 0.06); g.textBaseline = "alphabetic"; g.textAlign = "left";
+    }
+  }
 }
 
 // Tōkonto at dusk from across the bay. Drawn, not photographed, because the
@@ -15322,100 +15338,1347 @@ function appPhotos(g, W, H) {
 }
 
 // ---- MyNet
-const MYNET = [
-  { who: "@tokonto_eats",  text: "Queued 40 minutes for this bowl. Worth it. Probably.", tag: "#ramen", l: "12.4k" },
-  { who: "@last_train",    text: "POV: you missed the 23:48 and the capsule hotel is full", tag: "#salaryman", l: "88.1k" },
-  { who: "@shibuyacrossing",text: "3,000 people, one green light, nobody touches", tag: "#tokonto", l: "204k" },
-  { who: "@keicarclub",    text: "She's 660cc and she owes me nothing", tag: "#keicar", l: "9,812" },
-  { who: "@officefloor12", text: "Boss said 'let's circle back' and walked in a circle", tag: "#work", l: "41.2k" },
-  { who: "@nhrail_fan",    text: "The 07:12 was 19 seconds late. An apology was issued.", tag: "#nhrail", l: "15.7k" }
+// A parody of the photo-sharing apps, and a small game inside the phone. Seiko
+// has a profile, a follower count and a feed of the island. What he posts is
+// looked at - the photograph itself, what the game knew was in front of the lens
+// when it was taken, and what he wrote under it - and the followers react to
+// exactly that: a sharp shot of a ramen shop with a caption about ramen does
+// well, a blurry photo of a wall captioned "best ramen" gets roasted, and the
+// follower count follows. Post well and often and sponsors write; get popular
+// and strangers do.
+//
+// The reactions come from a built-in critic, which is a set of measurements
+// and a lot of jokes. If you give MyNet a Claude API key (Profile, press A on
+// the engine line) it asks the real thing instead, with the actual picture,
+// and falls back to the built-in critic whenever that does not work.
+const MN_PEOPLE = [
+  ["Mika Tanabe", "@mika.eats", "fan"], ["Daichi", "@daichi_1987", "fan"], ["Yui from Mizuho", "@yui_in_mizuho", "local"],
+  ["Haruto Rail", "@nhrail_fan", "rail"], ["Ichiban Ramen Club", "@ramen_ichiban", "foodie"], ["Sora", "@sora.shoots", "photographer"],
+  ["Granny Sato", "@satoba_chan", "aunty"], ["Kei Car Club", "@keicarclub", "car"], ["Ren", "@ren_ski_hard", "skier"],
+  ["Tokonto Eats", "@tokonto_eats", "foodie"], ["Aoi", "@aoi.mornings", "fan"], ["Last Train", "@last_train", "rail"],
+  ["Takeshi", "@takeshi_no_blog", "troll"], ["Mr. Nobody", "@mr_nobody_77", "troll"], ["Riko", "@riko.rides", "car"],
+  ["Section Chief Tanaka", "@section_chief_tanaka", "boss"], ["Hina", "@hina_cats", "fan"], ["Shun", "@shun_hikes", "skier"],
+  ["Nanami", "@nanami.coffee", "foodie"], ["Office Floor 12", "@officefloor12", "local"], ["Kenta", "@kenta_wide", "photographer"],
+  ["Mai", "@mai_in_the_rain", "fan"], ["Dai the Taxi", "@hayashi_cabs", "local"], ["Natsuki", "@natsuki_n", "fan"],
+  ["Gen", "@gen_gen_gen", "troll"], ["Tomo", "@tomo.tabi", "photographer"], ["Aunt Reiko", "@reiko_obasan", "aunty"],
+  ["Yuto", "@yuto.vending", "local"], ["Shiori", "@shiori_sakura", "fan"], ["Kaito", "@kaito_k", "troll"]
+].map((p, i) => ({ name: p[0], handle: p[1], role: p[2], col: "hsl(" + ((i * 47) % 360) + ",52%,46%)" }));
+
+// What other people post. Each is a picture the game can draw and the line
+// that goes with it.
+const MN_POSTS = [
+  { scene: "ramen",   role: "foodie", text: "Queued 40 minutes for this bowl. Worth it. Probably. #ramen", place: "Tōkonto" },
+  { scene: "ramen",   role: "foodie", text: "Tonkotsu at midnight, no regrets #ramen", place: "Tōkonto" },
+  { scene: "sushi",   role: "foodie", text: "Omakase on a salaryman budget (the budget lost) #sushi", place: "Tōkonto" },
+  { scene: "train",   role: "rail",   text: "The 07:12 was 19 seconds late. An apology was issued. #nhrail", place: "Tōkonto Central" },
+  { scene: "train",   role: "rail",   text: "POV: you missed the last train and the capsule hotel is full #salaryman", place: "Kanjō Loop" },
+  { scene: "cat",     role: "fan",    text: "Station cat has seen your commute and judges it", place: "Mizuho" },
+  { scene: "kei",     role: "car",    text: "She's 660cc and she owes me nothing #keicar", place: "Coastal Expressway" },
+  { scene: "sakura",  role: "fan",    text: "Three weeks a year everyone becomes a poet", place: "Gosho Gardens" },
+  { scene: "peak",    role: "skier",  text: "Konto Alps this morning. Snow already #konto", place: "Shirotake" },
+  { scene: "sunset",  role: "photographer", text: "Golden hour over the bay. #tokonto", place: "Tōkonto Bay" },
+  { scene: "vending", role: "local",  text: "Hot coffee from a vending machine in the rain. Perfect.", place: "Mizuho" },
+  { scene: "konbini", role: "local",  text: "The shop on the corner at 2am, the only friend that never closes", place: "Shiokawa" },
+  { scene: "ski",     role: "skier",  text: "First tracks on the blue run #ski", place: "Aokami" },
+  { scene: "sea",     role: "car",    text: "Coastal Expressway > everything else #roadtrip", place: "Coastal Expressway" },
+  { scene: "bridge",  role: "photographer", text: "Bay bridge at dusk, still can't believe we have this", place: "Tōkonto Bay" },
+  { scene: "rain",    role: "photographer", text: "Rainy street, four thousand puddles", place: "Tomari" },
+  { scene: "lantern", role: "aunty",  text: "Lanterns at the shrine, Obon was lovely", place: "Kaido" },
+  { scene: "desk",    role: "local",  text: "Boss said 'let's circle back' and walked in a circle #work", place: "Office Floor 12" },
+  { scene: "bento",   role: "foodie", text: "Station bento, 900 yen of pure joy", place: "Tōkonto Central" },
+  { scene: "skyline", role: "photographer", text: "3,000 people, one green light, nobody touches", place: "Tōkonto" },
+  { scene: "onsen",   role: "aunty",  text: "Soak, steam, forget the spreadsheet", place: "Asagiri" },
+  { scene: "tea",     role: "foodie", text: "Matcha with a view", place: "Gosho Gardens" }
 ];
-function appMyNet(g, W, H) {
-  if (phone.realVideo && !isBasic()) {
-    g.fillStyle = "#0b0d10"; g.fillRect(0, 0, W, H);
-    phoneStatusBar(g, W, H);
-    g.fillStyle = "#e9edf0"; g.font = "800 " + Math.round(W * 0.06) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
-    g.fillText("MyNet", W * 0.05, H * 0.095);
-    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center";
-    g.fillText("Loading real video\u2026 (needs the internet)", W / 2, H * 0.48);
-    g.fillStyle = "#79818b"; g.fillText("A  back to the footage of Konto", W / 2, H * 0.90);
-    g.textAlign = "left"; g.textBaseline = "alphabetic";
+
+const MN_SPONSORS = [
+  { brand: "11 Eleven",     key: "eleven",   shop: "eleven",  min: 120,   fee: [3000, 6000],     what: "our new onigiri" },
+  { brand: "Pet Mart",      key: "petmart",  shop: "petmart", min: 150,   fee: [3500, 7000],     what: "the Pet Mart treat shelf" },
+  { brand: "Ichiban Ramen", key: "ramen",    shop: "ramen",   min: 400,   fee: [6000, 12000],    what: "a bowl of our tonkotsu" },
+  { brand: "Sushi Gin",     key: "sushi",    shop: "sushi",   min: 400,   fee: [6000, 12000],    what: "the lunch omakase" },
+  { brand: "Dokoto Camera", key: "dokoto",   shop: "dokoto",  min: 1500,  fee: [15000, 32000],   what: "the new Dokoto phones" },
+  { brand: "NHRail",        key: "nhrail",   subject: "station", min: 800, fee: [9000, 18000],  what: "the Kanjō Loop line" },
+  { brand: "NH Tolls",      key: "nhtolls",  subject: "highway", min: 2500, fee: [20000, 45000], what: "the Coastal Expressway" },
+  { brand: "Konto Ski",     key: "kontoski", subject: "ski",    min: 4000, fee: [30000, 70000],  what: "opening weekend on the mountain" },
+  { brand: "Pear",          key: "pear",     subject: "any",    min: 20000, fee: [90000, 220000], what: "the new Pear Watch" }
+];
+
+const MN_MISSION = [
+  { name: "Hayashi-san", handle: "@hayashi_cabs", phone: "090-5521-0188", hook: "Hi, Hayashi from Hayashi Cabs. Passengers keep leaving things in my back seat and I can't find the owners. You seem to know the island. Could you call me?",
+    line: "Moshi moshi, Hayashi Cabs. I've got a job for you, but not today. Let me find the meter first. I'll ring when it's running." },
+  { name: "Granny Sato", handle: "@satoba_chan", phone: "090-3310-4471", hook: "Seiko-chan, my cat Mugi has gone missing again and the whole street says you take lovely photographs. Would you telephone me, dear?",
+    line: "Oh, Seiko-chan! Mugi is still out, but I'm putting the kettle on. Come by when you've time, I'll tell you everything." },
+  { name: "Daisuke the Ramen Master", handle: "@ramen_ichiban", phone: "090-8801-2290", hook: "My broth recipe was copied by a shop two towns over. I need someone discreet. You're a salaryman, nobody notices a salaryman. Call me.",
+    line: "Daisuke. Good, you called. I need someone nobody notices. Wait for my word." },
+  { name: "Kenji at the Lodge", handle: "@kenji_lodge", phone: "090-6642-9910", hook: "Ski patrol here. A guest dropped a ski pole off the black run, somewhere in the trees. If you're on the mountain, call me.",
+    line: "Kenji, ski patrol. The pole can wait for the thaw. I'll call you when we need a spare pair of legs." },
+  { name: "Ms. Ito, Talent Agency", handle: "@ito_agency", phone: "090-1127-5503", hook: "We represent several creators and we've noticed your numbers. I'd like to speak about something other than posts. Please call.",
+    line: "Ito speaking. Not today. Soon I'll have something that pays more than a tote bag. Don't go anywhere." },
+  { name: "Tomo from the Docks", handle: "@tomo_docks", phone: "090-7773-1004", hook: "Heard you drive the Coastal Expressway a lot. Got a delivery that needs doing quietly. Ring me.",
+    line: "Tomo. A box, a car, a quiet road. That's all I'll say. I'll be in touch." }
+];
+
+const MN_FAN_DMS = [
+  "Omg you're real!! I've been following since you had 20 followers",
+  "Your posts are the only reason I survive the 07:12",
+  "Can you post more of Mizuho? it never gets any love",
+  "Saw you at the ramen shop yesterday, I was too shy to say hi!!",
+  "my whole office watches your page at lunch 😂",
+  "Please do a post about the ski runs, I can't decide which one"
+];
+const MN_TROLL_DMS = [
+  "your last post was mid ngl", "who even follows you lol", "post better or stop posting",
+  "my cat takes better photos and she has no thumbs", "bro thinks he's famous 💀"
+];
+const MN_BOSS_DMS = [
+  "Seiko-kun. I can see you posting on a work day. My desk, five minutes.",
+  "Shigu. Is that the office window in your photo? We will discuss this Monday."
+];
+
+// ---- the words
+const MN_POS = "love loved loving beautiful gorgeous amazing perfect golden cozy delicious wow great best nice lovely stunning happy grateful incredible fantastic fun peaceful calm warm worth enjoy enjoying favourite favorite wonderful sweet".split(" ");
+const MN_NEG = "hate hated awful terrible worst boring ugly trash garbage bad sad angry tired gross disgusting annoying disappointed useless meh".split(" ");
+const MN_RUDE = "idiot stupid shut moron dumb loser sucks suck jerk".split(" ");
+const MN_BEG = ["follow me", "follow for follow", "f4f", "l4l", "like for like", "link in bio", "sub to me", "check my page", "follow back", "follow4follow"];
+// What a caption can claim, and what has to be in the picture for the claim to hold.
+const MN_TOPICS = [
+  { id: "ramen",  words: /ramen|noodle|tonkotsu|broth/i,        need: s => s.shops.indexOf("ramen") >= 0,  seen: "a street" },
+  { id: "sushi",  words: /sushi|omakase|sashimi/i,               need: s => s.shops.indexOf("sushi") >= 0,  seen: "a street" },
+  { id: "konbini", words: /konbini|onigiri|11 eleven|pet mart/i, need: s => s.shops.indexOf("eleven") >= 0 || s.shops.indexOf("petmart") >= 0, seen: "a street" },
+  { id: "train",  words: /train|rail|station|platform|nhrail/i, need: s => s.has.station || s.has.train, seen: "no railway at all" },
+  { id: "car",    words: /\bcar\b|kei|drive|driving|road ?trip|roadtrip|ride/i, need: s => s.has.car || s.has.highway || s.driving, seen: "no car anywhere" },
+  { id: "mountain", words: /mountain|peak|summit|alps|ridge|hike|hiking/i, need: s => s.has.mountain || s.has.snow || s.has.ski, seen: "flat ground" },
+  { id: "snow",   words: /snow|powder|winter/i,                 need: s => s.has.snow || s.has.ski || s.white > 0.22, seen: "no snow in sight" },
+  { id: "ski",    words: /\bski|skiing|slope|chairlift|piste/i,  need: s => s.has.ski, seen: "no mountain resort" },
+  { id: "sea",    words: /\bsea\b|ocean|beach|coast|bay|harbou?r/i, need: s => s.has.sea || s.has.highway, seen: "no water at all" },
+  { id: "sunset", words: /sunset|sunrise|golden hour|dusk|dawn/i, need: s => s.golden, seen: "the middle of the day" },
+  { id: "night",  words: /night|neon|midnight|late/i,           need: s => s.night, seen: "broad daylight" },
+  { id: "shrine", words: /shrine|temple|torii|lantern/i,         need: s => s.landmarks.some(l => /shrine|temple|palace|garden/i.test(l)), seen: "an ordinary street" },
+  { id: "me",     words: /\bselfie\b|\bme\b|myself|my face|\bi look\b/i, need: s => s.has.seiko, seen: "no one in the frame" },
+  { id: "road",   words: /highway|expressway|toll|bridge/i,      need: s => s.has.highway || s.has.toll, seen: "no road at all" }
+];
+
+// ---- pictures for the feed: simple flat scenes, drawn with the canvas
+function mnScene(kind, S) {
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d"), u = S / 100;
+  const grad = (a, b, y0, y1) => { const q = g.createLinearGradient(0, (y0 || 0) * u, 0, (y1 === undefined ? 100 : y1) * u); q.addColorStop(0, a); q.addColorStop(1, b); g.fillStyle = q; };
+  const R = (x, y, w, h, col) => { g.fillStyle = col; g.fillRect(x * u, y * u, w * u, h * u); };
+  const RR = (x, y, w, h, r, col) => { roundRect(g, x * u, y * u, w * u, h * u, r * u); g.fillStyle = col; g.fill(); };
+  const C = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x * u, y * u, r * u, 0, Math.PI * 2); g.fill(); };
+  const E = (x, y, rx, ry, col) => { g.fillStyle = col; g.beginPath(); g.ellipse(x * u, y * u, rx * u, ry * u, 0, 0, Math.PI * 2); g.fill(); };
+  const P = (pts, col) => { g.fillStyle = col; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(p[0] * u, p[1] * u) : g.moveTo(p[0] * u, p[1] * u)); g.closePath(); g.fill(); };
+  const sky = (a, b, h) => { grad(a, b, 0, h || 70); g.fillRect(0, 0, S, S); };
+  const hills = (col, y, amp, seed) => { g.fillStyle = col; g.beginPath(); g.moveTo(0, S); for (let x = 0; x <= 100; x += 4) g.lineTo(x * u, (y + Math.sin(x * 0.09 + seed) * amp + Math.sin(x * 0.23 + seed * 2) * amp * 0.4) * u); g.lineTo(S, S); g.closePath(); g.fill(); };
+  const win = (x, y, w, h, on) => R(x, y, w, h, on ? "#ffd98a" : "#33405a");
+  if (kind === "ramen") {
+    grad("#3a1d12", "#1b0d08"); g.fillRect(0, 0, S, S);
+    R(0, 70, 100, 30, "#5a3320"); E(50, 66, 38, 10, "#c9402e"); E(50, 58, 34, 22, "#e8dcc4");
+    E(50, 56, 30, 16, "#d49a3c"); for (let i = 0; i < 9; i++) { g.strokeStyle = "#f2d572"; g.lineWidth = 1.4 * u; g.beginPath(); g.moveTo((30 + i * 5) * u, 50 * u); g.quadraticCurveTo((35 + i * 5) * u, 58 * u, (28 + i * 5.5) * u, 64 * u); g.stroke(); }
+    E(40, 52, 7, 5, "#f4efe0"); C(40, 52, 2.6, "#f0a020"); RR(55, 46, 12, 4, 2, "#2c5a34"); E(58, 56, 4, 3, "#f08aa0");
+    g.strokeStyle = "#c8a46a"; g.lineWidth = 1.6 * u; g.beginPath(); g.moveTo(66 * u, 28 * u); g.lineTo(80 * u, 52 * u); g.moveTo(70 * u, 26 * u); g.lineTo(84 * u, 50 * u); g.stroke();
+    for (let i = 0; i < 3; i++) { g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = 2 * u; g.beginPath(); g.moveTo((38 + i * 8) * u, 40 * u); g.quadraticCurveTo((34 + i * 8) * u, 30 * u, (40 + i * 8) * u, 20 * u); g.stroke(); }
+  } else if (kind === "sushi") {
+    grad("#d9cdb7", "#a8957a"); g.fillRect(0, 0, S, S); RR(8, 56, 84, 12, 3, "#3b2a1c");
+    [[22, 0], [50, 1], [78, 2]].forEach(([x, k]) => { RR(x - 11, 44, 22, 12, 5, "#f4efe0"); RR(x - 13, 36, 26, 11, 5, k === 0 ? "#f08a6a" : k === 1 ? "#e5b25a" : "#c9402e"); if (k === 2) R(x - 2, 38, 4, 18, "#1e2a22"); });
+    C(86, 24, 6, "#2f6a3a"); R(10, 18, 18, 3, "#3b2a1c");
+  } else if (kind === "train") {
+    sky("#6aa5dd", "#cfe6f7", 60); hills("#6f8f6a", 56, 5, 1); R(0, 74, 100, 26, "#555a62"); R(0, 70, 100, 3, "#8f949c");
+    RR(6, 38, 88, 32, 4, "#e8ecef"); R(6, 54, 88, 5, "#17a05e"); for (let i = 0; i < 6; i++) RR(12 + i * 14, 43, 9, 9, 1.5, "#5a7ea8");
+    RR(86, 44, 8, 16, 3, "#2a2f36"); C(18, 72, 4, "#2a2f36"); C(40, 72, 4, "#2a2f36"); C(66, 72, 4, "#2a2f36");
+    R(0, 20, 100, 2, "#2a2f36"); for (let i = 0; i < 5; i++) R(i * 25, 20, 1.6, 20, "#2a2f36");
+  } else if (kind === "cat") {
+    grad("#d8cdb6", "#9e8f76"); g.fillRect(0, 0, S, S); R(0, 76, 100, 24, "#7a6c58"); R(0, 70, 100, 6, "#5f5446");
+    E(50, 64, 24, 20, "#d9893a"); C(50, 42, 16, "#d9893a"); P([[36, 32], [38, 16], [47, 28]], "#d9893a"); P([[64, 32], [62, 16], [53, 28]], "#d9893a");
+    P([[39, 29], [40, 21], [45, 28]], "#f2b3a1"); P([[61, 29], [60, 21], [55, 28]], "#f2b3a1");
+    E(44, 42, 3, 4, "#2f2a22"); E(56, 42, 3, 4, "#2f2a22"); P([[48, 48], [52, 48], [50, 51]], "#c76a5a");
+    g.strokeStyle = "#2f2a22"; g.lineWidth = 0.8 * u; [[-1, 0], [-1, 3], [1, 0], [1, 3]].forEach(([s, d]) => { g.beginPath(); g.moveTo((50 + s * 4) * u, (50 + d * 0.5) * u); g.lineTo((50 + s * 13) * u, (49 + d) * u); g.stroke(); });
+    for (let i = 0; i < 4; i++) R(34 + i * 10, 56, 3, 14, "#b86f28");
+  } else if (kind === "kei") {
+    sky("#f0b878", "#f8e4c4", 60); hills("#6c7f5a", 58, 4, 3); R(0, 70, 100, 30, "#4a4e56"); R(0, 84, 100, 1.5, "#e6e0c8");
+    RR(22, 50, 56, 22, 8, "#e8453a"); RR(32, 38, 34, 18, 7, "#e8453a"); RR(36, 41, 12, 10, 2, "#bfe0f0"); RR(51, 41, 12, 10, 2, "#bfe0f0"); C(34, 72, 7, "#222"); C(66, 72, 7, "#222"); C(34, 72, 3, "#999"); C(66, 72, 3, "#999"); RR(74, 56, 4, 5, 1, "#ffe9a0");
+  } else if (kind === "sakura") {
+    sky("#a9d3f0", "#f6e3ea", 80); R(0, 82, 100, 18, "#8fbf86");
+    R(46, 40, 8, 44, "#5a3d2e"); [[50, 30, 26], [32, 38, 17], [68, 38, 17], [42, 22, 16], [60, 22, 16]].forEach(([x, y, r]) => C(x, y, r, "#f4b6c8"));
+    for (let i = 0; i < 26; i++) C((i * 37) % 96 + 2, 20 + (i * 53) % 72, 1.2, "#fbe0ea");
+  } else if (kind === "peak") {
+    sky("#4f8fdc", "#cfe3f7", 70); P([[0, 82], [34, 36], [48, 52], [66, 24], [100, 82]], "#7a8aa0"); P([[28, 46], [34, 36], [40, 46], [36, 44], [34, 48], [31, 44]], "#fff"); P([[58, 36], [66, 24], [74, 38], [70, 35], [66, 40], [62, 35]], "#fff");
+    hills("#3f6a46", 72, 5, 4); R(0, 84, 100, 16, "#2d4a34"); for (let i = 0; i < 9; i++) P([[6 + i * 11, 88], [10 + i * 11, 74], [14 + i * 11, 88]], "#1f3a28");
+  } else if (kind === "sunset") {
+    grad("#2a2a5a", "#f4a04a", 0, 70); g.fillRect(0, 0, S, S); C(50, 60, 16, "#ffd27a"); R(0, 64, 100, 36, "#1a3550");
+    for (let i = 0; i < 6; i++) R(34 + i * 2, 66 + i * 5, 32 - i * 4, 1.4, "rgba(255,210,120,0.7)");
+    [[12, 40], [24, 52], [66, 36], [80, 46]].forEach(([x, h]) => R(x, 64 - h * 0.6, 8, h * 0.6, "#1b1d2c"));
+  } else if (kind === "vending") {
+    grad("#1c2a44", "#0f1626"); g.fillRect(0, 0, S, S); R(0, 82, 100, 18, "#232a36"); for (let i = 0; i < 24; i++) R((i * 37) % 100, (i * 17) % 80, 0.5, 6, "rgba(180,210,255,0.45)");
+    RR(30, 16, 40, 68, 3, "#c9402e"); R(34, 22, 32, 28, "#e9f2f8"); for (let r = 0; r < 3; r++) for (let q = 0; q < 4; q++) RR(36 + q * 7.5, 25 + r * 8.5, 5, 6, 1, ["#e8453a", "#3b8de0", "#f0b020", "#3aa05e"][(q + r) % 4]);
+    R(36, 58, 28, 6, "#17171c"); R(36, 68, 12, 10, "#2f323a"); C(56, 72, 3, "#f0b020");
+  } else if (kind === "konbini") {
+    grad("#0d1224", "#1a2238"); g.fillRect(0, 0, S, S); R(0, 86, 100, 14, "#2a2f3a"); RR(10, 30, 80, 54, 2, "#e9f0f5"); R(10, 30, 80, 10, "#0a6b42"); R(10, 40, 80, 3, "#e8711a"); R(10, 43, 80, 2, "#cf2027");
+    R(14, 50, 72, 30, "#ffeab0"); for (let i = 0; i < 5; i++) { R(18 + i * 14, 54, 10, 22, "#d9a85a"); R(18 + i * 14, 54, 10, 3, "#f0d080"); }
+    g.fillStyle = "#fff"; g.font = "800 " + (9 * u) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("11", 50 * u, 35 * u);
+  } else if (kind === "ski") {
+    sky("#59a0e8", "#d4e8f8", 60); P([[0, 70], [30, 28], [100, 74], [100, 100], [0, 100]], "#f4f8fc"); P([[30, 28], [100, 74], [100, 100], [60, 100]], "#dbe7f4");
+    g.strokeStyle = "#3a6ab0"; g.lineWidth = 1.4 * u; g.beginPath(); g.moveTo(40 * u, 40 * u); g.quadraticCurveTo(60 * u, 62 * u, 54 * u, 96 * u); g.moveTo(44 * u, 40 * u); g.quadraticCurveTo(66 * u, 62 * u, 60 * u, 96 * u); g.stroke();
+    for (let i = 0; i < 6; i++) P([[8 + i * 6, 74 - i * 2], [11 + i * 6, 62 - i * 2], [14 + i * 6, 74 - i * 2]], "#2b4a36"); C(50, 56, 2.2, "#e8453a"); R(49, 58, 2, 6, "#e8453a");
+  } else if (kind === "sea") {
+    sky("#7cb6ec", "#d8ecf8", 50); R(0, 48, 100, 22, "#2d7fb0"); for (let i = 0; i < 8; i++) R(6 + i * 12, 54 + (i % 3) * 5, 8, 1, "rgba(255,255,255,0.5)"); R(0, 70, 100, 30, "#4a4e56"); R(0, 70, 100, 2, "#e6e0c8"); P([[44, 100], [56, 100], [51, 70], [49, 70]], "#6a6e76"); R(49.5, 72, 1, 28, "#f0f0e8");
+    R(10, 60, 80, 1.2, "#cfd5da");
+  } else if (kind === "bridge") {
+    grad("#27315a", "#e8a070", 0, 70); g.fillRect(0, 0, S, S); R(0, 62, 100, 38, "#1b3550"); R(0, 52, 100, 4, "#40454e"); for (let i = 0; i < 9; i++) R(4 + i * 11, 56, 1.4, 12, "#40454e");
+    g.strokeStyle = "#40454e"; g.lineWidth = 1 * u; g.beginPath(); g.moveTo(0, 52 * u); g.quadraticCurveTo(50 * u, 20 * u, 100 * u, 52 * u); g.stroke(); for (let i = 1; i < 9; i++) { const x = i * 11; g.beginPath(); g.moveTo(x * u, 52 * u); g.lineTo(x * u, (52 - 28 * Math.sin(Math.PI * x / 100)) * u); g.stroke(); }
+    for (let i = 0; i < 12; i++) C(6 + i * 8, 53, 0.8, "#ffd98a");
+  } else if (kind === "rain") {
+    grad("#38424f", "#1d232c"); g.fillRect(0, 0, S, S); R(0, 66, 100, 34, "#2a3140"); for (let i = 0; i < 6; i++) { R(i * 18, 24, 14, 42, "#202733"); for (let r = 0; r < 4; r++) win(i * 18 + 2, 28 + r * 8, 4, 4, (i + r) % 2); }
+    for (let i = 0; i < 20; i++) { g.strokeStyle = "rgba(200,220,255,0.5)"; g.lineWidth = 0.5 * u; g.beginPath(); g.moveTo(((i * 37) % 100) * u, ((i * 23) % 60) * u); g.lineTo((((i * 37) % 100) - 3) * u, (((i * 23) % 60) + 9) * u); g.stroke(); }
+    E(30, 82, 14, 3, "rgba(255,217,138,0.5)"); E(72, 86, 16, 3, "rgba(120,160,255,0.45)");
+  } else if (kind === "lantern") {
+    grad("#0c1020", "#241833"); g.fillRect(0, 0, S, S); R(0, 88, 100, 12, "#1a1620"); for (let i = 0; i < 5; i++) { const x = 12 + i * 19; R(x + 3.5, 12, 0.8, 14, "#444"); RR(x, 26, 8, 14, 3, "#e8453a"); E(x + 4, 33, 7, 12, "rgba(255,160,80,0.28)"); R(x + 1, 29, 6, 1, "#ffcf70"); }
+    R(10, 44, 80, 3, "#7a2a22"); R(14, 47, 3, 40, "#7a2a22"); R(83, 47, 3, 40, "#7a2a22");
+  } else if (kind === "desk") {
+    grad("#d5dde4", "#aab6c0"); g.fillRect(0, 0, S, S); R(0, 66, 100, 34, "#8a6a4a"); RR(24, 38, 52, 30, 2, "#2a2f36"); R(27, 41, 46, 22, "#7fb2e0"); for (let i = 0; i < 5; i++) R(30, 45 + i * 3.5, 22 + (i * 7) % 18, 1.6, "rgba(255,255,255,0.7)"); R(40, 68, 20, 3, "#555");
+    RR(66, 56, 10, 10, 2, "#f4efe0"); R(68, 58, 6, 2, "#4a3322"); C(14, 28, 8, "#f4d35a"); R(0, 0, 100, 6, "#c6d0d8");
+  } else if (kind === "bento") {
+    grad("#7a5636", "#5a3c24"); g.fillRect(0, 0, S, S); RR(12, 28, 76, 50, 4, "#2a1d16"); RR(15, 31, 70, 44, 3, "#f4efe0");
+    R(15, 53, 70, 1.4, "#2a1d16"); R(50, 31, 1.4, 44, "#2a1d16"); E(32, 42, 14, 9, "#e9e4d8"); C(32, 38, 3, "#c9402e"); R(55, 36, 26, 10, "#d6a24a"); R(55, 36, 26, 3, "#f0c46a"); E(65, 63, 10, 6, "#2e6a3a"); R(54, 58, 12, 3, "#e8453a"); C(38, 63, 5, "#f0b020");
+  } else if (kind === "skyline") {
+    grad("#1b2845", "#e89a6a", 0, 80); g.fillRect(0, 0, S, S); R(0, 78, 100, 22, "#222b3a");
+    for (let i = 0; i < 12; i++) { const h = 20 + (i * 29) % 44, x = 2 + i * 8; R(x, 78 - h, 6, h, "#161c2c"); for (let r = 0; r < h / 6; r++) if ((i + r) % 2) R(x + 1, 78 - h + 2 + r * 6, 1.4, 2, "#ffd98a"); }
+    for (let i = 0; i < 16; i++) R(2 + i * 6, 88, 2, 8, ["#e8453a", "#f0b020", "#3b8de0", "#fff"][i % 4]);
+  } else if (kind === "onsen") {
+    sky("#2a3a5a", "#7a96b8", 60); R(0, 56, 100, 44, "#6a5a48"); E(50, 76, 40, 14, "#6fb7d1"); E(50, 76, 34, 10, "#8fd0e6"); for (let i = 0; i < 4; i++) { g.strokeStyle = "rgba(255,255,255,0.3)"; g.lineWidth = 3 * u; g.beginPath(); g.moveTo((34 + i * 11) * u, 66 * u); g.quadraticCurveTo((30 + i * 11) * u, 54 * u, (36 + i * 11) * u, 44 * u); g.stroke(); }
+    C(78, 28, 8, "#f4f0d8"); for (let i = 0; i < 6; i++) E(18 + i * 13, 62, 6, 4, "#8a8a92");
+  } else {  // tea
+    grad("#cfd9c2", "#a6b595"); g.fillRect(0, 0, S, S); R(0, 70, 100, 30, "#6a4a30"); E(50, 68, 26, 6, "#e8e2d0"); RR(34, 44, 32, 24, 8, "#e8e2d0"); E(50, 46, 15, 4, "#7aa04a"); E(50, 46, 12, 2.6, "#9bc060");
+    g.strokeStyle = "#caa86a"; g.lineWidth = 1.4 * u; g.beginPath(); g.moveTo(74 * u, 40 * u); g.lineTo(88 * u, 66 * u); g.stroke(); hills("rgba(80,110,70,0.55)", 40, 4, 6);
+  }
+  // a whisper of film on all of it, so they sit together
+  g.fillStyle = "rgba(255,240,220,0.05)"; g.fillRect(0, 0, S, S);
+  const v = g.createRadialGradient(S / 2, S / 2, S * 0.4, S / 2, S / 2, S * 0.75); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.28)"); g.fillStyle = v; g.fillRect(0, 0, S, S);
+  return c;
+}
+
+// ---- what the game knew was in front of the lens
+// The camera is the game's own, so a photograph can be asked what is in it:
+// which shops, stations and landmarks are in front of it and near, whether
+// there is a mountain, snow, the sea or the expressway in the direction it is
+// pointing, what time it is. Together with the pixels, this is what the
+// followers react to.
+function mnContext() {
+  const at = camera.position, dir = camera.getWorldDirection(new THREE.Vector3());
+  const ahead = (x, z, max, cosMin) => {
+    const dx = x - at.x, dz = z - at.z, d = Math.hypot(dx, dz);
+    if (d > max || d < 1.5) return false;
+    return (dx * dir.x + dz * dir.z) / d > cosMin;
+  };
+  const s = { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: !!drive.car, place: "Tōkonto", sub: "", hour: gameMinutes() / 60 };
+  const pp = driveOrPlayer();
+  try { const p = placeAt(pp.x, pp.z); s.place = p.street || "Tōkonto"; s.sub = p.sub || ""; } catch (e) {}
+  (typeof shops === "object" && shops.list ? shops.list : []).forEach(sh => {
+    if (sh.safe || sh.brand === "capsule") return;
+    const p = sh.door || sh.at; if (!p) return;
+    if (ahead(p[0], p[1], 85, 0.5)) { if (s.shops.indexOf(sh.brand) < 0) s.shops.push(sh.brand); s.shopNames.push(sh.name); }
+  });
+  world.cities.forEach(c => {
+    (c.stations || []).forEach(st => { if (ahead(st.centre[0], st.centre[1], 150, 0.6)) { s.has.station = true; s.stations.push(st.name || "the station"); } });
+    (c.sites || []).forEach(site => { if (site.at && ahead(site.at[0], site.at[2], 260, 0.55)) s.landmarks.push(site.name); });
+  });
+  // vehicles
+  try { (traffic.cars || []).forEach(car => { if (car.live && car.at && ahead(car.at.x, car.at.z, 45, 0.6)) s.has.car = true; }); } catch (e) {}
+  if (s.driving) s.has.car = true;
+  try { if (rail && rail.sets) rail.sets.forEach(set => { if (set.live && set.pos && ahead(set.pos.x, set.pos.z, 120, 0.6)) s.has.train = true; }); } catch (e) {}
+  // the person holding it
+  if (player.mode === "walk" && !drive.car && player.obj && player.obj.visible && Math.hypot(at.x - player.pos.x, at.z - player.pos.z) < 9) s.has.seiko = true;
+  // the road and the resort
+  if (world.highway) {
+    const P = world.highway.pts;
+    for (let i = 0; i < P.length; i += 4) { if (ahead(P[i][0], P[i][2], 220, 0.55)) { s.has.highway = true; break; } }
+    try { tolls.list.forEach(t => { if (ahead(t.x, t.z, 140, 0.6)) { s.has.toll = true; s.has.highway = true; } }); } catch (e) {}
+  }
+  s.resort = null;
+  ski.list.forEach(R => { if (ahead(R.res.top[0], R.res.top[1], 1500, 0.6) || ahead(R.res.base[0], R.res.base[1], 700, 0.55) || Math.hypot(R.res.top[0] - at.x, R.res.top[1] - at.z) < 220) { s.has.ski = true; s.resort = R.name; } });
+  // the land in the direction of the lens
+  const top = world.highest || 700, snowLine = top * 0.58;
+  for (const d of [250, 600, 1100, 1800]) {
+    const x = at.x + dir.x * d, z = at.z + dir.z * d;
+    if (x < 0 || z < 0 || x > WORLD_X || z > WORLD_Z) continue;
+    const h = world.sampleHeight(x, z);
+    if (h < 0.2) s.has.sea = true;
+    if (h > at.y + 70 && d >= 250) s.has.mountain = true;
+    if (h > snowLine) s.has.snow = true;
+  }
+  s.golden = (s.hour >= 5 && s.hour < 7.6) || (s.hour >= 16 && s.hour < 18.8);
+  s.night = s.hour >= 19.5 || s.hour < 4.8;
+  return s;
+}
+function driveOrPlayer() { return drive.car ? drive.car.pos : player.pos; }
+
+// ---- the pixels
+function mnStats(c) {
+  const w = c.width, h = c.height, g = c.getContext("2d");
+  let d; try { d = g.getImageData(0, 0, w, h).data; } catch (e) { return null; }
+  const S = 4, gw = Math.ceil(w / S), gh = Math.ceil(h / S), lum = new Float32Array(gw * gh);
+  let n = 0, sL = 0, sL2 = 0, sS = 0, green = 0, grey = 0, white = 0, dark = 0, warm = 0, skyN = 0, skyTot = 0, blue = 0;
+  const hist = new Float32Array(16), blk = new Float32Array(64), blkN = new Float32Array(64);
+  for (let gy = 0; gy < gh; gy++) for (let gx = 0; gx < gw; gx++) {
+    const x = Math.min(w - 1, gx * S), y = Math.min(h - 1, gy * S), i = (y * w + x) * 4;
+    const r = d[i], gg = d[i + 1], b = d[i + 2];
+    const L = (0.2126 * r + 0.7152 * gg + 0.0722 * b) / 255, mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), sat = mx ? (mx - mn) / mx : 0;
+    lum[gy * gw + gx] = L; n++; sL += L; sL2 += L * L; sS += sat;
+    hist[Math.min(15, (L * 16) | 0)]++;
+    if (gg > r + 8 && gg > b + 4 && sat > 0.18) green++;
+    if (sat < 0.12 && L > 0.18 && L < 0.8) grey++;
+    if (L > 0.82 && sat < 0.2) white++;
+    if (L < 0.12) dark++;
+    if (r > b + 22) warm++;
+    if (b > r + 14 && b > gg - 4 && sat > 0.15) blue++;
+    if (gy < gh * 0.38) { skyTot++; if (b > r && L > 0.45 && sat < 0.7) skyN++; }
+    const bi = Math.min(7, (gy / gh * 8) | 0) * 8 + Math.min(7, (gx / gw * 8) | 0); blk[bi] += L; blkN[bi]++;
+  }
+  const mean = sL / n, std = Math.sqrt(Math.max(0, sL2 / n - mean * mean));
+  // edges: how much the picture changes from one sample to the next
+  let edge = 0, ec = 0; const thirds = [0, 0, 0, 0]; let eTot = 0;
+  for (let y = 0; y < gh - 1; y++) for (let x = 0; x < gw - 1; x++) {
+    const a = lum[y * gw + x], e = Math.abs(a - lum[y * gw + x + 1]) + Math.abs(a - lum[(y + 1) * gw + x]);
+    edge += e; ec++; eTot += e;
+    const fx = x / gw, fy = y / gh;
+    [[1 / 3, 1 / 3], [2 / 3, 1 / 3], [1 / 3, 2 / 3], [2 / 3, 2 / 3]].forEach((p, k) => { if (Math.abs(fx - p[0]) < 0.11 && Math.abs(fy - p[1]) < 0.11) thirds[k] += e; });
+  }
+  let ent = 0; for (let i = 0; i < 16; i++) { const p = hist[i] / n; if (p > 0) ent -= p * Math.log2(p); }
+  let hash = ""; const bm = blk.map((v, i) => v / Math.max(1, blkN[i])); const avg = bm.reduce((a, v) => a + v, 0) / 64;
+  bm.forEach(v => { hash += v > avg ? "1" : "0"; });
+  const centre = (() => { let q = 0; for (let y = (gh * 0.35) | 0; y < gh * 0.65; y++) for (let x = (gw * 0.35) | 0; x < gw * 0.65; x++) q += Math.abs(lum[y * gw + x] - lum[y * gw + Math.min(gw - 1, x + 1)]); return q; })();
+  return { mean: mean, std: std, sat: sS / n, edge: edge / Math.max(1, ec) / 2, entropy: ent, green: green / n, grey: grey / n, white: white / n, dark: dark / n,
+           warm: warm / n, sky: skyTot ? skyN / skyTot : 0, blue: blue / n, hash: hash,
+           thirds: eTot ? thirds.reduce((a, v) => a + v, 0) / eTot : 0, centre: eTot ? centre / eTot : 0 };
+}
+function mnHamming(a, b) { let d = 0; for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) d++; return d; }
+
+function mnWords(text) { return (text.toLowerCase().match(/[a-z']+/g) || []); }
+
+// ---- the critic
+// Takes a photograph (with what the game knew about it) and a caption, and
+// says how it will land: a score, the things worth remarking on, and the lines
+// to say them in. Everything a follower can say starts from one of these.
+function mnAnalyse(photo, caption) {
+  const ctx = photo.meta && photo.meta.ctx ? photo.meta.ctx : { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, place: "Konto", hour: 12, golden: false, night: false };
+  const st = (photo.meta && photo.meta.stats) || mnStats(photo) || { mean: 0.4, std: 0.1, sat: 0.2, edge: 0.03, entropy: 2.5, green: 0, grey: 0, white: 0, dark: 0, warm: 0, sky: 0, blue: 0, hash: "", thirds: 0.2, centre: 0.2 };
+  if (photo.meta) photo.meta.stats = st;
+  const dev = (photo.meta && photo.meta.phone) || "phone";
+  const cap = (caption || "").trim();
+  const words = mnWords(cap).filter(w => w.length > 0);
+  const tags = (cap.match(/#[\p{L}\p{N}_]+/gu) || []);
+  const emojis = (cap.match(/[\u{1F300}-\u{1FAFF}☀-➿]/gu) || []);
+  const lower = cap.toLowerCase();
+  const letters = cap.replace(/[^A-Za-z]/g, "");
+  const caps = letters.length > 8 && letters.replace(/[^A-Z]/g, "").length / letters.length > 0.6;
+  const F = [];                                    // findings: { good, w, lines: [] }
+  const add = (good, w, lines) => F.push({ good: good, w: w, lines: lines.map(l => mnFill(l, { place: ctx.place, device: dev, shop: ctx.shopNames[0] || "that shop", brand: SHOP_BRANDS[ctx.shops[0]] ? SHOP_BRANDS[ctx.shops[0]].name : "that place", landmark: ctx.landmarks[0] || "that place", station: ctx.stations[0] || "the station", resort: ctx.resort || "the mountain" })) });
+
+  // ---- the photograph
+  const exposure = 1 - clamp01(Math.abs(st.mean - 0.46) / 0.38);
+  const contrast = clamp01(st.std / 0.20);
+  const sharp = clamp01(st.edge / 0.034);
+  const colour = clamp01(1 - Math.abs(st.sat - 0.32) / 0.32);
+  const interest = clamp01(st.entropy / 3.2);
+  let photoQ = 100 * (0.26 * exposure + 0.17 * contrast + 0.22 * sharp + 0.12 * colour + 0.23 * interest);
+  const subjects = [];
+  if (ctx.shops.length) subjects.push("shop"); if (ctx.landmarks.length) subjects.push("landmark"); if (ctx.has.station) subjects.push("station");
+  ["mountain", "snow", "sea", "highway", "ski", "toll", "car", "train", "seiko"].forEach(k => { if (ctx.has[k]) subjects.push(k); });
+  const bonus = Math.min(26, subjects.length * 7 + (ctx.has.ski ? 3 : 0));
+  photoQ += bonus;
+  const golden = ctx.golden && st.warm > 0.18;
+  if (golden) { photoQ += 7; add(true, 1.2, ["Golden hour in {place} hits different", "That glow 🧡", "The light on this, wow"]); }
+  const detail = clamp01((st.edge - 0.012) / 0.016);
+  const empty = st.entropy < 1.7 || st.std < 0.045 || (detail < 0.35 && subjects.length === 0);
+  if (!empty && detail < 0.8) photoQ -= (1 - detail) * 20;
+  if (!empty && st.blue > 0.6 && subjects.length === 0) { photoQ -= 12; add(false, 1.4, ["It's a very nice sky. That's all it is", "Is this a photo of the weather?", "Sky. Just sky. Bold."]); }
+  if (st.dark > 0.4 && st.mean >= 0.17) { photoQ -= 6; add(false, 0.8, ["Half the frame is black", "Why is it so dark in the bottom half?"]); }
+  if (empty) { photoQ -= 22; add(false, 1.6, ["So this is a photo of… nothing?", "You pointed it at a wall, didn't you", "I've seen emptier, but only in the 07:12", "Is this the ground? this is the ground"]); }
+  if (sharp < 0.30 && !empty) { photoQ -= 12; add(false, 1.4, ["Did the {device} take this or did you sneeze?", "Blurry 😭", "Focus is a setting you can try", "I've seen sharper photos of the Loch Ness monster"]); }
+  else if (sharp > 0.72) add(true, 1, ["Crisp. That detail 👌", "No filter and it still pops", "The {device} is cooking"]);
+  if (st.mean < 0.17 && !ctx.night) { photoQ -= 12; add(false, 1.4, ["I can't see anything", "Turn a light on, Seiko", "Is this a photo of the inside of a cupboard?"]); }
+  else if (st.mean < 0.30 && ctx.night && st.std > 0.1) add(true, 1, ["Night shots in {place} always win", "The neon, the dark, the mood 🌃"]);
+  else if (st.mean < 0.17) { photoQ -= 8; add(false, 1, ["Too dark to enjoy, sorry", "I'm squinting"]); }
+  if (st.mean > 0.80) { photoQ -= 10; add(false, 1.2, ["My eyes!!", "Who turned the sun up?", "Overexposed, my friend"]); }
+  else if (exposure > 0.78 && contrast > 0.8 && detail > 0.5) add(true, 0.8, ["Lighting is perfect", "That exposure 😍"]);
+  if (st.sat < 0.07 && !empty) { photoQ -= 5; add(false, 0.8, ["So grey. Who drained the colour?", "Beige on beige, a bold choice"]); }
+  else if (st.sat > 0.26 && st.sat < 0.6 && colour > 0.6) add(true, 0.8, ["Those colours!!", "The colours are so good"]);
+  if (st.thirds > 0.26 && st.thirds < 0.6) add(true, 0.5, ["Great composition", "The framing is really nice"]);
+  // subjects
+  if (ctx.shops.length) { const b = SHOP_BRANDS[ctx.shops[0]]; add(true, 1.1, ["{shop}!! I go there every week", "{brand} spotted 👀", "That shopfront has great light"]); if (!b) {} }
+  if (ctx.landmarks.length) add(true, 1.3, ["{landmark}!! Haven't been since the school trip", "{landmark} never gets old", "Seiko visiting {landmark}, wholesome"]);
+  if (ctx.has.station) add(true, 1, ["{station}, my morning nightmare 😂", "NHRail looks good even when it's late"]);
+  if (ctx.has.snow) add(true, 1.2, ["Snow already?? Take me there", "That snow line is so crisp ❄️"]);
+  else if (ctx.has.mountain) add(true, 1, ["Konto has views", "That ridge though 🏔️"]);
+  if (ctx.has.ski) add(true, 1.3, ["See you on the black run 🎿", "{resort} season is open!!", "Which run is this? asking for a broken ankle"]);
+  if (ctx.has.sea) add(true, 1, ["That coast 😍", "Sea air, please", "The water is such a nice teal"]);
+  if (ctx.has.highway) add(true, 1.2, ["The Coastal Expressway at that angle 😮‍💨", "Best road in Konto, no argument"]);
+  if (ctx.has.toll) add(true, 0.8, ["Money well spent, pretty gantry", "NH Tolls card users know"]);
+  if (ctx.has.car) add(true, 0.8, ["Nice ride", "A car in the frame always helps"]);
+  if (ctx.has.train) add(true, 1, ["NHRail ❤️", "Train photo, classic"]);
+  if (ctx.has.seiko) {
+    const recentSelfies = mynet.posts.slice(0, 4).filter(p => p.meta && p.meta.selfie).length;
+    if (photo.meta && photo.meta.selfie && recentSelfies >= 2) { photoQ -= 12; add(false, 1.3, ["So many selfies this week", "Face again? we get it, you have a face"]); }
+    else add(true, 1, ["Seiko-san looking sharp", "The tie is crooked and it's iconic", "Peak salaryman energy"]);
+  }
+  if (subjects.length === 0 && !empty) add(false, 0.6, ["It's… a street? ok", "And? what am I looking at", "Mid"]);
+  // ---- the caption
+  let capQ = 56;
+  if (!cap) { capQ = 30; add(false, 1, ["No caption? Mysterious or lazy", "Say something, Seiko"]); }
+  else {
+    if (words.length >= 3 && words.length <= 30) capQ += 10; else if (words.length < 3) { capQ -= 14; add(false, 1, ["“" + cap.slice(0, 18) + "”? that's it?", "Three words would not kill you"]); } else if (words.length > 45) { capQ -= 10; add(false, 0.7, ["tl;dr", "This is a novel"]); }
+    if (tags.length >= 1 && tags.length <= 3) { capQ += 8; add(true, 0.5, ["Tasteful hashtags for once", "Love the caption"]); }
+    else if (tags.length >= 7) { capQ -= 16; add(false, 1.2, ["So many hashtags 🙄", "Hashtag soup", "Is this a post or a tag cloud"]); }
+    else if (tags.length >= 4) capQ -= 3;
+    if (emojis.length >= 1 && emojis.length <= 3) capQ += 5; else if (emojis.length > 6) { capQ -= 8; add(false, 0.6, ["The emoji count is concerning", "Easy on the emojis"]); }
+    const pos = words.filter(w => MN_POS.indexOf(w) >= 0).length, neg = words.filter(w => MN_NEG.indexOf(w) >= 0).length;
+    capQ += Math.min(12, pos * 4) - Math.min(18, neg * 6);
+    if (pos) add(true, 0.6, ["Love the positivity", "Such good vibes in this one"]);
+    if (neg) add(false, 0.8, ["Bit of a downer", "Cheer up, Seiko"]);
+    if (/\?/.test(cap)) { capQ += 4; add(true, 0.5, ["Wait, where is this?", "Okay but where is this??"]); }
+    if ((cap.match(/!/g) || []).length > 3) capQ -= 8;
+    if (caps) { capQ -= 14; add(false, 1.1, ["Why are we shouting", "CAPS LOCK IS NOT A PERSONALITY"]); }
+    if (/(.)\1{3,}/.test(lower)) capQ -= 3;
+    if (MN_BEG.some(b => lower.indexOf(b) >= 0)) { capQ -= 24; add(false, 1.8, ["Begging for follows is crazy", "Unfollowed for the 'follow me'", "Not the follow-for-follow 💀"]); }
+    if (words.some(w => MN_RUDE.indexOf(w) >= 0)) { capQ -= 22; add(false, 1.8, ["Why so rude?", "Touch grass, Seiko", "Wow. Okay. Delete this"]); }
+  }
+  capQ = clamp(capQ, 0, 100);
+  // ---- does the caption match the picture
+  let rel = 55, claimed = 0, held = 0, broken = 0;
+  const seenWhat = subjects.length ? subjects[0] : "a street";
+  const evidence = { shops: ctx.shops, has: ctx.has, golden: ctx.golden, night: ctx.night, landmarks: ctx.landmarks, white: st.white, driving: ctx.driving };
+  MN_TOPICS.forEach(t => {
+    if (!t.words.test(cap)) return;
+    claimed++;
+    if (t.need(evidence)) { held++; add(true, 1.4, ["The caption matches the shot, nice", t.id + " confirmed ✅", "Caption and photo agree, for once"]); }
+    else { broken++; add(false, 2.0, ["You say " + t.id + " but I see " + t.seen, "“" + t.id + "”?? Where?? I just see " + (subjects.length ? subjects[0] : "a street"), "Caption and photo are in a fight"]); }
+  });
+  if (claimed) rel = clamp(55 + held * 22 - broken * 30, 0, 100);
+  else if (cap && subjects.length) {
+    // not claiming anything, but naming the place it is in is nice
+    if (cap.toLowerCase().indexOf(ctx.place.toLowerCase().split(" ")[0]) >= 0) { rel = 72; add(true, 0.6, ["Love that you named the spot"]); }
+  }
+  // ---- doing it too often, doing it twice
+  let pen = 0;
+  const nowM = mnNow();
+  const recent = mynet.posts.filter(p => nowM - p.t < 60).length;
+  if (recent >= 2) { pen += Math.min(24, (recent - 1) * 9); add(false, 1.5, ["Chill with the posting", "My whole feed is you right now", "Touch grass, post later"]); }
+  const norm = lower.replace(/[^a-z0-9]/g, "");
+  const dupCap = norm.length > 3 && mynet.posts.some(p => p.norm === norm);
+  if (dupCap) { pen += 22; add(false, 1.7, ["Same caption as last time lol", "Copy and paste, my favourite"]); }
+  const dupPhoto = st.hash && mynet.posts.some(p => p.meta && p.meta.stats && p.meta.stats.hash && mnHamming(p.meta.stats.hash, st.hash) <= 5);
+  if (dupPhoto) { pen += 30; add(false, 2.0, ["You already posted this one", "Recycling content, huh", "This is the same photo with extra steps"]); }
+
+  let score = 0.5 * clamp(photoQ, 0, 100) + 0.28 * capQ + 0.22 * rel - pen + (Math.random() - 0.5) * 6;
+  score = clamp(Math.round(score), 0, 100);
+  const tier = score >= 82 ? "viral" : score >= 68 ? "great" : score >= 55 ? "good" : score >= 42 ? "meh" : score >= 28 ? "bad" : "awful";
+  const verdicts = { viral: "Everyone saw this one.", great: "That did really well.", good: "A solid post.", meh: "It came and went.", bad: "That did not go well.", awful: "That was a disaster." };
+  // what to tell him, in his own terms
+  const noticed = [];
+  const seenText = {};
+  F.slice().sort((a, b) => b.w - a.w).forEach(f => { if (noticed.length >= 6 || seenText[f.lines[0]]) return; seenText[f.lines[0]] = 1; noticed.push({ good: f.good, text: f.lines[0] }); });
+  return { score: score, tier: tier, verdict: verdicts[tier], findings: F, noticed: noticed, parts: { photo: Math.round(clamp(photoQ, 0, 100)), caption: Math.round(capQ), match: Math.round(rel), penalty: Math.round(pen) },
+           ctx: ctx, subjects: subjects, claimed: claimed, held: held, broken: broken };
+}
+function mnFill(s, v) { return s.replace(/\{(\w+)\}/g, (m, k) => v[k] !== undefined ? v[k] : m); }
+function mnNow() { return TIME.startMin + clock * TIME.rate; }
+
+// ---- the account
+const mynet = {
+  me: { name: "Seiko Shigu", handle: "@seiko_shigu", bio: "Salaryman. Tōkonto, mostly.\nCommuting too far.", followers: 24, following: 31, shown: 24, income: 0 },
+  posts: [], feed: [], threads: [], contacts: [], pending: [],
+  deal: null, offerAt: 0, dmAt: 0, feedAt: 0, ready: false, nid: 1,
+  tab: 0, sel: 0, bar: false, view: "tab", detail: null, page: 0, cs: 0, thread: null, opt: 0,
+  pick: { sel: 0 }, comp: { photo: null, text: "", r: 1, c: 5, shift: false, mode: "caption" },
+  seen: 0, newReact: 0, lastSay: 0, portrait: null, key: "", busy: false, sharing: 0, best: 0,
+  intro: true
+};
+function mynetLoadKey() { try { mynet.key = localStorage.getItem("konto.mynet.key") || ""; } catch (e) {} }
+function mynetSaveKey() { try { localStorage.setItem("konto.mynet.key", mynet.key); } catch (e) {} }
+
+function mnPerson(role) {
+  const pool = MN_PEOPLE.filter(p => !role || p.role === role);
+  return (pool.length ? pool : MN_PEOPLE)[(Math.random() * (pool.length || MN_PEOPLE.length)) | 0];
+}
+function mnPick(a) { return a[(Math.random() * a.length) | 0]; }
+
+function mnFeedPost(ageMin) {
+  const tpl = MN_POSTS[(Math.random() * MN_POSTS.length) | 0];
+  const who = mnPerson(tpl.role);
+  const p = { id: mynet.nid++, who: who, you: false, scene: tpl.scene, img: null, caption: tpl.text, place: tpl.place, t: mnNow() - ageMin,
+              likes: Math.round(Math.pow(10, 2.3 + Math.random() * 2.4)), liked: false, comments: [], meta: null };
+  const n = 1 + ((Math.random() * 4) | 0);
+  for (let i = 0; i < n; i++) { const q = mnPerson(); p.comments.push({ who: q, text: mnPick(MN_FEED_COMMENTS), t: p.t + 2 + i * 3 }); }
+  return p;
+}
+const MN_FEED_COMMENTS = ["so good", "I need this", "wow 😍", "which shop is this?", "this is why I live here", "ok I'm going tomorrow", "the light!!", "saved", "same", "lol", "Seiko should see this", "okay that's nice", "please do more of these", "🔥🔥🔥", "I was there!!"];
+function mnImg(p) { if (!p.img) p.img = p.you ? p.photo : mnScene(p.scene, 320); return p.img; }
+
+function mynetInit() {
+  if (mynet.ready) return;
+  mynet.ready = true;
+  mynetLoadKey();
+  for (let i = 0; i < 7; i++) mynet.feed.push(mnFeedPost(10 + i * 37 + Math.random() * 20));
+  mynet.feed.sort((a, b) => b.t - a.t);
+  mynet.feedAt = mnNow() + 7;
+  mynet.dmAt = mnNow() + 25;
+  mynet.offerAt = mnNow() + 90;
+}
+
+// ---- how a post is received
+// Followers react on a timetable: a like or two inside a couple of minutes,
+// the comments a little later, the follower count last of all.
+function mnReact(post, A, aiComments) {
+  const F = mynet.me.followers, now = mnNow(), tier = A.tier;
+  const rate = { viral: 0.62, great: 0.38, good: 0.24, meh: 0.11, bad: 0.05, awful: 0.025 }[tier];
+  let likes = Math.round(F * rate * (0.8 + Math.random() * 0.4));
+  if (A.score >= 68) likes += Math.round(F * (A.score - 66) * 0.012);
+  if (A.score >= 55) likes += 2; else if (A.score >= 42) likes += 1;
+  if (F >= 20 && A.score >= 28) likes = Math.max(likes, 1);
+  post.likesTarget = Math.max(0, likes);
+  const nC = tier === "viral" ? 8 : tier === "great" ? 6 : tier === "good" ? 4 : tier === "meh" ? 2 : tier === "bad" ? 4 : 5;
+  const count = clamp(Math.round(Math.sqrt(Math.max(likes, 1)) * 0.75), 1, nC + 6);
+  const comments = aiComments && aiComments.length ? aiComments : mnMakeComments(A, count);
+  // spread the likes in ten or so waves
+  const waves = 10;
+  const per = Math.floor(post.likesTarget / waves), rem = post.likesTarget - per * waves;
+  for (let i = 0; i < waves; i++) { const n = per + (i < rem ? 1 : 0); if (n > 0) mynet.pending.push({ at: now + 0.5 + Math.pow(i / waves, 1.6) * 28 + Math.random() * 1.5, post: post, type: "like", n: n }); }
+  comments.forEach((c, i) => mynet.pending.push({ at: now + 2.5 + (i + Math.random()) * (22 / comments.length), post: post, type: "comment", c: c }));
+  // followers: up for good posts, down for bad, in a few steps
+  let delta = 0;
+  const damp = 1 / (1 + F / 250000);
+  if (tier === "viral") delta = Math.round((F * (0.07 + Math.random() * 0.09) + 18 + Math.random() * 40) * damp);
+  else if (tier === "great") delta = Math.round((F * (0.025 + Math.random() * 0.03) + 7) * damp);
+  else if (tier === "good") delta = Math.round((F * (0.008 + Math.random() * 0.012) + 3) * damp);
+  else if (tier === "meh") delta = Math.round(F * 0.002 * Math.random() + (Math.random() < 0.4 ? 1 : 0));
+  else if (tier === "bad") delta = -Math.round(F * (0.02 + Math.random() * 0.04) + 1);
+  else delta = -Math.round(F * (0.06 + Math.random() * 0.09) + 2);
+  if (F + delta < 0) delta = -F;
+  post.delta = delta;
+  const steps = Math.max(1, Math.min(6, Math.abs(delta)));
+  for (let i = 0; i < steps; i++) mynet.pending.push({ at: now + 3 + Math.random() * 40, post: post, type: "follow", n: Math.round(delta / steps) || (delta > 0 ? 1 : -1) });
+  mynet.pending.sort((a, b) => a.at - b.at);
+  // how it feels to be looked at
+  if (tier === "awful") vitals.stress = clamp01(vitals.stress + 0.10);
+  else if (tier === "bad") vitals.stress = clamp01(vitals.stress + 0.05);
+  else if (tier === "viral") vitals.stress = clamp01(vitals.stress - 0.06);
+  else if (tier === "great") vitals.stress = clamp01(vitals.stress - 0.03);
+}
+
+function mnMakeComments(A, count) {
+  const out = [], tier = A.tier;
+  const good = A.findings.filter(f => f.good), bad = A.findings.filter(f => !f.good);
+  const weight = list => { const tot = list.reduce((a, f) => a + f.w, 0); let r = Math.random() * tot; for (const f of list) { r -= f.w; if (r <= 0) return f; } return list[list.length - 1]; };
+  const pr = { viral: [0.9, 0.08, 0.02], great: [0.78, 0.15, 0.07], good: [0.62, 0.2, 0.18], meh: [0.3, 0.35, 0.35], bad: [0.12, 0.2, 0.68], awful: [0.04, 0.1, 0.86] }[tier];
+  const generic = {
+    pos: ["Legend", "Seiko you've done it again", "Shared this with my whole office", "okay THIS is why I follow you", "this deserves more likes", "frame it", "not the best post of the week, the best post of the YEAR"],
+    neu: ["ok", "👍", "nice i guess", "first", "hmm", "interesting", "cool", "is this a shop?", "lol"],
+    neg: ["mid", "who asked", "delete this", "you can do better", "this is why I muted you", "my cat does this better", "the algorithm brought me here and I regret it", "ratio"],
+    awful: ["Are you okay?", "I'm unfollowing and I feel nothing", "delete the app, Seiko", "this is a cry for help", "I'd rather read the terms and conditions", "Bold of you to post this", "Did your thumb slip? tell me your thumb slipped"]
+  };
+  const seen = {};
+  for (let i = 0; i < count; i++) {
+    const r = Math.random(); let pol = r < pr[0] ? "pos" : r < pr[0] + pr[1] ? "neu" : "neg";
+    let text = null, role = null;
+    if (pol === "pos" && good.length && Math.random() < 0.75) text = mnPick(weight(good).lines);
+    else if (pol === "neg" && bad.length && Math.random() < 0.8) text = mnPick(weight(bad).lines);
+    else if (pol === "neg" && tier === "awful" && Math.random() < 0.55) text = mnPick(generic.awful);
+    else text = mnPick(pol === "pos" ? generic.pos : pol === "neu" ? generic.neu : generic.neg);
+    if (seen[text]) { i--; if (Object.keys(seen).length > 40) break; seen[text]++; continue; }
+    seen[text] = 1;
+    role = pol === "neg" ? (Math.random() < 0.45 ? "troll" : null) : pol === "pos" ? (Math.random() < 0.3 ? "fan" : null) : null;
+    out.push({ who: mnPerson(role), text: text, pol: pol });
+  }
+  // the boss notices a bad post, and the aunties notice everything
+  if ((tier === "bad" || tier === "awful") && Math.random() < 0.6) out.push({ who: MN_PEOPLE.find(p => p.role === "boss"), text: mnPick(["Seiko-kun, is this during work hours?", "See me on Monday.", "Is that what we are paying you for?"]), pol: "neg" });
+  if ((tier === "great" || tier === "viral") && Math.random() < 0.5) out.push({ who: MN_PEOPLE.find(p => p.role === "aunty"), text: mnPick(["Seiko-chan, so clever! Are you eating properly?", "My grandson showed me this. I clapped.", "You look thin, eat a rice ball 🍙"]), pol: "pos" });
+  return out;
+}
+
+// ---- asking something cleverer
+// With a key, the real critic looks at the real picture. Anything that goes
+// wrong - no network, a bad key, an answer that is not what was asked for -
+// and the built-in critic's verdict stands.
+async function mnAskClaude(photo, caption, A) {
+  if (!mynet.key) return null;
+  const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 20000);
+  try {
+    const c = document.createElement("canvas"); c.width = c.height = 384; c.getContext("2d").drawImage(photo, 0, 0, 384, 384);
+    const data = c.toDataURL("image/jpeg", 0.8).split(",")[1];
+    const ctx = A.ctx, F = mynet.me.followers;
+    const facts = [
+      "Place: " + ctx.place + (ctx.sub ? " (" + ctx.sub + ")" : ""),
+      "Time of day: " + Math.floor(ctx.hour) + ":" + two(Math.floor((ctx.hour % 1) * 60)),
+      "Things the game knows are in front of the lens: " + (A.subjects.length ? A.subjects.join(", ") : "nothing notable") + (ctx.shopNames.length ? "; shops: " + ctx.shopNames.slice(0, 3).join(", ") : "") + (ctx.landmarks.length ? "; landmarks: " + ctx.landmarks.slice(0, 2).join(", ") : ""),
+      "Phone: " + ((photo.meta && photo.meta.phone) || "phone") + (photo.meta && photo.meta.selfie ? " (a selfie)" : ""),
+      "Seiko has " + F + " followers and has posted " + mynet.posts.length + " times; his last posts scored " + (mynet.posts.slice(0, 4).map(p => p.score).join(", ") || "none") + ".",
+      "Posted in the last hour: " + mynet.posts.filter(p => mnNow() - p.t < 60).length
+    ].join("\n");
+    const body = {
+      model: "claude-haiku-5-5", max_tokens: 900,
+      system: "You are the audience of MyNet, a photo-sharing app on Konto, a fictional island version of Japan. A salaryman called Seiko Shigu posts a photo with a caption and his followers react. Judge it honestly from what is actually in the picture and what the caption says: sharpness, light, composition, whether the caption matches the photo (a caption claiming ramen over a photo of a wall is a mismatch), repetition, spam, and tone. Reply with JSON only, no prose and no code fence: {\"score\":0-100,\"verdict\":\"one short sentence\",\"noticed\":[{\"good\":true|false,\"text\":\"short observation\"}],\"comments\":[{\"user\":\"@handle\",\"text\":\"comment\"}]}. Score 82+ is viral, 68+ great, 55+ good, 42+ meh, 28+ bad, below that a disaster. Give 3 to 8 comments in the voices of different islanders (fans, foodies, rail nerds, trolls, grannies, his boss Section Chief Tanaka). A bad post gets playful roasts that refer to exactly what is wrong with it. Never use slurs or real hate, and never mention real people or real brands.",
+      messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: data } }, { type: "text", text: facts + "\nCaption: " + (caption ? "\"" + caption + "\"" : "(none)") }] }]
+    };
+    const res = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", signal: ctl.signal,
+      headers: { "content-type": "application/json", "x-api-key": mynet.key, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error("http " + res.status);
+    const j = await res.json();
+    let txt = (j.content || []).map(b => b.text || "").join("").trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+    const a = txt.indexOf("{"), b = txt.lastIndexOf("}");
+    const out = JSON.parse(txt.slice(a, b + 1));
+    if (typeof out.score !== "number" || !Array.isArray(out.comments)) throw new Error("shape");
+    return out;
+  } catch (e) { mynet.lastAIError = String(e && e.message || e); return null; }
+  finally { clearTimeout(to); }
+}
+
+// ---- posting
+async function mynetShare() {
+  const c = mynet.comp; if (!c.photo || mynet.busy) return;
+  mynet.busy = true; mynet.view = "sharing"; mynet.sharing = 0; phone.dirty = true;
+  const caption = c.text.trim();
+  const photo = c.photo;
+  const A = mnAnalyse(photo, caption);
+  let aiUsed = false, ai = null;
+  if (mynet.key) {
+    ai = await mnAskClaude(photo, caption, A);
+    if (ai) {
+      aiUsed = true;
+      A.score = clamp(Math.round(ai.score), 0, 100);
+      A.tier = A.score >= 82 ? "viral" : A.score >= 68 ? "great" : A.score >= 55 ? "good" : A.score >= 42 ? "meh" : A.score >= 28 ? "bad" : "awful";
+      A.verdict = String(ai.verdict || A.verdict).slice(0, 90);
+      if (Array.isArray(ai.noticed) && ai.noticed.length) A.noticed = ai.noticed.slice(0, 6).map(n => ({ good: !!n.good, text: String(n.text || "").slice(0, 90) }));
+    }
+  }
+  const post = { id: mynet.nid++, who: { name: mynet.me.name, handle: mynet.me.handle, col: "#3a7bd5" }, you: true, photo: photo, img: photo, caption: caption, norm: caption.toLowerCase().replace(/[^a-z0-9]/g, ""),
+                 place: A.ctx.place, t: mnNow(), likes: 0, liked: false, comments: [], meta: photo.meta, score: A.score, tier: A.tier, A: A, delta: 0, ai: aiUsed, sponsor: null, unseen: 0 };
+  // a sponsor's terms, if there are any
+  if (mynet.deal) post.sponsor = mnJudgeDeal(post, A, caption);
+  let aiComments = null;
+  if (ai) {
+    aiComments = ai.comments.slice(0, 9).map(k => {
+      const who = MN_PEOPLE.find(p => p.handle === k.user) || mnPerson();
+      return { who: who, text: String(k.text || "").slice(0, 140), pol: A.score >= 55 ? "pos" : "neg" };
+    }).filter(k => k.text);
+  }
+  mynet.posts.unshift(post); mynet.feed.unshift(post);
+  mnReact(post, A, aiComments);
+  mynet.best = Math.max(mynet.best, A.score);
+  // the sheet is clean again
+  c.photo = null; c.text = ""; mynet.busy = false;
+  mynet.detail = post; mynet.page = 0; mynet.cs = 0; mynet.view = "detail"; mynet.tab = 3; phone.dirty = true;
+  mnSay("Posted. Followers are looking…", 3);
+}
+
+// a sponsor wants something specific, and only pays for exactly that
+function mnJudgeDeal(post, A, caption) {
+  const d = mynet.deal, lower = caption.toLowerCase();
+  const mention = lower.indexOf(d.brand.toLowerCase()) >= 0 || lower.indexOf(d.key) >= 0;
+  const ad = /#ad\b|#sponsored|#pr\b/.test(lower);
+  let subjectOk = true;
+  if (d.shop) subjectOk = A.ctx.shops.indexOf(d.shop) >= 0;
+  else if (d.subject === "station") subjectOk = !!A.ctx.has.station;
+  else if (d.subject === "highway") subjectOk = !!A.ctx.has.highway;
+  else if (d.subject === "ski") subjectOk = !!A.ctx.has.ski;
+  const met = mention && ad && subjectOk && A.score >= 55;
+  const res = { deal: d, mention: mention, ad: ad, subject: subjectOk, quality: A.score >= 55, paid: false };
+  const th = mynet.threads.find(t => t.id === d.thread);
+  const say = (text) => { if (th) { th.msgs.push({ from: "them", text: text, t: mnNow() + 4 }); th.unread = true; } };
+  if (met) {
+    res.paid = true; purse.yen += d.fee; mynet.me.income += d.fee;
+    mynet.pending.push({ at: mnNow() + 6, type: "dm", fn: () => { say("Posted and perfect. ¥" + d.fee.toLocaleString("en-US") + " is on its way to you. Thank you, Seiko!"); } });
+    mynet.pending.push({ at: mnNow() + 6, type: "pay", n: d.fee, brand: d.brand });
+    d.done = true;
+  } else if (mention && ad && subjectOk && A.score < 42) {
+    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { say("We saw the post. It didn't reflect well on " + d.brand + " and we're withdrawing the offer."); d.done = true; } });
+  } else {
+    const why = !mention ? "didn't mention " + d.brand : !ad ? "had no #ad on it" : !subjectOk ? "didn't show " + (d.shop ? "one of our shops" : d.subject === "station" ? "the railway" : d.subject === "highway" ? "the expressway" : "the mountain") : "wasn't good enough yet";
+    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { say("Thanks for posting, but it " + why + ". The offer's still open until the deadline."); } });
+  }
+  if (d.done) { mynet.deal = null; }
+  return res;
+}
+
+function mnSay(text, s) { const t = performance.now(); if (t - mynet.lastSay < 1500 && s !== 9) return; mynet.lastSay = t; say(text, s || 3); }
+function mynetBadge() { return mynet.threads.filter(t => t.unread).length + mynet.newReact; }
+
+// ---- messages
+function mnThread(who, kind, first, extra) {
+  const th = Object.assign({ id: mynet.nid++, who: who, kind: kind, msgs: [{ from: "them", text: first, t: mnNow() }], unread: true, opts: null, closed: false }, extra || {});
+  th.opts = mnOptions(th);
+  mynet.threads.unshift(th);
+  mnSay("MyNet · new message from " + who.name, 4);
+  phone.dirty = true;
+  return th;
+}
+function mnOptions(th) {
+  switch (th.kind) {
+    case "sponsor": return [{ label: "Accept the deal", act: "accept" }, { label: "Not interested", act: "decline" }];
+    case "fan":     return [{ label: "Thank you! 🙏", act: "r", me: "Thank you so much! That honestly made my day 🙏", them: "You're the best!! Keep posting 🙌" }, { label: "Who is this?", act: "r", me: "Sorry, who is this?", them: "Haha, nobody important. Just a fan!" }];
+    case "troll":   return [{ label: "Block", act: "block" }, { label: "Ignore", act: "close" }];
+    case "boss":    return [{ label: "Sorry, boss.", act: "r", me: "Sorry, boss. It won't happen again.", them: "It will. See me Monday.", stress: 0.05 }, { label: "It's my lunch break.", act: "r", me: "It's my lunch break, boss.", them: "...Lunch break. Fine. Eat something.", stress: 0.02 }];
+    case "mission": return [{ label: "Call now", act: "call" }, { label: "Maybe later", act: "close" }];
+    default: return null;
+  }
+}
+function mnReply(th, o) {
+  if (o.act === "accept" && th.deal) {
+    th.msgs.push({ from: "me", text: "Count me in.", t: mnNow() });
+    mynet.deal = th.deal; th.deal.thread = th.id; th.deal.accepted = mnNow();
+    th.msgs.push({ from: "them", text: "Wonderful. Remember: mention " + th.deal.brand + " and tag it #ad, and show " + th.deal.show + ". We pay as soon as it's up.", t: mnNow() + 0.2 });
+    th.opts = null; mnSay("Deal accepted · " + th.deal.brand + " · ¥" + th.deal.fee.toLocaleString("en-US"), 5);
+  } else if (o.act === "decline") {
+    th.msgs.push({ from: "me", text: "Thanks, but it's not for me.", t: mnNow() });
+    th.msgs.push({ from: "them", text: "No problem, another time!", t: mnNow() + 0.2 }); th.opts = null; th.closed = true;
+  } else if (o.act === "r") {
+    th.msgs.push({ from: "me", text: o.me, t: mnNow() }); th.msgs.push({ from: "them", text: o.them, t: mnNow() + 0.3 });
+    if (o.stress) vitals.stress = clamp01(vitals.stress + o.stress);
+    if (th.kind === "fan") { mynet.me.followers += 1 + ((Math.random() * 3) | 0); }
+    th.opts = null; th.closed = true;
+  } else if (o.act === "block") {
+    th.msgs.push({ from: "me", text: "(blocked)", t: mnNow() }); th.opts = null; th.closed = true;
+  } else if (o.act === "close") {
+    th.opts = null; th.closed = true;
+  } else if (o.act === "call") {
+    const w = th.who;
+    if (!mynet.contacts.some(c => c.handle === w.handle)) mynet.contacts.push({ name: w.name, handle: w.handle, phone: w.phone, line: w.line, hook: w.hook });
+    th.msgs.push({ from: "me", text: "Calling you now.", t: mnNow() });
+    th.opts = null; th.closed = true;
+    mynetCall(mynet.contacts.find(c => c.handle === w.handle));
+  }
+  mynet.opt = 0; phone.dirty = true;
+}
+// Phoning someone who messaged you. Their job is not ready: side missions are
+// coming later, and this is where they will start.
+function mynetCall(c) {
+  if (!c) return;
+  phone.app = "Phone"; phone.sub = 12; phone.dial = c.phone.replace(/\D/g, "").slice(0, 11);
+  phone.vmail = c.name + ": " + c.line; phone.call = { number: c.phone, t0ms: performance.now() };
+  c.called = true; phone.dirty = true;
+}
+
+function mnAvgScore(n) { const l = mynet.posts.slice(0, n); return l.length ? l.reduce((a, p) => a + p.score, 0) / l.length : 0; }
+
+function mynetSponsorOffer() {
+  const F = mynet.me.followers;
+  const options = MN_SPONSORS.filter(s => F >= s.min);
+  if (!options.length) return;
+  // the biggest one he qualifies for, most of the time; sometimes a smaller one
+  const s = Math.random() < 0.65 ? options[options.length - 1] : mnPick(options);
+  const scale = clamp01(Math.log(F / s.min + 1) / 2.4);
+  const fee = Math.round((s.fee[0] + (s.fee[1] - s.fee[0]) * scale) / 500) * 500;
+  const show = s.shop ? "one of our " + s.brand + " shops in the photo" : s.subject === "station" ? "an NHRail station or train in frame" : s.subject === "highway" ? "the expressway in the photo" : s.subject === "ski" ? "the mountain in the picture" : "the product in the picture";
+  const who = { name: s.brand + " Partnerships", handle: "@" + s.key + "_official", col: "#14796a", role: "sponsor" };
+  const deal = { brand: s.brand, key: s.key, shop: s.shop, subject: s.subject, fee: fee, show: show, deadline: mnNow() + 18 * 60, offered: mnNow() };
+  mnThread(who, "sponsor", "Hi Seiko! We've been following your posts and we love them. " + s.brand + " would like you to post about " + s.what + ": one photo, " + show + ", mention \"" + s.brand + "\" and tag it #ad. ¥" + fee.toLocaleString("en-US") + " when it's up. Interested?", { deal: deal });
+}
+function mynetRandomDm() {
+  const F = mynet.me.followers, avg = mnAvgScore(5);
+  const unreadNow = mynet.threads.filter(t => t.unread && !t.closed).length;
+  if (unreadNow >= 5) return;
+  const r = Math.random();
+  if (F >= 100 && mynet.contacts.length + mynet.threads.filter(t => t.kind === "mission" && !t.closed).length < MN_MISSION.length && r < 0.28) {
+    const used = {}; mynet.threads.forEach(t => { if (t.kind === "mission") used[t.who.handle] = 1; });
+    const m = MN_MISSION.find(x => !used[x.handle]);
+    if (m) { mnThread({ name: m.name, handle: m.handle, col: "#a0652d", role: "contact", phone: m.phone, line: m.line, hook: m.hook }, "mission", m.hook); return; }
+  }
+  if (F >= 60 && r < 0.55) { mnThread(mnPerson("fan"), "fan", mnPick(MN_FAN_DMS)); return; }
+  if (F >= 400 && (avg < 55 || F > 3000) && r < 0.75) { mnThread(mnPerson("troll"), "troll", mnPick(MN_TROLL_DMS)); return; }
+  if (F >= 150 && r < 0.9 && !mynet.threads.some(t => t.kind === "boss" && mnNow() - t.msgs[0].t < 24 * 60)) { mnThread(MN_PEOPLE.find(p => p.role === "boss"), "boss", mnPick(MN_BOSS_DMS)); return; }
+}
+
+// ---- time passing, with the phone shut or not
+function updateMyNet(dt) {
+  if (!mynet.ready) { if (world) mynetInit(); return; }
+  const now = mnNow();
+  // reactions arriving
+  let changed = false;
+  while (mynet.pending.length && mynet.pending[0].at <= now) {
+    const e = mynet.pending.shift(); changed = true;
+    if (e.type === "like") { e.post.likes += e.n; e.post.unseen = (e.post.unseen || 0) + 1; if (!e.post.firstLike) { e.post.firstLike = true; mynet.newReact++; mnSay("MyNet · " + mnPerson().handle + " liked your post", 3); } }
+    else if (e.type === "comment") { e.post.comments.push({ who: e.c.who, text: e.c.text, t: now, pol: e.c.pol }); mynet.newReact++; if (e.c.pol === "neg" || e.post.comments.length === 1) mnSay("MyNet · " + e.c.who.handle + ": " + e.c.text.slice(0, 48), 4); }
+    else if (e.type === "follow") { mynet.me.followers = Math.max(0, mynet.me.followers + e.n); if (e.n < 0 && Math.random() < 0.4) mnSay("MyNet · you lost " + Math.abs(e.n) + " follower" + (Math.abs(e.n) > 1 ? "s" : ""), 3); else if (e.n >= 5 && Math.random() < 0.5) mnSay("MyNet · +" + e.n + " new followers", 3); }
+    else if (e.type === "dm" && e.fn) e.fn();
+    else if (e.type === "pay") mnSay("MyNet · " + e.brand + " paid you ¥" + e.n.toLocaleString("en-US"), 6);
+  }
+  // other people carry on posting
+  if (now >= mynet.feedAt) {
+    mynet.feedAt = now + 8 + Math.random() * 14;
+    const p = mnFeedPost(0); mynet.feed.unshift(p); if (mynet.feed.length > 30) mynet.feed.length = 30; changed = true;
+    if (mynet.tab === 0 && mynet.view === "tab" && mynet.sel > 0) mynet.sel++;     // do not pull the post out from under the thumb
+  }
+  if (mynet.deal && now > mynet.deal.deadline) {
+    const th = mynet.threads.find(t => t.id === mynet.deal.thread);
+    if (th) { th.msgs.push({ from: "them", text: "The deadline has passed, so we've given the slot to someone else. Another time!", t: now }); th.unread = true; }
+    mynet.deal = null; changed = true;
+  }
+  // the world notices a following
+  if (now >= mynet.dmAt) { mynet.dmAt = now + 40 + Math.random() * 80; mynetRandomDm(); changed = true; }
+  if (now >= mynet.offerAt) {
+    mynet.offerAt = now + 60;
+    const F = mynet.me.followers;
+    const pending = mynet.threads.some(t => t.kind === "sponsor" && !t.closed && t.opts);
+    if (!mynet.deal && !pending && F >= 120 && mynet.posts.length >= 3 && mnAvgScore(4) >= 58 && Math.random() < 0.7) { mynetSponsorOffer(); changed = true; mynet.offerAt = now + 4 * 60; }
+  }
+  // the number on the profile rolls rather than jumps
+  const diff = mynet.me.followers - mynet.me.shown;
+  if (Math.abs(diff) > 0.2) { mynet.me.shown += diff * Math.min(1, dt * 4); if (Math.abs(mynet.me.followers - mynet.me.shown) < 0.5) mynet.me.shown = mynet.me.followers; changed = true; }
+  if (changed && phone.open && phone.app === "MyNet") phone.dirty = true;
+}
+
+// ---- drawing
+const MN_BG = "#0b0c10", MN_INK = "#f2f3f5", MN_DIM = "#8b9099", MN_LINE = "#22252c", MN_RED = "#ff3b5c", MN_GOOD = "#3ddc84", MN_BAD = "#ff5a5a";
+function mnIcon(g, k, cx, cy, s, col, fill) {
+  g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineWidth = s * 0.10; g.lineCap = "round"; g.lineJoin = "round"; g.beginPath();
+  const h = s / 2;
+  if (k === "heart") {
+    g.moveTo(cx, cy + h * 0.85);
+    g.bezierCurveTo(cx - h * 1.5, cy - h * 0.1, cx - h * 0.7, cy - h * 1.1, cx, cy - h * 0.35);
+    g.bezierCurveTo(cx + h * 0.7, cy - h * 1.1, cx + h * 1.5, cy - h * 0.1, cx, cy + h * 0.85);
+    if (fill) g.fill(); else g.stroke();
+  } else if (k === "comment") {
+    g.ellipse(cx, cy - h * 0.05, h * 0.92, h * 0.8, 0, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(cx - h * 0.35, cy + h * 0.65); g.lineTo(cx - h * 0.7, cy + h * 1.05); g.lineTo(cx - h * 0.05, cy + h * 0.74); g.stroke();
+  } else if (k === "plane") {
+    g.moveTo(cx - h * 0.95, cy - h * 0.1); g.lineTo(cx + h * 0.95, cy - h * 0.85); g.lineTo(cx + h * 0.35, cy + h * 0.85); g.lineTo(cx - h * 0.05, cy + h * 0.1); g.closePath();
+    if (fill) g.fill(); else g.stroke();
+    g.beginPath(); g.moveTo(cx - h * 0.05, cy + h * 0.1); g.lineTo(cx + h * 0.95, cy - h * 0.85); g.stroke();
+  } else if (k === "home") {
+    g.moveTo(cx - h * 0.9, cy + h * 0.1); g.lineTo(cx, cy - h * 0.8); g.lineTo(cx + h * 0.9, cy + h * 0.1); g.moveTo(cx - h * 0.62, cy - h * 0.12); g.lineTo(cx - h * 0.62, cy + h * 0.85); g.lineTo(cx + h * 0.62, cy + h * 0.85); g.lineTo(cx + h * 0.62, cy - h * 0.12);
+    if (fill) { g.fill(); } else g.stroke();
+  } else if (k === "plus") {
+    roundRect(g, cx - h * 0.85, cy - h * 0.85, h * 1.7, h * 1.7, h * 0.4); g.stroke();
+    g.beginPath(); g.moveTo(cx - h * 0.4, cy); g.lineTo(cx + h * 0.4, cy); g.moveTo(cx, cy - h * 0.4); g.lineTo(cx, cy + h * 0.4); g.stroke();
+  } else if (k === "person") {
+    g.arc(cx, cy - h * 0.35, h * 0.38, 0, Math.PI * 2); if (fill) g.fill(); else g.stroke();
+    g.beginPath(); g.arc(cx, cy + h * 1.05, h * 0.85, Math.PI * 1.15, Math.PI * 1.85); g.stroke();
+  } else if (k === "save") {
+    g.moveTo(cx - h * 0.55, cy - h * 0.85); g.lineTo(cx + h * 0.55, cy - h * 0.85); g.lineTo(cx + h * 0.55, cy + h * 0.85); g.lineTo(cx, cy + h * 0.4); g.lineTo(cx - h * 0.55, cy + h * 0.85); g.closePath(); g.stroke();
+  } else if (k === "chev") {
+    g.moveTo(cx + h * 0.3, cy - h * 0.7); g.lineTo(cx - h * 0.4, cy); g.lineTo(cx + h * 0.3, cy + h * 0.7); g.stroke();
+  }
+  g.restore();
+}
+function mnAvatar(g, x, y, r, who, ring) {
+  g.save();
+  if (ring) { const q = g.createLinearGradient(x - r, y + r, x + r, y - r); q.addColorStop(0, "#8a3ab9"); q.addColorStop(0.5, "#e95950"); q.addColorStop(1, "#fccc63"); g.fillStyle = q; g.beginPath(); g.arc(x, y, r + r * 0.12, 0, 7); g.fill(); g.fillStyle = MN_BG; g.beginPath(); g.arc(x, y, r + r * 0.02, 0, 7); g.fill(); }
+  g.beginPath(); g.arc(x, y, r - (ring ? r * 0.06 : 0), 0, 7); g.clip();
+  if (who && who.me && mynet.portrait) {
+    g.fillStyle = "#3a7bd5"; g.fillRect(x - r, y - r, r * 2, r * 2); g.drawImage(mynet.portrait, x - r * 1.08, y - r * 1.04, r * 2.16, r * 2.16);
+  } else {
+    g.fillStyle = (who && who.col) || "#555"; g.fillRect(x - r, y - r, r * 2, r * 2);
+    g.fillStyle = "rgba(255,255,255,0.92)"; g.font = "800 " + Math.round(r * 1.05) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText(((who && who.name) || "?").replace(/[^A-Za-z぀-鿿]/g, "").charAt(0).toUpperCase(), x, y + r * 0.04);
+  }
+  g.restore(); g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+function mnAgo(t) {
+  const m = Math.max(0, Math.round(mnNow() - t));
+  if (m < 1) return "just now"; if (m < 60) return m + "m ago"; if (m < 24 * 60) return Math.floor(m / 60) + "h ago"; return Math.floor(m / 1440) + "d ago";
+}
+function mnCount(n) { n = Math.round(n); return n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 10000 ? (n / 1000).toFixed(0) + "k" : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n); }
+function mnText(g, text, x, y, size, col, weight, align, max) {
+  g.font = (weight || "500") + " " + Math.round(size) + "px " + UI; g.fillStyle = col; g.textAlign = align || "left"; g.textBaseline = "alphabetic";
+  if (max) clipText(g, text, x, y, max); else g.fillText(text, x, y);
+}
+function mnWrap(g, text, x, y, max, lh, lines, size, col, weight) {
+  g.font = (weight || "500") + " " + Math.round(size) + "px " + UI; g.fillStyle = col; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const all = [];
+  String(text).split("\n").forEach(par => { wrapLines(g, par, max).forEach(l => all.push(l)); });
+  all.slice(0, lines).forEach((l, i) => g.fillText(i === lines - 1 && all.length > lines ? fitText(g, l + "…", max) : l, x, y + i * lh));
+  return Math.min(all.length, lines);
+}
+function mnGradText(g, text, x, y, size) {
+  g.font = "italic 800 " + Math.round(size) + "px " + UI; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const w = g.measureText(text).width, q = g.createLinearGradient(x, y - size, x + w, y); q.addColorStop(0, "#c13584"); q.addColorStop(0.55, "#fd5949"); q.addColorStop(1, "#fdb54e");
+  g.fillStyle = q; g.fillText(text, x, y);
+}
+
+function mnHeader(g, W, H) {
+  mnGradText(g, "MyNet", W * 0.055, H * 0.103, W * 0.088);
+  const bx = W * 0.80, ix = W * 0.915, y = H * 0.087;
+  mnIcon(g, "heart", bx, y, W * 0.058, MN_INK, false);
+  mnIcon(g, "plane", ix, y, W * 0.058, MN_INK, false);
+  if (mynet.newReact) { g.fillStyle = MN_RED; g.beginPath(); g.arc(bx + W * 0.03, y - W * 0.03, W * 0.019, 0, 7); g.fill(); }
+  const un = mynet.threads.filter(t => t.unread).length;
+  if (un) { g.fillStyle = MN_RED; g.beginPath(); g.arc(ix + W * 0.03, y - W * 0.03, W * 0.022, 0, 7); g.fill(); g.fillStyle = "#fff"; g.font = "800 " + Math.round(W * 0.028) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(String(un), ix + W * 0.03, y - W * 0.029); g.textBaseline = "alphabetic"; g.textAlign = "left"; }
+}
+const MN_TABS = [["home", "Home"], ["plus", "Post"], ["plane", "Inbox"], ["person", "You"]];
+function mnTabs(g, W, H) {
+  const y0 = H * 0.118, hh = H * 0.044;
+  g.fillStyle = MN_LINE; g.fillRect(0, y0 + hh, W, 1);
+  MN_TABS.forEach((t, i) => {
+    const cx = W * (0.125 + 0.25 * i), on = mynet.tab === i;
+    if (mynet.bar && on) { g.fillStyle = "rgba(255,255,255,0.14)"; roundRect(g, cx - W * 0.11, y0 + 2, W * 0.22, hh - 4, W * 0.02); g.fill(); g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = W * 0.004; roundRect(g, cx - W * 0.11, y0 + 2, W * 0.22, hh - 4, W * 0.02); g.stroke(); }
+    mnIcon(g, t[0], cx - W * 0.032, y0 + hh * 0.5, W * 0.05, on ? MN_INK : MN_DIM, on && t[0] !== "plus");
+    mnText(g, t[1], cx + W * 0.012, y0 + hh * 0.5 + W * 0.011, W * 0.033, on ? MN_INK : MN_DIM, on ? "700" : "500");
+    if (on) { g.fillStyle = MN_INK; g.fillRect(cx - W * 0.1, y0 + hh - 2, W * 0.2, 2); }
+  });
+}
+
+function mnCard(g, W, H, p, y0, big) {
+  // header
+  mnAvatar(g, W * 0.075, y0 + H * 0.028, W * 0.042, p.who, !p.you ? true : false);
+  mnText(g, p.who.handle.replace(/^@/, ""), W * 0.145, y0 + H * 0.0245, W * 0.04, MN_INK, "700", "left", W * 0.55);
+  mnText(g, p.place + " · " + mnAgo(p.t), W * 0.145, y0 + H * 0.0425, W * 0.03, MN_DIM, "500", "left", W * 0.65);
+  if (p.you) { g.fillStyle = "rgba(61,220,132,0.18)"; roundRect(g, W * 0.82, y0 + H * 0.014, W * 0.13, H * 0.026, W * 0.012); g.fill(); mnText(g, "YOU", W * 0.885, y0 + H * 0.0325, W * 0.029, MN_GOOD, "800", "center"); }
+  const iy = y0 + H * 0.058;
+  const img = mnImg(p);
+  g.save(); try { g.drawImage(img, 0, iy, W, W); } catch (e) { g.fillStyle = "#222"; g.fillRect(0, iy, W, W); } g.restore();
+  const ay = iy + W + H * 0.027;
+  mnIcon(g, "heart", W * 0.07, ay, W * 0.062 * (1 + (p.pulse || 0) * 0.3), p.liked ? MN_RED : MN_INK, p.liked);
+  mnIcon(g, "comment", W * 0.17, ay, W * 0.058, MN_INK, false);
+  mnIcon(g, "plane", W * 0.265, ay, W * 0.058, MN_INK, false);
+  mnIcon(g, "save", W * 0.93, ay, W * 0.054, MN_INK, false);
+  const ly = ay + H * 0.038;
+  mnText(g, mnCount(p.likes + (p.liked ? 1 : 0)) + " likes", W * 0.05, ly, W * 0.04, MN_INK, "700");
+  const cy = ly + H * 0.026;
+  g.font = "700 " + Math.round(W * 0.037) + "px " + UI; const nameW = g.measureText(p.who.handle.replace(/^@/, "") + " ").width;
+  mnText(g, p.who.handle.replace(/^@/, ""), W * 0.05, cy, W * 0.037, MN_INK, "700");
+  g.font = "500 " + Math.round(W * 0.037) + "px " + UI;
+  const lines = wrapLines(g, p.caption || "", W * 0.9 - nameW);
+  g.fillStyle = "#d5d8dd"; g.textAlign = "left";
+  if (lines.length) {
+    g.fillText(fitText(g, lines[0], W * 0.9 - nameW), W * 0.05 + nameW, cy);
+    if (lines[1]) g.fillText(lines.length > 2 ? fitText(g, lines[1] + "…", W * 0.9) : lines[1], W * 0.05, cy + H * 0.026);
+  }
+  const ey = cy + H * (lines.length > 1 ? 0.056 : 0.03);
+  mnText(g, p.comments.length ? "View all " + p.comments.length + " comment" + (p.comments.length > 1 ? "s" : "") + "  ›" : "No comments yet", W * 0.05, ey, W * 0.033, MN_DIM, "500");
+  return ey;
+}
+
+function mnDrawFeed(g, W, H) {
+  const list = mynet.feed; if (!list.length) return;
+  mynet.sel = clamp(mynet.sel, 0, list.length - 1);
+  const p = list[mynet.sel];
+  if (p.pulse) p.pulse = Math.max(0, p.pulse - 0.08);
+  mnCard(g, W, H, p, H * 0.166);
+  mnText(g, "Up/Down posts  ·  A like  ·  Right comments  ·  " + (mynet.sel + 1) + "/" + list.length, W * 0.5, H * 0.918, W * 0.029, "#6b7078", "500", "center");
+}
+
+function mnTile(g, x, y, s, img, on, label) {
+  g.save(); g.beginPath(); g.rect(x, y, s, s); g.clip();
+  if (img) { try { g.drawImage(img, x, y, s, s); } catch (e) { g.fillStyle = "#222"; g.fillRect(x, y, s, s); } } else { g.fillStyle = "#1a1d23"; g.fillRect(x, y, s, s); }
+  g.restore();
+  if (label) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(x, y + s - s * 0.2, s, s * 0.2); mnText(g, label, x + s / 2, y + s - s * 0.06, s * 0.1, "#fff", "700", "center"); }
+  if (on) { g.strokeStyle = "#fff"; g.lineWidth = s * 0.03; g.strokeRect(x + s * 0.015, y + s * 0.015, s * 0.97, s * 0.97); }
+}
+
+function mnDrawPick(g, W, H) {
+  const items = [null].concat(phone.gallery.slice().reverse().slice(0, 15));
+  mynet.pick.sel = clamp(mynet.pick.sel, 0, items.length - 1);
+  mnText(g, "New post", W * 0.05, H * 0.2, W * 0.05, MN_INK, "800");
+  mnText(g, phone.gallery.length ? "Choose a photograph. Take more with Camera." : "No photographs yet. Open Camera and press A, then come back.", W * 0.05, H * 0.222, W * 0.032, MN_DIM, "500", "left", W * 0.9);
+  const cols = 3, gap = 3, s = (W - gap * 2) / 3, top = H * 0.24, vis = 3;
+  const row = (mynet.pick.sel / cols) | 0, first = clamp(row - 1, 0, Math.max(0, Math.ceil(items.length / cols) - vis));
+  items.forEach((img, i) => {
+    const r = ((i / cols) | 0) - first, c = i % cols; if (r < 0 || r >= vis) return;
+    const x = c * (s + gap), y = top + r * (s + gap);
+    if (i === 0) {
+      g.fillStyle = "#1a1d23"; g.fillRect(x, y, s, s);
+      const q = g.createLinearGradient(x, y, x + s, y + s); q.addColorStop(0, "#2d3a5a"); q.addColorStop(1, "#5a2d4a"); g.fillStyle = q; g.fillRect(x, y, s, s);
+      mnIcon(g, "person", x + s / 2, y + s * 0.42, s * 0.34, "#fff", true);
+      mnText(g, "Selfie", x + s / 2, y + s * 0.82, s * 0.12, "#fff", "700", "center");
+      if (mynet.pick.sel === 0) { g.strokeStyle = "#fff"; g.lineWidth = s * 0.03; g.strokeRect(x + s * 0.015, y + s * 0.015, s * 0.97, s * 0.97); }
+    } else mnTile(g, x, y, s, img, mynet.pick.sel === i);
+  });
+  if (mynet.deal) mnDealBanner(g, W, H, H * 0.865);
+}
+function mnDealBanner(g, W, H, y) {
+  const d = mynet.deal; if (!d) return;
+  g.fillStyle = "rgba(20,121,106,0.28)"; roundRect(g, W * 0.04, y, W * 0.92, H * 0.075, W * 0.025); g.fill();
+  g.strokeStyle = "rgba(61,220,190,0.6)"; g.lineWidth = W * 0.003; roundRect(g, W * 0.04, y, W * 0.92, H * 0.075, W * 0.025); g.stroke();
+  mnText(g, "Sponsored · " + d.brand + " · ¥" + d.fee.toLocaleString("en-US"), W * 0.06, y + H * 0.0275, W * 0.036, "#7ff0d6", "800", "left", W * 0.88);
+  mnText(g, "Mention \"" + d.brand + "\", tag #ad, show " + d.show, W * 0.06, y + H * 0.0525, W * 0.029, "#bfeee4", "500", "left", W * 0.88);
+}
+
+function mnDrawInbox(g, W, H) {
+  const list = mynet.threads;
+  if (!list.length) {
+    mnText(g, "No messages yet.", W * 0.5, H * 0.40, W * 0.05, MN_INK, "700", "center");
+    mnText(g, "Post good photographs and people will write.", W * 0.5, H * 0.43, W * 0.034, MN_DIM, "500", "center");
+    mnText(g, "Sponsors and strangers turn up as you grow.", W * 0.5, H * 0.455, W * 0.034, MN_DIM, "500", "center");
     return;
   }
-  const i = ((phone.sub % MYNET.length) + MYNET.length) % MYNET.length;
-  const post = MYNET[i];
-  // The video is the world. Every clip is a crop of what the game is actually
-  // drawing, pushed around and tinted per post, which is both cheaper than
-  // faking one and closer to what the app is meant to be: footage of Konto,
-  // shot in Konto. A gradient on its own read as a screen that had failed to
-  // load.
-  const t = clock * 0.6 + i * 3;
-  g.fillStyle = "#0b0d10";
-  g.fillRect(0, 0, W, H);
-  const src = frameGrab.ok ? frameGrab.canvas : null;
-  let drew = false;
-  if (src && src.width > 8) {
-    try {
-      // A tall crop out of a wide frame, panned a little by the post index.
-      const want = W / H;
-      const sh = src.height, sw = Math.max(8, Math.min(src.width, sh * want));
-      const sx = clamp((src.width - sw) * (0.15 + 0.7 * ((i * 0.37) % 1)), 0, Math.max(0, src.width - sw));
-      g.drawImage(src, sx, 0, sw, sh, 0, 0, W, H);
-      drew = true;
-    } catch (e) {}
-  }
-  if (!drew) {
-    const grad = g.createLinearGradient(0, 0, W, H);
-    grad.addColorStop(0, "hsl(" + ((i * 61 + t * 4) % 360) + ",38%,22%)");
-    grad.addColorStop(1, "hsl(" + ((i * 61 + 140 + t * 4) % 360) + ",44%,11%)");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, W, H);
-  }
-  // A colour grade per post, so the feed does not look like one long clip.
-  g.save();
-  g.globalCompositeOperation = "overlay";
-  g.fillStyle = "hsla(" + ((i * 61) % 360) + ",60%,50%,0.16)";
-  g.fillRect(0, 0, W, H);
-  g.restore();
-  g.fillStyle = "rgba(0,0,0,0.18)";
-  g.fillRect(0, 0, W, H);
-  g.fillStyle = "rgba(0,0,0,0.45)";
-  g.fillRect(0, H * 0.72, W, H * 0.28);
-  g.fillStyle = "#ffffff";
-  g.font = "700 " + Math.round(W * 0.052) + "px " + UI;
-  g.fillText(post.who, W * 0.07, H * 0.775);
-  g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
-  const words = post.text.split(" ");
-  let line = "", ly = H * 0.822;
-  words.forEach(w => {
-    const test = line ? line + " " + w : w;
-    if (g.measureText(test).width > W * 0.80) { g.fillText(line, W * 0.07, ly); line = w; ly += H * 0.036; }
-    else line = test;
+  mynet.sel = clamp(mynet.sel, 0, list.length - 1);
+  const rowH = H * 0.095, vis = 8, first = clamp(mynet.sel - 3, 0, Math.max(0, list.length - vis));
+  list.slice(first, first + vis).forEach((th, k) => {
+    const i = first + k, y = H * 0.17 + k * rowH, on = i === mynet.sel;
+    if (on) { g.fillStyle = "rgba(255,255,255,0.10)"; g.fillRect(0, y, W, rowH); }
+    mnAvatar(g, W * 0.11, y + rowH / 2, W * 0.062, th.who, th.unread);
+    const last = th.msgs[th.msgs.length - 1];
+    mnText(g, th.who.name, W * 0.22, y + rowH * 0.42, W * 0.04, MN_INK, th.unread ? "800" : "600", "left", W * 0.58);
+    mnText(g, (last.from === "me" ? "You: " : "") + last.text, W * 0.22, y + rowH * 0.74, W * 0.033, th.unread ? "#d5d8dd" : MN_DIM, th.unread ? "600" : "500", "left", W * 0.66);
+    mnText(g, mnAgo(last.t), W * 0.95, y + rowH * 0.42, W * 0.028, MN_DIM, "500", "right");
+    if (th.kind === "sponsor" && th.deal) { g.fillStyle = "#14796a"; roundRect(g, W * 0.80, y + rowH * 0.58, W * 0.15, rowH * 0.3, W * 0.01); g.fill(); mnText(g, "¥" + mnCount(th.deal.fee), W * 0.875, y + rowH * 0.8, W * 0.03, "#fff", "800", "center"); }
+    else if (th.unread) { g.fillStyle = "#3b8de0"; g.beginPath(); g.arc(W * 0.92, y + rowH * 0.72, W * 0.014, 0, 7); g.fill(); }
   });
-  g.fillText(line, W * 0.07, ly);
-  g.fillStyle = "#8ad4ff";
-  g.font = "600 " + Math.round(W * 0.042) + "px " + UI;
-  g.fillText(post.tag, W * 0.07, ly + H * 0.042);
-  // the rail of buttons down the right
-  ["\u2665 " + post.l, "\u25b6 reply", "\u21bb share"].forEach((lab, k) => {
-    g.fillStyle = "rgba(255,255,255,0.85)";
-    g.font = "600 " + Math.round(W * 0.036) + "px " + UI;
-    g.textAlign = "right";
-    g.fillText(lab, W * 0.94, H * 0.50 + k * H * 0.06);
-    g.textAlign = "left";
+  mnText(g, "Up/Down choose  ·  A open", W * 0.5, H * 0.918, W * 0.029, "#6b7078", "500", "center");
+}
+
+function mnDrawProfile(g, W, H) {
+  const me = mynet.me;
+  if (!mynet.portrait && player.glb) { try { mynet.portrait = seikoPortrait("head"); } catch (e) {} }
+  const y0 = H * 0.176;
+  mnAvatar(g, W * 0.17, y0 + H * 0.06, W * 0.115, { me: true, name: me.name, col: "#3a7bd5" }, true);
+  const stats = [[mynet.posts.length, "Posts"], [Math.round(me.shown), "Followers"], [me.following, "Following"]];
+  stats.forEach((s, i) => { const cx = W * (0.50 + i * 0.205); mnText(g, mnCount(s[0]), cx, y0 + H * 0.055, W * 0.056, MN_INK, "800", "center"); mnText(g, s[1], cx, y0 + H * 0.0765, W * 0.031, MN_DIM, "500", "center"); });
+  mnText(g, me.name, W * 0.05, y0 + H * 0.135, W * 0.04, MN_INK, "800");
+  mnText(g, me.handle, W * 0.05 + 0 , y0 + H * 0.1575, W * 0.032, MN_DIM, "500");
+  mnWrap(g, me.bio, W * 0.45, y0 + H * 0.135, W * 0.5, H * 0.0225, 2, W * 0.032, "#cfd3d8");
+  // earnings, and the deal in hand
+  g.fillStyle = "#14171c"; roundRect(g, W * 0.04, y0 + H * 0.178, W * 0.92, H * 0.045, W * 0.02); g.fill();
+  mnText(g, me.income ? "Earned from sponsors  ¥" + me.income.toLocaleString("en-US") : "Sponsors write once you post well and often", W * 0.06, y0 + H * 0.2075, W * 0.032, me.income ? MN_GOOD : MN_DIM, "700", "left", W * 0.55);
+  if (mynet.deal) mnText(g, "Deal: " + mynet.deal.brand, W * 0.94, y0 + H * 0.2075, W * 0.032, "#7ff0d6", "800", "right", W * 0.36);
+  // the engine
+  const eOn = mynet.sel === -1 && !mynet.bar;
+  g.fillStyle = eOn ? "rgba(255,255,255,0.14)" : "#14171c"; roundRect(g, W * 0.04, y0 + H * 0.23, W * 0.92, H * 0.04, W * 0.02); g.fill();
+  if (eOn) { g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = W * 0.004; roundRect(g, W * 0.04, y0 + H * 0.23, W * 0.92, H * 0.04, W * 0.02); g.stroke(); }
+  mnText(g, mynet.key ? "Followers react via Claude  ·  A to change the key" : "Followers react via the built-in critic  ·  A to add a Claude key", W * 0.06, y0 + H * 0.2565, W * 0.029, mynet.key ? "#c9b6ff" : MN_DIM, "600", "left", W * 0.88);
+  // the grid
+  const gy = y0 + H * 0.285, gap = 3, s = (W - gap * 2) / 3, vis = 2;
+  g.fillStyle = MN_LINE; g.fillRect(0, gy - 4, W, 1);
+  if (!mynet.posts.length) {
+    mnText(g, "No posts yet.", W * 0.5, gy + H * 0.09, W * 0.05, MN_INK, "700", "center");
+    mnText(g, "Take a photograph with Camera,", W * 0.5, gy + H * 0.12, W * 0.034, MN_DIM, "500", "center");
+    mnText(g, "then choose Post.", W * 0.5, gy + H * 0.14, W * 0.034, MN_DIM, "500", "center");
+    return;
+  }
+  mynet.sel = clamp(mynet.sel, -1, mynet.posts.length - 1);
+  const row = mynet.sel < 0 ? 0 : (mynet.sel / 3) | 0, first = clamp(row, 0, Math.max(0, Math.ceil(mynet.posts.length / 3) - vis));
+  mynet.posts.forEach((p, i) => {
+    const r = ((i / 3) | 0) - first, c = i % 3; if (r < 0 || r >= vis) return;
+    const x = c * (s + gap), y = gy + r * (s + gap);
+    mnTile(g, x, y, s, mnImg(p), mynet.sel === i && !mynet.bar);
+    const col = p.score >= 68 ? MN_GOOD : p.score >= 42 ? "#f0b020" : MN_BAD;
+    g.fillStyle = "rgba(0,0,0,0.6)"; roundRect(g, x + s * 0.05, y + s * 0.05, s * 0.3, s * 0.15, s * 0.04); g.fill();
+    mnText(g, "♥ " + mnCount(p.likes), x + s * 0.2, y + s * 0.165, s * 0.1, col, "800", "center");
+    if (p.unseen) { g.fillStyle = MN_RED; g.beginPath(); g.arc(x + s * 0.93, y + s * 0.07, s * 0.04, 0, 7); g.fill(); }
   });
-  g.fillStyle = "#ffffff";
-  g.font = "800 " + Math.round(W * PL.head) + "px " + UI;
-  g.textAlign = "center";
-  g.fillText("MyNet", W * 0.5, H * PL.safe + H * 0.018);
-  g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillStyle = "rgba(255,255,255,0.60)";
-  g.fillText((i + 1) + " / " + MYNET.length, W * 0.5, H * PL.safe + H * 0.052);
-  g.textAlign = "left";
-  g.fillStyle = "rgba(255,255,255,0.55)";
+  mnText(g, "D-pad move  ·  A open a post", W * 0.5, H * 0.918, W * 0.029, "#6b7078", "500", "center");
+}
+
+function mnDrawDetail(g, W, H) {
+  const p = mynet.detail; if (!p) { mynet.view = "tab"; return; }
+  p.unseen = 0;
+  // title bar
+  mnIcon(g, "chev", W * 0.06, H * 0.087, W * 0.05, MN_INK, false);
+  mnText(g, p.you ? "Your post" : p.who.handle, W * 0.11, H * 0.095, W * 0.046, MN_INK, "800", "left", W * 0.7);
+  // the picture, and what happened to it
+  const s = W * 0.44, x0 = W * 0.04, y0 = H * 0.115;
+  g.save(); g.beginPath(); roundRect(g, x0, y0, s, s, W * 0.02); g.clip(); try { g.drawImage(mnImg(p), x0, y0, s, s); } catch (e) {} g.restore();
+  const rx = x0 + s + W * 0.035;
+  mnIcon(g, "heart", rx + W * 0.02, y0 + H * 0.02, W * 0.045, MN_RED, true);
+  mnText(g, mnCount(p.likes + (p.liked ? 1 : 0)), rx + W * 0.065, y0 + H * 0.0275, W * 0.05, MN_INK, "800");
+  mnIcon(g, "comment", rx + W * 0.02, y0 + H * 0.062, W * 0.045, MN_INK, false);
+  mnText(g, String(p.comments.length), rx + W * 0.065, y0 + H * 0.0695, W * 0.05, MN_INK, "800");
+  mnText(g, mnAgo(p.t), rx, y0 + H * 0.104, W * 0.031, MN_DIM, "500");
+  if (p.you) {
+    const col = p.delta > 0 ? MN_GOOD : p.delta < 0 ? MN_BAD : MN_DIM;
+    mnText(g, (p.delta > 0 ? "+" : "") + p.delta, rx, y0 + H * 0.146, W * 0.072, col, "800");
+    mnText(g, "followers", rx + W * 0.0, y0 + H * 0.168, W * 0.031, MN_DIM, "500");
+    mnText(g, "Score " + p.score, rx, y0 + H * 0.19, W * 0.035, p.score >= 68 ? MN_GOOD : p.score >= 42 ? "#f0b020" : MN_BAD, "800");
+  } else {
+    mnText(g, p.place, rx, y0 + H * 0.146, W * 0.034, MN_INK, "600", "left", W * 0.42);
+  }
+  // the caption
+  const cy = y0 + s + H * 0.02;
+  const nl = mnWrap(g, (p.you ? "" : "") + (p.caption || "(no caption)"), W * 0.05, cy + H * 0.012, W * 0.9, H * 0.024, 3, W * 0.036, p.caption ? "#e3e6ea" : MN_DIM);
+  const ty = cy + H * 0.012 + nl * H * 0.024 + H * 0.016;
+  // the two pages
+  const pages = p.you ? ["Comments (" + p.comments.length + ")", "Why it landed"] : ["Comments (" + p.comments.length + ")"];
+  pages.forEach((t, i) => {
+    const cx = W * (p.you ? 0.27 + i * 0.46 : 0.5), on = mynet.page === i;
+    mnText(g, t, cx, ty + H * 0.02, W * 0.036, on ? MN_INK : MN_DIM, on ? "800" : "600", "center");
+    if (on) { g.fillStyle = MN_INK; g.fillRect(cx - W * 0.17, ty + H * 0.027, W * 0.34, 2); }
+  });
+  g.fillStyle = MN_LINE; g.fillRect(0, ty + H * 0.029, W, 1);
+  const top = ty + H * 0.04;
+  if (mynet.page === 1 && p.you) { mnDrawWhy(g, W, H, p, top); return; }
+  // comments
+  if (!p.comments.length) { mnText(g, p.you ? "Waiting for followers to notice…" : "No comments yet.", W * 0.5, top + H * 0.08, W * 0.036, MN_DIM, "500", "center"); }
+  const rowH = H * 0.073, vis = Math.max(1, Math.floor((H * 0.93 - top) / rowH));
+  mynet.cs = clamp(mynet.cs, 0, Math.max(0, p.comments.length - vis));
+  p.comments.slice().reverse().slice(mynet.cs, mynet.cs + vis).forEach((c, k) => {
+    const y = top + k * rowH;
+    mnAvatar(g, W * 0.085, y + rowH * 0.36, W * 0.037, c.who, false);
+    mnText(g, c.who.handle.replace(/^@/, ""), W * 0.15, y + rowH * 0.3, W * 0.033, MN_INK, "700", "left", W * 0.5);
+    mnText(g, mnAgo(c.t), W * 0.95, y + rowH * 0.3, W * 0.027, MN_DIM, "500", "right");
+    g.font = "500 " + Math.round(W * 0.035) + "px " + UI;
+    const col = c.pol === "neg" ? "#f3c0c0" : "#d8dce1";
+    mnWrap(g, c.text, W * 0.15, y + rowH * 0.62, W * 0.8, H * 0.021, 2, W * 0.035, col);
+  });
+  if (p.comments.length > vis) mnText(g, "Up/Down scroll", W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
+}
+function mnDrawWhy(g, W, H, p, top) {
+  const A = p.A, col = p.score >= 68 ? MN_GOOD : p.score >= 42 ? "#f0b020" : MN_BAD;
+  mnText(g, String(p.score), W * 0.05, top + H * 0.05, W * 0.14, col, "800");
+  mnText(g, A.tier.toUpperCase(), W * 0.30, top + H * 0.027, W * 0.04, col, "800");
+  mnText(g, A.verdict, W * 0.30, top + H * 0.05, W * 0.031, "#d5d8dd", "600", "left", W * 0.65);
+  mnText(g, p.ai ? "Judged by Claude" : "Judged by the built-in critic", W * 0.30, top + H * 0.07, W * 0.027, MN_DIM, "500", "left", W * 0.65);
+  const bars = [["Photo", A.parts.photo], ["Caption", A.parts.caption], ["Fits the photo", A.parts.match]];
+  bars.forEach((b, i) => {
+    const y = top + H * 0.098 + i * H * 0.03;
+    mnText(g, b[0], W * 0.05, y, W * 0.03, MN_DIM, "600");
+    g.fillStyle = "#1c1f25"; roundRect(g, W * 0.30, y - H * 0.0125, W * 0.50, H * 0.012, H * 0.006); g.fill();
+    g.fillStyle = b[1] >= 68 ? MN_GOOD : b[1] >= 42 ? "#f0b020" : MN_BAD; roundRect(g, W * 0.30, y - H * 0.0125, Math.max(4, W * 0.50 * b[1] / 100), H * 0.012, H * 0.006); g.fill();
+    mnText(g, String(b[1]), W * 0.95, y, W * 0.03, MN_INK, "700", "right");
+  });
+  if (A.parts.penalty) mnText(g, "Posting too much or repeating yourself cost " + A.parts.penalty + " points", W * 0.05, top + H * 0.19, W * 0.029, MN_BAD, "600", "left", W * 0.9);
+  const y1 = top + H * (A.parts.penalty ? 0.218 : 0.195);
+  mnText(g, "What people noticed", W * 0.05, y1, W * 0.034, MN_INK, "800");
+  A.noticed.slice(0, 5).forEach((n, i) => {
+    const y = y1 + H * 0.03 + i * H * 0.034;
+    mnText(g, n.good ? "✓" : "✗", W * 0.05, y, W * 0.037, n.good ? MN_GOOD : MN_BAD, "800");
+    mnText(g, n.text, W * 0.095, y, W * 0.032, "#d8dce1", "500", "left", W * 0.86);
+  });
+  if (p.sponsor) {
+    const sp = p.sponsor, y = y1 + H * 0.03 + A.noticed.slice(0, 5).length * H * 0.034 + H * 0.012;
+    mnText(g, sp.paid ? "Sponsor paid  ¥" + sp.deal.fee.toLocaleString("en-US") : "Sponsor terms not met", W * 0.05, y, W * 0.033, sp.paid ? "#7ff0d6" : "#f0b020", "800");
+    if (!sp.paid) mnText(g, (sp.mention ? "" : "No mention of " + sp.deal.brand + ".  ") + (sp.ad ? "" : "No #ad.  ") + (sp.subject ? "" : "Not what they wanted shown.  ") + (sp.quality ? "" : "Not good enough."), W * 0.05, y + H * 0.024, W * 0.028, MN_DIM, "500", "left", W * 0.9);
+  }
+}
+
+function mnDrawThread(g, W, H) {
+  const th = mynet.thread; if (!th) { mynet.view = "tab"; return; }
+  th.unread = false;
+  mnIcon(g, "chev", W * 0.06, H * 0.087, W * 0.05, MN_INK, false);
+  mnAvatar(g, W * 0.16, H * 0.0855, W * 0.038, th.who, false);
+  mnText(g, th.who.name, W * 0.22, H * 0.082, W * 0.04, MN_INK, "800", "left", W * 0.72);
+  mnText(g, th.who.handle + (th.kind === "sponsor" ? " · sponsor" : th.kind === "mission" ? " · wants to talk" : ""), W * 0.22, H * 0.1, W * 0.029, MN_DIM, "500", "left", W * 0.72);
+  g.fillStyle = MN_LINE; g.fillRect(0, H * 0.112, W, 1);
+  let top = H * 0.125;
+  if (th.kind === "sponsor" && th.deal) {
+    const d = th.deal; g.fillStyle = "rgba(20,121,106,0.25)"; roundRect(g, W * 0.04, top, W * 0.92, H * 0.075, W * 0.02); g.fill();
+    mnText(g, d.brand + " · ¥" + d.fee.toLocaleString("en-US"), W * 0.06, top + H * 0.027, W * 0.038, "#7ff0d6", "800", "left", W * 0.88);
+    const hrs = Math.max(0, Math.round((d.deadline - mnNow()) / 60));
+    mnText(g, "Show " + d.show + " · #ad · " + (mynet.deal === d ? hrs + "h left" : "open offer"), W * 0.06, top + H * 0.0525, W * 0.029, "#bfeee4", "500", "left", W * 0.88);
+    top += H * 0.085;
+  }
+  // the conversation, bottom-aligned above the options
+  const optsH = th.opts ? th.opts.length * H * 0.055 + H * 0.02 : H * 0.05, bottom = H * 0.93 - optsH;
+  g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  const bub = th.msgs.map(m => ({ m: m, lines: wrapLines(g, m.text, W * 0.62) }));
+  let y = bottom;
+  for (let i = bub.length - 1; i >= 0; i--) {
+    const b = bub[i], hh = b.lines.length * H * 0.0235 + H * 0.022;
+    y -= hh + H * 0.01; if (y < top) break;
+    const me = b.m.from === "me", w = Math.max(...b.lines.map(l => g.measureText(l).width)) + W * 0.07, x = me ? W * 0.96 - w : W * 0.04;
+    g.fillStyle = me ? "#3b6fe0" : "#22262d"; roundRect(g, x, y, w, hh, W * 0.04); g.fill();
+    g.fillStyle = "#fff"; g.textAlign = "left"; b.lines.forEach((l, k) => g.fillText(l, x + W * 0.035, y + H * 0.0275 + k * H * 0.0235));
+  }
+  // what he can say
+  if (th.opts) th.opts.forEach((o, i) => {
+    const oy = H * 0.93 - optsH + H * 0.01 + i * H * 0.055, on = i === mynet.opt;
+    g.fillStyle = on ? "#ffffff" : "#1d2026"; roundRect(g, W * 0.06, oy, W * 0.88, H * 0.047, W * 0.024); g.fill();
+    mnText(g, o.label, W * 0.5, oy + H * 0.0305, W * 0.038, on ? "#101216" : MN_INK, "800", "center");
+  });
+  else mnText(g, th.closed ? "Conversation finished" : "", W * 0.5, H * 0.93 - optsH / 2 + H * 0.01, W * 0.031, MN_DIM, "500", "center");
+}
+
+const MN_KB = [["1234567890"], ["qwertyuiop"], ["asdfghjkl"], ["zxcvbnm,."]];
+const MN_KB_BOTTOM = ["Aa", "#", "@", "!", "?", "space", "back", "Share"];
+function mnDrawCompose(g, W, H) {
+  const c = mynet.comp;
+  mnIcon(g, "chev", W * 0.06, H * 0.087, W * 0.05, MN_INK, false);
+  mnText(g, c.mode === "key" ? "Claude key" : "New post", W * 0.11, H * 0.095, W * 0.05, MN_INK, "800");
+  if (c.mode === "key") {
+    mnText(g, "Paste your Anthropic API key (Ctrl+V) or type it.", W * 0.05, H * 0.17, W * 0.034, "#d5d8dd", "600", "left", W * 0.9);
+    mnText(g, "It stays on this machine and is only sent to Anthropic.", W * 0.05, H * 0.195, W * 0.03, MN_DIM, "500", "left", W * 0.9);
+    g.fillStyle = "#14171c"; roundRect(g, W * 0.04, H * 0.22, W * 0.92, H * 0.07, W * 0.02); g.fill();
+    const shown = c.text ? "•".repeat(Math.max(0, c.text.length - 6)) + c.text.slice(-6) : "";
+    mnText(g, shown + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), W * 0.06, H * 0.2625, W * 0.04, MN_INK, "600", "left", W * 0.88);
+    mnText(g, "Enter  save    ·    Esc  cancel    ·    empty and Enter  removes it", W * 0.05, H * 0.325, W * 0.03, MN_DIM, "500", "left", W * 0.9);
+    if (mynet.lastAIError) mnText(g, "Last error: " + mynet.lastAIError, W * 0.05, H * 0.36, W * 0.028, MN_BAD, "500", "left", W * 0.9);
+    return;
+  }
+  // the thumbnail and the caption field
+  const s = W * 0.30, x0 = W * 0.04, y0 = H * 0.115;
+  g.save(); g.beginPath(); roundRect(g, x0, y0, s, s, W * 0.02); g.clip(); try { g.drawImage(c.photo, x0, y0, s, s); } catch (e) {} g.restore();
+  const fx = x0 + s + W * 0.03, fw = W * 0.96 - fx;
+  g.fillStyle = "#14171c"; roundRect(g, fx, y0, fw, s, W * 0.02); g.fill();
+  const cursor = Math.floor(performance.now() / 500) % 2 ? "" : "|";
+  if (!c.text) mnText(g, "Write a caption…", fx + W * 0.03, y0 + H * 0.03, W * 0.036, "#5d636c", "500");
+  else mnWrap(g, c.text + cursor, fx + W * 0.03, y0 + H * 0.03, fw - W * 0.06, H * 0.0235, 6, W * 0.036, MN_INK, "500");
+  mnText(g, c.text.length + "/140", fx + fw - W * 0.02, y0 + s - H * 0.012, W * 0.028, MN_DIM, "500", "right");
+  if (mynet.deal) mnDealBanner(g, W, H, H * 0.115 + s + H * 0.012);
+  // the keyboard
+  const rows = MN_KB.map(r => r[0]).concat([null]);
+  const ky = H * 0.395, kh = H * 0.062, gap = W * 0.011;
+  for (let r = 0; r < 5; r++) {
+    const keys = r === 4 ? MN_KB_BOTTOM : rows[r].split("");
+    const n = keys.length, kw = r === 4 ? (W * 0.94 - gap * 7) / 8 : (W * 0.94 - gap * 9) / 10, total = n * kw + (n - 1) * gap, kx0 = (W - total) / 2;
+    keys.forEach((k, ci) => {
+      const wide = k === "space" ? 1.0 : 1;
+      const kx = kx0 + ci * (kw + gap), y = ky + r * (kh + gap), on = c.r === r && c.c === ci;
+      const share = k === "Share";
+      g.fillStyle = on ? "#ffffff" : share ? "#2f6fe0" : "#2a2e35"; roundRect(g, kx, y, kw, kh, W * 0.014); g.fill();
+      g.fillStyle = on ? "#101216" : "#eceff2"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "700 " + Math.round(W * (k.length > 1 ? 0.03 : 0.042)) + "px " + UI;
+      const label = k === "space" ? "space" : k === "back" ? "⌫" : k === "Aa" ? (c.shift ? "AA" : "Aa") : (c.shift && k.length === 1 ? k.toUpperCase() : k);
+      g.fillText(label, kx + kw / 2, y + kh / 2 + 1);
+    });
+  }
+  g.textBaseline = "alphabetic"; g.textAlign = "left";
+  mnText(g, "A types  ·  B back  ·  you can use a keyboard too", W * 0.5, H * 0.935, W * 0.028, "#6b7078", "500", "center");
+}
+
+function mnDrawSharing(g, W, H) {
+  mynet.sharing += 0.05;
+  mnText(g, "Sharing…", W * 0.5, H * 0.45, W * 0.07, MN_INK, "800", "center");
+  mnText(g, mynet.key ? "Followers are looking, and so is Claude" : "Followers are looking at your photograph", W * 0.5, H * 0.48, W * 0.034, MN_DIM, "500", "center");
+  g.strokeStyle = "#fd5949"; g.lineWidth = W * 0.012; g.lineCap = "round"; g.beginPath(); g.arc(W / 2, H * 0.56, W * 0.06, mynet.sharing * 6, mynet.sharing * 6 + Math.PI * 1.4); g.stroke();
+  phone.dirty = true;
+}
+
+function appMyNet(g, W, H) {
+  mynetInit();
+  g.fillStyle = MN_BG; g.fillRect(0, 0, W, H);
+  phoneStatusBar(g, W, H);
+  const v = mynet.view;
+  if (v === "compose") mnDrawCompose(g, W, H);
+  else if (v === "sharing") mnDrawSharing(g, W, H);
+  else if (v === "detail") mnDrawDetail(g, W, H);
+  else if (v === "thread") mnDrawThread(g, W, H);
+  else {
+    mnHeader(g, W, H); mnTabs(g, W, H);
+    if (mynet.tab === 0) mnDrawFeed(g, W, H);
+    else if (mynet.tab === 1) mnDrawPick(g, W, H);
+    else if (mynet.tab === 2) mnDrawInbox(g, W, H);
+    else mnDrawProfile(g, W, H);
+  }
   phoneNavBar(g, W, H);
-  // Scrolling costs him something, which is the point of the app.
-  vitals.stress = clamp01(vitals.stress + 0.00035);
+  if (v === "tab" && mynet.tab === 0) vitals.stress = clamp01(vitals.stress + 0.00018);
+}
+
+// ---- a selfie: Seiko as he is now, on a sky that matches the hour
+function mnSelfie() {
+  const S = 400, c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d"), hour = gameMinutes() / 60;
+  const night = hour >= 19.5 || hour < 4.8, golden = (hour >= 5 && hour < 7.6) || (hour >= 16 && hour < 18.8);
+  const q = g.createLinearGradient(0, 0, 0, S);
+  if (night) { q.addColorStop(0, "#10152e"); q.addColorStop(1, "#2c3558"); } else if (golden) { q.addColorStop(0, "#4a5f9e"); q.addColorStop(1, "#f6a35a"); } else { q.addColorStop(0, "#6fa8e0"); q.addColorStop(1, "#dcecf8"); }
+  g.fillStyle = q; g.fillRect(0, 0, S, S);
+  // the street behind him, soft
+  g.fillStyle = night ? "rgba(255,217,138,0.5)" : "rgba(40,50,70,0.35)";
+  for (let i = 0; i < 9; i++) g.fillRect(i * S / 9, S * (0.55 - ((i * 37) % 17) / 60), S / 11, S);
+  const p = seikoPortrait("head");
+  if (p) g.drawImage(p, S * 0.04, S * 0.04, S * 0.92, S * 0.92);
+  const ctx = mnContext(); ctx.has.seiko = true;
+  c.meta = { phone: dev().name, zoom: 1, mp: cameraProfile().mp, ctx: ctx, selfie: true, when: mnNow() };
+  return c;
+}
+
+// ---- keys, and the pad
+function mnKbSet() { const c = mynet.comp; return c; }
+function mnType(ch) { const c = mynet.comp; if (c.text.length < (c.mode === "key" ? 200 : 140)) c.text += c.shift && ch.length === 1 ? ch.toUpperCase() : ch; if (c.shift && c.mode !== "key") c.shift = false; phone.dirty = true; }
+function mnCompAct() {
+  const c = mynet.comp;
+  if (c.r === 4) {
+    const k = MN_KB_BOTTOM[c.c];
+    if (k === "Aa") c.shift = !c.shift; else if (k === "space") mnType(" "); else if (k === "back") c.text = c.text.slice(0, -1); else if (k === "Share") { mynetShare(); return; } else mnType(k);
+  } else mnType(MN_KB[c.r][0][c.c]);
+  phone.dirty = true;
+}
+function mnOpenCompose(photo) { const c = mynet.comp; c.photo = photo; c.text = ""; c.r = 1; c.c = 5; c.shift = false; c.mode = "caption"; mynet.view = "compose"; phone.dirty = true; }
+function mynetSetTab(i) { mynet.tab = clamp(i, 0, 3); mynet.sel = mynet.tab === 3 ? 0 : 0; mynet.pick.sel = 0; if (mynet.tab === 3) mynet.newReact = 0; phone.dirty = true; }
+
+function mynetMove(dx, dy) {
+  mynetInit();
+  const v = mynet.view;
+  if (v === "sharing") return;
+  if (v === "compose") {
+    const c = mynet.comp; if (c.mode === "key") return;
+    c.r = clamp(c.r + dy, 0, 4);
+    const n = c.r === 4 ? 8 : (c.r === 0 ? 10 : MN_KB[c.r][0].length);
+    c.c = clamp(c.c + dx, 0, n - 1); c.c = clamp(c.c, 0, n - 1);
+    phone.dirty = true; return;
+  }
+  if (v === "detail") {
+    const p = mynet.detail;
+    if (dx && p && p.you) { mynet.page = clamp(mynet.page + dx, 0, 1); mynet.cs = 0; }
+    if (dy) mynet.cs = Math.max(0, mynet.cs + dy);
+    phone.dirty = true; return;
+  }
+  if (v === "thread") { const th = mynet.thread; if (th && th.opts && dy) mynet.opt = clamp(mynet.opt + dy, 0, th.opts.length - 1); phone.dirty = true; return; }
+  // the tabs
+  if (mynet.bar) {
+    if (dx) mynetSetTab(mynet.tab + dx);
+    else if (dy > 0) { mynet.bar = false; }
+    phone.dirty = true; return;
+  }
+  const t = mynet.tab;
+  if (t === 0) {
+    if (dy < 0) { if (mynet.sel > 0) mynet.sel--; else mynet.bar = true; }
+    else if (dy > 0) mynet.sel = Math.min(mynet.sel + 1, mynet.feed.length - 1);
+    else if (dx > 0 && mynet.feed[mynet.sel]) { mynet.detail = mynet.feed[mynet.sel]; mynet.page = 0; mynet.cs = 0; mynet.view = "detail"; }
+  } else if (t === 1) {
+    const n = 1 + Math.min(15, phone.gallery.length), s = mynet.pick.sel;
+    if (dy < 0) { if (s < 3) mynet.bar = true; else mynet.pick.sel = s - 3; }
+    else if (dy > 0) mynet.pick.sel = Math.min(n - 1, s + 3);
+    else if (dx) mynet.pick.sel = clamp(s + dx, 0, n - 1);
+  } else if (t === 2) {
+    if (dy < 0) { if (mynet.sel > 0) mynet.sel--; else mynet.bar = true; }
+    else if (dy > 0) mynet.sel = Math.min(mynet.sel + 1, Math.max(0, mynet.threads.length - 1));
+  } else {
+    const n = mynet.posts.length, s = mynet.sel;
+    if (dy < 0) { if (s >= 3) mynet.sel = s - 3; else if (s >= 0) mynet.sel = -1; else mynet.bar = true; }
+    else if (dy > 0) { if (s === -1) mynet.sel = n ? 0 : -1; else if (n) mynet.sel = Math.min(n - 1, s + 3); }
+    else if (dx && s >= 0) mynet.sel = clamp(s + dx, 0, n - 1);
+  }
+  phone.dirty = true;
+}
+
+function mynetAct() {
+  mynetInit();
+  const v = mynet.view;
+  if (v === "sharing") return;
+  if (v === "compose") { if (mynet.comp.mode === "key") { mnKeySave(); return; } mnCompAct(); return; }
+  if (v === "detail") { const p = mynet.detail; if (p && !p.you) { p.liked = !p.liked; p.pulse = 1; } phone.dirty = true; return; }
+  if (v === "thread") { const th = mynet.thread; if (th && th.opts && th.opts[mynet.opt]) mnReply(th, th.opts[mynet.opt]); return; }
+  if (mynet.bar) { mynet.bar = false; phone.dirty = true; return; }
+  const t = mynet.tab;
+  if (t === 0) { const p = mynet.feed[mynet.sel]; if (p) { p.liked = !p.liked; p.pulse = 1; } }
+  else if (t === 1) {
+    const s = mynet.pick.sel;
+    if (s === 0) mnOpenCompose(mnSelfie());
+    else { const g = phone.gallery.slice().reverse()[s - 1]; if (g) mnOpenCompose(g); }
+  } else if (t === 2) {
+    const th = mynet.threads[mynet.sel]; if (th) { mynet.thread = th; th.unread = false; mynet.opt = 0; mynet.view = "thread"; }
+  } else {
+    if (mynet.sel === -1) { const c = mynet.comp; c.mode = "key"; c.text = ""; c.photo = null; mynet.view = "compose"; }
+    else if (mynet.posts[mynet.sel]) { mynet.detail = mynet.posts[mynet.sel]; mynet.page = 0; mynet.cs = 0; mynet.newReact = 0; mynet.view = "detail"; }
+  }
+  phone.dirty = true;
+}
+function mnKeySave() {
+  const c = mynet.comp; const k = c.text.trim();
+  mynet.key = k; mynetSaveKey(); mynet.view = "tab"; mynet.lastAIError = "";
+  mnSay(k ? "Claude key saved. Posts will be judged by Claude." : "Key removed. The built-in critic is back.", 4);
+  c.text = ""; phone.dirty = true;
+}
+function mynetBack() {
+  const v = mynet.view;
+  if (v === "sharing") return true;
+  if (v === "compose") { if (mynet.comp.mode === "key") { mynet.comp.text = ""; mynet.view = "tab"; } else mynet.view = "tab"; phone.dirty = true; return true; }
+  if (v === "detail" || v === "thread") { mynet.view = "tab"; phone.dirty = true; return true; }
+  if (mynet.bar && mynet.tab !== 0) { mynetSetTab(0); mynet.bar = true; return true; }
+  mynet.bar = false; return false;
+}
+// a real keyboard: type into the caption, or the key field
+function mynetKey(e) {
+  if (!(phone.open && phone.app === "MyNet" && mynet.view === "compose")) return false;
+  const c = mynet.comp;
+  if (e.ctrlKey || e.metaKey) {
+    if (e.code === "KeyV" && navigator.clipboard && navigator.clipboard.readText) { navigator.clipboard.readText().then(t => { c.text = (c.text + t.replace(/[\r\n]+/g, " ")).slice(0, c.mode === "key" ? 200 : 140); phone.dirty = true; }).catch(() => {}); return true; }
+    return false;
+  }
+  if (e.altKey) return false;
+  if (e.key.length === 1) { if (c.text.length < (c.mode === "key" ? 200 : 140)) c.text += e.key; phone.dirty = true; return true; }
+  if (e.code === "Backspace") { c.text = c.text.slice(0, -1); phone.dirty = true; return true; }
+  if (e.code === "Enter") { if (c.mode === "key") mnKeySave(); else mynetShare(); return true; }
+  if (e.code === "Escape") { mynetBack(); return true; }
+  return false;
 }
 
 // ---- Nihon Services
@@ -15545,15 +16808,32 @@ function appMail(g, W, H) {
 }
 
 function appContacts(g, W, H) {
-  phoneChrome(g, W, H, "Contacts", "No one yet");
-  g.fillStyle = "#4a5058";
-  g.beginPath(); g.arc(W * 0.5, H * 0.33, W * 0.11, 0, Math.PI * 2); g.fill();
-  g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
-  g.textAlign = "center";
-  g.fillText("Nobody has given Seiko", W * 0.5, H * 0.45);
-  g.fillText("their number.", W * 0.5, H * 0.49);
-  g.textAlign = "left";
+  const list = mynet.contacts;
+  phoneChrome(g, W, H, "Contacts", list.length ? list.length + (list.length > 1 ? " people" : " person") : "No one yet");
+  if (!list.length) {
+    g.fillStyle = "#4a5058";
+    g.beginPath(); g.arc(W * 0.5, H * 0.33, W * 0.11, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#6b727a";
+    g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
+    g.textAlign = "center";
+    g.fillText("Nobody has given Seiko", W * 0.5, H * 0.45);
+    g.fillText("their number.", W * 0.5, H * 0.49);
+    g.fillStyle = "#4f565e"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
+    g.fillText("Strangers on MyNet might.", W * 0.5, H * 0.545);
+    g.textAlign = "left";
+    return;
+  }
+  phone.sub = clamp(phone.sub, 0, list.length - 1);
+  list.forEach((c, i) => {
+    const rowH = H * 0.10, y = H * PL.listY + i * (rowH + H * 0.012);
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+    g.fillStyle = "#a0652d"; g.beginPath(); g.arc(W * 0.17, y + rowH / 2, W * 0.05, 0, 7); g.fill();
+    g.fillStyle = "#fff"; g.font = "800 " + Math.round(W * 0.05) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(c.name.charAt(0), W * 0.17, y + rowH / 2 + 1); g.textBaseline = "alphabetic";
+    g.textAlign = "left"; g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * PL.head) + "px " + UI; clipText(g, c.name, W * 0.26, y + rowH * 0.42, W * 0.62);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI; clipText(g, c.phone + (c.called ? "  \u00b7  called" : ""), W * 0.26, y + rowH * 0.74, W * 0.62);
+  });
+  g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText("A  call", W * PL.pad, H * 0.90);
 }
 
 // ---- SOTI Music, over Spotify ---------------------------------------------
@@ -16030,8 +17310,9 @@ function phoneCount() {
     return 0;
   }
   if (phone.app === "Wallet") return wallet.add ? WALLET_ADD.length : walletCards().length;
+  if (phone.app === "Contacts") return mynet.contacts.length;
   if (phone.app === "Camera") return 1;
-  if (phone.app === "MyNet") return MYNET.length;
+  if (phone.app === "MyNet") return 1;
   if (phone.app === "Nihon") return 5;
   if (phone.app === "Phone") return phone.vmail ? 0 : 13;
   if (phone.app === "Mail") return SCAM_MAIL.length;
@@ -16063,6 +17344,7 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "MyNet") { mynetMove(dx, dy); return; }
   if (phone.app === "Settings" && dx) {
     const row = settingsRows()[phone.sub] || [""];
     if (/^Wallpaper/.test(row[0])) { phone.pearWall = ((phone.pearWall || 0) + dx + PEAR_WALLPAPERS.length) % PEAR_WALLPAPERS.length; phone.dirty = true; }
@@ -16197,8 +17479,9 @@ function phoneAct() {
       else { video.src = v.trim() || DEFAULT_CM; say("Video source set.", 3); }
     }
   } else if (app === "MyNet") {
-    phone.realVideo = !phone.realVideo;
-    say(phone.realVideo ? "MyNet: real video on. It needs the internet." : "MyNet: back to the footage of Konto.", 3);
+    mynetAct();
+  } else if (app === "Contacts") {
+    const c = mynet.contacts[phone.sub]; if (c) mynetCall(c);
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -16226,6 +17509,7 @@ function phoneBack() {
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
   if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
+  if (phone.app === "MyNet" && mynetBack()) { phone.dirty = true; return true; }
   if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
   return false;
@@ -16237,11 +17521,13 @@ function takePhotograph() {
   if (!src) { frameGrab.want = true; say("Hold still\u2026", 1.5); return; }
   const prof = cameraProfile(), zoom = clamp(phone.zoom || 1, 1, prof.zmax);
   const c = document.createElement("canvas");
-  c.width = 240; c.height = 240;
+  c.width = 400; c.height = 400;
   const g2 = c.getContext("2d");
   try {
-    drawThroughLens(g2, src, 0, 0, 240, 240, zoom, prof);
-    c.meta = { phone: dev().name, zoom: zoom, mp: prof.mp };
+    drawThroughLens(g2, src, 0, 0, 400, 400, zoom, prof);
+    // what the game knew was in front of the lens, for MyNet to judge it by
+    let ctx = null; try { ctx = mnContext(); } catch (e) {}
+    c.meta = { phone: dev().name, zoom: zoom, mp: prof.mp, ctx: ctx, when: mnNow() };
     phone.gallery.push(c);
     say("Photograph saved \u00b7 " + dev().name + " \u00b7 " + (zoom > 1 ? zoom.toFixed(1) + "\u00d7" : prof.mp + " MP"), 3);
   } catch (e) { say("The camera could not save that.", 3); }
@@ -18419,10 +19705,6 @@ function updateVideo() {
   if (home.inside && tvui.mode === "tv" && tvui.ch === CHANNELS.indexOf("CM Channel")) {
     const cv = document.getElementById("homecanvas");
     if (cv) { const r = coverRect(cv, 0.06, 0.05, 0.88, 0.80); videoShow(r[0], r[1], r[2], r[3], "tv"); return; }
-  }
-  if (phone.open && phone.app === "MyNet" && phone.realVideo && !isBasic()) {
-    const cv = document.getElementById("phonecanvas");
-    if (cv) { const r = cv.getBoundingClientRect(); videoShow(r.left + r.width * 0.02, r.top + r.height * 0.13, r.width * 0.96, r.height * 0.70, "phone"); return; }
   }
   if (video.on) videoHide();
   void want;

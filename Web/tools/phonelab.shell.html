@@ -229,7 +229,26 @@ function hailTaxi() {}
 function spotifyLogin() {}
 function spotifyTransport(a) { if (a === "play") { spotify.playing = !spotify.playing; phone.dirty = true; syncScenarios(); } }
 function spotifyLoad() {}
-function takePhotograph() { say("Click. Saved to Photos.", 2); }
+const TIME = { rate: 0.4, startMin: 17 * 60 + 10 };
+function gameMinutes() { const d = new Date(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; }
+const player = { glb: null, placed: false, mode: "walk" };
+const world = { cities: [] };
+function seikoPortrait() { return null; }
+function mnContext() {
+  return { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: false, place: nav.place.street, sub: nav.place.sub,
+           hour: gameMinutes() / 60, golden: false, night: false, resort: null };
+}
+// no world to point the camera at, so a photograph is a picture from a feed
+function takePhotograph() {
+  const kinds = ["ramen", "sushi", "train", "cat", "sakura", "peak", "sunset", "skyline", "konbini", "kei", "sea"];
+  const k = kinds[(Math.random() * kinds.length) | 0], c = mnScene(k, 400), ctx = mnContext();
+  if (k === "ramen" || k === "sushi") { ctx.shops = [k]; ctx.shopNames = [k === "ramen" ? "Menya Ippai" : "Sushi Gin"]; }
+  if (k === "train") ctx.has.station = true; if (k === "peak") { ctx.has.mountain = true; ctx.has.snow = true; } if (k === "sea") ctx.has.sea = true; if (k === "kei") ctx.has.car = true;
+  ctx.golden = k === "sunset";
+  c.meta = { phone: dev().name, zoom: 1, mp: 50, ctx: ctx, when: mnNow() };
+  phone.gallery.push(c); say("Click. Saved to Photos.", 2);
+}
+setInterval(() => { clock += 0.25; if (typeof updateMyNet === "function") updateMyNet(0.25); }, 250);
 function setMapOpen() {}
 function wantFrame() { return false; }
 function grabFrame() {}

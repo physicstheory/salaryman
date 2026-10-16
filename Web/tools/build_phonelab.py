@@ -22,12 +22,12 @@ OUT = os.path.join(ROOT, "phonelab.html")
 # shell stands in for each of them.
 ROOTS = ["drawPhone", "updatePhone", "equipPhone", "applyDeviceSkin", "phoneMove", "phoneAct", "phoneBack",
          "setPhone", "homeApps", "PHONE_SCREENS", "islandBusy", "DEVICES", "PEAR_WALLPAPERS", "PEAR_ACCENTS",
-         "PAINTS", "clamp", "mixHex", "DEVICE_ORDER"]
+         "PAINTS", "clamp", "mixHex", "DEVICE_ORDER", "updateMyNet"]
 CUT = set("""clock nav garage drive home vitals deliveries purse spotify frameGrab say ownCar hailTaxi spotifyLogin
 spotifyTransport spotifyLoad spotifySave takePhotograph setMapOpen wantFrame grabFrame placeAt phoneTime title post
 world player traffic renderer scene camera shops wheel TIME gameMinutes
 R N V T Tx arcRnd arcade ARC radio sound wanted tolls tvui mall parcels updateTolls enterMall enterTV
-enterConsole updateRadio radioSet radioNext sunLight skyDome frameGrab""".split())
+enterConsole updateRadio radioSet radioNext sunLight skyDome frameGrab mnContext seikoPortrait ski rail""".split())
 
 def main():
     script = X.script_of(GAME)
