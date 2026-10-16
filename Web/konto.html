@@ -1189,7 +1189,7 @@ const SITES = [
     alongRadius: 470, inlandRadius: 340,
     coreRadius: 95, coreOffset: [0, 20],
     outlineNoise: 110, wardCount: 4,
-    maxBuildSlope: 0.52, maxBuildAltitude: 780, platformSlope: 0.17,
+    maxBuildSlope: 0.38, maxBuildAltitude: 780, platformSlope: 0.17,
     palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 3, rings: 1, expressway: false,
     railLoop: false, railRadials: 0, shinkansen: false,
@@ -1202,37 +1202,37 @@ const SITES = [
   // out to be cliff and produced villages of one plot.
   { name: "Shiokawa", code: "SKW", capital: false, alongT: 0.380, lateral: 0.75,
     alongRadius: 360, inlandRadius: 230, coreRadius: 76, coreOffset: [0, 12],
-    outlineNoise: 94, wardCount: 3, maxBuildSlope: 0.68, maxBuildAltitude: 620,
+    outlineNoise: 94, wardCount: 3, maxBuildSlope: 0.40, maxBuildAltitude: 620,
     platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
   { name: "Nagisa",   code: "NGS", capital: false, alongT: 0.920, lateral: 0.35,
     alongRadius: 420, inlandRadius: 270, coreRadius: 70, coreOffset: [0, 10],
-    outlineNoise: 90, wardCount: 3, maxBuildSlope: 0.68, maxBuildAltitude: 620,
+    outlineNoise: 90, wardCount: 3, maxBuildSlope: 0.40, maxBuildAltitude: 620,
     platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
   { name: "Hamaura",  code: "HMU", capital: false, alongT: 0.680, lateral: 0.00,
     alongRadius: 310, inlandRadius: 200, coreRadius: 66, coreOffset: [0, 10],
-    outlineNoise: 86, wardCount: 2, maxBuildSlope: 0.70, maxBuildAltitude: 620,
+    outlineNoise: 86, wardCount: 2, maxBuildSlope: 0.42, maxBuildAltitude: 620,
     platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
   { name: "Isobe",    code: "ISB", capital: false, alongT: 0.760, lateral: 0.20,
     alongRadius: 400, inlandRadius: 260, coreRadius: 64, coreOffset: [0, 8],
-    outlineNoise: 84, wardCount: 2, maxBuildSlope: 0.70, maxBuildAltitude: 620,
+    outlineNoise: 84, wardCount: 2, maxBuildSlope: 0.42, maxBuildAltitude: 620,
     platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
   { name: "Kaido",    code: "KDO", capital: false, alongT: 0.480, lateral: -0.70,
     alongRadius: 340, inlandRadius: 215, coreRadius: 72, coreOffset: [0, 12],
-    outlineNoise: 92, wardCount: 3, maxBuildSlope: 0.68, maxBuildAltitude: 620,
+    outlineNoise: 92, wardCount: 3, maxBuildSlope: 0.40, maxBuildAltitude: 620,
     platformSlope: 0.19, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 3, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
   { name: "Tomari",   code: "TMR", capital: false, alongT: 0.620, lateral: -0.30,
     alongRadius: 250, inlandRadius: 165, coreRadius: 58, coreOffset: [0, 6],
-    outlineNoise: 82, wardCount: 2, maxBuildSlope: 0.72, maxBuildAltitude: 620,
+    outlineNoise: 82, wardCount: 2, maxBuildSlope: 0.42, maxBuildAltitude: 620,
     platformSlope: 0.21, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true }
@@ -1439,7 +1439,13 @@ function makeWorld(seed, report) {
         const wxx = px / 760 + fbm(px / 1520, pz / 1520, seed + 8117, 2) * 0.85;
         const wzz = pz / 760 + fbm(px / 1520 + 31.7, pz / 1520 - 17.3, seed + 8119, 2) * 0.85;
         const hills = billow(wxx, wzz, seed + 311, 5) * 0.65 + ridged(wxx * 2.3, wzz * 2.3, seed + 313, 4, 1.1) * 0.35;
-        land += hills * 185 * sstep(0, 420, inland);
+        // The satoyama belt: dissected low hills between the coast and the
+        // ranges. It used to put 185 m of it everywhere more than 420 m
+        // inland, which is where the towns and most of the road network are,
+        // and the result was a country you could not drive across. The ranges
+        // below are untouched - Konto still has mountains - but the ground
+        // people live and drive on is now a plain that rises into them.
+        land += hills * 96 * sstep(380, 1500, inland);
 
         for (let r = 0; r < RANGES.length; r++) {
           const R = RANGES[r];
@@ -1462,7 +1468,7 @@ function makeWorld(seed, report) {
           land += R[5 - 0] * 0 + R[5] * 0; // (kept explicit: peak is R[5])
           land += R[5] * profile * fall * nv;
         }
-        land += fbm(px / 220, pz / 220, seed + 9203, 4) * 12 * sstep(0, 180, inland);
+        land += fbm(px / 220, pz / 220, seed + 9203, 4) * 6.5 * sstep(0, 180, inland);
         h = lerp(h, Math.max(land, 0.2), mask);
       }
       height[i] = h;
@@ -1585,14 +1591,18 @@ function makeWorld(seed, report) {
       const l = F.toLocal(px, pz);
       const du = (l[0] - site.coreOffset[0]) / aR, dv = (l[1] - site.coreOffset[1]) / iR;
       let d = Math.hypot(du, dv) * (1 + fbm(px / 460, pz / 460, seed + 2707, 3) * 0.12);
-      const w = 1 - sstep(0.80, 1.12, d);
+      // Full strength right out to the edge of the site and a long way past
+      // it, so the terrace does not fade out across the half of the town the
+      // ellipse does not quite cover - which is how Hamaura ended up built on
+      // a hillside with the roads cut into it like a quarry.
+      const w = 1 - sstep(0.98, 1.34, d);
       if (w <= 0.001) continue;
-      let target = Math.max(1.4, floor + ((px - centre[0]) * dr[0] + (pz - centre[1]) * dr[1]) * 0.008);
-      target += fbm(px / 210, pz / 210, seed + 2711, 3) * 1.1;
+      let target = Math.max(1.4, floor + ((px - centre[0]) * dr[0] + (pz - centre[1]) * dr[1]) * 0.006);
+      target += fbm(px / 210, pz / 210, seed + 2711, 3) * 0.8;
       const cur = height[i];
-      let flat = smin(cur, target, 34);
-      flat = Math.max(flat, Math.min(cur, target - 2.5));
-      if (flat < target - 0.5 && flat > target - 9) flat = lerp(flat, target, 0.75);
+      let flat = smin(cur, target, 22);
+      flat = Math.max(flat, Math.min(cur, target - 2.0));
+      if (flat < target - 0.5 && flat > target - 14) flat = lerp(flat, target, 0.86);
       height[i] = lerp(cur, flat, w);
     }
   });
@@ -4424,7 +4434,9 @@ function pollPad(dt) {
   if (wheel.open) setWheel(false);
 
   // D-pad up is the phone, the way it is in the game these controls come from.
-  if (pressed(PAD.UP)) setPhone(!phone.open);
+  // Once it is up, up is up: it moves to the row above. Toggling on the same
+  // button meant every press of up shut the phone and the row above could not
+  // be reached at all. B closes it, which is how you got out of it anyway.
   if (phone.open) {
     if (pressed(PAD.LEFT)) phoneMove(-1, 0);
     if (pressed(PAD.RIGHT)) phoneMove(1, 0);
@@ -4433,6 +4445,7 @@ function pollPad(dt) {
     if (pressed(PAD.A)) phoneAct();
     if (pressed(PAD.B)) { if (!phoneBack()) setPhone(false); }
   } else {
+    if (pressed(PAD.UP)) setPhone(true);
     if (pressed(PAD.DOWN)) toggleWalk();
     // D-pad left hails a taxi, with nothing on screen telling you so.
     if (pressed(PAD.LEFT)) hailTaxi();
@@ -4981,7 +4994,8 @@ function buildScene(w) {
             const b = rnd(Math.round(p.centre[1]) + k, Math.round(p.centre[0]), 6133);
             const lx = (a - 0.5) * p.size[0] * 0.88, lz = (b - 0.5) * p.size[1] * 0.88;
             const wc = fromRectLocal(lx, lz, p.centre[0], p.centre[1], p.yaw);
-            trees.push({ c: wc, y: world.sampleHeight(wc[0], wc[1]), s: lerp(0.75, 1.5, rnd(k, 3, 6137)) });
+            trees.push({ c: wc, y: world.sampleHeight(wc[0], wc[1]), s: lerp(0.75, 1.5, rnd(k, 3, 6137)),
+                         where: p.kind === "shrine" ? "shrine" : (region === "coast" ? "coast" : "park") });
           }
         }
         return;
@@ -5144,35 +5158,36 @@ function buildScene(w) {
     }
 
     // Street trees and park planting.
-    if (trees.length) {
-      const trunkGeo = new THREE.CylinderGeometry(0.16, 0.22, 1, 5, 1, true);
-      trunkGeo.translate(0, 0.5, 0);
-      const crownGeo = new THREE.IcosahedronGeometry(1, 0);
-      crownGeo.scale(1, 1.15, 1);
-      crownGeo.translate(0, 1, 0);
-      const trunkMat = new THREE.MeshLambertMaterial({ color: 0x4a3b2c });
-      const crownMat = new THREE.MeshLambertMaterial({ color: 0x3f5c33, flatShading: true });
-      const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, trees.length);
-      const crowns = new THREE.InstancedMesh(crownGeo, crownMat, trees.length);
-      const m = new THREE.Matrix4(), q = new THREE.Quaternion(), col = new THREE.Color();
-      trees.forEach((t, i) => {
-        const h = 6.2 * t.s;
-        m.compose(new THREE.Vector3(t.c[0], t.y, t.c[1]), q, new THREE.Vector3(1, h * 0.52, 1));
-        trunks.setMatrixAt(i, m);
-        m.compose(new THREE.Vector3(t.c[0], t.y + h * 0.42, t.c[1]), q,
-          new THREE.Vector3(h * 0.30, h * 0.30, h * 0.30));
-        crowns.setMatrixAt(i, m);
-        const g = 0.82 + rnd(i, 7, 6141) * 0.36;
-        col.setRGB(g * 0.92, g, g * 0.78);
-        crowns.setColorAt(i, col);
-      });
-      trunks.instanceMatrix.needsUpdate = true;
-      crowns.instanceMatrix.needsUpdate = true;
-      if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
-      trunks.frustumCulled = crowns.frustumCulled = false;
-      trunks.castShadow = crowns.castShadow = true;
-      root.add(trunks); root.add(crowns);
-    }
+    // Street trees. A Japanese arterial has a line of them down each side at
+    // a very regular spacing, and their absence is most of why an empty road
+    // here read as a runway. Keyaki in the city, pine on the coast.
+    city.roads.forEach(road => {
+      if (road.elevated || road.halfWidth < 7) return;
+      const gap = 17;
+      for (let i = 1; i < road.pts.length; i++) {
+        const a = road.pts[i - 1], b = road.pts[i];
+        const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        if (len < gap) continue;
+        const dx = (b[0] - a[0]) / len, dz = (b[2] - a[2]) / len;
+        const nx = -dz, nz = dx;
+        for (let d = gap * 0.5; d < len; d += gap) {
+          for (const side of [-1, 1]) {
+            const off = (road.halfWidth + 2.3) * side;
+            const px = a[0] + dx * d + nx * off, pz = a[2] + dz * d + nz * off;
+            if (px < 40 || pz < 40 || px > WORLD_X - 40 || pz > WORLD_Z - 40) continue;
+            const r = rnd(Math.round(px), Math.round(pz), 6171);
+            if (r > 0.80) continue;                 // gaps, for junctions and crossings
+            const y = world.sampleHeight(px, pz);
+            if (y < 1.0) continue;
+            if (insideBuilding(px, pz, 1.2)) continue;
+            trees.push({ c: [px, pz], y: y, s: lerp(0.80, 1.25, r),
+                         where: region === "coast" ? "coast" : "street" });
+          }
+        }
+      }
+    });
+
+    if (trees.length) plantTrees(root, trees);
 
     // The roads themselves, as geometry rather than as paint.
     buildRoadSurfaces(w, city, root);
@@ -5899,6 +5914,173 @@ function grabFrame() {
     frameGrab.ok = true;
   } catch (e) { frameGrab.ok = false; }
 }
+// ============================================================================
+// TREES
+// ----------------------------------------------------------------------------
+// Four species, because four is how many you need before a hillside stops
+// looking like one tree copied out. They are the four you actually see:
+//
+//   sugi    Japanese cedar. Planted over a third of the forested land in
+//           Japan, dead straight, very narrow, very dark, and the reason a
+//           Japanese hillside reads as vertical stripes rather than as a mass.
+//           Also what lines the approach to a shrine.
+//   matsu   black pine. Short, leaning, with the canopy in flat plates with
+//           sky between them. The coast and garden tree.
+//   keyaki  zelkova. The street and park tree: a vase that goes up and opens
+//           out, far broader than it is tall at the top.
+//   sakura  somei-yoshino. Low, wide, pale, and for three weeks a year the
+//           only thing anybody looks at.
+//
+// Each is built once as a merged geometry and drawn as one instanced mesh per
+// species, so the whole island's planting is eight draw calls.
+// ============================================================================
+
+// Concatenate a list of {geo, m} into one buffer. applyMatrix4 carries the
+// normals through, so the parts keep their shading.
+function mergeParts(parts) {
+  const pos = [], nor = [];
+  parts.forEach(part => {
+    const g = part.geo.clone().applyMatrix4(part.m).toNonIndexed();
+    const p = g.getAttribute("position"), n = g.getAttribute("normal");
+    for (let i = 0; i < p.count; i++) {
+      pos.push(p.getX(i), p.getY(i), p.getZ(i));
+      nor.push(n.getX(i), n.getY(i), n.getZ(i));
+    }
+    g.dispose();
+  });
+  const out = new THREE.BufferGeometry();
+  out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  return out;
+}
+
+function placed(geo, x, y, z, sx, sy, sz, tilt) {
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  if (tilt) q.setFromEuler(new THREE.Euler(tilt[0], tilt[1] || 0, tilt[2] || 0));
+  m.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(sx, sy, sz));
+  return { geo: geo, m: m };
+}
+
+// Every species is modelled to a unit height, so one instance scale sets how
+// big the tree is and the proportions look after themselves.
+const treeCache = {};
+function treeGeometry(species) {
+  if (treeCache[species]) return treeCache[species];
+  const parts = [];
+  const trunk = (topR, botR, h, y, tilt) => {
+    const g = new THREE.CylinderGeometry(topR, botR, 1, 6, 1, false);
+    g.translate(0, 0.5, 0);
+    parts.push(placed(g, 0, y, 0, 1, h, 1, tilt));
+  };
+  const cone = (r, h, y, seg) => {
+    const g = new THREE.ConeGeometry(1, 1, seg || 8);
+    g.translate(0, 0.5, 0);
+    parts.push(placed(g, 0, y, 0, r, h, r));
+  };
+  const blob = (r, flat, x, y, z) => {
+    const g = new THREE.IcosahedronGeometry(1, 1);
+    parts.push(placed(g, x, y, z, r, r * flat, r));
+  };
+
+  if (species === "sugi") {
+    // A pole with four skirts of foliage on it, each narrower than the last.
+    trunk(0.012, 0.030, 1.0, 0);
+    cone(0.150, 0.34, 0.22, 7);
+    cone(0.125, 0.30, 0.42, 7);
+    cone(0.098, 0.26, 0.60, 7);
+    cone(0.066, 0.24, 0.78, 7);
+  } else if (species === "matsu") {
+    // Leaning, with the canopy in separate flat plates and sky between them.
+    trunk(0.030, 0.062, 0.72, 0, [0.09, 0, 0.05]);
+    blob(0.30, 0.20, 0.06, 0.50, -0.02);
+    blob(0.26, 0.19, -0.10, 0.66, 0.07);
+    blob(0.19, 0.18, 0.11, 0.80, 0.05);
+  } else if (species === "sakura") {
+    // Low and very wide, with the crown starting almost at the ground.
+    trunk(0.034, 0.055, 0.40, 0);
+    blob(0.34, 0.62, 0.00, 0.56, 0.00);
+    blob(0.25, 0.60, 0.21, 0.48, 0.10);
+    blob(0.24, 0.60, -0.19, 0.50, -0.12);
+    blob(0.20, 0.58, 0.04, 0.72, -0.15);
+  } else {
+    // keyaki: a vase. Short bole, then it opens out and keeps opening.
+    trunk(0.040, 0.075, 0.46, 0);
+    blob(0.27, 0.84, 0.00, 0.62, 0.00);
+    blob(0.22, 0.80, 0.19, 0.72, 0.08);
+    blob(0.21, 0.80, -0.17, 0.70, -0.11);
+    blob(0.18, 0.78, 0.03, 0.86, 0.12);
+    blob(0.16, 0.76, -0.09, 0.88, -0.04);
+  }
+  const geo = mergeParts(parts);
+  geo.computeBoundingSphere();
+  treeCache[species] = geo;
+  return geo;
+}
+
+// Trunk brown under everything, and a canopy colour per species. The instance
+// colour varies it tree by tree, because no two are the same green.
+const TREE_LOOK = {
+  sugi:   { crown: 0x2f4a30, tall: [11, 21], narrow: true },
+  matsu:  { crown: 0x3d5438, tall: [5.5, 9.5] },
+  keyaki: { crown: 0x4e7036, tall: [8, 15] },
+  sakura: { crown: 0xd6a9ba, tall: [5, 8] }
+};
+
+function treeMaterial(species) {
+  const look = TREE_LOOK[species] || TREE_LOOK.keyaki;
+  return gfx.high
+    ? new THREE.MeshStandardMaterial({ color: look.crown, roughness: 0.92, metalness: 0.0,
+        flatShading: true })
+    : new THREE.MeshLambertMaterial({ color: look.crown, flatShading: true });
+}
+
+// Which tree goes where. A shrine precinct is sugi and sakura and nothing
+// else; a park is mostly keyaki with cherries in it; the coast gets pine.
+function treeSpecies(t, i) {
+  const r = rnd(Math.round(t.c[0]), Math.round(t.c[1]) + i, 6151);
+  if (t.where === "shrine") return r < 0.74 ? "sugi" : "sakura";
+  if (t.where === "coast")  return r < 0.62 ? "matsu" : (r < 0.86 ? "keyaki" : "sugi");
+  if (t.where === "hill")   return r < 0.80 ? "sugi" : "matsu";
+  return r < 0.58 ? "keyaki" : (r < 0.80 ? "sakura" : (r < 0.93 ? "matsu" : "sugi"));
+}
+
+function plantTrees(root, trees) {
+  const byKind = {};
+  trees.forEach((t, i) => {
+    const sp = treeSpecies(t, i);
+    (byKind[sp] || (byKind[sp] = [])).push(t);
+  });
+  Object.keys(byKind).forEach(sp => {
+    const list = byKind[sp];
+    const look = TREE_LOOK[sp] || TREE_LOOK.keyaki;
+    const inst = new THREE.InstancedMesh(treeGeometry(sp), treeMaterial(sp), list.length);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    const col = new THREE.Color();
+    list.forEach((t, i) => {
+      const r = rnd(Math.round(t.c[1]), Math.round(t.c[0]) + i, 6157);
+      const h = lerp(look.tall[0], look.tall[1], clamp01((t.s - 0.75) / 0.75 * 0.7 + r * 0.5));
+      // A little lean and a lot of rotation, so a row of them is a row of
+      // trees and not a row of one tree.
+      e.set((r - 0.5) * 0.08, r * 6.2831853, (rnd(i, 5, 6159) - 0.5) * 0.08);
+      q.setFromEuler(e);
+      const wide = lerp(0.88, 1.16, rnd(i, 9, 6163));
+      m.compose(new THREE.Vector3(t.c[0], t.y - 0.1, t.c[1]), q,
+                new THREE.Vector3(h * wide, h, h * wide));
+      inst.setMatrixAt(i, m);
+      const g = 0.84 + rnd(i, 7, 6141) * 0.30;
+      col.setRGB(g * (sp === "sakura" ? 1.0 : 0.94), g, g * (sp === "sakura" ? 0.98 : 0.80));
+      inst.setColorAt(i, col);
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    inst.frustumCulled = false;
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    root.add(inst);
+  });
+}
+
 // ============================================================================
 // THE POST CHAIN
 // ----------------------------------------------------------------------------
@@ -10880,8 +11062,8 @@ function drawPhone() {
 const PL = {
   pad: 0.075,          // the side margin everything lines up on
   safe: 0.055,         // below the punch hole: nothing is drawn above this
-  titleY: 0.090,       // the big screen title
-  subY: 0.120,
+  titleY: 0.088,       // the big screen title
+  subY: 0.130,
   listY: 0.165,        // where a list starts
   rowH: 0.098,         // a list row, and the gap that follows it
   rowGap: 0.012,
@@ -10906,9 +11088,27 @@ function clipText(g, text, x, y, max) {
   g.fillText(fitText(g, text, max), x, y);
 }
 
+// The colour the open app is painted in. Each app's icon already has one and
+// it was going to waste: the header, the selection and the accents now take
+// it, so the apps stop being twelve screens of the same grey.
+function appAccent() {
+  const row = PHONE_APPS.find(a => a[0] === phone.app);
+  return row ? row[1] : "#4a90d9";
+}
+
 function phoneChrome(g, W, H, title, sub) {
   g.fillStyle = "#0d0f12";
   g.fillRect(0, 0, W, H);
+  // A wash of the app's colour behind the header, the way every phone OS has
+  // done it since about 2014.
+  const accent = appAccent();
+  const wash = g.createLinearGradient(0, 0, 0, H * 0.20);
+  wash.addColorStop(0, accent);
+  wash.addColorStop(1, "rgba(0,0,0,0)");
+  g.globalAlpha = 0.20;
+  g.fillStyle = wash;
+  g.fillRect(0, 0, W, H * 0.20);
+  g.globalAlpha = 1;
   const t = phoneTime();
   g.fillStyle = "#f3f6f8";
   g.font = "600 " + Math.round(W * 0.050) + "px " + UI;
@@ -10918,14 +11118,26 @@ function phoneChrome(g, W, H, title, sub) {
   g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
   g.fillText("NHMobile 5G  \u25ae", W * 0.93, H * 0.031);
 
+  // A back chevron, so it is obvious there is somewhere to go back to.
+  g.strokeStyle = "rgba(255,255,255,0.80)";
+  g.lineWidth = W * 0.009;
+  g.lineCap = "round";
+  const by = H * PL.titleY - H * 0.001;
+  g.beginPath();
+  g.moveTo(W * 0.058, by - W * 0.020);
+  g.lineTo(W * 0.034, by);
+  g.lineTo(W * 0.058, by + W * 0.020);
+  g.stroke();
+  g.lineCap = "butt";
+
   g.textAlign = "left";
   g.fillStyle = "#ffffff";
   g.font = "700 " + Math.round(W * PL.title) + "px " + UI;
-  clipText(g, title, W * PL.pad, H * PL.titleY, W * 0.62);
+  clipText(g, title, W * (PL.pad + 0.035), H * PL.titleY, W * 0.58);
   if (sub) {
-    g.fillStyle = "#79818b";
+    g.fillStyle = "#9aa3ac";
     g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
-    clipText(g, sub, W * PL.pad, H * PL.subY, W * 0.62);
+    clipText(g, sub, W * (PL.pad + 0.035), H * PL.subY, W * 0.58);
   }
   g.fillStyle = "rgba(255,255,255,0.55)";
   g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
@@ -10941,17 +11153,36 @@ function roundRect(g, x, y, w, h, r) {
   g.closePath();
 }
 
-// A row that can be selected, which most of these screens are made of.
+// A row that can be selected, which most of these screens are made of. The
+// selected one is painted in the app's own colour with a bar down its leading
+// edge, rather than a slightly lighter grey you have to hunt for.
 function phoneRow(g, W, x, y, w, h, on, fill) {
-  g.fillStyle = on ? "rgba(255,255,255,0.13)" : (fill || "rgba(255,255,255,0.055)");
-  roundRect(g, x, y, w, h, W * 0.035);
+  const r = W * 0.035;
+  const dark = !fill || fill.indexOf("255") >= 0;
+  g.fillStyle = on ? (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)")
+                   : (fill || "rgba(255,255,255,0.045)");
+  roundRect(g, x, y, w, h, r);
   g.fill();
-  if (on) {
-    g.strokeStyle = "rgba(255,255,255,0.40)";
-    g.lineWidth = W * 0.006;
-    roundRect(g, x, y, w, h, W * 0.035);
-    g.stroke();
-  }
+  if (!on) return;
+  const accent = appAccent();
+  g.save();
+  roundRect(g, x, y, w, h, r);
+  g.clip();
+  // a wash of the colour across the row, strongest at the leading edge
+  const grd = g.createLinearGradient(x, y, x + w * 0.85, y);
+  grd.addColorStop(0, accent);
+  grd.addColorStop(1, "rgba(0,0,0,0)");
+  g.globalAlpha = 0.34;
+  g.fillStyle = grd;
+  g.fillRect(x, y, w, h);
+  g.globalAlpha = 1;
+  g.fillStyle = accent;
+  g.fillRect(x, y, W * 0.011, h);
+  g.restore();
+  g.strokeStyle = accent;
+  g.lineWidth = W * 0.005;
+  roundRect(g, x, y, w, h, r);
+  g.stroke();
 }
 
 // ---- Ryde
@@ -11114,49 +11345,194 @@ function poodleMark(g, W, cx, cy, size) {
   }
 }
 
+// A browser is almost entirely its own furniture: the tab strip, the omnibox
+// with the lock in it, and the toolbar along the bottom. Get those three right
+// and any page you put between them reads as a page in a browser. These are
+// Chrome's, because Chrome is what a phone browser looks like.
+const POODLE_TILE = ["#3b6ea8", "#d1483c", "#e0a21c", "#2f8a4c", "#8a5fc4", "#2f8a9c", "#c4663b", "#5b6b7a"];
+
+function poodleTabStrip(g, W, H, title, accent) {
+  g.fillStyle = "#1f2225";
+  g.fillRect(0, 0, W, H * 0.082);
+  // the status line, above the tabs
+  const t = phoneTime();
+  g.fillStyle = "#e6e9ec";
+  g.font = "600 " + Math.round(W * 0.038) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(t.h + ":" + two(t.m), W * 0.07, H * 0.0195);
+  g.textAlign = "right";
+  g.fillText("5G  ▮", W * 0.93, H * 0.0195);
+  g.textAlign = "left";
+
+  // the active tab: a rounded tab shape lifted out of the strip
+  const ty = H * 0.036, th = H * 0.046;
+  g.fillStyle = "#35393d";
+  roundRect(g, W * 0.045, ty, W * 0.70, th, W * 0.028); g.fill();
+  g.fillStyle = accent || "#3b6ea8";
+  g.beginPath(); g.arc(W * 0.085, ty + th / 2, W * 0.021, 0, 6.2832); g.fill();
+  g.fillStyle = "#e6e9ec";
+  g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
+  clipText(g, title, W * 0.118, ty + th / 2, W * 0.50);
+  // its close cross
+  g.strokeStyle = "#9aa1a9"; g.lineWidth = W * 0.007;
+  const cx = W * 0.695, cy = ty + th / 2, cr = W * 0.015;
+  g.beginPath();
+  g.moveTo(cx - cr, cy - cr); g.lineTo(cx + cr, cy + cr);
+  g.moveTo(cx + cr, cy - cr); g.lineTo(cx - cr, cy + cr);
+  g.stroke();
+  // and a new tab plus
+  g.strokeStyle = "#cfd4d8";
+  const px = W * 0.80;
+  g.beginPath();
+  g.moveTo(px - cr, cy); g.lineTo(px + cr, cy);
+  g.moveTo(px, cy - cr); g.lineTo(px, cy + cr);
+  g.stroke();
+  // the overflow dots
+  g.fillStyle = "#cfd4d8";
+  for (let i = 0; i < 3; i++) {
+    g.beginPath(); g.arc(W * 0.90, cy + (i - 1) * W * 0.030, W * 0.009, 0, 6.2832); g.fill();
+  }
+}
+
+function poodleOmnibox(g, W, H, text, secure) {
+  const y = H * 0.090, h = H * 0.044;
+  g.fillStyle = "#1f2225";
+  g.fillRect(0, H * 0.082, W, H * 0.060);
+  g.fillStyle = "#35393d";
+  roundRect(g, W * 0.045, y, W * 0.91, h, h / 2); g.fill();
+  // the padlock, drawn: a shackle over a body
+  const lx = W * 0.095, ly = y + h / 2;
+  g.strokeStyle = secure ? "#7fc49a" : "#9aa1a9";
+  g.lineWidth = W * 0.008;
+  g.beginPath(); g.arc(lx, ly - W * 0.011, W * 0.012, Math.PI, 0); g.stroke();
+  g.fillStyle = secure ? "#7fc49a" : "#9aa1a9";
+  roundRect(g, lx - W * 0.016, ly - W * 0.003, W * 0.032, W * 0.026, W * 0.005); g.fill();
+  g.fillStyle = "#e6e9ec";
+  g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "middle";
+  clipText(g, text, W * 0.135, ly, W * 0.70);
+  // reload: three quarters of a circle with an arrowhead
+  g.strokeStyle = "#cfd4d8"; g.lineWidth = W * 0.008;
+  const rx = W * 0.885, rr = W * 0.019;
+  g.beginPath(); g.arc(rx, ly, rr, -0.5, 4.2); g.stroke();
+  g.fillStyle = "#cfd4d8";
+  g.beginPath();
+  g.moveTo(rx + rr * 1.0, ly - rr * 0.95);
+  g.lineTo(rx + rr * 0.30, ly - rr * 0.78);
+  g.lineTo(rx + rr * 1.12, ly - rr * 0.16);
+  g.closePath(); g.fill();
+}
+
+function poodleToolbar(g, W, H) {
+  const by = H * 0.918, bh = H * 0.062;
+  g.fillStyle = "#1f2225";
+  g.fillRect(0, by, W, H - by);
+  const cy = by + bh * 0.46;
+  const chev = (x, dir) => {
+    g.strokeStyle = "#cfd4d8"; g.lineWidth = W * 0.010;
+    g.beginPath();
+    g.moveTo(x + dir * W * 0.014, cy - W * 0.021);
+    g.lineTo(x - dir * W * 0.014, cy);
+    g.lineTo(x + dir * W * 0.014, cy + W * 0.021);
+    g.stroke();
+  };
+  chev(W * 0.12, 1);
+  chev(W * 0.31, -1);
+  // home: a roof over a box
+  g.strokeStyle = "#cfd4d8"; g.lineWidth = W * 0.010;
+  g.beginPath();
+  g.moveTo(W * 0.50 - W * 0.026, cy + W * 0.002);
+  g.lineTo(W * 0.50, cy - W * 0.024);
+  g.lineTo(W * 0.50 + W * 0.026, cy + W * 0.002);
+  g.stroke();
+  g.strokeRect(W * 0.50 - W * 0.017, cy + W * 0.002, W * 0.034, W * 0.022);
+  // the tab count, in a rounded square
+  g.strokeStyle = "#cfd4d8"; g.lineWidth = W * 0.009;
+  roundRect(g, W * 0.665, cy - W * 0.023, W * 0.046, W * 0.046, W * 0.010); g.stroke();
+  g.fillStyle = "#cfd4d8";
+  g.font = "700 " + Math.round(W * 0.030) + "px " + UI;
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("1", W * 0.688, cy + W * 0.001);
+  // the menu
+  for (let i = 0; i < 3; i++) {
+    g.beginPath(); g.arc(W * 0.875, cy + (i - 1) * W * 0.026, W * 0.0095, 0, 6.2832); g.fill();
+  }
+  g.textAlign = "left";
+  // the gesture bar
+  g.fillStyle = "rgba(255,255,255,0.65)";
+  g.fillRect(W * 0.33, H * 0.982, W * 0.34, H * 0.0045);
+}
+
 function appPoodle(g, W, H) {
   const site = phone.site != null ? WEB[phone.site] : null;
   if (!site) {
-    phoneChrome(g, W, H, "Poodle", "Search the web");
-    poodleMark(g, W, W * 0.5, H * 0.20, W * 0.055);
-    // search box
-    g.fillStyle = "rgba(255,255,255,0.08)";
-    roundRect(g, W * 0.09, H * 0.245, W * 0.82, H * 0.058, H * 0.029); g.fill();
-    g.fillStyle = "#6b727a";
-    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText("Search or type a web address", W * 0.15, H * 0.274);
+    // The new tab page. A wordmark, a search pill you cannot type in, and the
+    // shortcut tiles, which is what a phone browser opens on.
+    g.fillStyle = "#15181b";
+    g.fillRect(0, 0, W, H);
+    poodleTabStrip(g, W, H, "New tab", "#5b6b7a");
+    poodleOmnibox(g, W, H, "Search or type a web address", false);
+
+    poodleMark(g, W, W * 0.5, H * 0.225, W * 0.052);
+    g.fillStyle = "#e6e9ec";
+    g.font = "400 " + Math.round(W * 0.078) + "px " + UI;
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("Poodle", W * 0.5, H * 0.288);
+
+    g.fillStyle = "#23272b";
+    roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.fill();
+    g.fillStyle = "#7d858d";
+    g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+    g.textAlign = "left";
+    g.fillText("Search Poodle", W * 0.175, H * 0.351);
+    // the little magnifier
+    g.strokeStyle = "#7d858d"; g.lineWidth = W * 0.008;
+    g.beginPath(); g.arc(W * 0.132, H * 0.3495, W * 0.017, 0, 6.2832); g.stroke();
+    g.beginPath(); g.moveTo(W * 0.144, H * 0.3565); g.lineTo(W * 0.154, H * 0.3625); g.stroke();
+
+    // the shortcut grid: four across, a coloured disc with the initial on it
+    const cols = 4, tileW = W * 0.84 / cols, top = H * 0.425;
     WEB.forEach((w, i) => {
-      const rowH = H * 0.070;
-      const y = H * 0.335 + i * (rowH + H * 0.011);
-      phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
+      const c = i % cols, r = (i / cols) | 0;
+      const cx = W * 0.08 + tileW * (c + 0.5), cy = top + r * H * 0.115;
+      const rad = W * 0.058;
+      if (phone.sub === i) {
+        g.fillStyle = "rgba(255,255,255,0.10)";
+        roundRect(g, cx - tileW * 0.46, cy - rad * 1.30, tileW * 0.92, H * 0.104, W * 0.030);
+        g.fill();
+        g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = W * 0.006;
+        roundRect(g, cx - tileW * 0.46, cy - rad * 1.30, tileW * 0.92, H * 0.104, W * 0.030);
+        g.stroke();
+      }
+      g.fillStyle = POODLE_TILE[i % POODLE_TILE.length];
+      g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.fill();
       g.fillStyle = "#ffffff";
-      g.font = "600 " + Math.round(W * PL.body) + "px " + UI;
-      clipText(g, w.title, W * (PL.pad + 0.05), y + rowH * 0.40, W * 0.74);
-      g.fillStyle = "#6b727a";
-      g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-      clipText(g, w.host, W * (PL.pad + 0.05), y + rowH * 0.76, W * 0.74);
+      g.font = "700 " + Math.round(W * 0.050) + "px " + UI;
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(w.title.replace(/[^A-Za-z0-9　-鿿]/g, "").slice(0, 1).toUpperCase() || "?", cx, cy + W * 0.002);
+      g.fillStyle = "#c3c9ce";
+      g.font = "500 " + Math.round(W * 0.030) + "px " + UI;
+      g.textAlign = "center";
+      clipText(g, w.title, cx, cy + rad * 1.52, tileW * 0.86);
     });
+    g.textAlign = "left"; g.textBaseline = "middle";
+    poodleToolbar(g, W, H);
     return;
   }
   drawSite(g, W, H, site);
 }
 
+// A page, inside the browser. The page itself starts under the omnibox and
+// stops above the toolbar, which is the whole difference between a web page
+// and a screen with some text on it.
+const PAGE_TOP = 0.142, PAGE_BOTTOM = 0.918;
+
+// Each page body still draws in the coordinates it was written in, where the
+// old address bar ended at 0.082. drawSite clips to the viewport and shifts
+// them down, so none of them had to be rewritten to gain a browser.
 function siteChrome(g, W, H, site, bg) {
   g.fillStyle = bg || "#ffffff";
   g.fillRect(0, 0, W, H);
-  // The address bar used to sit across the camera hole, which cut the middle
-  // out of every web address. It starts below it now, like a real browser's.
-  g.fillStyle = "#15181d";
-  g.fillRect(0, 0, W, H * 0.082);
-  g.fillStyle = "rgba(255,255,255,0.10)";
-  roundRect(g, W * 0.06, H * 0.036, W * 0.88, H * 0.034, H * 0.017); g.fill();
-  g.fillStyle = "#9aa1a9";
-  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.textAlign = "center";
-  g.fillText(site.host, W * 0.5, H * 0.0535);
-  g.textAlign = "left";
-  g.fillStyle = "rgba(0,0,0,0.55)";
-  g.fillRect(W * 0.33, H * 0.978, W * 0.34, H * 0.0045);
 }
 
 function shelfItem(g, W, H, it, y, on, accent) {
@@ -11207,6 +11583,21 @@ const CAR_STOCK = {
 };
 
 function drawSite(g, W, H, site) {
+  g.save();
+  g.beginPath();
+  g.rect(0, H * PAGE_TOP, W, H * (PAGE_BOTTOM - PAGE_TOP));
+  g.clip();
+  g.translate(0, H * (PAGE_TOP - 0.082));
+  drawSiteBody(g, W, H, site);
+  g.restore();
+  const i = WEB.indexOf(site);
+  poodleTabStrip(g, W, H, site.title, POODLE_TILE[(i < 0 ? 0 : i) % POODLE_TILE.length]);
+  poodleOmnibox(g, W, H, site.host, site.kind !== "scam");
+  poodleToolbar(g, W, H);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+}
+
+function drawSiteBody(g, W, H, site) {
   if (site.kind === "shop") {
     const eleven = site.brand === "eleven";
     siteChrome(g, W, H, site, "#f4f5f3");
@@ -13588,7 +13979,14 @@ function updateDrive(dt) {
   c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
   const loose = hand ? 2.1 : 1.0;
   const rate = c.steer * grip * 1.9 * loose * Math.min(1, Math.abs(c.speed) / 2.2);
-  c.yaw += rate * dt * Math.sign(c.speed || 1);
+  // Which way steering right turns the car. The car's forward is
+  // (sin yaw, cos yaw), so its right-hand side - forward crossed with up - is
+  // (-cos yaw, sin yaw), and turning towards it means yaw goes DOWN. Adding
+  // the rate steered the car to the left whenever you asked for right, which
+  // is what made it feel like it was driving itself. The sign of the speed
+  // flips it again in reverse, which is correct: back the car up with the
+  // wheel to the right and the nose swings left, same as a real one.
+  c.yaw -= rate * dt * Math.sign(c.speed || 1);
   // How far the tail is out, which is only used to lean the body into the
   // slide: there is no separate velocity vector to chase.
   c.slide = lerp(c.slide || 0, hand ? c.steer * clamp01(Math.abs(c.speed) / 14) : 0,
