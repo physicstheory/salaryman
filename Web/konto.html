@@ -648,7 +648,10 @@
   body.titleup #stars, body.paused #stars, body.inshop #stars { display: none; }
 
   /* ---- money, top right, above where the wanted stars will go ------------- */
+  /* The balance is only shown where you are spending it: in a shop, on the
+     phone's Wallet. Not floating over the street. */
   #money {
+    display: none;
     position: fixed; top: 16px; right: 20px; z-index: 12;
     font-family: var(--data); font-size: 21px; font-weight: 600;
     color: #e9edf0; letter-spacing: 0.02em;
@@ -4841,6 +4844,7 @@ function useRide() {
   if (drive.car) { leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
   if (player.placed && player.mode === "walk") {
+    if (parcelNear(player.pos.x, player.pos.z)) { openParcels(); return; }
     if (homeNear(player.pos.x, player.pos.z)) { enterHome(); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     if (sh) { enterShop(sh); return; }
@@ -4867,6 +4871,7 @@ function updatePrompt() {
   // A shop door takes precedence over a car parked outside it, because you
   // are standing at the door.
   if (player.placed && player.mode === "walk") {
+    if (parcelNear(player.pos.x, player.pos.z)) { setPromptText(parcels.list.length > 1 ? "Open parcels" : "Open parcel"); return; }
     // Doors are walked through, not pressed, so the prompt only says so.
     if (homeNear(player.pos.x, player.pos.z)) { setPromptText(null); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
@@ -5657,6 +5662,7 @@ function buildScene(w) {
   findHome(w);
   placeHospitals(w);
   buildGarage(root);
+  buildParcels(root);
   drive.car = null;
   drive.train = null;
   drive.parked.length = 0;
@@ -13934,14 +13940,14 @@ function phoneAct() {
         if (purse.yen < it.price) say("Not enough. " + yenText(purse.yen) + " left.", 4);
         else {
           purse.yen -= it.price;
-          if (it.id === "earbuds" || it.id === "headphones") {
+          if (it.days > 0) {
             // Delivered, not instant: that is the whole point of ordering it.
-            deliveries.push({ id: it.id, name: it.name, at: clock + it.days * 90 });
+            orderDelivery(it.id === "earbuds" || it.id === "headphones" ? "audio" : "item", it.id, it.name, it.days);
             say(it.name + " ordered \u00b7 " + yenText(it.price) + " \u00b7 arriving in " +
                 it.days + " day" + (it.days > 1 ? "s" : ""), 5);
           } else {
-            if (it.id === "bento" || it.id === "coffee") vitals.stress = clamp01(vitals.stress - 0.08);
-            say(it.name + " \u00b7 " + yenText(it.price), 4);
+            giveItem("item", it.id);
+            say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 in your bag.", 4);
           }
         }
       } else if (site.kind === "cars") {
@@ -15893,15 +15899,105 @@ function updateHail(dt) {
   }
 }
 
-// Things ordered and not yet arrived.
+// ---- deliveries ---------------------------------------------------------------
+// Ordering something puts it in `deliveries` with a day count. When the day is
+// up a Hayabin box turns up on the step of the nearest safehouse, which is the
+// flat in Mizuho because it is the only one there is yet; you walk up to it,
+// press Y and what was in it goes into the bag, where the wheel finds it.
 const deliveries = [];
+const parcels = { list: [], group: null, root: null, tex: null };
+
+// One place everything that can be owned goes through, so that a phone from a
+// parcel, a phone from a shop and a phone from a prize all land the same way.
+function giveItem(kind, id, colour) {
+  if (kind === "audio") phone.owns[id] = true;
+  else if (kind === "phone") bag.phones[id] = colour || 0;
+  else if (kind === "game") bag.games[id] = true;
+  else if (kind === "gear") bag.gear[id] = true;
+  else if (id === "umbrella") wheel.umbrellaOwned = true;
+  else bagAdd(id, 1);
+  phone.dirty = true;
+}
+
+function orderDelivery(kind, id, name, days, colour) {
+  deliveries.push({ kind: kind, id: id, name: name, colour: colour || 0, at: clock + Math.max(0.3, days) * 90 });
+}
+
 function updateDeliveries() {
   for (let i = deliveries.length - 1; i >= 0; i--) {
     if (clock < deliveries[i].at) continue;
     const d = deliveries.splice(i, 1)[0];
-    phone.owns[d.id] = true;
-    say(d.name + " has been delivered.", 5);
+    parcels.list.push(d);
+    refreshParcels();
+    say("Hayabin: " + d.name + " is on the step in Mizuho. Walk up and press Y.", 6);
+    phone.dirty = true;
   }
+}
+
+function parcelSpot() {
+  if (!home.door) return null;
+  const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
+  const lat = [Math.cos(home.yaw), -Math.sin(home.yaw)];
+  return [home.door[0] + lat[0] * 2.7 + out[0] * 1.5, home.door[1] + lat[1] * 2.7 + out[1] * 1.5];
+}
+function parcelNear(x, z) {
+  if (!parcels.list.length) return false;
+  const p = parcelSpot();
+  return !!p && Math.hypot(p[0] - x, p[1] - z) < 2.3;
+}
+
+function parcelTexture() {
+  if (parcels.tex) return parcels.tex;
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = 128;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#d9a84a"; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = "#c28f35"; g.fillRect(0, 56, 128, 16);
+  g.fillStyle = "#f4f1e6"; g.fillRect(20, 14, 62, 34);
+  g.fillStyle = "#1d2630"; g.font = "700 22px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText("速便", 51, 32);
+  g.fillStyle = "#1d2630"; g.fillRect(24, 96, 48, 3); g.fillRect(24, 104, 32, 3);
+  parcels.tex = new THREE.CanvasTexture(cv);
+  parcels.tex.encoding = THREE.sRGBEncoding;
+  return parcels.tex;
+}
+
+function buildParcels(root) {
+  parcels.root = root;
+  parcels.group = null;
+  refreshParcels();
+}
+function refreshParcels() {
+  if (parcels.group && parcels.group.parent) parcels.group.parent.remove(parcels.group);
+  parcels.group = null;
+  const spot = parcelSpot();
+  if (!parcels.root || !spot || !parcels.list.length) return;
+  const gr = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ map: parcelTexture() });
+  const n = Math.min(parcels.list.length, 4);
+  const sizes = [[0.62, 0.40, 0.46], [0.5, 0.34, 0.4], [0.46, 0.30, 0.36], [0.4, 0.28, 0.34]];
+  const at = [[0, 0, 0], [0.6, 0, 0.1], [0.05, 0.40, 0.02], [0.62, 0.34, 0.1]];
+  for (let i = 0; i < n; i++) {
+    const sz = sizes[i];
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sz[0], sz[1], sz[2]), mat);
+    m.position.set(at[i][0], at[i][1] + sz[1] / 2, at[i][2]);
+    m.rotation.y = (i * 0.37) - 0.2;
+    m.castShadow = true; m.receiveShadow = true;
+    gr.add(m);
+  }
+  gr.position.set(spot[0] - 0.3, world.surfaceY(spot[0], spot[1]), spot[1]);
+  gr.rotation.y = home.yaw;
+  parcels.root.add(gr);
+  parcels.group = gr;
+}
+
+function openParcels() {
+  if (!parcels.list.length) return;
+  const names = [];
+  parcels.list.forEach(p => { giveItem(p.kind, p.id, p.colour); names.push(p.name); });
+  parcels.list.length = 0;
+  refreshParcels();
+  say("Opened: " + names.join(", ") + ". Hold LB to find it.", 6);
 }
 
 function updatePhone() {
