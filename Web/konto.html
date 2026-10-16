@@ -428,7 +428,7 @@
     bottom: calc(18px + env(safe-area-inset-bottom, 0px));
     width: 220px;
     display: flex;
-    flex-direction: column-reverse;    /* the name sits over the map, not under it */
+    flex-direction: column-reverse;
   }
   #minimap {
     display: block;
@@ -437,25 +437,6 @@
     border-radius: 50%;
     background: #1b2a33;
     box-shadow: 0 0 0 3px rgba(12, 14, 18, 0.72), 0 6px 22px rgba(0, 0, 0, 0.5);
-  }
-  #streetbar {
-    margin: 0 0 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 220px;
-  }
-  #streetname {
-    font: 600 15px/1.2 var(--ui);
-    color: #f2f4f0;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
-    letter-spacing: 0.01em;
-  }
-  #streetsub {
-    font-family: var(--data);
-    font-size: 11px;
-    color: #c7d0d6;
-    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85);
   }
   #prompt {
     position: absolute;
@@ -815,10 +796,6 @@
 <div id="hud">
   <div id="minimapwrap">
     <canvas id="minimap" width="220" height="220"></canvas>
-    <div id="streetbar">
-      <div id="streetname">&nbsp;</div>
-      <div id="streetsub">&nbsp;</div>
-    </div>
   </div>
   <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
   <div id="phone">
@@ -870,6 +847,8 @@
       <button class="menu-btn" id="kwaypoint" type="button">Clear waypoint</button>
       <button class="menu-btn" id="kshadows" type="button">Shadows: on</button>
       <button class="menu-btn" id="kquality" type="button">Graphics: high</button>
+      <button class="menu-btn" id="kres" type="button">Resolution: 100%</button>
+      <button class="menu-btn" id="kfinish" type="button">Finish: on</button>
     </div>
     <p id="maphint"></p>
   </div>
@@ -921,6 +900,8 @@
     <div class="ppage" data-page="settings" hidden>
       <div class="menucol" id="psettings">
         <button class="menu-btn sel" id="mquality" type="button">Graphics: high</button>
+        <button class="menu-btn" id="mres" type="button">Resolution: 100%</button>
+        <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
       </div>
       <div class="pside">
@@ -1308,7 +1289,11 @@ const AVENUE_NAMES = [
 const RING1 = ["Station", "Office", "Retail", "Night", "Office", "Mansion", "Retail", "Civic"];
 const RING2 = ["Mansion", "House", "Campus", "Park", "Mansion", "House", "Shrine", "Retail"];
 const RING3 = ["Suburb", "House", "Suburb", "Park", "Works", "Suburb", "House", "Works"];
-const VILLAGE_RING = ["House", "Shrine", "Retail", "Park"];
+// A village of two or three wards used to be able to come out as a shrine and
+// a park with nobody living in it, because the walk through a four-entry pool
+// can miss the one entry that matters. Houses are most of a small town, so
+// they are most of the pool, and the first ward is one whatever happens.
+const VILLAGE_RING = ["House", "Retail", "House", "Shrine", "House", "Park", "House", "Works"];
 
 // ============================================================================
 // GENERATION
@@ -1916,6 +1901,8 @@ function planCity(world, F, seed, report, progressBase) {
     if (world.sampleHeight(w[0], w[1]) < 8 && world.sampleLand(w[0], w[1]) < 0.995) {
       if (waterWards < 2) { waterWards++; return "Water"; }
     }
+    // Somebody has to live here.
+    if (isVillage && !seeds.some(sd => sd.kind === "House")) return "House";
     const pool = isVillage ? VILLAGE_RING : (ring <= 1 ? RING1 : ring === 2 ? RING2 : RING3);
     // Walk the pool rather than hashing into it. Hashing on the ward's index
     // within its ring looked random and was not: a ring with one ward took the
@@ -3077,11 +3064,163 @@ const FACADE_STYLES = {
   coast:   { cell: [8.0, 5.6], roof: "tin" }
 };
 
+// ============================================================================
+// THE FINISH PASS
+// ----------------------------------------------------------------------------
+// Everything in this section is a mask laid over the world rather than work
+// done on any one asset. Nothing below knows what a machiya is, or a kei van,
+// or a kerb. It takes whatever the generators produced and makes it look like
+// something that was lit and photographed, which is most of the distance
+// between "a city of boxes" and "a city".
+//
+// Four levers, in the order they are worth having:
+//
+//   resolution   drawing above the size of the window and letting the display
+//                shrink it back is supersampling: every edge in the picture is
+//                averaged from four samples instead of guessed at by MSAA, and
+//                it costs nothing but pixels
+//   texels       a 256 px facade stretched over a nine-metre wall is 28 pixels
+//                a metre, which is what "pixelated" actually means. The
+//                generators are all written in fractions of S, so raising S
+//                raises the detail everywhere at once
+//   relief       a normal map derived from the colour map the generator
+//                already drew. Window reveals, tile ridges and board edges
+//                start catching the sun along one side and shading along the
+//                other, and a flat box stops reading as a flat box
+//   anisotropy   a road, a pavement or a roof seen at a grazing angle is the
+//                worst case for a mipmap. Sixteen taps instead of one is the
+//                single cheapest thing on this list
+//
+// The fifth and biggest - the post chain - is further down, next to present().
+// ============================================================================
+const TEXQ = { scale: 2, normals: true, maxNormal: 512 };
+
+// Multiplier on every procedural texture. The generators draw in fractions of
+// their own size, so this is the only number that has to change.
+function texSize(base) { return Math.max(64, Math.round(base * TEXQ.scale)); }
+
+function maxAniso() {
+  return renderer && renderer.capabilities.getMaxAnisotropy
+    ? renderer.capabilities.getMaxAnisotropy() : 1;
+}
+
+// Every texture in the world goes through here. There is no reason for any of
+// them to be sampled with one tap.
+function sharpTex(tex) {
+  if (!tex) return tex;
+  tex.anisotropy = maxAniso();
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+// ---- relief out of thin air -------------------------------------------------
+// A Sobel over the luminance of the colour map. Where the generator drew a dark
+// window reveal there is a step in brightness, and a step in brightness is, for
+// everything a building is made of, a step in the surface: the reveal is
+// genuinely recessed, the tile ridge genuinely stands up, the board edge
+// genuinely laps over the one below. It is not true of a painted stripe, and
+// that is the one case it gets wrong - which is a cheap price for relief on
+// every surface in the city without modelling any of it.
+const normalCache = new Map();
+function normalFromCanvas(src, strength, key) {
+  if (key && normalCache.has(key)) return normalCache.get(key);
+  const N = Math.min(TEXQ.maxNormal, src.width);
+  const small = document.createElement("canvas");
+  small.width = small.height = N;
+  const sg = small.getContext("2d");
+  sg.drawImage(src, 0, 0, N, N);
+  let px;
+  try { px = sg.getImageData(0, 0, N, N).data; } catch (e) { return null; }
+
+  // luminance, kept separately so the Sobel reads a single channel
+  const lum = new Float32Array(N * N);
+  for (let i = 0; i < N * N; i++)
+    lum[i] = (px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114) / 255;
+
+  const out = document.createElement("canvas");
+  out.width = out.height = N;
+  const og = out.getContext("2d");
+  const img = og.createImageData(N, N);
+  const d = img.data;
+  const at = (x, y) => lum[((y + N) % N) * N + ((x + N) % N)];   // wraps, like the texture does
+  const k = strength === undefined ? 2.2 : strength;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const gx = (at(x + 1, y - 1) + 2 * at(x + 1, y) + at(x + 1, y + 1))
+             - (at(x - 1, y - 1) + 2 * at(x - 1, y) + at(x - 1, y + 1));
+    const gy = (at(x - 1, y + 1) + 2 * at(x, y + 1) + at(x + 1, y + 1))
+             - (at(x - 1, y - 1) + 2 * at(x, y - 1) + at(x + 1, y - 1));
+    let nx = -gx * k, ny = -gy * k, nz = 1;
+    const inv = 1 / Math.sqrt(nx * nx + ny * ny + 1);
+    nx *= inv; ny *= inv; nz *= inv;
+    const i = (y * N + x) * 4;
+    d[i]     = Math.round((nx * 0.5 + 0.5) * 255);
+    d[i + 1] = Math.round((ny * 0.5 + 0.5) * 255);
+    d[i + 2] = Math.round((nz * 0.5 + 0.5) * 255);
+    d[i + 3] = 255;
+  }
+  og.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(out);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  sharpTex(tex);
+  if (key) normalCache.set(key, tex);
+  return tex;
+}
+
+// Give a material the relief its own colour map implies, and keep the normal
+// map in step with the colour map's tiling - including the per-instance tiling
+// the facade shader does, which is why this has to share the colour map's
+// repeat object rather than own one.
+function addRelief(mat, strength) {
+  if (!TEXQ.normals || !mat || !mat.map || !mat.isMeshStandardMaterial) return mat;
+  const img = mat.map.image;
+  if (!img || !img.width) return mat;
+  const n = normalFromCanvas(img, strength, mat.map.uuid);
+  if (!n) return mat;
+  mat.normalMap = n;
+  mat.normalMap.repeat = mat.map.repeat;
+  mat.normalMap.offset = mat.map.offset;
+  mat.normalScale = new THREE.Vector2(1, 1);
+  mat.needsUpdate = true;
+  return mat;
+}
+
+// The sweep. Walks whatever is in the scene and fixes the sampling on every
+// map it finds, which catches the textures built by parts of the game that
+// never heard of any of this.
+function polishScene(root) {
+  if (!root) return 0;
+  let n = 0;
+  const seen = new Set();
+  const want = ["map", "normalMap", "roughnessMap", "metalnessMap", "emissiveMap", "aoMap", "alphaMap"];
+  root.traverse(o => {
+    const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    mats.forEach(m => {
+      if (!m || seen.has(m.uuid)) return;
+      seen.add(m.uuid);
+      want.forEach(slot => {
+        const t = m[slot];
+        if (t && t.isTexture && t.anisotropy !== maxAniso()) { sharpTex(t); n++; }
+      });
+    });
+  });
+  return n;
+}
+
 function facadeTexture(style) {
-  const S = 256;
+  // Every generator below draws in a 256 unit square, and a good deal of what
+  // it draws is a couple of units wide: a lattice bar, a plaster course, the
+  // rail across a shutter. Enlarging the canvas and leaving those alone turns
+  // the lattice into a hairline on a black field, which is what it did. So the
+  // canvas grows and the context is scaled to match, and every number below
+  // stays in the units it was written in.
+  const S = 256, Q = TEXQ.scale;
   const c = document.createElement("canvas");
-  c.width = S; c.height = S;
+  c.width = c.height = texSize(S);
   const g = c.getContext("2d");
+  g.scale(Q, Q);
   const R = (a, b) => rnd(a, b, 4517 + style.length);   // deterministic per style
 
   function pane(x, y, w, h, base, lit) {
@@ -3327,10 +3466,11 @@ function groundGrain() {
 }
 
 function roofTexture(kind) {
-  const S = 128;
+  const S = 128, Q = TEXQ.scale;   // drawn in 128 units, rendered at whatever we ask for
   const c = document.createElement("canvas");
-  c.width = S; c.height = S;
+  c.width = c.height = texSize(S);
   const g = c.getContext("2d");
+  g.scale(Q, Q);
   if (kind === "kawara") {
     // Japanese pantiles: a run of half-round ridges with a dark shadow in
     // every valley, which is what makes a Nara roof read at a distance.
@@ -3354,7 +3494,10 @@ function roofTexture(kind) {
     }
     const tex = new THREE.CanvasTexture(c);
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    return tex;
+    // Without this the tiles are read as linear and a charcoal roof comes out
+    // the colour of the sky, which is what it did.
+    tex.encoding = THREE.sRGBEncoding;
+    return sharpTex(tex);
   }
   if (kind === "tile") {
     g.fillStyle = "#3a4048"; g.fillRect(0, 0, S, S);
@@ -3380,7 +3523,7 @@ function roofTexture(kind) {
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.encoding = THREE.sRGBEncoding;
-  return tex;
+  return sharpTex(tex);
 }
 
 // One material set per style. The vertex shader multiplies the box UVs by a per
@@ -3406,11 +3549,15 @@ function facadeMaterials(style) {
         "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = vec2(uv.x * tileH, uv.y * aTile.z);\n#endif");
   };
   side.customProgramCacheKey = () => "konto-facade";
+  // Window reveals and board laps get their depth back. Glass is the exception:
+  // a curtain wall is flat, and relief on it reads as a dented building.
+  if (!glassy) addRelief(side, style === "machiya" || style === "coast" ? 2.6 : 1.9);
   const roof = gfx.high
     ? new THREE.MeshStandardMaterial({ map: roofTexture(spec.roof), roughness: 0.86, metalness: 0.06,
                                        envMap: gfx.env || null, envMapIntensity: 0.3 })
     : new THREE.MeshLambertMaterial({ map: roofTexture(spec.roof) });
   roof.map.repeat.set(2, 2);
+  addRelief(roof, 2.4);
   const base = gfx.high
     ? new THREE.MeshStandardMaterial({ color: 0x5d5a55, roughness: 0.9, metalness: 0.0 })
     : new THREE.MeshLambertMaterial({ color: 0x5d5a55 });
@@ -3418,6 +3565,116 @@ function facadeMaterials(style) {
   // BoxGeometry groups run +X, -X, +Y, -Y, +Z, -Z.
   facadeCache[style] = { mats: [side, side, roof, base, side, side], spec: spec };
   return facadeCache[style];
+}
+
+// ---- the roof that hangs over the wall -------------------------------------
+// A machiya is not a box with a dark stripe painted across the top of it. What
+// you actually see from the street is a tiled roof that oversails the wall by
+// the best part of a metre, and the band of shade it throws down the plaster
+// under it. Painting that shadow into the facade gets you a stripe; building
+// the overhang gets you a roof, because the shade then moves with the sun and
+// the eave line breaks the skyline where the houses step.
+//
+// One prism, ridge running along +X, sitting on a unit footprint. It is scaled
+// per instance to the building it caps, so the whole town is two draw calls.
+const ROOF_OVERHANG = 0.85;     // metres the eave stands proud of the wall
+const ROOF_PITCH = 0.46;        // rise over half-span: about 25 degrees, a 5-sun roof
+
+function gableGeometry() {
+  const pos = [], uv = [], A = (v, u0, v0) => { pos.push(v[0], v[1], v[2]); uv.push(u0, v0); };
+  const quad = (a, b, c, d, t) => {
+    A(a, t[0][0], t[0][1]); A(b, t[1][0], t[1][1]); A(c, t[2][0], t[2][1]);
+    A(a, t[0][0], t[0][1]); A(c, t[2][0], t[2][1]); A(d, t[3][0], t[3][1]);
+  };
+  const UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
+  // the two slopes, wound so the normals come out facing up and outwards
+  quad([-0.5, 0, 0.5], [0.5, 0, 0.5], [0.5, 1, 0], [-0.5, 1, 0], UV);
+  quad([0.5, 0, -0.5], [-0.5, 0, -0.5], [-0.5, 1, 0], [0.5, 1, 0], UV);
+  const slopes = pos.length / 3;
+  // the gable ends, and the soffit you see standing under the eave
+  A([0.5, 0, 0.5], 0, 0); A([0.5, 0, -0.5], 1, 0); A([0.5, 1, 0], 0.5, 1);
+  A([-0.5, 0, -0.5], 0, 0); A([-0.5, 0, 0.5], 1, 0); A([-0.5, 1, 0], 0.5, 1);
+  quad([-0.5, 0, -0.5], [0.5, 0, -0.5], [0.5, 0, 0.5], [-0.5, 0, 0.5], UV);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  geo.computeVertexNormals();
+  geo.addGroup(0, slopes, 0);
+  geo.addGroup(slopes, pos.length / 3 - slopes, 1);
+  return geo;
+}
+
+const roofMatCache = {};
+function gableMaterials(kind) {
+  if (roofMatCache[kind]) return roofMatCache[kind];
+  const tile = gfx.high
+    ? new THREE.MeshStandardMaterial({ map: roofTexture(kind), roughness: kind === "tin" ? 0.52 : 0.82,
+        metalness: kind === "tin" ? 0.42 : 0.05, envMap: gfx.env || null, envMapIntensity: 0.35 })
+    : new THREE.MeshLambertMaterial({ map: roofTexture(kind) });
+  tile.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec2 aRoofTile;")
+      .replace("#include <uv_vertex>",
+        "#include <uv_vertex>\n#ifdef USE_UV\n  vUv = vec2(uv.x * aRoofTile.x, uv.y * aRoofTile.y);\n#endif");
+  };
+  tile.customProgramCacheKey = () => "konto-roof";
+  // Pantiles are half-rounds. Without relief they are a striped flat plane.
+  addRelief(tile, kind === "kawara" ? 3.0 : 1.6);
+  // Soffit and gable end. Dark, because the underside of an eave is always in
+  // its own shadow and reads as the darkest thing on the building.
+  const under = gfx.high
+    ? new THREE.MeshStandardMaterial({ color: 0x2b2520, roughness: 0.93, metalness: 0.0 })
+    : new THREE.MeshLambertMaterial({ color: 0x322b25 });
+  [tile, under].forEach(m => { m.userData.shared = true; });
+  roofMatCache[kind] = [tile, under];
+  return roofMatCache[kind];
+}
+
+// Which buildings get one. Only the country styles: a Tokonto office block has
+// a flat roof with plant on it, and always did.
+const GABLED = { machiya: "kawara", kura: "kawara", coast: "tin", houses: null };
+const GABLE_MAX_H = 12.5;        // metres: three storeys and a bit
+
+function addGableRoofs(root, boxes) {
+  const byKind = {};
+  boxes.forEach(b => {
+    const kind = GABLED[b.style];
+    if (!kind || b.deck) return;
+    // Only a building a person could live in one of. A seven storey block in
+    // the country style wearing a domestic gable reads as a pagoda with
+    // windows, which is what it looked like.
+    if (b.h > GABLE_MAX_H) return;
+    (byKind[kind] || (byKind[kind] = [])).push(b);
+  });
+  Object.keys(byKind).forEach(kind => {
+    const list = byKind[kind];
+    const geo = gableGeometry();
+    const inst = new THREE.InstancedMesh(geo, gableMaterials(kind), list.length);
+    const tiles = new Float32Array(list.length * 2);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    list.forEach((b, i) => {
+      // The ridge runs along the frontage, so it is the eave that faces the
+      // street and not a gable - hirairi, which is how a machiya terrace sits.
+      const alongX = b.size[0] >= b.size[1];
+      const ridge = (alongX ? b.size[0] : b.size[1]) + ROOF_OVERHANG * 2;
+      const span = (alongX ? b.size[1] : b.size[0]) + ROOF_OVERHANG * 2;
+      const rise = clamp(span * 0.5 * ROOF_PITCH, 0.8, 3.4);
+      e.set(0, (b.yaw + (alongX ? 0 : 90)) * Math.PI / 180, 0);
+      q.setFromEuler(e);
+      m.compose(new THREE.Vector3(b.c[0], b.y + b.h - 0.10, b.c[1]), q,
+                new THREE.Vector3(ridge, rise, span));
+      inst.setMatrixAt(i, m);
+      const slope = Math.hypot(span * 0.5, rise);
+      tiles[i * 2] = Math.max(1, Math.round(ridge / 2.6));
+      tiles[i * 2 + 1] = Math.max(1, Math.round(slope / 2.2));
+    });
+    geo.setAttribute("aRoofTile", new THREE.InstancedBufferAttribute(tiles, 2));
+    inst.instanceMatrix.needsUpdate = true;
+    inst.frustumCulled = false;
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    root.add(inst);
+  });
 }
 
 // ============================================================================
@@ -4308,7 +4565,7 @@ function setPaused(on) {
 
 // ---- the tabs --------------------------------------------------------------
 const PAUSE_TABS = ["game", "map", "stats", "phone", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mmapopen"], settings: ["mquality", "mshadows"] };
+const PAUSE_ROWS = { game: ["mresume", "mmapopen"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
 const pause = { tab: 0, row: 0 };
 
 function setPauseTab(i) {
@@ -4410,6 +4667,8 @@ function initPause() {
   on("mmapopen", () => { setPaused(false); setMapOpen(true); });
   on("mresume", () => setPaused(false));
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
+  on("mres", cycleResolution);
+  on("mfinish", toggleFinish);
   on("mshadows", () => {
     if (!renderer) return;
     renderer.shadowMap.enabled = !renderer.shadowMap.enabled;
@@ -4613,6 +4872,14 @@ function buildScene(w) {
     });
     delete facadeCache[k];
   });
+  // The gable roofs and the normal maps derived from the colour maps are
+  // cached the same way and go the same way, or a rebuild at a new texture
+  // size keeps handing out the old size's canvases.
+  Object.keys(roofMatCache).forEach(k => {
+    roofMatCache[k].forEach(m => { if (m.map) m.map.dispose(); if (m.normalMap) m.normalMap.dispose(); m.dispose(); });
+    delete roofMatCache[k];
+  });
+  normalCache.clear();
   if (gfx.env && gfx.env.dispose) gfx.env.dispose();
   gfx.env = bakeEnvironment();
   scene.environment = gfx.env || null;
@@ -4725,19 +4992,38 @@ function buildScene(w) {
         for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
           const hr = rnd(Math.round(p.centre[0]) + ix, Math.round(p.centre[1]) + iz, 9187);
           if (hr > 0.91) continue;
+          // A second draw, so depth and height do not move together. With one
+          // number the whole row grows and shrinks as a unit, which is exactly
+          // the continuous terrace this is meant to break up.
+          const jr = rnd(Math.round(p.centre[0]) + ix * 7 + 3, Math.round(p.centre[1]) + iz * 13, 9191);
           const cellX = p.size[0] / nx, cellZ = p.size[1] / nz;
-          const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5), -p.size[1] * 0.5 + cellZ * (iz + 0.5)];
-          const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
           // A machiya is narrow, deep and two storeys; a generic house box is
           // square and squat. The footprint changes with the region, not only
           // the texture, or it still reads as a suburb with a new paint job.
-          const hs = region === "nara"
-            ? [cellX * 0.90, cellZ * 0.62]
-            : region === "coast" ? [cellX * 0.84, cellZ * 0.74]
-            : [cellX * 0.78, cellZ * 0.78];
-          const hh = region === "nara" ? lerp(6.4, 7.8, hr)
-                   : region === "coast" ? lerp(4.6, 6.4, hr)
-                   : lerp(5.5, p.height, hr * 0.7);
+          //
+          // Depth, height and the set-off from the street all vary per house.
+          // A real machiya row shares party walls but every owner built to his
+          // own purse: the frontage is continuous, the roofline never is.
+          let hs, hh, back = 0;
+          if (region === "nara") {
+            const depth = lerp(0.50, 0.74, jr);
+            hs = [cellX * lerp(0.88, 0.97, hr), cellZ * depth];
+            // a third of them are the low single-storey infill between two
+            // proper two-storey houses, which is where the roofline steps
+            hh = jr < 0.32 ? lerp(4.3, 5.4, hr) : lerp(6.6, 8.6, hr);
+            back = (0.62 - depth) * cellZ * 0.5;
+          } else if (region === "coast") {
+            const depth = lerp(0.62, 0.84, jr);
+            hs = [cellX * lerp(0.74, 0.90, hr), cellZ * depth];
+            hh = jr < 0.38 ? lerp(3.9, 4.9, hr) : lerp(5.6, 7.2, hr);
+            back = (0.74 - depth) * cellZ * 0.5;
+          } else {
+            hs = [cellX * 0.78, cellZ * 0.78];
+            hh = lerp(5.5, p.height, hr * 0.7);
+          }
+          const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5),
+                     -p.size[1] * 0.5 + cellZ * (iz + 0.5) + back];
+          const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
           boxes.push({ c: wc, size: hs, yaw: p.yaw, y: p.groundY, h: hh,
                        style: facadeStyleFor("houses", region) });
         }
@@ -4847,6 +5133,7 @@ function buildScene(w) {
         inst.receiveShadow = true;
         root.add(inst);
       });
+      addGableRoofs(root, boxes);
     }
 
     // Soti Tower, the one building in the city that is modelled and not massed.
@@ -4946,6 +5233,11 @@ function buildScene(w) {
   const target = new THREE.Vector3(look.at[0], look.at[1] + 80, look.at[2]);
   camPos.set(target.x + 1500, 560, target.z + 1750);
   aimAt(target);
+
+  // Last of all, the sweep: every texture in the finished world gets the
+  // sampling it should have had, including the ones built by parts of the
+  // game that know nothing about any of this.
+  polishScene(scene);
 }
 
 function aimAt(target) {
@@ -5280,14 +5572,14 @@ function followSun() {
 }
 
 // The HUD is not worth sixty frames a second: the minimap redraws a few dozen
-// blocks and the street name only changes when you cross a junction.
+// blocks, and nothing on it changes faster than you can read it. Where you are
+// is deliberately not written on the screen — open the map if you want to know.
 let hudTimer = 0;
 function updateHud(dt, force) {
   updateSound(dt);
   hudTimer -= dt;
   if (hudTimer > 0 && !force) return;
   hudTimer = 1 / 14;
-  updatePlace();
   drawMinimap();
   drawVitals();
   drawStars();
@@ -5607,10 +5899,335 @@ function grabFrame() {
     frameGrab.ok = true;
   } catch (e) { frameGrab.ok = false; }
 }
+// ============================================================================
+// THE POST CHAIN
+// ----------------------------------------------------------------------------
+// The scene is drawn into a buffer instead of onto the screen, and the screen
+// gets the buffer back after four things have happened to it. None of them
+// know anything about the world; they work on the picture, which is why this
+// is worth more per line than anything that could be done to the models.
+//
+//   ambient occlusion   where two surfaces meet, less of the sky can reach the
+//                       corner. Every kerb, doorway, eave and wheel arch in
+//                       the city gets a contact shadow it was never modelled
+//                       with, and that single effect is most of what separates
+//                       a render from a diagram
+//   bloom               bright things bleed. A white wall in the sun, a window
+//                       with the afternoon in it, a headlamp at night
+//   grade               a film curve, a cool shadow and a warm highlight, and
+//                       the saturation pulled back. Raw sRGB out of a renderer
+//                       always looks like a renderer
+//   finish              a sharpen to put back what the downsample softened, a
+//                       vignette, and the faintest grain, which is the oldest
+//                       trick there is for making flat shading look shot
+//
+// It costs about a third of the frame at 1080p. Low and medium turn it off.
+// ============================================================================
+const post = {
+  want: true, on: false, ready: false,
+  rt: null, aoRT: null, blurA: null, blurB: null,
+  cam: null, quad: null, scenes: {}, mats: {},
+  w: 0, h: 0, time: 0, forced: null,     // null: whatever the tier says
+  // Tuned against the picture, not against taste: strong enough that turning
+  // the chain off looks flat, weak enough that nothing announces itself.
+  ao: 0.55, bloom: 0.42, sharp: 0.50, grain: 0.028, vignette: 0.16, ca: 0.45,
+  exposure: 1.05
+};
+
+const FS_VERT = `
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }
+`;
+
+// Depth-only ambient occlusion. The view position is rebuilt from the depth
+// buffer and the normal from its derivatives, so nothing has to be drawn twice.
+const AO_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D tDepth;
+uniform mat4 uProjInv;
+uniform mat4 uProj;
+uniform vec2 uRes;
+uniform float uRadius, uBias, uIntensity, uFar, uTime;
+
+float rawDepth(vec2 uv) { return texture2D(tDepth, uv).x; }
+
+vec3 viewPos(vec2 uv, float d) {
+  vec4 ndc = vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+  vec4 v = uProjInv * ndc;
+  return v.xyz / v.w;
+}
+
+void main() {
+  float d = rawDepth(vUv);
+  if (d >= 0.9999) { gl_FragColor = vec4(1.0); return; }
+  vec3 P = viewPos(vUv, d);
+  // Beyond a couple of hundred metres the depth buffer has nothing left to say
+  // and the result is noise, so it fades out rather than lying.
+  float dist = -P.z;
+  float fade = 1.0 - smoothstep(90.0, 260.0, dist);
+  if (fade <= 0.001) { gl_FragColor = vec4(1.0); return; }
+
+  // The cross of the screen-space derivatives is the surface normal, but its
+  // sign depends on which way the derivatives run and getting it backwards
+  // points the sample hemisphere into the surface, so every flat thing in the
+  // world occludes itself and the picture goes grey. View space has the camera
+  // down -z, so the normal of anything you can see has positive z.
+  vec3 N = normalize(cross(dFdx(P), dFdy(P)));
+  // Face it at the camera. Testing the z component alone looks right and is
+  // not: on a road running away from you the normal is almost side on, the
+  // sign of its z flips from pixel to pixel in the noise of the derivatives,
+  // and every pixel that flips occludes itself completely. P is the vector
+  // from the eye to the surface, so a normal facing the eye opposes it.
+  if (dot(N, P) > 0.0) N = -N;
+  // A road seen along its length is nearly edge on, so one pixel of screen can
+  // be a metre of depth. A fixed bias cannot tell that from a real corner and
+  // the result is the banding this used to draw across the carriageway, so the
+  // bias grows with distance and the samples start a little off the surface.
+  float bias = uBias * (1.0 + dist * 0.07);
+  vec3 O = P + N * bias;
+  // a per-pixel rotation, so the 12 taps look like noise and not like banding
+  float a = fract(sin(dot(vUv * uRes, vec2(12.9898, 78.233))) * 43758.5453);
+  float occ = 0.0;
+  const int TAPS = 12;
+  for (int i = 0; i < TAPS; i++) {
+    float fi = float(i);
+    float ang = (fi + a) * 2.39996;                 // golden angle
+    float rad = sqrt((fi + 0.5) / float(TAPS));
+    vec3 dir = vec3(cos(ang), sin(ang), 0.0);
+    dir = normalize(dir - N * dot(dir, N) + N * 0.55);
+    vec3 sp = O + dir * rad * uRadius;
+    vec4 cp = uProj * vec4(sp, 1.0);
+    vec2 suv = (cp.xy / cp.w) * 0.5 + 0.5;
+    if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) continue;
+    float sd = rawDepth(suv);
+    if (sd >= 0.9999) continue;
+    vec3 SP = viewPos(suv, sd);
+    float diff = SP.z - sp.z;                        // view z is negative ahead
+    // Only count a blocker that is in front of the sample and inside the
+    // radius: a wall fifty metres nearer is not occluding this corner.
+    float range = smoothstep(0.0, 1.0, uRadius / max(0.0001, abs(SP.z - P.z)));
+    // soft, not a step: a hard threshold on a noisy depth is what draws bands
+    occ += smoothstep(bias, bias * 4.0, diff) * range;
+  }
+  occ = 1.0 - (occ / float(TAPS)) * uIntensity * fade;
+  gl_FragColor = vec4(clamp(occ, 0.0, 1.0));
+}
+`;
+
+const BLUR_FRAG = `
+precision mediump float;
+varying vec2 vUv;
+uniform sampler2D tTex;
+uniform vec2 uStep;
+uniform float uThreshold;
+uniform int uBright;
+void main() {
+  if (uBright == 1) {
+    vec3 c = texture2D(tTex, vUv).rgb;
+    float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    gl_FragColor = vec4(c * smoothstep(uThreshold, uThreshold + 0.28, l), 1.0);
+    return;
+  }
+  // a nine tap gaussian, which at quarter resolution is a very wide blur
+  vec3 sum = texture2D(tTex, vUv).rgb * 0.2270270270;
+  sum += (texture2D(tTex, vUv + uStep * 1.3846153846).rgb +
+          texture2D(tTex, vUv - uStep * 1.3846153846).rgb) * 0.3162162162;
+  sum += (texture2D(tTex, vUv + uStep * 3.2307692308).rgb +
+          texture2D(tTex, vUv - uStep * 3.2307692308).rgb) * 0.0702702703;
+  gl_FragColor = vec4(sum, 1.0);
+}
+`;
+
+const COMPOSITE_FRAG = `
+precision highp float;
+varying vec2 vUv;
+uniform sampler2D tColor, tAO, tBloom;
+uniform vec2 uRes;
+uniform float uAO, uBloom, uSharp, uGrain, uVignette, uCA, uTime, uExposure;
+
+vec3 grade(vec3 c) {
+  // lift the shadows a touch towards blue and push the highlights towards the
+  // sun, which is what a graded frame does and a raw render never does
+  vec3 shadow = vec3(0.016, 0.020, 0.030);
+  vec3 high   = vec3(1.020, 1.000, 0.972);
+  c = shadow + c * (high - shadow);
+  // a soft S: contrast in the mids without crushing either end
+  c = c * c * (3.0 - 2.0 * c) * 0.18 + c * 0.82;
+  float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+  return mix(vec3(l), c, 1.06);                 // the faintest lift in saturation
+}
+
+void main() {
+  vec2 px = 1.0 / uRes;
+  vec2 off = (vUv - 0.5);
+  float r2 = dot(off, off);
+
+  // chromatic aberration, strictly at the corners
+  vec2 ca = off * r2 * uCA * 0.010;
+  vec3 c;
+  c.r = texture2D(tColor, vUv + ca).r;
+  c.g = texture2D(tColor, vUv).g;
+  c.b = texture2D(tColor, vUv - ca).b;
+
+  // contrast adaptive sharpen: put back the edge the downsample ate
+  vec3 n = texture2D(tColor, vUv + vec2(0.0, px.y)).rgb
+         + texture2D(tColor, vUv - vec2(0.0, px.y)).rgb
+         + texture2D(tColor, vUv + vec2(px.x, 0.0)).rgb
+         + texture2D(tColor, vUv - vec2(px.x, 0.0)).rgb;
+  c = clamp(c + (c * 4.0 - n) * uSharp * 0.25, 0.0, 1.0);
+
+  // four taps of the half-resolution occlusion buffer, which is a blur wide
+  // enough to settle the noise and narrow enough to keep the corners
+  vec2 ap = px * 1.5;
+  float occ = (texture2D(tAO, vUv + vec2( ap.x,  ap.y)).r
+             + texture2D(tAO, vUv + vec2(-ap.x,  ap.y)).r
+             + texture2D(tAO, vUv + vec2( ap.x, -ap.y)).r
+             + texture2D(tAO, vUv + vec2(-ap.x, -ap.y)).r) * 0.25;
+  c *= mix(1.0, occ, uAO);
+  c += texture2D(tBloom, vUv).rgb * uBloom;
+  c = grade(c * uExposure);
+  c *= 1.0 - uVignette * smoothstep(0.22, 0.98, r2);
+
+  // grain, animated, so it reads as film and not as a dirty screen
+  float g = fract(sin(dot(vUv * uRes + uTime, vec2(12.9898, 78.233))) * 43758.5453);
+  c += (g - 0.5) * uGrain;
+
+  gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
+}
+`;
+
+function fsMaterial(frag, uniforms) {
+  return new THREE.ShaderMaterial({
+    vertexShader: FS_VERT, fragmentShader: frag, uniforms: uniforms,
+    depthTest: false, depthWrite: false, toneMapped: false,
+    extensions: { derivatives: true }
+  });
+}
+
+function postSetup() {
+  if (post.ready) return;
+  post.cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  post.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), null);
+  post.quad.frustumCulled = false;
+  post.stage = new THREE.Scene();
+  post.stage.add(post.quad);
+  post.mats.ao = fsMaterial(AO_FRAG, {
+    tDepth: { value: null }, uProjInv: { value: new THREE.Matrix4() },
+    uProj: { value: new THREE.Matrix4() }, uRes: { value: new THREE.Vector2(1, 1) },
+    uRadius: { value: 0.80 }, uBias: { value: 0.045 }, uIntensity: { value: 1.0 },
+    uFar: { value: 1 }, uTime: { value: 0 }
+  });
+  post.mats.blur = fsMaterial(BLUR_FRAG, {
+    tTex: { value: null }, uStep: { value: new THREE.Vector2() },
+    uThreshold: { value: 0.70 }, uBright: { value: 0 }
+  });
+  post.mats.comp = fsMaterial(COMPOSITE_FRAG, {
+    tColor: { value: null }, tAO: { value: null }, tBloom: { value: null },
+    uRes: { value: new THREE.Vector2(1, 1) },
+    uAO: { value: post.ao }, uBloom: { value: post.bloom }, uSharp: { value: post.sharp },
+    uGrain: { value: post.grain }, uVignette: { value: post.vignette },
+    uCA: { value: post.ca }, uTime: { value: 0 }, uExposure: { value: post.exposure }
+  });
+  post.ready = true;
+}
+
+function postResize(w, h) {
+  postSetup();
+  if (post.w === w && post.h === h && post.rt) return;
+  post.w = w; post.h = h;
+  [post.rt, post.aoRT, post.blurA, post.blurB].forEach(t => { if (t) t.dispose(); });
+  const opts = { minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+                 format: THREE.RGBAFormat, type: THREE.UnsignedByteType, stencilBuffer: false };
+  post.rt = new THREE.WebGLRenderTarget(w, h, opts);
+  // The render target has to be told it holds sRGB, or three writes linear
+  // values into it and the whole picture comes back half as bright as it was.
+  post.rt.texture.encoding = THREE.sRGBEncoding;
+  post.rt.depthTexture = new THREE.DepthTexture(w, h);
+  post.rt.depthTexture.format = THREE.DepthFormat;
+  post.rt.depthTexture.type = THREE.UnsignedIntType;
+  post.aoRT = new THREE.WebGLRenderTarget(Math.max(1, w >> 1), Math.max(1, h >> 1), opts);
+  const bw = Math.max(1, w >> 2), bh = Math.max(1, h >> 2);
+  post.blurA = new THREE.WebGLRenderTarget(bw, bh, opts);
+  post.blurB = new THREE.WebGLRenderTarget(bw, bh, opts);
+}
+
+function runPass(mat, target) {
+  post.quad.material = mat;
+  renderer.setRenderTarget(target || null);
+  renderer.render(post.stage, post.cam);
+}
+
+// True only when the chain can actually run: the tier asks for it, the device
+// can give us a depth texture, and nothing has gone wrong with it yet.
+function postUsable() {
+  if (!post.want || !renderer) return false;
+  if (post.broken) return false;
+  const caps = renderer.capabilities;
+  if (!caps.isWebGL2 && !renderer.extensions.get("WEBGL_depth_texture")) return false;
+  return true;
+}
+
+function renderPost() {
+  const size = renderer.getSize(new THREE.Vector2());
+  postResize(Math.max(2, Math.round(size.x)), Math.max(2, Math.round(size.y)));
+
+  renderer.setRenderTarget(post.rt);
+  renderer.clear();
+  renderer.render(scene, camera);
+
+  // ---- occlusion
+  const ao = post.mats.ao.uniforms;
+  ao.tDepth.value = post.rt.depthTexture;
+  ao.uProj.value.copy(camera.projectionMatrix);
+  ao.uProjInv.value.copy(camera.projectionMatrixInverse);
+  ao.uRes.value.set(post.w, post.h);
+  runPass(post.mats.ao, post.aoRT);
+
+  // ---- bloom: bright pass, then one blur each way at quarter resolution
+  const bl = post.mats.blur.uniforms;
+  bl.uBright.value = 1; bl.tTex.value = post.rt.texture;
+  runPass(post.mats.blur, post.blurA);
+  bl.uBright.value = 0;
+  bl.tTex.value = post.blurA.texture;
+  bl.uStep.value.set(4.0 / post.w, 0);
+  runPass(post.mats.blur, post.blurB);
+  bl.tTex.value = post.blurB.texture;
+  bl.uStep.value.set(0, 4.0 / post.h);
+  runPass(post.mats.blur, post.blurA);
+
+  // ---- the picture
+  const cu = post.mats.comp.uniforms;
+  cu.tColor.value = post.rt.texture;
+  cu.tAO.value = post.aoRT.texture;
+  cu.tBloom.value = post.blurA.texture;
+  cu.uRes.value.set(post.w, post.h);
+  cu.uTime.value = post.time;
+  cu.uAO.value = post.ao; cu.uBloom.value = post.bloom; cu.uSharp.value = post.sharp;
+  cu.uGrain.value = post.grain; cu.uVignette.value = post.vignette; cu.uCA.value = post.ca;
+  cu.uExposure.value = post.exposure;
+  runPass(post.mats.comp, null);
+}
+
 // Every render in the frame loop goes through here, so the copy always happens
 // while the buffer is still there.
 function present() {
-  renderer.render(scene, camera);
+  post.time += 0.016;
+  if (postUsable()) {
+    try {
+      renderPost();
+      post.on = true;
+    } catch (e) {
+      // A device that cannot do this gets the plain picture rather than none.
+      post.broken = true;
+      post.on = false;
+      renderer.setRenderTarget(null);
+      renderer.render(scene, camera);
+    }
+  } else {
+    if (post.on) { post.on = false; renderer.setRenderTarget(null); }
+    renderer.render(scene, camera);
+  }
   if (wantFrame() || frameGrab.want) { grabFrame(); frameGrab.want = false; }
 }
 
@@ -5779,13 +6396,33 @@ function tick(dt) {
 //
 // It is applied live. Nothing is rebuilt, nothing is reloaded, so a player on a
 // laptop that is struggling can drop a tier mid-street and carry on.
+//
+// renderScale above 1 is supersampling. At 1.35 a 1920-wide window is drawn at
+// 2592 and shrunk back by the display, which is four samples averaged into
+// every pixel you see - better than any amount of MSAA, and the reason ultra
+// looks the way it does on a screen that is not 4K. On a screen that is, the
+// pixel ratio does it instead and the same numbers give you 4K natively.
 const TIERS = {
-  low:    { renderScale: 0.60, maxPixelRatio: 1.0,  shadows: false, cars: 45,  far: 1100, antialias: false },
-  medium: { renderScale: 0.82, maxPixelRatio: 1.25, shadows: true,  cars: 90,  far: 1800, antialias: true },
-  high:   { renderScale: 1.00, maxPixelRatio: 2.0,  shadows: true,  cars: 130, far: 2600, antialias: true }
+  low:    { renderScale: 0.60, maxPixelRatio: 1.0,  shadows: false, cars: 45,  far: 1100,
+            antialias: false, tex: 1, normals: false, shadowMap: 1024, post: false },
+  medium: { renderScale: 0.82, maxPixelRatio: 1.25, shadows: true,  cars: 90,  far: 1800,
+            antialias: true,  tex: 1, normals: true,  shadowMap: 2048, post: false },
+  high:   { renderScale: 1.00, maxPixelRatio: 2.0,  shadows: true,  cars: 130, far: 2600,
+            antialias: true,  tex: 2, normals: true,  shadowMap: 2048, post: true },
+  ultra:  { renderScale: 1.35, maxPixelRatio: 2.0,  shadows: true,  cars: 160, far: 3400,
+            antialias: true,  tex: 4, normals: true,  shadowMap: 4096, post: true }
 };
-const TIER_ORDER = ["low", "medium", "high"];
-const gfx = { high: true, tier: "high", env: null, asphalt: null, paving: null, kerb: null };
+const TIER_ORDER = ["low", "medium", "high", "ultra"];
+
+// Render resolution, as a multiple of the window, set on its own. This is the
+// honest version of "run it in 4K": at 200% a 1920-wide window is drawn at
+// 3840 and the display shrinks it back, which on any screen is a genuinely
+// 4K-rendered frame and on a 4K screen is a 4K frame you are looking at
+// one-to-one. It is also the first thing to turn down if the frame rate goes,
+// because every pixel is shaded.
+const RENDER_SCALES = [0.6, 0.8, 1.0, 1.35, 2.0];
+const gfx = { high: true, tier: "high", env: null, asphalt: null, paving: null, kerb: null,
+              scale: null };   // null: whatever the tier says
 
 // What the player last chose, so the machine that needed low mode yesterday
 // does not have to be told again today.
@@ -5803,6 +6440,15 @@ function applyTier(name, opts) {
   const t = TIERS[name] || TIERS.high;
   gfx.tier = TIERS[name] ? name : "high";
   gfx.high = gfx.tier !== "low";
+  // Texture size and relief are baked into the canvases, so they only take
+  // effect on the next world build. Everything else here is live.
+  TEXQ.scale = t.tex;
+  TEXQ.normals = t.normals;
+  if (sunLight && sunLight.shadow.mapSize.x !== t.shadowMap) {
+    sunLight.shadow.mapSize.set(t.shadowMap, t.shadowMap);
+    if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
+  }
+  post.want = post.forced === null ? t.post : post.forced;
   if (renderer) {
     renderer.shadowMap.enabled = t.shadows;
     sizeRenderer();
@@ -5831,15 +6477,16 @@ function sizeRenderer() {
   const stage = document.getElementById("stage");
   if (!stage || !renderer) return;
   const t = TIERS[gfx.tier] || TIERS.high;
+  const scale = gfx.scale === null ? t.renderScale : gfx.scale;
   const w = Math.max(16, stage.clientWidth), h = Math.max(16, stage.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, t.maxPixelRatio));
-  renderer.setSize(Math.round(w * t.renderScale), Math.round(h * t.renderScale), false);
+  renderer.setSize(Math.round(w * scale), Math.round(h * scale), false);
   const c = renderer.domElement;
   c.style.width = "100%";
   c.style.height = "100%";
   // Below full resolution a smooth stretch reads as a soft picture rather than
   // a blocky one, which is the right trade at this end of the scale.
-  c.style.imageRendering = t.renderScale < 0.95 ? "auto" : "";
+  c.style.imageRendering = scale < 0.95 ? "auto" : "";
   if (camera) {
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
@@ -9046,7 +9693,7 @@ const nav = {
   base: null, wash: [], idx: null, ready: false,
   waypoint: null,                      // {x, z}
   mapOpen: false, mapZoom: 1, mapCx: 0, mapCz: 0, mapSel: 0,
-  street: "", sub: "", place: null
+  place: null
 };
 
 // A grid index of anything with a centre and a size, so the map can draw the
@@ -9170,18 +9817,29 @@ function buildNav(w) {
 }
 
 // Which city a point belongs to, or the nearest one if it is out in the fields.
+//
+// Tōkonto's bounding rectangle is big enough to swallow Mizuho whole, so taking
+// the first box the point falls inside put Mizuho's streets in the capital. The
+// smallest box that contains you is the one you are actually standing in: a town
+// inside the capital's rectangle is still the town.
 function cityAt(x, z) {
   if (!world || !world.cities) return null;
-  let best = null, bestD = Infinity;
+  let inside = null, insideArea = Infinity;
+  let near = null, nearD = Infinity;
   for (let i = 0; i < world.cities.length; i++) {
     const c = world.cities[i], b = c.bounds;
     if (!b) continue;
-    if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) return c;
+    if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1) {
+      const area = (b.x1 - b.x0) * (b.z1 - b.z0);
+      if (area < insideArea) { insideArea = area; inside = c; }
+      continue;
+    }
     const cx = (b.x0 + b.x1) * 0.5, cz = (b.z0 + b.z1) * 0.5;
     const d = Math.hypot(x - cx, z - cz);
-    if (d < bestD) { bestD = d; best = c; }
+    if (d < nearD) { nearD = d; near = c; }
   }
-  return bestD < 3200 ? best : null;
+  if (inside) return inside;
+  return nearD < 3200 ? near : null;
 }
 
 // Where you are, in the words a Japanese address uses: the arterial if you are
@@ -9565,24 +10223,10 @@ function drawMinimap() {
   g.restore();
 }
 
-function updatePlace() {
-  if (!nav.ready) return;
-  const at = player.placed ? player.pos : camPos;
-  const p = placeAt(at.x, at.z);
-  if (p.street === nav.street && p.sub === nav.sub) return;
-  nav.street = p.street; nav.sub = p.sub;
-  const a = document.getElementById("streetname");
-  const b = document.getElementById("streetsub");
-  if (a) a.textContent = p.street;
-  if (b) b.textContent = nav.waypoint
-    ? p.sub + "  ·  " + Math.round(Math.hypot(nav.waypoint.x - at.x, nav.waypoint.z - at.z)) + " m to waypoint"
-    : p.sub;
-}
-
 // ---- the island map ----------------------------------------------------
 // Konto has one seed. There is no "generate a new island" any more, because a
 // place you can reroll is a demo, not somewhere you live.
-const MAP_MENU = ["kresume", "kwaypoint", "kshadows", "kquality"];
+const MAP_MENU = ["kresume", "kwaypoint", "kshadows", "kquality", "kres", "kfinish"];
 
 function mapAcross() {
   // Zoom 1 is the whole island in the window, whatever shape the window is;
@@ -9677,7 +10321,45 @@ function setMapOpen(on) {
   }
 }
 
-const TIER_LABEL = { low: "low (best frame rate)", medium: "medium", high: "high" };
+// What the resolution row says, including the buffer it actually produces, so
+// a player can see the frame is 3840 across and not take it on trust.
+function resolutionLabel() {
+  const stage = document.getElementById("stage");
+  const t = TIERS[gfx.tier] || TIERS.high;
+  const scale = gfx.scale === null ? t.renderScale : gfx.scale;
+  let text = "Resolution: " + Math.round(scale * 100) + "%";
+  if (renderer && stage) {
+    const sz = renderer.getSize(new THREE.Vector2());
+    const r = renderer.getPixelRatio();
+    text += "  (" + Math.round(sz.x * r) + "x" + Math.round(sz.y * r) + ")";
+  }
+  return text + (gfx.scale === null ? "" : " *");
+}
+
+function cycleResolution() {
+  const t = TIERS[gfx.tier] || TIERS.high;
+  const now = gfx.scale === null ? t.renderScale : gfx.scale;
+  // the next rung up the ladder from wherever we are, wrapping at the top
+  let i = 0;
+  while (i < RENDER_SCALES.length && RENDER_SCALES[i] <= now + 0.001) i++;
+  gfx.scale = i >= RENDER_SCALES.length ? RENDER_SCALES[0] : RENDER_SCALES[i];
+  sizeRenderer();
+  syncQualityLabels();
+}
+
+function toggleFinish() {
+  const t = TIERS[gfx.tier] || TIERS.high;
+  const now = post.forced === null ? t.post : post.forced;
+  post.forced = !now;
+  post.want = post.forced;
+  post.broken = false;
+  syncQualityLabels();
+}
+
+const TIER_LABEL = {
+  low: "low (best frame rate)", medium: "medium",
+  high: "high", ultra: "ultra (4K, slowest)"
+};
 function syncQualityLabels() {
   const text = "Graphics: " + (TIER_LABEL[gfx.tier] || gfx.tier);
   ["kquality", "mquality"].forEach(id => {
@@ -9688,6 +10370,17 @@ function syncQualityLabels() {
   ["kshadows", "mshadows"].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = sh;
+  });
+  const rs = resolutionLabel();
+  ["kres", "mres"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = rs;
+  });
+  const t = TIERS[gfx.tier] || TIERS.high;
+  const fin = "Finish: " + ((post.forced === null ? t.post : post.forced) ? "on" : "off");
+  ["kfinish", "mfinish"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = fin;
   });
 }
 
@@ -9701,6 +10394,8 @@ function syncMapMenu() {
 function runMapMenu(i) {
   const id = MAP_MENU[i];
   if (id === "kresume") setMapOpen(false);
+  else if (id === "kres") cycleResolution();
+  else if (id === "kfinish") toggleFinish();
   else if (id === "kwaypoint") { if (nav.waypoint) clearWaypoint(); else setWaypointHere(); }
   else if (id === "kshadows") {
     if (!renderer) return;
@@ -9713,10 +10408,10 @@ function runMapMenu(i) {
     // on the spot; only the material work - clearcoat, reflections, the real
     // road surface - needs the meshes rebuilt, and that is skipped unless the
     // move actually crosses the line between low and the other two.
-    const wasHigh = gfx.high;
+    const wasHigh = gfx.high, wasTex = TEXQ.scale, wasRelief = TEXQ.normals;
     const next = TIER_ORDER[(TIER_ORDER.indexOf(gfx.tier) + 1) % TIER_ORDER.length];
     applyTier(next);
-    if (gfx.high !== wasHigh) {
+    if (gfx.high !== wasHigh || TEXQ.scale !== wasTex || TEXQ.normals !== wasRelief) {
       const keep = { pos: player.pos.clone(), yaw: player.yaw, mode: player.mode, placed: player.placed };
       buildScene(world);
       if (keep.placed) {
