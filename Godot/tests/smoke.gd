@@ -104,6 +104,49 @@ func _run(g: Game) -> void:
 	g._resume()
 	if get_tree().paused: fails.append("still paused after resume")
 	print("street name test: ", MapDraw.street_name(g.world, 104.0, 104.0), " | ", MapDraw.street_name(g.world, 104.0, 130.0))
+	# activities: each opens, runs and ends with a result, moving stress
+	var gsx = get_node("/root/GameState")
+	var act: ActivityUI = g.activity_ui
+	gsx.money = 100000
+	for k in ["sento", "bench", "pachinko", "karaoke", "arcade", "fishing"]:
+		gsx.stress = 0.7
+		act.open(k)
+		if k == "arcade":
+			act._choose(0)
+			for i in 600:
+				act.step(0.05)
+				if i % 7 == 0: act._play_key(KEY_UP if (i / 7) % 2 == 0 else KEY_RIGHT)
+				if act._mode != "play": break
+			act.close()
+			act.open(k)
+			act._choose(1)
+			for i in 4000:
+				act.step(0.02)
+				if act._mode != "play": break
+		else:
+			act._choose(0)
+			if k == "karaoke":
+				var tt := 0.0
+				while act._mode == "play" and tt < 40.0:
+					act.step(0.02)
+					tt += 0.02
+					for nt in act._notes:
+						if not nt.done and absf(nt.t - act._t) < 0.03:
+							act._karaoke_press(nt.lane)
+			elif k == "fishing":
+				var tt2 := 0.0
+				while act._mode == "play" and tt2 < 30.0:
+					act.step(0.02)
+					tt2 += 0.02
+					if act._bite and act._bar >= act._zone.x and act._bar <= act._zone.y:
+						act._fish_press()
+			elif k == "pachinko":
+				for i in 200: act.step(0.02)
+		print("activity %-9s -> mode %s | stress %.2f | %s" % [k, act._mode, gsx.stress, act._result])
+		if act._mode == "play": fails.append(k + " never finished")
+		if k in ["sento", "bench", "karaoke"] and gsx.stress >= 0.7: fails.append(k + " did not lower stress")
+		act.close()
+	print("spots: %d  (benches and piers)" % g.world.spots.size())
 	# the phone: open every app and make sure each builds without error
 	g._open_phone()
 	for a in GameData.raw.phone_apps:

@@ -15,6 +15,7 @@ func _ready() -> void:
 	brands = raw.brands
 	for it in raw.items:
 		items[it.id] = it
+	ActivityUI.register_brands()
 	# shelf items that are not in the bag table still need a record
 	for shelf in raw.shelves:
 		for it in shelf.items:

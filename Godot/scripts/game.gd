@@ -15,6 +15,7 @@ var current: Vehicle
 var lights := false
 var smoke_test := false
 var shop_ui: ShopUI
+var activity_ui: ActivityUI
 var map_ui: MapUI
 var phone_ui: PhoneUI
 var phone_open := false
@@ -61,6 +62,9 @@ func _ready() -> void:
 	shop_ui.visible = false
 	shop_ui.closed.connect(_on_shop_closed)
 	GameState.notice.connect(func(app: String, title: String, body: String, secs: float): hud.toast(app, title, body, secs))
+	activity_ui = ActivityUI.new()
+	layer.add_child(activity_ui)
+	activity_ui.closed.connect(_on_shop_closed)
 	map_ui = MapUI.new()
 	layer.add_child(map_ui)
 	map_ui.closed.connect(_on_map_closed)
@@ -230,7 +234,7 @@ func _on_died(reason: String) -> void:
 func nearest_door(p: Vector3, r := 3.2) -> Node:
 	var best: Node = null
 	var bd := r
-	for s in world.shops + world.vendors:
+	for s in world.shops + world.vendors + world.spots:
 		var d := Vector2(s.door.x - p.x, s.door.z - p.z).length()
 		if d < bd:
 			bd = d
@@ -242,7 +246,10 @@ func open_shop(door: Node) -> void:
 	player.active = false
 	player.velocity = Vector3.ZERO
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	shop_ui.open(door.brand)
+	if door.brand in ["sento", "pachinko", "karaoke", "arcade", "bench", "fishing"]:
+		activity_ui.open(door.brand)
+	else:
+		shop_ui.open(door.brand)
 
 func _on_shop_closed() -> void:
 	ui_open = false
@@ -320,7 +327,7 @@ func _physics_process(dt: float) -> void:
 		if ui_open:
 			hud.prompt = ""
 		elif door:
-			hud.prompt = "E: " + ("buy a drink" if door is VendingMachine else "enter " + door.shop_name)
+			hud.prompt = "E: " + ("buy a drink" if door is VendingMachine else ("sit down" if door.brand == "bench" else ("fish" if door.brand == "fishing" else "enter " + door.shop_name)))
 		else:
 			hud.prompt = "E: get in" if v and not v.wrecked and not player.dead else ""
 
@@ -477,6 +484,8 @@ func _make_beam() -> void:
 	stage.add_child(beam)
 
 func _update_waypoint() -> void:
+	if beam == null:
+		return
 	var wp := GameState.waypoint
 	if wp == Vector3.INF:
 		beam.visible = false

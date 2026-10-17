@@ -22,7 +22,8 @@ var jp: JpBuildings
 var shops: Array = []          # ShopFront nodes
 var vendors: Array = []        # VendingMachine nodes
 var _shop_n := 0
-var _specials := {5: "plaza", 9: "dokoto", 14: "capsule", 24: "capsule"}
+var spots: Array = []          # benches and the pier
+var _specials := {3: "sento", 5: "plaza", 7: "pachinko", 9: "dokoto", 11: "karaoke", 13: "arcade", 14: "capsule", 17: "sento", 19: "karaoke", 21: "arcade", 23: "pachinko", 25: "capsule"}
 const SHOP_CYCLE := ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"]
 var _sizes := {}                 # kit name -> unscaled size
 var _prepared := {}
@@ -40,6 +41,7 @@ func build() -> void:
 	_rail()
 	_lamps()
 	_vending()
+	_spots()
 	forest.commit()
 
 # ---- sky, light and the sea
@@ -387,7 +389,7 @@ func _lot_jp(x: float, z: float, sz: float, mid: float) -> void:
 		var yaw := float(rng.randi() % 4) * PI * 0.5
 		var bx := jp.place(self, rng, it, cx, cz, yaw, sz - 2.0, outs)
 		_solid_box(bx)
-		_maybe_shop(bx, outs, mid, x, z, 0.32)
+		_maybe_shop(bx, outs, mid, x, z, 0.4)
 		return
 	for a in 2:
 		for b in 2:
@@ -398,7 +400,7 @@ func _lot_jp(x: float, z: float, sz: float, mid: float) -> void:
 			var yaw2 := float(rng.randi() % 4) * PI * 0.5
 			var bx2 := jp.place(self, rng, it, x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw2, sz * 0.5 - 1.6, outs2)
 			_solid_box(bx2)
-			_maybe_shop(bx2, outs2, mid, x, z, 0.2)
+			_maybe_shop(bx2, outs2, mid, x, z, 0.27)
 
 ## Some buildings have a branded shop on the street wall. The brands run in the web build's order;
 ## every seventh is the back-street armourer, and a few are special (the mall, the electronics store,
@@ -446,6 +448,23 @@ func _vending() -> void:
 		vm.build(Vector3(x, 0.12, z), atan2(-side, 0.0))
 		vendors.append(vm)
 		placed += 1
+
+func _spots() -> void:
+	# benches in the park, round the edge of the grass
+	var centre := Vector3(4.5 * P, 0.12, 4.0 * P)
+	for k in 6:
+		var a := float(k) / 6.0 * TAU
+		var s := ActivitySpot.new()
+		add_child(s)
+		var pos := centre + Vector3(cos(a) * 24.0, 0.0, sin(a) * 30.0)
+		s.build("bench", pos, atan2(-cos(a), -sin(a)))
+		spots.append(s)
+	# the pier on the east edge
+	for z in [3.0 * P + 20.0, 5.0 * P - 20.0]:
+		var pier := ActivitySpot.new()
+		add_child(pier)
+		pier.build("fishing", Vector3(W + 22.0, 0.1, z), PI * 0.5)
+		spots.append(pier)
 
 func in_park(p: Vector3) -> bool:
 	return p.x > 4.0 * P + 6.0 and p.x < 5.0 * P - 6.0 and p.z > 3.0 * P + 6.0 and p.z < 5.0 * P - 6.0
