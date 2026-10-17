@@ -5230,6 +5230,7 @@ function initThree() {
     }
     if (ski.mode === "run") { if (e.code === "Escape" && !skiRun.ended) skiRunEnd("quit"); e.preventDefault(); return; }
     if (ski.mode === "ride") { e.preventDefault(); return; }
+    if (phone.open && phone.entry && phoneEntryKey(e)) { e.preventDefault(); return; }
     if (phone.open && phone.app === "MyGram" && mynetKey(e)) { e.preventDefault(); return; }
     if (phone.open && phone.app === "Poodle" && phone.site == null && searchUI.on && searchKey(e)) { e.preventDefault(); return; }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
@@ -12357,6 +12358,8 @@ const phone = {
   device: "so24",       // the handset in your hand: a key into DEVICES
   colourIdx: 0,         // its shell colour
   pearWall: 0, pearAccent: 0,   // what a Pear lets you change
+  wall: { kind: "default", g: 0, photo: null },   // the background: the dusk, a colour wash, or a photograph from the gallery
+  entry: null,          // a line of text being typed: { title, hint, value, secret, save }
   call: null,           // { number, t0ms } while you are on one
   pad: { on: false, sel: 0 },   // keypad focus on a basic phone
   watch: null,          // a Pear Watch, once you have one
@@ -12474,7 +12477,17 @@ FILLER_SITES.forEach(f => WEB.push({ host: f.host, title: f.title, kind: "page",
 // the originals get searchable words too
 WEB.forEach(w => { if (!w.kw) w.kw = ({ shop: "shop store buy food drink konbini phone", cars: "car cars buy drive vehicle", tech: "phone phones camera games console watch pear soti dokoto", news: "news shimbun paper", forum: "forum sararii talk", scam: "win prize free money", gov: "city hall government forms" })[w.kind] || ""; });
 
-const searchUI = { on: false, q: "", focus: "kb", r: 0, c: 0, res: 0 };
+// Poodle's search has three tabs: the sites on the island, the real web, and
+// photographs. The web tab asks Google (through a Programmable Search key set
+// in Settings) and, without one, asks Wikipedia, because Google does not hand
+// out results to a page that has no key. The photographs are always the free
+// ones on Wikimedia Commons: stock, in other words, credited, and yours to
+// save to the gallery and put on the wall.
+const searchUI = { on: false, q: "", focus: "kb", r: 0, c: 0, res: 0, mode: 0, page: null,
+  web: { q: "", state: "idle", items: [], source: "", err: "" }, img: { q: "", state: "idle", items: [], err: "" } };
+const poodleGoogle = { key: "", cx: "" };
+try { poodleGoogle.key = localStorage.getItem("konto.poodle.gkey") || ""; poodleGoogle.cx = localStorage.getItem("konto.poodle.gcx") || ""; } catch (e) {}
+function poodleSaveKeys() { try { localStorage.setItem("konto.poodle.gkey", poodleGoogle.key); localStorage.setItem("konto.poodle.gcx", poodleGoogle.cx); } catch (e) {} }
 const KB_ROWS = ["qwertyuiop", "asdfghjkl-", "zxcvbnm.", ""];
 const KB_BOTTOM = ["space", "back", "go"];
 function webSearch(q) {
@@ -12486,79 +12499,255 @@ function webSearch(q) {
     return { i: i, s: s };
   }).filter(x => x.s > 0).sort((a, b) => b.s - a.s);
 }
-function searchOpen() { searchUI.on = true; searchUI.q = ""; searchUI.focus = "kb"; searchUI.r = 1; searchUI.c = 4; searchUI.res = 0; phone.dirty = true; }
-function searchClose() { searchUI.on = false; phone.dirty = true; }
-function searchType(ch) { if (searchUI.q.length < 28) searchUI.q += ch; searchUI.res = 0; phone.dirty = true; }
+function searchOpen() { const U = searchUI; U.on = true; U.q = ""; U.focus = "kb"; U.r = 1; U.c = 4; U.res = 0; U.mode = 0; U.page = null; phone.dirty = true; }
+function searchClose() { searchUI.on = false; searchUI.page = null; phone.dirty = true; }
+function searchType(ch) { if (searchUI.q.length < 40) searchUI.q += ch; searchUI.res = 0; phone.dirty = true; }
 function searchOpenResult() {
   const r = webSearch(searchUI.q);
   const pick = r[clamp(searchUI.res, 0, Math.max(0, r.length - 1))];
-  if (!pick) { say("Nothing matches that. Poodle suggests a different word.", 3); return; }
+  if (!pick) { say("Nothing matches that on the island. Try the Web tab.", 3); return; }
   searchUI.on = false; phone.site = pick.i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
 }
-function searchMove(dx, dy) {
-  const res = webSearch(searchUI.q);
-  if (searchUI.focus === "results") {
-    if (dy) { searchUI.res += dy; if (searchUI.res < 0) { searchUI.res = 0; } if (searchUI.res >= res.length) { searchUI.focus = "kb"; searchUI.r = 0; searchUI.res = Math.max(0, res.length - 1); } }
+// ---- the real web and the stock photographs
+function poodleCommons(q, n) {
+  const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q + " filetype:bitmap") + "&gsrnamespace=6&gsrlimit=" + n + "&prop=imageinfo&iiprop=url%7Cextmetadata%7Csize%7Cmime&iiurlwidth=1280&iiextmetadatafilter=Artist%7CLicenseShortName&format=json&origin=*";
+  return fetch(url).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.json(); }).then(j => {
+    const out = [];
+    Object.values((j.query && j.query.pages) || {}).sort((a, b) => (a.index || 0) - (b.index || 0)).forEach(pg => {
+      const ii = pg.imageinfo && pg.imageinfo[0]; if (!ii || ii.mime !== "image/jpeg" || !ii.thumburl || ii.width < 640) return;
+      if (/map|diagram|logo|flag|chart|poster|stamp|screenshot/i.test(pg.title)) return;
+      const md = ii.extmetadata || {};
+      out.push({ u: ii.thumburl, t: ii.thumburl.replace(/\/\d+px-/, "/320px-"), title: pg.title.replace(/^File:/, "").replace(/\.jpe?g$/i, "").slice(0, 60),
+                 a: String((md.Artist && md.Artist.value) || "Unknown").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 30), l: String((md.LicenseShortName && md.LicenseShortName.value) || "CC").slice(0, 16) });
+    });
+    return out;
+  });
+}
+function poodleWeb(q) {
+  if (poodleGoogle.key && poodleGoogle.cx) {
+    const url = "https://www.googleapis.com/customsearch/v1?key=" + encodeURIComponent(poodleGoogle.key) + "&cx=" + encodeURIComponent(poodleGoogle.cx) + "&num=8&q=" + encodeURIComponent(q);
+    return fetch(url).then(r => r.json().then(j => { if (!r.ok) throw new Error((j.error && j.error.message) || "http " + r.status); return j; })).then(j => ({
+      source: "Google", items: (j.items || []).map(i => ({ title: String(i.title || ""), host: String(i.displayLink || ""), url: String(i.link || ""), snippet: String(i.snippet || "").replace(/\s+/g, " ") })) }));
+  }
+  const url = "https://en.wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) + "&gsrlimit=8&prop=extracts%7Cinfo&exintro=1&explaintext=1&exsentences=2&exlimit=max&inprop=url&format=json&origin=*";
+  return fetch(url).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.json(); }).then(j => ({
+    source: "Wikipedia", items: Object.values((j.query && j.query.pages) || {}).sort((a, b) => (a.index || 0) - (b.index || 0)).map(pg => ({ title: pg.title, host: "en.wikipedia.org", url: pg.fullurl, snippet: String(pg.extract || "").replace(/\s+/g, " ") })) }));
+}
+function searchRun() {
+  const U = searchUI, q = U.q.trim(); if (!q) return;
+  if (U.mode === 1) {
+    const w = U.web; w.q = q; w.state = "loading"; w.items = []; w.err = "";
+    poodleWeb(q).then(r => { if (w.q !== q) return; w.items = r.items; w.source = r.source; w.state = r.items.length ? "ok" : "none"; phone.dirty = true; })
+      .catch(e => { if (w.q !== q) return; w.state = "err"; w.err = String(e && e.message || e).slice(0, 60); phone.dirty = true; });
+  } else if (U.mode === 2) {
+    const w = U.img; w.q = q; w.state = "loading"; w.items = []; w.err = "";
+    poodleCommons(q, 24).then(list => {
+      if (w.q !== q) return; w.items = list; w.state = list.length ? "ok" : "none"; phone.dirty = true;
+      list.forEach(it => { const im = new Image(); im.crossOrigin = "anonymous"; im.referrerPolicy = "no-referrer"; im.onload = () => { it.im = im; phone.dirty = true; }; im.src = it.t; });
+    }).catch(e => { if (w.q !== q) return; w.state = "err"; w.err = String(e && e.message || e).slice(0, 60); phone.dirty = true; });
+  }
+  U.focus = "results"; U.res = 0; phone.dirty = true;
+}
+function searchGo() {
+  const U = searchUI;
+  if (U.mode === 0) { if (webSearch(U.q).length) { searchOpenResult(); return; } U.mode = 1; }
+  searchRun();
+}
+function searchCount() { const U = searchUI; return U.mode === 0 ? webSearch(U.q).length : U.mode === 1 ? U.web.items.length : U.img.items.length; }
+function searchOpenPage() {
+  const U = searchUI;
+  if (U.mode === 1) { const it = U.web.items[U.res]; if (it) U.page = { kind: "web", item: it, opt: 0 }; }
+  else if (U.mode === 2) {
+    const it = U.img.items[U.res]; if (!it) return;
+    U.page = { kind: "photo", item: it, opt: 0, big: null };
+    const im = new Image(); im.crossOrigin = "anonymous"; im.referrerPolicy = "no-referrer"; im.onload = () => { if (U.page && U.page.item === it) { U.page.big = im; phone.dirty = true; } }; im.src = it.u;
+  }
+  phone.dirty = true;
+}
+// a photograph kept: a square for the gallery, the whole picture for the wallpaper
+function mnNeutralCtx() { return { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: false, place: "online", sub: "", hour: 12, golden: false, night: false, resort: null }; }
+function gallerySave(img, credit, extra, wallpaper) {
+  try {
+    const k = Math.min(1, 1280 / Math.max(img.width, img.height)), src = document.createElement("canvas");
+    src.width = Math.max(8, Math.round(img.width * k)); src.height = Math.max(8, Math.round(img.height * k));
+    const sg = src.getContext("2d"); sg.drawImage(img, 0, 0, src.width, src.height); sg.getImageData(0, 0, 1, 1);
+    const c = document.createElement("canvas"); c.width = c.height = 400;
+    const m = Math.min(src.width, src.height); c.getContext("2d").drawImage(src, (src.width - m) / 2, (src.height - m) / 2, m, m, 0, 0, 400, 400);
+    c.meta = Object.assign({ phone: dev().name, zoom: 1, mp: 0, ctx: mnNeutralCtx(), credit: credit, src: src, when: mnNow() }, extra || {});
+    phone.gallery.push(c);
+    if (wallpaper) wallSet({ kind: "photo", photo: c });
+    say(wallpaper ? "Saved, and on your wall." : "Saved to your gallery.", 3);
+    return c;
+  } catch (e) { say("That picture can't be saved.", 3); return null; }
+}
+function searchPageAct() {
+  const U = searchUI, pg = U.page; if (!pg) return;
+  if (pg.kind === "web") {
+    if (pg.opt === 0) { let ok = false; try { ok = !!window.open(pg.item.url, "_blank", "noopener"); } catch (e) {} say(ok ? "Opened in your browser." : "Poodle can't open a browser from here.", 3); }
+    else U.page = null;
   } else {
-    if (dy < 0 && searchUI.r === 0 && res.length) { searchUI.focus = "results"; searchUI.res = Math.min(searchUI.res, res.length - 1); phone.dirty = true; return; }
-    if (dy) searchUI.r = clamp(searchUI.r + dy, 0, 3);
-    if (dx) {
-      if (searchUI.r === 3) searchUI.c = clamp(searchUI.c + dx, 0, 2);
-      else searchUI.c = clamp(searchUI.c + dx, 0, KB_ROWS[searchUI.r].length - 1);
+    if (!pg.big) { say("Still loading\u2026", 2); return; }
+    if (pg.opt === 2) { U.page = null; phone.dirty = true; return; }
+    gallerySave(pg.big, pg.item.a + " \u00b7 " + pg.item.l, { stock: true }, pg.opt === 1);
+  }
+  phone.dirty = true;
+}
+function searchMove(dx, dy) {
+  const U = searchUI;
+  if (U.page) { if (dy) U.page.opt = clamp(U.page.opt + dy, 0, U.page.kind === "photo" ? 2 : 1); phone.dirty = true; return; }
+  const n = searchCount();
+  if (U.focus === "chips") {
+    if (dx) U.mode = clamp(U.mode + dx, 0, 2);
+    else if (dy > 0) { if (searchCount()) { U.focus = "results"; U.res = 0; } else { U.focus = "kb"; U.r = 0; } }
+    U.res = 0; phone.dirty = true; return;
+  }
+  if (U.focus === "results") {
+    if (U.mode === 2) {
+      if (dx) U.res = clamp(U.res + dx, 0, n - 1);
+      if (dy) { const t = U.res + dy * 3; if (t < 0) U.focus = "chips"; else if (t >= n) { U.focus = "kb"; U.r = 0; } else U.res = t; }
+    } else if (dy) {
+      const t = U.res + dy; if (t < 0) U.focus = "chips"; else if (t >= n) { U.focus = "kb"; U.r = 0; U.res = Math.max(0, n - 1); } else U.res = t;
     }
-    if (searchUI.r === 3) searchUI.c = clamp(searchUI.c, 0, 2);
-    else searchUI.c = clamp(searchUI.c, 0, KB_ROWS[searchUI.r].length - 1);
+  } else {
+    if (dy < 0 && U.r === 0) { if (n) { U.focus = "results"; U.res = Math.min(U.res, n - 1); } else U.focus = "chips"; phone.dirty = true; return; }
+    if (dy) U.r = clamp(U.r + dy, 0, 3);
+    if (dx) {
+      if (U.r === 3) U.c = clamp(U.c + dx, 0, 2);
+      else U.c = clamp(U.c + dx, 0, KB_ROWS[U.r].length - 1);
+    }
+    if (U.r === 3) U.c = clamp(U.c, 0, 2);
+    else U.c = clamp(U.c, 0, KB_ROWS[U.r].length - 1);
   }
   phone.dirty = true;
 }
 function searchAct() {
-  if (searchUI.focus === "results") { searchOpenResult(); return; }
-  if (searchUI.r === 3) {
-    const k = KB_BOTTOM[searchUI.c];
-    if (k === "space") searchType(" "); else if (k === "back") { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchOpenResult();
-  } else searchType(KB_ROWS[searchUI.r][searchUI.c]);
+  const U = searchUI;
+  if (U.page) { searchPageAct(); return; }
+  if (U.focus === "chips") { U.focus = "kb"; U.r = 1; U.c = 4; phone.dirty = true; return; }
+  if (U.focus === "results") { if (U.mode === 0) searchOpenResult(); else searchOpenPage(); return; }
+  if (U.r === 3) {
+    const k = KB_BOTTOM[U.c];
+    if (k === "space") searchType(" "); else if (k === "back") { U.q = U.q.slice(0, -1); phone.dirty = true; } else searchGo();
+  } else searchType(KB_ROWS[U.r][U.c]);
 }
 function searchBack() {
-  if (searchUI.q.length) { searchUI.q = searchUI.q.slice(0, -1); phone.dirty = true; } else searchClose();
+  const U = searchUI;
+  if (U.page) { U.page = null; phone.dirty = true; return; }
+  if (U.q.length) { U.q = U.q.slice(0, -1); phone.dirty = true; } else searchClose();
 }
 // A real keyboard, if there is one. Returns true when it ate the key.
 function searchKey(e) {
+  const U = searchUI;
   if (e.ctrlKey || e.metaKey || e.altKey) return false;
-  if (e.key.length === 1 && /[a-zA-Z0-9 .\-]/.test(e.key)) { searchType(e.key.toLowerCase()); return true; }
+  if (U.page) { if (e.code === "Escape" || e.code === "Backspace") { U.page = null; phone.dirty = true; return true; } if (e.code === "Enter") { searchPageAct(); return true; } if (e.code === "ArrowDown") { searchMove(0, 1); return true; } if (e.code === "ArrowUp") { searchMove(0, -1); return true; } return false; }
+  if (e.key.length === 1 && /[a-zA-Z0-9 .\-']/.test(e.key)) { searchType(e.key); return true; }
   if (e.code === "Backspace") { searchBack(); return true; }
-  if (e.code === "Enter") { searchOpenResult(); return true; }
+  if (e.code === "Enter") { if (U.focus === "results") searchAct(); else searchGo(); return true; }
   if (e.code === "Escape") { searchClose(); return true; }
-  if (e.code === "ArrowDown") { if (searchUI.focus === "kb") { searchUI.focus = "results"; } searchMove(0, 1); return true; }
-  if (e.code === "ArrowUp") { searchUI.focus = "results"; searchUI.res = Math.max(0, searchUI.res - 1); phone.dirty = true; return true; }
+  if (e.code === "Tab") { U.mode = (U.mode + 1) % 3; U.res = 0; phone.dirty = true; return true; }
+  if (e.code === "ArrowDown") { if (U.focus === "kb" || U.focus === "chips") { if (searchCount()) { U.focus = "results"; U.res = 0; } } else searchMove(0, 1); phone.dirty = true; return true; }
+  if (e.code === "ArrowUp") { if (U.focus === "results") searchMove(0, -1); else U.focus = "chips"; phone.dirty = true; return true; }
+  if ((e.code === "ArrowLeft" || e.code === "ArrowRight") && (U.focus === "chips" || (U.focus === "results" && U.mode === 2))) { searchMove(e.code === "ArrowLeft" ? -1 : 1, 0); return true; }
   return false;
 }
 
+function drawSearchResultPage(g, W, H) {
+  const U = searchUI, pg = U.page, it = pg.item;
+  poodleOmnibox(g, W, H, pg.kind === "web" ? it.url.replace(/^https?:\/\//, "") : "commons.wikimedia.org", true);
+  const x = W * 0.06, w = W * 0.88;
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const opts = pg.kind === "web" ? ["Open in your browser", "Back to results"] : ["Save to gallery", "Save and use as wallpaper", "Back to results"];
+  if (pg.kind === "web") {
+    g.fillStyle = "#9cc2ff"; g.font = "700 " + Math.round(W * 0.05) + "px " + UI;
+    const tl = wrapLines(g, it.title, w); tl.slice(0, 3).forEach((l, i) => g.fillText(l, x, H * 0.20 + i * H * 0.035));
+    let y = H * 0.20 + Math.min(3, tl.length) * H * 0.035 + H * 0.008;
+    g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI; clipText(g, it.host, x, y, w); y += H * 0.04;
+    g.fillStyle = "#d5d8dd"; g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
+    wrapLines(g, it.snippet || "(no preview)", w).slice(0, 8).forEach((l, i) => g.fillText(l, x, y + i * H * 0.033));
+    g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; g.fillText("Result from " + (U.web.source || "the web"), x, H * 0.60);
+  } else {
+    const iw = W * 0.88, ih = H * 0.40;
+    g.fillStyle = "#0e1013"; g.fillRect(x, H * 0.17, iw, ih);
+    if (pg.big) { const k = Math.min(iw / pg.big.width, ih / pg.big.height), dw = pg.big.width * k, dh = pg.big.height * k; try { g.drawImage(pg.big, x + (iw - dw) / 2, H * 0.17 + (ih - dh) / 2, dw, dh); } catch (e) {} }
+    else { g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI; g.textAlign = "center"; g.fillText("Loading\u2026", W / 2, H * 0.37); g.textAlign = "left"; }
+    g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.036) + "px " + UI; clipText(g, it.title, x, H * 0.595, w);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, "Photo: " + it.a + " \u00b7 " + it.l + " \u00b7 Wikimedia Commons", x, H * 0.62, w);
+  }
+  const oy = pg.kind === "web" ? H * 0.66 : H * 0.65;
+  opts.forEach((o, i) => {
+    const y = oy + i * H * 0.07, on = pg.opt === i;
+    g.fillStyle = on ? "#ffffff" : "#2f3438"; roundRect(g, x, y, w, H * 0.058, W * 0.02); g.fill();
+    g.fillStyle = on ? "#14171b" : "#e6e9ec"; g.font = "700 " + Math.round(W * 0.040) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(o, W / 2, y + H * 0.029);
+  });
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  poodleToolbar(g, W, H);
+}
 function drawSearchPage(g, W, H) {
+  const U = searchUI;
   g.fillStyle = "#15181b"; g.fillRect(0, 0, W, H);
   poodleTabStrip(g, W, H, "Search", "#5b6b7a");
-  poodleOmnibox(g, W, H, searchUI.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
-  const res = webSearch(searchUI.q);
-  const x = W * 0.05, w = W * 0.90, rowH = H * 0.062;
-  g.textAlign = "left"; g.textBaseline = "middle";
-  if (!searchUI.q) {
-    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-    g.fillText("Type to search every site on the island.", x, H * 0.20);
-  } else if (!res.length) {
-    g.fillStyle = "#c3c9ce"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
-    g.fillText("Nothing matches “" + searchUI.q + "”.", x, H * 0.19);
-    g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-    g.fillText("Poodle suggests: ramen, train, cat, forms, toll.", x, H * 0.235);
-  }
-  const first = clamp(searchUI.res - 3, 0, Math.max(0, res.length - 6));
-  res.slice(first, first + 6).forEach((r, k) => {
-    const site = WEB[r.i], y = H * 0.158 + k * (rowH + H * 0.004), on = searchUI.focus === "results" && first + k === searchUI.res;
-    g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
-    if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
-    g.fillStyle = POODLE_TILE[r.i % POODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
-    g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText((site.title.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase(), x + W * 0.045, y + rowH / 2 + 1); g.textAlign = "left";
-    g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; clipText(g, site.title, x + W * 0.095, y + rowH * 0.36, w - W * 0.12);
-    g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, site.host, x + W * 0.095, y + rowH * 0.72, w - W * 0.12);
+  if (U.page) { drawSearchResultPage(g, W, H); return; }
+  poodleOmnibox(g, W, H, U.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
+  const x = W * 0.05, w = W * 0.90;
+  // the three tabs
+  ["Island", "Web", "Photos"].forEach((t, i) => {
+    const cw = W * 0.27, cx = W * 0.05 + i * (cw + W * 0.045), on = U.mode === i, foc = U.focus === "chips" && on;
+    g.fillStyle = on ? "#e6e9ec" : "rgba(255,255,255,0.08)"; roundRect(g, cx, H * 0.146, cw, H * 0.034, W * 0.02); g.fill();
+    if (foc) { g.strokeStyle = "#7fc49a"; g.lineWidth = W * 0.007; roundRect(g, cx, H * 0.146, cw, H * 0.034, W * 0.02); g.stroke(); }
+    g.fillStyle = on ? "#14171b" : "#c3c9ce"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(t, cx + cw / 2, H * 0.1635);
   });
+  g.textAlign = "left"; g.textBaseline = "middle";
+  const msg = (a, b) => { g.fillStyle = "#c3c9ce"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; g.fillText(a, x, H * 0.215); if (b) { g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.033) + "px " + UI; g.fillText(b, x, H * 0.25); } };
+  if (U.mode === 0) {
+    const res = webSearch(U.q), rowH = H * 0.062;
+    if (!U.q) msg("Type to search every site on the island.", "Press Go on the Web or Photos tab to look further.");
+    else if (!res.length) msg("Nothing on the island for \u201c" + U.q + "\u201d.", "Press Go to search the web.");
+    const first = clamp(U.res - 3, 0, Math.max(0, res.length - 5));
+    res.slice(first, first + 5).forEach((r, k) => {
+      const site = WEB[r.i], y = H * 0.192 + k * (rowH + H * 0.004), on = U.focus === "results" && first + k === U.res;
+      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
+      if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
+      g.fillStyle = POODLE_TILE[r.i % POODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
+      g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText((site.title.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase(), x + W * 0.045, y + rowH / 2 + 1); g.textAlign = "left";
+      g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; clipText(g, site.title, x + W * 0.095, y + rowH * 0.36, w - W * 0.12);
+      g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, site.host, x + W * 0.095, y + rowH * 0.72, w - W * 0.12);
+    });
+  } else if (U.mode === 1) {
+    const wv = U.web;
+    if (wv.state === "idle") msg(U.q ? "Press Go to search the web." : "Type something, then press Go.", poodleGoogle.key && poodleGoogle.cx ? "Results come from Google." : "Basic results. Add a Google key in Settings for Google.");
+    else if (wv.state === "loading") msg("Searching\u2026", "");
+    else if (wv.state === "none") msg("Nothing found for \u201c" + wv.q + "\u201d.", "");
+    else if (wv.state === "err") msg("Couldn't reach the web.", wv.err);
+    else {
+      g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.029) + "px " + UI; g.fillText(wv.source === "Google" ? "Results from Google" : "Basic results (Wikipedia). A Google key in Settings gives Google's.", x, H * 0.2);
+      const rowH = H * 0.088, first = clamp(U.res - 2, 0, Math.max(0, wv.items.length - 4));
+      wv.items.slice(first, first + 4).forEach((it, k) => {
+        const y = H * 0.214 + k * (rowH + H * 0.004), on = U.focus === "results" && first + k === U.res;
+        g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
+        if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
+        g.fillStyle = "#9cc2ff"; g.font = "600 " + Math.round(W * 0.036) + "px " + UI; clipText(g, it.title, x + W * 0.03, y + rowH * 0.22, w - W * 0.06);
+        g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.028) + "px " + UI; clipText(g, it.host, x + W * 0.03, y + rowH * 0.46, w - W * 0.06);
+        g.fillStyle = "#b4bac0"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI;
+        const ls = wrapLines(g, it.snippet, w - W * 0.06); g.fillText(ls[0] || "", x + W * 0.03, y + rowH * 0.68); if (ls[1]) g.fillText(ls.length > 2 ? fitText(g, ls[1] + "\u2026", w - W * 0.06) : ls[1], x + W * 0.03, y + rowH * 0.88);
+      });
+    }
+  } else {
+    const im = U.img;
+    if (im.state === "idle") msg(U.q ? "Press Go to find photographs." : "Type something, then press Go.", "Free stock photographs, credited. Save them to your gallery.");
+    else if (im.state === "loading") msg("Searching\u2026", "");
+    else if (im.state === "none") msg("No photographs for \u201c" + im.q + "\u201d.", "");
+    else if (im.state === "err") msg("Couldn't reach the photo library.", im.err);
+    else {
+      const s2 = W * 0.29, gap = W * 0.02, first = clamp(((U.res / 3) | 0) - 0, 0, Math.max(0, Math.ceil(im.items.length / 3) - 2));
+      im.items.forEach((it, i) => {
+        const r = ((i / 3) | 0) - first, c = i % 3; if (r < 0 || r >= 2) return;
+        const px = W * 0.05 + c * (s2 + gap), py = H * 0.2 + r * (s2 + gap);
+        g.fillStyle = "#23272d"; g.fillRect(px, py, s2, s2);
+        if (it.im) { const m = Math.min(it.im.width, it.im.height); try { g.drawImage(it.im, (it.im.width - m) / 2, (it.im.height - m) / 2, m, m, px, py, s2, s2); } catch (e) {} }
+        if (U.focus === "results" && U.res === i) { g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.008; g.strokeRect(px, py, s2, s2); }
+      });
+    }
+  }
   // the keys
   const ky = H * 0.585, kh = H * 0.060, gap = W * 0.012;
   KB_ROWS.forEach((row, r) => {
@@ -13273,18 +13462,7 @@ function phoneCutout(g, W, H) {
 // columns and the same selection as a SOTI's, because the D-pad does not know
 // the difference; everything else is a different phone.
 function drawPearHome(g, W, H) {
-  const wp = PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)];
-  const bg = g.createLinearGradient(0, 0, W * 0.4, H);
-  bg.addColorStop(0, wp.a); bg.addColorStop(0.55, wp.b); bg.addColorStop(1, wp.a);
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  const blob = (cx, cy, r, col, a) => {
-    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, r);
-    rg.addColorStop(0, col + a); rg.addColorStop(1, col + "00");
-    g.fillStyle = rg; g.fillRect(0, 0, W, H);
-  };
-  blob(W * 0.15, H * 0.22, W * 0.95, wp.c, "cc");
-  blob(W * 0.92, H * 0.58, W * 0.85, wp.d, "bb");
-  blob(W * 0.35, H * 0.95, W * 0.9, wp.c, "88");
+  drawWallBase(g, W, H);
 
   phoneStatusBar(g, W, H);
   const glass = (x, y, w, h, r, a) => {
@@ -13574,7 +13752,91 @@ function padPress(id) {
   }
 }
 
+// ---- backgrounds
+// A wallpaper is the Tōkonto dusk (SOTI only), one of the four colour washes, or
+// any photograph in the gallery - one you took, one you saved from MyGram, one
+// you found in Poodle.
+function wallChoices() {
+  const out = [];
+  if (!isPear()) out.push({ kind: "default", name: "Tōkonto dusk" });
+  PEAR_WALLPAPERS.forEach((w, i) => out.push({ kind: "grad", g: i, name: w.name }));
+  const n = phone.gallery.length;
+  phone.gallery.slice().reverse().forEach((c, i) => out.push({ kind: "photo", photo: c, name: "Photo " + (n - i) + (c.meta && c.meta.credit ? " · " + c.meta.credit.split(" · ")[0] : "") }));
+  return out;
+}
+function wallNow() {
+  const w = phone.wall || { kind: "default" };
+  if (w.kind === "photo" && w.photo && phone.gallery.indexOf(w.photo) >= 0) return w;
+  if (isPear()) return { kind: "grad", g: clamp(w.kind === "grad" ? w.g : (phone.pearWall || 0), 0, PEAR_WALLPAPERS.length - 1) };
+  return w.kind === "grad" ? w : { kind: "default" };
+}
+function wallSame(a, b) { return a.kind === b.kind && (a.kind === "photo" ? a.photo === b.photo : a.kind === "grad" ? a.g === b.g : true); }
+function wallSet(c) { phone.wall = { kind: c.kind, g: c.g || 0, photo: c.photo || null }; if (c.kind === "grad") phone.pearWall = c.g; phone.dirty = true; }
+function wallStep(d) { const list = wallChoices(), cur = wallNow(); let i = list.findIndex(c => wallSame(c, cur)); if (i < 0) i = 0; wallSet(list[(i + d + list.length) % list.length]); }
+function wallName() { const cur = wallNow(), c = wallChoices().find(x => wallSame(x, cur)); return c ? c.name : "Tōkonto dusk"; }
+function drawWallGrad(g, W, H, wp) {
+  const bg = g.createLinearGradient(0, 0, W * 0.4, H);
+  bg.addColorStop(0, wp.a); bg.addColorStop(0.55, wp.b); bg.addColorStop(1, wp.a);
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  const blob = (cx, cy, r, col, a) => {
+    const rg = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    rg.addColorStop(0, col + a); rg.addColorStop(1, col + "00");
+    g.fillStyle = rg; g.fillRect(0, 0, W, H);
+  };
+  blob(W * 0.15, H * 0.22, W * 0.95, wp.c, "cc");
+  blob(W * 0.92, H * 0.58, W * 0.85, wp.d, "bb");
+  blob(W * 0.35, H * 0.95, W * 0.9, wp.c, "88");
+}
+function drawWallPhoto(g, W, H, photo) {
+  const src = (photo.meta && photo.meta.src) || photo, k = Math.max(W / src.width, H / src.height), dw = src.width * k, dh = src.height * k;
+  g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+  try { g.drawImage(src, (W - dw) / 2, (H - dh) / 2, dw, dh); } catch (e) {}
+  // a little shade top and bottom, so the clock and the dock can be read
+  const t = g.createLinearGradient(0, 0, 0, H); t.addColorStop(0, "rgba(0,0,0,0.38)"); t.addColorStop(0.3, "rgba(0,0,0,0.05)"); t.addColorStop(0.7, "rgba(0,0,0,0.05)"); t.addColorStop(1, "rgba(0,0,0,0.5)");
+  g.fillStyle = t; g.fillRect(0, 0, W, H);
+}
+// whatever the wallpaper is, when it is not the dusk
+function drawWallBase(g, W, H) {
+  const w = wallNow();
+  if (w.kind === "photo") { drawWallPhoto(g, W, H, w.photo); return true; }
+  if (w.kind === "grad") { drawWallGrad(g, W, H, PEAR_WALLPAPERS[w.g]); return true; }
+  return false;
+}
+
+// ---- a line of text, typed on the real keyboard
+function drawPhoneEntry(g, W, H) {
+  const e = phone.entry;
+  phoneChrome(g, W, H, e.title, "");
+  g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI; g.textAlign = "left";
+  (e.hint || []).forEach((l, i) => g.fillText(l, W * PL.pad, H * 0.19 + i * H * 0.026));
+  const y = H * 0.19 + (e.hint || []).length * H * 0.026 + H * 0.02;
+  g.fillStyle = "#1a1d21"; roundRect(g, W * PL.pad, y, W * (1 - PL.pad * 2), H * 0.07, W * 0.02); g.fill();
+  const shown = e.secret && e.value ? "•".repeat(Math.max(0, e.value.length - 4)) + e.value.slice(-4) : e.value;
+  g.fillStyle = "#ffffff"; g.font = "500 " + Math.round(W * PL.body) + "px " + UI; g.textBaseline = "middle";
+  clipText(g, shown + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), W * (PL.pad + 0.03), y + H * 0.035, W * 0.78);
+  g.textBaseline = "alphabetic";
+  g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillText("Type or paste (Ctrl+V)  ·  Enter or A saves  ·  B cancels", W * PL.pad, y + H * 0.11);
+  phone.dirty = true;
+}
+function phoneAskText(title, hint, value, secret, save) { phone.entry = { title: title, hint: hint, value: value || "", secret: !!secret, save: save }; phone.dirty = true; }
+function phoneEntrySave() { const e = phone.entry; if (!e) return; phone.entry = null; try { e.save(e.value.trim()); } catch (x) {} phone.dirty = true; }
+function phoneEntryKey(e) {
+  const en = phone.entry; if (!en) return false;
+  if (e.ctrlKey || e.metaKey) {
+    if (e.code === "KeyV" && navigator.clipboard && navigator.clipboard.readText) { navigator.clipboard.readText().then(t => { en.value = (en.value + t.replace(/[\r\n]+/g, " ")).slice(0, 300); phone.dirty = true; }).catch(() => {}); return true; }
+    return false;
+  }
+  if (e.altKey) return false;
+  if (e.key.length === 1) { if (en.value.length < 300) en.value += e.key; phone.dirty = true; return true; }
+  if (e.code === "Backspace") { en.value = en.value.slice(0, -1); phone.dirty = true; return true; }
+  if (e.code === "Enter") { phoneEntrySave(); return true; }
+  if (e.code === "Escape") { phone.entry = null; phone.dirty = true; return true; }
+  return false;
+}
+
 function phoneWallpaper(g, W, H) {
+  if (drawWallBase(g, W, H)) return;
   const sky = g.createLinearGradient(0, 0, 0, H * 0.72);
   sky.addColorStop(0, "#131a2e");
   sky.addColorStop(0.42, "#2d3356");
@@ -13655,6 +13917,7 @@ function drawPhoneScreen() {
   const g = phone.ctx, W = cv.width, H = cv.height;
   const t = phoneTime();
 
+  if (phone.entry) { drawPhoneEntry(g, W, H); phone.minute = t.mins; phone.dirty = false; return; }
   // An app, if one is open, owns the whole screen.
   if (phone.app) {
     const fn = PHONE_SCREENS[phone.app];
@@ -15342,18 +15605,25 @@ function appPhotos(g, W, H) {
     g.fillText("Nothing yet. Open Camera and press A.", W * 0.075, H * 0.22);
     return;
   }
-  const cols = 3, s = W * 0.28, gap = W * 0.03;
-  phone.gallery.slice(-12).forEach((img, i) => {
-    const r = (i / cols) | 0, c = i % cols;
+  const items = phone.gallery.slice().reverse(), cols = 3, s = W * 0.28, gap = W * 0.03, vis = 5;
+  phone.sub = clamp(phone.sub, 0, items.length - 1);
+  const first = clamp(((phone.sub / cols) | 0) - 2, 0, Math.max(0, Math.ceil(items.length / cols) - vis));
+  const cur = wallNow();
+  items.forEach((img, i) => {
+    const r = ((i / cols) | 0) - first, c = i % cols;
+    if (r < 0 || r >= vis) return;
     const x = W * 0.07 + c * (s + gap), y = H * 0.16 + r * (s + gap);
     try { g.drawImage(img, x, y, s, s); } catch (e) {
       g.fillStyle = "#23272d"; g.fillRect(x, y, s, s);
     }
+    if (cur.kind === "photo" && cur.photo === img) { g.fillStyle = "rgba(0,0,0,0.6)"; g.fillRect(x, y + s - s * 0.2, s, s * 0.2); g.fillStyle = "#fff"; g.font = "700 " + Math.round(s * 0.1) + "px " + UI; g.textAlign = "center"; g.fillText("wallpaper", x + s / 2, y + s - s * 0.06); g.textAlign = "left"; }
     if (phone.sub === i) {
       g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.008;
       g.strokeRect(x, y, s, s);
     }
   });
+  g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI; g.textAlign = "center";
+  g.fillText("A  set as wallpaper", W / 2, H * 0.935); g.textAlign = "left";
 }
 
 // ---- MyGram
@@ -15813,6 +16083,8 @@ function mnAnalyse(photo, caption) {
   const dupPhoto = st.hash && mynet.posts.some(p => p.meta && p.meta.stats && p.meta.stats.hash && mnHamming(p.meta.stats.hash, st.hash) <= 5);
   if (dupPhoto) { pen += 30; add(false, 2.0, ["You already posted this one", "Recycling content, huh", "This is the same photo with extra steps"]); }
 
+  if (photo.meta && photo.meta.stock) { pen += 18; add(false, 1.9, ["That's a stock photo, Seiko", "Did you take this? It looks like a catalogue", "Reverse image search has entered the chat"]); }
+  if (photo.meta && photo.meta.from) { pen += 22; add(false, 1.9, ["Isn't that " + photo.meta.from + "'s photo?", "Reposting someone else's picture, bold", "Credit the photographer, Seiko"]); }
   let score = 0.5 * clamp(photoQ, 0, 100) + 0.28 * capQ + 0.22 * rel - pen + (Math.random() - 0.5) * 6;
   score = clamp(Math.round(score), 0, 100);
   const tier = score >= 82 ? "viral" : score >= 68 ? "great" : score >= 55 ? "good" : score >= 42 ? "meh" : score >= 28 ? "bad" : "awful";
@@ -16526,7 +16798,7 @@ function mnDrawDetail(g, W, H) {
     mnWrap(g, c.text, W * 0.15, y + rowH * 0.62, W * 0.8, H * 0.021, 2, W * 0.035, col);
   });
   if (!p.you) mnText(g, "A or Left react" + (p.comments.length > vis ? "  \u00b7  Up/Down scroll" : ""), W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
-  else if (p.comments.length > vis) mnText(g, "Up/Down scroll", W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
+  else mnText(g, "A use as wallpaper" + (p.comments.length > vis ? "  \u00b7  Up/Down scroll" : ""), W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
 }
 function mnDrawWhy(g, W, H, p, top) {
   const A = p.A, col = p.score >= 68 ? MN_GOOD : p.score >= 42 ? "#f0b020" : MN_BAD;
@@ -16715,7 +16987,20 @@ function mnTrayItems(p) {
   const items = MN_REACTIONS.map(r => ({ kind: "emoji", label: r[1], icon: r[0], text: r[0], gain: 1 }));
   lines.slice(0, 3).forEach(t => items.push({ kind: "line", label: t, icon: "💬", text: t, gain: 2 }));
   items.push({ kind: "write", label: "Write a comment…", icon: "✎" });
+  items.push({ kind: "save", label: "Save photo to gallery", icon: "⬇" });
+  items.push({ kind: "wall", label: "Use photo as wallpaper", icon: "▣" });
   return items;
+}
+// a picture off the feed (or one of his own posts) into the gallery, to use as a background or post again
+function mnSaveToGallery(p, wall) {
+  if (p.you && p.photo && phone.gallery.indexOf(p.photo) >= 0) {       // his own picture is in the gallery already
+    if (wall) { wallSet({ kind: "photo", photo: p.photo }); mnSay("On your wall.", 3); } else mnSay("That one is already in your gallery.", 3);
+    return;
+  }
+  const had = phone.gallery.filter(c => c.meta && c.meta.postId === p.id)[0];
+  if (had) { if (wall) { wallSet({ kind: "photo", photo: had }); mnSay("On your wall.", 3); } else mnSay("Already saved.", 3); return; }
+  const extra = p.you ? {} : { from: p.who.handle };
+  gallerySave(mnImg(p), p.credit || null, Object.assign({ postId: p.id }, extra), !!wall);
 }
 function mnOpenTray(p) { if (!p || p.you) return; mynet.tray.post = p; mynet.tray.sel = 0; mynet.trayFrom = mynet.view; mynet.view = "react"; phone.dirty = true; }
 function mnOpenComment(p) { const c = mynet.comp; c.mode = "comment"; c.post = p; c.photo = mnImg(p); c.text = ""; c.r = 1; c.c = 5; c.shift = false; mynet.view = "compose"; phone.dirty = true; }
@@ -16860,10 +17145,11 @@ function mynetAct() {
     const p = mynet.tray.post, it = mnTrayItems(p)[mynet.tray.sel];
     if (!it) return;
     if (it.kind === "write") { mnOpenComment(p); return; }
+    if (it.kind === "save" || it.kind === "wall") { mnSaveToGallery(p, it.kind === "wall"); mynet.view = mynet.trayFrom === "detail" ? "detail" : "tab"; phone.dirty = true; return; }
     mnReactTo(p, it); mynet.view = mynet.trayFrom === "detail" ? "detail" : "tab"; phone.dirty = true; return;
   }
   if (v === "compose") { if (mynet.comp.mode === "key") { mnKeySave(); return; } mnCompAct(); return; }
-  if (v === "detail") { const p = mynet.detail; if (p && !p.you) mnOpenTray(p); phone.dirty = true; return; }
+  if (v === "detail") { const p = mynet.detail; if (p && !p.you) mnOpenTray(p); else if (p) mnSaveToGallery(p, true); phone.dirty = true; return; }
   if (v === "thread") { const th = mynet.thread; if (th && th.opts && th.opts[mynet.opt]) mnReply(th, th.opts[mynet.opt]); return; }
   if (mynet.bar) { mynet.bar = false; phone.dirty = true; return; }
   const t = mynet.tab;
@@ -17489,11 +17775,13 @@ function settingsRows() {
       : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
   ];
   if (isPear()) {
-    rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", PEAR_WALLPAPERS[clamp(phone.pearWall || 0, 0, PEAR_WALLPAPERS.length - 1)].name],
+    rows.splice(1, 0, ["Wallpaper  \u25c0 \u25b6", wallName()],
                       ["Accent colour  \u25c0 \u25b6", PEAR_ACCENTS[clamp(phone.pearAccent || 0, 0, PEAR_ACCENTS.length - 1)][0]]);
   }
   rows.push(["Video source  A", /list=|[?&]v=|youtu\.be/.test(video.src) || video.src === DEFAULT_CM ? (video.src === DEFAULT_CM ? "Japanese CM playlist" : "Your link") : String(video.src).slice(0, 18)]);
   rows.splice(isPear() ? 3 : 1, 0, ["Handset  \u25c0 \u25b6", dev().name + (dev().colours ? "  \u00b7  " + dev().colours[clamp(phone.colourIdx || 0, 0, dev().colours.length - 1)][0] : "")]);
+  if (!isPear()) rows.splice(2, 0, ["Wallpaper  \u25c0 \u25b6", wallName()]);
+  rows.push(["Poodle: Google key  A", poodleGoogle.key ? "Set" : "Not set"], ["Poodle: Google engine id  A", poodleGoogle.cx ? "Set" : "Not set"]);
   return rows;
 }
 function appSettings(g, W, H) {
@@ -17551,7 +17839,7 @@ function phoneCount() {
   if (phone.app === "Nihon") return 5;
   if (phone.app === "Phone") return phone.vmail ? 0 : 13;
   if (phone.app === "Mail") return SCAM_MAIL.length;
-  if (phone.app === "Photos") return Math.min(12, phone.gallery.length);
+  if (phone.app === "Photos") return phone.gallery.length;
   if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
   if (phone.app === "Settings") return settingsRows().length;
   return 0;
@@ -17580,9 +17868,10 @@ function phoneMove(dx, dy) {
 
 function phoneMoveScreen(dx, dy) {
   if (phone.app === "MyGram") { mynetMove(dx, dy); return; }
+  if (phone.app === "Photos") { const n = phone.gallery.length; if (n) phone.sub = clamp(phone.sub + dx + dy * 3, 0, n - 1); phone.dirty = true; return; }
   if (phone.app === "Settings" && dx) {
     const row = settingsRows()[phone.sub] || [""];
-    if (/^Wallpaper/.test(row[0])) { phone.pearWall = ((phone.pearWall || 0) + dx + PEAR_WALLPAPERS.length) % PEAR_WALLPAPERS.length; phone.dirty = true; }
+    if (/^Wallpaper/.test(row[0])) wallStep(dx);
     else if (/^Accent/.test(row[0])) { phone.pearAccent = ((phone.pearAccent || 0) + dx + PEAR_ACCENTS.length) % PEAR_ACCENTS.length; phone.dirty = true; }
     else if (/^Handset/.test(row[0]) && dev().colours) { const n = dev().colours.length; phone.colourIdx = ((phone.colourIdx || 0) + dx + n) % n; applyDeviceSkin(); }
     return;
@@ -17632,6 +17921,7 @@ function phoneMoveScreen(dx, dy) {
 // A press of A, wherever you are.
 function phoneAct() {
   if (!phone.open) return;
+  if (phone.entry) { phoneEntrySave(); return; }
   if (phone.watchPrompt) { connectWatch(); return; }
   if (isBasic() && phone.pad.on) { padPress(PAD_KEYS[phone.pad.sel][1]); phone.dirty = true; return; }
   if (!phone.app) {
@@ -17697,26 +17987,21 @@ function phoneAct() {
     if (spotify.state !== "ready") { if (spotify.clientId) spotifyLogin(); }
     else spotifyTransport(["prev", "play", "next"][clamp(phone.sub, 0, 2)]);
   } else if (app === "Settings") {
-    if (phone.sub === 7) {
-      // The one field the game cannot fill in for you.
-      const id = window.prompt("Spotify client id, from your own developer dashboard:",
-                               spotify.clientId || "");
-      if (id !== null) { spotify.clientId = id.trim(); spotifySave(); say("Saved.", 3); }
-    }
+    const row = (settingsRows()[phone.sub] || [""])[0];
+    if (/^Spotify/.test(row)) phoneAskText("Spotify client id", ["From your own developer dashboard."], spotify.clientId || "", false, v => { spotify.clientId = v; spotifySave(); say("Saved.", 3); });
+    else if (/^Wallpaper/.test(row)) wallStep(1);
+    else if (/^Poodle: Google key/.test(row)) phoneAskText("Google search key", ["Poodle can fetch real Google results with a Programmable", "Search API key. It stays on this machine."], poodleGoogle.key, true, v => { poodleGoogle.key = v; poodleSaveKeys(); say(v ? "Google key saved." : "Google key removed.", 3); });
+    else if (/^Poodle: Google engine/.test(row)) phoneAskText("Google search engine id", ["The \"cx\" of a Programmable Search Engine set to", "search the whole web."], poodleGoogle.cx, false, v => { poodleGoogle.cx = v; poodleSaveKeys(); say(v ? "Engine id saved." : "Engine id removed.", 3); });
+    else if (/^Video source/.test(row)) phoneAskText("Video source", ["A YouTube playlist or video link. Blank for the", "default Japanese CM playlist."], "", false, v => { video.src = v || DEFAULT_CM; say("Video source set.", 3); });
   } else if (app === "Wallet") {
     walletAct();
-  } else if (app === "Settings") {
-    const row = (settingsRows()[phone.sub] || [""])[0];
-    if (/^Video source/.test(row)) {
-      let v = null;
-      try { v = window.prompt("YouTube playlist or video link (blank for the default Japanese CM playlist):", ""); } catch (e) { v = null; }
-      if (v === null || v === undefined) say("Open the game with ?cm=<YouTube link> to choose your own.", 5);
-      else { video.src = v.trim() || DEFAULT_CM; say("Video source set.", 3); }
-    }
   } else if (app === "MyGram") {
     mynetAct();
   } else if (app === "Contacts") {
     const c = mynet.contacts[phone.sub]; if (c) mynetCall(c);
+  } else if (app === "Photos") {
+    const list = phone.gallery.slice().reverse(), c = list[clamp(phone.sub, 0, list.length - 1)];
+    if (c) { wallSet({ kind: "photo", photo: c }); say("Set as your wallpaper.", 3); }
   } else if (app === "Camera") {
     takePhotograph();
   } else if (app === "Phone") {
@@ -17738,6 +18023,7 @@ function phoneAct() {
 // A press of B: out of a page, out of an app, then out of the phone.
 function phoneBack() {
   if (!phone.open) return false;
+  if (phone.entry) { phone.entry = null; phone.dirty = true; return true; }
   if (phone.watchPrompt) { phone.watchPrompt = null; phone.dirty = true; say("Not connected. Put it on again to be asked again.", 3); return true; }
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
