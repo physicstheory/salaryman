@@ -349,6 +349,8 @@
   /* ---- touch controls -------------------------------------------------------
      A phone has no W key. These appear only where the pointer is coarse, sit on
      top of the canvas, and are deliberately large: a thumb is not a mouse. */
+  #hotwire { position: fixed; inset: 0; z-index: 28; pointer-events: none; }
+  #hotwire canvas { width: 100%; height: 100%; display: block; }
   #camfull { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
   #camfull canvas { width: 100%; height: 100%; display: block; }
   /* Opening the camera is the whole screen: the world, and the viewfinder over it. */
@@ -1043,6 +1045,8 @@
   </div></div>
   <div id="pausefoot"><span id="pausehintbar"></span></div>
 </div>
+
+<div id="hotwire" hidden><canvas id="hotwirecv"></canvas></div>
 
 <div id="camfull" hidden><canvas id="camfullcv"></canvas></div>
 
@@ -5434,6 +5438,7 @@ function initThree() {
     if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
     wakeAudio();
+    if (heist.stage === "wire" || heist.stage === "start" || heist.stage === "smash") { if (!e.repeat) heistKey(e.code); e.preventDefault(); return; }
     if (!title.on && !e.repeat) cheatKey(e);
     // The title screen swallows everything while it is up.
     if (title.on) {
@@ -5663,6 +5668,14 @@ function pollPad(dt) {
     return;
   }
 
+  // Both hands are busy: the pad is the minigame until it is over.
+  if (heist.stage) {
+    if (pressed(PAD.UP)) heistPress("u"); if (pressed(PAD.DOWN)) heistPress("d");
+    if (pressed(PAD.LEFT)) heistPress("l"); if (pressed(PAD.RIGHT)) heistPress("r");
+    if (pressed(PAD.A)) heistPress("a"); if (pressed(PAD.B)) heistPress("b");
+    pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0;
+    return;
+  }
   // Menu opens the map. View closes whatever is open, which is what B does too.
   if (pressed(PAD.START)) setPaused(!paused);
   if (pressed(PAD.BACK)) { if (nav.mapOpen) setMapOpen(false); else if (phone.open) setPhone(false); }
@@ -5782,6 +5795,7 @@ function useRide() {
   if (!r) return;
   if (r.what === "car") enterCar(r.car);
   else if (r.what === "parked") enterParked(r.parked);
+  else if (r.what === "steal") heistStart(r.parked);
   else if (r.what === "train") boardTrain(r.train);
 }
 
@@ -5795,6 +5809,7 @@ function setPromptText(text) {
 }
 
 function updatePrompt() {
+  if (heist.stage) { setPromptText(null); return; }
   if (drive.car) { setPromptText("Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
   // A shop door takes precedence over a car parked outside it, because you
@@ -5813,6 +5828,7 @@ function updatePrompt() {
   drive.near = r;
   if (!r) { setPromptText(null); return; }
   setPromptText(r.what === "train" ? "Board the train"
+    : r.what === "steal" ? "Break the window"
     : r.what === "parked" ? "Get back in" : "Get in");
 }
 
@@ -6816,6 +6832,7 @@ function seikoLoaded(gltf) {
       act.clampWhenFinished = false;
       clips[key] = act;
     });
+    try { addActionClips(gltf.scene, mixer, clips); } catch (e) { /* the three that came with him are enough */ }
     player.mixer = mixer;
     player.clips = clips;
     player.action = null;
@@ -6823,6 +6840,57 @@ function seikoLoaded(gltf) {
     playSeikoClip("idle", 0);
   }
   adoptSeiko(fitSeiko(inner));
+}
+
+// Moves of his own. The file brings Idle, Walk and Run; the ones for breaking
+// into a car are posed in code on the same skeleton, as keyframes of how far
+// each bone is turned from its rest pose, so they blend with the others like any
+// other clip. A pose names a bone and the three turns, in radians, about its own
+// axes (measured, not guessed: for the right arm, z raises it forwards and the
+// forearm's z bends the elbow; for the legs x swings the thigh forward and a
+// negative x on the shin bends the knee). A mixamo clip could replace any of
+// these by name without anything else changing.
+function addActionClips(root, mixer, clips) {
+  const bones = []; root.traverse(o => { if (o.isBone) bones.push(o); });
+  if (!bones.length) return;
+  const hips = bones.find(b => /^hips$/i.test(b.name));
+  const make = (name, dur, frames, loop) => {
+    const times = frames.map(f => f.t), tracks = [];
+    bones.forEach(b => {
+      const vals = [];
+      frames.forEach(f => {
+        const o = f.pose[b.name] || [0, 0, 0];
+        const q = b.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(o[0], o[1], o[2])));
+        vals.push(q.x, q.y, q.z, q.w);
+      });
+      tracks.push(new THREE.QuaternionKeyframeTrack(b.name + ".quaternion", times, vals));
+    });
+    if (hips) {
+      const pv = [];
+      frames.forEach(f => pv.push(hips.position.x, hips.position.y - (f.drop || 0), hips.position.z + (f.shift || 0)));
+      tracks.push(new THREE.VectorKeyframeTrack(hips.name + ".position", times, pv));
+    }
+    const act = mixer.clipAction(new THREE.AnimationClip(name, dur, tracks));
+    act.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
+    act.clampWhenFinished = !loop;
+    clips[name] = act;
+  };
+  // an elbow into the window: wind up, lunge, hold, recover
+  make("smash", 1.2, [
+    { t: 0.00, pose: {} },
+    { t: 0.28, pose: { UpperArmR: [0, 0, 0.9], ForearmR: [0, 0, 2.25], Spine: [0.18, 0, 0], Chest: [0.10, 0, 0], ThighR: [-0.1, 0, 0], ThighL: [0.12, 0, 0] }, drop: 0.03 },
+    { t: 0.46, pose: { UpperArmR: [0.15, 0, 1.65], ForearmR: [0, 0, 2.3], Spine: [-0.40, 0, 0], Chest: [-0.18, 0, 0], Neck: [-0.1, 0, 0], ThighR: [0.35, 0, 0], ThighL: [-0.25, 0, 0], ShinR: [-0.25, 0, 0] }, drop: 0.07, shift: 0.06 },
+    { t: 0.74, pose: { UpperArmR: [0.15, 0, 1.55], ForearmR: [0, 0, 2.1], Spine: [-0.30, 0, 0], Chest: [-0.12, 0, 0], ThighR: [0.3, 0, 0], ThighL: [-0.2, 0, 0], ShinR: [-0.2, 0, 0] }, drop: 0.06, shift: 0.05 },
+    { t: 1.20, pose: {} }
+  ], false);
+  // crouched in the open door, both hands working under the dash
+  const work = (a, b) => ({ UpperArmR: [0, 0, 0.95 + a], ForearmR: [0, 0, 1.75 + b], UpperArmL: [0, 0, -(0.95 - a)], ForearmL: [0, 0, -(1.75 - b)],
+    Spine: [-0.55, 0, 0], Chest: [-0.25, 0, 0], Neck: [-0.20, 0, 0], ThighR: [1.30, 0, 0], ThighL: [1.30, 0, 0], ShinR: [-1.55, 0, 0], ShinL: [-1.55, 0, 0] });
+  make("hotwire", 1.6, [
+    { t: 0.0, pose: work(0, 0), drop: 0.42, shift: 0.10 }, { t: 0.4, pose: work(0.12, -0.25), drop: 0.42, shift: 0.10 },
+    { t: 0.8, pose: work(-0.05, 0.12), drop: 0.43, shift: 0.10 }, { t: 1.2, pose: work(0.10, -0.18), drop: 0.42, shift: 0.10 },
+    { t: 1.6, pose: work(0, 0), drop: 0.42, shift: 0.10 }
+  ], true);
 }
 
 // Crossfade rather than cut: a hard switch between a walk and a run pops the
@@ -6843,6 +6911,12 @@ function playSeikoClip(name, fade) {
 
 function updateSeikoClip(dt) {
   if (!player.mixer) return;
+  if (player.forceClip && player.clips && player.clips[player.forceClip]) {
+    playSeikoClip(player.forceClip, 0.16);
+    if (player.action) player.action.setEffectiveTimeScale(1);
+    player.mixer.update(dt);
+    return;
+  }
   const sp = player.speed;
   if (sp < 0.12) {
     playSeikoClip("idle", 0.25);
@@ -6979,6 +7053,7 @@ function tryStep(dx, dz, radius) {
 }
 
 function updateWalk(dt) {
+  updateHeist(dt);
   const w = wish();
   const running = keys.ShiftLeft || keys.ShiftRight || w.run;
   const top = running ? 4.7 : 1.65;
@@ -6990,6 +7065,7 @@ function updateWalk(dt) {
   if (keys.KeyD || keys.ArrowRight) wishDir.add(right);
   if (keys.KeyA || keys.ArrowLeft) wishDir.sub(right);
   wishDir.addScaledVector(fwd, -w.y).addScaledVector(right, w.x);
+  if (heist.stage) wishDir.set(0, 0, 0);            // both hands are busy
 
   if (wishDir.lengthSq() > 0) {
     // How far the stick is pushed decides the pace, up to whatever running allows. The
@@ -7206,6 +7282,7 @@ function drawCameraFull(prof) {
 
 let hudTimer = 0;
 function updateHud(dt, force) {
+  heistFx(dt);
   updateSound(dt);
   updateRadio(dt);
   updateRoute();
@@ -18816,6 +18893,236 @@ const PHONE_RECORDINGS = {
 };
 
 // Every way of making a call ends up here.
+// ---- breaking into a car --------------------------------------------------------
+// A car at the kerb is not yours, but it can be. Press Y at the driver's door:
+// Seiko puts an elbow through the window (the glass goes, and cars with a
+// decent alarm start screaming), crouches in the door and goes at the wiring.
+// The wiring is three small jobs, and three mistakes ends it:
+//   1  pry the panel off the steering column  (mash A, or the arrows, before it springs back)
+//   2  twist the right wires together         (the arrows, in the order shown)
+//   3  spark the ignition                     (A when the marker is in the green)
+// Dearer cars are harder at every step. Escape backs off.
+const heist = { stage: null, rec: null, t: 0, step: 0, meter: 0, tleft: 0, seq: [], si: 0, strikes: 0, cur: 0, dir: 1, zone: 0.5,
+                hits: 0, need: 1, diff: 1, msg: "", msgT: 0, faceYaw: 0, struck: false, shards: null, flash: 0, side: 1, last: "" };
+const HOT_DIFF = { kei: 0.8, keivan: 0.85, hatch: 0.9, sedan: 1.0, saloon: 1.2, suv: 1.1, onebox: 1.0, taxi: 1.0, ryde: 1.25, sports: 1.5, "super": 1.75 };
+function playGlass(vol) {
+  if (!sound.ready || !sound.ctx || !sound.master) return;
+  const ctx = sound.ctx, t = ctx.currentTime, out = ctx.createGain(); out.gain.value = vol || 0.8; out.connect(sound.master);
+  if (!sound.crashBuf) { const len = Math.floor(ctx.sampleRate * 1.2), b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1; sound.crashBuf = b; }
+  const src = ctx.createBufferSource(); src.buffer = sound.crashBuf; const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 2400;
+  const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.9, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+  src.connect(hp); hp.connect(g); g.connect(out); src.start(t, 0.1, 0.4);
+  for (let i = 0; i < 16; i++) {
+    const at = t + 0.04 + Math.random() * 0.8, so = ctx.createOscillator(), sg = ctx.createGain();
+    so.type = "triangle"; so.frequency.value = 2400 + Math.random() * 5200;
+    sg.gain.setValueAtTime(0.0001, at); sg.gain.exponentialRampToValueAtTime(0.1, at + 0.003); sg.gain.exponentialRampToValueAtTime(0.0001, at + 0.05 + Math.random() * 0.07);
+    so.connect(sg); sg.connect(out); so.start(at); so.stop(at + 0.15);
+  }
+}
+function playBlip(f, d, v) {
+  if (!sound.ready || !sound.ctx || !sound.master) return;
+  const ctx = sound.ctx, t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = "square"; o.frequency.value = f; g.gain.setValueAtTime(v || 0.06, t); g.gain.exponentialRampToValueAtTime(0.0001, t + (d || 0.09));
+  o.connect(g); g.connect(sound.master); o.start(t); o.stop(t + (d || 0.09) + 0.02);
+}
+function heistStealable(rec) { return rec && rec.scenery && !!HOT_DIFF[CAR_KINDS[rec.kind].name]; }
+function heistStart(i) {
+  const rec = drive.parked[i]; if (!rec) return;
+  const kind = CAR_KINDS[rec.kind];
+  if (!HOT_DIFF[kind.name]) { say("That one needs more than a coat hanger.", 3); return; }
+  heist.rec = rec; heist.diff = HOT_DIFF[kind.name]; heist.stage = "smash"; heist.t = 0; heist.strikes = 0; heist.struck = false; heist.step = 0; heist.msg = ""; heist.last = "";
+  // stand at the door nearest to where he came from, facing the car
+  const rx = Math.cos(rec.yaw), rz = -Math.sin(rec.yaw);
+  heist.side = ((player.pos.x - rec.pos.x) * rx + (player.pos.z - rec.pos.z) * rz) >= 0 ? 1 : -1;
+  const off = kind.W * 0.5 + 0.62;
+  player.pos.x = rec.pos.x + rx * heist.side * off; player.pos.z = rec.pos.z + rz * heist.side * off;
+  heist.faceYaw = Math.atan2(rec.pos.x - player.pos.x, rec.pos.z - player.pos.z);
+  player.yaw = player.targetYaw = heist.faceYaw; player.speed = 0;
+  player.forceClip = "smash";
+  setPromptText(null);
+}
+function heistEnd(why) {
+  heist.stage = null; player.forceClip = null;
+  if (why) say(why, 3.5);
+}
+function heistFail() {
+  vitals.stress = clamp01(vitals.stress + 0.08);
+  const loud = Math.random() < 0.45 * heist.diff;
+  if (loud && !(sound.alarmUntil > clock)) { sound.alarmUntil = clock + 9; commitCrime("alarm"); }
+  heistEnd("The wires spark and fry. That is enough for one night." + (loud ? " The alarm is going." : ""));
+}
+function heistStrike(msg) {
+  heist.strikes++; heist.msg = msg; heist.msgT = 1.2; heist.flash = 0.3;
+  vitals.stress = clamp01(vitals.stress + 0.03);
+  playBlip(120, 0.25, 0.09);
+  if (heist.strikes >= 3) heistFail();
+}
+function heistInitStep() {
+  heist.msgT = 0;
+  if (heist.step === 0) { heist.meter = 0.12; heist.tleft = 9 / heist.diff; heist.last = ""; }
+  else if (heist.step === 1) {
+    const n = 4 + Math.round(heist.diff * 1.5), arr = ["u", "d", "l", "r"];
+    heist.seq = []; for (let k = 0; k < n; k++) { let c = arr[(Math.random() * 4) | 0]; if (k && c === heist.seq[k - 1] && Math.random() < 0.6) c = arr[(arr.indexOf(c) + 1) % 4]; heist.seq.push(c); }
+    heist.si = 0; heist.tleft = 2.4 / heist.diff;
+  } else if (heist.step === 2) {
+    heist.cur = 0; heist.dir = 1; heist.zone = 0.28 + Math.random() * 0.44; heist.hits = 0; heist.need = heist.diff > 1.4 ? 2 : 1;
+  }
+}
+function heistSucceed() {
+  const rec = heist.rec, i = drive.parked.indexOf(rec);
+  // anyone in blue looking at it sees the whole thing
+  let seen = false; const pk = CAR_KINDS.findIndex(k => k.name === "police");
+  carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
+  heist.stage = null; player.forceClip = null;
+  if (rec && rec.bay) { rec.bay.occ = false; rec.bay.spawned = null; }
+  if (i >= 0) { enterParked(i); drive.car.stolen = true; }
+  say("Hot-wired. The engine catches.", 3.5);
+  if (seen) commitCrime("jackSeen");
+}
+function heistPress(ev) {
+  if (!heist.stage) return false;
+  if (ev === "b") { if (heist.stage === "wire") heistEnd("You back away from the car."); return true; }
+  if (heist.stage !== "wire") return true;
+  if (heist.step === 0) {
+    if (ev === "a" || ev === "l" || ev === "r") {
+      // arrows have to alternate, or holding one would do it
+      if (ev !== "a" && ev === heist.last) return true;
+      heist.last = ev; heist.meter = Math.min(1, heist.meter + 0.085 / heist.diff); playBlip(300 + heist.meter * 500, 0.05, 0.04);
+      if (heist.meter >= 1) { heist.step = 1; heistInitStep(); heist.msg = "Panel off."; heist.msgT = 1; playBlip(660, 0.12); }
+    }
+  } else if (heist.step === 1) {
+    if (ev === "u" || ev === "d" || ev === "l" || ev === "r") {
+      if (ev === heist.seq[heist.si]) {
+        heist.si++; heist.tleft = 2.4 / heist.diff; playBlip(520 + heist.si * 70, 0.07, 0.05);
+        if (heist.si >= heist.seq.length) { heist.step = 2; heistInitStep(); heist.msg = "Wires twisted."; heist.msgT = 1; playBlip(740, 0.14); }
+      } else heistStrike("Wrong wire.");
+    }
+  } else if (heist.step === 2) {
+    if (ev === "a") {
+      if (Math.abs(heist.cur - heist.zone) < 0.085 / Math.sqrt(heist.diff)) {
+        heist.hits++; playBlip(880, 0.12);
+        if (heist.hits >= heist.need) { heist.stage = "start"; heist.t = 0; heist.msg = "It turns over."; heist.msgT = 2; }
+        else { heist.zone = 0.2 + Math.random() * 0.6; heist.msg = "Again."; heist.msgT = 0.8; }
+      } else { heistStrike("Missed the spark."); heist.zone = 0.2 + Math.random() * 0.6; }
+    }
+  }
+  return true;
+}
+function heistKey(code) {
+  const m = { ArrowUp: "u", KeyW: "u", ArrowDown: "d", KeyS: "d", ArrowLeft: "l", KeyA: "l", ArrowRight: "r", KeyD: "r",
+              Enter: "a", Space: "a", KeyE: "a", Escape: "b", Backspace: "b", KeyF: "b" };
+  const ev = m[code]; if (ev) heistPress(ev);
+}
+function updateHeist(dt) {
+  if (!heist.stage) return;
+  heist.t += dt; heist.msgT -= dt; if (heist.flash > 0) heist.flash -= dt;
+  player.speed = 0; player.targetYaw = heist.faceYaw;
+  const rec = heist.rec;
+  if (!rec || drive.parked.indexOf(rec) < 0) { heistEnd(); return; }
+  if (heist.stage === "smash") {
+    if (!heist.struck && heist.t > 0.46) {
+      heist.struck = true; playGlass(0.9);
+      // glass, thrown outwards from the window
+      const kind = CAR_KINDS[rec.kind], rx = Math.cos(rec.yaw), rz = -Math.sin(rec.yaw), fx = Math.sin(rec.yaw), fz = Math.cos(rec.yaw);
+      const ox = rec.pos.x + rx * heist.side * (kind.W * 0.5), oz = rec.pos.z + rz * heist.side * (kind.W * 0.5), oy = rec.pos.y + 1.05;
+      const n = 34, pos = new Float32Array(n * 3), vel = [];
+      for (let k = 0; k < n; k++) {
+        pos[k * 3] = ox + fx * (Math.random() - 0.5) * 0.9; pos[k * 3 + 1] = oy + (Math.random() - 0.3) * 0.35; pos[k * 3 + 2] = oz + fz * (Math.random() - 0.5) * 0.9;
+        vel.push([rx * heist.side * (0.6 + Math.random() * 1.8), 1.0 + Math.random() * 1.6, rz * heist.side * (0.6 + Math.random() * 1.8)]);
+      }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xd8eef7, size: 0.13, transparent: true, opacity: 1, depthWrite: false }));
+      pts.frustumCulled = false; scene.add(pts); heist.shards = { pts: pts, vel: vel, t: 0 };
+      // a car worth stealing has an alarm worth hearing
+      if (heist.diff >= 1.2 || Math.random() < 0.28) { sound.alarmUntil = clock + 14; say("The alarm is going off.", 3); commitCrime("alarm"); }
+      let seen = false; const pk = CAR_KINDS.findIndex(k => k.name === "police");
+      carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
+      if (seen) commitCrime("jackSeen");
+    }
+    if (heist.t > 1.2) { heist.stage = "wire"; heist.step = 0; heistInitStep(); player.forceClip = "hotwire"; }
+  } else if (heist.stage === "wire") {
+    if (heist.step === 0) {
+      heist.meter = Math.max(0, heist.meter - 0.22 * heist.diff * dt); heist.tleft -= dt;
+      if (heist.tleft <= 0) { heistStrike("The panel will not give."); heist.tleft = 9 / heist.diff; heist.meter = 0.1; }
+    } else if (heist.step === 1) {
+      heist.tleft -= dt;
+      if (heist.tleft <= 0) { heistStrike("Too slow."); heist.tleft = 2.4 / heist.diff; }
+    } else if (heist.step === 2) {
+      heist.cur += heist.dir * dt * 1.15 * heist.diff;
+      if (heist.cur > 1) { heist.cur = 1; heist.dir = -1; } else if (heist.cur < 0) { heist.cur = 0; heist.dir = 1; }
+    }
+  } else if (heist.stage === "start") {
+    if (heist.t > 0.9) heistSucceed();
+  }
+}
+// shards fall for a second and a half, whatever has happened since
+function heistFx(dt) {
+  const sh = heist.shards;
+  if (sh) {
+    sh.t += dt;
+    const a = sh.pts.geometry.attributes.position;
+    for (let k = 0; k < sh.vel.length; k++) {
+      const v = sh.vel[k]; v[1] -= 9.8 * dt;
+      let y = a.getY(k) + v[1] * dt;
+      const g = world.surfaceY(a.getX(k), a.getZ(k)) + 0.03;
+      if (y < g) { y = g; v[0] *= 0.2; v[1] = 0; v[2] *= 0.2; }
+      a.setXYZ(k, a.getX(k) + v[0] * dt, y, a.getZ(k) + v[2] * dt);
+    }
+    a.needsUpdate = true;
+    sh.pts.material.opacity = clamp01(3.5 - sh.t);
+    if (sh.t > 3.5) { scene.remove(sh.pts); sh.pts.geometry.dispose(); sh.pts.material.dispose(); heist.shards = null; }
+  }
+  drawHeist();
+}
+function drawHeist() {
+  const wrap = document.getElementById("hotwire"), cv = document.getElementById("hotwirecv");
+  if (!wrap || !cv) return;
+  const on = heist.stage === "wire" || heist.stage === "start";
+  if (wrap.hidden === on) wrap.hidden = !on;
+  if (!on) return;
+  const W = innerWidth, H = innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const pw = Math.min(W * 0.9, 560), ph = Math.min(H * 0.34, 250), px = (W - pw) / 2, py = H - ph - Math.max(24, H * 0.06);
+  g.fillStyle = "rgba(10,12,16,0.82)"; roundRect(g, px, py, pw, ph, 16); g.fill();
+  g.strokeStyle = "rgba(255,255,255,0.14)"; g.lineWidth = 1.5; roundRect(g, px, py, pw, ph, 16); g.stroke();
+  const T = (txt, x, y, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + sz + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, x, y); };
+  const titles = ["Pry the panel off", "Twist the right wires", "Spark the ignition"];
+  const step = heist.stage === "start" ? 2 : heist.step;
+  T("Hot-wire  ·  " + (step + 1) + " of 3", px + 22, py + 24, 13, "#9aa3ad", "left", "600");
+  T(titles[step], px + 22, py + 50, 24, "#ffffff", "left", "800");
+  // three strikes, as three small bulbs
+  for (let k = 0; k < 3; k++) { g.fillStyle = k < heist.strikes ? "#e5483c" : "rgba(255,255,255,0.18)"; g.beginPath(); g.arc(px + pw - 28 - k * 22, py + 28, 7, 0, 7); g.fill(); }
+  const cx = px + pw / 2, bw = pw - 60;
+  if (heist.stage === "start") { T("It turns over.", cx, py + ph * 0.62, 30, "#7dffb0", "center", "800"); }
+  else if (heist.step === 0) {
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, py + ph * 0.52, bw, 26, 13); g.fill();
+    g.fillStyle = "#f0b429"; roundRect(g, px + 30, py + ph * 0.52, Math.max(18, bw * heist.meter), 26, 13); g.fill();
+    T("Mash  A  (or ◀ ▶ in turn)", cx, py + ph * 0.80, 17, "#c5ccd3", "center", "600");
+  } else if (heist.step === 1) {
+    const n = heist.seq.length, sz = Math.min(54, (bw - 8 * (n - 1)) / n);
+    const x0 = cx - (n * sz + (n - 1) * 8) / 2, glyph = { u: "▲", d: "▼", l: "◀", r: "▶" };
+    const wire = ["#e5483c", "#3b8cf0", "#f0b429", "#31b36b", "#a56bf0", "#f08a2c", "#e8e8e8"];
+    heist.seq.forEach((c, k) => {
+      const x = x0 + k * (sz + 8), y = py + ph * 0.46, done = k < heist.si, now = k === heist.si;
+      g.fillStyle = done ? wire[k % wire.length] : now ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.12)";
+      roundRect(g, x, y, sz, sz, 10); g.fill();
+      T(glyph[c], x + sz / 2, y + sz / 2 + 1, sz * 0.5, done ? "#101216" : now ? "#101216" : "#8d96a0", "center", "800");
+    });
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, py + ph * 0.82, bw, 8, 4); g.fill();
+    g.fillStyle = heist.tleft < 0.7 ? "#e5483c" : "#9aa3ad"; roundRect(g, px + 30, py + ph * 0.82, Math.max(8, bw * clamp01(heist.tleft / (2.4 / heist.diff))), 8, 4); g.fill();
+  } else {
+    const y = py + ph * 0.52, zw = bw * 0.17 / Math.sqrt(heist.diff);
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, y, bw, 30, 15); g.fill();
+    g.fillStyle = "rgba(49,179,107,0.85)"; g.fillRect(px + 30 + bw * heist.zone - zw / 2, y, zw, 30);
+    g.fillStyle = "#ffffff"; g.fillRect(px + 30 + bw * heist.cur - 3, y - 6, 6, 42);
+    T("Press  A  in the green" + (heist.need > 1 ? "  ·  " + heist.hits + " / " + heist.need : ""), cx, py + ph * 0.84, 17, "#c5ccd3", "center", "600");
+  }
+  if (heist.msgT > 0 && heist.msg) T(heist.msg, cx, py - 18, 20, heist.flash > 0 ? "#ff6a5e" : "#ffffff", "center", "800");
+  if (heist.flash > 0) { g.fillStyle = "rgba(229,72,60," + (heist.flash * 0.35).toFixed(2) + ")"; g.fillRect(0, 0, W, H); }
+  g.textBaseline = "alphabetic";
+}
+
 // ---- cheats ------------------------------------------------------------------
 // Type the word while you are playing, or dial the number on the phone (they
 // are in Web/CHEATS.md). Vehicles appear in front of you and you are put in the
@@ -24679,7 +24986,10 @@ function findRide() {
   // A parked car you left is the first thing you would reach for.
   for (let i = 0; i < drive.parked.length; i++) {
     const p = drive.parked[i];
-    if (p.scenery) continue;                       // a stranger's car at the kerb is not yours to take
+    if (p.scenery) {                               // a stranger's car at the kerb: only by breaking in
+      if (heistStealable(p) && Math.hypot(p.pos.x - px, p.pos.z - pz) < 3.3) return { what: "steal", parked: i };
+      continue;
+    }
     if (Math.hypot(p.pos.x - px, p.pos.z - pz) < 4.2) return { what: "parked", parked: i };
   }
   let best = null, bestD = 5.0;
