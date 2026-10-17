@@ -1,0 +1,36 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="Salary Man"
+config/description="Salary Man: a night-time open city with a proper driving model. Godot 4.3 port."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "GL Compatibility")
+run/max_fps=0
+config/icon=""
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=1
+
+[physics]
+
+common/physics_ticks_per_second=120
+common/max_physics_steps_per_frame=8
+3d/default_gravity=9.81
+3d/solver/default_contact_bias=0.2
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+anti_aliasing/quality/msaa_3d=1
+textures/canvas_textures/default_texture_filter=2
+environment/defaults/default_clear_color=Color(0.04, 0.055, 0.1, 1)
+lights_and_shadows/directional_shadow/size=2048
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=1
