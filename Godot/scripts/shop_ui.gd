@@ -282,6 +282,7 @@ func _deliver(m: Dictionary) -> String:
 	if m.has("device"):
 		GameState.owned[m.device] = true
 		GameState.device = m.device
+		GameState.phone_paint = 0
 		GameState.say("Phone", "New phone", "%s is in your pocket." % m.name, 5.0)
 		return "Bought %s. It is already in your pocket." % m.name
 	if m.has("tv") or m.has("gear") or m.has("game"):
@@ -299,6 +300,7 @@ func _deliver(m: Dictionary) -> String:
 	if m.get("phone", false):
 		GameState.owned[id] = true
 		GameState.device = id
+		GameState.phone_paint = 0
 		return "Bought %s. It is your phone now." % m.name
 	GameState.give(id, 1)
 	if rec.get("cat", "") == "audio":

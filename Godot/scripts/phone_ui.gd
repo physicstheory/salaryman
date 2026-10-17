@@ -5,8 +5,6 @@ extends Control
 
 signal closed
 
-const W := 340.0
-const H := 660.0
 const WALLPAPERS := [["Dusk", Color(0.16, 0.1, 0.32), Color(0.9, 0.35, 0.45)], ["Harbour", Color(0.03, 0.12, 0.2), Color(0.12, 0.45, 0.6)], ["Neon", Color(0.08, 0.02, 0.15), Color(0.9, 0.2, 0.7)], ["Forest", Color(0.04, 0.12, 0.08), Color(0.3, 0.6, 0.35)], ["Graphite", Color(0.1, 0.1, 0.12), Color(0.3, 0.32, 0.38)]]
 const CONTACTS := [["Mom", "090-5550-0143"], ["Section Chief Hara", "03-5550-8821"], ["Ramen Ippai (reservations)", "03-5550-1177"], ["Ryde Support", "0120-555-0199"], ["Dr. Aoki, Dentist", "03-5550-4400"]]
 const STATIONS := [["FM Tōkonto", "Pop", 118, 0], ["Lo-fi Night Desk", "Lo-fi", 78, 1], ["City Pop 1984", "City pop", 104, 2], ["Kissaten Jazz", "Jazz", 92, 3], ["Enka Hour", "Enka", 66, 4], ["Talk 1180", "Talk radio", 0, 5]]
@@ -14,11 +12,10 @@ const NEWS := ["Section chiefs announce 'a brief word' will last until Thursday"
 const FORUM := [["Is it normal to eat dinner at 11pm every night?", "Yes. Next question."], ["How do I tell my boss no", "You do not. You say 'that would be difficult'."], ["Best vending machine near the station?", "The one with the kind light."], ["Cheap suits that look expensive", "Dark colours and confident posture. And a very small budget."]]
 const POSTS := ["{shop}!! I go there every week", "{brand} spotted 👀", "That shopfront on {street} has great light", "POV: you missed the last train and the capsule hotel is full #salaryman", "Rain on {street}, neon on the puddles. This city.", "Found a vending machine that sells soup. Soup. In a can.", "{station} at midnight is a different country", "my boss: 'a quick word'. 40 minutes later.", "whoever put the yellow light on {street}: thank you", "ramen at 1am, no regrets, many regrets", "the 11 on {street} knows my order now", "walked past a pachinko parlour. my ears are still ringing", "this park is the only quiet place in town", "umbrella count this year: 4 lost, 1 returned (not mine)"]
 
+
 var game: Game
-var screen: Control
+var screen: Control               # the part of the glass apps draw in (below the status bar, above the nav)
 var app := ""
-var _time_lbl: Label
-var _wall: ColorRect
 var _wall_i := 0
 var _bright := 1.0
 var _dim: ColorRect
@@ -26,6 +23,13 @@ var _pages: Array = []            # a stack of builders, for Back
 var _music: PhoneMusic
 var _viewfinder := false
 var _flash: ColorRect
+var body: Control
+var _chrome_back: PhoneChrome
+var _chrome_front: PhoneChrome
+var _wallctl: PhoneWall
+var _dev_id := ""
+var _lay: Dictionary = {}
+var _sel := 0
 
 func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
@@ -38,10 +42,8 @@ func _gui_input(e: InputEvent) -> void:
 func _fit() -> void:
 	position = Vector2.ZERO
 	size = get_viewport().get_visible_rect().size
-	if body:
-		body.position = Vector2(size.x - W - 36.0, (size.y - H) * 0.5)
-
-var body: Panel
+	if body and not _lay.is_empty():
+		body.position = Vector2(size.x - _lay.bw - 36.0, (size.y - _lay.bh) * 0.5)
 
 func _sb(c: Color, r := 14.0, border := Color(0, 0, 0, 0), bw := 0) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
@@ -56,52 +58,35 @@ func _sb(c: Color, r := 14.0, border := Color(0, 0, 0, 0), bw := 0) -> StyleBoxF
 	s.content_margin_bottom = 6
 	return s
 
+func _dev() -> Dictionary:
+	return GameData.raw.devices.get(GameState.device, GameData.raw.devices.so24)
+
+func _basic() -> bool:
+	return PhoneChrome.is_basic(_dev())
+
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
 	visible = false
-	body = Panel.new()
-	body.custom_minimum_size = Vector2(W, H)
-	body.size = Vector2(W, H)
-	body.add_theme_stylebox_override("panel", _sb(Color(0.05, 0.05, 0.07), 38.0, Color(0.3, 0.32, 0.38), 3))
-	body.mouse_filter = Control.MOUSE_FILTER_STOP
+	body = Control.new()
+	body.mouse_filter = Control.MOUSE_FILTER_PASS
 	add_child(body)
-	_wall = ColorRect.new()
-	_wall.position = Vector2(10, 10)
-	_wall.size = Vector2(W - 20, H - 20)
-	body.add_child(_wall)
+	_chrome_back = PhoneChrome.new()
+	_chrome_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	body.add_child(_chrome_back)
+	_wallctl = PhoneWall.new()
+	body.add_child(_wallctl)
+	screen = Control.new()
+	screen.clip_contents = true
+	screen.mouse_filter = Control.MOUSE_FILTER_PASS
+	body.add_child(screen)
 	_dim = ColorRect.new()
-	_dim.position = _wall.position
-	_dim.size = _wall.size
 	_dim.color = Color(0, 0, 0, 0)
 	_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dim.z_index = 20
 	body.add_child(_dim)
-	var bar := HBoxContainer.new()
-	bar.position = Vector2(26, 16)
-	bar.size = Vector2(W - 52, 22)
-	body.add_child(bar)
-	_time_lbl = Label.new()
-	_time_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_time_lbl.add_theme_font_size_override("font_size", 14)
-	bar.add_child(_time_lbl)
-	var sig := Label.new()
-	sig.text = "▂▄▆█  5G  🔋 87%"
-	sig.add_theme_font_size_override("font_size", 12)
-	bar.add_child(sig)
-	screen = Control.new()
-	screen.position = Vector2(14, 48)
-	screen.size = Vector2(W - 28, H - 48 - 54)
-	screen.clip_contents = true
-	body.add_child(screen)
-	# the home button, always there
-	var home := Button.new()
-	home.text = "●"
-	home.position = Vector2(W * 0.5 - 22, H - 46)
-	home.size = Vector2(44, 34)
-	home.add_theme_stylebox_override("normal", _sb(Color(1, 1, 1, 0.12), 17.0))
-	home.pressed.connect(go_home)
-	home.focus_mode = Control.FOCUS_NONE
-	body.add_child(home)
+	_chrome_front = PhoneChrome.new()
+	_chrome_front.front = true
+	_chrome_front.key.connect(_on_key)
+	body.add_child(_chrome_front)
 	_flash = ColorRect.new()
 	_flash.color = Color(1, 1, 1, 0)
 	_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -109,46 +94,90 @@ func _ready() -> void:
 	add_child(_flash)
 	_music = PhoneMusic.new()
 	add_child(_music)
-	_fit()
 	get_viewport().size_changed.connect(_fit)
+	_rebuild_body()
+
+## Lay the handset out for the phone in the player's hand: its size, glass, cut-out, colour and wallpaper.
+func _rebuild_body() -> void:
+	var d := _dev()
+	_dev_id = String(d.get("id", GameState.device))
+	_lay = PhoneChrome.layout(d)
+	body.size = Vector2(_lay.bw, _lay.bh)
+	for ch in [_chrome_back, _chrome_front]:
+		ch.dev = d
+		ch.paint = GameState.phone_paint
+		ch.position = Vector2.ZERO
+		ch.size = body.size
+		ch.queue_redraw()
+	var sr: Rect2 = _lay.screen
+	_wallctl.kind = String(d.get("ui", "soti"))
+	_wallctl.dev = d
+	_wallctl.position = sr.position
+	_wallctl.size = sr.size
+	var st: float = _lay.status
+	var nv: float = _lay.nav
+	screen.position = sr.position + Vector2(8, st)
+	screen.size = Vector2(sr.size.x - 16, sr.size.y - st - nv)
+	if _basic():
+		screen.position = sr.position + Vector2(6, st)
+		screen.size = Vector2(sr.size.x - 12, sr.size.y - st - nv)
+	_dim.position = sr.position
+	_dim.size = sr.size
 	_apply_wall()
+	_fit()
+
+func _on_key(k: String) -> void:
+	match k:
+		"home", "recents":
+			go_home()
+		"back":
+			if app == "":
+				close_phone()
+			else:
+				_back()
+		"ok":
+			var f := get_viewport().gui_get_focus_owner()
+			if f is Button:
+				(f as Button).pressed.emit()
+		"end":
+			close_phone()
+		"call":
+			open_app("Phone")
+		"clear":
+			_back()
 
 func _apply_wall() -> void:
 	var w: Array = WALLPAPERS[_wall_i]
-	var g := Gradient.new()
-	g.set_color(0, w[1])
-	g.set_color(1, w[2] if false else w[1])
-	# a vertical gradient from the second colour at the top to the first at the bottom
-	var gt := GradientTexture2D.new()
-	var gr := Gradient.new()
-	gr.set_color(0, w[2])
-	gr.set_color(1, w[1])
-	gt.gradient = gr
-	gt.fill_from = Vector2(0.5, 1.0)
-	gt.fill_to = Vector2(0.5, 0.0)
-	gt.width = 64
-	gt.height = 256
-	var tr: TextureRect = _wall.get_node_or_null("tex")
-	if tr == null:
-		tr = TextureRect.new()
-		tr.name = "tex"
-		tr.stretch_mode = TextureRect.STRETCH_SCALE
-		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		tr.set_anchors_preset(Control.PRESET_FULL_RECT)
-		_wall.add_child(tr)
-	tr.texture = gt
-	_wall.color = w[1]
+	_wallctl.top = w[1]
+	_wallctl.bottom = w[2]
+	if _wallctl.kind == "soti":
+		_wallctl.top = w[1].lightened(0.1)
+		_wallctl.bottom = w[2]
+	if _wallctl.kind == "pear" and _wall_i == 0:
+		# Pear's own default wash: teal into violet
+		_wallctl.top = Color("#5a3fa0")
+		_wallctl.bottom = Color("#2a8a86")
+	_wallctl.queue_redraw()
+
+var _redraw_t := 0.0
 
 func _process(_dt: float) -> void:
 	if not visible:
 		return
-	_time_lbl.text = GameState.clock_text()
 	_flash.color.a = move_toward(_flash.color.a, 0.0, _dt * 3.0)
+	_redraw_t += _dt
+	if _redraw_t > 0.15:
+		_redraw_t = 0.0
+		_chrome_front.music = _music != null and _music.playing >= 0
+		_chrome_front.queue_redraw()
 	if _viewfinder:
 		queue_redraw()
 
 func open_phone() -> void:
 	visible = true
+	if String(_dev().get("id", "")) != _dev_id or _chrome_front.paint != GameState.phone_paint:
+		app = ""
+		_rebuild_body()
 	if app == "":
 		go_home()
 	else:
@@ -161,62 +190,175 @@ func close_phone() -> void:
 	visible = false
 	closed.emit()
 
+func _icon(a: Array, s: float) -> PhoneIcon:
+	var ic := PhoneIcon.new(Color(a[1]), a[2])
+	ic.custom_minimum_size = Vector2(s, s)
+	ic.size = Vector2(s, s)
+	if a[0] == "Mail":
+		for m in GameState.mails:
+			if not m.read:
+				ic.badge += 1
+	return ic
+
+## An app on the home screen: its icon and its name, focusable so the D-pad, the keys and a controller all reach it.
+func _app_cell(a: Array, s: float, fs: int, labels := true) -> Button:
+	var b := Button.new()
+	b.flat = true
+	b.focus_mode = Control.FOCUS_ALL
+	b.custom_minimum_size = Vector2(s + 10.0, s + (22.0 if labels else 8.0))
+	var empty := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "disabled"]:
+		b.add_theme_stylebox_override(st, empty)
+	b.add_theme_stylebox_override("focus", _sb(Color(1, 1, 1, 0.18), 16.0, Color(1, 1, 1, 0.9), 2))
+	var ic := _icon(a, s)
+	ic.position = Vector2(5, 4)
+	b.add_child(ic)
+	if labels:
+		var l := Label.new()
+		l.text = a[0]
+		l.add_theme_font_size_override("font_size", fs)
+		l.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.6))
+		l.add_theme_constant_override("shadow_offset_x", 1)
+		l.add_theme_constant_override("shadow_offset_y", 1)
+		l.position = Vector2(0, s + 6.0)
+		l.size = Vector2(s + 10.0, 16)
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.clip_text = true
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(l)
+	b.pressed.connect(open_app.bind(a[0]))
+	return b
+
+func _home_apps() -> Array:
+	var list: Array = []
+	var basic := _basic()
+	for a in GameData.raw.phone_apps:
+		if basic and not GameData.raw.basic_apps.has(a[0]):
+			continue
+		list.append(a)
+	if GameState.owned.has("pearwatch") or GameState.owned.has("pearwatchu"):
+		list.append(["Health", "#ff2d55", "heart"])
+	return list
+
+func _glass(parent: Control, r: Rect2, col := Color(1, 1, 1, 0.16), rad := 20.0) -> Panel:
+	var p := Panel.new()
+	p.position = r.position
+	p.size = r.size
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_theme_stylebox_override("panel", _sb(col, rad, Color(1, 1, 1, 0.18), 1))
+	parent.add_child(p)
+	return p
+
+func _lbl(parent: Control, t: String, pos: Vector2, fs: int, col := Color.WHITE, w := -1.0, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
+	var l := Label.new()
+	l.text = t
+	l.position = pos
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", col)
+	l.horizontal_alignment = align
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if w > 0.0:
+		l.size = Vector2(w, fs + 8)
+	parent.add_child(l)
+	return l
+
+func _dock_apps(list: Array) -> Array:
+	var dock: Array = []
+	for n in ["Ryde", "Poodle", "Phone", "Camera"]:
+		for a in list:
+			if a[0] == n:
+				dock.append(a)
+	return dock
+
 func go_home() -> void:
 	app = ""
 	_pages.clear()
 	_viewfinder = false
 	body.visible = true
 	_clear()
-	var apps: Array = GameData.raw.phone_apps
-	var basic: bool = GameState.device == "eleven" or GameState.device == "petmart"
-	var list: Array = []
-	for a in apps:
-		if basic and not GameData.raw.basic_apps.has(a[0]):
-			continue
-		list.append(a)
-	if GameState.owned.has("pearwatch") or GameState.owned.has("pearwatchu"):
-		list.append(["Health", "#ff2d55", "heart"])
-	var date := Label.new()
-	date.text = "Day %d" % GameState.day
-	date.position = Vector2(14, 6)
-	date.add_theme_font_size_override("font_size", 30)
-	screen.add_child(date)
-	var dev: Dictionary = GameData.raw.devices.get(GameState.device, {"name": "Phone"})
-	var nm := Label.new()
-	nm.text = dev.name
-	nm.position = Vector2(16, 46)
-	nm.add_theme_font_size_override("font_size", 13)
-	nm.modulate = Color(1, 1, 1, 0.7)
-	screen.add_child(nm)
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.position = Vector2(8, 90)
-	grid.add_theme_constant_override("h_separation", 14)
-	grid.add_theme_constant_override("v_separation", 16)
-	screen.add_child(grid)
+	var d := _dev()
+	var ui := String(d.get("ui", "soti"))
+	var list := _home_apps()
+	var sw := screen.size.x
+	var sh := screen.size.y
 	var first: Button
-	for a in list:
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(88, 88)
-		b.text = a[0]
-		b.add_theme_font_size_override("font_size", 14)
-		b.add_theme_stylebox_override("normal", _sb(Color(a[1]), 20.0))
-		b.add_theme_stylebox_override("hover", _sb(Color(a[1]).lightened(0.15), 20.0))
-		b.add_theme_stylebox_override("focus", _sb(Color(a[1]).lightened(0.2), 20.0, Color.WHITE, 3))
-		b.add_theme_stylebox_override("pressed", _sb(Color(a[1]).darkened(0.2), 20.0))
-		b.pressed.connect(open_app.bind(a[0]))
-		grid.add_child(b)
-		if first == null:
-			first = b
-		if a[0] == "Mail":
-			var unread := 0
-			for m in GameState.mails:
-				if not m.read:
-					unread += 1
-			if unread > 0:
-				b.text = "Mail  (%d)" % unread
+	var day := Time.get_datetime_dict_from_system()
+	match ui:
+		"pear":
+			# widgets, a four-wide grid, a search pill and a dock, on a soft wash
+			var wy := 4.0
+			var ww := (sw - 12.0) * 0.5
+			_glass(screen, Rect2(0, wy, ww, 100), Color(1, 1, 1, 0.18))
+			_lbl(screen, "TŌKONTO", Vector2(10, wy + 6), 9, Color(1, 1, 1, 0.8))
+			_lbl(screen, GameState.clock_text(), Vector2(8, wy + 16), 38, Color.WHITE, ww - 8)
+			_lbl(screen, "Day %d" % GameState.day, Vector2(10, wy + 74), 10, Color(1, 1, 1, 0.8))
+			_glass(screen, Rect2(ww + 12, wy, ww, 100), Color(1, 1, 1, 0.18))
+			_lbl(screen, "WEATHER", Vector2(ww + 22, wy + 6), 9, Color(1, 1, 1, 0.8))
+			_lbl(screen, "18°", Vector2(ww + 20, wy + 16), 38, Color.WHITE)
+			_lbl(screen, "Clear · H 21° L 12°", Vector2(ww + 22, wy + 74), 10, Color(1, 1, 1, 0.8))
+			var grid := GridContainer.new()
+			grid.columns = 4
+			grid.position = Vector2(-2, 116)
+			grid.add_theme_constant_override("h_separation", 2)
+			grid.add_theme_constant_override("v_separation", 4)
+			screen.add_child(grid)
+			for a in list:
+				var b := _app_cell(a, 50.0, 10)
+				grid.add_child(b)
+				if first == null:
+					first = b
+			var pill := _glass(screen, Rect2(sw * 0.5 - 52, sh - 126, 104, 22), Color(1, 1, 1, 0.2), 11.0)
+			_lbl(pill, "⌕ Search", Vector2(0, 2), 11, Color(1, 1, 1, 0.85), 104, HORIZONTAL_ALIGNMENT_CENTER)
+			_glass(screen, Rect2(0, sh - 92, sw, 86), Color(1, 1, 1, 0.2), 26.0)
+			var dx := 14.0
+			for a in _dock_apps(list):
+				var ic := _icon(a, 50.0)
+				ic.position = Vector2(dx + 4, sh - 76)
+				screen.add_child(ic)
+				dx += (sw - 28.0) / 4.0
+		"basic":
+			var grid2 := GridContainer.new()
+			grid2.columns = 3
+			grid2.position = Vector2(6, 8)
+			grid2.add_theme_constant_override("h_separation", 2)
+			grid2.add_theme_constant_override("v_separation", 0)
+			screen.add_child(grid2)
+			for a in list:
+				var b := _app_cell(a, 38.0, 9)
+				grid2.add_child(b)
+				if first == null:
+					first = b
+			var tk := ColorRect.new()
+			tk.color = Color(0, 0, 0, 0.45)
+			tk.position = Vector2(0, sh - 18)
+			tk.size = Vector2(sw, 18)
+			tk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			screen.add_child(tk)
+			_lbl(tk, "●  OPEN 24 HOURS  ●  ONIGIRI 2 FOR ¥200" if d.id == "eleven" else "●  PET MART  ●  YOUR NEIGHBOURHOOD STORE", Vector2(6, 1), 10, Color.WHITE)
+		_:
+			# SOTI: a big clock and date, a four-wide grid and a dock over the skyline
+			_lbl(screen, GameState.clock_text(), Vector2(0, -2), 66, Color.WHITE, sw, HORIZONTAL_ALIGNMENT_CENTER)
+			_lbl(screen, "Day %d · Tōkonto" % GameState.day, Vector2(0, 76), 13, Color(1, 1, 1, 0.85), sw, HORIZONTAL_ALIGNMENT_CENTER)
+			var grid3 := GridContainer.new()
+			grid3.columns = 4
+			grid3.position = Vector2(-2, 112)
+			grid3.add_theme_constant_override("h_separation", 2)
+			grid3.add_theme_constant_override("v_separation", 6)
+			screen.add_child(grid3)
+			for a in list:
+				var b := _app_cell(a, 46.0, 11)
+				grid3.add_child(b)
+				if first == null:
+					first = b
+			_glass(screen, Rect2(2, sh - 70, sw - 4, 66), Color(1, 1, 1, 0.14), 24.0)
+			var dx2 := 12.0
+			for a in _dock_apps(list):
+				var ic2 := _icon(a, 46.0)
+				ic2.position = Vector2(dx2 + 2, sh - 60)
+				screen.add_child(ic2)
+				dx2 += (sw - 24.0) / 4.0
 	if first:
-		first.grab_focus()
+		first.grab_focus.call_deferred()
 
 func open_app(name: String) -> void:
 	app = name
@@ -439,6 +581,7 @@ func _web_buy(it: Dictionary, hours: float) -> void:
 		if GameState.spend(int(it.price), it.name):
 			GameState.owned[it.device] = true
 			GameState.device = it.device
+			GameState.phone_paint = 0
 			GameState.say("Phone", "New phone", "%s is yours." % it.name, 4.0)
 		else:
 			GameState.say("Poodle", "Not enough money", "", 2.5)
@@ -697,6 +840,21 @@ func _settings() -> void:
 			_wall_i = i
 			_apply_wall())
 		row.add_child(b)
+	var cols: Array = dev.get("colours", [])
+	if cols.size() > 1:
+		_text(vb, "Colour: " + String(cols[clampi(GameState.phone_paint, 0, cols.size() - 1)][0]), 16, Color(1, 0.85, 0.5))
+		var crow := HBoxContainer.new()
+		vb.add_child(crow)
+		for i in cols.size():
+			var cb := Button.new()
+			cb.custom_minimum_size = Vector2(34, 34)
+			cb.add_theme_stylebox_override("normal", _sb(Color(String(cols[i][1])), 17.0, Color(1, 1, 1, 0.5), 2))
+			cb.add_theme_stylebox_override("focus", _sb(Color(String(cols[i][1])), 17.0, Color.WHITE, 4))
+			cb.pressed.connect(func():
+				GameState.phone_paint = i
+				_rebuild_body()
+				_build_app("Settings"))
+			crow.add_child(cb)
 	_text(vb, "Brightness", 16, Color(1, 0.85, 0.5))
 	var s := HSlider.new()
 	s.min_value = 0.3
