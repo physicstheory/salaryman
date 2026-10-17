@@ -2064,7 +2064,10 @@ function makeWorld(seed, report) {
       const dx = px - d.cx, dz = pz - d.cz;
       const lx = dx * d.c - dz * d.s, lz = dx * d.s + dz * d.c;
       if (Math.abs(lx) > d.hw || Math.abs(lz) > d.hl) continue;
-      const y = d.ya + (d.yb - d.ya) * ((lz + d.hl) / (2 * d.hl));
+      const t = (lz + d.hl) / (2 * d.hl);
+      let y = d.ya + (d.yb - d.ya) * (d.prof === 2 ? t * t : t);                 // 2: a kicker, curving up into the lip
+      if (d.amp) y += d.amp * Math.sin(Math.PI * t);                              // a roller
+      if (d.cr) { const e = d.cs ? clamp01(lx * d.cs / d.hw) : Math.abs(lx) / d.hw; y += d.cr * e * e; }   // a banked edge
       if (y <= refY + 0.9 && (best === null || y > best)) best = y;
     }
     world.walkOn = best !== null;
@@ -10354,13 +10357,15 @@ const PERF = {
   scooter: { top: 17, to100: 11.0 },
   cruiser: { top: 62, to100: 4.6 },    // a 1,700 cc twin, all torque
   tourer:  { top: 64, to100: 5.2 },
+  dirtbike: { top: 36, to100: 4.0 },   // light, short-geared, quick
+  mtb:      { top: 16, to100: 11.0 },
   truck:   { top: 28, to100: 20.0 },
   bus:     { top: 25, to100: 25.0 }
 };
 
 // The catalogue. share is the fraction of the traffic; wide keeps a vehicle on
 // the arterials, where a ten-metre bus can actually fit.
-const TWO_WHEELERS = { bike: 1, scooter: 1, cruiser: 1, tourer: 1 };
+const TWO_WHEELERS = { bike: 1, scooter: 1, cruiser: 1, tourer: 1, dirtbike: 1, mtb: 1 };
 const CAR_KINDS = [
   { name: "kei", palette: "kei", body: "kei", L: 3.40, W: 1.48, H: 1.70, share: 0.15, top: 12.5,
     marques: ["daichi", "suzume", "kosei"], plate: "plateKei" },
@@ -10396,6 +10401,12 @@ const CAR_KINDS = [
   { name: "cruiser", palette: "bike", body: "cruiser", L: 2.45, W: 0.92, H: 1.40, share: 0, top: 26,
     marques: ["kaneda"], dispatch: true },
   { name: "tourer", palette: "bike", body: "tourer", L: 2.60, W: 1.00, H: 1.55, share: 0, top: 27,
+    marques: ["kaneda"], dispatch: true },
+  // Off-road: a 450 cc dirt bike and a full-suspension mountain bike. Rented at the
+  // bike parks on the mountains, or spawned with a cheat; never in the traffic.
+  { name: "dirtbike", palette: "bike", body: "dirtbike", L: 2.12, W: 0.82, H: 1.40, share: 0, top: 30,
+    marques: ["kaneda"], dispatch: true },
+  { name: "mtb", palette: "bike", body: "mtb", L: 1.78, W: 0.72, H: 1.34, share: 0, top: 14,
     marques: ["kaneda"], dispatch: true },
   { name: "truck", body: "truck", L: 6.19, W: 1.90, H: 3.10, share: 0.022, top: 12.5,
     livery: "truck", colour: [0.90, 0.91, 0.88], plate: "plateGreen", wide: true },
@@ -10918,6 +10929,66 @@ function buildVehicle(kind) {
       trim.box(0, 1.50, L * 0.02, 0.26, 0.26, 0.28, { tx: 0.8, tz: 0.8 });
       marque(0.74, L * 0.42, 0.62, -L * 0.42, 0.11);
       break;
+    case "dirtbike": {
+      // A 450: tall and narrow, long-travel forks, a high front fender, a flat
+      // seat, an engine you can see, knobbly tyres and the rider standing.
+      paint.colour(COL.shell);
+      paint.box(0, 0.98, L * 0.18, 0.28, 0.20, 0.44, { tx: 0.7, tz: 0.8 });          // tank / shrouds
+      paint.box(0, 0.88, -L * 0.20, 0.24, 0.14, 0.62, { tz: 0.8 });                  // seat base and tail
+      paint.box(0, 1.00, L * 0.38, 0.20, 0.05, 0.48, { tz: 0.75 });                  // high front fender
+      paint.box(0, 0.76, L * 0.47, 0.30, 0.30, 0.04);                                // number plate
+      trim.colour(COL.dark);
+      trim.box(0, 0.93, -L * 0.18, 0.22, 0.07, 0.62);                                // seat
+      trim.box(0, 0.50, L * 0.02, 0.22, 0.34, 0.40);                                 // engine
+      trim.box(0, 0.30, -L * 0.08, 0.12, 0.08, 0.80);                                // frame / skid plate
+      trim.colour(COL.chrome);
+      trim.box(0.06, 0.66, L * 0.37, 0.035, 0.85, 0.035);                            // fork legs
+      trim.box(-0.06, 0.66, L * 0.37, 0.035, 0.85, 0.035);
+      trim.box(0, 1.12, L * 0.31, 0.78, 0.035, 0.04);                                // bars
+      trim.box(0.14, 0.34, -L * 0.34, 0.05, 0.10, 0.70);                             // pipe
+      trim.box(0.08, 0.50, -L * 0.36, 0.045, 0.60, 0.045);                           // rear shock
+      trim.colour(COL.amber);
+      trim.box(0, 0.36, -L * 0.12, 0.24, 0.05, 0.28);
+      trim.colour(COL.tyre);
+      trim.wheel(0, 0.34, L * 0.38, 0.34, 0.095);
+      trim.wheel(0, 0.32, -L * 0.36, 0.32, 0.12);
+      trim.colour(COL.jacket);
+      trim.box(0, 1.34, -L * 0.04, 0.38, 0.54, 0.26, { tz: 0.8, shift: 0.05 });      // the rider, standing on the pegs
+      trim.colour(COL.helmet);
+      trim.box(0, 1.72, 0.02, 0.26, 0.26, 0.30, { tx: 0.8, tz: 0.8 });
+      trim.colour(COL.dark);
+      trim.box(0, 1.69, 0.14, 0.24, 0.07, 0.05);                                     // goggles
+      break;
+    }
+    case "mtb": {
+      // A full-suspension trail bike and a rider in a full-face helmet, hunched
+      // over the bars with the weight back.
+      paint.colour(COL.shell);
+      paint.box(0, 0.62, -L * 0.02, 0.06, 0.08, 0.66, { tz: 0.9 });                  // top tube / swingarm
+      paint.box(0, 0.54, L * 0.14, 0.06, 0.34, 0.07);                                // down tube
+      paint.box(0, 0.86, -L * 0.14, 0.05, 0.40, 0.06);                               // seat tube
+      trim.colour(COL.dark);
+      trim.box(0, 1.06, -L * 0.17, 0.12, 0.05, 0.22);                                // saddle
+      trim.box(0, 0.32, -L * 0.02, 0.06, 0.12, 0.20);                                // cranks and chainring
+      trim.colour(COL.chrome);
+      trim.box(0, 0.66, L * 0.34, 0.035, 0.66, 0.035);                               // fork
+      trim.box(0, 1.01, L * 0.30, 0.66, 0.03, 0.03);                                 // riser bars
+      trim.box(0, 0.40, -L * 0.30, 0.03, 0.40, 0.03);                                // seat stays
+      trim.colour(COL.amber);
+      trim.box(0, 0.54, -L * 0.20, 0.05, 0.22, 0.05);                                // rear shock
+      trim.colour(COL.tyre);
+      trim.wheel(0, 0.35, L * 0.36, 0.35, 0.065);
+      trim.wheel(0, 0.35, -L * 0.36, 0.35, 0.07);
+      trim.colour(COL.jacket);
+      trim.box(0, 1.22, -L * 0.04, 0.36, 0.46, 0.34, { tz: 0.8, shift: 0.16 });      // torso, forward
+      trim.box(0, 0.78, -L * 0.12, 0.30, 0.16, 0.30);                                // hips
+      trim.box(0.09, 0.62, L * 0.02, 0.10, 0.34, 0.12);                              // legs on the pedals
+      trim.box(-0.09, 0.62, L * 0.02, 0.10, 0.34, 0.12);
+      trim.box(0, 1.14, L * 0.20, 0.34, 0.08, 0.34);                                 // arms to the bars
+      trim.colour(COL.helmet);
+      trim.box(0, 1.52, L * 0.12, 0.25, 0.24, 0.28, { tx: 0.8, tz: 0.8 });
+      break;
+    }
     case "cruiser":
     case "tourer": {
       // The Hadson look: a deep, low frame, a fat teardrop tank, a big round
@@ -11669,7 +11740,7 @@ function updateTraffic(dt, at) {
     const two = TWO_WHEELERS[CAR_KINDS[kindIdx].body];
     let px = pos.x, py = pos.y, pz = pos.z, rollA = -(rollV || 0) * 0.22;
     if (two) {
-      rollA = -(rollV || 0) * 0.85;
+      rollA = -(rollV || 0);
       if (pitchV) {
         const a = CAR_KINDS[kindIdx].L * 0.34, cp = Math.cos(pitchV) - 1;
         px += a * Math.sin(yawV) * cp; pz += a * Math.cos(yawV) * cp; py += -a * Math.sin(pitchV);
@@ -12724,8 +12795,8 @@ function updateSound(dt) {
   const now = ctx.currentTime;
   sound.engine.oscs.forEach(o => o.osc.frequency.setTargetAtTime(f * o.mul, now, 0.05));
   sound.engine.filter.frequency.setTargetAtTime(380 + r.rpm * 2400 + load * 900, now, 0.08);
-  sound.engine.out.gain.setTargetAtTime(0.16 + r.rpm * 0.2 + load * 0.16, now, 0.06);
-  sound.engine.noise.gain.setTargetAtTime(0.012 + load * 0.05 * r.rpm, now, 0.08);
+  sound.engine.out.gain.setTargetAtTime(kind.body === "mtb" ? 0.0 : 0.16 + r.rpm * 0.2 + load * 0.16, now, 0.06);
+  sound.engine.noise.gain.setTargetAtTime(kind.body === "mtb" ? 0.02 + Math.abs(c.speed) * 0.004 : 0.012 + load * 0.05 * r.rpm, now, 0.08);
 
   // The siren, on a police car, when you ask for it.
   if (kind.livery === "police") {
@@ -25109,7 +25180,10 @@ function enterParked(i) {
 }
 function bikeHint(kindIdx) {
   const k = CAR_KINDS[kindIdx];
-  if (k && TWO_WHEELERS[k.body] && k.body !== "scooter") say("Wheelie: open the throttle and shift your weight back (pull the stick back, or hold Shift).", 5);
+  if (!k || !TWO_WHEELERS[k.body] || k.body === "scooter") return;
+  if (k.body === "mtb") say("Pedal with W. Lean back for a manual, and hit the lips fast.", 5);
+  else if (k.body === "dirtbike") say("Hit the lips fast for air. Hold Shift (or pull the stick back) on the gas for a wheelie; in the air the stick rotates the bike.", 6);
+  else say("Wheelie: open the throttle and shift your weight back (pull the stick back, or hold Shift).", 5);
 }
 
 function leaveCar() {
@@ -25127,9 +25201,9 @@ function leaveCar() {
                         colour: c.colour.slice(), uv: c.uv.slice() });
   }
   // Only strangers' cars are forgotten, oldest first.
-  let strangers = drive.parked.filter(q => !q.owned && !q.scenery).length;
+  let strangers = drive.parked.filter(q => !q.owned && !q.scenery && !q.rental).length;
   while (strangers > 6) {
-    const at = drive.parked.findIndex(q => !q.owned && !q.scenery);
+    const at = drive.parked.findIndex(q => !q.owned && !q.scenery && !q.rental);
     drive.parked.splice(at, 1);
     strangers--;
   }
@@ -25148,6 +25222,166 @@ function leaveCar() {
 }
 
 // ---- driving one -------------------------------------------------------
+// ---- two wheels --------------------------------------------------------------------
+// A bike is not a small car. It is steered by leaning it: the lean sets how hard
+// it turns (yaw rate is g*tan(lean)/speed), the road decides how far it may
+// lean before the tyres let go (grip is tan of the angle), and below a walking
+// pace there is nothing to lean on and the bars do the work. The front wheel
+// comes up on power and on weight shifted back and is held by a balance point
+// past which it loops out; braking hard on the front puts the back wheel in the
+// air. The ground it follows can fall away: leave a lip fast enough and it
+// flies, with the pitch yours to correct until it lands, and a landing that is
+// too flat, too steep or too hard puts the rider on the ground.
+const BIKE_PHYS = {
+  bike:     { phiMax: 0.85, accK: 0.34, backK: 6.2, G: 14, wb: 0.74 },
+  scooter:  { phiMax: 0.60, accK: 0.18, backK: 3.0, G: 16, wb: 0.72 },
+  cruiser:  { phiMax: 0.52, accK: 0.20, backK: 4.2, G: 17, wb: 0.76 },
+  tourer:   { phiMax: 0.50, accK: 0.16, backK: 3.4, G: 19, wb: 0.76 },
+  dirtbike: { phiMax: 0.74, accK: 0.30, backK: 6.0, G: 13, wb: 0.72 },
+  mtb:      { phiMax: 0.70, accK: 0.00, backK: 5.5, G: 11, wb: 0.74 }
+};
+function bikeGrip(kind, x, z) {
+  const urban = world.sampleUrban ? world.sampleUrban(x, z) : 0;
+  const paved = urban > 0.04 || world.bridgeY(x, z) !== null;
+  if (kind.body === "dirtbike" || kind.body === "mtb") return paved ? 0.95 : 0.9;
+  return paved ? 1.0 : (world.walkOn ? 0.8 : 0.62);
+}
+function bikeCrash(c, why) {
+  if (c.downT > 0) return;
+  const v = Math.abs(c.speed);
+  c.downT = 1.7; c.fallDir = (c.roll >= 0 ? 1 : -1) || 1;
+  playCrash(Math.max(3, v * 0.8));
+  drive.shake = Math.max(drive.shake || 0, clamp(v / 14, 0.3, 1));
+  vitals.health = clamp01(vitals.health - clamp(0.04 + v * 0.0045, 0.05, 0.28));
+  vitals.stress = clamp01(vitals.stress + 0.1);
+  say(why, 3);
+}
+function updateBike(dt, c, kind, inp) {
+  const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = PERF[kind.name] || { top: 30, to100: 6 };
+  const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
+  const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw);
+  if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z); c.vyG = 0; c.slip = 0; c.downT = 0; }
+  // ---- the ground under each wheel, and under the middle
+  const refY = c.air ? c.pos.y : c.gy + 0.5;
+  const gC = world.walkY(c.pos.x, c.pos.z, refY), onF = world.walkOn;
+  const gR = world.walkY(c.pos.x - sy * L * 0.5, c.pos.z - cy * L * 0.5, refY);
+  const gF = world.walkY(c.pos.x + sy * L * 0.5, c.pos.z + cy * L * 0.5, refY);
+  const gp = Math.atan2(gF - gR, L);                       // + : the front is higher
+  const mu = bikeGrip(kind, c.pos.x, c.pos.z);
+  // ---- down: the rider has gone over
+  if (c.downT > 0) {
+    c.downT -= dt;
+    c.speed *= Math.pow(0.12, dt); c.roll = lerp(c.roll, c.fallDir * 1.38, 1 - Math.pow(0.002, dt)); c.theta = lerp(c.theta, 0, 1 - Math.pow(0.01, dt));
+    if (!c.air) { c.pos.x += sy * c.speed * dt; c.pos.z += cy * c.speed * dt; }
+    if (c.downT <= 0) { c.roll = 0; c.theta = 0; c.omega = 0; c.speed = 0; c.slip = 0; }
+  } else {
+    // ---- forward
+    let a = 0;
+    const pull = mtb ? 2.3 : 27.8 / perf.to100, fade = 1 - clamp01(Math.abs(c.speed) / top) * (mtb ? 0.9 : 0.72);
+    const trac = c.air ? 0 : 1;
+    let aEng = 0;
+    if (inp.throttle > 0 && trac) { aEng = inp.throttle * (c.speed < 0 ? pull * 2 : pull * fade); a += aEng; }
+    if (inp.brake > 0 && trac) {
+      if (c.speed > 0.4) a -= inp.brake * Math.min(9.5 * mu, 8.5);      // the front brake does most of it
+      else a -= inp.brake * 1.2;                                         // walking it backwards
+    }
+    if (inp.hand && trac) a -= (c.speed > 0.4 ? 5.5 * mu : 0);           // the rear, which locks
+    if (!c.air) {
+      if (inp.throttle === 0 && inp.brake === 0) a -= (mtb ? 0.45 : 0.9) + Math.abs(c.speed) * 0.05 * (mtb ? 0.5 : 1);
+      a -= g * Math.sin(gp) * 0.95;                                        // up a hill it slows, down one it runs
+      a -= 0.0007 * c.speed * Math.abs(c.speed);                           // air
+    }
+    c.speed += a * dt;
+    c.speed = clamp(c.speed, -1.6, top * 1.4);
+    if (!c.air && c.speed < 0 && inp.throttle === 0 && inp.brake === 0) c.speed = Math.min(0, c.speed + 2 * dt);
+    // ---- lean and steer
+    const v = Math.abs(c.speed);
+    const phiMax = Math.min(P.phiMax, Math.atan(mu * 1.0));
+    const target = inp.steer * phiMax * clamp01(v / 3.0) * (c.air ? 0.2 : 1);
+    c.roll += (target - c.roll) * (1 - Math.exp(-dt / 0.15));
+    if (!c.air) {
+      const yawLean = g * Math.tan(c.roll) / Math.max(v, 3), yawLow = inp.steer * (v / L) * Math.tan(0.5);
+      let yr = lerp(yawLow, yawLean, clamp01((v - 2.5) / 3.5));
+      if (inp.hand && v > 4) yr += inp.steer * v * 0.07;                  // back wheel locked, tail steps out
+      yr = clamp(yr, -2.8, 2.8);
+      c.yaw -= yr * dt * Math.sign(c.speed || 1);
+      // the tyres, asked for more than the road has
+      const lat = v * Math.abs(yr);
+      if (lat > mu * g * 1.12 && v > 5) c.slip += dt; else c.slip = Math.max(0, c.slip - dt * 2);
+      if (c.slip > 0.55) bikeCrash(c, "The back end let go.");
+      c.steerRate = yr;
+    }
+    // ---- the front wheel: weight, power and brakes about the rear axle
+    if (!c.air) {
+      const back = Math.max(0, -inp.leanIn), fwd = Math.max(0, inp.leanIn), thBP = 1.08;
+      let T = aEng * P.accK * (v > 0.5 ? 1 : 0.5);
+      T += back * P.backK * ((inp.throttle > 0.2 || mtb) ? 1 : 0.3) * clamp01(v / 2.2);
+      T -= fwd * 4.5;
+      T -= inp.brake * clamp01(v / 3) * 6.0;
+      if (inp.hand) T -= 3.5;
+      let R;
+      if (c.theta >= 0) R = c.theta <= thBP ? P.G * Math.sin(c.theta) : P.G * Math.sin(thBP) - 14 * (c.theta - thBP);
+      else R = 12 * Math.sin(c.theta);
+      c.omega += (T - R - 2.4 * c.omega) * dt;
+      c.theta += c.omega * dt;
+      if (c.theta > 1.42) { c.theta = 1.42; bikeCrash(c, "Looped out."); }
+      else if (c.theta < -0.66) { c.theta = -0.66; bikeCrash(c, "Over the bars."); }
+      c.wheelie = c.theta > 0.18;
+    } else {
+      // in the air the stick rotates the bike, and the nose follows the path a little
+      c.omega += ((-inp.leanIn) * 5.0 - 0.9 * c.omega + 0.8 * (Math.atan2(c.vy, Math.max(4, c.speed)) - c.theta)) * dt;
+      c.theta += c.omega * dt;
+      c.theta = clamp(c.theta, -1.6, 1.6);
+    }
+  }
+  // ---- move
+  const step = c.speed * dt;
+  const nx = c.pos.x + sy * step, nz = c.pos.z + cy * step;
+  const onDeck = world.bridgeY(nx, nz) !== null;
+  const gN = world.walkY(nx, nz, c.air ? c.pos.y : c.gy + 0.5);
+  const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
+    || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
+    || insideBuilding(nx, nz, kind.W * 0.45)
+    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
+    || treeBlocks(nx + sy * kind.L * 0.4 * Math.sign(c.speed || 1), nz + cy * kind.L * 0.4 * Math.sign(c.speed || 1), kind.W * 0.38,
+                  c.pos.x + sy * kind.L * 0.4 * Math.sign(c.speed || 1), c.pos.z + cy * kind.L * 0.4 * Math.sign(c.speed || 1));
+  if (blocked && c.downT <= 0) {
+    if (Math.abs(c.speed) > 6 && !(c.crashCool > 0)) { bikeCrash(c, "Straight into it."); c.crashCool = 1; }
+    else if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
+    c.speed *= -0.22;
+  } else if (!blocked) { c.pos.x = nx; c.pos.z = nz; }
+  if (c.crashCool > 0) c.crashCool -= dt;
+  // ---- up and down
+  const gy = c.air ? world.walkY(c.pos.x, c.pos.z, c.pos.y) : gN;
+  if (!c.air) {
+    const vyG = (gy - c.gy) / dt;
+    const ballistic = c.gy + c.vyG * dt - 0.5 * g * dt * dt;
+    if (ballistic > gy + 0.05 && Math.abs(c.speed) > 6 && c.downT <= 0) {
+      c.air = true; c.vy = c.vyG; c.airT = 0;
+      c.theta = c.theta + 0;                          // keep whatever the front wheel was doing
+      c.pos.y = c.gy + 0.04;
+    } else { c.pos.y = gy + 0.04; c.vyG = vyG; }
+    c.gy = gy;
+  } else {
+    c.airT += dt; c.vy -= g * dt; c.pos.y += c.vy * dt;
+    if (c.pos.y - 0.04 <= gy) {
+      // landing: how hard, and how well the bike lines up with what it landed on
+      const hard = -c.vy, err = c.theta - gp;
+      c.air = false; c.pos.y = gy + 0.04; c.gy = gy; c.vyG = 0;
+      const bad = hard > (mtb ? 9.5 : 12) || Math.abs(err) > 0.85 || (Math.abs(err) > 0.5 && hard > 6.5);
+      c.omega = err * 2.2; c.theta = clamp(err * 0.6, -0.5, 0.9);
+      drive.shake = Math.max(drive.shake || 0, clamp(hard / 10, 0.1, 0.9));
+      if (bad) bikeCrash(c, hard > 9 ? "Cased it." : "Bad landing.");
+      else { if (hard > 3) playCrash(2 + hard * 0.5); c.speed *= 1 - clamp(hard * 0.006, 0, 0.1); if (c.airT > 0.9) say("Big air  " + c.airT.toFixed(1) + " s", 1.8); }
+    }
+  }
+  // ---- what is drawn: pitch about the rear axle (negative is nose up), and the lean
+  const nose = (c.air ? c.theta : c.theta + gp);
+  c.pitch = lerp(c.pitch || 0, -nose, 1 - Math.pow(0.0004, dt));
+  c.slide = c.roll;
+  c.lean = inp.leanIn;
+}
+
 function updateDrive(dt) {
   const c = drive.car;
   const kind = CAR_KINDS[c.kind];
@@ -25158,95 +25392,102 @@ function updateDrive(dt) {
   const hand = keys.Space || pad.handbrake;
   let steer = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + w.x, -1, 1);
 
+  if (TWO_WHEELERS[kind.body]) {
+    updateBike(dt, c, kind, { throttle: throttle, brake: brake, steer: steer, hand: !!hand,
+      leanIn: clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1) });
+    if (c.downT > 0 || !c.air) driveCollisions(c, kind, dt);
+  } else {
   const perf = PERF[kind.name] || { top: kind.top * 1.4, to100: 12 };
-  const top = perf.top;
-  // 27.8 m/s in the quoted time is the acceleration at the bottom of the rev
-  // range; it falls off towards the top the way a real one does, which is what
-  // stops a supercar reaching 94 m/s in four seconds.
-  const pull = 27.8 / perf.to100;
-  const fade = 1 - clamp01(Math.abs(c.speed) / top) * 0.72;
-  if (throttle > 0) c.speed += throttle * (c.speed < 0 ? pull * 2.4 : pull * fade) * dt;
-  if (brake > 0) {
-    if (c.speed > 0.4) c.speed -= brake * 13 * dt;
-    else c.speed -= brake * pull * 0.9 * dt;        // into reverse
-  }
-  // The handbrake locks the back: it scrubs speed and lets the tail come round,
-  // which is a handbrake turn rather than a simulation of one.
-  if (hand) c.speed *= Math.pow(0.22, dt);
-  if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.68, dt);   // engine braking
-  c.speed = clamp(c.speed, -top * 0.35, top);
-
-  // Steering falls off with speed, so it turns in a car park and tracks on a
-  // motorway, which is the whole of an arcade steering model worth having.
-  const grip = 1 / (1 + Math.abs(c.speed) * 0.16);
-  c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
-  const loose = hand ? 2.1 : 1.0;
-  const rate = c.steer * grip * 1.9 * loose * Math.min(1, Math.abs(c.speed) / 2.2);
-  // Which way steering right turns the car. The car's forward is
-  // (sin yaw, cos yaw), so its right-hand side - forward crossed with up - is
-  // (-cos yaw, sin yaw), and turning towards it means yaw goes DOWN. Adding
-  // the rate steered the car to the left whenever you asked for right, which
-  // is what made it feel like it was driving itself. The sign of the speed
-  // flips it again in reverse, which is correct: back the car up with the
-  // wheel to the right and the nose swings left, same as a real one.
-  c.yaw -= rate * dt * Math.sign(c.speed || 1);
-  // How far the tail is out, which is only used to lean the body into the
-  // slide: there is no separate velocity vector to chase.
-  c.slide = lerp(c.slide || 0, hand ? c.steer * clamp01(Math.abs(c.speed) / 14) : 0,
-                 1 - Math.pow(0.004, dt));
-
-  // ---- weight. Push the stick forward and the weight goes over the nose;
-  // pull it back and it sits on the rear wheels. On a bike that is a stoppie
-  // and a wheelie; on a car it is dive and squat, which is the same thing with
-  // a suspension in the way.
-  // Forward on the stick is weight over the nose, back is weight on the rear
-  // wheel. On a keyboard the throttle is already on W, so shift is the lean:
-  // hold it with the throttle open and the front comes up.
-  const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
-  c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
-  const twoWheels = !!TWO_WHEELERS[kind.body];
-  let wantPitch = -c.accelPitch * 0.045;
-  if (twoWheels) {
-    // Shifting your weight back. Back on the stick (or hold Shift) with the
-    // throttle open lifts the front wheel, and the further back the higher it
-    // goes; it needs a little speed, and a heavy cruiser lifts less than a
-    // sportsbike does. Forward under braking puts the nose down. Let go and the
-    // front drops.
-    const heavy = kind.body === "cruiser" ? 0.62 : kind.body === "tourer" ? 0.5 : kind.body === "scooter" ? 0.4 : 1;
-    if (c.lean < -0.22 && throttle > 0.4 && c.speed > 1.5) {
-      wantPitch -= (-c.lean - 0.22) / 0.78 * 0.70 * heavy * clamp01(c.speed / 6);
-      c.wheelie = true;
-    } else {
-      c.wheelie = false;
-      if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
+    const top = perf.top;
+    // 27.8 m/s in the quoted time is the acceleration at the bottom of the rev
+    // range; it falls off towards the top the way a real one does, which is what
+    // stops a supercar reaching 94 m/s in four seconds.
+    const pull = 27.8 / perf.to100;
+    const fade = 1 - clamp01(Math.abs(c.speed) / top) * 0.72;
+    if (throttle > 0) c.speed += throttle * (c.speed < 0 ? pull * 2.4 : pull * fade) * dt;
+    if (brake > 0) {
+      if (c.speed > 0.4) c.speed -= brake * 13 * dt;
+      else c.speed -= brake * pull * 0.9 * dt;        // into reverse
     }
-  } else {
-    wantPitch += c.lean * 0.055;
-  }
-  c.pitch = lerp(c.pitch || 0, clamp(wantPitch, -0.72, 0.42), 1 - Math.pow(0.0009, dt));
-
-  // Acceleration, for the dive and squat, measured rather than guessed at.
-  const accel = (c.speed - (c.lastSpeed === undefined ? c.speed : c.lastSpeed)) / Math.max(1e-4, dt);
-  c.lastSpeed = c.speed;
-  c.accelPitch = lerp(c.accelPitch || 0, clamp(accel / 9, -1, 1), 1 - Math.pow(0.02, dt));
-
-  const step = c.speed * dt;
-  const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
-  const onDeck = world.bridgeY(nx, nz) !== null;
-  const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
-    || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
-    || insideBuilding(nx, nz, kind.W * 0.45)
-    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
-    || treeBlocks(nx + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), nz + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), kind.W * 0.38,
-                  c.pos.x + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), c.pos.z + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed));
-  if (blocked) {
-    if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
-    c.speed *= -0.22;                               // a thump, not a bounce
-  } else {
-    c.pos.x = nx; c.pos.z = nz;
-  }
-  driveCollisions(c, kind, dt);
-  c.pos.y = world.surfaceY(c.pos.x, c.pos.z) + 0.04;
+    // The handbrake locks the back: it scrubs speed and lets the tail come round,
+    // which is a handbrake turn rather than a simulation of one.
+    if (hand) c.speed *= Math.pow(0.22, dt);
+    if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.68, dt);   // engine braking
+    c.speed = clamp(c.speed, -top * 0.35, top);
+  
+    // Steering falls off with speed, so it turns in a car park and tracks on a
+    // motorway, which is the whole of an arcade steering model worth having.
+    const grip = 1 / (1 + Math.abs(c.speed) * 0.16);
+    c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
+    const loose = hand ? 2.1 : 1.0;
+    const rate = c.steer * grip * 1.9 * loose * Math.min(1, Math.abs(c.speed) / 2.2);
+    // Which way steering right turns the car. The car's forward is
+    // (sin yaw, cos yaw), so its right-hand side - forward crossed with up - is
+    // (-cos yaw, sin yaw), and turning towards it means yaw goes DOWN. Adding
+    // the rate steered the car to the left whenever you asked for right, which
+    // is what made it feel like it was driving itself. The sign of the speed
+    // flips it again in reverse, which is correct: back the car up with the
+    // wheel to the right and the nose swings left, same as a real one.
+    c.yaw -= rate * dt * Math.sign(c.speed || 1);
+    // How far the tail is out, which is only used to lean the body into the
+    // slide: there is no separate velocity vector to chase.
+    c.slide = lerp(c.slide || 0, hand ? c.steer * clamp01(Math.abs(c.speed) / 14) : 0,
+                   1 - Math.pow(0.004, dt));
+  
+    // ---- weight. Push the stick forward and the weight goes over the nose;
+    // pull it back and it sits on the rear wheels. On a bike that is a stoppie
+    // and a wheelie; on a car it is dive and squat, which is the same thing with
+    // a suspension in the way.
+    // Forward on the stick is weight over the nose, back is weight on the rear
+    // wheel. On a keyboard the throttle is already on W, so shift is the lean:
+    // hold it with the throttle open and the front comes up.
+    const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
+    c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
+    const twoWheels = !!TWO_WHEELERS[kind.body];
+    let wantPitch = -c.accelPitch * 0.045;
+    if (twoWheels) {
+      // Shifting your weight back. Back on the stick (or hold Shift) with the
+      // throttle open lifts the front wheel, and the further back the higher it
+      // goes; it needs a little speed, and a heavy cruiser lifts less than a
+      // sportsbike does. Forward under braking puts the nose down. Let go and the
+      // front drops.
+      const heavy = kind.body === "cruiser" ? 0.62 : kind.body === "tourer" ? 0.5 : kind.body === "scooter" ? 0.4 : 1;
+      if (c.lean < -0.22 && throttle > 0.4 && c.speed > 1.5) {
+        wantPitch -= (-c.lean - 0.22) / 0.78 * 0.70 * heavy * clamp01(c.speed / 6);
+        c.wheelie = true;
+      } else {
+        c.wheelie = false;
+        if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
+      }
+    } else {
+      wantPitch += c.lean * 0.055;
+    }
+    c.pitch = lerp(c.pitch || 0, clamp(wantPitch, -0.72, 0.42), 1 - Math.pow(0.0009, dt));
+  
+    // Acceleration, for the dive and squat, measured rather than guessed at.
+    const accel = (c.speed - (c.lastSpeed === undefined ? c.speed : c.lastSpeed)) / Math.max(1e-4, dt);
+    c.lastSpeed = c.speed;
+    c.accelPitch = lerp(c.accelPitch || 0, clamp(accel / 9, -1, 1), 1 - Math.pow(0.02, dt));
+  
+    const step = c.speed * dt;
+    const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
+    const onDeck = world.bridgeY(nx, nz) !== null;
+    const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
+      || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
+      || insideBuilding(nx, nz, kind.W * 0.45)
+      || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
+      || treeBlocks(nx + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), nz + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), kind.W * 0.38,
+                    c.pos.x + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), c.pos.z + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed));
+    if (blocked) {
+      if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
+      c.speed *= -0.22;                               // a thump, not a bounce
+    } else {
+      c.pos.x = nx; c.pos.z = nz;
+    }
+    driveCollisions(c, kind, dt);
+    c.pos.y = world.surfaceY(c.pos.x, c.pos.z) + 0.04;
+  
+}
 
   // Camera: behind and a little above, swinging round to the heading unless
   // you are turning it yourself.
