@@ -600,10 +600,14 @@ function mnLogo(g, x, y, s, tile) {
   const q = g.createRadialGradient(x + s * 0.28, y + s * 1.02, s * 0.02, x + s * 0.28, y + s * 1.02, s * 1.25);
   q.addColorStop(0, "#fdf497"); q.addColorStop(0.08, "#fdf497"); q.addColorStop(0.42, "#fd5949"); q.addColorStop(0.62, "#d6249f"); q.addColorStop(0.95, "#285aeb");
   g.fillStyle = q; g.fillRect(x, y, s, s);
-  g.strokeStyle = "#ffffff"; g.fillStyle = "#ffffff"; g.lineWidth = s * 0.075;
-  roundRect(g, x + s * 0.2, y + s * 0.2, s * 0.6, s * 0.6, s * 0.17); g.stroke();
-  g.beginPath(); g.arc(x + s / 2, y + s / 2, s * 0.14, 0, Math.PI * 2); g.stroke();
-  g.beginPath(); g.arc(x + s * 0.675, y + s * 0.325, s * 0.04, 0, Math.PI * 2); g.fill();
+  // a paper plane, in white
+  g.strokeStyle = "#ffffff"; g.fillStyle = "#ffffff"; g.lineWidth = s * 0.07; g.lineJoin = "round"; g.lineCap = "round";
+  const cx = x + s * 0.5, cy = y + s * 0.5;
+  g.beginPath();
+  g.moveTo(cx - s * 0.30, cy + s * 0.02); g.lineTo(cx + s * 0.30, cy - s * 0.27); g.lineTo(cx + s * 0.11, cy + s * 0.29); g.lineTo(cx - s * 0.02, cy + s * 0.07); g.closePath();
+  g.stroke();
+  g.beginPath(); g.moveTo(cx - s * 0.02, cy + s * 0.07); g.lineTo(cx + s * 0.30, cy - s * 0.27); g.stroke();
+  g.beginPath(); g.moveTo(cx - s * 0.02, cy + s * 0.07); g.lineTo(cx - s * 0.04, cy + s * 0.24); g.lineTo(cx + s * 0.11, cy + s * 0.29); g.stroke();
   g.restore();
 }
 
@@ -4106,7 +4110,7 @@ function mnDrawCompose(g, W, H) {
   if (mynet.deal && c.mode !== "comment") mnDealBanner(g, W, H, H * 0.115 + s + H * 0.012);
   // the keyboard
   const rows = MN_KB.map(r => r[0]).concat([null]);
-  const ky = H * 0.395, kh = H * 0.062, gap = W * 0.011;
+  const ky = H * 0.585, kh = H * 0.062, gap = W * 0.011;
   for (let r = 0; r < 5; r++) {
     const keys = r === 4 ? MN_KB_BOTTOM : rows[r].split("");
     const n = keys.length, kw = r === 4 ? (W * 0.94 - gap * 7) / 8 : (W * 0.94 - gap * 9) / 10, total = n * kw + (n - 1) * gap, kx0 = (W - total) / 2;
@@ -4122,7 +4126,7 @@ function mnDrawCompose(g, W, H) {
     });
   }
   g.textBaseline = "alphabetic"; g.textAlign = "left";
-  mnText(g, "A types  ·  B back  ·  you can use a keyboard too", W * 0.5, H * 0.935, W * 0.028, "#6b7078", "500", "center");
+  mnText(g, "A types  ·  B back  ·  you can use a keyboard too", W * 0.5, H * 0.565, W * 0.028, "#6b7078", "500", "center");
 }
 
 function mnDrawSharing(g, W, H) {
