@@ -5165,7 +5165,7 @@ function initThree() {
   const stage = document.getElementById("stage");
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
-  const startTier = savedTier() || "high";
+  const startTier = savedTier() || guessTier();
   renderer = new THREE.WebGLRenderer({
     antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
   });
@@ -5211,6 +5211,7 @@ function initThree() {
     e.preventDefault();
   }, { passive: false });
   window.addEventListener("keydown", e => {
+    if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
     wakeAudio();
     // The title screen swallows everything while it is up.
@@ -6022,6 +6023,7 @@ function buildScene(w) {
   gfx.env = bakeEnvironment();
   scene.environment = gfx.env || null;
   solids.length = 0;
+  treeCells.length = 0;
   // The grid indexes into the list that was just emptied. Left in place it
   // answers questions about buildings that no longer exist, by index, and the
   // first caller to ask during a rebuild - the street trees, which want to know
@@ -6068,9 +6070,38 @@ function buildScene(w) {
       .replace("#include <color_fragment>", "#include <color_fragment>\n  float tg1 = texture2D(detailMap, vTPos / 9.0).r;\n  float tg2 = texture2D(detailMap, vTPos / 67.0 + 0.37).r;\n  diffuseColor.rgb *= 0.58 + tg1 * 0.34 + tg2 * 0.30;");
   };
   terrainMat.customProgramCacheKey = () => "konto-terrain";
-  const terrain = new THREE.Mesh(geo, terrainMat);
-  terrain.receiveShadow = true;
+  // The island is 680 thousand triangles in one piece, and a mesh in one piece
+  // is drawn whole whichever way you are looking. Cut into 64-cell squares that
+  // share the same vertices, only the squares in front of the camera are drawn,
+  // which is about a fifth of it.
+  const terrain = new THREE.Group();
   terrain.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
+  {
+    const CH = 64, cellsX = GRID_X - 1, cellsZ = GRID_Z - 1, srcIdx = geo.index.array;
+    const P = geo.attributes.position;
+    for (let cz0 = 0; cz0 < cellsZ; cz0 += CH) for (let cx0 = 0; cx0 < cellsX; cx0 += CH) {
+      const cx1 = Math.min(cellsX, cx0 + CH), cz1 = Math.min(cellsZ, cz0 + CH);
+      const idx = new Uint32Array((cx1 - cx0) * (cz1 - cz0) * 6);
+      let n = 0;
+      for (let z = cz0; z < cz1; z++) for (let x = cx0; x < cx1; x++) {
+        const at = (z * cellsX + x) * 6;
+        for (let k = 0; k < 6; k++) idx[n++] = srcIdx[at + k];
+      }
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9, z0 = 1e9, z1 = -1e9;
+      for (let z = cz0; z <= cz1; z++) for (let x = cx0; x <= cx1; x++) {
+        const vi = z * GRID_X + x, vx = P.getX(vi), vy = P.getY(vi), vz = P.getZ(vi);
+        if (vx < x0) x0 = vx; if (vx > x1) x1 = vx; if (vy < y0) y0 = vy; if (vy > y1) y1 = vy; if (vz < z0) z0 = vz; if (vz > z1) z1 = vz;
+      }
+      const g = new THREE.BufferGeometry();
+      Object.keys(geo.attributes).forEach(k => g.setAttribute(k, geo.attributes[k]));
+      g.setIndex(new THREE.BufferAttribute(idx, 1));
+      g.boundingSphere = new THREE.Sphere(new THREE.Vector3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2),
+        Math.hypot(x1 - x0, y1 - y0, z1 - z0) / 2 + 1);
+      const chunk = new THREE.Mesh(g, terrainMat);
+      chunk.receiveShadow = true;
+      terrain.add(chunk);
+    }
+  }
   root.add(terrain);
 
   // ---- sea
@@ -7176,17 +7207,22 @@ function placed(geo, x, y, z, sx, sy, sz, tilt) {
 
 // Every species is modelled to a unit height, so one instance scale sets how
 // big the tree is and the proportions look after themselves.
+// Three levels of detail. 0 is the full tree, with canopy lobes of 180 faces
+// each; 1 is a quarter of that, and 2 is a lobe of twenty faces, which at the
+// distance it is used from is a green blob and costs about a fifteenth.
 const treeCache = {};
-function treeGeometry(species) {
-  if (treeCache[species]) return treeCache[species];
+function treeGeometry(species, lod) {
+  lod = lod || 0;
+  const key = species + lod;
+  if (treeCache[key]) return treeCache[key];
   const parts = [];
   const trunk = (topR, botR, h, y, tilt) => {
-    const g = new THREE.CylinderGeometry(topR, botR, 1, 6, 1, false);
+    const g = new THREE.CylinderGeometry(topR, botR, 1, lod === 2 ? 4 : 6, 1, false);
     g.translate(0, 0.5, 0);
     parts.push(placed(g, 0, y, 0, 1, h, 1, tilt));
   };
   const cone = (r, h, y, seg) => {
-    const g = new THREE.ConeGeometry(1, 1, seg || 8);
+    const g = new THREE.ConeGeometry(1, 1, lod === 2 ? 5 : (seg || 8));
     g.translate(0, 0.5, 0);
     parts.push(placed(g, 0, y, 0, r, h, r));
   };
@@ -7195,7 +7231,7 @@ function treeGeometry(species) {
   // polyhedron. The hash is of position, so the shared vertices of the
   // faceted sphere move together and the surface stays closed.
   const blob = (r, flat, x, y, z) => {
-    const g = new THREE.IcosahedronGeometry(1, 2);
+    const g = new THREE.IcosahedronGeometry(1, 2 - lod);
     const pos = g.getAttribute("position");
     const seed = Math.round((x * 31 + y * 17 + z * 13 + r * 7) * 1000);
     for (let i = 0; i < pos.count; i++) {
@@ -7239,8 +7275,52 @@ function treeGeometry(species) {
   }
   const geo = mergeParts(parts);
   geo.computeBoundingSphere();
-  treeCache[species] = geo;
+  treeCache[key] = geo;
   return geo;
+}
+
+// A geometry that shares another's buffers but has its own bounding sphere, so
+// a few hundred trees in one patch of ground can be skipped as a group when the
+// patch is off screen, which an instanced mesh cannot do for itself.
+function sharedGeometry(base, cx, cy, cz, radius) {
+  const g = new THREE.BufferGeometry();
+  Object.keys(base.attributes).forEach(k => g.setAttribute(k, base.attributes[k]));
+  if (base.index) g.setIndex(base.index);
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(cx, cy, cz), radius);
+  g.boundingBox = null;
+  return g;
+}
+
+// What the street and park trees do at each setting: which model to use at what
+// distance, how far away they are drawn at all, and what share of them exist.
+// (Counting what each tree costs is the whole of the frame rate on a laptop.)
+const TREE_LOD = {
+  low:    { lod: [2, 2, 2], at: [0, 0],     cull: 360,  keep: 0.55, shadow: 0 },
+  medium: { lod: [1, 2, 2], at: [110, 110], cull: 620,  keep: 0.80, shadow: 90 },
+  high:   { lod: [0, 1, 2], at: [130, 340], cull: 1100, keep: 1.00, shadow: 160 },
+  ultra:  { lod: [0, 1, 2], at: [200, 480], cull: 1600, keep: 1.00, shadow: 220 }
+};
+const treeCells = [];
+let treeLodClock = 0;
+function updateTreeLod(dt, force) {
+  treeLodClock += dt;
+  if (!force && treeLodClock < 0.35) return;
+  treeLodClock = 0;
+  if (!treeCells.length || !camera) return;
+  const T = TREE_LOD[gfx.tier] || TREE_LOD.high;
+  const px = camera.position.x, pz = camera.position.z;
+  for (let i = 0; i < treeCells.length; i++) {
+    const c = treeCells[i];
+    const d = Math.max(0, Math.hypot(c.x - px, c.z - pz) - c.r);
+    if (d > T.cull * (perf.potato ? 0.6 : 1)) { if (c.mesh.visible) c.mesh.visible = false; continue; }
+    const level = d < T.at[0] ? 0 : d < T.at[1] ? 1 : 2;
+    const want = T.lod[level];
+    if (c.cur !== want) { c.mesh.geometry = c.geos[want]; c.cur = want; }
+    const n = Math.max(1, Math.ceil(c.n * (level === 2 && T.keep < 1 ? T.keep : 1)));
+    if (c.mesh.count !== n) c.mesh.count = n;
+    c.mesh.castShadow = d < T.shadow;
+    if (!c.mesh.visible) c.mesh.visible = true;
+  }
 }
 
 // Trunk brown under everything, and a canopy colour per species. The instance
@@ -7277,35 +7357,54 @@ function plantTrees(root, trees) {
   const byKind = {};
   trees.forEach((t, i) => {
     const sp = treeSpecies(t, i);
-    (byKind[sp] || (byKind[sp] = [])).push(t);
+    (byKind[sp] || (byKind[sp] = [])).push({ t: t, i: i });
   });
+  const CELL_T = 260;
   Object.keys(byKind).forEach(sp => {
-    const list = byKind[sp];
     const look = TREE_LOOK[sp] || TREE_LOOK.keyaki;
-    const inst = new THREE.InstancedMesh(treeGeometry(sp), treeMaterial(sp), list.length);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    const col = new THREE.Color();
-    list.forEach((t, i) => {
-      const r = rnd(Math.round(t.c[1]), Math.round(t.c[0]) + i, 6157);
-      const h = lerp(look.tall[0], look.tall[1], clamp01((t.s - 0.75) / 0.75 * 0.7 + r * 0.5));
-      // A little lean and a lot of rotation, so a row of them is a row of
-      // trees and not a row of one tree.
-      e.set((r - 0.5) * 0.08, r * 6.2831853, (rnd(i, 5, 6159) - 0.5) * 0.08);
-      q.setFromEuler(e);
-      const wide = lerp(0.88, 1.16, rnd(i, 9, 6163));
-      m.compose(new THREE.Vector3(t.c[0], t.y - 0.1, t.c[1]), q,
-                new THREE.Vector3(h * wide, h, h * wide));
-      inst.setMatrixAt(i, m);
-      const g = 0.84 + rnd(i, 7, 6141) * 0.30;
-      col.setRGB(g * (sp === "sakura" ? 1.0 : 0.94), g, g * (sp === "sakura" ? 0.98 : 0.80));
-      inst.setColorAt(i, col);
+    const cells = {};
+    byKind[sp].forEach(e => {
+      const k = Math.floor(e.t.c[0] / CELL_T) + "," + Math.floor(e.t.c[1] / CELL_T);
+      (cells[k] || (cells[k] = [])).push(e);
     });
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    inst.frustumCulled = false;
-    inst.castShadow = true;
-    inst.receiveShadow = true;
-    root.add(inst);
+    const mat = treeMaterial(sp);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler();
+    const col = new THREE.Color();
+    Object.keys(cells).forEach(k => {
+      const list = cells[k];
+      let cx = 0, cz = 0;
+      list.forEach(e => { cx += e.t.c[0]; cz += e.t.c[1]; });
+      cx /= list.length; cz /= list.length;
+      let rad = 0;
+      list.forEach(e => { rad = Math.max(rad, Math.hypot(e.t.c[0] - cx, e.t.c[1] - cz)); });
+      rad += 30;
+      const geos = [0, 1, 2].map(l => sharedGeometry(treeGeometry(sp, l), 0, 10, 0, 0));
+      geos.forEach(g => { g.boundingSphere.center.set(cx, 10, cz); g.boundingSphere.radius = rad; });
+      const inst = new THREE.InstancedMesh(geos[0], mat, list.length);
+      list.forEach((en, n) => {
+        const t = en.t, i = en.i;
+        const r = rnd(Math.round(t.c[1]), Math.round(t.c[0]) + i, 6157);
+        const h = lerp(look.tall[0], look.tall[1], clamp01((t.s - 0.75) / 0.75 * 0.7 + r * 0.5));
+        // A little lean and a lot of rotation, so a row of them is a row of
+        // trees and not a row of one tree.
+        e3.set((r - 0.5) * 0.08, r * 6.2831853, (rnd(i, 5, 6159) - 0.5) * 0.08);
+        q.setFromEuler(e3);
+        const wide = lerp(0.88, 1.16, rnd(i, 9, 6163));
+        m.compose(new THREE.Vector3(t.c[0], t.y - 0.1, t.c[1]), q,
+                  new THREE.Vector3(h * wide, h, h * wide));
+        inst.setMatrixAt(n, m);
+        const g = 0.84 + rnd(i, 7, 6141) * 0.30;
+        col.setRGB(g * (sp === "sakura" ? 1.0 : 0.94), g, g * (sp === "sakura" ? 0.98 : 0.80));
+        inst.setColorAt(n, col);
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      inst.frustumCulled = true;
+      inst.castShadow = true;
+      inst.receiveShadow = true;
+      root.add(inst);
+      treeCells.push({ mesh: inst, geos: geos, x: cx, z: cz, r: rad, n: list.length, cur: 0 });
+    });
   });
 }
 
@@ -7386,6 +7485,14 @@ function vegBuild(root) {
     const blob = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 1); return placed(g, x, y, z, r, r * f, r); };
     veg.geo.keyaki = mergeParts([trunk(0.45), blob(0.30, 0.85, 0, 0.62, 0), blob(0.22, 0.8, 0.14, 0.78, 0.07), blob(0.2, 0.8, -0.13, 0.74, -0.08)]);
     veg.geo.matsu = mergeParts([trunk(0.6), blob(0.30, 0.34, 0.03, 0.62, 0), blob(0.22, 0.3, -0.08, 0.80, 0.04)]);
+    // the same trees at a tenth of the cost, for low and for the furthest tiles
+    veg.geoLow = {};
+    const cone4 = (r, h, y) => { const g = new THREE.ConeGeometry(1, 1, 4); g.translate(0, 0.5, 0); return placed(g, 0, y, 0, r, h, r); };
+    const trunk4 = (g0) => { const g = new THREE.CylinderGeometry(0.02, 0.03, 1, 3); g.translate(0, 0.5, 0); return placed(g, 0, 0, 0, 1, g0, 1); };
+    const blob0 = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 0); return placed(g, x, y, z, r, r * f, r); };
+    veg.geoLow.sugi = mergeParts([trunk4(0.5), cone4(0.16, 0.50, 0.14), cone4(0.11, 0.45, 0.50)]);
+    veg.geoLow.keyaki = mergeParts([trunk4(0.45), blob0(0.32, 0.85, 0, 0.64, 0), blob0(0.22, 0.8, 0.13, 0.78, 0.05)]);
+    veg.geoLow.matsu = mergeParts([trunk4(0.6), blob0(0.32, 0.36, 0.02, 0.64, 0)]);
     // a tuft: five blades fanned out, dark at the root and bright at the tip
     const pos = [], col = [];
     for (let k = 0; k < 5; k++) {
@@ -7448,7 +7555,8 @@ function vegTreeTile(tx, tz) {
   Object.keys(by).forEach(sp => {
     const list = by[sp]; if (!list.length) return;
     const look = TREE_LOOK[sp] || TREE_LOOK.keyaki;
-    const inst = new THREE.InstancedMesh(veg.geo[sp], veg.mats[sp], list.length);
+    const G = (gfx.tier === "low" || perf.potato) ? veg.geoLow : veg.geo;
+    const inst = new THREE.InstancedMesh(sharedGeometry(G[sp], x0 + VEG_TILE / 2, 12, z0 + VEG_TILE / 2, VEG_TILE * 0.78), veg.mats[sp], list.length);
     list.forEach((t, k) => {
       const hgt = lerp(look.tall[0], look.tall[1], t.k) * (sp === "sugi" ? 1.05 : 1);
       const wide = lerp(0.86, 1.2, t.r);
@@ -7463,7 +7571,7 @@ function vegTreeTile(tx, tz) {
     });
     inst.instanceMatrix.needsUpdate = true;
     if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    inst.frustumCulled = false;
+    inst.frustumCulled = true;
     inst.castShadow = false; inst.receiveShadow = false;
     group.add(inst);
   });
@@ -7487,7 +7595,7 @@ function vegGrassTile(gx, gz) {
     list.push([x, h, z, rnd(ix, iz, 8209), rnd(iz, ix, 8211)]);
   }
   if (!list.length) return null;
-  const inst = new THREE.InstancedMesh(veg.geo.grass, veg.mats.grass, list.length);
+  const inst = new THREE.InstancedMesh(sharedGeometry(veg.geo.grass, x0 + GRASS_TILE / 2, 3, z0 + GRASS_TILE / 2, GRASS_TILE * 0.78), veg.mats.grass, list.length);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
   list.forEach((t, k) => {
     e.set(0, t[3] * 6.283, 0); q.setFromEuler(e);
@@ -7501,12 +7609,13 @@ function vegGrassTile(gx, gz) {
   });
   inst.instanceMatrix.needsUpdate = true;
   if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  inst.frustumCulled = false;
+  inst.frustumCulled = true;
   return inst;
 }
 
 function vegRadius() {
   const t = gfx.tier;
+  if (perf.potato) return { tree: 380, grass: 0 };
   return t === "low" ? { tree: 650, grass: 90 } : t === "medium" ? { tree: 950, grass: 140 } : { tree: 1350, grass: 210 };
 }
 // Plant what is near the viewer, forget what is not. Run every frame; it only
@@ -7931,7 +8040,7 @@ function tick(dt) {
   pollPad(dt);
   if (title.on) { updateTitle(dt); return; }
   if (ski.mode === "run") { updateSkiRun(dt); return; }
-  watchFrameRate(dt);
+  updateTreeLod(dt);
   updateSki(dt);
   updateMyNet(dt);
   updateVitals(dt);
@@ -8138,8 +8247,99 @@ function applyTier(name, opts) {
     scene.fog.far = t.far * 5.2;
   }
   if (typeof traffic === "object" && traffic) traffic.max = t.cars;
+  updateTreeLod(1, true);
   if (!opts || !opts.quiet) rememberTier(gfx.tier);
 }
+
+
+// ---- keeping the frame rate ------------------------------------------------
+// Three things work together. The first run guesses a tier from the graphics
+// chip, so a laptop with integrated graphics starts on low and not on high. While
+// you play, the resolution the world is drawn at is nudged up and down a few per
+// cent at a time to hold about sixty frames a second: it costs nothing to change
+// and every pixel is shaded, so it is the quickest way to give frame time back.
+// If it has run out of resolution to give and the machine is still under thirty,
+// the tier steps down, and on low a last "potato" level thins the world out.
+// F3 shows what it is doing.
+const perf = { mult: 1, ceil: 1, acc: 0, n: 0, win: 0, hold: 3, up: 0, floorHits: 0, potato: 0,
+               fps: 60, shown: false, el: null, calm: 0 };
+const PERF_FLOOR = 0.5;
+
+function guessTier() {
+  try {
+    const c = document.createElement("canvas");
+    const gl = c.getContext("webgl") || c.getContext("experimental-webgl");
+    if (!gl) return "low";
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+    const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
+    if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(name)) return "low";
+    if (/intel|uhd|iris|hd graphics|mesa|vega \d|radeon\(tm\) (vega|graphics)|adreno|mali|powervr|apple gpu/i.test(name)
+        && !/arc a[3-9]\d\d|iris xe max/i.test(name)) return "low";
+    if (/rtx|gtx 1[06]|gtx 9|rx [5-7]\d\d\d|radeon rx|radeon pro|apple m[1-9]/i.test(name)) return "high";
+    return "medium";
+  } catch (e) { return "medium"; }
+}
+
+function perfHold(seconds) { perf.hold = Math.max(perf.hold, seconds); perf.acc = 0; perf.n = 0; perf.win = 0; }
+
+function perfPotato(level) {
+  perf.potato = level;
+  if (typeof traffic === "object" && traffic) traffic.max = level ? 20 : (TIERS[gfx.tier] || TIERS.low).cars;
+  updateTreeLod(1, true);
+}
+
+function perfFrame(rawMs) {
+  if (rawMs > 400) { perfHold(1.5); return; }          // a stall, not a frame rate
+  const dt = rawMs / 1000;
+  if (perf.hold > 0) { perf.hold -= dt; return; }
+  perf.acc += rawMs; perf.n++; perf.win += dt;
+  if (perf.win < 1.0) return;
+  const avg = perf.acc / perf.n;
+  perf.fps = 1000 / avg;
+  perf.acc = 0; perf.n = 0; perf.win = 0;
+  perf.calm += 1;
+  if (perf.calm % 15 === 0) perf.ceil = Math.min(1, perf.ceil * 1.06);   // the scene may have got easier
+  if (avg > 24) {                                         // under about 42 fps
+    perf.up = 0;
+    if (perf.mult > PERF_FLOOR + 0.01) {
+      perf.ceil = Math.min(perf.ceil, perf.mult * 1.04);
+      perf.mult = Math.max(PERF_FLOOR, perf.mult * (avg > 40 ? 0.78 : 0.88));
+      sizeRenderer(); perfHold(1.2);
+    } else if (++perf.floorHits >= 3) {
+      perf.floorHits = 0;
+      const i = TIER_ORDER.indexOf(gfx.tier);
+      if (i > 0) {
+        const was = gfx.tier;
+        applyTier(TIER_ORDER[i - 1], { quiet: true });
+        perf.mult = 1; perf.ceil = 1; sizeRenderer(); syncQualityLabels(); perfHold(3);
+        say("Graphics turned down to " + gfx.tier + " to keep the frame rate up (it was " + Math.round(1000 / avg) + " fps on " + was + ").", 6);
+      } else if (perf.potato < 2) {
+        perfPotato(perf.potato + 1); perfHold(3);
+        say("Simplifying the world to keep it moving.", 5);
+      }
+    }
+  } else {
+    perf.floorHits = 0;
+    if (avg < 18.5 && perf.mult < 1 && perf.mult < perf.ceil - 0.005) {
+      if (++perf.up >= 5) { perf.up = 0; perf.mult = Math.min(1, perf.ceil, perf.mult * 1.07); sizeRenderer(); perfHold(1.0); }
+    } else perf.up = 0;
+  }
+  if (perf.shown) perfShow();
+}
+
+function perfShow() {
+  if (!perf.el) {
+    perf.el = document.createElement("div");
+    perf.el.style.cssText = "position:fixed;left:8px;top:8px;z-index:99;font:600 12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:#c9f7d2;background:rgba(0,0,0,.62);padding:5px 8px;border-radius:5px;pointer-events:none;white-space:pre";
+    document.body.appendChild(perf.el);
+  }
+  const i = renderer ? renderer.info.render : { calls: 0, triangles: 0 };
+  const sz = renderer ? renderer.domElement.width + "x" + renderer.domElement.height : "";
+  perf.el.textContent = Math.round(perf.fps) + " fps  " + gfx.tier + (perf.potato ? "+" + perf.potato : "") + "  res x" + perf.mult.toFixed(2) + "\n" + sz + "  " + i.calls + " calls  " + (i.triangles / 1000 | 0) + "k tris";
+  perf.el.style.display = perf.shown ? "block" : "none";
+}
+function perfToggle() { perf.shown = !perf.shown; if (perf.shown) perfShow(); else if (perf.el) perf.el.style.display = "none"; }
 
 // The canvas is drawn at a fraction of the window and stretched back up by the
 // display. Three.js does that for us if we lie to setSize about the size and
@@ -8148,7 +8348,7 @@ function sizeRenderer() {
   const stage = document.getElementById("stage");
   if (!stage || !renderer) return;
   const t = TIERS[gfx.tier] || TIERS.high;
-  const scale = gfx.scale === null ? t.renderScale : gfx.scale;
+  const scale = Math.max(0.3, (gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult);
   const w = Math.max(16, stage.clientWidth), h = Math.max(16, stage.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, t.maxPixelRatio));
   renderer.setSize(Math.round(w * scale), Math.round(h * scale), false);
@@ -24292,9 +24492,13 @@ function updateSki(dt) {
 function frameLoop() {
   let last = performance.now();
   function loop(now) {
-    const dt = Math.min((now - last) / 1000, 0.1);
+    const raw = now - last;
+    const dt = Math.min(raw / 1000, 0.1);
     last = now;
-    if (world && scene) tick(dt);
+    if (world && scene) {
+      tick(dt);
+      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden) perfFrame(raw); else perfHold(1.5);
+    }
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);

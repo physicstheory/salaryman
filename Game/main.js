@@ -104,7 +104,7 @@ function createWindow() {
 
 // A game wants the discrete GPU and no frame-rate cap from the compositor.
 app.commandLine.appendSwitch("force_high_performance_gpu");
-app.commandLine.appendSwitch("disable-frame-rate-limit");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
 app.commandLine.appendSwitch("enable-gpu-rasterization");
 
 app.whenReady().then(() => {
