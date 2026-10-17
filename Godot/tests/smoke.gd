@@ -17,7 +17,7 @@ func _run(g: Game) -> void:
 	print("buildings placed: ", g.world.building_count, "  crossings: ", g.world.crossings.size(), "  trains: ", g.world.trains.size(), "  parked: ", g.parked.size(), "  traffic: ", g.traffic.size())
 	if g.world.building_count < 100: fails.append("too few buildings")
 	var start := g.parked[0].global_position
-	if absf(g.parked[0].global_position.y - 0.45) > 0.15: fails.append("parked car not resting at ride height: %.2f" % g.parked[0].global_position.y)
+	if absf(g.parked[0].global_position.y - g.parked[0].spec.com_height) > 0.15: fails.append("parked car not resting at ride height: %.2f" % g.parked[0].global_position.y)
 	# walk to the sports car and get in
 	g.player.global_position = start + Vector3(2.0, 0.2, 0)
 	await physics_frame
