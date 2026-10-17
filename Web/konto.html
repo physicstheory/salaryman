@@ -349,6 +349,10 @@
   /* ---- touch controls -------------------------------------------------------
      A phone has no W key. These appear only where the pointer is coarse, sit on
      top of the canvas, and are deliberately large: a thumb is not a mouse. */
+  #camfull { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
+  #camfull canvas { width: 100%; height: 100%; display: block; }
+  /* Opening the camera is the whole screen: the world, and the viewfinder over it. */
+  body.camfull #hud, body.camfull #phone, body.camfull #prompt, body.camfull #radiotoast { visibility: hidden !important; }
   #touch { display: none; }
   body.touch #touch { display: block; }
   body.touch #keyhints { display: none; }
@@ -1039,6 +1043,8 @@
   </div></div>
   <div id="pausefoot"><span id="pausehintbar"></span></div>
 </div>
+
+<div id="camfull" hidden><canvas id="camfullcv"></canvas></div>
 
 <div id="touch">
   <div id="stick"><div id="knob"></div></div>
@@ -7086,6 +7092,84 @@ function followSun() {
 // The HUD is not worth sixty frames a second: the minimap redraws a few dozen
 // blocks, and nothing on it changes faster than you can read it. Where you are
 // is deliberately not written on the screen — open the map if you want to know.
+// ---- the camera, full screen ---------------------------------------------------
+// Opening the camera app takes the whole screen, as on a console: the view is the
+// real one, from Seiko's eyes, zoomed with the field of view as a real lens is,
+// with the viewfinder drawn over it. The handset steps out of the way.
+const camMode = { on: false, fov0: 58, flash: 0, zoomShown: 1 };
+function cameraFullOn() { return !!(phone.open && phone.app === "Camera" && camera && player.placed); }
+function applyCameraFull(dt) {
+  const on = cameraFullOn();
+  const wrap = document.getElementById("camfull");
+  if (on !== camMode.on) {
+    camMode.on = on;
+    document.body.classList.toggle("camfull", on);
+    if (wrap) wrap.hidden = !on;
+    if (on) { camMode.fov0 = camera.fov; camMode.zoomShown = 1; }
+    else {
+      camera.fov = camMode.fov0; camera.updateProjectionMatrix();
+      if (player.obj && player.mode === "walk" && !drive.car && !drive.train) player.obj.visible = true;
+    }
+  }
+  if (!on) return;
+  const prof = cameraProfile(), z = clamp(phone.zoom || 1, 1, prof.zmax);
+  camMode.zoomShown = lerp(camMode.zoomShown, z, 1 - Math.pow(0.001, 1 / 60));
+  const f = 2 * Math.atan(Math.tan(camMode.fov0 * Math.PI / 360) / camMode.zoomShown) * 180 / Math.PI;
+  if (Math.abs(camera.fov - f) > 0.01) { camera.fov = f; camera.updateProjectionMatrix(); }
+  // from the eyes, along the view
+  const base = drive.car ? drive.car.pos : player.pos;
+  const eye = new THREE.Vector3(base.x, base.y + (drive.car ? 1.28 : 1.62), base.z);
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  eye.addScaledVector(dir, 0.25);
+  camPos.copy(eye); camera.position.copy(eye); camera.lookAt(eye.clone().add(dir));
+  if (player.obj && !drive.car) player.obj.visible = false;
+  drawCameraFull(prof);
+}
+function drawCameraFull(prof) {
+  const cv = document.getElementById("camfullcv"); if (!cv) return;
+  const W = innerWidth, H = innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const pear = isPear(), m = Math.min(W, H) * 0.05, k = Math.min(W, H) * 0.06;
+  // letterbox vignette
+  const v = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.75);
+  v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,0.38)");
+  g.fillStyle = v; g.fillRect(0, 0, W, H);
+  // corner brackets
+  g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 2.5; g.lineCap = "round";
+  [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].forEach(([x, y, sx, sy]) => {
+    g.beginPath(); g.moveTo(x, y + sy * k); g.lineTo(x, y); g.lineTo(x + sx * k, y); g.stroke();
+  });
+  // thirds
+  g.strokeStyle = "rgba(255,255,255,0.22)"; g.lineWidth = 1;
+  for (let i = 1; i < 3; i++) { g.beginPath(); g.moveTo(W * i / 3, m); g.lineTo(W * i / 3, H - m); g.stroke(); g.beginPath(); g.moveTo(m, H * i / 3); g.lineTo(W - m, H * i / 3); g.stroke(); }
+  // focus mark
+  g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 1.5; const fs = Math.min(W, H) * 0.045;
+  g.strokeRect(W / 2 - fs, H / 2 - fs, fs * 2, fs * 2);
+  // zoom and sensor
+  g.fillStyle = "rgba(255,255,255,0.92)"; g.font = "600 " + Math.round(Math.min(W, H) * 0.024) + "px " + UI;
+  g.textAlign = "left"; g.textBaseline = "top";
+  g.fillText(prof.mp + " MP" + (prof.basic ? " \u00b7 fixed focus" : ""), m + 4, m + k + 8);
+  g.textAlign = "right"; g.fillText(phone.gallery.length + " photographs", W - m - 4, m + k + 8);
+  if (prof.zmax > 1) {
+    const stops = [1, 2, 3, 5, 8, 10].filter(q => q <= prof.zmax), cur = clamp(phone.zoom || 1, 1, prof.zmax);
+    const near = stops.reduce((a, q) => Math.abs(q - cur) < Math.abs(a - cur) ? q : a, 1);
+    const r = Math.min(W, H) * 0.028, gap = r * 0.9, tot = stops.length * r * 2 + (stops.length - 1) * gap;
+    stops.forEach((q, i) => {
+      const cx = (W - tot) / 2 + r + i * (r * 2 + gap), cy = H - m - k * 1.9, on = q === near;
+      g.fillStyle = on ? (pear ? "#ffd60a" : "#ffffff") : "rgba(0,0,0,0.5)"; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+      g.fillStyle = on ? "#000" : "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.font = "700 " + Math.round(r * 0.8) + "px " + UI; g.fillText(on ? cur.toFixed(cur % 1 ? 1 : 0) : String(q), cx, cy + 1);
+    });
+  }
+  // the shutter
+  const sr = Math.min(W, H) * 0.045, sx = W / 2, sy = H - m - k * 0.55;
+  g.strokeStyle = "#fff"; g.lineWidth = 3.5; g.beginPath(); g.arc(sx, sy, sr, 0, 7); g.stroke();
+  g.fillStyle = "rgba(255,255,255,0.9)"; g.beginPath(); g.arc(sx, sy, sr * 0.78, 0, 7); g.fill();
+  if (camMode.flash > 0) { g.fillStyle = "rgba(255,255,255," + clamp01(camMode.flash * 2.2).toFixed(2) + ")"; g.fillRect(0, 0, W, H); camMode.flash -= 1 / 60; }
+  g.textBaseline = "alphabetic";
+}
+
 let hudTimer = 0;
 function updateHud(dt, force) {
   updateSound(dt);
@@ -7371,7 +7455,7 @@ function grabFrame() {
     frameGrab.canvas = document.createElement("canvas");
     frameGrab.ctx = frameGrab.canvas.getContext("2d");
   }
-  const w = 480, h = Math.max(8, Math.round(w * src.height / src.width));
+  const w = camMode.on ? 960 : 480, h = Math.max(8, Math.round(w * src.height / src.width));
   if (frameGrab.canvas.width !== w || frameGrab.canvas.height !== h) {
     frameGrab.canvas.width = w; frameGrab.canvas.height = h;
   }
@@ -8602,6 +8686,7 @@ function renderPost() {
 // while the buffer is still there.
 function present() {
   post.time += 0.016;
+  applyCameraFull(1 / 60);
   if (world && veg.group) {
     const at = drive.car ? drive.car.pos : (player.placed && player.mode === "walk" ? player.pos : camera.position);
     vegUpdate(at.x, at.z, 2);
@@ -19365,7 +19450,8 @@ function phoneBack() {
 function takePhotograph() {
   const src = frameGrab.ok ? frameGrab.canvas : null;
   if (!src) { frameGrab.want = true; say("Hold still\u2026", 1.5); return; }
-  const prof = cameraProfile(), zoom = clamp(phone.zoom || 1, 1, prof.zmax);
+  const prof = cameraProfile(), zoom = camMode.on ? 1 : clamp(phone.zoom || 1, 1, prof.zmax);
+  if (camMode.on) camMode.flash = 0.35;
   const c = document.createElement("canvas");
   c.width = 400; c.height = 400;
   const g2 = c.getContext("2d");
