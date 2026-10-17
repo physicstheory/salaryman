@@ -21230,6 +21230,7 @@ function radioSet(i, quiet) {
   radio.st = ((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length;
   radio.tuned = radio.st;
   if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ }
+  talkVoice.queue.length = 0; talkVoice.busy = false;
   radio.talkT = 0;
   if (RADIO_STATIONS[radio.st].off) {
     radio.plan = null;
@@ -21267,24 +21268,81 @@ function radioToast() {
   el.classList.add("on");
 }
 
-// Talk: the lines are read out by the browser's own voice, if there is one, and
-// shown either way.
+// Talk: the lines are read out by the machine's own voices, one voice for each
+// person, and shown either way. The best voices the system has are picked for
+// the job: the "natural", "neural" or "online" ones if there are any, and the
+// plain ones if not. A line is read a sentence at a time, each with a little
+// drift in pace and pitch and a breath between, which is most of the difference
+// between a person talking and a machine reading.
+const TALK_VOICES = {
+  //            gender  pitch  rate   note
+  "Dai":     { g: "m", pitch: 1.0,  rate: 1.00 },
+  "Dee":     { g: "f", pitch: 1.04, rate: 1.04 },
+  "Mr Sato": { g: "m", pitch: 0.86, rate: 0.90, pick: 1 },
+  "Kenji":   { g: "m", pitch: 0.82, rate: 0.90, pick: 2 },
+  "Caller":  { g: "f", pitch: 0.96, rate: 1.00, pick: 1 }
+};
+const talkVoice = { list: null, map: {}, queue: [], busy: false };
+function talkVoicesLoad() {
+  const ss = window.speechSynthesis; if (!ss) return;
+  const all = (ss.getVoices() || []).filter(v => /^en/i.test(v.lang));
+  if (!all.length) return;
+  const FEM = /zira|hazel|susan|aria|jenny|sonia|libby|samantha|karen|moira|tessa|victoria|fiona|allison|ava|joanna|female|emma|amy|kendra|salli|catherine|serena|heather|michelle|natasha|clara|mia|olivia/i;
+  const MAL = /david|mark|george|guy|ryan|daniel|alex|fred|tom|male|oliver|rishi|james|aaron|brian|eric|roger|christopher|arthur|liam|thomas|matthew|rocko|reed|ralph|lee|gordon|jorge/i;
+  const quality = v => (/natural|neural|online|premium|enhanced|studio/i.test(v.name) ? 10 : 0) + (/google/i.test(v.name) ? 3 : 0) + (v.localService ? 0 : 1) + (/en-(us|gb|au)/i.test(v.lang) ? 1 : 0);
+  const gender = v => (FEM.test(v.name) && !/\bmale\b/i.test(v.name.replace(/female/i, "")) ? "f" : MAL.test(v.name) ? "m" : "?");
+  all.sort((x, y) => quality(y) - quality(x));
+  const pools = { m: all.filter(v => gender(v) === "m"), f: all.filter(v => gender(v) === "f"), x: all };
+  talkVoice.list = all;
+  Object.keys(TALK_VOICES).forEach(who => {
+    const T = TALK_VOICES[who], pool = pools[T.g].length ? pools[T.g] : pools.x;
+    talkVoice.map[who] = pool[Math.min(T.pick || 0, pool.length - 1)];
+  });
+}
+function talkSpeak(who, text) {
+  const ss = window.speechSynthesis;
+  if (!ss || typeof SpeechSynthesisUtterance === "undefined") return;
+  if (!talkVoice.list) talkVoicesLoad();
+  const T = TALK_VOICES[who] || TALK_VOICES.Dai, v = talkVoice.map[who] || null;
+  const parts = text.match(/[^.!?:;]+[.!?:;]*/g) || [text];
+  talkVoice.queue.length = 0; talkVoice.busy = false;
+  parts.forEach((part, i) => {
+    part = part.trim(); if (!part) return;
+    const last = i === parts.length - 1, q = /\?$/.test(part);
+    talkVoice.queue.push({ text: part,
+      pitch: clamp(T.pitch * (q ? 1.07 : last ? 0.95 : 1.0) * (0.97 + Math.random() * 0.06), 0.5, 1.8),
+      rate: clamp(T.rate * (0.94 + Math.random() * 0.1) * (last ? 0.96 : 1), 0.6, 1.4),
+      gap: /[,]/.test(part) ? 140 : 280 + Math.random() * 220, voice: v });
+  });
+  talkVoiceNext();
+}
+function talkVoiceNext() {
+  const ss = window.speechSynthesis; if (!ss || talkVoice.busy) return;
+  const c = talkVoice.queue.shift(); if (!c) return;
+  talkVoice.busy = true;
+  try {
+    const u = new SpeechSynthesisUtterance(c.text);
+    if (c.voice) { u.voice = c.voice; u.lang = c.voice.lang; }
+    u.pitch = c.pitch; u.rate = c.rate; u.volume = 0.8;
+    const done = () => { setTimeout(() => { talkVoice.busy = false; talkVoiceNext(); }, c.gap); };
+    u.onend = done; u.onerror = done;
+    ss.speak(u);
+  } catch (e) { talkVoice.busy = false; }
+}
+if (window.speechSynthesis) { try { window.speechSynthesis.onvoiceschanged = () => { talkVoice.list = null; talkVoice.map = {}; }; } catch (e) { /* none */ } }
+
 function radioTalk(dt) {
   const st = radioStation(radio.st);
   if (!st.talk) return;
   radio.talkT -= dt;
   if (radio.talkT > 0) return;
+  // do not start the next line over the end of this one
+  if (talkVoice.busy || talkVoice.queue.length) { radio.talkT = 0.4; return; }
   const lines = TALK_LINES[st.talk];
   const l = lines[radio.talkI % lines.length]; radio.talkI++;
   radio.cap = l[0] + ": " + l[1];
   radio.talkT = 1.8 + l[1].length * 0.072;
-  if (window.speechSynthesis && typeof SpeechSynthesisUtterance !== "undefined") {
-    try {
-      const u = new SpeechSynthesisUtterance(l[1]);
-      u.rate = 1.04; u.pitch = l[0] === "Dee" ? 1.25 : l[0] === "Kenji" ? 0.8 : l[0] === "Caller" || l[0] === "Mr Sato" ? 1.0 : 0.95; u.volume = 0.7;
-      window.speechSynthesis.speak(u);
-    } catch (e) { /* silent */ }
-  }
+  talkSpeak(l[0], l[1]);
   const el = document.getElementById("radiotoast");
   if (el && drive.car) { radio.toast = Math.max(radio.toast, radio.talkT); el.classList.add("on"); el.querySelector(".rt").textContent = radio.cap; }
 }
@@ -21401,7 +21459,7 @@ function updateRadio(dt) {
   } else if (radio.bus && radio.bus.gain.value > 0) {
     radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.05);
     radio.started = false; radio.tuned = -1;
-    if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ }
+    if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ } talkVoice.queue.length = 0; talkVoice.busy = false;
   }
   if (radio.wheel && Math.floor(radioNow()) !== radio.lastSec) { radio.lastSec = Math.floor(radioNow()); drawRadioWheel(); }
 }
