@@ -23107,7 +23107,7 @@ function updateVideo() {
 // playable without anyone writing fifty games. 320 x 240, drawn small and
 // scaled up onto the television with scanlines over it, which is the look.
 const AW = 320, AH = 240;
-const arcade = { on: false, id: null, kind: null, gm: null, s: null, over: false, score: 0, t: 0,
+const arcade = { seen: {}, card: null, chap: 0, level: 0, on: false, id: null, kind: null, gm: null, s: null, over: false, score: 0, t: 0,
                  held: {}, pad: {}, was: {}, hi: {}, cv: null, g: null };
 const ARC = {};
 
@@ -23123,9 +23123,25 @@ function arcadeStart(id) {
   if (!gm || !ARC[gm.kind]) return false;
   if (!arcade.cv) { arcade.cv = document.createElement("canvas"); arcade.cv.width = AW; arcade.cv.height = AH; arcade.g = arcade.cv.getContext("2d"); }
   arcade.on = true; arcade.id = id; arcade.kind = gm.kind; arcade.gm = gm;
-  arcade.over = false; arcade.score = 0; arcade.t = 0; arcade.s = {};
+  arcade.over = false; arcade.score = 0; arcade.t = 0; arcade.s = {}; arcade.chap = 0; arcade.level = 0; arcade.endShown = false; arcade.card = null;
   ARC[gm.kind].init(arcade.s, gm);
+  // the story starts before the game does, the first time you load it in a sitting
+  if (gm.story && !arcade.seen[id]) { arcade.seen[id] = true; arcadeCard({ kind: "intro", title: gm.name, pages: gm.story.intro }); }
   return true;
+}
+function arcadeCard(c) { c.pi = 0; arcade.card = c; }
+function drawArcadeCard(g, gm, c) {
+  g.fillStyle = "rgba(4,6,10,0.88)"; g.fillRect(0, 0, AW, AH);
+  const cov = gameCover(gm.id);
+  const kindCol = c.kind === "ending" ? "#f0b429" : gm.b;
+  if (cov) { g.drawImage(cov, 14, 22, 84, 112); g.strokeStyle = "rgba(255,255,255,0.4)"; g.strokeRect(14, 22, 84, 112); }
+  g.textAlign = "left"; g.textBaseline = "top";
+  g.fillStyle = kindCol; g.font = "800 16px " + UI; g.fillText(c.title, 112, 24);
+  g.fillStyle = "#e8ecef"; g.font = "600 12px " + UI;
+  const text = c.pages ? c.pages[c.pi] : c.text;
+  wrapLines(g, text, AW - 126).slice(0, 9).forEach((ln, i) => g.fillText(ln, 112, 50 + i * 16));
+  g.fillStyle = "#79818b"; g.font = "700 10px " + UI; g.textAlign = "right";
+  g.fillText((c.pages && c.pages.length > 1 ? (c.pi + 1) + " / " + c.pages.length + "    " : "") + "A: " + (c.pages && c.pi < c.pages.length - 1 ? "next" : c.kind === "intro" ? "play" : "continue"), AW - 12, AH - 18);
 }
 function arcadeOver(msg) { if (arcade.over) return; arcade.over = true; arcade.msg = msg || "GAME OVER"; arcade.hi[arcade.id] = Math.max(arcade.hi[arcade.id] || 0, Math.floor(arcade.score)); }
 function arcadeStop() { arcade.on = false; }
@@ -23147,14 +23163,24 @@ function updateArcade(dt) {
   if (!arcade.on) return;
   const inp = arcadeInput();
   const gm = arcade.gm, g = arcade.g;
-  if (arcade.over) {
+  if (arcade.card) {
+    if (inp.pa) { const c = arcade.card; if (c.pages && c.pi < c.pages.length - 1) c.pi++; else { arcade.card = null; if (c.onDone) c.onDone(); } }
+  } else if (arcade.over) {
     if (inp.pa) arcadeStart(arcade.id);
   } else {
     arcade.t += dt;
     // Playing is the one thing in this city that lowers stress.
     vitals.stress = clamp01(vitals.stress - dt * 0.012);
     let left = Math.min(dt, 0.1);
-    while (left > 0) { const h = Math.min(left, 1 / 60); ARC[arcade.kind].upd(arcade.s, h, inp); left -= h; }
+    const pace = 1 + 0.09 * (arcade.level || 0);                // each chapter is a little faster
+    while (left > 0) { const h = Math.min(left, 1 / 60); ARC[arcade.kind].upd(arcade.s, h * pace, inp); left -= h; }
+    // the story moves on as the score does
+    const st = gm.story;
+    if (st && !arcade.over) {
+      const ch = st.chapters[arcade.chap];
+      if (ch && arcade.score >= ch.at) { arcade.chap++; arcade.level = arcade.chap; arcadeCard({ kind: "chapter", title: ch.title, text: ch.text }); }
+      else if (!ch && !arcade.endShown && arcade.score >= st.chapters[st.chapters.length - 1].at * 1.9) { arcade.endShown = true; arcadeCard({ kind: "ending", title: "The end", text: st.ending + "  (Keep playing for the high score.)" }); }
+    }
   }
   const bg = g.createLinearGradient(0, 0, 0, AH);
   bg.addColorStop(0, mixHex(gm.a, "#000000", 0.55)); bg.addColorStop(1, mixHex(gm.a, "#000000", 0.82));
@@ -23162,7 +23188,8 @@ function updateArcade(dt) {
   ARC[arcade.kind].draw(arcade.s, g, gm);
   Tx(g, String(Math.floor(arcade.score)).padStart(6, "0"), 6, 8, 11, gm.b, "left");
   Tx(g, "HI " + String(arcade.hi[arcade.id] || 0).padStart(6, "0"), AW - 6, 8, 11, "#ffffff", "right");
-  if (arcade.over) {
+  if (arcade.card) drawArcadeCard(g, gm, arcade.card);
+  else if (arcade.over) {
     R(g, 40, 90, 240, 60, "rgba(0,0,0,0.78)");
     Tx(g, arcade.msg || "GAME OVER", AW / 2, 112, 20, gm.b, "center");
     Tx(g, "A: again     B: quit", AW / 2, 136, 11, "#ffffff", "center");
@@ -23886,31 +23913,153 @@ const ITEM = {}; ITEMS.forEach(i => { ITEM[i.id] = i; });
 // reads as a shelf of different games. `kind` is the archetype the mini-game
 // engine runs when it exists; `on` is which consoles take the disc.
 const GAMES = [
-  { id: "blockfall",  name: "Blockfall DX",        genre: "Falling blocks",  kind: "blocks",   a: "#2a6fd6", b: "#7fd0ff", price: 3980, on: "both" },
-  { id: "tetrix",     name: "Tetrix Sensei",       genre: "Falling blocks",  kind: "blocks",   a: "#7a2fd0", b: "#ffd35a", price: 4480, on: "both" },
-  { id: "stackcity",  name: "Stack City 99",       genre: "Falling blocks",  kind: "blocks",   a: "#d6552a", b: "#ffe0a0", price: 2980, on: "playbox" },
-  { id: "snakerun",   name: "Snake Run",           genre: "Arcade",          kind: "snake",    a: "#25a05a", b: "#d8ff8a", price: 1980, on: "both" },
-  { id: "brickbreak", name: "Brick Breaker Neo",   genre: "Arcade",          kind: "breakout", a: "#d63a6a", b: "#ffd0e0", price: 2480, on: "both" },
-  { id: "pongsmash",  name: "Pong Smash",          genre: "Sports",          kind: "pong",     a: "#1c1f2b", b: "#7dffb0", price: 1480, on: "both" },
-  { id: "invaders",   name: "Moon Invaders",       genre: "Shooter",         kind: "invaders", a: "#101a44", b: "#8be0ff", price: 3480, on: "playbox" },
-  { id: "starhawk",   name: "Starhawk Zero",       genre: "Shooter",         kind: "invaders", a: "#2d1450", b: "#ff7ad9", price: 4980, on: "playbox" },
-  { id: "driftking",  name: "Touge Drift King",    genre: "Racing",          kind: "drift",    a: "#e8532b", b: "#fff2c4", price: 5480, on: "both" },
-  { id: "midnightdr", name: "Midnight Drift 2",    genre: "Racing",          kind: "drift",    a: "#241046", b: "#4de1ff", price: 5980, on: "both" },
-  { id: "kartrush",   name: "Kei Kart Rush",       genre: "Racing",          kind: "racer",    a: "#f2b81c", b: "#d63a2a", price: 4480, on: "pearcube" },
-  { id: "salaryrun",  name: "Salaryman Sprint",    genre: "Runner",          kind: "runner",   a: "#2b3a55", b: "#ffd35a", price: 1980, on: "both" },
-  { id: "trainrush",  name: "Last Train Rush",     genre: "Runner",          kind: "runner",   a: "#0f6a52", b: "#e8fff4", price: 2480, on: "both" },
-  { id: "konbinidash",name: "Konbini Dash",        genre: "Runner",          kind: "runner",   a: "#17a05c", b: "#ffffff", price: 2480, on: "pearcube" },
-  { id: "catchfruit", name: "Fruit Catcher",       genre: "Casual",          kind: "catch",    a: "#f06a3a", b: "#fff0a0", price: 1480, on: "both" },
-  { id: "sushicatch", name: "Sushi Belt Panic",    genre: "Casual",          kind: "catch",    a: "#e63950", b: "#fff6e8", price: 1980, on: "pearcube" },
-  { id: "crossing",   name: "Crossy Kanda",        genre: "Casual",          kind: "crossing", a: "#3a8f4c", b: "#ffe86a", price: 1980, on: "both" },
-  { id: "frogcross",  name: "Frog Crossing",       genre: "Casual",          kind: "crossing", a: "#2a7f6a", b: "#c9ff6a", price: 1480, on: "pearcube" },
-  { id: "mazeman",    name: "Maze Muncher",        genre: "Arcade",          kind: "maze",     a: "#12163a", b: "#ffd21c", price: 2980, on: "both" },
-  { id: "ghostmaze",  name: "Obake Maze",          genre: "Arcade",          kind: "maze",     a: "#2a1744", b: "#9be8ff", price: 2480, on: "playbox" },
-  { id: "pachinko",   name: "Pachinko Parlour",    genre: "Casual",          kind: "pachi",    a: "#a8143c", b: "#ffe38a", price: 3480, on: "both" },
-  { id: "shogiduel",  name: "Shogi Duel",          genre: "Board",           kind: "board",    a: "#6b4a2a", b: "#f2dcb0", price: 2980, on: "both" },
-  { id: "fishing",    name: "Lake Biwa Fishing",   genre: "Sports",          kind: "fish",     a: "#1f6fa8", b: "#cfeeff", price: 3980, on: "both" },
-  { id: "karaoke",    name: "Karaoke Night",       genre: "Rhythm",           kind: "rhythm",   a: "#b02a8f", b: "#ffe0f6", price: 4980, on: "both" }
+  // ---- premium and indie, on the small-arcade engines. Each has its own story, told in an
+  // opening and in chapters that arrive as the score climbs.
+  { id: "blockfall", name: "Blockfall DX", genre: "Falling blocks", kind: "blocks", a: "#2a6fd6", b: "#7fd0ff", price: 3980, on: "both", tier: "premium", art: "blockfall", logo: ["BLOCKFALL", "DX"],
+    blurb: "The tower has to go up. The blocks have to come down.",
+    story: { intro: ["The Ministry of Construction has lost the blueprints to Tōkonto Tower. You are Foreman Ishii, the last man alive who remembers how it goes together.", "Floors fall from the crane in the order the crane chooses. Fit them into whole rows before the stack touches the sky."],
+      chapters: [{ at: 900, title: "Chapter 2: Mid-rise", text: "The Ministry sends a memo. The memo says: faster." }, { at: 2600, title: "Chapter 3: The spire", text: "Rain on the scaffolding. Somebody downstairs has started a petition." }, { at: 6000, title: "Chapter 4: The topping out", text: "One last row. The Minister is on the roof with a pair of golden scissors." }],
+      ending: "The tower stands. The Ministry would like it noted that the tower was always going to stand." } },
+  { id: "stackcity", name: "Stack City 99", genre: "Falling blocks", kind: "blocks", a: "#d6552a", b: "#ffe0a0", price: 2980, on: "playbox", tier: "indie", art: "skyline", logo: ["STACK", "CITY 99"],
+    blurb: "Every row you clear is a floor you were never going to need.", story: { intro: ["In 2099 zoning is a rumour. You are the last licensed crane operator in the Eastern Wards and every slab you drop is somebody's flat.", "Clear lines to keep the skyline legal. Leave gaps and the inspector will find them."],
+      chapters: [{ at: 800, title: "Block 2: The inspector", text: "A man in a hard hat is taking photographs of your gaps." }, { at: 2400, title: "Block 3: Golden hour", text: "The city is beautiful from here. It is also on fire, mildly." }, { at: 5500, title: "Block 4: Zero zoning", text: "There are no rules left. Build whatever you like. It will still be a rectangle." }],
+      ending: "The Eastern Wards are finished. They look exactly like the Western Wards." } },
+  { id: "snakerun", name: "Snake Run", genre: "Arcade", kind: "snake", a: "#25a05a", b: "#d8ff8a", price: 1980, on: "both", tier: "indie", art: "snake", logo: ["SNAKE", "RUN"],
+    blurb: "Orochi is hungry, and the orchard is small.", story: { intro: ["The great serpent Orochi has been cursed to eat only the apples of the Imperial Orchard, and the Imperial Orchard has been fenced.", "Guide it. Every apple makes it longer. Every mistake is a very long way to the tail."],
+      chapters: [{ at: 60, title: "Autumn", text: "The apples are ripe. The gardener has noticed the missing ones." }, { at: 150, title: "Winter", text: "The orchard is bare. Orochi is now longer than the orchard." }, { at: 300, title: "The spring of eight heads", text: "Orochi has stopped fitting on the screen. It does not seem to mind." }],
+      ending: "Orochi is free. It still only eats apples, but now it chooses to." } },
+  { id: "brickbreak", name: "Brick Breaker Neo", genre: "Arcade", kind: "breakout", a: "#d63a6a", b: "#ffd0e0", price: 2480, on: "both", tier: "indie", art: "bricks", logo: ["BRICK BREAKER", "NEO"],
+    blurb: "A wall has gone up in front of the sunrise.", story: { intro: ["Overnight, somebody built a wall across the eastern sky. The sun is waiting politely behind it.", "You are the Paddle Monk. You have one ball and no complaints. Break the wall, brick by brick, and let the day in."],
+      chapters: [{ at: 400, title: "Dawn, nearly", text: "A seam of orange along the top row. Keep going." }, { at: 1200, title: "The thick bricks", text: "The wall goes back further than it should. Nobody knows who ordered this much wall." }, { at: 2600, title: "The last row", text: "The sun is pressing on the final bricks. It is, understandably, impatient." }],
+      ending: "The wall comes down. It is a lovely morning, and a number of people are suddenly out of work." } },
+  { id: "pongsmash", name: "Pong Smash", genre: "Sports", kind: "pong", a: "#1c1f2b", b: "#7dffb0", price: 1480, on: "both", tier: "indie", art: "pong", logo: ["PONG", "SMASH"],
+    blurb: "First to seven against a machine that has never lost.", story: { intro: ["The Shogun's last duel is not fought with swords. It is fought with a ball, in a room with no windows, against an old machine named Kyū.", "Kyū has never lost. Kyū has also never been asked how it feels about that."],
+      chapters: [{ at: 100, title: "Game 2", text: "Kyū hums. You have scored. It is not sure what to do with that." }, { at: 300, title: "Game 3", text: "Kyū is learning. This is the part of the story where that is bad." }],
+      ending: "Kyū bows. The ball rolls under a cupboard and is never seen again." } },
+  { id: "invaders", name: "Moon Invaders", genre: "Shooter", kind: "invaders", a: "#101a44", b: "#8be0ff", price: 3480, on: "playbox", tier: "premium", art: "moon", logo: ["MOON", "INVADERS"],
+    blurb: "The Moon has declared independence. It wants rice cakes.", story: { intro: ["The Usagi Collective, a federation of very organised Moon rabbits, has voted to leave Earth's orbit politically. They want mochi, backdated.", "You are the last cannon in Chiba. Hold the line."],
+      chapters: [{ at: 300, title: "Wave 2: The mochi demand", text: "A formal letter arrives, folded very small, by cannon." }, { at: 900, title: "Wave 3: The moon rabbits' general", text: "The general is wearing a tiny hat. It is not a joke to them." }, { at: 2000, title: "Wave 4: Last offer", text: "They would, in fact, settle for a few dozen rice cakes. Nobody has asked you." }],
+      ending: "A truce. The Moon keeps its independence. Chiba gets its mochi back, slightly stale." } },
+  { id: "driftking", name: "Touge Drift King", genre: "Racing", kind: "drift", a: "#e8532b", b: "#fff2c4", price: 5480, on: "both", tier: "premium", art: "touge", logo: ["TOUGE", "DRIFT KING"],
+    blurb: "Hakone at midnight. Your father's tofu van. The crown.", story: { intro: ["Your father delivered tofu up the Hakone pass for forty years without spilling a drop. The pass remembers.", "Midnight. His van. A mountain of other people's tyre smoke. Slide the corners and the crown is yours."],
+      chapters: [{ at: 120, title: "Lap 2: The rival", text: "A white hatchback slides past you with its headlights off. Rude." }, { at: 320, title: "Lap 3: The fog", text: "You cannot see the road. You can hear it." }, { at: 700, title: "Final lap: The tofu", text: "A crate rattles loose behind you. Nobody has ever won with an open crate." }],
+      ending: "You take the crown, and nothing in the back has spilled. Your father would have said it could have been smoother." } },
+  { id: "kartrush", name: "Kei Kart Rush", genre: "Racing", kind: "racer", a: "#f2b81c", b: "#d63a2a", price: 4480, on: "pearcube", tier: "premium", art: "karts", logo: ["KEI KART", "RUSH"],
+    blurb: "The Mizuho Grand Prix is run in vans the size of wardrobes.", story: { intro: ["Hana's family noodle shop will close unless she wins the Mizuho Grand Prix, a race held entirely in kei vans the size of wardrobes.", "Weave through the traffic. Everybody in it is also trying to win."],
+      chapters: [{ at: 150, title: "Heat 2: Market Street", text: "Aunt Mitsuko is leaning out of a window with a stopwatch, and a ladle." }, { at: 400, title: "Heat 3: The bridge", text: "The bridge is narrower than it was in practice." }, { at: 800, title: "The final: Noodle Corner", text: "The last bend goes right through the shop. Hana has left the door open on purpose." }],
+      ending: "The shop is saved. The trophy is a large ladle." } },
+  { id: "salaryrun", name: "Salaryman Sprint", genre: "Runner", kind: "runner", a: "#2b3a55", b: "#ffd35a", price: 1980, on: "both", tier: "indie", art: "salaryman", logo: ["SALARYMAN", "SPRINT"],
+    blurb: "You overslept. The nine o'clock meeting is in the building.", story: { intro: ["You overslept by eleven minutes. The nine o'clock is the one that decides your whole year, and it is in the building across the river.", "Jump the briefcases, the paperwork and your own regrets. Do not stop for coffee."],
+      chapters: [{ at: 150, title: "The crossing", text: "A man with a clipboard is standing exactly where you were going to run." }, { at: 400, title: "The lobby", text: "The lift is out. The stairs are eleven floors of other people's opinions." }, { at: 800, title: "The corridor", text: "The meeting room door is open. They have started without you." }],
+      ending: "You arrive. The meeting is about whether to have a meeting." } },
+  { id: "sushicatch", name: "Sushi Belt Panic", genre: "Casual", kind: "catch", a: "#e63950", b: "#fff6e8", price: 1980, on: "pearcube", tier: "indie", art: "sushi", logo: ["SUSHI BELT", "PANIC"],
+    blurb: "The belt is stuck on fast.", story: { intro: ["Chef Daigo's conveyor sushi bar has a fault. The belt will only go one speed and that speed is rude.", "Catch the plates before they fall. Do not catch the wasabi. Nobody has ever caught the wasabi and enjoyed it."],
+      chapters: [{ at: 120, title: "The lunch rush", text: "A queue has formed out of the door. It is entirely salarymen." }, { at: 350, title: "The critic", text: "A very thin man at the end of the counter is not eating anything." }, { at: 700, title: "Closing time", text: "The belt is now faster than the front door." }],
+      ending: "Daigo bows. The belt has stopped. So has everyone else." } },
+  { id: "crossing", name: "Crossy Kanda", genre: "Casual", kind: "crossing", a: "#3a8f4c", b: "#ffe86a", price: 1980, on: "both", tier: "indie", art: "crossing", logo: ["CROSSY", "KANDA"],
+    blurb: "A tanuki wants to be on the other side.", story: { intro: ["A tanuki in a very small hat needs to get from one side of Kanda to the other, and Kanda has been designed by people who do not like tanuki.", "Cross the roads and the rails. The traffic does not stop. The tanuki's dignity does."],
+      chapters: [{ at: 60, title: "The arterial", text: "Four lanes. The cars have no sense of humour." }, { at: 180, title: "The rail crossing", text: "The barrier is down and the train is late, which is worse." }, { at: 400, title: "The shrine steps", text: "Almost there. The steps are guarded by a very old cat." }],
+      ending: "The tanuki arrives. It was only going to buy a newspaper." } },
+  { id: "mazeman", name: "Maze Muncher", genre: "Arcade", kind: "maze", a: "#12163a", b: "#ffd21c", price: 2980, on: "both", tier: "premium", art: "maze", logo: ["MAZE", "MUNCHER"],
+    blurb: "Eat everything. Avoid the faces.", story: { intro: ["Beneath Shinjuku station there is a maze that has never been mapped, because every surveyor who went in came out full.", "You are Muncher. Eat every dot. The ghosts are staff, in a manner of speaking, and they would like you to leave."],
+      chapters: [{ at: 300, title: "Level 2: The concourse", text: "The ghosts have formed a union." }, { at: 900, title: "Level 3: The lost property office", text: "Nobody is in. The ghosts have left their lunch." }, { at: 2000, title: "Level 4: Platform zero", text: "There is no platform zero. You are standing on it." }],
+      ending: "The maze is empty. Somewhere, a vending machine hums, and nobody knows who is stocking it." } },
+  { id: "pachinko", name: "Pachinko Parlour", genre: "Casual", kind: "pachi", a: "#a8143c", b: "#ffe38a", price: 3480, on: "both", tier: "premium", art: "pachinko", logo: ["PACHINKO", "PARLOUR"],
+    blurb: "Ota-san is certain tonight is the night.", story: { intro: ["Ota-san has played the same machine every evening for nineteen years and he is certain tonight is the night.", "Aim the plunger. Let the little balls fall. Sit with him a while."],
+      chapters: [{ at: 400, title: "Ten o'clock", text: "The machine next to Ota-san has paid out. He did not see it." }, { at: 1200, title: "Midnight", text: "The parlour is half empty. The music has gotten louder in the way that means 'go home'." }, { at: 2800, title: "Last balls", text: "Ota-san holds his breath. The ball makes up its mind." }],
+      ending: "The jackpot lights go off, and Ota-san is smiling. He puts the winnings straight back in." } },
+  { id: "shogiduel", name: "Shogi Duel", genre: "Board", kind: "board", a: "#6b4a2a", b: "#f2dcb0", price: 2980, on: "both", tier: "premium", art: "shogi", logo: ["SHOGI", "DUEL"],
+    blurb: "An apprentice, a grandmaster, and one very quiet room.", story: { intro: ["Apprentice Ren has been invited to play the grandmaster, in a room with a single window and a clock that is only for show.", "Think. Everyone in the room has already decided what you will do."],
+      chapters: [{ at: 200, title: "Opening", text: "The grandmaster pours tea and lets it get cold." }, { at: 600, title: "Middle game", text: "The pieces on his side have started to look like a plan." }],
+      ending: "Ren bows. The grandmaster bows deeper. Neither will say who won." } },
+  { id: "fishing", name: "Lake Biwa Fishing", genre: "Sports", kind: "fish", a: "#1f6fa8", b: "#cfeeff", price: 3980, on: "both", tier: "premium", art: "lake", logo: ["LAKE BIWA", "FISHING"],
+    blurb: "Old Sato's last summer at the lake.", story: { intro: ["Old Sato has fished Lake Biwa since before the lake had a name on the map. This summer is his last, and his grandson has brought a thermos.", "Cast. Wait. Reel. The fish are not in a hurry, and neither, today, is anyone else."],
+      chapters: [{ at: 300, title: "Noon", text: "A carp surfaces, looks at the thermos, and thinks better of it." }, { at: 900, title: "Afternoon", text: "Sato tells the story of the one that got away. It is different this time." }, { at: 2000, title: "Dusk", text: "The lake goes gold and the grandson has stopped looking at his phone." }],
+      ending: "They go home with one fish, which they let go on the way." } },
+  { id: "karaoke", name: "Karaoke Night", genre: "Rhythm", kind: "rhythm", a: "#b02a8f", b: "#ffe0f6", price: 4980, on: "both", tier: "premium", art: "karaoke", logo: ["KARAOKE", "NIGHT"],
+    blurb: "The boss has asked for a duet.", story: { intro: ["It is the office party. Section Chief Tanaka has put his name next to yours on the song list, and the song is the one about the bullet train.", "Hit the notes as they arrive. The room is watching, and it is only slightly drunk."],
+      chapters: [{ at: 600, title: "Verse two", text: "Tanaka is a better singer than anyone had feared." }, { at: 1800, title: "The key change", text: "Nobody warned you about the key change." }, { at: 3500, title: "The last chorus", text: "The whole room stands. The waiter has also stopped." }],
+      ending: "Encore. Somebody has already queued the next song, and it is yours again." } }
 ];
+// ---- cover art -----------------------------------------------------------------------------
+// Every disc has its own box art, painted from code: a scene for the game, a title in
+// its own lettering, and for the big releases a heavier treatment (a lit key-art
+// scene, a ribbon, a rating). One canvas per game, made once.
+const coverCache = {};
+function cvRnd(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+function cvSky(g, w, h, stops) { const gr = g.createLinearGradient(0, 0, 0, h); stops.forEach((c, i) => gr.addColorStop(i / (stops.length - 1), c)); g.fillStyle = gr; g.fillRect(0, 0, w, h); }
+function cvGlow(g, x, y, r, col, a) { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, col); gr.addColorStop(1, "rgba(0,0,0,0)"); g.save(); g.globalAlpha = a == null ? 1 : a; g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); g.restore(); }
+function cvStars(g, w, h, n, seed) { for (let i = 0; i < n; i++) { g.fillStyle = "rgba(255,255,255," + (0.3 + cvRnd(i + seed) * 0.6) + ")"; const r = cvRnd(i * 3 + seed) * 1.6 + 0.4; g.fillRect(cvRnd(i + seed * 2) * w, cvRnd(i * 7 + seed) * h * 0.7, r, r); } }
+function cvMountains(g, w, base, amp, seed, col, step) { g.fillStyle = col; g.beginPath(); g.moveTo(0, base + amp); for (let x = 0; x <= w + 10; x += step || 12) g.lineTo(x, base - Math.abs(Math.sin(x * 0.011 + seed) * amp) - Math.sin(x * 0.031 + seed * 2) * amp * 0.3); g.lineTo(w, base + amp); g.fill(); }
+function cvSkyline(g, w, base, seed, col, win, maxH) { for (let x = 0; x < w; ) { const bw = 14 + cvRnd(x + seed) * 26, bh = 20 + cvRnd(x * 3 + seed) * (maxH || 120); g.fillStyle = col; g.fillRect(x, base - bh, bw, bh + 60); if (win) for (let wy = base - bh + 6; wy < base - 6; wy += 9) for (let wx = x + 3; wx < x + bw - 4; wx += 6) if (cvRnd(wx * 9 + wy + seed) > 0.55) { g.fillStyle = win; g.fillRect(wx, wy, 3, 4); } x += bw + 1 + cvRnd(x) * 3; } }
+function cvPerson(g, x, y, h, col, pose) { g.fillStyle = col; const hr = h * 0.085; g.beginPath(); g.arc(x, y - h + hr, hr, 0, 7); g.fill(); g.beginPath(); g.moveTo(x - h * 0.13, y - h * 0.84); g.lineTo(x + h * 0.13, y - h * 0.84); g.lineTo(x + h * 0.09, y - h * 0.45); g.lineTo(x - h * 0.09, y - h * 0.45); g.fill(); g.lineWidth = h * 0.07; g.strokeStyle = col; g.lineCap = "round"; const st = pose === "run" ? 0.3 : 0.08; g.beginPath(); g.moveTo(x - h * 0.05, y - h * 0.45); g.lineTo(x - h * (0.05 + st), y); g.moveTo(x + h * 0.05, y - h * 0.45); g.lineTo(x + h * (0.05 + st * 0.2), y); g.stroke(); g.beginPath(); g.moveTo(x - h * 0.13, y - h * 0.8); g.lineTo(x - h * (0.2 + st), y - h * 0.5); g.moveTo(x + h * 0.13, y - h * 0.8); g.lineTo(x + h * (pose === "gun" ? 0.4 : 0.2), y - h * (pose === "gun" ? 0.72 : 0.5)); g.stroke(); }
+function cvCar(g, x, y, s, col, win) { g.fillStyle = col; g.beginPath(); g.moveTo(x - 60 * s, y); g.lineTo(x - 56 * s, y - 14 * s); g.lineTo(x - 30 * s, y - 20 * s); g.lineTo(x - 14 * s, y - 36 * s); g.lineTo(x + 24 * s, y - 36 * s); g.lineTo(x + 44 * s, y - 20 * s); g.lineTo(x + 62 * s, y - 14 * s); g.lineTo(x + 64 * s, y); g.fill(); g.fillStyle = win || "#9fd0e8"; g.beginPath(); g.moveTo(x - 10 * s, y - 20 * s); g.lineTo(x - 4 * s, y - 31 * s); g.lineTo(x + 22 * s, y - 31 * s); g.lineTo(x + 36 * s, y - 20 * s); g.fill(); g.fillStyle = "#101216"; [-34, 38].forEach(wx => { g.beginPath(); g.arc(x + wx * s, y, 10 * s, 0, 7); g.fill(); g.fillStyle = "#9aa1a9"; g.beginPath(); g.arc(x + wx * s, y, 4.5 * s, 0, 7); g.fill(); g.fillStyle = "#101216"; }); }
+function cvTitle(g, w, y, lines, o) {
+  o = o || {}; const size = o.size || 38;
+  lines.forEach((t, i) => {
+    const sz = i === 0 ? size : size * (o.second || 0.74), yy = y + (i === 0 ? 0 : size * 0.95 + (i - 1) * sz);
+    g.save(); g.font = (o.weight || "900") + " " + sz + "px " + (o.font || UI); g.textAlign = "center"; g.textBaseline = "middle";
+    // fit
+    const mw = g.measureText(t).width, k = Math.min(1, (w * 0.9) / mw); g.translate(w / 2, yy); g.scale(k, 1);
+    g.lineJoin = "round"; g.lineWidth = sz * 0.16; g.strokeStyle = o.stroke || "rgba(0,0,0,0.85)"; g.strokeText(t, 0, 0);
+    const gr = g.createLinearGradient(0, -sz * 0.5, 0, sz * 0.5); (o.fill || ["#ffffff", "#c9d2da"]).forEach((c, k2, a) => gr.addColorStop(k2 / (a.length - 1), c)); g.fillStyle = gr; g.fillText(t, 0, 0);
+    if (o.glow) { g.shadowColor = o.glow; g.shadowBlur = sz * 0.5; g.fillText(t, 0, 0); }
+    g.restore();
+  });
+}
+const COVER_ART = {
+  blockfall(g, w, h) { cvSky(g, w, h, ["#1d3a78", "#4a86d0", "#e8b27a"]); cvGlow(g, w * 0.7, h * 0.3, 140, "#ffe3a0", 0.7); cvSkyline(g, w, h * 0.72, 3, "#162845", "#ffd98a", 90);
+    const cols = ["#5ad7ff", "#ffd84a", "#c06bff", "#5adf7a", "#ff5a5a", "#5a7aff", "#ff9a3a"]; for (let r = 0; r < 7; r++) for (let c = 0; c < 6; c++) if (cvRnd(r * 7 + c) > 0.12 + r * 0.05) { g.fillStyle = cols[(r * 3 + c) % 7]; g.fillRect(40 + c * 36, h * 0.74 - r * 32, 34, 30); g.fillStyle = "rgba(255,255,255,0.3)"; g.fillRect(40 + c * 36, h * 0.74 - r * 32, 34, 5); } },
+  skyline(g, w, h) { cvSky(g, w, h, ["#ff7a3a", "#ffb060", "#ffe0a0"]); cvGlow(g, w * 0.5, h * 0.55, 200, "#fff2c0", 0.8); cvSkyline(g, w, h * 0.8, 9, "#3a1d2a", null, 150); cvSkyline(g, w, h * 0.9, 21, "#1f0f18", "#ffcf7a", 170); g.fillStyle = "#12080e"; g.fillRect(0, h * 0.9, w, h * 0.12); g.fillStyle = "#e8b23c"; g.fillRect(w * 0.44, h * 0.24, 6, h * 0.5); g.fillRect(w * 0.44 - 30, h * 0.24, 66, 5); },
+  snake(g, w, h) { cvSky(g, w, h, ["#0b2a1a", "#1c6a3a", "#9ad064"]); cvStars(g, w, h, 40, 5); g.strokeStyle = "#1e8a4a"; g.lineWidth = 46; g.lineCap = "round"; g.beginPath(); g.moveTo(w * 0.1, h * 0.8); g.bezierCurveTo(w * 0.1, h * 0.4, w * 0.9, h * 0.7, w * 0.8, h * 0.4); g.bezierCurveTo(w * 0.7, h * 0.15, w * 0.3, h * 0.3, w * 0.45, h * 0.5); g.stroke(); g.strokeStyle = "#7de08a"; g.lineWidth = 8; g.setLineDash([10, 22]); g.stroke(); g.setLineDash([]); g.fillStyle = "#1e8a4a"; g.beginPath(); g.ellipse(w * 0.45, h * 0.5, 38, 28, 0.5, 0, 7); g.fill(); g.fillStyle = "#ffe14a"; g.beginPath(); g.arc(w * 0.44, h * 0.47, 6, 0, 7); g.arc(w * 0.5, h * 0.52, 6, 0, 7); g.fill(); g.fillStyle = "#e5483c"; g.beginPath(); g.arc(w * 0.18, h * 0.3, 20, 0, 7); g.fill(); g.fillStyle = "#3a7a2a"; g.fillRect(w * 0.18 - 2, h * 0.3 - 30, 4, 12); },
+  bricks(g, w, h) { cvSky(g, w, h, ["#3a0f2a", "#d63a6a", "#ffcf9a"]); cvGlow(g, w * 0.5, h * 0.62, 190, "#ffe9b0", 0.9); const cs = ["#ff5a7a", "#ff9a5a", "#ffd84a", "#6adf7a", "#5ab4ff"]; for (let r = 0; r < 6; r++) for (let c = 0; c < 6; c++) { if (r === 5 && c % 3 === 1) continue; g.fillStyle = cs[(r + c) % 5]; g.fillRect(18 + c * 44 + (r % 2) * 20, 40 + r * 22, 40, 18); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(18 + c * 44 + (r % 2) * 20, 40 + r * 22, 40, 4); } g.fillStyle = "#fff"; g.beginPath(); g.arc(w * 0.55, h * 0.66, 11, 0, 7); g.fill(); g.fillStyle = "#e8e8f0"; g.fillRect(w * 0.36, h * 0.83, 90, 11); },
+  pong(g, w, h) { cvSky(g, w, h, ["#0a0c14", "#12162a", "#0a0c14"]); g.strokeStyle = "rgba(125,255,176,0.35)"; g.setLineDash([10, 14]); g.lineWidth = 4; g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.stroke(); g.setLineDash([]); cvGlow(g, w * 0.5, h * 0.5, 150, "#2affa0", 0.35); g.fillStyle = "#7dffb0"; g.fillRect(34, h * 0.32, 14, 96); g.fillStyle = "#fff"; g.fillRect(w - 48, h * 0.5, 14, 96); g.beginPath(); g.arc(w * 0.62, h * 0.4, 10, 0, 7); g.fill(); g.font = "900 70px " + UI; g.textAlign = "center"; g.fillStyle = "rgba(125,255,176,0.5)"; g.fillText("7", w * 0.3, h * 0.2); g.fillText("6", w * 0.7, h * 0.2); },
+  moon(g, w, h) { cvSky(g, w, h, ["#04081e", "#101a44", "#1b2c6a"]); cvStars(g, w, h, 90, 11); cvGlow(g, w * 0.5, h * 0.36, 180, "#d8ecff", 0.5); g.fillStyle = "#e8f0ff"; g.beginPath(); g.arc(w * 0.5, h * 0.36, 82, 0, 7); g.fill(); g.fillStyle = "rgba(150,170,210,0.55)"; [[-28, -20, 16], [24, 10, 22], [-6, 34, 10], [38, -30, 9]].forEach(c => { g.beginPath(); g.arc(w * 0.5 + c[0], h * 0.36 + c[1], c[2], 0, 7); g.fill(); }); for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) { const x = 34 + c * 44, y = h * 0.14 + r * 34; g.fillStyle = "#8be0ff"; g.fillRect(x + 4, y, 22, 14); g.fillRect(x, y + 6, 30, 8); g.fillStyle = "#101a44"; g.fillRect(x + 7, y + 6, 4, 4); g.fillRect(x + 19, y + 6, 4, 4); g.fillStyle = "#8be0ff"; g.fillRect(x + 6, y - 9, 4, 10); g.fillRect(x + 20, y - 9, 4, 10); } cvSkyline(g, w, h * 0.9, 4, "#0a1030", "#ffd98a", 70); g.fillStyle = "#fff"; g.fillRect(w * 0.5 - 8, h * 0.84, 16, 7); g.fillRect(w * 0.5 - 2, h * 0.8, 4, 6); },
+  touge(g, w, h) { cvSky(g, w, h, ["#1b0f3a", "#c0482a", "#ffd090"]); cvGlow(g, w * 0.7, h * 0.4, 150, "#ffe3a8", 0.9); cvMountains(g, w, h * 0.55, 60, 1, "#3a1d3a"); cvMountains(g, w, h * 0.68, 50, 4, "#1d0f24"); g.fillStyle = "#14101a"; g.beginPath(); g.moveTo(-20, h); g.lineTo(w * 0.35, h * 0.62); g.lineTo(w * 0.62, h * 0.62); g.lineTo(w + 40, h); g.fill(); g.strokeStyle = "#ffd35a"; g.setLineDash([16, 18]); g.lineWidth = 4; g.beginPath(); g.moveTo(w * 0.5, h * 0.62); g.lineTo(w * 0.5, h); g.stroke(); g.setLineDash([]);
+    g.save(); g.translate(w * 0.42, h * 0.82); g.rotate(-0.22); cvCar(g, 0, 0, 1.35, "#f4f1e6"); g.restore(); for (let i = 0; i < 10; i++) cvGlow(g, w * 0.52 + i * 10, h * 0.9 - i * 3, 36 + i * 4, "rgba(255,255,255,0.55)", 0.28); },
+  karts(g, w, h) { cvSky(g, w, h, ["#46b4ff", "#bfe8ff", "#7ed06a"]); g.fillStyle = "#5fb04a"; g.fillRect(0, h * 0.5, w, h * 0.5); g.fillStyle = "#4a4d55"; g.beginPath(); g.moveTo(w * 0.3, h * 0.5); g.lineTo(w * 0.7, h * 0.5); g.lineTo(w * 1.05, h); g.lineTo(-w * 0.05, h); g.fill(); g.fillStyle = "#fff"; for (let i = 0; i < 6; i++) g.fillRect(w * 0.49, h * 0.52 + i * i * 4 + i * 10, 5 + i * 2, 6 + i * 3);
+    [[0.34, 0.72, "#f2b81c", 1.0], [0.62, 0.8, "#d63a2a", 1.15], [0.5, 0.64, "#ffffff", 0.7]].forEach(k => { const x = w * k[0], y = h * k[1], s = k[3]; g.fillStyle = k[2]; roundRect(g, x - 34 * s, y - 40 * s, 68 * s, 46 * s, 10 * s); g.fill(); g.fillStyle = "#9fd0e8"; roundRect(g, x - 26 * s, y - 36 * s, 52 * s, 20 * s, 6 * s); g.fill(); g.fillStyle = "#101216"; g.fillRect(x - 38 * s, y - 2 * s, 14 * s, 14 * s); g.fillRect(x + 24 * s, y - 2 * s, 14 * s, 14 * s); }); g.fillStyle = "#fff"; g.font = "900 26px " + UI; g.textAlign = "center"; g.fillText("1", w * 0.34, h * 0.69); },
+  salaryman(g, w, h) { cvSky(g, w, h, ["#243a60", "#e8a060", "#ffe4a0"]); cvGlow(g, w * 0.3, h * 0.45, 200, "#fff0b8", 0.8); cvSkyline(g, w, h * 0.75, 31, "#2a2a3a", null, 140); g.fillStyle = "#1a1a24"; g.fillRect(0, h * 0.75, w, h); g.fillStyle = "rgba(255,255,255,0.18)"; for (let i = 0; i < 9; i++) g.fillRect(i * 44 - 10, h * 0.9, 24, 5);
+    for (let i = 0; i < 7; i++) { g.save(); g.translate(30 + i * 48, h * 0.55 + Math.sin(i * 2) * 40); g.rotate(i * 0.6); g.fillStyle = "#f4f1e6"; g.fillRect(-12, -9, 24, 18); g.fillStyle = "#c8c0a8"; g.fillRect(-9, -5, 18, 2); g.restore(); } cvPerson(g, w * 0.5, h * 0.88, 150, "#101018", "run"); g.fillStyle = "#5a3a22"; g.fillRect(w * 0.5 + 24, h * 0.88 - 90, 24, 18); },
+  sushi(g, w, h) { cvSky(g, w, h, ["#8a1c2c", "#d2384a", "#ffd6c0"]); g.fillStyle = "#2a1210"; g.fillRect(0, h * 0.58, w, h * 0.12); g.fillStyle = "#3d1c18"; g.fillRect(0, h * 0.58, w, 6);
+    [[0.2, "#f4f1e6", "#ff6a52"], [0.5, "#f4f1e6", "#ff9a3a"], [0.78, "#f4f1e6", "#6aa84a"]].forEach(c => { const x = w * c[0], y = h * 0.52; g.fillStyle = "#e8e0d0"; g.beginPath(); g.ellipse(x, y + 12, 44, 12, 0, 0, 7); g.fill(); g.fillStyle = c[1]; roundRect(g, x - 28, y - 8, 56, 20, 9); g.fill(); g.fillStyle = c[2]; roundRect(g, x - 32, y - 20, 64, 16, 8); g.fill(); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(x - 24, y - 17, 40, 3); });
+    for (let i = 0; i < 6; i++) { g.fillStyle = "rgba(255,255,255,0.12)"; g.fillRect(0, h * 0.18 + i * 16, w, 5); } g.fillStyle = "#fff"; g.font = "900 70px " + JP; g.textAlign = "center"; g.fillStyle = "rgba(255,255,255,0.2)"; g.fillText("寿司", w / 2, h * 0.38); },
+  crossing(g, w, h) { cvSky(g, w, h, ["#3a8f4c", "#9ad06a", "#f4e8a0"]); g.fillStyle = "#3a3d44"; g.fillRect(0, h * 0.42, w, h * 0.34); g.fillStyle = "#ffe86a"; for (let i = 0; i < 8; i++) g.fillRect(i * 46 + 8, h * 0.59, 28, 5); cvCar(g, w * 0.3, h * 0.52, 0.8, "#d63a2a"); cvCar(g, w * 0.7, h * 0.7, 0.9, "#2a6fd6");
+    g.fillStyle = "#7a5a3a"; g.beginPath(); g.ellipse(w * 0.5, h * 0.88, 40, 34, 0, 0, 7); g.fill(); g.fillStyle = "#3a2a1a"; g.beginPath(); g.ellipse(w * 0.5, h * 0.84, 34, 16, 0, 0, 7); g.fill(); g.fillStyle = "#7a5a3a"; g.beginPath(); g.arc(w * 0.5 - 22, h * 0.8, 10, 0, 7); g.arc(w * 0.5 + 22, h * 0.8, 10, 0, 7); g.fill(); g.fillStyle = "#1a8a4a"; g.beginPath(); g.moveTo(w * 0.5 - 22, h * 0.78); g.lineTo(w * 0.5, h * 0.7); g.lineTo(w * 0.5 + 22, h * 0.78); g.fill(); },
+  maze(g, w, h) { cvSky(g, w, h, ["#0a0d28", "#12163a", "#0a0d28"]); g.strokeStyle = "#3a52d8"; g.lineWidth = 6; g.lineCap = "round"; [[30, 60, 150, 60], [150, 60, 150, 130], [30, 130, 100, 130], [100, 130, 100, 200], [200, 100, 270, 100], [200, 100, 200, 200], [60, 250, 220, 250], [250, 160, 250, 270], [30, 200, 30, 300], [120, 300, 280, 300]].forEach(l => { g.beginPath(); g.moveTo(l[0], l[1]); g.lineTo(l[2], l[3]); g.stroke(); }); g.fillStyle = "#ffe9a0"; for (let i = 0; i < 24; i++) { g.beginPath(); g.arc(40 + (i % 8) * 34, 100 + Math.floor(i / 8) * 56, 3, 0, 7); g.fill(); }
+    g.fillStyle = "#ffd21c"; g.beginPath(); g.moveTo(w * 0.5, h * 0.55); g.arc(w * 0.5, h * 0.55, 56, 0.45, Math.PI * 2 - 0.45); g.closePath(); g.fill(); g.fillStyle = "#0a0d28"; g.beginPath(); g.arc(w * 0.5 + 8, h * 0.55 - 28, 7, 0, 7); g.fill(); [["#ff4a5a", 0.2], ["#4ae0ff", 0.8]].forEach(gh => { const x = w * gh[1], y = h * 0.8; g.fillStyle = gh[0]; g.beginPath(); g.arc(x, y, 26, Math.PI, 0); g.lineTo(x + 26, y + 28); for (let k = 0; k < 4; k++) g.lineTo(x + 26 - (k + 1) * 13, y + (k % 2 ? 28 : 18)); g.lineTo(x - 26, y + 28); g.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(x - 9, y - 4, 7, 0, 7); g.arc(x + 9, y - 4, 7, 0, 7); g.fill(); }); },
+  pachinko(g, w, h) { cvSky(g, w, h, ["#4a0a1e", "#a8143c", "#ff8a50"]); for (let i = 0; i < 40; i++) { cvGlow(g, cvRnd(i) * w, cvRnd(i + 40) * h * 0.6, 26 + cvRnd(i + 80) * 30, ["#ffe38a", "#ff7ad9", "#7afcff"][i % 3], 0.35); } g.fillStyle = "#e8e8f0"; for (let r = 0; r < 9; r++) for (let c = 0; c < 8; c++) { g.beginPath(); g.arc(30 + c * 36 + (r % 2) * 18, 50 + r * 34, 3, 0, 7); g.fill(); } for (let i = 0; i < 18; i++) { const x = 20 + cvRnd(i + 5) * (w - 40), y = 60 + cvRnd(i + 9) * (h * 0.7); const gr = g.createRadialGradient(x - 3, y - 3, 1, x, y, 9); gr.addColorStop(0, "#fff"); gr.addColorStop(1, "#aab"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, 9, 0, 7); g.fill(); } g.fillStyle = "#ffe38a"; g.font = "900 54px " + JP; g.textAlign = "center"; g.fillText("大当たり", w / 2, h * 0.9); },
+  shogi(g, w, h) { cvSky(g, w, h, ["#3a2614", "#6b4a2a", "#a8804a"]); g.fillStyle = "#d8b878"; g.beginPath(); g.moveTo(24, h * 0.42); g.lineTo(w - 24, h * 0.42); g.lineTo(w - 6, h * 0.92); g.lineTo(6, h * 0.92); g.fill(); g.strokeStyle = "#5a3a1a"; g.lineWidth = 2; for (let i = 0; i <= 9; i++) { const t = i / 9; g.beginPath(); g.moveTo(24 - 18 * t + t * 0, h * 0.42 + t * h * 0.5); g.lineTo(w - 24 + 18 * t, h * 0.42 + t * h * 0.5); g.stroke(); g.beginPath(); g.moveTo(24 + (w - 48) * t, h * 0.42); g.lineTo(6 + (w - 12) * t, h * 0.92); g.stroke(); }
+    const piece = (x, y, s, t) => { g.fillStyle = "#f0dcb0"; g.beginPath(); g.moveTo(x, y - s); g.lineTo(x + s * 0.7, y - s * 0.55); g.lineTo(x + s * 0.85, y + s); g.lineTo(x - s * 0.85, y + s); g.lineTo(x - s * 0.7, y - s * 0.55); g.closePath(); g.fill(); g.strokeStyle = "#7a5a2a"; g.lineWidth = 1.5; g.stroke(); g.fillStyle = "#1a1208"; g.font = "800 " + s + "px " + JP; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(t, x, y + s * 0.1); };
+    piece(w * 0.3, h * 0.62, 28, "王"); piece(w * 0.62, h * 0.7, 30, "飛"); piece(w * 0.5, h * 0.52, 22, "歩"); piece(w * 0.78, h * 0.58, 24, "角"); g.fillStyle = "rgba(255,230,160,0.2)"; cvGlow(g, w * 0.5, h * 0.2, 150, "#ffe6a0", 0.45); },
+  lake(g, w, h) { cvSky(g, w, h, ["#9ad0f0", "#e8f4ff", "#c8e8ec"]); cvMountains(g, w, h * 0.46, 70, 2, "#6a8aa8"); cvMountains(g, w, h * 0.52, 40, 7, "#4a6a88"); g.fillStyle = "#2f8fb8"; g.fillRect(0, h * 0.52, w, h * 0.5); g.strokeStyle = "rgba(255,255,255,0.35)"; for (let i = 0; i < 14; i++) { g.beginPath(); g.moveTo(10 + (i * 53) % w, h * 0.56 + i * 16); g.lineTo(60 + (i * 53) % w, h * 0.56 + i * 16); g.stroke(); }
+    g.fillStyle = "#e8e0d0"; g.beginPath(); g.moveTo(w * 0.1, h * 0.84); g.lineTo(w * 0.7, h * 0.84); g.lineTo(w * 0.62, h * 0.9); g.lineTo(w * 0.16, h * 0.9); g.fill(); cvPerson(g, w * 0.34, h * 0.84, 90, "#1a2230", "sit"); g.strokeStyle = "#3a2a1a"; g.lineWidth = 2; g.beginPath(); g.moveTo(w * 0.37, h * 0.7); g.lineTo(w * 0.78, h * 0.3); g.stroke(); g.lineWidth = 1; g.beginPath(); g.moveTo(w * 0.78, h * 0.3); g.lineTo(w * 0.78, h * 0.6); g.stroke(); g.fillStyle = "#ffb04a"; g.beginPath(); g.ellipse(w * 0.78, h * 0.62, 22, 9, 0.3, 0, 7); g.fill(); },
+  karaoke(g, w, h) { cvSky(g, w, h, ["#2a0a30", "#b02a8f", "#ff9ae0"]); [[0.2, "#7afcff"], [0.5, "#ffe38a"], [0.8, "#ff7ad9"]].forEach(l => { g.save(); g.globalAlpha = 0.28; g.fillStyle = l[1]; g.beginPath(); g.moveTo(w * l[0] - 6, 0); g.lineTo(w * l[0] + 6, 0); g.lineTo(w * 0.5 + (l[0] - 0.5) * 220 + 70, h * 0.9); g.lineTo(w * 0.5 + (l[0] - 0.5) * 220 - 70, h * 0.9); g.fill(); g.restore(); });
+    g.fillStyle = "#1a0820"; g.fillRect(0, h * 0.86, w, h * 0.2); g.fillStyle = "#2a1030"; g.fillRect(0, h * 0.82, w, 10); cvPerson(g, w * 0.5, h * 0.84, 170, "#0e0612", "gun"); g.fillStyle = "#c9ccd2"; g.beginPath(); g.arc(w * 0.5 + 40, h * 0.5, 9, 0, 7); g.fill(); g.fillStyle = "#1a1a1a"; g.fillRect(w * 0.5 + 37, h * 0.51, 6, 28);
+    g.fillStyle = "#fff"; g.font = "900 36px " + UI; g.textAlign = "center"; for (let i = 0; i < 5; i++) { g.fillStyle = "rgba(255,255,255," + (0.5 - i * 0.08) + ")"; g.fillText("♪", w * (0.15 + i * 0.18), h * (0.34 + Math.sin(i * 2) * 0.1)); } }
+};
+function gameCover(id) {
+  if (coverCache[id]) return coverCache[id];
+  const gm = GAME_BY_ID[id]; if (!gm) return null;
+  const w = 300, h = 400, cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+  const g = cv.getContext("2d"), tier = gm.tier || "indie";
+  try { (COVER_ART[gm.art] || (() => { cvSky(g, w, h, [gm.a, mixHex(gm.a, "#000000", 0.6)]); cvGlow(g, w / 2, h * 0.4, 160, gm.b, 0.6); }))(g, w, h); } catch (e) { cvSky(g, w, h, [gm.a, "#000"]); }
+  // light falls off at the edges, and a little grain, so it reads as printed
+  const v = g.createRadialGradient(w / 2, h * 0.45, h * 0.25, w / 2, h * 0.5, h * 0.75); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0," + (tier === "aaa" ? 0.55 : 0.4) + ")"); g.fillStyle = v; g.fillRect(0, 0, w, h);
+  // a darker band for the lettering
+  const band = g.createLinearGradient(0, h * 0.62, 0, h); band.addColorStop(0, "rgba(0,0,0,0)"); band.addColorStop(1, "rgba(0,0,0,0.78)"); g.fillStyle = band; g.fillRect(0, h * 0.58, w, h * 0.42);
+  const big = tier === "aaa";
+  cvTitle(g, w, h * (big ? 0.80 : 0.82), gm.logo || [gm.name], { size: big ? 46 : 36, fill: big ? ["#fff7d8", "#f0b429", "#a8650a"] : [gm.b, mixHex(gm.b, "#000000", 0.35)], glow: big ? "rgba(255,190,60,0.7)" : null });
+  // the strip along the foot: tier, consoles, rating
+  g.fillStyle = big ? "#f0b429" : "rgba(0,0,0,0.55)"; g.fillRect(0, h - 22, w, 22);
+  g.fillStyle = big ? "#1a1208" : "#e8ecef"; g.font = "800 11px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(gm.on === "both" ? "PLAYBOX 5  ·  PEAR CUBE" : gm.on === "playbox" ? "PLAYBOX 5" : "PEAR CUBE", 10, h - 11); g.textAlign = "right"; g.fillText(gm.rating || (big ? "CERO D" : "CERO A"), w - 10, h - 11);
+  if (big) { g.fillStyle = "#c8201f"; g.beginPath(); g.moveTo(0, 22); g.lineTo(96, 22); g.lineTo(86, 44); g.lineTo(0, 44); g.fill(); g.fillStyle = "#fff"; g.font = "900 14px " + UI; g.textAlign = "left"; g.fillText("PREMIUM RELEASE", 8, 33); }
+  // a thin bevel
+  g.strokeStyle = "rgba(255,255,255,0.35)"; g.lineWidth = 2; g.strokeRect(1, 1, w - 2, h - 2);
+  coverCache[id] = cv; return cv;
+}
+
 const GAME_BY_ID = {}; GAMES.forEach(g => { GAME_BY_ID[g.id] = g; });
 
 // The things you plug in. The watch is worn rather than used; the consoles
@@ -24739,17 +24888,9 @@ function wheelIcon(g, e, cx, cy, r, ghost) {
   if (e.kind === "game") {
     const gm = GAME_BY_ID[id] || { a: "#444", b: "#ccc", name: "?" };
     rect(-28, -40, 56, 80, 4, "#14161b");
-    const gr = g.createLinearGradient(0, -37*u, 0, 37*u);
-    gr.addColorStop(0, gm.a); gr.addColorStop(1, mixHex(gm.a, "#000000", 0.45));
-    rect(-25, -37, 50, 74, 2, gr);
-    g.fillStyle = gm.b; g.globalAlpha = 0.9;
-    g.beginPath(); g.arc(0, -6*u, 14*u, 0, 7); g.fill();
-    g.globalAlpha = 1;
-    rect(-25, 18, 50, 19, 0, "rgba(0,0,0,0.45)");
-    g.fillStyle = "#fff"; g.font = "800 " + Math.round(11*u) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText(gm.name.split(" ")[0].slice(0, 9), 0, 27.5*u);
-    g.fillStyle = gm.a; g.font = "900 " + Math.round(20*u) + "px " + UI; g.fillText(gm.name[0], 0, -5*u);
-    g.restore(); return;
+    const cov = GAME_BY_ID[id] ? gameCover(id) : null;
+    if (cov) { g.save(); roundRect(g, -25 * u, -37 * u, 50 * u, 74 * u, 2 * u); g.clip(); g.drawImage(cov, -25 * u, -37 * u, 50 * u, 74 * u); g.restore(); if (gm.tier === "aaa") { g.strokeStyle = "#f0b429"; g.lineWidth = 2 * u; roundRect(g, -25 * u, -37 * u, 50 * u, 74 * u, 2 * u); g.stroke(); } g.restore(); return; }
+    rect(-25, -37, 50, 74, 2, gm.a); g.restore(); return;
   }
   if (e.kind === "gear") {
     if (id === "playbox5") {
