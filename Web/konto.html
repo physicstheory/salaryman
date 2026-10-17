@@ -23176,7 +23176,7 @@ function updateArcade(dt) {
     while (left > 0) { const h = Math.min(left, 1 / 60); ARC[arcade.kind].upd(arcade.s, h * pace, inp); left -= h; }
     // the story moves on as the score does
     const st = gm.story;
-    if (st && !arcade.over) {
+    if (st && st.chapters.length && !arcade.over) {
       const ch = st.chapters[arcade.chap];
       if (ch && arcade.score >= ch.at) { arcade.chap++; arcade.level = arcade.chap; arcadeCard({ kind: "chapter", title: ch.title, text: ch.text }); }
       else if (!ch && !arcade.endShown && arcade.score >= st.chapters[st.chapters.length - 1].at * 1.9) { arcade.endShown = true; arcadeCard({ kind: "ending", title: "The end", text: st.ending + "  (Keep playing for the high score.)" }); }
@@ -23718,6 +23718,161 @@ ARC.brawler = {
   }
 };
 
+// ---- fps: a first-person engine, drawn by casting a ray for every pair of columns. It
+// runs two campaigns, with their own maps, enemies, weapons and stories.
+const FPS_M1 = ["################", "#P...#....#...a#", "#....#..g.#....#", "#..%.#....%..s.#", "#..%.D....#....#", "#....#....#.h..#", "#.g..#%%%%%#...#", "#....#.....D...#", "####D#..g..#####", "#....#.....#...#", "#.h..#.%.%.#.g.#", "#....D.....#...#", "#..%.#.....#.a.#", "#..%.#..s..D...#", "#....#.....#..E#", "################"];
+const FPS_M2 = FPS_M1.map(r => r).map((r, j) => j === 13 ? r.slice(0, 11) + "R" + r.slice(12) : j === 3 ? "#..%.#....%.ks.#" : r);
+const FPS_M3 = ["################", "#P.............#", "#.%%..%%..%%...#", "#.%..........%.#", "#......aa......#", "#.%....s.....%.#", "#..%%......%%..#", "#.....g..g.....#", "#.%..........%.#", "#..%%......%%..#", "#......B.......#", "#.%..........%.#", "#.%%..%%..%%...#", "#..h........h..#", "#......XX......#", "################"];
+const flipMap = m => m.map(r => r.split("").reverse().join("")).map(r => r.replace(/[DR]/g, c => c));
+const FPS_CAMP = {
+  kaijubreach: { skin: "kaiju", name: "Kaiju Breach", wallA: [96, 90, 86], wallB: [130, 70, 52], ceil: "#1a1214", floor: "#2a2220", fog: [40, 22, 20], sky: null, weapons: ["rifle", "shotgun"], silent: false,
+    levels: [{ map: FPS_M1, title: "Level 1: The flooded wards", text: "Day one of the Breach. The sea has put something ashore at Kanda, and it has brought friends." },
+             { map: FPS_M2, title: "Level 2: The subway", text: "Under the station the swarmers are nesting. The service door needs a keycard from the guard post upstream." },
+             { map: FPS_M3, title: "Level 3: The tower", text: "The mother has climbed Tōkonto Tower and is singing. It is a very low note. The windows are not coping." }],
+    ending: "The mother falls through nine floors of glass. The Ministry sends a statement that begins: 'Remain calm.'" },
+  heron: { skin: "guard", name: "Operation Heron's Nest", wallA: [60, 84, 92], wallB: [40, 56, 70], ceil: "#0c1418", floor: "#162026", fog: [10, 20, 26], weapons: ["pistol", "smg"], silent: true,
+    levels: [{ map: flipMap(FPS_M1), title: "Level 1: The perimeter", text: "Night. The Nest is a private compound on the bay. Guards, lamps, and a silenced pistol. Do not be the loudest thing on the property." },
+             { map: flipMap(FPS_M2), title: "Level 2: The server hall", text: "The data you were sent for is behind a red door. The red door is behind a keycard. The keycard is behind a man who is eating." },
+             { map: flipMap(FPS_M3), title: "Level 3: The Heron", text: "The captain of the guard is waiting in the atrium. She has been told you are coming and has taken that personally." }],
+    ending: "You walk out with the drive. The Heron is silent on the bay. Nobody in Tōkonto will ever know it was there." }
+};
+const FPS_W = { rifle: { name: "Rifle", dmg: 1.2, cd: 0.13, pel: 1, spread: 0.01, noise: 1 }, shotgun: { name: "Shotgun", dmg: 0.9, cd: 0.7, pel: 6, spread: 0.12, noise: 1 }, pistol: { name: "Silenced pistol", dmg: 2.2, cd: 0.32, pel: 1, spread: 0.004, noise: 0 }, smg: { name: "SMG", dmg: 1.0, cd: 0.09, pel: 1, spread: 0.04, noise: 1 } };
+const fpsSprites = {};
+function fpsSprite(key) {
+  if (fpsSprites[key]) return fpsSprites[key];
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d");
+  const eye = (x, y, r, col) => { g.fillStyle = col; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill(); g.fillStyle = "#000"; g.beginPath(); g.arc(x, y, r * 0.4, 0, 7); g.fill(); };
+  if (key === "swarmer") { g.fillStyle = "#2a6a3a"; g.beginPath(); g.ellipse(32, 38, 22, 20, 0, 0, 7); g.fill(); g.fillStyle = "#1a4a28"; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(14 + k * 7, 26); g.lineTo(18 + k * 7, 8 + (k % 2) * 4); g.lineTo(22 + k * 7, 26); g.fill(); } eye(24, 34, 5, "#ffe14a"); eye(40, 34, 5, "#ffe14a"); g.fillStyle = "#e8e0c0"; for (let k = 0; k < 6; k++) g.fillRect(20 + k * 4.5, 46, 2.5, 6); g.fillStyle = "#1a4a28"; g.fillRect(14, 54, 8, 8); g.fillRect(42, 54, 8, 8); }
+  else if (key === "spitter") { g.fillStyle = "#7a3a2a"; g.beginPath(); g.ellipse(32, 40, 18, 22, 0, 0, 7); g.fill(); g.fillStyle = "#a8502a"; g.beginPath(); g.ellipse(32, 20, 12, 14, 0, 0, 7); g.fill(); eye(28, 18, 4, "#ff6a3a"); eye(37, 18, 4, "#ff6a3a"); g.fillStyle = "#8aff5a"; g.beginPath(); g.arc(32, 31, 6, 0, 7); g.fill(); g.fillStyle = "#4a1a12"; g.fillRect(16, 52, 8, 10); g.fillRect(40, 52, 8, 10); }
+  else if (key === "mother") { g.fillStyle = "#3a1a3a"; g.beginPath(); g.ellipse(32, 38, 30, 26, 0, 0, 7); g.fill(); g.fillStyle = "#5a2a5a"; for (let k = 0; k < 9; k++) { g.beginPath(); g.moveTo(6 + k * 6, 22); g.lineTo(10 + k * 6, 2 + (k % 3) * 3); g.lineTo(14 + k * 6, 22); g.fill(); } eye(20, 32, 7, "#ff4a5a"); eye(44, 32, 7, "#ff4a5a"); eye(32, 22, 5, "#ff4a5a"); g.fillStyle = "#e8e0c0"; for (let k = 0; k < 9; k++) g.fillRect(14 + k * 4.5, 46, 3, 9); }
+  else if (key === "guard" || key === "sniper" || key === "captain") { const cap = key === "captain", body = cap ? "#7a2a3a" : key === "sniper" ? "#2a3a2a" : "#2a3a5a"; g.fillStyle = "#101418"; g.fillRect(24, 52, 7, 12); g.fillRect(33, 52, 7, 12); g.fillStyle = body; g.fillRect(20, 24, 24, 30); g.fillStyle = "#d3a784"; g.beginPath(); g.arc(32, 16, 8, 0, 7); g.fill(); g.fillStyle = cap ? "#e8e8e8" : "#1a1f2a"; g.fillRect(23, 6, 18, 7); g.fillStyle = "#101418"; g.fillRect(40, 34, 18, 5); g.fillRect(52, 31, 4, 8); g.fillStyle = "#ff4a4a"; g.fillRect(28, 15, 3, 2); g.fillRect(34, 15, 3, 2); }
+  else if (key === "health") { g.fillStyle = "#f2f4f6"; roundRect(g, 14, 20, 36, 30, 5); g.fill(); g.fillStyle = "#d8483c"; g.fillRect(29, 24, 6, 22); g.fillRect(21, 32, 22, 6); }
+  else if (key === "ammo") { g.fillStyle = "#3a3d44"; g.fillRect(14, 28, 36, 22); g.fillStyle = "#e8b23c"; for (let k = 0; k < 5; k++) g.fillRect(18 + k * 7, 18, 4, 12); g.fillStyle = "#e8b23c"; g.fillRect(14, 28, 36, 4); }
+  else if (key === "key") { g.strokeStyle = "#ffd24a"; g.lineWidth = 5; g.beginPath(); g.arc(24, 28, 9, 0, 7); g.stroke(); g.fillStyle = "#ffd24a"; g.fillRect(31, 26, 22, 5); g.fillRect(44, 31, 4, 8); g.fillRect(50, 31, 4, 6); }
+  else if (key === "weapon") { g.fillStyle = "#c9ccd2"; g.fillRect(10, 30, 44, 8); g.fillRect(40, 38, 10, 10); g.fillStyle = "#5a3a22"; g.fillRect(8, 28, 14, 12); g.fillStyle = "#ffd24a"; g.fillRect(12, 16, 40, 3); }
+  else if (key === "spit") { g.fillStyle = "#8aff5a"; g.beginPath(); g.arc(32, 32, 14, 0, 7); g.fill(); g.fillStyle = "#e8ffd0"; g.beginPath(); g.arc(28, 28, 5, 0, 7); g.fill(); }
+  return (fpsSprites[key] = c);
+}
+ARC.fps = {
+  init(s, gm) {
+    s.camp = FPS_CAMP[gm.fps]; s.lv = 0; s.hp = 100; s.ammo = 60; s.key = false; s.wpn = 0; s.has = [true, false]; s.score0 = 0; s.msg = ""; s.msgT = 0; s.flash = 0; s.hurt = 0; s.bob = 0; s.muz = 0; s.cd = 0; s.over2 = false;
+    this.load(s, 0);
+  },
+  load(s, n) {
+    const L = s.camp.levels[n]; s.lv = n; s.map = L.map.map(r => r.split("")); s.W = 16; s.H = 16; s.en = []; s.it = []; s.pr = []; s.door = {}; s.key = false; s.exitOpen = true; s.bossAlive = false; s.t = 0;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+      const c = s.map[y][x]; const px = x + 0.5, py = y + 0.5;
+      if (c === "P") { s.x = px; s.y = py; s.a = 0.3; s.map[y][x] = "."; }
+      else if (c === "g") { s.en.push({ x: px, y: py, hp: 3, k: s.camp.skin === "kaiju" ? "swarmer" : "guard", st: 0, cd: 0.6, r: 0.3 }); s.map[y][x] = "."; }
+      else if (c === "s") { s.en.push({ x: px, y: py, hp: 4, k: s.camp.skin === "kaiju" ? "spitter" : "sniper", st: 0, cd: 1.2, r: 0.3, ranged: true }); s.map[y][x] = "."; }
+      else if (c === "B") { s.en.push({ x: px, y: py, hp: s.camp.skin === "kaiju" ? 70 : 42, k: s.camp.skin === "kaiju" ? "mother" : "captain", st: 0, cd: 1, r: 0.6, boss: true, ranged: true }); s.map[y][x] = "."; s.bossAlive = true; }
+      else if (c === "h") { s.it.push({ x: px, y: py, k: "health" }); s.map[y][x] = "."; }
+      else if (c === "a") { s.it.push({ x: px, y: py, k: "ammo" }); s.map[y][x] = "."; }
+      else if (c === "k") { s.it.push({ x: px, y: py, k: "key" }); s.map[y][x] = "."; }
+      else if (c === "w") { s.it.push({ x: px, y: py, k: "weapon" }); s.map[y][x] = "."; }
+      else if (c === "D" || c === "R") s.door[x + "," + y] = 0;
+      else if (c === "X") s.exitOpen = false;
+    }
+    if (n === 1) s.it.push({ x: 4.5, y: 12.5, k: "weapon" });
+    s.msg = L.title; s.msgT = 3;
+  },
+  solid(s, x, y) { const tx = Math.floor(x), ty = Math.floor(y); if (tx < 0 || ty < 0 || tx > 15 || ty > 15) return true; const c = s.map[ty][tx]; if (c === "#" || c === "%" || c === "X") return !(c === "X" && s.exitOpen); if (c === "D" || c === "R") return (s.door[tx + "," + ty] || 0) < 0.85; return false; },
+  ray(s, ox, oy, dx, dy) {
+    let mx = Math.floor(ox), my = Math.floor(oy); const ddx = Math.abs(1 / (dx || 1e-9)), ddy = Math.abs(1 / (dy || 1e-9));
+    let sx, sy, sdx, sdy; if (dx < 0) { sx = -1; sdx = (ox - mx) * ddx; } else { sx = 1; sdx = (mx + 1 - ox) * ddx; } if (dy < 0) { sy = -1; sdy = (oy - my) * ddy; } else { sy = 1; sdy = (my + 1 - oy) * ddy; }
+    let side = 0, hit = 0, c = ".";
+    for (let n = 0; n < 40 && !hit; n++) { if (sdx < sdy) { sdx += ddx; mx += sx; side = 0; } else { sdy += ddy; my += sy; side = 1; } if (mx < 0 || my < 0 || mx > 15 || my > 15) { hit = 1; c = "#"; break; } c = s.map[my][mx]; if (c === "#" || c === "%") hit = 1; else if (c === "X" && !s.exitOpen) hit = 1; else if ((c === "D" || c === "R") && (s.door[mx + "," + my] || 0) < 0.85) hit = 1; }
+    const dist = side === 0 ? sdx - ddx : sdy - ddy;
+    const wx = side === 0 ? oy + dist * dy : ox + dist * dx;
+    return { dist: Math.max(0.05, dist), side: side, c: c, wx: wx - Math.floor(wx), mx: mx, my: my };
+  },
+  hurt(s, d) { s.hp -= d; s.hurt = 0.35; if (s.hp <= 0) { s.hp = 0; arcadeOver("YOU DIED"); } },
+  fire(s) {
+    const w = FPS_W[s.camp.weapons[s.wpn]]; if (s.cd > 0 || s.ammo <= 0) return; s.cd = w.cd; s.muz = 0.08; s.ammo--; s.bob += 1.5;
+    let loud = w.noise;
+    for (let p = 0; p < w.pel; p++) {
+      const a = s.a + (Math.random() - 0.5) * 2 * w.spread, dx = Math.cos(a), dy = Math.sin(a), wallD = this.ray(s, s.x, s.y, dx, dy).dist;
+      let best = null, bd = 1e9;
+      s.en.forEach(e => { if (e.hp <= 0) return; const rx = e.x - s.x, ry = e.y - s.y, f = rx * dx + ry * dy, lat = Math.abs(-rx * dy + ry * dx); if (f > 0.2 && f < wallD && lat < e.r + 0.05 && f < bd) { bd = f; best = e; } });
+      if (best) { best.hp -= w.dmg; best.st = 2; if (best.hp <= 0) { arcade.score += best.boss ? 1000 : best.ranged ? 150 : 100; if (best.boss) { s.bossAlive = false; s.exitOpen = true; s.msg = "The way out is open."; s.msgT = 3; } } }
+    }
+    // a loud gun wakes anyone who could hear it
+    if (loud || !s.camp.silent) s.en.forEach(e => { if (e.hp > 0 && Math.hypot(e.x - s.x, e.y - s.y) < 12) e.st = Math.max(e.st, 1); });
+  },
+  upd(s, dt, i) {
+    s.t += dt; s.cd -= dt; s.muz -= dt; s.hurt = Math.max(0, s.hurt - dt); s.msgT -= dt; s.bob *= Math.pow(0.02, dt);
+    s.a += i.x * 2.3 * dt;
+    const mv = (i.u ? 1 : 0) - (i.d ? 1 : 0), sp = 2.9;
+    if (mv) { const nx = s.x + Math.cos(s.a) * mv * sp * dt, ny = s.y + Math.sin(s.a) * mv * sp * dt, r = 0.22; if (!this.solid(s, nx + (mv > 0 ? r : -r) * Math.sign(Math.cos(s.a)), s.y)) s.x = nx; if (!this.solid(s, s.x, ny + (mv > 0 ? r : -r) * Math.sign(Math.sin(s.a)))) s.y = ny; s.bob += dt * 9; }
+    // doors open as you come to them
+    for (const k in s.door) { const [dx, dy] = k.split(",").map(Number), d = Math.hypot(dx + 0.5 - s.x, dy + 0.5 - s.y), lock = s.map[dy][dx] === "R" && !s.key;
+      if (d < 1.4 && !lock) s.door[k] = Math.min(1, s.door[k] + dt * 2.4); else s.door[k] = Math.max(0, s.door[k] - dt * 1.4); if (d < 1.4 && lock && s.msgT <= 0) { s.msg = "Locked. It needs the keycard."; s.msgT = 1.5; } }
+    if (i.a) this.fire(s);
+    if (i.pd && s.has[1]) { s.wpn = s.wpn ? 0 : 1; s.msg = FPS_W[s.camp.weapons[s.wpn]].name; s.msgT = 1.2; }
+    // pickups
+    s.it = s.it.filter(it => { if (Math.hypot(it.x - s.x, it.y - s.y) > 0.6) return true;
+      if (it.k === "health") { if (s.hp >= 100) return true; s.hp = Math.min(100, s.hp + 25); s.msg = "Medkit"; }
+      else if (it.k === "ammo") { s.ammo += 24; s.msg = "Ammo"; }
+      else if (it.k === "key") { s.key = true; s.msg = "Keycard"; arcade.score += 100; }
+      else if (it.k === "weapon") { s.has[1] = true; s.wpn = 1; s.ammo += 30; s.msg = FPS_W[s.camp.weapons[1]].name; arcade.score += 100; }
+      s.msgT = 1.6; return false; });
+    // the enemies
+    s.en.forEach(e => {
+      if (e.hp <= 0) return; const dx = s.x - e.x, dy = s.y - e.y, d = Math.hypot(dx, dy);
+      if (e.st === 0) { if (d < 9) { const r = this.ray(s, s.x, s.y, -dx / d, -dy / d); if (r.dist > d - 0.3 && (!s.camp.silent || d < 7)) e.st = 1; } return; }
+      e.cd -= dt; const sp = e.boss ? 1.1 : e.ranged ? 1.3 : 2.0;
+      const want = e.ranged ? (d > 5.5 ? 1 : d < 3.5 ? -0.6 : 0) : (d > 0.9 ? 1 : 0), ux = dx / d, uy = dy / d;
+      const nx = e.x + ux * want * sp * dt, ny = e.y + uy * want * sp * dt; if (!this.solid(s, nx, e.y)) e.x = nx; if (!this.solid(s, e.x, ny)) e.y = ny;
+      if (e.ranged) { if (e.cd <= 0 && d < 9) { const r = this.ray(s, e.x, e.y, ux, uy); if (r.dist > d - 0.3) { e.cd = e.boss ? 0.9 : 1.4; if (s.camp.skin === "kaiju") s.pr.push({ x: e.x, y: e.y, vx: ux * 4.4, vy: uy * 4.4, dmg: e.boss ? 14 : 8 }); else { s.flash = 0.06; if (Math.random() < 0.62) this.hurt(s, e.boss ? 9 : 6); } } else e.cd = 0.3; } }
+      else if (e.cd <= 0 && d < 1.15) { e.cd = 0.7; this.hurt(s, 6); }
+    });
+    s.pr.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; if (Math.hypot(p.x - s.x, p.y - s.y) < 0.4) { this.hurt(s, p.dmg); p.dead = true; } else if (this.solid(s, p.x, p.y)) p.dead = true; }); s.pr = s.pr.filter(p => !p.dead);
+    // the way out
+    const c = s.map[Math.floor(s.y)][Math.floor(s.x)];
+    if (c === "E" || (c === "X" && s.exitOpen)) {
+      arcade.score += 500 + Math.floor(s.hp * 3);
+      const next = s.lv + 1;
+      if (next < s.camp.levels.length) { const L = s.camp.levels[next]; arcade.card = null; arcadeCard({ kind: "chapter", title: L.title, text: L.text, onDone: () => this.load(s, next) }); s.x = -50; }
+      else { s.x = -50; arcadeCard({ kind: "ending", title: "Mission complete", text: s.camp.ending, onDone: () => arcadeOver("MISSION COMPLETE") }); }
+    }
+    if (s.x < 0) s.x = 1.5;
+  },
+  draw(s, g, gm) {
+    const W = 320, H = 240, COLS = 160, cw = 2, camp = s.camp, hz = H * 0.5 + Math.sin(s.bob) * 2;
+    g.fillStyle = camp.ceil; g.fillRect(0, 0, W, hz); g.fillStyle = camp.floor; g.fillRect(0, hz, W, H - hz);
+    const fg = g.createLinearGradient(0, hz - 30, 0, hz + 40); fg.addColorStop(0, "rgba(" + camp.fog.join(",") + ",0.0)"); fg.addColorStop(0.5, "rgba(" + camp.fog.join(",") + ",0.6)"); fg.addColorStop(1, "rgba(" + camp.fog.join(",") + ",0)"); g.fillStyle = fg; g.fillRect(0, hz - 30, W, 70);
+    const dx = Math.cos(s.a), dy = Math.sin(s.a), px = -dy * 0.66, py = dx * 0.66, z = new Array(COLS);
+    for (let c = 0; c < COLS; c++) {
+      const cam = 2 * c / COLS - 1, rx = dx + px * cam, ry = dy + py * cam, len = Math.hypot(rx, ry), r = this.ray(s, s.x, s.y, rx / len, ry / len);
+      const perp = r.dist * (dx * rx / len + dy * ry / len); z[c] = perp; const h = Math.min(H * 2, H / Math.max(0.1, perp)), y0 = hz - h / 2;
+      let col = r.c === "%" ? camp.wallB : camp.wallA; let door = 0;
+      if (r.c === "D" || r.c === "R") { door = 1; col = r.c === "R" ? [180, 40, 36] : [140, 140, 150]; }
+      let sh = (r.side ? 0.68 : 1) * clamp(1.15 - perp * 0.075, 0.18, 1);
+      const stripe = door ? Math.abs((r.wx * 8) % 1 - 0.5) > 0.42 : (r.wx * 4 % 1 < 0.06 ? 0.7 : 1); sh *= stripe;
+      g.fillStyle = "rgb(" + (col[0] * sh | 0) + "," + (col[1] * sh | 0) + "," + (col[2] * sh | 0) + ")"; g.fillRect(c * cw, y0, cw, h);
+      if (!door) { g.fillStyle = "rgba(0,0,0,0.22)"; for (let m = 1; m < 4; m++) g.fillRect(c * cw, y0 + h * m / 4, cw, Math.max(1, h * 0.012)); }
+    }
+    // things in the room, farthest first
+    const list = []; s.it.forEach(it => list.push({ x: it.x, y: it.y, k: it.k, sc: 0.45, lift: 0.3 })); s.en.forEach(e => { if (e.hp > 0) list.push({ x: e.x, y: e.y, k: e.k, sc: e.boss ? 1.5 : 0.95, lift: 0, e: e }); else list.push({ x: e.x, y: e.y, k: e.k, sc: e.boss ? 0.9 : 0.4, lift: 0.5, dead: true }); }); s.pr.forEach(p => list.push({ x: p.x, y: p.y, k: "spit", sc: 0.3, lift: 0.1 }));
+    list.forEach(o => o.d = (o.x - s.x) ** 2 + (o.y - s.y) ** 2); list.sort((a, b) => b.d - a.d);
+    const inv = 1 / (px * dy - dx * py);
+    list.forEach(o => { const rx = o.x - s.x, ry = o.y - s.y, tx = inv * (dy * rx - dx * ry), ty = inv * (-py * rx + px * ry); if (ty < 0.15) return;
+      const sxm = (W / 2) * (1 + tx / ty), sz = Math.abs(H / ty) * o.sc, sy = hz + (H / ty) * (0.5 - o.sc * 0.5 - o.lift * 0.0) - sz * 0.5 + (o.lift ? 0 : 0) + (H / ty) * 0.0 + (H / ty) * 0.0 - (o.lift ? -(H / ty) * 0.2 : 0);
+      const spr = fpsSprite(o.k), sh = clamp(1.15 - ty * 0.08, 0.25, 1), hit = o.e && o.e.st === 2 && ((s.t * 20) | 0) % 2;
+      for (let cx = Math.max(0, Math.floor(sxm - sz / 2)); cx < Math.min(W, sxm + sz / 2); cx += cw) { if (z[Math.floor(cx / cw)] < ty) continue; const u = ((cx - (sxm - sz / 2)) / sz) * 64; g.globalAlpha = o.dead ? 0.6 : 1; g.drawImage(spr, u, 0, 1.5, 64, cx, sy, cw, sz); }
+      g.globalAlpha = 1; if (hit) { g.fillStyle = "rgba(255,255,255,0.0)"; } });
+    // the gun
+    const wk = camp.weapons[s.wpn], bx = 160 + Math.sin(s.bob) * 6, by = 240 - 52 + Math.abs(Math.cos(s.bob)) * 4 + (s.muz > 0 ? 6 : 0);
+    g.fillStyle = "#1a1d22"; if (wk === "shotgun") { g.fillRect(bx - 5, by - 6, 10, 62); g.fillStyle = "#5a3a22"; g.fillRect(bx - 12, by + 28, 24, 30); } else if (wk === "pistol") { g.fillRect(bx - 5, by + 6, 10, 44); g.fillStyle = "#3a3d44"; g.fillRect(bx - 7, by + 6, 14, 14); g.fillStyle = "#101216"; g.fillRect(bx - 3, by - 12, 6, 22); } else { g.fillRect(bx - 7, by, 14, 52); g.fillStyle = "#3a3d44"; g.fillRect(bx - 9, by + 16, 18, 22); }
+    if (s.muz > 0) { cvGlow(g, bx, by - 6, 28, "#ffe08a", 0.95); }
+    g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 1; g.beginPath(); g.moveTo(155, 120); g.lineTo(165, 120); g.moveTo(160, 115); g.lineTo(160, 125); g.stroke();
+    if (s.hurt > 0) { g.fillStyle = "rgba(200,20,20," + s.hurt * 1.2 + ")"; g.fillRect(0, 0, W, H); }
+    g.fillStyle = "rgba(0,0,0,0.55)"; g.fillRect(0, 222, W, 18);
+    Tx(g, "♥ " + Math.max(0, Math.ceil(s.hp)), 8, 232, 11, s.hp < 30 ? "#ff6a5e" : "#ffffff", "left"); Tx(g, FPS_W[wk].name.toUpperCase() + "  " + s.ammo, 160, 232, 10, gm.b, "center"); Tx(g, (s.key ? "❖ KEY   " : "") + "LEVEL " + (s.lv + 1) + "/3", 312, 232, 10, "#fff", "right");
+    if (s.msgT > 0) Tx(g, s.msg, 160, 36, 11, "#fff", "center");
+  }
+};
+
 // ---- the television, the console, and the disc library -------------------------
 // "Watch television" in the flat now puts you in front of it: up and down or
 // left and right change the channel. Once a console has been delivered the last
@@ -24238,6 +24393,13 @@ const GAMES = [
     blurb: "A masterless swordsman, a burning town, and one road out.", story: { intro: ["Ginjirō had no lord, no rank and a single clean sword. When the Kuroshio clan burned the town of Mizukawa he had no reason to stay, and stayed.", "Cut through the road. Roll through what you cannot cut. At the end of the street is the man who ordered it, and he is expecting you."],
       chapters: [{ at: 500, title: "Chapter 2: The bridge", text: "The ashigaru have blocked the bridge. They are afraid, which makes them worse." }, { at: 1400, title: "Chapter 3: The temple stairs", text: "The monks have shut the gate. One of them is crying, one is praying, one is holding a spear." }, { at: 2800, title: "Chapter 4: The warlord's gate", text: "The warlord's captain wants a duel. Ginjirō has not been given a choice about being polite." }],
       ending: "The road is quiet. Ginjirō sheathes the sword, and for the first time the town has somewhere to put its grief." } },
+
+  { id: "kaijubreach", name: "Kaiju Breach: Zero Hour", genre: "First-person shooter", kind: "fps", fps: "kaijubreach", a: "#2a1a1a", b: "#ff8a4a", price: 9800, on: "playbox", tier: "aaa", art: "kaiju", logo: ["KAIJU BREACH", "ZERO HOUR"], rating: "CERO D",
+    blurb: "Something came out of Tōkonto Bay. You have a rifle and the stairs.",
+    story: { intro: ["Tōkonto Bay, 05:12. The sea gave up something it had been keeping, and the something brought a very large family.", "You are Sergeant Hana Iwasaki, last of Section Four. Move with the arrows, fire with A, and swap weapons with Down. Find the keycards. Find the exit. Do not stop to look at the sky."], chapters: [], ending: "" } },
+  { id: "heron", name: "Operation Heron's Nest", genre: "First-person shooter", kind: "fps", fps: "heron", a: "#10242a", b: "#6ad8e8", price: 10800, on: "pearcube", tier: "aaa", art: "heron", logo: ["OPERATION", "HERON'S NEST"], rating: "CERO D",
+    blurb: "A silenced pistol, a locked compound, and one night.",
+    story: { intro: ["The Heron is a company that does not exist, in a building that does not appear on the map, holding a drive that nobody is supposed to have.", "You are Agent Kaito Mori. The pistol is silent and the guards are not deaf. Arrows to move, A to fire, Down to swap. Keycards open red doors. Quiet is a weapon."], chapters: [], ending: "" } },
   { id: "karaoke", name: "Karaoke Night", genre: "Rhythm", kind: "rhythm", a: "#b02a8f", b: "#ffe0f6", price: 4980, on: "both", tier: "premium", art: "karaoke", logo: ["KARAOKE", "NIGHT"],
     blurb: "The boss has asked for a duet.", story: { intro: ["It is the office party. Section Chief Tanaka has put his name next to yours on the song list, and the song is the one about the bullet train.", "Hit the notes as they arrive. The room is watching, and it is only slightly drunk."],
       chapters: [{ at: 600, title: "Verse two", text: "Tanaka is a better singer than anyone had feared." }, { at: 1800, title: "The key change", text: "Nobody warned you about the key change." }, { at: 3500, title: "The last chorus", text: "The whole room stands. The waiter has also stopped." }],
@@ -24308,6 +24470,15 @@ const COVER_ART = {
     g.fillStyle = "#08030a"; g.beginPath(); g.moveTo(w * 0.5 - 22, h * 0.82); g.lineTo(w * 0.5 - 30, h * 0.5); g.quadraticCurveTo(w * 0.5, h * 0.42, w * 0.5 + 30, h * 0.5); g.lineTo(w * 0.5 + 22, h * 0.82); g.fill(); g.beginPath(); g.arc(w * 0.5, h * 0.44, 15, 0, 7); g.fill(); g.beginPath(); g.moveTo(w * 0.5 - 28, h * 0.4); g.lineTo(w * 0.5, h * 0.3); g.lineTo(w * 0.5 + 28, h * 0.4); g.fill();
     g.strokeStyle = "#e8ecef"; g.lineWidth = 4; g.beginPath(); g.moveTo(w * 0.5 + 20, h * 0.58); g.lineTo(w * 0.5 + 100, h * 0.32); g.stroke(); g.strokeStyle = "#ff9a6a"; g.lineWidth = 1.5; g.beginPath(); g.moveTo(w * 0.5 + 22, h * 0.585); g.lineTo(w * 0.5 + 100, h * 0.33); g.stroke();
     for (let i = 0; i < 40; i++) { g.fillStyle = "rgba(255,170,190," + (0.3 + cvRnd(i) * 0.5) + ")"; g.beginPath(); g.ellipse(cvRnd(i + 1) * w, cvRnd(i + 2) * h * 0.8, 3, 1.6, cvRnd(i) * 3, 0, 7); g.fill(); } },
+  kaiju(g, w, h) { cvSky(g, w, h, ["#14080a", "#5a1a14", "#ff8a4a"]); cvGlow(g, w * 0.5, h * 0.5, 240, "#ff7a30", 0.8); cvSkyline(g, w, h * 0.78, 41, "#1a0c0c", "#ff9a3a", 130); cvSkyline(g, w, h * 0.86, 77, "#0c0505", null, 90);
+    g.fillStyle = "#08040a"; g.beginPath(); g.moveTo(w * 0.28, h * 0.8); g.lineTo(w * 0.34, h * 0.35); g.lineTo(w * 0.42, h * 0.2); g.lineTo(w * 0.5, h * 0.12); g.lineTo(w * 0.62, h * 0.2); g.lineTo(w * 0.72, h * 0.4); g.lineTo(w * 0.76, h * 0.8); g.fill(); for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(w * (0.36 + i * 0.045), h * (0.3 - i * 0.012 + (i > 4 ? (i - 4) * 0.045 : 0))); g.lineTo(w * (0.38 + i * 0.045), h * (0.16 - i * 0.012 + (i > 4 ? (i - 4) * 0.045 : 0))); g.lineTo(w * (0.405 + i * 0.045), h * (0.3 - i * 0.01 + (i > 4 ? (i - 4) * 0.045 : 0))); g.fill(); }
+    g.fillStyle = "#ff4a3a"; g.beginPath(); g.arc(w * 0.46, h * 0.28, 7, 0, 7); g.arc(w * 0.58, h * 0.28, 7, 0, 7); g.fill(); cvGlow(g, w * 0.46, h * 0.28, 30, "#ff4a3a", 0.8); cvGlow(g, w * 0.58, h * 0.28, 30, "#ff4a3a", 0.8);
+    cvPerson(g, w * 0.2, h * 0.86, 120, "#050304", "gun"); g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 1.5; g.beginPath(); g.arc(w * 0.5, h * 0.42, 22, 0, 7); g.moveTo(w * 0.5 - 30, h * 0.42); g.lineTo(w * 0.5 + 30, h * 0.42); g.moveTo(w * 0.5, h * 0.42 - 30); g.lineTo(w * 0.5, h * 0.42 + 30); g.stroke(); },
+  heron(g, w, h) { cvSky(g, w, h, ["#04080c", "#10242a", "#2a5a68"]); cvStars(g, w, h, 60, 13); cvGlow(g, w * 0.3, h * 0.3, 140, "#9aeaff", 0.4);
+    [0.25, 0.68].forEach((x, i) => { g.save(); g.globalAlpha = 0.28; g.fillStyle = "#cfeeff"; g.beginPath(); g.moveTo(w * x - 4, h * 0.1); g.lineTo(w * x + 4, h * 0.1); g.lineTo(w * (x + (i ? -0.35 : 0.3)) + 60, h * 0.9); g.lineTo(w * (x + (i ? -0.35 : 0.3)) - 60, h * 0.9); g.fill(); g.restore(); });
+    g.fillStyle = "#0a1418"; g.fillRect(0, h * 0.62, w, h * 0.4); g.fillStyle = "#101c22"; g.fillRect(w * 0.56, h * 0.36, w * 0.36, h * 0.3); g.fillRect(w * 0.6, h * 0.28, w * 0.28, h * 0.1); g.fillStyle = "rgba(255,230,160,0.7)"; for (let r = 0; r < 3; r++) for (let c = 0; c < 5; c++) if ((r + c) % 3) g.fillRect(w * 0.59 + c * 28, h * 0.4 + r * 24, 12, 12);
+    cvPerson(g, w * 0.34, h * 0.9, 190, "#04080a", "gun"); g.fillStyle = "#0a1418"; g.fillRect(w * 0.34 + 62, h * 0.9 - 130, 26, 5);
+    g.strokeStyle = "#cfeeff"; g.lineWidth = 3; g.beginPath(); g.moveTo(w * 0.8, h * 0.18); g.quadraticCurveTo(w * 0.86, h * 0.1, w * 0.92, h * 0.16); g.moveTo(w * 0.8, h * 0.18); g.quadraticCurveTo(w * 0.78, h * 0.3, w * 0.84, h * 0.32); g.stroke(); },
   karaoke(g, w, h) { cvSky(g, w, h, ["#2a0a30", "#b02a8f", "#ff9ae0"]); [[0.2, "#7afcff"], [0.5, "#ffe38a"], [0.8, "#ff7ad9"]].forEach(l => { g.save(); g.globalAlpha = 0.28; g.fillStyle = l[1]; g.beginPath(); g.moveTo(w * l[0] - 6, 0); g.lineTo(w * l[0] + 6, 0); g.lineTo(w * 0.5 + (l[0] - 0.5) * 220 + 70, h * 0.9); g.lineTo(w * 0.5 + (l[0] - 0.5) * 220 - 70, h * 0.9); g.fill(); g.restore(); });
     g.fillStyle = "#1a0820"; g.fillRect(0, h * 0.86, w, h * 0.2); g.fillStyle = "#2a1030"; g.fillRect(0, h * 0.82, w, 10); cvPerson(g, w * 0.5, h * 0.84, 170, "#0e0612", "gun"); g.fillStyle = "#c9ccd2"; g.beginPath(); g.arc(w * 0.5 + 40, h * 0.5, 9, 0, 7); g.fill(); g.fillStyle = "#1a1a1a"; g.fillRect(w * 0.5 + 37, h * 0.51, 6, 28);
     g.fillStyle = "#fff"; g.font = "900 36px " + UI; g.textAlign = "center"; for (let i = 0; i < 5; i++) { g.fillStyle = "rgba(255,255,255," + (0.5 - i * 0.08) + ")"; g.fillText("♪", w * (0.15 + i * 0.18), h * (0.34 + Math.sin(i * 2) * 0.1)); } }
