@@ -5174,6 +5174,45 @@ function buildSolidGrid() {
   solidGrid = { cell: cellSize, map: map };
 }
 
+// Trees are solid. Every trunk goes into a hash of cells, so asking whether a
+// step runs into one is a look at a handful of numbers. A trunk is only in the
+// way if the step takes you closer to it, so standing inside one (a tree grown
+// over where you were put) never traps you.
+const trunks = { cell: 12, map: new Map() };
+const TRUNK_R = { sugi: 0.036, matsu: 0.066, keyaki: 0.082, sakura: 0.060 };
+function trunkAdd(owner, x, z, r) {
+  const key = Math.floor(x / trunks.cell) + "," + Math.floor(z / trunks.cell);
+  let l = trunks.map.get(key); if (!l) { l = []; trunks.map.set(key, l); }
+  l.push([x, z, Math.max(0.25, r), owner]);
+  if (owner !== "city") (owner.userData.trunkKeys || (owner.userData.trunkKeys = new Set())).add(key);
+}
+function trunkDrop(owner) {
+  const keys = owner && owner.userData && owner.userData.trunkKeys; if (!keys) return;
+  keys.forEach(k => {
+    const l = trunks.map.get(k); if (!l) return;
+    const f = l.filter(t => t[3] !== owner);
+    if (f.length) trunks.map.set(k, f); else trunks.map.delete(k);
+  });
+  owner.userData.trunkKeys = null;
+}
+function trunkPurge(keepCity) {
+  trunks.map.forEach((l, k) => {
+    const f = l.filter(t => (t[3] === "city") === keepCity);
+    if (f.length) trunks.map.set(k, f); else trunks.map.delete(k);
+  });
+}
+function treeBlocks(nx, nz, rad, fx, fz) {
+  const c = trunks.cell, gx = Math.floor(nx / c), gz = Math.floor(nz / c);
+  for (let j = gz - 1; j <= gz + 1; j++) for (let i = gx - 1; i <= gx + 1; i++) {
+    const l = trunks.map.get(i + "," + j); if (!l) continue;
+    for (let k = 0; k < l.length; k++) {
+      const t = l[k], d = Math.hypot(nx - t[0], nz - t[1]);
+      if (d < t[2] + rad && d < Math.hypot(fx - t[0], fz - t[1])) return true;
+    }
+  }
+  return false;
+}
+
 function insideBuilding(px, pz, radius) {
   if (!solidGrid) return false;
   const key = Math.floor(px / solidGrid.cell) + "," + Math.floor(pz / solidGrid.cell);
@@ -6890,6 +6929,7 @@ function tryStep(dx, dz, radius) {
   if (nx < 40 || nz < 40 || nx > WORLD_X - 40 || nz > WORLD_Z - 40) return false;
   if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
   if (insideBuilding(nx, nz, radius)) return false;
+  if (treeBlocks(nx, nz, radius, player.pos.x, player.pos.z)) return false;
   if (traffic.ready && carBlocks(nx, nz, radius)) return false;
   player.pos.x = nx; player.pos.z = nz;
   return true;
@@ -7541,6 +7581,7 @@ function treeSpecies(t, i) {
 }
 
 function plantTrees(root, trees) {
+  trunkPurge(false);
   const byKind = {};
   trees.forEach((t, i) => {
     const sp = treeSpecies(t, i);
@@ -7580,6 +7621,7 @@ function plantTrees(root, trees) {
         m.compose(new THREE.Vector3(t.c[0], t.y - 0.1, t.c[1]), q,
                   new THREE.Vector3(h * wide, h, h * wide));
         inst.setMatrixAt(n, m);
+        trunkAdd("city", t.c[0], t.c[1], (TRUNK_R[sp] || 0.07) * h * wide);
         const g = 0.84 + rnd(i, 7, 6141) * 0.30;
         col.setRGB(g * (sp === "sakura" ? 1.0 : 0.94), g, g * (sp === "sakura" ? 0.98 : 0.80));
         inst.setColorAt(n, col);
@@ -8017,7 +8059,7 @@ function vegBlocked(x, z) {
 }
 
 function vegBuild(root) {
-  veg.trees.clear(); veg.grass.clear();
+  veg.trees.clear(); veg.grass.clear(); trunkPurge(true);
   veg.root = root;
   veg.group = new THREE.Group(); veg.group.name = "countryside";
   root.add(veg.group);
@@ -8139,6 +8181,7 @@ function vegTreeTile(tx, tz) {
       e.set((t.k - 0.5) * 0.07, t.r * 6.283, (t.r - 0.5) * 0.07); q.setFromEuler(e);
       m.compose(new THREE.Vector3(t.x, t.y - 0.15, t.z), q, new THREE.Vector3(hgt * wide, hgt, hgt * wide));
       inst.setMatrixAt(k, m);
+      trunkAdd(group, t.x, t.z, (TRUNK_R[sp] || 0.07) * hgt * wide);
       const g = 0.70 + t.k * 0.32;
       // a few turn early: the odd gold maple among the green
       const gold = sp === "keyaki" && t.r > 0.93;
@@ -8224,7 +8267,7 @@ function vegUpdate(px, pz, budget) {
       const [gx, gz] = key.split(",").map(Number);
       const d = Math.hypot((gx + 0.5) * size - px, (gz + 0.5) * size - pz);
       if (d > radius + size * 1.6) {
-        if (obj) { veg.group.remove(obj); obj.traverse(o => { if (o.dispose) o.dispose(); }); }
+        if (obj) { trunkDrop(obj); veg.group.remove(obj); obj.traverse(o => { if (o.dispose) o.dispose(); }); }
         map.delete(key);
       }
     });
@@ -24332,7 +24375,10 @@ function updateDrive(dt) {
   const onDeck = world.bridgeY(nx, nz) !== null;
   const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
     || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
-    || insideBuilding(nx, nz, kind.W * 0.45);
+    || insideBuilding(nx, nz, kind.W * 0.45)
+    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
+    || treeBlocks(nx + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), nz + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), kind.W * 0.38,
+                  c.pos.x + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), c.pos.z + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed));
   if (blocked) {
     if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
     c.speed *= -0.22;                               // a thump, not a bounce
