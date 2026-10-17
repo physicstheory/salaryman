@@ -17515,6 +17515,8 @@ function mnFeedPost(ageMin, contact) {
               likes: Math.round(Math.pow(10, 2.3 + Math.random() * 2.4)), liked: false, comments: [], meta: null };
   const n = 1 + ((Math.random() * 4) | 0);
   for (let i = 0; i < n; i++) { const q = mnPerson(); p.comments.push({ who: q, text: mnPick(MN_FEED_COMMENTS), t: p.t + 2 + i * 3 }); }
+  // start fetching its photograph now, not when it scrolls into view
+  setTimeout(() => { if (!p.img || !p.photoTried) mnPhotoFor(p); }, 300 + Math.random() * 1200);
   return p;
 }
 const MN_FEED_COMMENTS = ["so good", "I need this", "wow 😍", "which shop is this?", "this is why I live here", "ok I'm going tomorrow", "the light!!", "saved", "same", "lol", "Seiko should see this", "okay that's nice", "please do more of these", "🔥🔥🔥", "I was there!!"];
@@ -17535,7 +17537,7 @@ function mnPhotoList(scene) {
   const key = "konto.mygram.photos.v1." + scene;
   try { const c = JSON.parse(localStorage.getItem(key) || "null"); if (c && Date.now() - c.t < 7 * 864e5 && c.l.length) { mnPhotos.lists[scene] = c.l; return Promise.resolve(c.l); } } catch (e) {}
   const q = (MN_PHOTO_TERMS[scene] || scene) + " filetype:bitmap";
-  const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) + "&gsrnamespace=6&gsrlimit=40&prop=imageinfo&iiprop=url%7Cextmetadata%7Csize%7Cmime&iiurlwidth=480&iiextmetadatafilter=Artist%7CLicenseShortName&format=json&origin=*";
+  const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) + "&gsrnamespace=6&gsrlimit=40&prop=imageinfo&iiprop=url%7Cextmetadata%7Csize%7Cmime&iiurlwidth=400&iiextmetadatafilter=Artist%7CLicenseShortName&format=json&origin=*";
   mnPhotos.wait[scene] = fetch(url).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.json(); }).then(j => {
     const pages = Object.values((j.query && j.query.pages) || {});
     const list = [];
@@ -17559,19 +17561,44 @@ function mnPhotoFor(p) {
   mnPhotoList(p.scene).then(list => {
     if (!list.length) return;
     const pick = list[(p.id * 7 + (p.who.handle.length * 3)) % list.length];
-    const img = new Image(); img.crossOrigin = "anonymous"; img.referrerPolicy = "no-referrer";
-    img.onload = () => {
+    mnFetchImage(pick.u).then(img => {
+      if (!img) { p.photoErr = "load"; return; }
       try {
         const S = 480, c = document.createElement("canvas"); c.width = c.height = S;
         const g = c.getContext("2d"), m = Math.min(img.width, img.height);
         g.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
         g.getImageData(0, 0, 1, 1);                   // a picture we may not read is a picture we may not use
-        p.img = c; p.credit = pick.a + " · " + pick.l; phone.dirty = true;
+        p.img = c; p.credit = pick.a + " \u00b7 " + pick.l; phone.dirty = true;
       } catch (e) { p.photoErr = String(e && e.message || e); }
-    };
-    img.onerror = () => { p.photoErr = "load"; };
-    img.src = pick.u;
+    });
   });
+}
+// Photographs come from the Cache API when they have been fetched before, so a
+// second visit to the feed is instant, and from the network in parallel when
+// not. A picture is turned into a local object URL, which is also what lets the
+// canvas read it back without the cross-origin taint.
+function mnFetchImage(url) {
+  const decode = blob => new Promise(res => {
+    const img = new Image(), u = URL.createObjectURL(blob);
+    img.onload = () => { res(img); setTimeout(() => URL.revokeObjectURL(u), 4000); };
+    img.onerror = () => { URL.revokeObjectURL(u); res(null); };
+    img.src = u;
+  });
+  const store = (typeof caches !== "undefined" && caches.open) ? caches.open("konto-mygram-photos").catch(() => null) : Promise.resolve(null);
+  return store.then(c => (c ? c.match(url).catch(() => null) : null).then(hit => {
+    if (hit) return hit.blob().then(decode);
+    return fetch(url, { mode: "cors", referrerPolicy: "no-referrer" }).then(r => {
+      if (!r.ok) throw new Error("http " + r.status);
+      if (c) c.put(url, r.clone()).catch(() => {});
+      return r.blob();
+    }).then(decode);
+  })).catch(() => null);
+}
+// Warm the lists a little after the feed opens, one scene every half second, so
+// that by the time you scroll there is something to show.
+function mnWarm() {
+  if (mnPhotos.off || (typeof navigator !== "undefined" && navigator.onLine === false)) return;
+  Object.keys(MN_PHOTO_TERMS).forEach((sc, i) => setTimeout(() => { if (!mnPhotos.off) mnPhotoList(sc); }, 1500 + i * 500));
 }
 function mnImg(p) {
   if (!p.img) { p.img = p.you ? p.photo : mnScene(p.scene, 320); if (!p.you) mnPhotoFor(p); }
@@ -17586,6 +17613,7 @@ function mynetInit() {
   for (let i = 0; i < 7; i++) mynet.feed.push(mnFeedPost(10 + i * 37 + Math.random() * 20, i === 1 ? "@satoba_chan" : i === 3 ? "@hayashi_cabs" : false));
   mynet.feed.sort((a, b) => b.t - a.t);
   mynet.feedAt = mnNow() + 7;
+  mnWarm();
   mynet.dmAt = mnNow() + 25;
   mynet.offerAt = mnNow() + 90;
 }
@@ -22040,7 +22068,7 @@ function coverRect(cv, fx, fy, fw, fh) {
 }
 function updateVideo() {
   const want = [];
-  if (home.inside && tvui.mode === "tv" && tvui.ch === CHANNELS.indexOf("CM Channel")) {
+  if (home.inside && tvui.mode === "tv" && (tvui.ch === CHANNELS.indexOf("CM Channel") || tvui.ch === CHANNELS.indexOf("Commercials"))) {
     const cv = document.getElementById("homecanvas");
     if (cv) { const r = coverRect(cv, 0.06, 0.05, 0.88, 0.80); videoShow(r[0], r[1], r[2], r[3], "tv"); return; }
   }
@@ -25297,6 +25325,8 @@ function titleChoose() {
   title.started = true;
   tour = false;
   setMode("walk");
+  // MyGram's photographs start arriving in the background, so the feed is full when you open it
+  setTimeout(() => { try { mynetInit(); } catch (e) { /* the feed will start when the app opens */ } }, 6000);
   if (id === "tcontinue" && title.resume) {
     const r = title.resume;
     placeSeiko(new THREE.Vector3(r.x, world.surfaceY(r.x, r.z), r.z));
