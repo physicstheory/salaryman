@@ -5273,6 +5273,7 @@ function initThree() {
     }
     if (e.code === "KeyP") setPhone(!phone.open);
     if (e.code === "KeyH") toggleSiren();
+    if (e.code === "KeyL" && drive.car && !e.repeat) toggleHeadlights();
     if (paused) {
       if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
       if (e.code === "KeyE" || e.code === "BracketRight" || e.code === "PageDown") pauseMove(1, 0);
@@ -5514,6 +5515,8 @@ function pollPad(dt) {
   } else {
     if (pressed(PAD.UP)) setPhone(true);
     if (pressed(PAD.DOWN)) toggleWalk();
+    // D-pad right: headlights, while you are driving.
+    if (pressed(PAD.RIGHT) && drive.car) toggleHeadlights();
     // D-pad left is the radio: tap for the next station, hold for the wheel.
     // (Taxis are on the phone, in Ryde.)
   }
@@ -5743,7 +5746,7 @@ function fillPause(name) {
       '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
       '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
       '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
-      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
       '<div><h3>The island</h3>' + towns + '</div>' +
       '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
       '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
@@ -10481,6 +10484,7 @@ function buildTraffic(w, root) {
                           top: kind.top, live: false, uv: [0, 0] });
     }
   });
+  traffic.lamps = makeHeadlights(root, 220);
   loadCarModels(root);
   traffic.ready = true;
 }
@@ -10606,7 +10610,14 @@ function trafficAhead(car, idx, dt) {
       const ok = CAR_KINDS[o.kind], R = carCircles(o.at.x, o.at.z, o.yawNow, ok, _cc2);
       let saw = false;
       for (let k = 0; k < 3; k++) if (see(_cc2[k][0], _cc2[k][1], R, o.v, false)) saw = true;
-      if (!saw) continue;
+      if (!saw) {
+        // Alongside, and drifting into each other as two roads join: the higher
+        // number gives way, crawling until it is clear.
+        const ddx = o.at.x - a.x, ddz = o.at.z - a.z;
+        const ff = ddx * sy + ddz * cy, ll = ddx * cy - ddz * sy;
+        if (Math.abs(ff) < (kind.L + ok.L) * 0.5 + 0.4 && Math.abs(ll) < (kind.W + ok.W) * 0.5 + 0.2 && idx > j) { cap = Math.min(cap, 1.2); blockedBy = 2; }
+        continue;
+      }
       // Two cars that can see each other at a crossing: the lower number goes first.
       const osy = Math.sin(o.yawNow), ocy = Math.cos(o.yawNow);
       const dx = a.x - o.at.x, dz = a.z - o.at.z, f2 = dx * osy + dz * ocy, l2 = dx * ocy - dz * osy;
@@ -10627,6 +10638,90 @@ function trafficAhead(car, idx, dt) {
   else car.waitT = 0;
   if (car.ignore > 0) car.ignore -= dt;
   return cap;
+}
+
+
+// ---- headlights ---------------------------------------------------------------
+// After dusk every car in the traffic has its lights on, and so does yours: L, or
+// the right side of the D-pad, switches them. Each car gets one instance of a
+// small additive mesh, two bright lamps on the front and a pool of light laid
+// along the road in front, drawn only once it is dark enough to see. Your own
+// car also throws a real spotlight where the machine can afford one, so the road
+// and the shopfronts ahead are lit and not just painted.
+function makeHeadlights(root, cap) {
+  const pos = [], col = [];
+  const quad = (a, b, c, d, ca, cb) => { [a, b, c, a, c, d].forEach((p, i) => { pos.push(p[0], p[1], p[2]); const k = [ca, cb, cb, ca, cb, ca][i]; col.push(k[0], k[1], k[2]); }); };
+  const lampC = [1.5, 1.4, 1.05];
+  [-0.58, 0.58].forEach(x => quad([x - 0.17, 0.07, 0.03], [x + 0.17, 0.07, 0.03], [x + 0.17, -0.07, 0.03], [x - 0.17, -0.07, 0.03], lampC, lampC));
+  // the pool: five slices from the bumper to seventeen metres out
+  const rows = 5;
+  for (let r = 0; r < rows; r++) {
+    const t0 = r / rows, t1 = (r + 1) / rows;
+    const z0 = 0.4 + t0 * 16.6, z1 = 0.4 + t1 * 16.6;
+    const w0 = 0.95 + t0 * 2.7, w1 = 0.95 + t1 * 2.7;
+    const c0 = Math.pow(1 - t0, 1.5) * 0.46, c1 = Math.pow(1 - t1, 1.5) * 0.46;
+    quad([-w0, -1, z0], [w0, -1, z0], [w1, -1, z1], [-w1, -1, z1], [c0, c0 * 0.92, c0 * 0.62], [c1, c1 * 0.92, c1 * 0.62]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const m = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true,
+    depthWrite: false, side: THREE.DoubleSide, opacity: 0, toneMapped: false });
+  const mesh = new THREE.InstancedMesh(g, m, cap);
+  mesh.count = 0; mesh.frustumCulled = false; mesh.renderOrder = 4;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  root.add(mesh);
+  let spot = null;
+  if (gfx.tier !== "low") {
+    spot = new THREE.SpotLight(0xfff1d6, 0, 70, 0.52, 0.6, 1.3);
+    spot.castShadow = false;
+    root.add(spot); root.add(spot.target);
+  }
+  return { mesh: mesh, mat: m, spot: spot };
+}
+const _hlM = new THREE.Matrix4(), _hlQ = new THREE.Quaternion(), _hlE = new THREE.Euler(), _hlP = new THREE.Vector3(), _hlS = new THREE.Vector3();
+function updateHeadlights() {
+  const L = traffic.lamps; if (!L) return;
+  const lit = nightState.lit;
+  const own = drive.car && drive.car.lights;
+  const night = lit > 0.22;
+  if (!night && !own) { L.mesh.count = 0; L.mat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
+  L.mat.opacity = clamp01(Math.max(lit * 1.05, own ? 0.38 : 0));
+  let n = 0;
+  const put = (x, y, z, yaw, pitch, kind) => {
+    if (n >= L.mesh.instanceMatrix.count) return;
+    const lh = clamp(kind.H * 0.40, 0.42, 0.95), fwd = kind.L * 0.5 - 0.06;
+    _hlE.set(pitch || 0, yaw, 0, "YXZ"); _hlQ.setFromEuler(_hlE);
+    _hlP.set(x + Math.sin(yaw) * fwd, y + lh, z + Math.cos(yaw) * fwd);
+    _hlS.set(kind.W / 1.8, Math.max(0.2, lh - 0.05), kind.body === "bus" || kind.body === "truck" ? 1.3 : 1);
+    _hlM.compose(_hlP, _hlQ, _hlS);
+    L.mesh.setMatrixAt(n++, _hlM);
+  };
+  if (night) {
+    for (let i = 0; i < traffic.cars.length; i++) {
+      const c = traffic.cars[i];
+      if (!c.live || !c.at) continue;
+      if (CAR_KINDS[c.kind].body === "bike" || CAR_KINDS[c.kind].body === "scooter") continue;
+      put(c.at.x, c.at.y, c.at.z, c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);
+    }
+  }
+  if (own) {
+    const d = drive.car; put(d.pos.x, d.pos.y, d.pos.z, d.yaw, d.pitch || 0, CAR_KINDS[d.kind]);
+  }
+  L.mesh.count = n; L.mesh.instanceMatrix.needsUpdate = true;
+  if (L.spot) {
+    if (own && drive.car) {
+      const d = drive.car, k = CAR_KINDS[d.kind], sy = Math.sin(d.yaw), cy = Math.cos(d.yaw);
+      L.spot.position.set(d.pos.x + sy * (k.L * 0.5), d.pos.y + 0.85, d.pos.z + cy * (k.L * 0.5));
+      L.spot.target.position.set(d.pos.x + sy * 26, d.pos.y - 0.2, d.pos.z + cy * 26);
+      L.spot.intensity = 2.6 * (0.45 + 0.55 * lit);
+    } else L.spot.intensity = 0;
+  }
+}
+function toggleHeadlights() {
+  if (!drive.car) return;
+  drive.car.lights = !drive.car.lights;
+  say(drive.car.lights ? "Headlights on" : "Headlights off", 1.6);
 }
 
 function updateTraffic(dt, at) {
@@ -10662,10 +10757,13 @@ function updateTraffic(dt, at) {
       let limit = car.dispatch ? car.top : Math.min(lane.speed, car.top);
       if (car.cap < limit) limit = car.cap;
       if (car.crash > 0) limit = 0;
-      if (k + 1 < here.length) {
-        const lead = traffic.cars[here[k + 1]];
+      // On a loop the last car's leader is the first car, one lap on.
+      const wrap = k + 1 >= here.length && lane.loop && here.length > 1;
+      if (k + 1 < here.length || wrap) {
+        const lead = traffic.cars[here[wrap ? 0 : k + 1]];
+        const leadS = wrap ? lead.s + lane.length : lead.s;
         // a second of room at the speed they are going, and a car's length at a stop
-        const gap = (lead.s - lead.half) - (car.s + car.half) - 2.6 - car.v * 0.9 - lead.v * dt - 0.6;
+        const gap = (leadS - lead.half) - (car.s + car.half) - 2.6 - car.v * 0.9 - lead.v * dt - 0.6;
         // Able to stop, comfortably, if the car in front stops as hard as it can.
         limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v * lead.v + 7 * gap)));
       }
@@ -10753,6 +10851,7 @@ function updateTraffic(dt, at) {
   }
 
   trafficSpawn(at);
+  updateHeadlights();
 }
 
 // ---------------------------------------------------------------- NHRail
@@ -23270,7 +23369,7 @@ function enterCar(index, jacked) {
     pos: new THREE.Vector3(p.x, p.y, p.z),
     yaw: p.yaw, speed: c.v, steer: 0,
     pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: c.v,
-    colour: c.colour.slice(), uv: c.uv.slice()
+    colour: c.colour.slice(), uv: c.uv.slice(), lights: nightState.lit > 0.3
   };
   document.body.classList.add("driving");
   if (player.obj) player.obj.visible = false;      // he is in the car, not beside it
@@ -23280,7 +23379,7 @@ function enterCar(index, jacked) {
 function enterParked(i) {
   const p = drive.parked.splice(i, 1)[0];
   drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
-                pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0,
+                pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0, lights: nightState.lit > 0.3,
                 colour: p.colour.slice(), uv: p.uv.slice(),
                 rec: p.owned ? p : null };
   document.body.classList.add("driving");
