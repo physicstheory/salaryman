@@ -4675,10 +4675,10 @@ function clearRoadCorridors(w, city, boxes) {
   if (!w._corridors) {
   const cell = 40, grid = new Map();
   let maxR = 0;
-  const add = (x, z, r, deckY) => {
+  const add = (x, z, r, deckY, ref) => {
     const k = Math.floor(x / cell) + "," + Math.floor(z / cell);
     let l = grid.get(k); if (!l) { l = []; grid.set(k, l); }
-    l.push([x, z, r, deckY]);
+    l.push([x, z, r, deckY, ref]);
     if (r > maxR) maxR = r;
   };
   w.cities.forEach(cc => cc.roads.concat(cc.rails).forEach(path => {
@@ -4689,7 +4689,7 @@ function clearRoadCorridors(w, city, boxes) {
       const len = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(1, Math.ceil(len / 3));
       for (let k = 0; k <= n; k++) {
         const t = k / n;
-        add(a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t, r, path.elevated ? a[1] + (b[1] - a[1]) * t : null);
+        add(a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t, r, path.elevated ? a[1] + (b[1] - a[1]) * t : null, path);
       }
     }
   }));
@@ -5734,7 +5734,7 @@ function updatePrompt() {
     if (homeNear(player.pos.x, player.pos.z)) { setPromptText(null); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     drive.nearShop = sh;
-    if (sh) { setPromptText(null); return; }
+    if (sh) { setPromptText(sh.vend ? "Use the vending machine" : null); return; }
   } else drive.nearShop = null;
   const r = findRide();
   drive.near = r;
@@ -6649,6 +6649,7 @@ function buildScene(w) {
   buildTolls(root);
   buildSki(root);
   buildStreetLights(root, w);
+  buildStreetLife(root, w);
   vegBuild(root);
   drive.car = null;
   drive.train = null;
@@ -7698,6 +7699,260 @@ function buildStreetLights(root, w) {
   });
 }
 
+
+// ============================================================================
+// STREET LIFE: PARKING BAYS, SHOP DECORATION, VENDING MACHINES
+// ============================================================================
+// Painted bays along the kerb of every street that is not the expressway, with
+// parked cars in some of them, brought in as you approach and put away as you
+// leave. Paper lanterns, noren, nobori flags, awnings and pot plants on the
+// shopfronts, as many as the kind of shop wants. And a jihanki on the pavement
+// outside every shop and every so often down a street, where a wall stands
+// behind it: walk up, press Y, choose a drink.
+const parking = { bays: [], active: [], t: 0 };
+const vending = { list: [] };
+function ownRoadFree(w, x, z, own) {            // no other road or rail under this spot
+  const C = w._corridors; if (!C) return true;
+  const gx = Math.floor(x / C.cell), gz = Math.floor(z / C.cell);
+  for (let j = gz - 1; j <= gz + 1; j++) for (let i = gx - 1; i <= gx + 1; i++) {
+    const l = C.grid.get(i + "," + j); if (!l) continue;
+    for (let k = 0; k < l.length; k++) { if (l[k][4] === own) continue; if (Math.hypot(l[k][0] - x, l[k][1] - z) < l[k][2]) return false; }
+  }
+  return true;
+}
+
+function buildStreetLife(root, w) {
+  parking.bays.length = 0; parking.active.length = 0; vending.list.length = 0;
+  const hash = (a, b, c) => rnd(Math.round(a), Math.round(b), c);
+
+  // ---- parking bays ---------------------------------------------------------
+  const BW = 2.4, BL = 5.6, LINE = 0.13;
+  const pos = [], nor = [], col = [];
+  const quad = (x0, z0, x1, z1, x2, z2, x3, z3) => {
+    [[x0, z0], [x1, z1], [x2, z2], [x0, z0], [x2, z2], [x3, z3]].forEach(q => {
+      pos.push(q[0], world.surfaceY(q[0], q[1]) + 0.16, q[1]); nor.push(0, 1, 0); col.push(0.93, 0.93, 0.90);
+    });
+  };
+  const stripe = (ax, az, bx, bz) => {                         // a painted line a hand wide
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 3));
+    const tx = (bx - ax) / L, tz = (bz - az) / L, nx = -tz * LINE / 2, nz = tx * LINE / 2;
+    for (let k = 0; k < n; k++) {
+      const u0 = L * k / n, u1 = L * (k + 1) / n;
+      const x0 = ax + tx * u0, z0 = az + tz * u0, x1 = ax + tx * u1, z1 = az + tz * u1;
+      quad(x0 - nx, z0 - nz, x1 - nx, z1 - nz, x1 + nx, z1 + nz, x0 + nx, z0 + nz);
+    }
+  };
+  w.cities.forEach(city => city.roads.forEach(road => {
+    if (!road.pts || road.pts.length < 3 || road.elevated || road.dead || road.cls === "expressway") return;
+    const hw = road.halfWidth || 8;
+    if (hw < 7.5) return;
+    let dist = 0, next = 40 + hash(road.pts[0][0], road.pts[0][2], 7301) * 40, side = 1;
+    for (let i = 1; i < road.pts.length; i++) {
+      const a = road.pts[i - 1], b = road.pts[i];
+      const len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 0.01) continue;
+      const tx = (b[0] - a[0]) / len, tz = (b[2] - a[2]) / len;
+      while (dist <= next && next < dist + len) {
+        const u = next - dist, cx = a[0] + tx * u, cz = a[2] + tz * u;
+        const nx = -tz * side, nz = tx * side, off = hw - 1.5;
+        // three bays in a row: ends of the run at -1.5 and +1.5 bay lengths
+        let ok = true;
+        for (let k = -1; k <= 1 && ok; k++) {
+          const px = cx + tx * k * BL + nx * off, pz = cz + tz * k * BL + nz * off;
+          if (px < 40 || pz < 40 || px > WORLD_X - 40 || pz > WORLD_Z - 40 || world.sampleLand(px, pz) < 0.9 ||
+              world.bridgeY(px, pz) !== null || world.surfaceY(px, pz) < 1.2 || insideBuilding(px, pz, 1.0) || !ownRoadFree(w, px, pz, road)) ok = false;
+        }
+        if (ok) {
+          // the line along the road side of the bays, and a divider between each
+          const ix = cx + nx * (off - BW / 2), iz = cz + nz * (off - BW / 2);
+          stripe(ix - tx * BL * 1.5, iz - tz * BL * 1.5, ix + tx * BL * 1.5, iz + tz * BL * 1.5);
+          for (let k = -1.5; k <= 1.5; k += 1) {
+            const bx = cx + tx * k * BL, bz = cz + tz * k * BL;
+            stripe(bx + nx * (off - BW / 2), bz + nz * (off - BW / 2), bx + nx * (off + BW / 2), bz + nz * (off + BW / 2));
+          }
+          for (let k = -1; k <= 1; k++) {
+            const px = cx + tx * k * BL + nx * off, pz = cz + tz * k * BL + nz * off;
+            const yaw = Math.atan2(tx * side * -1 * -1, tz) ;   // along the road, the way the side's traffic runs
+            parking.bays.push({ x: px, z: pz, yaw: Math.atan2(tx, tz) + (side > 0 ? 0 : Math.PI),
+              occ: hash(px, pz, 7307) < 0.55, kind: hash(pz, px, 7309), spawned: null });
+          }
+        }
+        next += 62 + hash(cx, cz, 7311) * 50; side = -side;
+      }
+      dist += len;
+    }
+  }));
+  if (pos.length) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    m.renderOrder = 2; m.castShadow = false; m.receiveShadow = false; m.frustumCulled = false;
+    root.add(m);
+  }
+
+  // ---- decoration on the shopfronts ----------------------------------------
+  const dec = { lantern: [], noren: [], nobori: [], pole: [], board: [], pot: [], leaf: [], awning: [] };
+  const free = (x, z) => ownRoadFree(w, x, z, null);
+  shops.list.forEach(s => {
+    if (!s.built || s.mall || s.plaza || s.safe || s.brand === "arms") return;
+    const yaw = s.yaw, fx = Math.sin(yaw), fz = Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    const face = s.size[1] * 0.5, wd = Math.min(14, s.size[0] * 0.82), gy = s.groundY;
+    const at = (lat, out) => [s.at[0] + fx * (face + out) + rx * lat, s.at[1] + fz * (face + out) + rz * lat];
+    const add = (list, lat, out, y, extra) => {
+      const q = at(lat, out); if (!free(q[0], q[1])) return;
+      list.push(Object.assign({ x: q[0], y: gy + y, z: q[1], yaw: yaw }, extra || {}));
+    };
+    const b = s.brand, izaka = b === "ramen" || b === "sushi";
+    if (izaka) {
+      const red = b === "ramen";
+      [-0.43, -0.31, 0.31, 0.43].forEach(f => add(dec.lantern, wd * f, 0.55, 2.75, { c: red ? [0.78, 0.08, 0.06] : [0.95, 0.92, 0.84] }));
+      add(dec.noren, 0, 0.18, 2.35, { sx: Math.min(3.4, wd * 0.42), c: red ? [0.10, 0.14, 0.34] : [0.50, 0.08, 0.10] });
+      [-1, 1].forEach(sd => { add(dec.pole, sd * (wd * 0.5 + 0.9), 1.0, 1.4); add(dec.nobori, sd * (wd * 0.5 + 0.9) + sd * 0.0, 1.0, 1.55, { c: red ? [0.80, 0.07, 0.06] : [0.90, 0.88, 0.80] }); });
+      add(dec.board, wd * 0.28, 1.1, 0.5);
+    } else if (b === "eleven" || b === "petmart") {
+      const sc = SHOP_BRANDS[b].stripes[0], cc = new THREE.Color(sc);
+      [-1, 1].forEach(sd => { add(dec.pole, sd * (wd * 0.5 + 0.7), 1.0, 1.4); add(dec.nobori, sd * (wd * 0.5 + 0.7), 1.0, 1.55, { c: [cc.r, cc.g, cc.b] }); });
+      add(dec.pot, -wd * 0.46, 0.8, 0.22); add(dec.leaf, -wd * 0.46, 0.8, 0.85);
+      add(dec.board, wd * 0.3, 1.1, 0.5);
+    } else {
+      const awn = b === "pharmacy" ? [0.10, 0.52, 0.30] : b === "books" ? [0.50, 0.12, 0.14] : [0.86, 0.80, 0.66];
+      add(dec.awning, 0, 0.7, 3.25, { sx: wd * 0.9, c: awn });
+      [-1, 1].forEach(sd => { add(dec.pot, sd * (wd * 0.5 - 0.7), 0.8, 0.22); add(dec.leaf, sd * (wd * 0.5 - 0.7), 0.8, 0.85); });
+      add(dec.board, wd * 0.22, 1.2, 0.5);
+    }
+  });
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), p4 = new THREE.Vector3(), s4 = new THREE.Vector3(), c4 = new THREE.Color();
+  const inst = (list, geo, mat, scaleFn, colourFn, tilt) => {
+    if (!list.length) return null;
+    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    list.forEach((d, i) => {
+      e4.set(tilt || 0, d.yaw, 0, "YXZ"); q4.setFromEuler(e4);
+      p4.set(d.x, d.y, d.z); scaleFn(d, s4);
+      m4.compose(p4, q4, s4); im.setMatrixAt(i, m4);
+      c4.setRGB.apply(c4, colourFn(d)); im.setColorAt(i, c4);
+    });
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = false; im.receiveShadow = false; im.frustumCulled = false;
+    root.add(im); return im;
+  };
+  const lamp = new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: new THREE.Color(1.0, 0.42, 0.18), emissiveIntensity: 0.12 });
+  nightMats.push({ m: lamp, gain: 1.9, floor: 0.12 });
+  const cloth = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const wood = new THREE.MeshLambertMaterial({ color: 0x3a2f26 });
+  const white = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const unit = new THREE.BoxGeometry(1, 1, 1);
+  inst(dec.lantern, new THREE.SphereGeometry(0.5, 9, 7), lamp, (d, s) => s.set(0.40, 0.54, 0.40), d => d.c);
+  inst(dec.noren, unit, cloth, (d, s) => s.set(d.sx, 0.85, 0.04), d => d.c);
+  inst(dec.nobori, unit, cloth, (d, s) => s.set(0.52, 2.3, 0.03), d => d.c);
+  inst(dec.pole, unit, wood, (d, s) => s.set(0.05, 2.8, 0.05), d => [1, 1, 1]);
+  inst(dec.board, unit, white, (d, s) => s.set(0.62, 0.92, 0.07), d => [0.92, 0.93, 0.90], -0.13);
+  inst(dec.pot, unit, white, (d, s) => s.set(0.42, 0.44, 0.42), d => [0.64, 0.32, 0.20]);
+  inst(dec.leaf, new THREE.SphereGeometry(0.5, 8, 6), white, (d, s) => s.set(0.72, 0.8, 0.72), d => [0.20, 0.46, 0.22]);
+  inst(dec.awning, unit, cloth, (d, s) => s.set(d.sx, 0.08, 1.5), d => d.c, 0.16);
+
+  // ---- vending machines -----------------------------------------------------
+  const BODY = [[0.80, 0.14, 0.12], [0.16, 0.34, 0.74], [0.90, 0.90, 0.88], [0.16, 0.50, 0.30], [0.78, 0.55, 0.12], [0.2, 0.2, 0.22]];
+  const faceTex = (() => {
+    const cv = document.createElement("canvas"); cv.width = 256; cv.height = 512; const g = cv.getContext("2d");
+    g.fillStyle = "#16181c"; g.fillRect(0, 0, 256, 512);
+    g.fillStyle = "#f2f4f6"; g.fillRect(14, 14, 228, 40); g.fillStyle = "#c8372d"; g.font = "900 26px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("COLD  ·  HOT", 128, 35);
+    const cans = ["#53c1e6", "#2c78d8", "#e8f1f8", "#a8e0c4", "#4d9a45", "#c8641a", "#8a5a34", "#e6b422", "#d8382c", "#7a3fa8", "#2c9a8a", "#e8863a"];
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) {
+      const x = 22 + c * 56, y = 72 + r * 112;
+      g.fillStyle = "#2a2d33"; g.fillRect(x - 4, y - 4, 52, 104);
+      g.fillStyle = cans[r * 4 + c]; g.fillRect(x + 8, y + 6, 28, 70);
+      g.fillStyle = "rgba(255,255,255,0.65)"; g.fillRect(x + 8, y + 26, 28, 12);
+      g.fillStyle = "#d8382c"; g.fillRect(x + 6, y + 82, 32, 12); g.fillStyle = "#fff"; g.font = "700 10px " + UI; g.fillText("¥" + (130 + (r * 4 + c) % 3 * 10), x + 22, y + 88);
+    }
+    g.fillStyle = "#0c0d10"; g.fillRect(40, 418, 176, 60); g.fillStyle = "#3a3d44"; g.fillRect(200, 430, 36, 12);
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t;
+  })();
+  const bodyM = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  const faceM = new THREE.MeshStandardMaterial({ color: 0xffffff, map: faceTex, emissive: new THREE.Color(1, 1, 1), emissiveMap: faceTex, emissiveIntensity: 0.45, roughness: 0.4 });
+  nightMats.push({ m: faceM, gain: 1.1, floor: 0.45 });
+  const spots = [];
+  const spotOK = (x, z) => !spots.some(q => Math.hypot(q[0] - x, q[1] - z) < 55);
+  const place = (x, z, yaw, h) => {
+    if (x < 40 || z < 40 || x > WORLD_X - 40 || z > WORLD_Z - 40) return false;
+    if (world.sampleLand(x, z) < 0.9 || world.bridgeY(x, z) !== null) return false;
+    const y = world.surfaceY(x, z); if (y < 1.2) return false;
+    if (insideBuilding(x, z, 0.5) || !free(x, z)) return false;
+    const o = { x: x, z: z, y: y, yaw: yaw, c: BODY[Math.floor(h * BODY.length) % BODY.length] };
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    vending.list.push({ brand: "vending", vend: true, name: "Vending machine", at: [x, z], yaw: yaw, groundY: y, size: [1, 1],
+      door: [x + fx * 1.3, z + fz * 1.3], o: o });
+    spots.push([x, z]);
+    solids.push({ c: [x, z], size: [1.0, 0.8], yaw: yaw * 180 / Math.PI, y: y, h: 1.9 });
+    return true;
+  };
+  // one beside the door of every shop
+  shops.list.forEach(s => {
+    if (!s.built || s.mall || s.plaza || s.safe) return;
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw), face = s.size[1] * 0.5;
+    const sd = hash(s.at[0], s.at[1], 7321) < 0.5 ? 1 : -1, lat = sd * (Math.min(14, s.size[0] * 0.82) * 0.5 - 0.6);
+    place(s.at[0] + fx * (face + 0.5) + rx * lat, s.at[1] + fz * (face + 0.5) + rz * lat, s.yaw, hash(s.at[1], s.at[0], 7323));
+  });
+  // and along the streets, where a building stands right behind the pavement
+  w.cities.forEach(city => city.roads.forEach(road => {
+    if (!road.pts || road.elevated || road.dead || road.cls === "expressway") return;
+    const hw = road.halfWidth || 8; let carry = 20 + hash(road.pts[0][0], road.pts[0][2], 7331) * 30, side = 1;
+    for (let i = 1; i < road.pts.length; i++) {
+      const a = road.pts[i - 1], b = road.pts[i], len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 0.01) continue;
+      const tx = (b[0] - a[0]) / len, tz = (b[2] - a[2]) / len;
+      while (carry <= len) {
+        const cx = a[0] + tx * carry, cz = a[2] + tz * carry, nx = -tz * side, nz = tx * side;
+        const px = cx + nx * (hw + 2.0), pz = cz + nz * (hw + 2.0);
+        // a wall just behind it, and the road in front: it faces the road
+        if (insideBuilding(px + nx * 1.3, pz + nz * 1.3, 0.3) && spotOK(px, pz)) place(px, pz, Math.atan2(-nx, -nz), hash(px, pz, 7333));
+        carry += 28 + hash(px, pz, 7337) * 40; side = -side;
+      }
+      carry -= len;
+    }
+  }));
+  if (vending.list.length) {
+    const n = vending.list.length;
+    const body = new THREE.InstancedMesh(unit, bodyM, n), face = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), faceM, n);
+    vending.list.forEach((v, i) => {
+      e4.set(0, v.yaw, 0); q4.setFromEuler(e4);
+      p4.set(v.at[0], v.groundY + 0.95, v.at[1]); s4.set(0.95, 1.9, 0.8); m4.compose(p4, q4, s4); body.setMatrixAt(i, m4);
+      c4.setRGB(v.o.c[0], v.o.c[1], v.o.c[2]); body.setColorAt(i, c4);
+      const fx = Math.sin(v.yaw), fz = Math.cos(v.yaw);
+      p4.set(v.at[0] + fx * 0.41, v.groundY + 1.05, v.at[1] + fz * 0.41); s4.set(0.78, 1.5, 1); m4.compose(p4, q4, s4); face.setMatrixAt(i, m4);
+    });
+    body.instanceMatrix.needsUpdate = true; if (body.instanceColor) body.instanceColor.needsUpdate = true; face.instanceMatrix.needsUpdate = true;
+    body.frustumCulled = false; face.frustumCulled = false; body.castShadow = true;
+    root.add(body); root.add(face);
+  }
+  buildSolidGrid();
+}
+
+// Cars at the kerb come in as you get near the bays and go away behind you.
+function updateParking(dt) {
+  parking.t += dt;
+  if (parking.t < 1.0 || !parking.bays.length || !player.placed) return;
+  parking.t = 0;
+  const px = player.pos.x, pz = player.pos.z;
+  const KINDS = ["kei", "hatch", "sedan", "suv", "keivan", "onebox", "hatch", "sedan"];
+  for (let i = drive.parked.length - 1; i >= 0; i--) {
+    const q = drive.parked[i];
+    if (q.scenery && Math.hypot(q.pos.x - px, q.pos.z - pz) > 200) { q.bay.spawned = null; drive.parked.splice(i, 1); }
+  }
+  let live = drive.parked.filter(q => q.scenery).length;
+  for (let i = 0; i < parking.bays.length && live < 26; i++) {
+    const b = parking.bays[i];
+    if (!b.occ || b.spawned) continue;
+    if (Math.abs(b.x - px) > 130 || Math.abs(b.z - pz) > 130 || Math.hypot(b.x - px, b.z - pz) > 130) continue;
+    const name = KINDS[Math.floor(b.kind * KINDS.length) % KINDS.length], ki = CAR_KINDS.findIndex(k => k.name === name);
+    if (ki < 0) continue;
+    const kind = CAR_KINDS[ki], pal = PAINT[kind.palette || "common"] || PAINT.common;
+    const rec = { kind: ki, pos: new THREE.Vector3(b.x, world.surfaceY(b.x, b.z) + 0.04, b.z), yaw: b.yaw + (b.kind * 7 % 1 > 0.5 ? 0 : 0),
+                  colour: (kind.colour || pal[Math.floor(b.kind * 997) % pal.length]).slice(), uv: [0, 0], scenery: true, bay: b };
+    b.spawned = rec; drive.parked.push(rec); live++;
+  }
+}
+
 // ============================================================================
 // THE COUNTRYSIDE
 // ----------------------------------------------------------------------------
@@ -8331,6 +8586,7 @@ function tick(dt) {
   if (title.on) { updateTitle(dt); return; }
   if (ski.mode === "run") { updateSkiRun(dt); return; }
   updateTreeLod(dt);
+  updateParking(dt);
   updateSki(dt);
   updateMyNet(dt);
   updateVitals(dt);
@@ -18879,7 +19135,9 @@ const SHOP_BRANDS = {
              stripes: ["#13a150", "#1272d6"], tag: "Your neighbourhood store" },
   // No sign worth the name, because it is a shutter down a back street.
   arms:    { name: "Kanamono",  band: "#1a1c20", ink: "#b9823a",
-             stripes: ["#3a2a14", "#1a1c20"], tag: "Hardware \u00b7 by appointment" }
+             stripes: ["#3a2a14", "#1a1c20"], tag: "Hardware \u00b7 by appointment" },
+  vending: { name: "Jihanki",   band: "#c8372d", ink: "#ffffff", jp: "\u81ea\u52d5\u8ca9\u58f2\u6a5f",
+             stripes: ["#ffffff", "#c8372d"], tag: "Cold and hot drinks" }
 };
 
 // What is actually on the shelves. The convenience stores carry the small
@@ -19016,8 +19274,12 @@ function buildShopSigns(root) {
   });
 }
 
-function shopNear(x, z, radius) {
+function shopNear(x, z, radius, noVend) {
   let best = null, bestD = radius || 4.2;
+  if (!noVend) for (let i = 0; i < vending.list.length; i++) {
+    const v = vending.list[i], d = Math.hypot(v.at[0] - x, v.at[1] - z) - 0.6;
+    if (d < Math.min(bestD, 2.6)) { bestD = d; best = v; }
+  }
   for (let i = 0; i < shops.list.length; i++) {
     const s = shops.list[i];
     const d = Math.hypot(s.door[0] - x, s.door[1] - z);
@@ -19817,6 +20079,11 @@ function takeFromShelf() {
 function shopMove(dx, dy) {
   if (!shops.inside) return;
   if (shops.ask) { if (dx || dy) { shops.ask.choice = 1 - shops.ask.choice; drawShop(); } return; }
+  if (shops.inside.vend) {
+    const n = STORE_SHELVES.vending[0].items.length;
+    shops.shelf = 0; shops.item = clamp(shops.item + dx + dy * 4, 0, n - 1);
+    drawShop(); return;
+  }
   if (shops.inside.mall) { mallMove(dx, dy); return; }
   if (shops.inside.plaza) { plazaMove(dx, dy); return; }
   const shelves = shopShelves(shops.inside);
@@ -19838,6 +20105,44 @@ function shopShelves(s) {
   return SHELVES.map(sh => ({ name: sh.name, items: sh.items.filter(i => !i.only || (s && i.only === s.brand)) }));
 }
 
+// The vending machine, from the front: eight drinks in two rows, the price lit
+// red under each, the selected one picked out.
+function drawVending(g, W, H) {
+  const items = STORE_SHELVES.vending[0].items, sel = clamp(shops.item, 0, items.length - 1);
+  const sky = g.createLinearGradient(0, 0, 0, H); sky.addColorStop(0, "#2a3140"); sky.addColorStop(1, "#14171d");
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  const mw = W * 0.52, mh = H * 0.80, mx = W * 0.06, my = H * 0.06;
+  g.fillStyle = "#c8372d"; roundRect(g, mx, my, mw, mh, 22); g.fill();
+  g.fillStyle = "#f4f5f3"; g.font = "900 " + Math.round(H * 0.050) + "px " + UI; g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText("\u81ea\u52d5\u8ca9\u58f2\u6a5f  JIHANKI", mx + mw * 0.06, my + mh * 0.065);
+  g.fillStyle = "#0f1115"; roundRect(g, mx + mw * 0.05, my + mh * 0.12, mw * 0.90, mh * 0.62, 12); g.fill();
+  items.forEach((it, i) => {
+    const c = i % 4, r = (i / 4) | 0;
+    const x = mx + mw * (0.07 + c * 0.222), y = my + mh * (0.14 + r * 0.30), cw = mw * 0.17, ch = mh * 0.22, on = i === sel;
+    g.fillStyle = on ? "#f4f5f3" : "#22262d"; roundRect(g, x - cw * 0.14, y - ch * 0.06, cw * 1.28, ch * 1.34, 8); g.fill();
+    g.fillStyle = it.col; roundRect(g, x, y, cw, ch, 6); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.fillRect(x, y + ch * 0.38, cw, ch * 0.16);
+    g.fillStyle = it.hot ? "#e8503a" : "#3aa0e8"; g.fillRect(x, y + ch * 1.06, cw, ch * 0.06);
+    g.fillStyle = on ? "#14171b" : "#d8382c"; g.font = "800 " + Math.round(H * 0.026) + "px " + UI; g.textAlign = "center";
+    g.fillText(yenText(it.price), x + cw / 2, y + ch * 1.20);
+    if (on) { g.strokeStyle = "#ffd21c"; g.lineWidth = 4; roundRect(g, x - cw * 0.14, y - ch * 0.06, cw * 1.28, ch * 1.34, 8); g.stroke(); }
+  });
+  g.fillStyle = "#0a0b0e"; roundRect(g, mx + mw * 0.12, my + mh * 0.80, mw * 0.76, mh * 0.13, 10); g.fill();   // the flap
+  g.fillStyle = "#3a3d44"; g.fillRect(mx + mw * 0.86, my + mh * 0.77, mw * 0.08, mh * 0.03);
+  const it = items[sel], info = ITEM[it.id] || {};
+  g.textAlign = "left";
+  const tx = W * 0.64;
+  g.fillStyle = "#ffffff"; g.font = "800 " + Math.round(H * 0.060) + "px " + UI; g.fillText(it.name, tx, H * 0.20);
+  g.fillStyle = "#c2c8d0"; g.font = "500 " + Math.round(H * 0.034) + "px " + UI; g.fillText(info.note || "", tx, H * 0.28);
+  g.fillStyle = it.hot ? "#e8503a" : "#3aa0e8"; g.font = "700 " + Math.round(H * 0.030) + "px " + UI; g.fillText(it.hot ? "HOT" : "COLD", tx, H * 0.35);
+  g.fillStyle = "#ffd21c"; g.font = "800 " + Math.round(H * 0.080) + "px " + UI; g.fillText(yenText(it.price), tx, H * 0.48);
+  g.fillStyle = "#e9edf0"; g.font = "600 " + Math.round(H * 0.036) + "px " + UI; g.fillText("You have " + yenText(purse.yen), tx, H * 0.60);
+  g.fillStyle = "#8a919a"; g.font = "500 " + Math.round(H * 0.028) + "px " + UI;
+  g.fillText("\u25c0 \u25b6 \u25b2 \u25bc  choose", tx, H * 0.72); g.fillText("A  buy", tx, H * 0.77); g.fillText("B  step away", tx, H * 0.82);
+  g.textBaseline = "alphabetic";
+  drawAsk(g, W, H);
+}
+
 function drawShop() {
   const cv = document.getElementById("shopcanvas");
   const s = shops.inside;
@@ -19846,6 +20151,7 @@ function drawShop() {
   if (s.plaza) { drawPlaza(); return; }
   const g = cv.getContext("2d");
   const W = cv.width, H = cv.height;
+  if (s.vend) { drawVending(g, W, H); return; }
   const brand = SHOP_BRANDS[s.brand];
 
   // The room: a lit ceiling, a tiled floor, and the aisle running away from you.
@@ -19989,7 +20295,7 @@ function updateDoorways(dt) {
     enterThrough(() => enterHome());
     return;
   }
-  const sh = shopNear(px, pz, 1.6);
+  const sh = shopNear(px, pz, 1.6, true);
   if (sh) enterThrough(() => enterShop(sh));
 }
 
@@ -22006,7 +22312,27 @@ ITEMS.push(
     ITEMS.push({ id: i.id, name: i.name, cat: drinks[i.id] ? "drink" : "food", stress: i.stress, health: i.health, min: i.min, note: "Takeaway", store: i });
   })));
 })();
+// What the machines on the street sell: remakes of the drinks every Japanese
+// vending machine has, with the names changed enough to be our own.
+ITEMS.push(
+  { id: "ramune",   name: "Marble Ramune",       cat: "drink", stress: -0.06, health: 0.01, note: "Push the marble down" },
+  { id: "pocary",   name: "Pocary Sweat",        cat: "drink", stress: -0.03, health: 0.07, note: "Gives back what you sweated out" },
+  { id: "karupisu", name: "Karupisu Water",      cat: "drink", stress: -0.05, health: 0.01, note: "Milky and sweet" },
+  { id: "jojia",    name: "Jojia Cafe au Lait",  cat: "drink", stress: -0.06, health: 0.00, note: "Hot, from the machine" },
+  { id: "ooicha",   name: "Ooi Ocha",            cat: "drink", stress: -0.04, health: 0.03, note: "Green tea, unsweetened" },
+  { id: "oronamin", name: "Oronamin Z",          cat: "drink", stress: -0.05, health: 0.06, note: "The little brown bottle" },
+  { id: "cider",    name: "Mitsuboshi Cider",    cat: "drink", stress: -0.05, health: 0.00, note: "Fizzy, clear, sweet" },
+  { id: "potage",   name: "Hot Corn Potage",     cat: "drink", stress: -0.07, health: 0.03, note: "Shake it, then the last kernels" });
 ITEMS.forEach(i => { ITEM[i.id] = i; });
+STORE_SHELVES.vending = [{ name: "Drinks", items: [
+  { id: "ramune",   name: "Marble Ramune",      price: 150, col: "#53c1e6", hot: false },
+  { id: "pocary",   name: "Pocary Sweat",       price: 160, col: "#2c78d8", hot: false },
+  { id: "karupisu", name: "Karupisu Water",     price: 140, col: "#e8f1f8", hot: false },
+  { id: "cider",    name: "Mitsuboshi Cider",   price: 150, col: "#a8e0c4", hot: false },
+  { id: "ooicha",   name: "Ooi Ocha",           price: 150, col: "#4d9a45", hot: false },
+  { id: "oronamin", name: "Oronamin Z",         price: 160, col: "#c8641a", hot: false },
+  { id: "jojia",    name: "Jojia Cafe au Lait", price: 140, col: "#8a5a34", hot: true },
+  { id: "potage",   name: "Hot Corn Potage",    price: 150, col: "#e6b422", hot: true }] }];
 WHEEL_CATS.splice(7, 0, { id: "med", name: "Medicine", colour: "#e0587a", empty: "No medicine" });
 
 // ---- Dokoto Camera, more floors: TVs, audio, and what you wear -------------------------
@@ -23631,6 +23957,7 @@ function findRide() {
   // A parked car you left is the first thing you would reach for.
   for (let i = 0; i < drive.parked.length; i++) {
     const p = drive.parked[i];
+    if (p.scenery) continue;                       // a stranger's car at the kerb is not yours to take
     if (Math.hypot(p.pos.x - px, p.pos.z - pz) < 4.2) return { what: "parked", parked: i };
   }
   let best = null, bestD = 5.0;
@@ -23762,9 +24089,9 @@ function leaveCar() {
                         colour: c.colour.slice(), uv: c.uv.slice() });
   }
   // Only strangers' cars are forgotten, oldest first.
-  let strangers = drive.parked.filter(q => !q.owned).length;
+  let strangers = drive.parked.filter(q => !q.owned && !q.scenery).length;
   while (strangers > 6) {
-    const at = drive.parked.findIndex(q => !q.owned);
+    const at = drive.parked.findIndex(q => !q.owned && !q.scenery);
     drive.parked.splice(at, 1);
     strangers--;
   }
@@ -24313,7 +24640,7 @@ function setNightLights(lit) {
   if (Math.abs(lit - nightState.lit) < 0.004) return;
   nightState.lit = lit;
   nightMats.forEach(n => {
-    n.m.emissiveIntensity = lit * n.gain;
+    n.m.emissiveIntensity = (n.floor || 0) + lit * n.gain;
     // The reflections are a daytime sky. Left on, a glass tower is a pale blue
     // mirror at midnight and no window in it can show.
   });
