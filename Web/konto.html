@@ -6744,6 +6744,7 @@ function buildScene(w) {
   buildHighwayMesh(root);
   buildTolls(root);
   buildSki(root);
+  try { buildBikeParks(root); } catch (e) { console.warn("bike parks", e); }
   buildStreetLights(root, w);
   buildStreetLife(root, w);
   vegBuild(root);
@@ -6751,6 +6752,7 @@ function buildScene(w) {
   drive.train = null;
   drive.parked.length = 0;
   restoreOwnedCars();
+  bikeParks.rentals.forEach(r => drive.parked.push(Object.assign({}, r, { pos: r.pos.clone() })));
   document.body.classList.remove("driving", "phone-up");
   phone.open = false;
 
@@ -8333,6 +8335,7 @@ function vegBuild(root) {
 // what grows at a point: 0 nothing, 1 woodland, 2 open ground
 function vegClass(x, z) {
   if (x < 20 || z < 20 || x > WORLD_X - 20 || z > WORLD_Z - 20) return 0;
+  for (let i = 0; i < bikeParks.clear.length; i++) { const q = bikeParks.clear[i]; if (Math.abs(x - q[0]) < q[2] && Math.abs(z - q[1]) < q[2] && Math.hypot(x - q[0], z - q[1]) < q[2]) return 0; }
   if (vegBlocked(x, z)) return 0;
   const h = world.sampleHeight(x, z);
   if (h < 2.4 || world.sampleLand(x, z) < 0.9) return 0;
@@ -13617,6 +13620,7 @@ function mapPois(across) {
   ski.list.forEach(R => {
     const nm = R.name || (R.res && R.res.name) || "Ski resort";
     out.push({ x: R.res.top[0], z: R.res.top[1], name: nm + " summit", kind: "Ski resort" });
+    if (across <= 7000) { const bp = bikeParks.list.find(q => q.name === nm); if (bp) out.push({ x: bp.start[0], z: bp.start[1], name: nm + " bike park", kind: "Bike park" }); }
     if (across <= 7000) out.push({ x: R.res.base[0], z: R.res.base[1], name: nm + " lift station", kind: "Ski resort" });
   });
   if (across < 9000) {
@@ -25290,6 +25294,7 @@ function updateBike(dt, c, kind, inp) {
       if (inp.throttle === 0 && inp.brake === 0) a -= (mtb ? 0.45 : 0.9) + Math.abs(c.speed) * 0.05 * (mtb ? 0.5 : 1);
       a -= g * Math.sin(gp) * 0.95;                                        // up a hill it slows, down one it runs
       a -= 0.0007 * c.speed * Math.abs(c.speed);                           // air
+      if (mu < 0.97) a -= (onF ? 0.05 : 0.10) * c.speed;                   // dirt and grass drag the tyres
     }
     c.speed += a * dt;
     c.speed = clamp(c.speed, -1.6, top * 1.4);
@@ -25354,7 +25359,9 @@ function updateBike(dt, c, kind, inp) {
   // ---- up and down
   const gy = c.air ? world.walkY(c.pos.x, c.pos.z, c.pos.y) : gN;
   if (!c.air) {
-    const vyG = (gy - c.gy) / dt;
+    // how fast the ground under the wheels is rising: the slope between the wheels
+    // times the speed, so a step onto a deck is not mistaken for a launch
+    const vyG = clamp(Math.sign(c.speed || 1) * Math.abs(c.speed) * Math.tan(gp), -30, 30);
     const ballistic = c.gy + c.vyG * dt - 0.5 * g * dt * dt;
     if (ballistic > gy + 0.05 && Math.abs(c.speed) > 6 && c.downT <= 0) {
       c.air = true; c.vy = c.vyG; c.airT = 0;
@@ -25366,9 +25373,11 @@ function updateBike(dt, c, kind, inp) {
     c.airT += dt; c.vy -= g * dt; c.pos.y += c.vy * dt;
     if (c.pos.y - 0.04 <= gy) {
       // landing: how hard, and how well the bike lines up with what it landed on
-      const hard = -c.vy, err = c.theta - gp;
+      // the part of the fall that goes into the ground, which on a slope you are
+      // landing down is a good deal less than the fall itself
+      const hard = Math.max(0, Math.abs(c.speed) * Math.sin(gp) * 1 - c.vy * Math.cos(gp)), err = c.theta - gp;
       c.air = false; c.pos.y = gy + 0.04; c.gy = gy; c.vyG = 0;
-      const bad = hard > (mtb ? 9.5 : 12) || Math.abs(err) > 0.85 || (Math.abs(err) > 0.5 && hard > 6.5);
+      const bad = hard > (mtb ? 8.0 : 10.5) || Math.abs(err) > 0.85 || (Math.abs(err) > 0.5 && hard > 5.5);
       c.omega = err * 2.2; c.theta = clamp(err * 0.6, -0.5, 0.9);
       drive.shake = Math.max(drive.shake || 0, clamp(hard / 10, 0.1, 0.9));
       if (bad) bikeCrash(c, hard > 9 ? "Cased it." : "Bad landing.");
@@ -26154,6 +26163,223 @@ function skiSignTexture(title, sub) {
   g.font = "600 34px " + UI; g.fillStyle = "#bcd7f7"; g.fillText(sub, 190, 134);
   const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
   return tex;
+}
+
+// ============================================================================
+// MOUNTAIN BIKE PARKS
+// ----------------------------------------------------------------------------
+// One beside each chairlift. A downhill run follows the fall line a hundred and
+// fifty metres off the lift: rollers, tabletops, a gap and a big gap, whoops,
+// a drop and a finish jump, with the lift to take you back up. At the bottom a
+// skills area: a pump track with banked ends, a box-jump line, a spine and a
+// quarter pipe. Rental dirt bikes and mountain bikes stand at the top, and
+// bikes of any kind work: the ground you ride on is made of decks that the
+// bike physics ask the height of (world.walkY), so every ramp is a real ramp.
+// ============================================================================
+const bikeParks = { list: [], rentals: [], clear: [] };
+function buildBikeParks(root) {
+  bikeParks.list.length = 0; bikeParks.rentals.length = 0; bikeParks.clear.length = 0;
+  world.walk = world.walk.filter(d => !d.park);
+  if (!ski.list.length) return;
+  const pos = [], col = [], idx = [];
+  const rr = (a, b) => rnd(Math.round(a), Math.round(b), 9301);
+  const dirt = [0.30, 0.20, 0.12], dirt2 = [0.36, 0.25, 0.15], wood = [0.42, 0.28, 0.15];
+  const deckFn = d => (lx, lz) => {
+    const t = (lz + d.hl) / (2 * d.hl);
+    let y = d.ya + (d.yb - d.ya) * (d.prof === 2 ? t * t : t);
+    if (d.amp) y += d.amp * Math.sin(Math.PI * t);
+    if (d.cr) { const e = d.cs ? clamp01(lx * d.cs / d.hw) : Math.abs(lx) / d.hw; y += d.cr * e * e; }
+    return y;
+  };
+  const addDeck = (d, material) => {
+    d.park = true; d.r = Math.hypot(d.hw, d.hl) + 2;
+    world.walk.push(d);
+    const f = deckFn(d), nx = Math.max(2, Math.round(d.hw * 2 / 1.5)), nz = Math.max(2, Math.round(d.hl * 2 / 1.2));
+    const base = pos.length / 3, c = d.c, sn = d.s;
+    const W = (lx, lz) => [d.cx + lx * c + lz * sn, d.cz - lx * sn + lz * c];
+    const c0 = material === "wood" ? wood : dirt;
+    for (let j = 0; j <= nz; j++) for (let i = 0; i <= nx; i++) {
+      const lx = -d.hw + 2 * d.hw * i / nx, lz = -d.hl + 2 * d.hl * j / nz, w = W(lx, lz);
+      pos.push(w[0], f(lx, lz) + 0.03, w[1]);
+      const sh = 0.94 + rr(w[0], w[1]) * 0.12, cc = (i === 0 || i === nx) ? dirt2 : c0;
+      col.push(cc[0] * sh, cc[1] * sh, cc[2] * sh);
+    }
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      const a = base + j * (nx + 1) + i, b = a + 1, c2 = a + nx + 1, d2 = c2 + 1;
+      idx.push(a, c2, b, b, c2, d2);
+    }
+    // skirts, down to the ground on the two sides and both ends, so it is a solid thing
+    const skirt = (p0, p1) => {
+      const o = pos.length / 3;
+      [p0, p1].forEach(p => { pos.push(p[0], p[1] + 0.03, p[2]); col.push(dirt2[0] * 0.8, dirt2[1] * 0.8, dirt2[2] * 0.8); });
+      [p0, p1].forEach(p => { pos.push(p[0], world.sampleHeight(p[0], p[2]) - 0.4, p[2]); col.push(dirt[0] * 0.6, dirt[1] * 0.6, dirt[2] * 0.6); });
+      idx.push(o, o + 2, o + 1, o + 1, o + 2, o + 3, o, o + 1, o + 2, o + 1, o + 3, o + 2);
+    };
+    const edge = (lxA, lzA, lxB, lzB) => { const n = 4; for (let k = 0; k < n; k++) {
+      const a0 = W(lxA + (lxB - lxA) * k / n, lzA + (lzB - lzA) * k / n), a1 = W(lxA + (lxB - lxA) * (k + 1) / n, lzA + (lzB - lzA) * (k + 1) / n);
+      const f0 = f(lxA + (lxB - lxA) * k / n, lzA + (lzB - lzA) * k / n), f1 = f(lxA + (lxB - lxA) * (k + 1) / n, lzA + (lzB - lzA) * (k + 1) / n);
+      skirt([a0[0], f0, a0[1]], [a1[0], f1, a1[1]]); } };
+    edge(-d.hw, -d.hl, -d.hw, d.hl); edge(d.hw, -d.hl, d.hw, d.hl); edge(-d.hw, d.hl, d.hw, d.hl); edge(-d.hw, -d.hl, d.hw, -d.hl);
+  };
+
+  ski.list.forEach((R, ri) => {
+    const r = R.res, fdx = r.dir[0], fdz = r.dir[1], flx = -fdz, flz = fdx;
+    const H = (x, z) => world.sampleHeight(x, z);
+    // The run is a traverse across the slope, not straight down it: at fifty degrees
+    // to the fall line the ground under the wheels is about two thirds as steep,
+    // which is a slope you can ride with jumps on it. Every angle either side is
+    // tried and the one with the kindest, steadiest ground is kept.
+    let best = null;
+    [34, 46, 58].forEach(deg => [1, -1].forEach(sd => {
+      const a = deg * Math.PI / 180, ddx = fdx * Math.cos(a) + flx * sd * Math.sin(a), ddz = fdz * Math.cos(a) + flz * sd * Math.sin(a);
+      const x0 = r.top[0] + fdx * 60, z0 = r.top[1] + fdz * 60;
+      let pen = 0, prev = H(x0, z0), ok = true;
+      for (let q = 10; q <= 380; q += 10) {
+        const x = x0 + ddx * q, z = z0 + ddz * q, h = H(x, z);
+        if (h < 6 || world.sampleUrban(x, z) > 0.05 || world.sampleRiver(x, z) > 0.2) { ok = false; break; }
+        const sl = Math.atan2(prev - h, 10) * 57.3;                     // positive downhill
+        pen += Math.abs(sl - 9) + (sl < 1 ? 20 : 0);
+        prev = h;
+      }
+      if (ok && (!best || pen < best.pen)) best = { pen: pen, ddx: ddx, ddz: ddz, x0: x0, z0: z0 };
+    }));
+    if (!best) return;
+    const dx = best.ddx, dz = best.ddz, lx = -dz, lz = dx, yaw = Math.atan2(dx, dz), c = Math.cos(yaw), sn = Math.sin(yaw);
+    const side = 1, off = 0;
+    const P = s => [best.x0 + dx * (s - 60), best.z0 + dz * (s - 60)];
+
+    // a deck starting `s` metres down the line, `len` long, with heights relative to the ground at its two ends
+    const deck = (s, len, hw, offA, offB, extra, abs) => {
+      const m = P(s + len / 2), a = P(s), b = P(s + len);
+      const gA = H(a[0], a[1]), gB = H(b[0], b[1]);
+      const d = Object.assign({ cx: m[0], cz: m[1], c: c, s: sn, hw: hw, hl: len / 2,
+        ya: abs ? abs[0] : gA + offA, yb: abs ? abs[1] : gB + offB, prof: 0 }, extra || {});
+      addDeck(d, extra && extra.wood ? "wood" : "dirt");
+      return d;
+    };
+    let s = 60;
+    const feat = [];
+    // ---- the run
+    for (let k = 0; k < 4; k++) { deck(s, 5.6, 2.2, 0, 0, { amp: 0.5 }); s += 5.6; } s += 14;                       // rollers
+    // a tabletop: kicker, flat top, landing
+    const table = (rise, top, kL, lL) => {
+      const m = P(s + kL), g0 = H(P(s)[0], P(s)[1]);
+      const kick = deck(s, kL, 2.6, 0, 0, { prof: 2 }, [g0, H(m[0], m[1]) + rise]); const lvl = kick.yb; s += kL;
+      deck(s, top, 2.6, 0, 0, {}, [lvl, lvl]); s += top;
+      const e = P(s + lL); deck(s, lL, 2.6, 0, 0, {}, [lvl - 0.1, H(e[0], e[1])]); s += lL;
+    };
+    table(1.5, 8, 8, 12); s += 22;
+    // a gap: kicker, empty air, landing
+    const gap = (rise, gapLen, kL, lL) => {
+      const m = P(s + kL), g0 = H(P(s)[0], P(s)[1]);
+      const kick = deck(s, kL, 2.8, 0, 0, { prof: 2 }, [g0, H(m[0], m[1]) + rise]); const lvl = kick.yb; s += kL + gapLen;
+      const e = P(s + lL), gl = H(P(s)[0], P(s)[1]);
+      deck(s, lL, 3.2, 0, 0, {}, [Math.max(gl + rise * 0.55, lvl - gapLen * 0.12 - 0.4), H(e[0], e[1])]); s += lL;
+    };
+    gap(1.9, 13, 9, 18); s += 26;
+    for (let k = 0; k < 6; k++) { deck(s, 4.2, 2.2, 0, 0, { amp: 0.42 }); s += 4.2; } s += 20;                       // whoops
+    gap(3.2, 24, 13, 26); s += 30;                                                                                     // the big one
+    // a drop: a raised platform and a ramp down
+    { const g0 = H(P(s)[0], P(s)[1]); deck(s, 6, 2.6, 0, 0, {}, [g0 + 1.9, g0 + 1.9]); s += 6; const e = P(s + 8); deck(s, 8, 2.6, 0, 0, {}, [g0 + 1.9, H(e[0], e[1])]); s += 8; }
+    s += 18; table(2.0, 10, 9, 15);
+    const endS = Math.min(s + 10, 380);
+    for (let q = 30; q <= endS + 10; q += 22) { const a = P(q); bikeParks.clear.push([a[0], a[1], 16]); }
+    // ---- the dirt line itself, a ribbon on the ground
+    for (let q = 50; q < endS; q += 5) {
+      const a = P(q), b = P(q + 5), o = pos.length / 3, hwid = 1.6;
+      [[a, -1], [a, 1], [b, -1], [b, 1]].forEach(([pp, sg]) => { const x = pp[0] + lx * sg * hwid, z = pp[1] + lz * sg * hwid; pos.push(x, H(x, z) + 0.06, z); col.push(0.27, 0.18, 0.10); });
+      idx.push(o, o + 1, o + 2, o + 1, o + 3, o + 2);
+    }
+    // ---- the skills area, below the lift station
+    // the flattest square of ground near the foot of the lift, with its long axis along the contour
+    let sk = null;
+    for (let k = 0; k < 24; k++) for (const rad of [58, 76, 95]) {
+      const cx = r.base[0] + Math.cos(k / 24 * 6.2832) * rad, cz = r.base[1] + Math.sin(k / 24 * 6.2832) * rad;
+      let m = 0, n = 0, ok = true; const hs = [];
+      for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) { const x = cx + a * 9, z = cz + b * 9, h = H(x, z); if (h < 5 || insideBuilding(x, z, 2)) ok = false; hs.push(h); m += h; n++; }
+      // clear of the lift: the station and the line it hauls up the hill
+      { const rx = cx - r.base[0], rz = cz - r.base[1], al = -(rx * fdx + rz * fdz), la = rx * flx + rz * flz; if (al > -30 && Math.abs(la) < 40) ok = false; }
+      if (!ok) continue; m /= n; let v = 0; hs.forEach(h => { v += (h - m) * (h - m); }); v /= n;
+      if (!sk || v < sk.v) sk = { v: v, x: cx, z: cz };
+    }
+    const bx0 = sk ? sk.x : r.base[0], bz0 = sk ? sk.z : r.base[1];
+    const gx = H(bx0 + 6, bz0) - H(bx0 - 6, bz0), gz = H(bx0, bz0 + 6) - H(bx0, bz0 - 6), gl = Math.hypot(gx, gz) || 1;
+    const ux = -gz / gl, uz = gx / gl, vx = gx / gl, vz = gz / gl;       // u along the contour, v up the slope
+    const bx = bx0, bz = bz0;
+    const Q = (u, v) => [bx + ux * u + vx * v, bz + uz * u + vz * v];
+    bikeParks.clear.push([bx0, bz0, 52]);
+    const cQ = Math.cos(Math.atan2(ux, uz)), sQ = Math.sin(Math.atan2(ux, uz));
+    // pump track: two straights of rollers, two banked ends
+    const straight = (v, dir) => { for (let k = 0; k < 6; k++) { const u = -14 + k * 4.8 + 2.4, m = Q(u, v), a = Q(u - 2.4, v), b = Q(u + 2.4, v);
+      addDeck({ cx: m[0], cz: m[1], c: dir > 0 ? cQ : -cQ, s: dir > 0 ? sQ : -sQ, hw: 1.9, hl: 2.4, ya: H(a[0], a[1]), yb: H(b[0], b[1]), prof: 0, amp: 0.52 }, "dirt"); } };
+    straight(-10, 1); straight(10, -1);
+    const berm = end => { const R0 = 10, n = 9; for (let k = 0; k < n; k++) {
+      const a0 = Math.PI * (k / n), a1 = Math.PI * ((k + 1) / n), am = (a0 + a1) / 2;
+      const ctr = Q(end * 14, 0), mx = ctr[0] + (Math.cos(am) * vx + Math.sin(am) * end * ux) * R0, mz = ctr[1] + (Math.cos(am) * vz + Math.sin(am) * end * uz) * R0;
+      // the tangent of travel at this angle
+      const tx = -Math.sin(am) * vx + Math.cos(am) * end * ux, tz = -Math.sin(am) * vz + Math.cos(am) * end * uz;
+      const ty = Math.atan2(tx, tz), cc = Math.cos(ty), ss = Math.sin(ty);
+      // the outside of the bend is the side away from the centre
+      const outX = Math.cos(am) * vx + Math.sin(am) * end * ux, outZ = Math.cos(am) * vz + Math.sin(am) * end * uz;
+      const outSign = (outX * cc - outZ * ss) >= 0 ? 1 : -1;     // local x axis is (cc, -ss) in world
+      const g = H(mx, mz);
+      addDeck({ cx: mx, cz: mz, c: cc, s: ss, hw: 2.0, hl: R0 * Math.PI / n / 2 + 0.3, ya: g, yb: g, prof: 0, cr: 1.1, cs: outSign }, "dirt"); } };
+    berm(1); berm(-1);
+    // box jumps in a row to one side of it
+    for (let k = 0; k < 3; k++) {
+      const u0 = -16 + k * 17, v0 = 30, a = Q(u0, v0), b = Q(u0 + 5, v0), tp = Q(u0 + 5, v0), e = Q(u0 + 14, v0);
+      const g0 = H(a[0], a[1]), gm = H(b[0], b[1]), top = gm + 1.0 + k * 0.25;
+      const mk = (u, len, ya, yb, extra) => { const m = Q(u + len / 2, v0); addDeck(Object.assign({ cx: m[0], cz: m[1], c: cQ, s: sQ, hw: 2.2, hl: len / 2, ya: ya, yb: yb, prof: 0 }, extra || {}), "dirt"); };
+      mk(u0, 5, g0, top, { prof: 2 }); mk(u0 + 5, 4, top, top); const gl = H(e[0], e[1]); mk(u0 + 9, 6, top - 0.1, gl);
+    }
+    // a spine (two ramps back to back) and a quarter pipe
+    { const v0 = -34, a = Q(-12, v0), b = Q(-6, v0), gA = H(a[0], a[1]), gB = H(b[0], b[1]); const m1 = Q(-9, v0);
+      addDeck({ cx: m1[0], cz: m1[1], c: cQ, s: sQ, hw: 2.4, hl: 3, ya: gA, yb: gA + 1.7, prof: 0 }, "dirt");
+      const m2 = Q(-3, v0), e = Q(0, v0); addDeck({ cx: m2[0], cz: m2[1], c: cQ, s: sQ, hw: 2.4, hl: 3, ya: gA + 1.7, yb: H(e[0], e[1]), prof: 0 }, "dirt");
+      const q0 = Q(14, v0), q1 = Q(20, v0), mq = Q(17, v0); const gq = H(q0[0], q0[1]);
+      addDeck({ cx: mq[0], cz: mq[1], c: cQ, s: sQ, hw: 2.8, hl: 3, ya: gq, yb: gq + 2.6, prof: 2 }, "dirt");
+      const mp = Q(21.5, v0); addDeck({ cx: mp[0], cz: mp[1], c: cQ, s: sQ, hw: 2.8, hl: 1.5, ya: gq + 2.6, yb: gq + 2.6, prof: 0 }, "wood"); }
+
+    // ---- signs and gates
+    const sign = (u, text, sub, wx, wz) => {
+      const cv = document.createElement("canvas"); cv.width = 768; cv.height = 192; const g = cv.getContext("2d");
+      g.fillStyle = "#1f3a2b"; g.fillRect(0, 0, 768, 192); g.fillStyle = "#f2c230"; g.fillRect(0, 0, 768, 10); g.fillRect(0, 182, 768, 10);
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 66px " + UI; g.fillText(text, 384, 78);
+      g.font = "700 34px " + UI; g.fillStyle = "#f2c230"; g.fillText(sub, 384, 142);
+      const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+      const grp = new THREE.Group(); const gy = H(wx, wz);
+      grp.position.set(wx, gy, wz); grp.rotation.y = yaw; root.add(grp);
+      const postM = new THREE.MeshLambertMaterial({ color: 0x5a3b22 });
+      [-4.2, 4.2].forEach(x => { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5.4, 0.4), postM); post.position.set(x, 2.7, 0); grp.add(post); });
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(9.2, 0.4, 0.5), postM); beam.position.set(0, 5.3, 0); grp.add(beam);
+      const bn = new THREE.Mesh(new THREE.PlaneGeometry(7.6, 1.9), new THREE.MeshBasicMaterial({ map: tex })); bn.position.set(0, 4.05, 0.28); grp.add(bn);
+      const bn2 = bn.clone(); bn2.rotation.y = Math.PI; bn2.position.z = -0.28; grp.add(bn2);
+    };
+    const nm = (R.name || r.name || "Mountain");
+    { const a = P(34); sign(34, nm.toUpperCase() + " BIKE PARK", "Downhill run  ·  take the lift back up", a[0], a[1]); }
+    { const a = P(endS + 6); sign(endS, "FINISH", "Skills area below", a[0], a[1]); }
+    { const a = Q(-24, 0); sign(0, "PUMP TRACK", "Skills  ·  box jumps  ·  spine  ·  quarter pipe", a[0], a[1]); }
+
+    // ---- bikes to rent, at the top of the run
+    const kinds = ["dirtbike", "mtb", "dirtbike", "mtb"];
+    kinds.forEach((kn, k) => {
+      const ki = CAR_KINDS.findIndex(q => q.name === kn), kind = CAR_KINDS[ki];
+      const a = P(22 + k * 2.4), x = a[0] + lx * side * -4 * 0, z = a[1];
+      const pal = [[0.88, 0.30, 0.08], [0.1, 0.45, 0.8], [0.9, 0.78, 0.1], [0.18, 0.62, 0.3]][k];
+      bikeParks.rentals.push({ kind: ki, pos: new THREE.Vector3(a[0] + lx * 2.2 * (k % 2 ? 1 : -1), H(a[0], a[1]) + 0.04, a[1] + 0), yaw: yaw, colour: pal.slice(), uv: [0, 0], rental: true });
+    });
+    bikeParks.list.push({ name: nm, start: P(34), finish: P(endS), skills: Q(0, 0), side: side, dir: [dx, dz] });
+  });
+
+  if (idx.length) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    const flat = geo.toNonIndexed(); geo.dispose(); flat.computeVertexNormals();      // flat faces, each lit by its own normal
+    const mesh = new THREE.Mesh(flat, new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    mesh.receiveShadow = true; mesh.name = "bikeparks"; root.add(mesh);
+  }
 }
 
 function buildSki(root) {
