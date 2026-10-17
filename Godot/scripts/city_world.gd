@@ -19,6 +19,11 @@ var trains: Array[Train] = []
 var building_count := 0
 var forest: BirchForest
 var jp: JpBuildings
+var shops: Array = []          # ShopFront nodes
+var vendors: Array = []        # VendingMachine nodes
+var _shop_n := 0
+var _specials := {5: "plaza", 9: "dokoto", 14: "capsule", 24: "capsule"}
+const SHOP_CYCLE := ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"]
 var _sizes := {}                 # kit name -> unscaled size
 var _prepared := {}
 var _asphalt: ImageTexture
@@ -34,6 +39,7 @@ func build() -> void:
 	_blocks()
 	_rail()
 	_lamps()
+	_vending()
 	forest.commit()
 
 # ---- sky, light and the sea
@@ -379,7 +385,9 @@ func _lot_jp(x: float, z: float, sz: float, mid: float) -> void:
 		var face := rng.randi() % 4
 		var outs: Array = [[Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)][face], [Vector3(-1, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 0, 1)][face]]
 		var yaw := float(rng.randi() % 4) * PI * 0.5
-		_solid_box(jp.place(self, rng, it, cx, cz, yaw, sz - 2.0, outs))
+		var bx := jp.place(self, rng, it, cx, cz, yaw, sz - 2.0, outs)
+		_solid_box(bx)
+		_maybe_shop(bx, outs, mid, x, z, 0.32)
 		return
 	for a in 2:
 		for b in 2:
@@ -388,7 +396,59 @@ func _lot_jp(x: float, z: float, sz: float, mid: float) -> void:
 			var it := jp.pick(rng, 5.0, 17.2, tall_bias)
 			var outs2: Array = [Vector3(dx, 0, 0), Vector3(0, 0, dz)]
 			var yaw2 := float(rng.randi() % 4) * PI * 0.5
-			_solid_box(jp.place(self, rng, it, x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw2, sz * 0.5 - 1.6, outs2))
+			var bx2 := jp.place(self, rng, it, x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw2, sz * 0.5 - 1.6, outs2)
+			_solid_box(bx2)
+			_maybe_shop(bx2, outs2, mid, x, z, 0.2)
+
+## Some buildings have a branded shop on the street wall. The brands run in the web build's order;
+## every seventh is the back-street armourer, and a few are special (the mall, the electronics store,
+## the capsule hotels).
+func _maybe_shop(box: AABB, outs: Array, mid: float, lx: float, lz: float, chance: float) -> void:
+	if outs.is_empty() or rng.randf() > chance:
+		return
+	var n: Vector3 = outs[0]
+	var brand: String = SHOP_CYCLE[_shop_n % SHOP_CYCLE.size()]
+	var back_street := lx < P + 8.0 or lx > (N - 1) * P - 8.0 or lz < P + 8.0 or lz > (N - 1) * P - 8.0
+	if _shop_n % 7 == 3 and back_street:
+		brand = "arms"
+	elif _shop_n % 7 == 3:
+		brand = "pharmacy"
+	if _specials.has(_shop_n):
+		brand = _specials[_shop_n]
+	_shop_n += 1
+	var c := box.get_center()
+	var depth := absf(n.x) * box.size.x * 0.5 + absf(n.z) * box.size.z * 0.5
+	var t := Vector3(-n.z, 0, n.x)
+	var face_w := absf(t.x) * box.size.x + absf(t.z) * box.size.z
+	var sf := ShopFront.new()
+	add_child(sf)
+	sf.build(brand, Vector3(c.x, 0.12, c.z) + n * (depth + 0.02), n, face_w * 0.8, 0.0)
+	shops.append(sf)
+
+func _vending() -> void:
+	var vr := RandomNumberGenerator.new()
+	vr.seed = 77
+	var placed := 0
+	var tries := 0
+	while placed < 20 and tries < 200:
+		tries += 1
+		var i := vr.randi_range(0, N)
+		var j := vr.randi_range(0, N - 1)
+		if i == 3 or i == 4 and (j == 3 or j == 4):
+			continue            # not in the railway cutting, not in the park
+		var side := 1.0 if vr.randf() < 0.5 else -1.0
+		var x := i * P + side * 6.6
+		var z := j * P + 16.0 + vr.randf() * 18.0
+		if x < 2.0 or x > W - 2.0:
+			continue
+		var vm := VendingMachine.new()
+		add_child(vm)
+		vm.build(Vector3(x, 0.12, z), atan2(-side, 0.0))
+		vendors.append(vm)
+		placed += 1
+
+func in_park(p: Vector3) -> bool:
+	return p.x > 4.0 * P + 6.0 and p.x < 5.0 * P - 6.0 and p.z > 3.0 * P + 6.0 and p.z < 5.0 * P - 6.0
 
 func _lot(x: float, z: float, sz: float, mid: float) -> void:
 	if jp != null and jp.ok:

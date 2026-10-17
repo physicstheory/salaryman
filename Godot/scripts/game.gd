@@ -14,6 +14,9 @@ var traffic: Array[Vehicle] = []
 var current: Vehicle
 var lights := false
 var smoke_test := false
+var shop_ui: ShopUI
+var ui_open := false
+var _t := 0.0
 
 # the 3D view is drawn into a SubViewport at a fraction of the window size and upscaled on screen,
 # which keeps the HUD at full resolution and buys frame rate on weaker graphics
@@ -45,6 +48,11 @@ func _ready() -> void:
 	layer.layer = 5
 	hud = Hud.new()
 	layer.add_child(hud)
+	shop_ui = ShopUI.new()
+	layer.add_child(shop_ui)
+	shop_ui.visible = false
+	shop_ui.closed.connect(_on_shop_closed)
+	GameState.notice.connect(func(app: String, title: String, body: String, secs: float): hud.say_small("%s: %s  %s" % [app, title, body], secs))
 	_spawn_player_cars()
 	_spawn_traffic()
 	if not smoke_test:
@@ -188,7 +196,34 @@ func _on_died(reason: String) -> void:
 	rig.target = player
 	rig.snap_to_target()
 
+## The nearest door you can go through: a shop's, or a vending machine.
+func nearest_door(p: Vector3, r := 3.2) -> Node:
+	var best: Node = null
+	var bd := r
+	for s in world.shops + world.vendors:
+		var d := Vector2(s.door.x - p.x, s.door.z - p.z).length()
+		if d < bd:
+			bd = d
+			best = s
+	return best
+
+func open_shop(door: Node) -> void:
+	ui_open = true
+	player.active = false
+	player.velocity = Vector3.ZERO
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	shop_ui.open(door.brand)
+
+func _on_shop_closed() -> void:
+	ui_open = false
+	player.active = true
+	if not smoke_test:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	GameState.save_game()
+
 func _unhandled_input(e: InputEvent) -> void:
+	if ui_open:
+		return
 	if e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
 	elif e is InputEventMouseButton and e.pressed and not smoke_test:
@@ -200,9 +235,13 @@ func _unhandled_input(e: InputEvent) -> void:
 			if absf(current.forward_speed) < 4.0:
 				leave()
 		elif not player.dead:
-			var v := nearest_vehicle(player.global_position)
-			if v and not v.wrecked:
-				enter(v)
+			var door := nearest_door(player.global_position)
+			if door:
+				open_shop(door)
+			else:
+				var v := nearest_vehicle(player.global_position)
+				if v and not v.wrecked:
+					enter(v)
 	if Input.is_action_just_pressed("lights"):
 		lights = not lights
 		if current:
@@ -211,14 +250,24 @@ func _unhandled_input(e: InputEvent) -> void:
 		current.reset_upright()
 
 func _physics_process(dt: float) -> void:
+	_t += dt
+	GameState.tick(dt)
+	GameState.outdoors = (not current) and world.in_park(player.global_position)
+	var strain := GameState.strain()
+	player.speed_mult = 1.0 - 0.42 * strain
 	if current:
 		var f := Input.get_action_strength("move_forward")
 		var b := Input.get_action_strength("move_back")
 		var s := Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
+		# a man at the end of his rope drives badly: he cannot hold the pedal, the wheel wanders, and he lapses
+		f *= 1.0 - 0.35 * strain
+		if strain > 0.2 and fmod(_t, 7.0) < 0.35 * strain:
+			f *= 0.3
+		s += sin(_t * 3.1) * 0.22 * strain
 		current.throttle = move_toward(current.throttle, f, dt * 5.0)
 		current.brake = move_toward(current.brake, b, dt * 6.0)
 		var rate := 4.5 if absf(s) > 0.01 else 7.0
-		current.steer_in = move_toward(current.steer_in, s, dt * rate)
+		current.steer_in = move_toward(current.steer_in, clampf(s, -1.0, 1.0), dt * rate)
 		current.handbrake = Input.is_action_pressed("handbrake")
 		hud.prompt = ""
 		if current.wrecked:
@@ -227,8 +276,14 @@ func _physics_process(dt: float) -> void:
 			hud.prompt = "E: get out"
 	else:
 		player.cam_yaw = rig.yaw
+		var door := nearest_door(player.global_position)
 		var v := nearest_vehicle(player.global_position)
-		hud.prompt = "E: get in" if v and not v.wrecked and not player.dead else ""
+		if ui_open:
+			hud.prompt = ""
+		elif door:
+			hud.prompt = "E: " + ("buy a drink" if door is VendingMachine else "enter " + door.shop_name)
+		else:
+			hud.prompt = "E: get in" if v and not v.wrecked and not player.dead else ""
 
 # ---- render scale and the upscaler
 func _setup_stage() -> void:

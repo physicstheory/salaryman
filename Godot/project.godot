@@ -10,6 +10,11 @@ config/features=PackedStringArray("4.3", "GL Compatibility")
 run/max_fps=0
 config/icon=""
 
+[autoload]
+
+GameData="*res://scripts/game_data.gd"
+GameState="*res://scripts/game_state.gd"
+
 [display]
 
 window/size/viewport_width=1280

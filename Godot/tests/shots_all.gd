@@ -1,31 +1,31 @@
-extends SceneTree
+extends Node
 ## A full photo shoot of the build. Needs a display (xvfb works), run with --fixed-fps 120.
 var out := "/tmp/godot/shoot"
 var g: Game
 var cam: Camera3D
 var n := 0
 
-func _initialize() -> void:
+func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(out)
 	var scene := load("res://scenes/main.tscn") as PackedScene
 	g = scene.instantiate() as Game
 	g.smoke_test = true
-	root.add_child(g)
+	add_child(g)
 	_go.call_deferred()
 
 func sim(frames: int) -> void:
 	RenderingServer.render_loop_enabled = false
 	for i in frames:
-		await physics_frame
+		await get_tree().physics_frame
 	RenderingServer.render_loop_enabled = true
 
 func snap(name: String) -> void:
 	RenderingServer.render_loop_enabled = true
-	await process_frame
-	await process_frame
-	await process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
 	n += 1
-	root.get_texture().get_image().save_png("%s/%02d_%s.png" % [out, n, name])
+	get_tree().root.get_texture().get_image().save_png("%s/%02d_%s.png" % [out, n, name])
 	print("saved ", name)
 	RenderingServer.render_loop_enabled = false
 
@@ -88,19 +88,19 @@ func _go() -> void:
 			v.throttle = 0.7
 			v.steer_in = 0.0
 			RenderingServer.render_loop_enabled = false
-			await physics_frame
+			await get_tree().physics_frame
 		await snap("chase_" + kinds[i])
 		if i == 0:
 			for k in 90:
 				v.throttle = 1.0
 				v.steer_in = 0.55
-				await physics_frame
+				await get_tree().physics_frame
 			await snap("sports_cornering")
 			v.handbrake = true
 			for k in 60:
 				v.throttle = 0.0
 				v.steer_in = -0.6
-				await physics_frame
+				await get_tree().physics_frame
 			v.handbrake = false
 			await snap("sports_handbrake_slide")
 		v.throttle = 0.0
@@ -166,4 +166,4 @@ func _go() -> void:
 	await snap("railway_cutting_aerial")
 	free_cam(Vector3(8.0 * P - 6.0, 14.0, 4.0 * P), Vector3(8.0 * P + 60.0, 0.0, 4.0 * P), 70)
 	await snap("harbour_edge_and_sea")
-	quit()
+	get_tree().quit()

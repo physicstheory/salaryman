@@ -2866,5 +2866,61 @@
    "Mint",
    "#a6dcc0"
   ]
+ ],
+ "gear": {
+  "playbox5": {
+   "id": "playbox5",
+   "name": "SOTI PlayBox 5",
+   "note": "Console · plug into a TV",
+   "maker": "soti",
+   "price": 69800
+  },
+  "pearcube": {
+   "id": "pearcube",
+   "name": "Pear Cube",
+   "note": "Console · plug into a TV",
+   "maker": "pear",
+   "price": 74800
+  },
+  "pearwatch": {
+   "id": "pearwatch",
+   "name": "Pear Watch",
+   "note": "Wear it and connect",
+   "maker": "pear",
+   "price": 54800
+  },
+  "pearwatchu": {
+   "id": "pearwatchu",
+   "name": "Pear Watch Ultra",
+   "note": "Wear it and connect",
+   "maker": "pear",
+   "price": 129800
+  }
+ },
+ "home_acts": [
+  {
+   "id": "sleep",
+   "name": "Sleep",
+   "note": "Until morning. Everything comes back.",
+   "detail": "The futon is already out. It always is."
+  },
+  {
+   "id": "eat",
+   "name": "Eat something",
+   "note": "Whatever is in the fridge.",
+   "detail": "Rice, an egg, the end of a jar of pickles."
+  },
+  {
+   "id": "tv",
+   "name": "Watch television",
+   "note": "Half an hour goes somewhere.",
+   "detail": "A variety show. Somebody is eating something enormous."
+  },
+  {
+   "id": "leave",
+   "name": "Go out",
+   "note": "",
+   "detail": ""
+  }
  ]
 }

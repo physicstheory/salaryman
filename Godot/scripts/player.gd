@@ -9,6 +9,7 @@ const RUN := 6.4
 const JUMP := 4.6
 
 var active := true
+var speed_mult := 1.0
 var dead := false
 var cam_yaw := 0.0
 var model: Node3D
@@ -59,7 +60,7 @@ func _physics_process(dt: float) -> void:
 	var yaw_basis := Basis(Vector3.UP, cam_yaw)
 	var dir := yaw_basis * Vector3(inp.x, 0, inp.y)
 	var run := Input.is_action_pressed("sprint")
-	var target_speed := (RUN if run else WALK) * minf(inp.length(), 1.0)
+	var target_speed := (RUN if run else WALK) * minf(inp.length(), 1.0) * speed_mult
 	var hv := Vector3(velocity.x, 0, velocity.z)
 	var want := dir.normalized() * target_speed if dir.length() > 0.01 else Vector3.ZERO
 	hv = hv.move_toward(want, (28.0 if want != Vector3.ZERO else 36.0) * dt)

@@ -38,6 +38,17 @@ func _txt(s: String, p: Vector2, size: int, col := Color.WHITE, align := HORIZON
 func _draw() -> void:
 	var sz := size
 	_txt(fps_text, Vector2(14, 22), 14, Color(1, 1, 1, 0.6))
+	# money and the clock, top right
+	_txt(GameState.yen(GameState.money), Vector2(sz.x - 20, 34), 28, Color(0.95, 0.9, 0.7), HORIZONTAL_ALIGNMENT_RIGHT)
+	_txt("Day %d  %s" % [GameState.day, GameState.clock_text()], Vector2(sz.x - 20, 58), 16, Color(1, 1, 1, 0.7), HORIZONTAL_ALIGNMENT_RIGHT)
+	# health and stress, bottom left: two thin bars
+	for k in 2:
+		var vv: float = GameState.health if k == 0 else GameState.stress
+		var cc := Color(0.85, 0.28, 0.24) if k == 0 else Color(0.25, 0.55, 0.9)
+		var yy := sz.y - 96.0 + k * 16.0
+		draw_rect(Rect2(14, yy, 150, 9), Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(15, yy + 1, 148.0 * vv, 7), cc)
+		_txt("HEALTH" if k == 0 else "STRESS", Vector2(172, yy + 9), 12, Color(1, 1, 1, 0.7))
 	if small_t > 0.0:
 		_txt(small, Vector2(14, 44), 15, Color(0.7, 0.95, 1.0, minf(1.0, small_t)))
 	if vehicle:
