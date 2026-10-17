@@ -2044,6 +2044,32 @@ function makeWorld(seed, report) {
     }
     return null;
   };
+  // Decks and stairs you can walk on that are not the ground: station platforms
+  // and the flights of steps up to them. Each is an oriented rectangle with a
+  // height at either end, so a flight is a ramp and a platform is flat.
+  // Several can lie over the same square metre (a platform over a road), so the
+  // caller says how high it is standing and gets the highest one it can step on.
+  world.walk = [];
+  world.walkOn = false;
+  world.walkY = (px, pz, refY) => {
+    const L = world.walk;
+    let best = null;
+    for (let i = 0; i < L.length; i++) {
+      const d = L[i];
+      if (Math.abs(px - d.cx) > d.r || Math.abs(pz - d.cz) > d.r) continue;
+      const dx = px - d.cx, dz = pz - d.cz;
+      const lx = dx * d.c - dz * d.s, lz = dx * d.s + dz * d.c;
+      if (Math.abs(lx) > d.hw || Math.abs(lz) > d.hl) continue;
+      const y = d.ya + (d.yb - d.ya) * ((lz + d.hl) / (2 * d.hl));
+      if (y <= refY + 0.9 && (best === null || y > best)) best = y;
+    }
+    world.walkOn = best !== null;
+    if (best !== null) {
+      const g = world.surfaceY(px, pz);
+      return Math.max(best, g);
+    }
+    return world.surfaceY(px, pz);
+  };
   world.surfaceY = (px, pz) => {
     const deck = world.bridgeY(px, pz);
     if (deck !== null) return deck;
@@ -6943,6 +6969,11 @@ function tryStep(dx, dz, radius) {
   if (insideBuilding(nx, nz, radius)) return false;
   if (treeBlocks(nx, nz, radius, player.pos.x, player.pos.z)) return false;
   if (traffic.ready && carBlocks(nx, nz, radius)) return false;
+  // The edge of a platform or a flight of steps is a drop, not a doorway.
+  if (world.walk.length && player.onWalk) {
+    const ny = world.walkY(nx, nz, player.pos.y);
+    if (player.pos.y - ny > 1.6) return false;
+  }
   player.pos.x = nx; player.pos.z = nz;
   return true;
 }
@@ -6999,7 +7030,8 @@ function updateWalk(dt) {
     // Slide along a wall rather than sticking to it.
     if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
   }
-  player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
+  player.pos.y = world.walkY(player.pos.x, player.pos.z, player.pos.y);
+  player.onWalk = world.walkOn;
 
   // Turn toward where he is going, by the shorter way round.
   // Turning is rate limited, so he arcs round rather than snapping. A standing
@@ -12048,6 +12080,40 @@ function buildStreetFurniture(w, city, root, boxes) {
     solids.push({ c: [t.x, t.z], size: [26, 20], yaw: t.yaw * 180 / Math.PI,
                   y: groundAt(t.x, t.z), h: 6.6 });
     built.platforms.push([t.x, railY, t.z, t.yaw, st.name]);
+
+    // Getting up there. Each platform is a walkable deck, and at both ends a
+    // flight of steps runs down to the street: a short one where the line is on
+    // the ground, a long one under the viaduct where it is in the air.
+    const wc = Math.cos(t.yaw), ws = Math.sin(t.yaw);
+    const toWorld = (lx, lz) => [t.x + lx * wc + lz * ws, t.z - lx * ws + lz * wc];
+    const deckY = railY + 1.15;
+    [-1, 1].forEach(sideIdx => {
+      const px = sideIdx * 6.7, cw = toWorld(px, 0);
+      w.walk.push({ cx: cw[0], cz: cw[1], c: wc, s: ws, hw: 3.9, hl: PL / 2, ya: deckY, yb: deckY, r: PL / 2 + 6 });
+      [-1, 1].forEach(e => {
+        const foot = toWorld(px, e * (PL / 2 + 8)), gy = groundAt(foot[0], foot[1]);
+        const rise = Math.max(0.6, deckY - gy);
+        const run = clamp(rise * 2.1, 5, 34);
+        const fw = toWorld(px, e * (PL / 2 + run));
+        const g1 = groundAt(fw[0], fw[1]);
+        const rise1 = Math.max(0.6, deckY - g1);
+        const run1 = clamp(rise1 * 2.1, 5, 34);
+        const mid = toWorld(px, e * (PL / 2 + run1 / 2));
+        // along local +z the ramp's first end is its -hl end
+        const lowAtPlus = e > 0;
+        w.walk.push({ cx: mid[0], cz: mid[1], c: wc, s: ws, hw: 2.4, hl: run1 / 2,
+                      ya: lowAtPlus ? deckY : g1, yb: lowAtPlus ? g1 : deckY, r: run1 / 2 + 3 });
+        // the treads
+        const n = Math.max(3, Math.round(rise1 / 0.18)), dep = run1 / n;
+        solid.colour(FURN.concrete);
+        for (let k = 0; k < n; k++) {
+          const topLocal = (deckY - railY) - (k + 1) * (rise1 / n);
+          const bot = (g1 - railY) - 0.3;
+          const zc = e * (PL / 2 + (k + 0.5) * dep);
+          solid.box(px, (topLocal + bot) / 2, zc, 4.6, topLocal - bot, dep);
+        }
+      });
+    });
   });
 
   // ---- Tokonto Bus -----------------------------------------------------
@@ -24988,7 +25054,7 @@ function trainAtPlatform(x, z) {
     const pitch = kind.L + kind.gap;
     for (let c = 0; c < kind.cars; c++) {
       const p = sampleLane(line, set.s - c * pitch);
-      if (Math.hypot(p.x - x, p.z - z) < 11 && Math.abs(p.y - world.surfaceY(x, z)) < 9) {
+      if (Math.hypot(p.x - x, p.z - z) < 11 && Math.abs(p.y - (player.placed ? player.pos.y : world.surfaceY(x, z))) < 9) {
         return { set: i, car: c };
       }
     }
@@ -25014,7 +25080,8 @@ function leaveTrain() {
   const p = sampleLane(line, set.s - t.car * (kind.L + kind.gap));
   // Step out onto the platform, 6.7 m to the left of the track.
   const ox = p.x - Math.cos(p.yaw) * 6.7, oz = p.z + Math.sin(p.yaw) * 6.7;
-  player.pos.set(ox, p.y - 0.18, oz);
+  player.pos.set(ox, p.y + 1.15, oz);
+  player.onWalk = true;
   player.yaw = player.targetYaw = p.yaw + Math.PI / 2;
   player.speed = 0;
 }
