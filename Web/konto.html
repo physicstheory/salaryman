@@ -8182,9 +8182,11 @@ function pbrPerVertex(mat) {
 
 // Body panels: pigment under lacquer, tinted per car by the instance colour.
 function paintMaterial() {
-  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  // Two-sided: the box bodies are instanced with a flip that leaves the near
+  // flank facing away, and the bodywork then reads as an open box.
+  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide });
   const m = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, vertexColors: true,
+    color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
     metalness: 0.25, roughness: 0.36,
     clearcoat: 0.75, clearcoatRoughness: 0.12,
     envMapIntensity: 0.75
