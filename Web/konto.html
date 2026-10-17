@@ -5822,7 +5822,7 @@ function pollPad(dt) {
 
 // Y: get in, get out, board, alight.
 function useRide() {
-  if (drive.car) { leaveCar(); return; }
+  if (drive.car) { if (canKeepHere()) { keepCar(); return; } leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
   if (player.placed && player.mode === "walk") {
     if (skiUse()) return;
@@ -5850,7 +5850,7 @@ function setPromptText(text) {
 
 function updatePrompt() {
   if (heist.stage) { setPromptText(null); return; }
-  if (drive.car) { setPromptText("Get out"); return; }
+  if (drive.car) { setPromptText(canKeepHere() ? "Park it here and keep it" : "Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
   // A shop door takes precedence over a car parked outside it, because you
   // are standing at the door.
@@ -13512,7 +13512,6 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         const kx = rec.pos.x, kz = rec.pos.z;
         if (kx < vx0 || kx > vx1 || kz < vz0 || kz > vz1) return;
         // one parked in its own bay is already marked by the garage
-        if (rec.atGarage && garage.built && Math.hypot(kx - garage.centre[0], kz - garage.centre[1]) < 14) return;
         ctx.save(); ctx.translate(kx, kz); ctx.rotate(-rot);
         ctx.fillStyle = "rgba(12,14,18,0.88)";
         ctx.beginPath(); ctx.arc(0, 0, kr * 0.86, 0, Math.PI * 2); ctx.fill();
@@ -21769,11 +21768,71 @@ function ownCar(spec, paintIdx) {
                 colour: PAINTS[paintIdx][1].slice(), uv: uv, atGarage: !!spot };
   garage.cars.push(rec);
   drive.parked.push(rec);
+  garageSave();
   return rec;
+}
+
+// ---- keeping a car you found ---------------------------------------------------------
+// Drive any car into the bays at the safehouse and it can be kept: it is parked
+// there, it is yours from then on (it stays through a rebuild and is written to
+// storage, so it is there next time), and a key for it goes on the map.
+function garageBayFor(pos) {
+  if (!garage.built) return null;
+  const all = garage.bays.concat(garage.spill);
+  let best = null, bd = 1e9;
+  for (let i = 0; i < all.length; i++) {
+    const b = all[i], d = Math.hypot(b.x - pos.x, b.z - pos.z);
+    if (d > 9 || d >= bd) continue;
+    let taken = false;
+    for (let k = 0; k < drive.parked.length; k++) if (Math.hypot(drive.parked[k].pos.x - b.x, drive.parked[k].pos.z - b.z) < 2.4) { taken = true; break; }
+    if (!taken) { best = b; bd = d; }
+  }
+  return best;
+}
+function canKeepHere() {
+  const c = drive.car;
+  if (!c || c.rec) return false;
+  const n = CAR_KINDS[c.kind].name;
+  return n !== "ambulance" && n !== "fire" && !!garageBayFor(c.pos);
+}
+function keepCar() {
+  const c = drive.car; if (!c || c.rec) return false;
+  const bay = garageBayFor(c.pos);
+  if (!bay) { notify("Garage", "No room", "Every bay is taken.", 4); return false; }
+  const kind = CAR_KINDS[c.kind];
+  const rec = { owned: true, claimed: true, id: garage.nextId++, name: kind.name[0].toUpperCase() + kind.name.slice(1), kind: c.kind, kindName: kind.name,
+                price: 0, paint: 0, pos: new THREE.Vector3(bay.x, world.surfaceY(bay.x, bay.z) + 0.04, bay.z), yaw: bay.yaw,
+                colour: c.colour.slice(), uv: c.uv.slice(), atGarage: true };
+  garage.cars.push(rec);
+  // slide it into the bay and step out
+  c.pos.set(bay.x, world.surfaceY(bay.x, bay.z) + 0.04, bay.z); c.yaw = bay.yaw; c.speed = 0; c.rec = rec;
+  leaveCar();
+  garageSave();
+  notify("Garage", "Car kept", "It is parked in your bay at the safehouse. The key is on the map.", 7);
+  return true;
+}
+function garageSave() {
+  try {
+    const list = garage.cars.map(r => ({ k: r.kindName, n: r.name, p: r.paint, c: r.colour, uv: r.uv, x: Math.round(r.pos.x * 10) / 10, z: Math.round(r.pos.z * 10) / 10, y: r.yaw, g: !!r.atGarage, cl: !!r.claimed, pr: r.price || 0 }));
+    localStorage.setItem("konto.garage.v1", JSON.stringify({ seed: world && world.seedKey, id: garage.nextId, cars: list }));
+  } catch (e) { /* storage is a courtesy */ }
+}
+function garageLoad() {
+  if (garage.cars.length) return;
+  try {
+    const j = JSON.parse(localStorage.getItem("konto.garage.v1") || "null"); if (!j || !j.cars) return;
+    j.cars.forEach(r => {
+      const ki = CAR_KINDS.findIndex(k => k.name === r.k); if (ki < 0) return;
+      const rec = { owned: true, claimed: r.cl, id: garage.nextId++, name: r.n, kind: ki, kindName: r.k, price: r.pr, paint: r.p || 0,
+                    pos: new THREE.Vector3(r.x, world.surfaceY(r.x, r.z) + 0.04, r.z), yaw: r.y, colour: r.c.slice(), uv: (r.uv || [0, 0]).slice(), atGarage: r.g };
+      garage.cars.push(rec);
+    });
+  } catch (e) { /* a bad record is not worth a crash */ }
 }
 
 // After a rebuild the instances are gone but the cars are not.
 function restoreOwnedCars() {
+  garageLoad();
   garage.cars.forEach(rec => {
     if (drive.car && drive.car.rec === rec) return;
     if (drive.parked.indexOf(rec) < 0) drive.parked.push(rec);
@@ -25341,6 +25400,7 @@ function leaveCar() {
     c.rec.atGarage = garage.built && garage.bays.concat(garage.spill)
       .some(b => Math.hypot(b.x - c.pos.x, b.z - c.pos.z) < 3.2);
     drive.parked.push(c.rec);
+    garageSave();
   } else {
     drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
                         colour: c.colour.slice(), uv: c.uv.slice() });
