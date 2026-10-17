@@ -10021,18 +10021,18 @@ function solidMesh() {
     },
     // A wheel is a short cylinder lying on its side, with a lighter disc for
     // the rim so it does not read as a hole.
-    wheel(cx, cy, cz, r, w, rimCol) {
+    wheel(cx, cy, cz, rad, w, rimCol) {
       const S = 10, was = c, wasM = m, wasR = r;
       for (let i = 0; i < S; i++) {
         const a0 = i / S * 6.2831853, a1 = (i + 1) / S * 6.2831853;
-        const y0 = cy + Math.sin(a0) * r, z0 = cz + Math.cos(a0) * r;
-        const y1 = cy + Math.sin(a1) * r, z1 = cz + Math.cos(a1) * r;
+        const y0 = cy + Math.sin(a0) * rad, z0 = cz + Math.cos(a0) * rad;
+        const y1 = cy + Math.sin(a1) * rad, z1 = cz + Math.cos(a1) * rad;
         c = was; m = wasM; r = wasR;
         quad([cx - w / 2, y0, z0], [cx + w / 2, y0, z0], [cx + w / 2, y1, z1], [cx - w / 2, y1, z1]);
         const rc = rimCol || COL.rim;
         c = rc; m = rc.length > 3 ? rc[3] : 0.9; r = rc.length > 4 ? rc[4] : 0.2;
-        const ry0 = cy + Math.sin(a0) * r * 0.62, rz0 = cz + Math.cos(a0) * r * 0.62;
-        const ry1 = cy + Math.sin(a1) * r * 0.62, rz1 = cz + Math.cos(a1) * r * 0.62;
+        const ry0 = cy + Math.sin(a0) * rad * 0.62, rz0 = cz + Math.cos(a0) * rad * 0.62;
+        const ry1 = cy + Math.sin(a1) * rad * 0.62, rz1 = cz + Math.cos(a1) * rad * 0.62;
         quad([cx + w / 2, cy, cz], [cx + w / 2, ry0, rz0], [cx + w / 2, ry1, rz1], [cx + w / 2, ry1, rz1]);
         quad([cx - w / 2, cy, cz], [cx - w / 2, ry1, rz1], [cx - w / 2, ry0, rz0], [cx - w / 2, ry0, rz0]);
       }
@@ -10152,12 +10152,15 @@ const PERF = {
   "super": { top: 94, to100: 2.9 },
   bike:    { top: 78, to100: 3.1 },    // a 600 supersport
   scooter: { top: 17, to100: 11.0 },
+  cruiser: { top: 62, to100: 4.6 },    // a 1,700 cc twin, all torque
+  tourer:  { top: 64, to100: 5.2 },
   truck:   { top: 28, to100: 20.0 },
   bus:     { top: 25, to100: 25.0 }
 };
 
 // The catalogue. share is the fraction of the traffic; wide keeps a vehicle on
 // the arterials, where a ten-metre bus can actually fit.
+const TWO_WHEELERS = { bike: 1, scooter: 1, cruiser: 1, tourer: 1 };
 const CAR_KINDS = [
   { name: "kei", palette: "kei", body: "kei", L: 3.40, W: 1.48, H: 1.70, share: 0.15, top: 12.5,
     marques: ["daichi", "suzume", "kosei"], plate: "plateKei" },
@@ -10187,6 +10190,13 @@ const CAR_KINDS = [
     marques: ["kaneda", "nanatsu"] },
   { name: "scooter", body: "scooter", L: 1.90, W: 0.70, H: 1.32, share: 0.025, top: 10.5,
     livery: "hayabin", colour: [0.94, 0.70, 0.11], plate: "plateKei" },
+  // The big American-style cruisers. Not in the street: the only way to get
+  // one is the dealer's page on Poodle, and they are heavier and faster than the
+  // little commuters that do ride the roads.
+  { name: "cruiser", palette: "bike", body: "cruiser", L: 2.45, W: 0.92, H: 1.40, share: 0, top: 26,
+    marques: ["kaneda"], dispatch: true },
+  { name: "tourer", palette: "bike", body: "tourer", L: 2.60, W: 1.00, H: 1.55, share: 0, top: 27,
+    marques: ["kaneda"], dispatch: true },
   { name: "truck", body: "truck", L: 6.19, W: 1.90, H: 3.10, share: 0.022, top: 12.5,
     livery: "truck", colour: [0.90, 0.91, 0.88], plate: "plateGreen", wide: true },
   { name: "bus", body: "bus", L: 10.49, W: 2.49, H: 3.10, share: 0.013, top: 12.0,
@@ -10708,6 +10718,55 @@ function buildVehicle(kind) {
       trim.box(0, 1.50, L * 0.02, 0.26, 0.26, 0.28, { tx: 0.8, tz: 0.8 });
       marque(0.74, L * 0.42, 0.62, -L * 0.42, 0.11);
       break;
+    case "cruiser":
+    case "tourer": {
+      // The Hadson look: a deep, low frame, a fat teardrop tank, a big round
+      // lamp, wide bars, a V-twin hanging between the wheels, and chrome
+      // everywhere the paint is not. The tourer adds a fairing, a screen, two
+      // hard bags and a top box, and is the heavier of the two.
+      const tour = kind.body === "tourer";
+      paint.colour(COL.shell);
+      paint.box(0, 0.98, L * 0.07, 0.40, 0.25, 0.62, { tx: 0.62, tz: 0.78 });   // tank
+      paint.box(0, 0.74, -L * 0.36, 0.34, 0.05, 0.74, { tz: 0.86 });            // rear fender
+      paint.box(0, 0.72, L * 0.37, 0.24, 0.05, 0.50, { tz: 0.80 });             // front fender
+      if (tour) {
+        paint.box(hw * 0.74 - 0.04, 0.66, -L * 0.30, 0.20, 0.34, 0.82, { tz: 0.88 });   // saddlebags
+        paint.box(-hw * 0.74 + 0.04, 0.66, -L * 0.30, 0.20, 0.34, 0.82, { tz: 0.88 });
+        paint.box(0, 1.20, -L * 0.40, 0.36, 0.28, 0.46, { tz: 0.9 });                    // top box
+        paint.box(0, 1.14, L * 0.30, 0.52, 0.34, 0.20, { tx: 0.8, tz: 0.7 });           // batwing fairing
+      }
+      trim.colour(COL.dark);
+      trim.box(0, 0.80, -L * 0.14, 0.36, 0.09, 0.62);                            // seat
+      trim.box(0, 0.52, L * 0.02, 0.22, 0.34, 0.54);                             // crankcase
+      trim.box(0, 0.40, -L * 0.04, 0.18, 0.12, 0.90);                            // frame rail
+      trim.colour(COL.chrome);
+      trim.box(0.19, 0.64, L * 0.03, 0.17, 0.30, 0.20);                          // the two cylinders
+      trim.box(-0.19, 0.64, L * 0.03, 0.17, 0.30, 0.20);
+      trim.box(hw * 0.50, 0.30, -L * 0.14, 0.09, 0.11, 1.10);                    // pipes, both sides
+      trim.box(-hw * 0.50, 0.30, -L * 0.14, 0.09, 0.11, 1.10);
+      trim.box(0.09, 0.56, L * 0.38, 0.04, 0.74, 0.04);                          // fork legs
+      trim.box(-0.09, 0.56, L * 0.38, 0.04, 0.74, 0.04);
+      trim.box(0, 1.12, L * 0.30, tour ? 0.58 : 0.82, 0.04, 0.05);               // bars
+      trim.box(0.22, 1.02, L * 0.30, 0.04, 0.22, 0.04);
+      trim.box(-0.22, 1.02, L * 0.30, 0.04, 0.22, 0.04);
+      trim.colour(COL.lampF);
+      trim.box(0, 0.98, L * 0.42, 0.24, 0.24, 0.12);                             // the lamp
+      trim.colour(COL.lampR);
+      trim.box(0, 0.70, -L * 0.5 + 0.02, 0.16, 0.06, 0.05);
+      if (tour) {
+        trim.colour(COL.glass);
+        trim.box(0, 1.42, L * 0.27, 0.46, 0.34, 0.03);                           // the screen
+      }
+      trim.colour(COL.tyre);
+      trim.wheel(0, 0.35, L * 0.36, 0.35, 0.13);
+      trim.wheel(0, 0.35, -L * 0.34, 0.35, 0.20);
+      trim.colour(COL.jacket);
+      trim.box(0, 1.22, -L * 0.10, 0.46, 0.56, 0.32, { tz: 0.8, shift: 0.06 });  // the rider, sitting up
+      trim.colour(COL.helmet);
+      trim.box(0, 1.60, -L * 0.04, 0.26, 0.24, 0.28, { tx: 0.8, tz: 0.8 });
+      plates(0.30, -L * 0.5 + 0.02, 0.30, -L * 0.5 + 0.02);
+      break;
+    }
     case "scooter":
       // A step-through delivery scooter with a crate on the front, which in
       // Japan carries noodles, parcels and absolutely anything else.
@@ -11324,7 +11383,7 @@ function updateHeadlights() {
     for (let i = 0; i < traffic.cars.length; i++) {
       const c = traffic.cars[i];
       if (!c.live || !c.at) continue;
-      if (CAR_KINDS[c.kind].body === "bike" || CAR_KINDS[c.kind].body === "scooter") continue;
+      if (TWO_WHEELERS[CAR_KINDS[c.kind].body]) continue;
       put(c.at.x, c.at.y, c.at.z, c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);
     }
   }
@@ -11405,12 +11464,23 @@ function updateTraffic(dt, at) {
     if (i >= paint.instanceMatrix.count) return;
     counts[kindIdx]++;
     const pool = traffic.pool[kindIdx];
+    // A bike pitches about its rear axle, not its middle, so a wheelie lifts
+    // the front and keeps the back wheel on the road; and it leans into a turn.
+    const two = TWO_WHEELERS[CAR_KINDS[kindIdx].body];
+    let px = pos.x, py = pos.y, pz = pos.z, rollA = -(rollV || 0) * 0.22;
+    if (two) {
+      rollA = -(rollV || 0) * 0.85;
+      if (pitchV) {
+        const a = CAR_KINDS[kindIdx].L * 0.34, cp = Math.cos(pitchV) - 1;
+        px += a * Math.sin(yawV) * cp; pz += a * Math.cos(yawV) * cp; py += -a * Math.sin(pitchV);
+      }
+    }
     if (pool && pool.items[i]) {
       const o = pool.items[i];
       o.visible = true;
-      o.position.set(pos.x, pos.y, pos.z);
+      o.position.set(px, py, pz);
       // Pitch for the weight, roll for the slide, yaw for where it is going.
-      o.rotation.set(pitchV || 0, yawV, -(rollV || 0) * 0.22, "YXZ");
+      o.rotation.set(pitchV || 0, yawV, rollA, "YXZ");
       if (o.userData.paint && colour) {
         o.userData.paint.color.setRGB(colour[0], colour[1], colour[2]);
       }
@@ -11423,9 +11493,9 @@ function updateTraffic(dt, at) {
       }
       return;
     }
-    _carEuler.set(pitchV || 0, yawV, 0, "YXZ");
+    _carEuler.set(pitchV || 0, yawV, two ? rollA : 0, "YXZ");
     _carQuat.setFromEuler(_carEuler);
-    _carPos.set(pos.x, pos.y, pos.z);
+    _carPos.set(px, py, pz);
     _carMat.compose(_carPos, _carQuat, _carScale);
     paint.setMatrixAt(i, _carMat);
     traffic.trim[kindIdx].setMatrixAt(i, _carMat);
@@ -12415,7 +12485,7 @@ function updateSound(dt) {
 
   // A four cylinder fires twice a revolution; a bike spins to twice the revs
   // and a bus is a slow-turning diesel, so the base note follows the vehicle.
-  const base = kind.body === "bike" ? 46 : kind.body === "bus" || kind.body === "truck" ? 20 : 32;
+  const base = kind.body === "bike" ? 46 : kind.body === "cruiser" || kind.body === "tourer" ? 27 : kind.body === "bus" || kind.body === "truck" ? 20 : 32;
   const f = base * (0.55 + r.rpm * 2.6);
   const now = ctx.currentTime;
   sound.engine.oscs.forEach(o => o.osc.frequency.setTargetAtTime(f * o.mul, now, 0.05));
@@ -13642,6 +13712,7 @@ const WEB = [
   { host: "dokoto-camera.co.kn", title: "Dokoto Camera",     kind: "tech" },
   { host: "kurogane.co.kn",   title: "Kurogane Prestige",    kind: "cars",  tier: "luxury" },
   { host: "maruichi.co.kn",   title: "Maruichi Car Centre",  kind: "cars",  tier: "budget" },
+  { host: "hadson.co.kn",     title: "Hadson Motorcycles",   kind: "cars",  tier: "cruiser" },
   { host: "konto-shimbun.kn", title: "Konto Shimbun",        kind: "news" },
   { host: "sararii.net",      title: "Sararii Forums",       kind: "forum" },
   { host: "win-now.biz",      title: "\u2605 YOU HAVE WON \u2605", kind: "scam" },
@@ -16052,6 +16123,57 @@ function drawCarSide(g, x, y, w, kind, rgb, opts) {
   g.fillStyle = "rgba(0,0,0,0.38)";
   g.beginPath(); g.ellipse(x + w * 0.5, baseline + w * 0.012, w * 0.50, w * 0.034, 0, 0, Math.PI * 2); g.fill();
 
+  if (kind === "cruiser" || kind === "tourer") {
+    const wr = w * 0.135, tour = kind === "tourer";
+    const wx = [0.19, 0.80];
+    // wheels, with a fat rear tyre
+    wx.forEach((u, i) => {
+      g.fillStyle = "#14161a";
+      g.beginPath(); g.arc(X(u), baseline - wr, wr * (i ? 1.0 : 0.98), 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#c9ced4";
+      g.beginPath(); g.arc(X(u), baseline - wr, wr * 0.66, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#14161a";
+      g.beginPath(); g.arc(X(u), baseline - wr, wr * 0.56, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = "#a9b0b8"; g.lineWidth = w * 0.004;
+      for (let k = 0; k < 9; k++) { const a = k / 9 * Math.PI * 2; g.beginPath(); g.moveTo(X(u), baseline - wr); g.lineTo(X(u) + Math.cos(a) * wr * 0.6, baseline - wr + Math.sin(a) * wr * 0.6); g.stroke(); }
+      g.fillStyle = "#d8dce0";
+      g.beginPath(); g.arc(X(u), baseline - wr, wr * 0.14, 0, Math.PI * 2); g.fill();
+    });
+    // the V-twin and the pipes
+    g.fillStyle = "#1d2025"; roundRect(g, X(0.36), baseline - w * 0.205, w * 0.24, w * 0.12, w * 0.02); g.fill();
+    g.fillStyle = "#c6ccd2";
+    g.save(); g.translate(X(0.43), baseline - w * 0.225); g.rotate(-0.5); roundRect(g, -w * 0.03, -w * 0.075, w * 0.06, w * 0.10, w * 0.012); g.fill(); g.restore();
+    g.save(); g.translate(X(0.53), baseline - w * 0.225); g.rotate(0.5); roundRect(g, -w * 0.03, -w * 0.075, w * 0.06, w * 0.10, w * 0.012); g.fill(); g.restore();
+    g.fillStyle = "#d3d8dd"; roundRect(g, X(0.12), baseline - w * 0.105, w * 0.42, w * 0.026, w * 0.013); g.fill();
+    // rear fender, tank, seat
+    const grd = g.createLinearGradient(0, baseline - w * 0.38, 0, baseline - w * 0.14);
+    grd.addColorStop(0, lighten(rgb, 0.34)); grd.addColorStop(1, shade(rgb, 0.78));
+    g.fillStyle = grd;
+    g.beginPath(); g.moveTo(X(0.04), baseline - wr * 1.3); g.quadraticCurveTo(X(0.19), baseline - wr * 2.4, X(0.35), baseline - wr * 1.55);
+    g.lineTo(X(0.35), baseline - wr * 1.4); g.quadraticCurveTo(X(0.19), baseline - wr * 2.0, X(0.04), baseline - wr * 1.1); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(X(0.40), baseline - w * 0.30);
+    g.quadraticCurveTo(X(0.50), baseline - w * 0.405, X(0.62), baseline - w * 0.335);
+    g.quadraticCurveTo(X(0.66), baseline - w * 0.27, X(0.58), baseline - w * 0.255);
+    g.lineTo(X(0.42), baseline - w * 0.255); g.closePath(); g.fill();
+    g.fillStyle = "#1a1c20";
+    g.beginPath(); g.moveTo(X(0.18), baseline - w * 0.275); g.quadraticCurveTo(X(0.30), baseline - w * 0.315, X(0.40), baseline - w * 0.265);
+    g.lineTo(X(0.40), baseline - w * 0.245); g.lineTo(X(0.19), baseline - w * 0.245); g.closePath(); g.fill();
+    // front fender, fork, bars, lamp
+    g.fillStyle = grd;
+    g.beginPath(); g.arc(X(0.80), baseline - wr, wr * 1.16, Math.PI * 1.08, Math.PI * 1.78); g.lineTo(X(0.80), baseline - wr); g.closePath(); g.fill();
+    g.strokeStyle = "#d3d8dd"; g.lineWidth = w * 0.012; g.lineCap = "round";
+    g.beginPath(); g.moveTo(X(0.80), baseline - wr); g.lineTo(X(0.70), baseline - w * 0.36); g.stroke();
+    g.beginPath(); g.moveTo(X(0.70), baseline - w * 0.36); g.lineTo(X(0.66), baseline - w * 0.43); g.lineTo(X(0.59), baseline - w * 0.455); g.stroke();
+    g.fillStyle = "#f6efcf";
+    g.beginPath(); g.ellipse(X(0.755), baseline - w * 0.345, w * 0.026, w * 0.03, 0, 0, Math.PI * 2); g.fill();
+    if (tour) {
+      g.fillStyle = grd; roundRect(g, X(0.08), baseline - w * 0.245, w * 0.32, w * 0.09, w * 0.03); g.fill();   // the bag
+      g.fillStyle = "rgba(160,200,230,0.55)";
+      g.beginPath(); g.moveTo(X(0.66), baseline - w * 0.36); g.lineTo(X(0.70), baseline - w * 0.52); g.lineTo(X(0.725), baseline - w * 0.50); g.lineTo(X(0.70), baseline - w * 0.36); g.closePath(); g.fill();
+    }
+    return;
+  }
+
   if (kind === "scooter") {
     const wr = w * 0.115;
     // wheels
@@ -16170,11 +16292,17 @@ const CAR_STOCK = {
     { name: "Kurogane Kaze Roadster", price: 7900000, rent: 34000, kind: "sports" },
     { name: "Kurogane Estate 4.0",  price: 5600000, rent: 22000, kind: "keivan" }
   ],
+  cruiser: [
+    { name: "Hadson Road Sovereign 1700",  price: 3480000, rent: 15000, kind: "tourer" },
+    { name: "Hadson Fat Barrel 114",        price: 3150000, rent: 13500, kind: "cruiser" },
+    { name: "Hadson Iron Eight",            price: 1480000, rent: 7600,  kind: "cruiser" },
+    { name: "Hadson Open Road Glide",       price: 4290000, rent: 18500, kind: "tourer" },
+    { name: "Hadson Low Rider S",           price: 2390000, rent: 10800, kind: "cruiser" }
+  ],
   budget: [
     { name: "Maruichi Hustle Kei",  price: 740000,  rent: 4200,  kind: "kei" },
     { name: "Maruichi One-Box",     price: 980000,  rent: 5400,  kind: "keivan" },
-    { name: "Maruichi Compact",     price: 1340000, rent: 7100,  kind: "sedan" },
-    { name: "Maruichi Roadrunner",  price: 460000,  rent: 2800,  kind: "scooter" }
+    { name: "Maruichi Compact",     price: 1340000, rent: 7100,  kind: "sedan" }
   ]
 };
 
@@ -16477,7 +16605,7 @@ function drawSiteBody(g, W, H, site) {
   }
 
   if (site.kind === "cars") {
-    const lux = site.tier === "luxury";
+    const lux = site.tier !== "budget";
     const bg = lux ? "#0e1013" : "#f6f6f4";
     siteChrome(g, W, H, site, bg);
     const ink = lux ? "#ffffff" : "#14171b";
@@ -24246,6 +24374,7 @@ function enterCar(index, jacked) {
   document.body.classList.add("driving");
   if (player.obj) player.obj.visible = false;      // he is in the car, not beside it
   setPromptText(null);
+  bikeHint(c.kind);
 }
 
 function enterParked(i) {
@@ -24256,6 +24385,11 @@ function enterParked(i) {
                 rec: p.owned ? p : null };
   document.body.classList.add("driving");
   if (player.obj) player.obj.visible = false;
+  bikeHint(p.kind);
+}
+function bikeHint(kindIdx) {
+  const k = CAR_KINDS[kindIdx];
+  if (k && TWO_WHEELERS[k.body] && k.body !== "scooter") say("Wheelie: open the throttle and shift your weight back (pull the stick back, or hold Shift).", 5);
 }
 
 function leaveCar() {
@@ -24350,15 +24484,21 @@ function updateDrive(dt) {
   // hold it with the throttle open and the front comes up.
   const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
   c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
-  const twoWheels = kind.body === "bike" || kind.body === "scooter";
+  const twoWheels = !!TWO_WHEELERS[kind.body];
   let wantPitch = -c.accelPitch * 0.045;
   if (twoWheels) {
-    // Back on the stick with the throttle open lifts the front; forward on it
-    // under braking puts the nose down. Both need the wheels turning.
-    if (c.lean < -0.35 && throttle > 0.55 && c.speed > 2.0) {
-      wantPitch -= (-c.lean - 0.35) / 0.65 * 0.62 * clamp01(c.speed / 9);
-    } else if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) {
-      wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
+    // Shifting your weight back. Back on the stick (or hold Shift) with the
+    // throttle open lifts the front wheel, and the further back the higher it
+    // goes; it needs a little speed, and a heavy cruiser lifts less than a
+    // sportsbike does. Forward under braking puts the nose down. Let go and the
+    // front drops.
+    const heavy = kind.body === "cruiser" ? 0.62 : kind.body === "tourer" ? 0.5 : kind.body === "scooter" ? 0.4 : 1;
+    if (c.lean < -0.22 && throttle > 0.4 && c.speed > 1.5) {
+      wantPitch -= (-c.lean - 0.22) / 0.78 * 0.70 * heavy * clamp01(c.speed / 6);
+      c.wheelie = true;
+    } else {
+      c.wheelie = false;
+      if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
     }
   } else {
     wantPitch += c.lean * 0.055;
