@@ -311,6 +311,10 @@ function gameMinutes() { const d = new Date(); return d.getHours() * 60 + d.getM
 const player = { glb: null, placed: false, mode: "walk" };
 const world = { cities: [] };
 function seikoPortrait() { return null; }
+// the emergency lines in the lab: there is no street to send anyone down
+function emergencyDispatch(svc) {
+  return { ok: true, msg: "Your phone puts you at Ch\u016b\u014d-d\u014dri, Marukane 1-ch\u014dme. A patrol car is on its way, about 20 seconds. Please stay where you are." };
+}
 function mnContext() {
   return { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: false, place: nav.place.street, sub: nav.place.sub,
            hour: gameMinutes() / 60, golden: false, night: false, resort: null };
@@ -429,12 +433,13 @@ const PHONE_APPS = [
   ["Contacts",  "#8a6f3c", "people"],
   ["Music",     "#b4365c", "note"],
   ["Photos",    "#d99a1c", "photo"],
-  ["Settings",  "#6b7076", "gear"]
+  ["Settings",  "#6b7076", "gear"],
+  ["Numbers",   "#c8372d", "sos"]
 ];
 
 const PHONE_DOCK = [0, 1, 6, 3];
 
-const BASIC_APPS = ["Phone", "Mail", "Camera", "Photos", "Music", "Contacts", "Wallet", "Settings"];
+const BASIC_APPS = ["Phone", "Mail", "Camera", "Photos", "Music", "Contacts", "Wallet", "Numbers", "Settings"];
 
 function homeApps() {
   let list = PHONE_APPS;
@@ -844,6 +849,11 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.beginPath(); g.arc(c, m + u * 0.05, u * 0.3, 0, 6.2832); g.stroke();
     g.strokeRect(c - u * 0.52, m - u * 0.3, u * 1.04, u * 0.78);
     g.fillRect(c - u * 0.18, m - u * 0.46, u * 0.36, u * 0.16);
+  } else if (glyph === "sos") {
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "800 " + Math.round(s * 0.27) + "px " + UI;
+    g.fillText("110", c, m - u * 0.26);
+    g.fillText("119", c, m + u * 0.26);
   } else if (glyph === "rail") {
     g.lineWidth = s * 0.1;
     g.beginPath();
@@ -1633,7 +1643,7 @@ function padPress(id) {
   if (id === "call") {
     if (phone.app !== "Phone") { phone.app = "Phone"; phone.sub = 0; phone.dial = ""; phone.vmail = ""; return; }
     if (phone.dial.length < 3) say("Dial a number first.", 3);
-    else if (!phone.vmail) { phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0]; phone.call = { number: phone.dial, t0ms: performance.now() }; }
+    else if (!phone.vmail) phoneDial(phone.dial);
     return;
   }
   if (id === "end") { if (phone.call || phone.vmail) { phone.call = null; phone.vmail = ""; } else { phone.app = null; phone.pad.on = false; } return; }
@@ -4710,7 +4720,7 @@ const VOICEMAILS = [
 ];
 
 function appDialler(g, W, H) {
-  phoneChrome(g, W, H, "Phone", phone.vmail ? "Voicemail" : (isBasic() ? "" : "Keypad"));
+  phoneChrome(g, W, H, "Phone", phone.vmail ? (phone.call && phone.call.em ? phone.call.em.name : "Voicemail") : (isBasic() ? "" : "Keypad"));
   if (phone.vmail) {
     g.fillStyle = "#e7ebee";
     g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
@@ -4722,9 +4732,19 @@ function appDialler(g, W, H) {
       else line = test;
     });
     g.fillText(line, W * 0.075, ly);
+    const cl = phone.call && phone.call.opts;
+    if (cl) {
+      cl.forEach((o, i) => {
+        const y = ly + H * 0.05 + i * H * 0.075, on = phone.call.sel === i;
+        g.fillStyle = on ? "#ffffff" : "#2f3438"; roundRect(g, W * 0.075, y, W * 0.85, H * 0.06, W * 0.02); g.fill();
+        g.fillStyle = on ? "#14171b" : "#e6e9ec"; g.font = "700 " + Math.round(W * 0.040) + "px " + UI;
+        g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(o[0], W * 0.5, y + H * 0.031); g.textAlign = "left"; g.textBaseline = "alphabetic";
+      });
+      ly += H * 0.05 + cl.length * H * 0.075;
+    }
     g.fillStyle = "#6b727a";
     g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-    g.fillText("B to hang up", W * 0.075, ly + H * 0.07);
+    g.fillText(cl ? "A choose  ·  B to hang up" : "B to hang up", W * 0.075, ly + H * 0.07);
     return;
   }
   if (isBasic()) {
@@ -4818,6 +4838,87 @@ function appContacts(g, W, H) {
   });
   g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
   g.fillText("A  call", W * PL.pad, H * 0.90);
+}
+
+const PHONE_NUMBERS = [
+  { n: "110",   name: "Police",               jp: "警察",            note: "A crime or an accident. A patrol car comes to you.", em: true },
+  { n: "119",   name: "Fire and ambulance",   jp: "消防・救急", note: "An ambulance or a fire engine, free of charge.", em: true },
+  { n: "118",   name: "Coast Guard",          jp: "海上保安庁", note: "Trouble at sea. A patrol car meets you ashore.", em: true },
+  { n: "#7119", name: "Ambulance advice",     jp: "救急相談",        note: "Not sure it is an emergency? A nurse will say." },
+  { n: "#9110", name: "Police advice",        jp: "警察相談",        note: "For worries that are not emergencies." },
+  { n: "171",   name: "Disaster message board", jp: "災害用伝言",   note: "Leave word for family after an earthquake." },
+  { n: "117",   name: "Time",                 jp: "時報",            note: "The speaking clock." },
+  { n: "177",   name: "Weather",              jp: "天気予報",        note: "The forecast for Tōkonto." },
+  { n: "104",   name: "Directory enquiries",  jp: "番号案内",        note: "Which city, and which name?" },
+  { n: "188",   name: "Consumer hotline",     jp: "消費者ホットライン", note: "If you have been scammed." }
+];
+
+const EMERGENCY = {
+  "110": { name: "Police", ask: "Police, one-one-zero. Is it a crime or an accident? 事件ですか、事故ですか？",
+           opts: [["A crime", "police"], ["An accident", "police"], ["Wrong number. Hang up", null]] },
+  "119": { name: "Fire and ambulance", ask: "119. Fire or ambulance? 火事ですか、救急ですか？",
+           opts: [["An ambulance", "ambulance"], ["A fire", "fire"], ["Wrong number. Hang up", null]] },
+  "118": { name: "Coast Guard", ask: "Coast Guard, one-one-eight. Where is the trouble? 海上保安庁です。",
+           opts: [["On the shore or at sea", "coast"], ["Wrong number. Hang up", null]] }
+};
+
+const PHONE_RECORDINGS = {
+  "117": () => { const t = phoneTime(); return "Tōkonto time signal. At the tone it will be " + two(t.h) + ":" + two(t.m) + " exactly. Pi, pi, pi, pon."; },
+  "177": () => "Tōkonto weather. Clear all day, a high of 21 degrees and a low of 12. No rain is expected. 晴れです。",
+  "104": () => "Konto directory enquiries. Please say the city and the name. Sorry, that listing is not published.",
+  "171": () => "Disaster message board. No disaster is in effect on Konto. This service is not recording today.",
+  "188": () => "Consumer hotline. If a stranger wrote that you owe an unpaid fee, it was not real. Do not click the link.",
+  "#7119": () => vitals.health < 0.7
+    ? "Nurse: from what you describe, see a doctor today. If it gets worse, hang up and dial 119."
+    : "Nurse: you sound fine. Drink some water and rest. If it gets worse, dial 119.",
+  "#9110": () => "Police advice line. We understand it is worrying. If anyone is in danger right now, hang up and dial 110."
+};
+
+function phoneDial(num) {
+  num = String(num);
+  phone.app = "Phone"; phone.sub = 12; phone.dial = num.slice(0, 11); phone.dirty = true;
+  phone.call = { number: num, t0ms: performance.now() };
+  const em = EMERGENCY[num];
+  if (em) { phone.vmail = em.ask; phone.call.em = em; phone.call.opts = em.opts; phone.call.sel = 0; return; }
+  const rec = PHONE_RECORDINGS[num];
+  phone.vmail = rec ? rec() : VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
+}
+
+function phoneCallPick() {
+  const c = phone.call, o = c && c.opts && c.opts[c.sel];
+  if (!o) return;
+  c.opts = null;
+  phone.vmail = o[1] ? emergencyDispatch(o[1]).msg : "Understood. Call again if you need us. 失礼します。";
+  phone.dirty = true;
+}
+
+function appNumbers(g, W, H) {
+  phoneChrome(g, W, H, "Numbers", "Useful numbers");
+  const list = PHONE_NUMBERS, rowH = H * 0.100, gapY = H * 0.010, top = H * PL.listY;
+  const vis = Math.max(1, Math.floor((H * 0.885 - top) / (rowH + gapY)));
+  phone.sub = clamp(phone.sub, 0, list.length - 1);
+  const first = clamp(phone.sub - ((vis / 2) | 0), 0, Math.max(0, list.length - vis));
+  list.slice(first, first + vis).forEach((e, k) => {
+    const i = first + k, y = top + k * (rowH + gapY), on = phone.sub === i;
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, on);
+    g.fillStyle = e.em ? "#c8372d" : "#3a4048";
+    roundRect(g, W * (PL.pad + 0.025), y + rowH * 0.17, W * 0.20, rowH * 0.66, W * 0.025); g.fill();
+    g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "800 " + Math.round(W * (e.n.length > 4 ? 0.050 : 0.062)) + "px " + UI;
+    g.fillText(e.n, W * (PL.pad + 0.125), y + rowH * 0.51);
+    g.textBaseline = "alphabetic"; g.textAlign = "left";
+    const tx = W * (PL.pad + 0.27), tw = W * (1 - PL.pad) - W * 0.03 - tx;
+    g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
+    const nameW = g.measureText(e.name).width;
+    clipText(g, e.name, tx, y + rowH * 0.42, tw);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small * 0.92) + "px " + UI;
+    if (nameW + g.measureText(e.jp).width + W * 0.04 < tw) { g.textAlign = "right"; g.fillText(e.jp, tx + tw, y + rowH * 0.42); g.textAlign = "left"; }
+    clipText(g, e.note, tx, y + rowH * 0.76, tw);
+  });
+  const e = list[phone.sub], armed = e.em && phone.armed && phone.armed.i === phone.sub && performance.now() - phone.armed.t < 6000;
+  g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillStyle = armed ? "#ff7a6e" : "#6b727a";
+  g.fillText(armed ? "Press A again to call " + e.n : (e.em ? "A  call. Emergencies ask you to confirm" : "A  call"), W * PL.pad, H * 0.915);
 }
 
 function appMusic(g, W, H) {
@@ -5122,7 +5223,7 @@ const PHONE_SCREENS = {
   Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
   MyGram: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
   Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
-  Health: appHealth
+  Health: appHealth, Numbers: appNumbers
 };
 
 function setPhone(on) {
@@ -5153,6 +5254,7 @@ function phoneCount() {
   if (phone.app === "Photos") return phone.gallery.length;
   if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
   if (phone.app === "Settings") return settingsRows().length;
+  if (phone.app === "Numbers") return PHONE_NUMBERS.length;
   return 0;
 }
 
@@ -5178,6 +5280,7 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Phone" && phone.call && phone.call.opts) { phone.call.sel = clamp(phone.call.sel + dy + dx, 0, phone.call.opts.length - 1); phone.dirty = true; return; }
   if (phone.app === "MyGram") { mynetMove(dx, dy); return; }
   if (phone.app === "Photos") { const n = phone.gallery.length; if (n) phone.sub = clamp(phone.sub + dx + dy * 3, 0, n - 1); phone.dirty = true; return; }
   if (phone.app === "Settings" && dx) {
@@ -5314,14 +5417,17 @@ function phoneAct() {
     if (c) { wallSet({ kind: "photo", photo: c }); say("Set as your wallpaper.", 3); }
   } else if (app === "Camera") {
     takePhotograph();
+  } else if (app === "Numbers") {
+    const e = PHONE_NUMBERS[clamp(phone.sub, 0, PHONE_NUMBERS.length - 1)];
+    if (e.em && !(phone.armed && phone.armed.i === phone.sub && performance.now() - phone.armed.t < 6000)) {
+      phone.armed = { i: phone.sub, t: performance.now() };
+      say("Press A again to call " + e.n + ".", 3);
+    } else { phone.armed = null; phoneDial(e.n); }
   } else if (app === "Phone") {
-    if (phone.vmail) { phone.vmail = ""; phone.call = null; }
+    if (phone.vmail) { if (phone.call && phone.call.opts) phoneCallPick(); else { phone.vmail = ""; phone.call = null; } }
     else if (phone.sub === 12) {
       if (phone.dial.length < 3) say("Dial a number first.", 3);
-      else {
-        phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
-        phone.call = { number: phone.dial, t0ms: performance.now() };
-      }
+      else phoneDial(phone.dial);
     } else {
       const keys = "123456789*0#";
       if (phone.dial.length < 11) phone.dial += keys[phone.sub];

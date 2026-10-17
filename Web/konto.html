@@ -7939,6 +7939,7 @@ function tick(dt) {
   updateDeliveries();
   updateJacking(dt);
   updateWanted(dt);
+  updateDispatch(dt);
   updateDoorways(dt);
   updateTV(dt);
   updateMall(dt);
@@ -8515,7 +8516,8 @@ const BADGE = {
   policeDoor: [0, 2], policeBonnet: [1, 2], nhrail: [2, 2], nhrailMark: [3, 2],
   busFlag: [4, 2], busBlind: [5, 2], busBrand: [6, 2], busTimes: [7, 2],
   hayabin: [0, 3], hayabinBox: [1, 3], truckDoor: [2, 3], shrineSign: [3, 3],
-  dogPlaque: [4, 3], crossingSign: [5, 3], screenOff: [6, 3], vending: [7, 3]
+  dogPlaque: [4, 3], crossingSign: [5, 3], screenOff: [6, 3], vending: [7, 3],
+  ambDoor: [0, 4], fireDoor: [1, 4]
 };
 
 const ATLAS_CELLS = 8;
@@ -8761,6 +8763,16 @@ function badgeAtlas() {
     g.fill();
     g.fillStyle = "#f5f6f3";
     g.beginPath(); g.arc(P / 2, P / 2, P * 0.11, 0, 6.2832); g.fill();
+  });
+
+  // ---- the ambulance and the fire engine, which wear the service on the door
+  cell("ambDoor", (g, P) => {
+    text("\u6551\u6025", P / 2, P * 0.34, 26, "#b01820", JP);
+    text("AMBULANCE", P / 2, P * 0.64, 15, "#b01820");
+  });
+  cell("fireDoor", (g, P) => {
+    text("\u6d88\u9632", P / 2, P * 0.34, 26, "#f4f5f2", JP);
+    text("KONTO FIRE", P / 2, P * 0.64, 15, "#f4f5f2");
   });
 
   // ---- NHRail. Nihon Rail, which runs the loop line, the radials and the
@@ -9356,7 +9368,13 @@ const CAR_KINDS = [
   { name: "truck", body: "truck", L: 6.19, W: 1.90, H: 3.10, share: 0.022, top: 12.5,
     livery: "truck", colour: [0.90, 0.91, 0.88], plate: "plateGreen", wide: true },
   { name: "bus", body: "bus", L: 10.49, W: 2.49, H: 3.10, share: 0.013, top: 12.0,
-    livery: "bus", colour: [0.93, 0.94, 0.91], plate: "plateGreen", wide: true, ads: true }
+    livery: "bus", colour: [0.93, 0.94, 0.91], plate: "plateGreen", wide: true, ads: true },
+  // The two that only exist when somebody dials for them. dispatch keeps them
+  // out of the ordinary traffic.
+  { name: "ambulance", body: "ambulance", L: 5.10, W: 1.90, H: 2.20, share: 0, top: 18.0,
+    livery: "ambulance", colour: [0.93, 0.94, 0.92], plate: "plateGreen", dispatch: true },
+  { name: "fire", body: "fire", L: 7.40, W: 2.20, H: 3.10, share: 0, top: 16.0,
+    livery: "fire", colour: [0.78, 0.07, 0.06], plate: "plateGreen", dispatch: true }
 ];
 
 // Paint, by class, because a kei car is not painted like a saloon and a
@@ -9795,6 +9813,7 @@ function buildVehicle(kind) {
       trim.box(-hw * 0.70, H + 0.05, -L * 0.12, 0.07, 0.08, L * 0.52);
       break;
     case "onebox":
+    case "ambulance":
       // One box: the roof carries forward over the windscreen and the nose is
       // a bumper. This is the shape of a Japanese family's car.
       s = shell({ wheelR: 0.31, sill: 0.30, belt: H * 0.46, roof: H,
@@ -9914,6 +9933,40 @@ function buildVehicle(kind) {
       deco.flanks(hw * 0.995, 1.00, L * 0.30, 0.52, 0.30, badgeUV("hayabin"), false);
       plates(0.52, L * 0.5 - 0.02, 0.70, -L * 0.5 + 0.01);
       break;
+    case "fire":
+      // A pumper: a cab, a long locker body in red, a white band along it and a
+      // ladder on the roof, which is most of what makes it a fire engine.
+      paint.colour(COL.shell);
+      paint.box(0, 1.30, L * 0.31, W, 1.34, L * 0.34, { tz: 0.97 });             // cab
+      paint.box(0, 1.60, -L * 0.17, W * 0.99, 1.84, L * 0.60);                   // locker body
+      trim.colour(COL.glass);
+      trim.box(0, 1.68, L * 0.31, W * 0.94, 0.62, L * 0.35);
+      trim.colour([0.93, 0.93, 0.90, 0.0, 0.5]);
+      trim.box(0, 1.10, -L * 0.17, W * 0.99 + 0.012, 0.16, L * 0.60);            // white band
+      trim.colour(COL.body2);
+      trim.box(0, 0.55, L * 0.46, W * 0.96, 0.48, 0.20);
+      trim.box(0, 0.62, -L * 0.48, W * 0.96, 0.32, 0.16);
+      trim.colour([0.62, 0.64, 0.66, 0.85, 0.34]);                              // the ladder
+      trim.box(hw * 0.45, 2.60, -L * 0.17, 0.08, 0.10, L * 0.58);
+      trim.box(-hw * 0.45, 2.60, -L * 0.17, 0.08, 0.10, L * 0.58);
+      for (let r = 0; r < 7; r++) trim.box(0, 2.60, -L * 0.17 + (r - 3) * L * 0.085, W * 0.42, 0.06, 0.05);
+      trim.colour(COL.red);
+      trim.box(0, 2.08, L * 0.33, W * 0.72, 0.12, 0.22);                         // light bar
+      trim.colour(COL.lampF);
+      trim.box(hw * 0.70, 0.80, L * 0.5 - 0.03, W * 0.20, 0.20, 0.08);
+      trim.box(-hw * 0.70, 0.80, L * 0.5 - 0.03, W * 0.20, 0.20, 0.08);
+      trim.colour(COL.lampR);
+      trim.box(hw * 0.70, 0.78, -L * 0.5 + 0.03, W * 0.20, 0.22, 0.08);
+      trim.box(-hw * 0.70, 0.78, -L * 0.5 + 0.03, W * 0.20, 0.22, 0.08);
+      trim.colour(COL.tyre);
+      [0.34, -0.20, -0.38].forEach(z => {
+        trim.wheel(hw - 0.15, 0.50, L * z, 0.50, 0.28);
+        trim.wheel(-hw + 0.15, 0.50, L * z, 0.50, 0.28);
+      });
+      deco.flanks(hw * 0.995 + 0.004, 1.52, -L * 0.17, L * 0.30, 0.50, badgeUV("fireDoor"), false);
+      deco.panel(0, 1.52, -L * 0.5 + 0.01, W * 0.70, 0.46, "B", badgeUV("fireDoor"), false);
+      plates(0.52, L * 0.5 - 0.02, 0.70, -L * 0.5 + 0.01);
+      break;
     case "bus":
       // A municipal single-decker: 10.49 m, a glass band the length of it, a
       // destination blind over the windscreen, and an advert on each flank.
@@ -9991,6 +10044,21 @@ function buildVehicle(kind) {
     trim.box(0, H + 0.015, 0, W * 0.78, 0.05, 0.26);
     deco.flanks(hw + 0.009, s.belt - 0.26, -L * 0.04, 0.92, 0.34, badgeUV("policeDoor"), false);
     deco.panel(0, s.belt - 0.04, L * 0.34, 0.26, 0.26, "U", badgeUV("policeBonnet"), false);
+  }
+
+  if (kind.livery === "ambulance" && s) {
+    // White, a red band along the flank, a light bar on the roof, the service on
+    // the door above the band.
+    trim.colour(COL.red);
+    trim.box(0, s.belt * 0.50, 0, W + 0.014, 0.15, L * 0.90);
+    trim.box(hw * 0.46, H + 0.09, L * 0.04, 0.50, 0.15, 0.24);
+    trim.box(-hw * 0.46, H + 0.09, L * 0.04, 0.50, 0.15, 0.24);
+    trim.colour([0.92, 0.93, 0.90, 0.0, 0.4]);
+    trim.box(0, H + 0.08, L * 0.04, 0.40, 0.13, 0.22);
+    trim.colour(COL.dark);
+    trim.box(0, H + 0.015, L * 0.04, W * 0.78, 0.05, 0.26);
+    deco.flanks(hw + 0.009, s.belt * 0.50 + 0.30, -L * 0.06, 1.30, 0.42, badgeUV("ambDoor"), false);
+    deco.panel(0, s.belt * 0.50 + 0.30, -L * 0.5 - 0.01, W * 0.60, 0.30, "B", badgeUV("ambDoor"), false);
   }
 
   return {
@@ -10214,6 +10282,7 @@ function trafficSpawn(at) {
     const car = traffic.cars[c];
     if (car.live) continue;
     const kind = CAR_KINDS[car.kind];
+    if (kind.dispatch) continue;
     for (let attempt = 0; attempt < 6; attempt++) {
       const li = (Math.random() * lanes.length) | 0;
       const lane = lanes[li];
@@ -10306,7 +10375,7 @@ function updateTraffic(dt, at) {
     const lane = traffic.lanes[l];
     for (let k = here.length - 1; k >= 0; k--) {
       const car = traffic.cars[here[k]];
-      let limit = Math.min(lane.speed, car.top);
+      let limit = car.dispatch ? car.top : Math.min(lane.speed, car.top);
       if (k + 1 < here.length) {
         const lead = traffic.cars[here[k + 1]];
         const gap = (lead.s - lead.half) - (car.s + car.half) - 1.8 - lead.v * dt - 0.6;
@@ -10360,6 +10429,7 @@ function updateTraffic(dt, at) {
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
                           drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0);
   drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv));
+  dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
 
   // Recycle what has fallen behind, and write the transforms for what has not.
   for (let c = 0; c < traffic.cars.length; c++) {
@@ -10368,7 +10438,7 @@ function updateTraffic(dt, at) {
     const lane = traffic.lanes[car.lane];
     const ranOut = !lane.loop && car.s > lane.length - car.half;
     const p = sampleLane(lane, car.s);
-    if (ranOut || Math.hypot(p.x - at.x, p.z - at.z) > traffic.killR) {
+    if (ranOut || (!car.dispatch && Math.hypot(p.x - at.x, p.z - at.z) > traffic.killR)) {
       const list = traffic.byLane[car.lane];
       const at_ = list.indexOf(c);
       if (at_ >= 0) list.splice(at_, 1);
@@ -12073,6 +12143,7 @@ function drawMinimap() {
   drawMapView(miniCtx, cv.width, cv.height, fx, fz,
     across, yaw, { labels: false, markers: true, route: true });
   drawCopBlips(miniCtx, cv, fx, fz, yaw, cv.width / across);
+  drawDispatchBlips(miniCtx, cv, fx, fz, yaw, cv.width / across);
   // The compass tick, so north is findable.
   const g = miniCtx;
   g.save();
@@ -12384,14 +12455,15 @@ const PHONE_APPS = [
   ["Contacts",  "#8a6f3c", "people"],
   ["Music",     "#b4365c", "note"],
   ["Photos",    "#d99a1c", "photo"],
-  ["Settings",  "#6b7076", "gear"]
+  ["Settings",  "#6b7076", "gear"],
+  ["Numbers",   "#c8372d", "sos"]
 ];
 const PHONE_DOCK = [0, 1, 6, 3];
 
 // What is on the home screen of the phone in your hand. A basic phone has a
 // handful; a smartphone has all twelve; and a Pear with a connected watch has a
 // thirteenth, a red heart.
-const BASIC_APPS = ["Phone", "Mail", "Camera", "Photos", "Music", "Contacts", "Wallet", "Settings"];
+const BASIC_APPS = ["Phone", "Mail", "Camera", "Photos", "Music", "Contacts", "Wallet", "Numbers", "Settings"];
 function homeApps() {
   let list = PHONE_APPS;
   if (isBasic()) list = PHONE_APPS.filter(a => BASIC_APPS.indexOf(a[0]) >= 0);
@@ -12876,6 +12948,11 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.beginPath(); g.arc(c, m + u * 0.05, u * 0.3, 0, 6.2832); g.stroke();
     g.strokeRect(c - u * 0.52, m - u * 0.3, u * 1.04, u * 0.78);
     g.fillRect(c - u * 0.18, m - u * 0.46, u * 0.36, u * 0.16);
+  } else if (glyph === "sos") {
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "800 " + Math.round(s * 0.27) + "px " + UI;
+    g.fillText("110", c, m - u * 0.26);
+    g.fillText("119", c, m + u * 0.26);
   } else if (glyph === "rail") {
     g.lineWidth = s * 0.1;
     g.beginPath();
@@ -13738,7 +13815,7 @@ function padPress(id) {
   if (id === "call") {
     if (phone.app !== "Phone") { phone.app = "Phone"; phone.sub = 0; phone.dial = ""; phone.vmail = ""; return; }
     if (phone.dial.length < 3) say("Dial a number first.", 3);
-    else if (!phone.vmail) { phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0]; phone.call = { number: phone.dial, t0ms: performance.now() }; }
+    else if (!phone.vmail) phoneDial(phone.dial);
     return;
   }
   if (id === "end") { if (phone.call || phone.vmail) { phone.call = null; phone.vmail = ""; } else { phone.app = null; phone.pad.on = false; } return; }
@@ -17248,7 +17325,7 @@ const VOICEMAILS = [
   "Hello? Hello. I can't hear you. I'll call you back. I won't call you back."
 ];
 function appDialler(g, W, H) {
-  phoneChrome(g, W, H, "Phone", phone.vmail ? "Voicemail" : (isBasic() ? "" : "Keypad"));
+  phoneChrome(g, W, H, "Phone", phone.vmail ? (phone.call && phone.call.em ? phone.call.em.name : "Voicemail") : (isBasic() ? "" : "Keypad"));
   if (phone.vmail) {
     g.fillStyle = "#e7ebee";
     g.font = "500 " + Math.round(W * 0.046) + "px " + UI;
@@ -17260,9 +17337,19 @@ function appDialler(g, W, H) {
       else line = test;
     });
     g.fillText(line, W * 0.075, ly);
+    const cl = phone.call && phone.call.opts;
+    if (cl) {
+      cl.forEach((o, i) => {
+        const y = ly + H * 0.05 + i * H * 0.075, on = phone.call.sel === i;
+        g.fillStyle = on ? "#ffffff" : "#2f3438"; roundRect(g, W * 0.075, y, W * 0.85, H * 0.06, W * 0.02); g.fill();
+        g.fillStyle = on ? "#14171b" : "#e6e9ec"; g.font = "700 " + Math.round(W * 0.040) + "px " + UI;
+        g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(o[0], W * 0.5, y + H * 0.031); g.textAlign = "left"; g.textBaseline = "alphabetic";
+      });
+      ly += H * 0.05 + cl.length * H * 0.075;
+    }
     g.fillStyle = "#6b727a";
     g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-    g.fillText("B to hang up", W * 0.075, ly + H * 0.07);
+    g.fillText(cl ? "A choose  ·  B to hang up" : "B to hang up", W * 0.075, ly + H * 0.07);
     return;
   }
   if (isBasic()) {
@@ -17355,6 +17442,90 @@ function appContacts(g, W, H) {
   });
   g.fillStyle = "#6b727a"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
   g.fillText("A  call", W * PL.pad, H * 0.90);
+}
+
+// ---- Numbers: the ones worth knowing ----------------------------------------
+// The first three are the emergency lines, and they are real in here: dial one
+// and somebody answers, asks what is wrong and sends a vehicle to where you are
+// standing. The rest play a recording, as they do.
+const PHONE_NUMBERS = [
+  { n: "110",   name: "Police",               jp: "警察",            note: "A crime or an accident. A patrol car comes to you.", em: true },
+  { n: "119",   name: "Fire and ambulance",   jp: "消防・救急", note: "An ambulance or a fire engine, free of charge.", em: true },
+  { n: "118",   name: "Coast Guard",          jp: "海上保安庁", note: "Trouble at sea. A patrol car meets you ashore.", em: true },
+  { n: "#7119", name: "Ambulance advice",     jp: "救急相談",        note: "Not sure it is an emergency? A nurse will say." },
+  { n: "#9110", name: "Police advice",        jp: "警察相談",        note: "For worries that are not emergencies." },
+  { n: "171",   name: "Disaster message board", jp: "災害用伝言",   note: "Leave word for family after an earthquake." },
+  { n: "117",   name: "Time",                 jp: "時報",            note: "The speaking clock." },
+  { n: "177",   name: "Weather",              jp: "天気予報",        note: "The forecast for Tōkonto." },
+  { n: "104",   name: "Directory enquiries",  jp: "番号案内",        note: "Which city, and which name?" },
+  { n: "188",   name: "Consumer hotline",     jp: "消費者ホットライン", note: "If you have been scammed." }
+];
+const EMERGENCY = {
+  "110": { name: "Police", ask: "Police, one-one-zero. Is it a crime or an accident? 事件ですか、事故ですか？",
+           opts: [["A crime", "police"], ["An accident", "police"], ["Wrong number. Hang up", null]] },
+  "119": { name: "Fire and ambulance", ask: "119. Fire or ambulance? 火事ですか、救急ですか？",
+           opts: [["An ambulance", "ambulance"], ["A fire", "fire"], ["Wrong number. Hang up", null]] },
+  "118": { name: "Coast Guard", ask: "Coast Guard, one-one-eight. Where is the trouble? 海上保安庁です。",
+           opts: [["On the shore or at sea", "coast"], ["Wrong number. Hang up", null]] }
+};
+const PHONE_RECORDINGS = {
+  "117": () => { const t = phoneTime(); return "Tōkonto time signal. At the tone it will be " + two(t.h) + ":" + two(t.m) + " exactly. Pi, pi, pi, pon."; },
+  "177": () => "Tōkonto weather. Clear all day, a high of 21 degrees and a low of 12. No rain is expected. 晴れです。",
+  "104": () => "Konto directory enquiries. Please say the city and the name. Sorry, that listing is not published.",
+  "171": () => "Disaster message board. No disaster is in effect on Konto. This service is not recording today.",
+  "188": () => "Consumer hotline. If a stranger wrote that you owe an unpaid fee, it was not real. Do not click the link.",
+  "#7119": () => vitals.health < 0.7
+    ? "Nurse: from what you describe, see a doctor today. If it gets worse, hang up and dial 119."
+    : "Nurse: you sound fine. Drink some water and rest. If it gets worse, dial 119.",
+  "#9110": () => "Police advice line. We understand it is worrying. If anyone is in danger right now, hang up and dial 110."
+};
+
+// Every way of making a call ends up here.
+function phoneDial(num) {
+  num = String(num);
+  phone.app = "Phone"; phone.sub = 12; phone.dial = num.slice(0, 11); phone.dirty = true;
+  phone.call = { number: num, t0ms: performance.now() };
+  const em = EMERGENCY[num];
+  if (em) { phone.vmail = em.ask; phone.call.em = em; phone.call.opts = em.opts; phone.call.sel = 0; return; }
+  const rec = PHONE_RECORDINGS[num];
+  phone.vmail = rec ? rec() : VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
+}
+// The operator asked something and you chose.
+function phoneCallPick() {
+  const c = phone.call, o = c && c.opts && c.opts[c.sel];
+  if (!o) return;
+  c.opts = null;
+  phone.vmail = o[1] ? emergencyDispatch(o[1]).msg : "Understood. Call again if you need us. 失礼します。";
+  phone.dirty = true;
+}
+
+function appNumbers(g, W, H) {
+  phoneChrome(g, W, H, "Numbers", "Useful numbers");
+  const list = PHONE_NUMBERS, rowH = H * 0.100, gapY = H * 0.010, top = H * PL.listY;
+  const vis = Math.max(1, Math.floor((H * 0.885 - top) / (rowH + gapY)));
+  phone.sub = clamp(phone.sub, 0, list.length - 1);
+  const first = clamp(phone.sub - ((vis / 2) | 0), 0, Math.max(0, list.length - vis));
+  list.slice(first, first + vis).forEach((e, k) => {
+    const i = first + k, y = top + k * (rowH + gapY), on = phone.sub === i;
+    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, on);
+    g.fillStyle = e.em ? "#c8372d" : "#3a4048";
+    roundRect(g, W * (PL.pad + 0.025), y + rowH * 0.17, W * 0.20, rowH * 0.66, W * 0.025); g.fill();
+    g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "800 " + Math.round(W * (e.n.length > 4 ? 0.050 : 0.062)) + "px " + UI;
+    g.fillText(e.n, W * (PL.pad + 0.125), y + rowH * 0.51);
+    g.textBaseline = "alphabetic"; g.textAlign = "left";
+    const tx = W * (PL.pad + 0.27), tw = W * (1 - PL.pad) - W * 0.03 - tx;
+    g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
+    const nameW = g.measureText(e.name).width;
+    clipText(g, e.name, tx, y + rowH * 0.42, tw);
+    g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small * 0.92) + "px " + UI;
+    if (nameW + g.measureText(e.jp).width + W * 0.04 < tw) { g.textAlign = "right"; g.fillText(e.jp, tx + tw, y + rowH * 0.42); g.textAlign = "left"; }
+    clipText(g, e.note, tx, y + rowH * 0.76, tw);
+  });
+  const e = list[phone.sub], armed = e.em && phone.armed && phone.armed.i === phone.sub && performance.now() - phone.armed.t < 6000;
+  g.font = "600 " + Math.round(W * PL.small) + "px " + UI;
+  g.fillStyle = armed ? "#ff7a6e" : "#6b727a";
+  g.fillText(armed ? "Press A again to call " + e.n : (e.em ? "A  call. Emergencies ask you to confirm" : "A  call"), W * PL.pad, H * 0.915);
 }
 
 // ---- SOTI Music, over Spotify ---------------------------------------------
@@ -17810,7 +17981,7 @@ const PHONE_SCREENS = {
   Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
   MyGram: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
   Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
-  Health: appHealth
+  Health: appHealth, Numbers: appNumbers
 };
 
 function setPhone(on) {
@@ -17842,6 +18013,7 @@ function phoneCount() {
   if (phone.app === "Photos") return phone.gallery.length;
   if (phone.app === "Music") return spotify.state === "ready" ? 3 : 1;
   if (phone.app === "Settings") return settingsRows().length;
+  if (phone.app === "Numbers") return PHONE_NUMBERS.length;
   return 0;
 }
 
@@ -17867,6 +18039,7 @@ function phoneMove(dx, dy) {
 }
 
 function phoneMoveScreen(dx, dy) {
+  if (phone.app === "Phone" && phone.call && phone.call.opts) { phone.call.sel = clamp(phone.call.sel + dy + dx, 0, phone.call.opts.length - 1); phone.dirty = true; return; }
   if (phone.app === "MyGram") { mynetMove(dx, dy); return; }
   if (phone.app === "Photos") { const n = phone.gallery.length; if (n) phone.sub = clamp(phone.sub + dx + dy * 3, 0, n - 1); phone.dirty = true; return; }
   if (phone.app === "Settings" && dx) {
@@ -18004,14 +18177,17 @@ function phoneAct() {
     if (c) { wallSet({ kind: "photo", photo: c }); say("Set as your wallpaper.", 3); }
   } else if (app === "Camera") {
     takePhotograph();
+  } else if (app === "Numbers") {
+    const e = PHONE_NUMBERS[clamp(phone.sub, 0, PHONE_NUMBERS.length - 1)];
+    if (e.em && !(phone.armed && phone.armed.i === phone.sub && performance.now() - phone.armed.t < 6000)) {
+      phone.armed = { i: phone.sub, t: performance.now() };
+      say("Press A again to call " + e.n + ".", 3);
+    } else { phone.armed = null; phoneDial(e.n); }
   } else if (app === "Phone") {
-    if (phone.vmail) { phone.vmail = ""; phone.call = null; }
+    if (phone.vmail) { if (phone.call && phone.call.opts) phoneCallPick(); else { phone.vmail = ""; phone.call = null; } }
     else if (phone.sub === 12) {
       if (phone.dial.length < 3) say("Dial a number first.", 3);
-      else {
-        phone.vmail = VOICEMAILS[(Math.random() * VOICEMAILS.length) | 0];
-        phone.call = { number: phone.dial, t0ms: performance.now() };
-      }
+      else phoneDial(phone.dial);
     } else {
       const keys = "123456789*0#";
       if (phone.dial.length < 11) phone.dial += keys[phone.sub];
@@ -19244,6 +19420,7 @@ function collapse() {
   wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
   wanted.cops.length = 0;
   toggleSiren(false);
+  dispatchClear();
   if (drive.car) leaveCar();
   if (home.inside) leaveHome();
   if (shops.inside) leaveShop();
@@ -22003,6 +22180,239 @@ const ARMS_STOCK = [
   { id: "shotgun", name: "Short shotgun",    price: 480000 }
 ];
 
+// ---- the emergency services -------------------------------------------------
+// 110, 119 and 118 work the way they do in Japan: a person answers, asks what
+// has happened, and sends someone. The someone is a real vehicle. A patrol car,
+// an ambulance or a fire engine is put on the street network a few hundred
+// metres up the nearest road and drives to where the phone says you are, lights
+// going, and traffic queues behind it. Where there is no road it comes across
+// the ground. Calling for help is not a crime, so none of it goes near the
+// wanted stars.
+const dispatch = { units: [] };
+const DISPATCH_KIND = { police: "police", coast: "police", ambulance: "ambulance", fire: "fire" };
+const DISPATCH_WHO = {
+  police:    { name: "patrol car", stay: 55, blip: ["#3f7fe0", "#d8483c"],
+               meet: "“Are you all right? Nothing to report? Stay safe out there.”" },
+  coast:     { name: "patrol car", stay: 55, blip: ["#3f7fe0", "#d8483c"],
+               meet: "“The Coast Guard asked us to meet you ashore. Is anyone in the water?”" },
+  ambulance: { name: "ambulance", stay: 70, blip: ["#ffffff", "#d8483c"],
+               meet: "The crew look you over, and it costs nothing. You are fit to go." },
+  fire:      { name: "fire engine", stay: 50, blip: ["#ffb02e", "#d8483c"],
+               meet: "“Where is the fire? None? Good. Keep it that way.”" }
+};
+
+// The nearest paved lane, for the unit to drive up. Returns the best lane to come
+// in on: close to the player, and with road behind it to build up speed on.
+function dispatchRoadPoint() {
+  const px = player.pos.x, pz = player.pos.z, py = player.pos.y;
+  const per = [];
+  let min = Infinity;
+  for (let li = 0; li < traffic.lanes.length; li++) {
+    const lane = traffic.lanes[li];
+    if (lane.elevated) continue;
+    const a = lane.pts[0];
+    if (Math.hypot(a[0] - px, a[2] - pz) > lane.length + 400) continue;
+    let best = null;
+    for (let s = 0; s <= lane.length; s += 10) {
+      const q = sampleLane(lane, s);
+      if (Math.abs(q.y - py) > 8) continue;
+      const d = Math.hypot(q.x - px, q.z - pz);
+      if (d < 400 && (!best || d < best.d)) best = { li: li, s: s, d: d };
+    }
+    if (best) { per.push(best); if (best.d < min) min = best.d; }
+  }
+  if (!per.length) return null;
+  const near = per.filter(c => c.d <= min + 10);
+  near.forEach(c => { c.run = traffic.lanes[c.li].loop ? 300 : Math.min(300, c.s); });
+  near.sort((a, b) => (b.run >= 120 ? 1 : 0) - (a.run >= 120 ? 1 : 0) || a.d - b.d || b.run - a.run);
+  return near[0];
+}
+
+function dispatchPickCar(ki) {
+  let car = traffic.cars.find(c => c.kind === ki && !c.live && !c.dispatch);
+  if (car) return car;
+  // every patrol car on the road is out: take the one furthest away
+  let far = -1;
+  traffic.cars.forEach(c => {
+    if (c.kind !== ki || !c.live || c.dispatch || wanted.cops.indexOf(c) >= 0 || !c.at) return;
+    const d = Math.hypot(c.at.x - player.pos.x, c.at.z - player.pos.z);
+    if (d > far) { far = d; car = c; }
+  });
+  return car || null;
+}
+
+function dispatchPlace(car, li, s) {
+  const idx = traffic.cars.indexOf(car);
+  if (car.live) {
+    const l = traffic.byLane[car.lane], k = l.indexOf(idx);
+    if (k >= 0) l.splice(k, 1);
+  }
+  const list = traffic.byLane[li];
+  // whatever is parked on the spot where it joins the road gives way
+  for (let i = list.length - 1; i >= 0; i--) {
+    const o = traffic.cars[list[i]];
+    if (!o.dispatch && Math.abs(o.s - s) < car.half + o.half + 14) { o.live = false; list.splice(i, 1); }
+  }
+  const kind = CAR_KINDS[car.kind];
+  car.lane = li; car.s = s; car.v = 0; car.live = true;
+  car.colour = kind.colour.slice(); car.uv[0] = 0; car.uv[1] = 0;
+  let slot = list.length;
+  while (slot > 0 && traffic.cars[list[slot - 1]].s > s) slot--;
+  list.splice(slot, 0, idx);
+  car.at = sampleLane(traffic.lanes[li], s); car.yawNow = car.at.yaw;
+}
+
+// Somewhere on the ground, not in the sea, about three hundred metres away.
+function dispatchFreeStart() {
+  const px = player.pos.x, pz = player.pos.z;
+  for (const r of [300, 220, 140]) {
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * 6.2832 + 0.4;
+      let ok = true;
+      for (let t = 0; t <= 1.001 && ok; t += 0.1) {
+        const x = px + Math.sin(a) * r * t, z = pz + Math.cos(a) * r * t;
+        if (!world.sampleLand(x, z) || world.slopeAt(x, z) > 1.2) ok = false;
+      }
+      if (ok) return { x: px + Math.sin(a) * r, z: pz + Math.cos(a) * r };
+    }
+  }
+  return null;
+}
+
+// Sends one. Returns what the operator says about it.
+function emergencyDispatch(svc) {
+  const who = DISPATCH_WHO[svc], kindName = DISPATCH_KIND[svc];
+  const ki = CAR_KINDS.findIndex(k => k.name === kindName);
+  if (!who || ki < 0 || !player.placed || !traffic.ready) return { ok: false, msg: "The line is busy. Please try again. この回線は混み合っています。" };
+  const have = dispatch.units.find(u => u.svc === svc && u.state !== "leaving");
+  if (have) return { ok: true, msg: (/^[aeiou]/.test(who.name) ? "An " : "A ") + who.name + " is already on its way to you. Please stay where you are. 待機してください。" };
+  const at = placeAt(player.pos.x, player.pos.z);
+  const place = at.street ? at.street + (at.sub ? ", " + at.sub : "") : "an open area";
+  const kind = CAR_KINDS[ki];
+  const u = { svc: svc, kind: ki, state: "coming", t: 0, stuck: 0, met: false, vmax: kind.top + 3 };
+  const rp = dispatchRoadPoint();
+  let eta;
+  if (rp) {
+    const car = dispatchPickCar(ki);
+    if (!car) return { ok: false, msg: "All our units are out. Please hold. 少々お待ちください。" };
+    const lane = traffic.lanes[rp.li];
+    // a second unit on the same road pulls up behind the first
+    const queued = dispatch.units.filter(o => o.car && o.car.lane === rp.li && o.state !== "leaving").length;
+    const stop = rp.s - 3 - queued * 12;
+    let raw = stop - Math.max(40, rp.run);
+    if (!lane.loop) raw = Math.max(0, raw);
+    const start = raw < 0 ? raw + lane.length : raw;
+    dispatchPlace(car, rp.li, start);
+    u.car = car; u.target = start + (stop - raw);
+    car.dispatch = u; car.top = 2;
+    eta = Math.max(10, stop - raw) / (u.vmax * 0.8);
+  } else {
+    const st = dispatchFreeStart();
+    if (!st) return { ok: false, msg: "We cannot find a way to you from here. Get to a road or a town, then call again. 道路に出てから、もう一度お電話ください。" };
+    u.free = true; u.colour = kind.colour.slice();
+    u.pos = new THREE.Vector3(st.x, world.surfaceY(st.x, st.z) + 0.04, st.z);
+    u.yaw = Math.atan2(player.pos.x - st.x, player.pos.z - st.z); u.v = 0;
+    eta = Math.hypot(player.pos.x - st.x, player.pos.z - st.z) / (u.vmax * 0.7);
+  }
+  dispatch.units.push(u);
+  const secs = Math.max(10, Math.round(eta / 5) * 5);
+  const when = secs >= 60 ? "about a minute" : "about " + secs + " seconds";
+  return { ok: true, msg: "Your phone puts you at " + place + ". " + (/^[aeiou]/.test(who.name) ? "An " : "A ") + who.name + " is on its way, " + when + ". Please stay where you are. すぐに向かいます。" };
+}
+
+function dispatchRelease(u) {
+  if (u.car) { u.car.dispatch = null; u.car.top = CAR_KINDS[u.car.kind].top; }
+}
+function dispatchClear() {
+  dispatch.units.forEach(dispatchRelease);
+  dispatch.units.length = 0;
+}
+
+function updateDispatch(dt) {
+  if (!dispatch.units.length) return;
+  const px = player.pos.x, pz = player.pos.z;
+  for (let i = dispatch.units.length - 1; i >= 0; i--) {
+    const u = dispatch.units[i], who = DISPATCH_WHO[u.svc], kind = CAR_KINDS[u.kind];
+    let x, z, remain;
+    if (u.free) {
+      const dx = px - u.pos.x, dz = pz - u.pos.z, d = Math.hypot(dx, dz);
+      x = u.pos.x; z = u.pos.z;
+      if (u.state === "coming") {
+        remain = d - 9;
+        const want = Math.min(u.vmax, Math.sqrt(2 * 5.5 * Math.max(0, remain)) + 0.4);
+        u.v += clamp(want - u.v, -6 * dt, 3 * dt);
+        u.yaw = Math.atan2(dx, dz);
+        u.pos.x += Math.sin(u.yaw) * u.v * dt; u.pos.z += Math.cos(u.yaw) * u.v * dt;
+      } else if (u.state === "leaving") {
+        u.v = Math.min(14, u.v + 3 * dt);
+        u.pos.x -= Math.sin(u.yaw) * u.v * dt; u.pos.z -= Math.cos(u.yaw) * u.v * dt;
+      }
+      u.pos.y = world.surfaceY(u.pos.x, u.pos.z) + 0.04;
+      if (u.state === "leaving") { u.t2 = (u.t2 || 0) + dt; if (u.t2 > 22) { dispatch.units.splice(i, 1); continue; } }
+    } else {
+      const car = u.car;
+      if (!car.live || car.dispatch !== u) { dispatchRelease(u); dispatch.units.splice(i, 1); continue; }   // taken, or recycled
+      x = car.at ? car.at.x : px; z = car.at ? car.at.z : pz;
+      remain = u.target - car.s;
+      if (u.state === "coming") {
+        car.top = Math.min(u.vmax, Math.sqrt(2 * 5.5 * Math.max(0, remain - 1.5)) + 0.4);
+        // boxed in behind something slow, a long way short: skip the dull part
+        if (car.v < 0.4 && remain > 25) u.stuck += dt; else u.stuck = 0;
+        if (u.stuck > 9) { car.s = Math.max(car.s, u.target - 30); u.stuck = 0; }
+      } else if (u.state === "waiting") car.top = 0;
+      else {
+        car.top = 15;
+        u.t2 = (u.t2 || 0) + dt;
+        if (u.t2 > 25) { dispatchRelease(u); dispatch.units.splice(i, 1); continue; }
+      }
+    }
+    if (u.state === "coming") {
+      const v = u.free ? u.v : u.car.v;
+      if (remain < (u.free ? 3 : 4) && v < 1.5) {
+        u.state = "waiting"; u.t = 0;
+        say("The " + who.name + " has arrived.", 4);
+      }
+    } else if (u.state === "waiting") {
+      u.t += dt;
+      if (!u.met && Math.hypot(x - px, z - pz) < 14) { u.met = true; meetDispatch(u, who); }
+      if (u.t > who.stay) { u.state = "leaving"; u.t2 = 0; }
+    }
+  }
+  phone.dirty = phone.dirty || (phone.open && phone.app === "Numbers");
+}
+
+function meetDispatch(u, who) {
+  if (u.svc === "ambulance") {
+    vitals.health = 1;
+    vitals.stress = clamp01(vitals.stress - 0.2);
+  }
+  say(who.meet, 7);
+}
+
+// On the minimap while they are coming, in their own colours.
+function drawDispatchBlips(g, cv, cx, cz, rot, scale) {
+  if (!dispatch.units.length) return;
+  const W = cv.width, H = cv.height;
+  const flashOn = Math.floor(clock * 3.2) % 2 === 0;
+  g.save();
+  g.beginPath();
+  g.arc(W / 2, H / 2, W * 0.405, 0, Math.PI * 2);
+  g.clip();
+  g.translate(W / 2, H / 2);
+  g.rotate(rot);
+  g.scale(scale, scale);
+  g.translate(-cx, -cz);
+  dispatch.units.forEach(u => {
+    const x = u.free ? u.pos.x : (u.car.at ? u.car.at.x : null), z = u.free ? u.pos.z : (u.car.at ? u.car.at.z : null);
+    if (x === null) return;
+    const col = DISPATCH_WHO[u.svc].blip;
+    g.fillStyle = flashOn ? col[0] : col[1];
+    g.beginPath(); g.arc(x, z, 7 / scale, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "rgba(0,0,0,0.6)"; g.lineWidth = 1.5 / scale; g.stroke();
+  });
+  g.restore();
+}
+
 // ---- being wanted ----------------------------------------------------------
 // Stars in the top right. They go up when you are seen doing something, and
 // they only come down when nobody can see you: out of every cone, for long
@@ -22474,7 +22884,7 @@ function findRide() {
   let best = null, bestD = 5.0;
   carsNear(px, pz, 6.5, (c, i) => {
     const kind = CAR_KINDS[c.kind];
-    if (kind.body === "bus" || kind.body === "truck") return;      // not yet
+    if (kind.body === "bus" || kind.body === "truck" || kind.dispatch) return;      // not yet
     if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;  // one on the viaduct
 
     const d = Math.hypot(c.at.x - px, c.at.z - pz) - kind.L * 0.4;

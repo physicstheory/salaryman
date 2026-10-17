@@ -234,6 +234,10 @@ function gameMinutes() { const d = new Date(); return d.getHours() * 60 + d.getM
 const player = { glb: null, placed: false, mode: "walk" };
 const world = { cities: [] };
 function seikoPortrait() { return null; }
+// the emergency lines in the lab: there is no street to send anyone down
+function emergencyDispatch(svc) {
+  return { ok: true, msg: "Your phone puts you at Ch\u016b\u014d-d\u014dri, Marukane 1-ch\u014dme. A patrol car is on its way, about 20 seconds. Please stay where you are." };
+}
 function mnContext() {
   return { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: false, place: nav.place.street, sub: nav.place.sub,
            hour: gameMinutes() / 60, golden: false, night: false, resort: null };
