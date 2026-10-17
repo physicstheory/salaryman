@@ -9777,7 +9777,13 @@ function fitCarModel(object3d, kind, entry) {
   holder.userData.paint = paint;
 
   if (entry.livery) {
-    const extra = liveryRoof(kind, entry.livery);
+    // The roof lamp, the light bar and the door panels are built against the
+    // catalogue's height and width, but the modelled body is whatever height
+    // the model is, so they are built against the model's own measurements,
+    // with the lamp sunk a hair into the roof so it sits on it.
+    const actual = Object.assign({}, kind, { H: Math.max(1.1, size.y * scale), W: Math.max(1.3, size.x * scale * 0.94) });
+    const extra = liveryRoof(actual, entry.livery);
+    extra.position.y = -0.04;
     holder.add(extra);
     holder.userData.lamps = extra.userData.lamps || null;
   }
@@ -10317,7 +10323,9 @@ function buildTrafficLanes(city) {
   city.roads.forEach((road, ri) => {
     if (!road.pts || road.pts.length < 3) return;
     const perSide = road.halfWidth >= 9 ? 2 : 1;
-    const limit = road.cls === "expressway" ? 25 : (road.halfWidth >= 12 ? 15.3 : 12.5);
+    // Thirty on a back street, forty on a middling road, fifty on the big
+    // arterials, ninety on the expressway: what the signs say in Japan.
+    const limit = road.cls === "expressway" ? 25 : road.halfWidth >= 12 ? 13.9 : road.halfWidth >= 9 ? 11.1 : 8.3;
     // The elevated expressway is its own case and a simpler one: the deck is a
     // continuous surface at a height the road already carries, so there is
     // nothing to clip against the paving and nothing to sample off the ground.
@@ -10541,6 +10549,82 @@ const _carPos = new THREE.Vector3();
 const _carScale = new THREE.Vector3(1, 1, 1);
 const _carCol = new THREE.Color();
 
+
+// What a driver can see in front of them that is not their own queue: you on
+// foot, you in a car, cars left at the kerb, and traffic coming across from
+// another lane. Returns the speed they will allow themselves.
+function carCircles(x, z, yaw, kind, out) {
+  const sy = Math.sin(yaw), cy = Math.cos(yaw), d = Math.max(0, kind.L * 0.5 - kind.W * 0.5);
+  out.length = 0;
+  out.push([x + sy * d, z + cy * d], [x, z], [x - sy * d, z - cy * d]);
+  return kind.W * 0.5;
+}
+const _cc1 = [], _cc2 = [];
+function trafficAhead(car, idx, dt) {
+  const kind = CAR_KINDS[car.kind], a = car.at, sy = Math.sin(car.yawNow), cy = Math.cos(car.yawNow);
+  const look = 9 + car.v * 2.4 + kind.L * 0.5;
+  let cap = Infinity, blockedBy = 0;
+  const see = (ox, oz, oR, ov, hard) => {
+    const dx = ox - a.x, dz = oz - a.z;
+    const fwd = dx * sy + dz * cy;
+    if (fwd < 0.3 || fwd > look) return false;
+    const lat = dx * cy - dz * sy;
+    if (Math.abs(lat) > kind.W * 0.5 + oR + 0.55) return false;
+    const gap = fwd - kind.L * 0.5 - oR - (hard ? 1.0 : 2.4);
+    const able = gap <= 0 ? 0 : Math.sqrt(2 * 4.5 * gap) + ov * 0.25;
+    if (able < cap) cap = able;
+    return true;
+  };
+  // a person on the street gets a wider berth, because people step out
+  if (player.placed && player.mode === "walk" && !drive.car && !drive.train && Math.abs(a.y - player.pos.y) < 2.6) {
+    const px = player.pos.x, pz = player.pos.z;
+    if (see(px, pz, 1.35, 0, true)) blockedBy = 1;
+    const dx = px - a.x, dz = pz - a.z;
+    // close alongside: slow right down even if not strictly in the way
+    if (dx * dx + dz * dz < 144 && dx * sy + dz * cy > -2) cap = Math.min(cap, 4.5);
+  }
+  if (drive.car && Math.abs(a.y - drive.car.pos.y) < 2.6) {
+    const dk = CAR_KINDS[drive.car.kind], R = carCircles(drive.car.pos.x, drive.car.pos.z, drive.car.yaw, dk, _cc1);
+    for (let k = 0; k < 3; k++) see(_cc1[k][0], _cc1[k][1], R, Math.max(0, drive.car.speed) , false);
+  }
+  for (let i = 0; i < drive.parked.length; i++) {
+    const pk = drive.parked[i];
+    if (Math.abs(pk.pos.x - a.x) > look || Math.abs(pk.pos.z - a.z) > look) continue;
+    const R = carCircles(pk.pos.x, pk.pos.z, pk.yaw, CAR_KINDS[pk.kind], _cc1);
+    for (let k = 0; k < 3; k++) see(_cc1[k][0], _cc1[k][1], R, 0, false);
+  }
+  if (!(car.ignore > 0)) {
+    for (let j = 0; j < traffic.cars.length; j++) {
+      const o = traffic.cars[j];
+      if (j === idx || !o.live || !o.at || o.lane === car.lane) continue;
+      if (Math.abs(o.at.x - a.x) > look + 6 || Math.abs(o.at.z - a.z) > look + 6) continue;
+      if (Math.abs(o.at.y - a.y) > 2.6) continue;
+      const ok = CAR_KINDS[o.kind], R = carCircles(o.at.x, o.at.z, o.yawNow, ok, _cc2);
+      let saw = false;
+      for (let k = 0; k < 3; k++) if (see(_cc2[k][0], _cc2[k][1], R, o.v, false)) saw = true;
+      if (!saw) continue;
+      // Two cars that can see each other at a crossing: the lower number goes first.
+      const osy = Math.sin(o.yawNow), ocy = Math.cos(o.yawNow);
+      const dx = a.x - o.at.x, dz = a.z - o.at.z, f2 = dx * osy + dz * ocy, l2 = dx * ocy - dz * osy;
+      const mutual = f2 > 0.3 && f2 < look && Math.abs(l2) < ok.W * 0.5 + kind.W * 0.5 + 0.55;
+      if (mutual && idx < j) { cap = Infinity; continue; }
+      blockedBy = 2;
+    }
+  }
+  // curves: slow for the bend before you are in it
+  const lane = traffic.lanes[car.lane];
+  if (lane && !car.dispatch) {
+    const p2 = sampleLane(lane, car.s + 20 + car.v * 0.8);
+    let dy = Math.abs(p2.yaw - car.yawNow); while (dy > Math.PI) dy = Math.abs(dy - Math.PI * 2);
+    if (dy > 0.12) cap = Math.min(cap, Math.max(3.5, Math.sqrt(2.0 / (dy / 20))));
+  }
+  // jammed against something that is not going to move: after a while, edge on
+  if (car.v < 0.3 && cap < 0.5 && blockedBy === 2) { car.waitT = (car.waitT || 0) + dt; if (car.waitT > 7) { car.ignore = 4; car.waitT = 0; } }
+  else car.waitT = 0;
+  if (car.ignore > 0) car.ignore -= dt;
+  return cap;
+}
+
 function updateTraffic(dt, at) {
   if (!traffic.ready) return;
   const counts = new Array(CAR_KINDS.length).fill(0);
@@ -10555,23 +10639,12 @@ function updateTraffic(dt, at) {
     car.yawNow = p.yaw;
   }
 
-  // Drivers brake for a person in the road. Only as hard as they can, which is
-  // why stepping out in front of something at fifteen metres a second still
-  // ends with you on the tarmac.
-  if (player.placed && player.mode === "walk" && !drive.car && !drive.train) {
-    const px = player.pos.x, pz = player.pos.z;
-    carsNear(px, pz, 44, car => {
-      if (Math.abs((car.at ? car.at.y : 0) - player.pos.y) > 2.4) return;
-      const c = Math.cos(-car.yawNow), sn = Math.sin(-car.yawNow);
-      const dx = px - car.at.x, dz = pz - car.at.z;
-      const lx = dx * c - dz * sn, lz = dx * sn + dz * c;
-      const kind = CAR_KINDS[car.kind];
-      if (Math.abs(lx) > kind.W * 0.5 + 1.1) return;
-      const gap = lz - kind.L * 0.5 - 1.3;
-      if (lz < 0 || gap > 34) return;
-      const able = gap <= 0 ? 0 : Math.sqrt(2 * 6.5 * gap);
-      if (able < car.v) car.v = Math.max(0, Math.min(car.v, able + 0.4));
-    });
+  // Everything ahead of each car that is not in its own lane's queue.
+  for (let c = 0; c < traffic.cars.length; c++) {
+    const car = traffic.cars[c];
+    if (!car.live || !car.at) continue;
+    car.cap = car.dispatch ? Infinity : trafficAhead(car, c, dt);
+    if (car.crash > 0) car.crash -= dt;
   }
 
   // Drive, one lane at a time, from the car in front backwards so every car
@@ -10583,14 +10656,16 @@ function updateTraffic(dt, at) {
     for (let k = here.length - 1; k >= 0; k--) {
       const car = traffic.cars[here[k]];
       let limit = car.dispatch ? car.top : Math.min(lane.speed, car.top);
+      if (car.cap < limit) limit = car.cap;
+      if (car.crash > 0) limit = 0;
       if (k + 1 < here.length) {
         const lead = traffic.cars[here[k + 1]];
-        const gap = (lead.s - lead.half) - (car.s + car.half) - 1.8 - lead.v * dt - 0.6;
-        // Able to stop if the car in front stops as hard as it can: the only
-        // rule that actually keeps cars out of each other.
-        limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v * lead.v + 11 * gap)));
+        // a second of room at the speed they are going, and a car's length at a stop
+        const gap = (lead.s - lead.half) - (car.s + car.half) - 2.6 - car.v * 0.9 - lead.v * dt - 0.6;
+        // Able to stop, comfortably, if the car in front stops as hard as it can.
+        limit = gap <= 0 ? 0 : Math.min(limit, Math.sqrt(Math.max(0, lead.v * lead.v + 7 * gap)));
       }
-      car.v += clamp(limit - car.v, -6.5 * dt, 2.6 * dt);
+      car.v += clamp(limit - car.v, -7.5 * dt, 1.9 * dt);
       car.v = Math.max(0, car.v);
       car.s += car.v * dt;
     }
@@ -23126,6 +23201,7 @@ function enterCar(index, jacked) {
     colour: c.colour.slice(), uv: c.uv.slice()
   };
   document.body.classList.add("driving");
+  if (player.obj) player.obj.visible = false;      // he is in the car, not beside it
   setPromptText(null);
 }
 
@@ -23136,6 +23212,7 @@ function enterParked(i) {
                 colour: p.colour.slice(), uv: p.uv.slice(),
                 rec: p.owned ? p : null };
   document.body.classList.add("driving");
+  if (player.obj) player.obj.visible = false;
 }
 
 function leaveCar() {
@@ -23169,6 +23246,7 @@ function leaveCar() {
   player.speed = 0;
   drive.car = null;
   document.body.classList.remove("driving");
+  if (player.obj) { player.obj.visible = true; player.obj.position.copy(player.pos); }
   camPos.copy(player.pos).add(new THREE.Vector3(Math.sin(yaw) * 5, 2.4, Math.cos(yaw) * 5));
 }
 
@@ -23260,6 +23338,7 @@ function updateDrive(dt) {
   } else {
     c.pos.x = nx; c.pos.z = nz;
   }
+  driveCollisions(c, kind, dt);
   c.pos.y = world.surfaceY(c.pos.x, c.pos.z) + 0.04;
 
   // Camera: behind and a little above, swinging round to the heading unless
@@ -23278,10 +23357,64 @@ function updateDrive(dt) {
   want.y = Math.max(want.y, ground + 1.6);
   camPos.lerp(want, 1 - Math.pow(0.0006, dt));
   camera.position.copy(camPos);
+  if (drive.shake > 0.01) {
+    camera.position.x += (Math.random() - 0.5) * drive.shake * 0.5;
+    camera.position.y += (Math.random() - 0.5) * drive.shake * 0.4;
+    drive.shake *= Math.pow(0.02, dt);
+  }
   camera.lookAt(head);
   // Keep the character with the car so the map and the street name follow it.
   player.pos.copy(c.pos);
   player.yaw = c.yaw;
+}
+
+
+// Driving into things. Every car is three circles along its length; where one of
+// yours overlaps one of theirs you are pushed back out, the speed you were
+// carrying into it is gone, and a traffic car that was hit stops dead for a few
+// seconds and is shoved down its lane a little. Parked cars do not move.
+const _pc = [], _oc = [];
+function driveCollisions(c, kind, dt) {
+  const R1 = carCircles(c.pos.x, c.pos.z, c.yaw, kind, _pc);
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+  let worst = null;
+  const test = (ox, oz, oyaw, okind, ref) => {
+    const R2 = carCircles(ox, oz, oyaw, okind, _oc);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 3; b++) {
+      const dx = _pc[a][0] - _oc[b][0], dz = _pc[a][1] - _oc[b][1], d = Math.hypot(dx, dz) || 1e-3;
+      const pen = R1 + R2 - d;
+      if (pen > 0 && (!worst || pen > worst.pen)) worst = { pen: pen, nx: dx / d, nz: dz / d, ref: ref };
+    }
+  };
+  carsNear(c.pos.x, c.pos.z, 9, (o, i) => {
+    if (Math.abs((o.at ? o.at.y : 0) - c.pos.y) > 2.2) return;
+    test(o.at.x, o.at.z, o.yawNow, CAR_KINDS[o.kind], { car: o });
+  });
+  for (let i = 0; i < drive.parked.length; i++) {
+    const pk = drive.parked[i];
+    if (Math.abs(pk.pos.x - c.pos.x) > 9 || Math.abs(pk.pos.z - c.pos.z) > 9) continue;
+    test(pk.pos.x, pk.pos.z, pk.yaw, CAR_KINDS[pk.kind], { parked: pk });
+  }
+  if (!worst) return;
+  const share = worst.ref.car ? 0.75 : 1.0;
+  const push = worst.pen + 0.03;
+  c.pos.x += worst.nx * push * share; c.pos.z += worst.nz * push * share;
+  const vn = c.speed * (fx * worst.nx + fz * worst.nz);       // negative: you were driving into it
+  if (vn < -0.4) {
+    const impact = -vn;
+    c.speed *= clamp(1 - impact / 15, 0.12, 0.82);
+    drive.shake = Math.max(drive.shake || 0, clamp(impact / 12, 0.15, 1));
+    vitals.stress = clamp01(vitals.stress + impact * 0.0018);
+    if (!(c.crashCool > 0) && impact > 3.5) { say("Crash.", 2); c.crashCool = 1.2; }
+    const o = worst.ref.car;
+    if (o) {
+      const oy = o.yawNow, along = c.speed * (fx * Math.sin(oy) + fz * Math.cos(oy));
+      o.v = Math.max(0, o.v - impact * 0.7);
+      o.crash = clamp(2.5 + impact * 0.3, 2.5, 8);
+      o.s = Math.max(0, o.s + clamp(along * dt * 1.2, -1.2, 1.5));
+    }
+  }
+  if (c.crashCool > 0) c.crashCool -= dt;
 }
 
 // ---- being hit ---------------------------------------------------------
