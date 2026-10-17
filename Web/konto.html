@@ -5491,9 +5491,11 @@ function pollPad(dt) {
     if (pressed(PAD.RIGHT)) wheelItem(1);
     if (pressed(PAD.UP)) wheelItem(-1);
     if (pressed(PAD.DOWN)) wheelItem(1);
-    // Everything else is frozen while it is up.
+    // Everything else is frozen while it is up. The stick is pointing the wheel,
+    // so it must not also be turning the camera.
     pad.x = pad.y = pad.up = 0;
     pad.throttle = pad.brake = 0;
+    look.x = look.y = 0;
     return;
   }
   if (wheel.open) setWheel(false);
@@ -5528,6 +5530,8 @@ function pollPad(dt) {
 
   look.x = deadzone(gp.axes[2] || 0);
   look.y = deadzone(gp.axes[3] || 0);
+  // The radio wheel is pointed with the same stick; while it is up the camera stays put.
+  if (radio.wheel || radio.holdingPad) look.x = look.y = 0;
 
   pad.throttle = trigger(PAD.RT, 5);
   pad.brake = trigger(PAD.LT, 4);
@@ -12390,7 +12394,11 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   // ---- you
   if (player.placed || opts.alwaysPlayer) {
     const p = toScreen(player.pos.x, player.pos.z);
-    const facing = player.yaw + rot;
+    // The map is turned by rot, and a heading seen on a turned map is the heading
+    // minus the turn, not plus it. (Plus was right only with the map unturned,
+    // so the big map was fine and the minimap, which turns with the camera,
+    // pointed the wrong way whenever you were not facing north.)
+    const facing = player.yaw - rot;
     ctx.save();
     ctx.translate(p[0], p[1]);
     ctx.rotate(-facing + Math.PI);
@@ -12456,6 +12464,65 @@ function mapAcross() {
   return fit / Math.pow(1.42, nav.mapZoom - 1);
 }
 
+
+// Every icon on the map, with a name, using the same rules for when each one is
+// drawn that the map itself uses.
+function mapPois(across) {
+  const out = [];
+  if (across < 9000) world.cities.forEach(city => city.stations.forEach(st =>
+    out.push({ x: st.centre[0], z: st.centre[1], name: st.name, kind: "Station" })));
+  ski.list.forEach(R => {
+    const nm = R.name || (R.res && R.res.name) || "Ski resort";
+    out.push({ x: R.res.top[0], z: R.res.top[1], name: nm + " summit", kind: "Ski resort" });
+    if (across <= 7000) out.push({ x: R.res.base[0], z: R.res.base[1], name: nm + " lift station", kind: "Ski resort" });
+  });
+  if (across < 9000) {
+    if (home.door && across < 2600) out.push({ x: home.door[0], z: home.door[1], name: "Home", kind: "Your flat" });
+    shops.list.forEach(sh => {
+      if (!sh.mall && !sh.plaza && across > 14000) return;
+      out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.safe ? "Hotel" : "Shop" });
+    });
+    if (garage.built && across < 3200) out.push({ x: garage.centre[0], z: garage.centre[1], name: "Garage", kind: "Yours" });
+    if (garage.cars.length && across < 6500) garage.cars.forEach(rec => {
+      if (drive.car && drive.car.rec === rec) return;
+      out.push({ x: rec.pos.x, z: rec.pos.z, name: rec.name || "Your car", kind: "Your car, parked" });
+    });
+  }
+  if (nav.waypoint) out.push({ x: nav.waypoint.x, z: nav.waypoint.z, name: "Waypoint", kind: "Your marker" });
+  if (player.placed) out.push({ x: player.pos.x, z: player.pos.z, name: "You", kind: "Seiko" });
+  return out;
+}
+
+// A label by the icon under the cursor: the mouse where there is one, the
+// crosshair otherwise.
+function drawMapTip(g, w, h, across) {
+  const S = w / across;
+  const m = nav.mouse && performance.now() - nav.mouse.t < 5000 ? nav.mouse : null;
+  const spot = m || { x: w / 2, y: h / 2 };
+  let best = null, bd = 1e9;
+  mapPois(across).forEach(q => {
+    const sx = w / 2 + (q.x - nav.mapCx) * S, sy = h / 2 + (q.z - nav.mapCz) * S;
+    const d = Math.hypot(sx - spot.x, sy - spot.y);
+    if (d < bd) { bd = d; best = { q: q, sx: sx, sy: sy }; }
+  });
+  if (!best || bd > 20) return;
+  g.save();
+  g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2;
+  g.beginPath(); g.arc(best.sx, best.sy, 15, 0, Math.PI * 2); g.stroke();
+  g.font = "700 14px " + UI;
+  const t1 = best.q.name, t2 = best.q.kind;
+  const tw = Math.max(g.measureText(t1).width, (g.font = "500 11px " + UI, g.measureText(t2).width)) + 20;
+  let bx = best.sx - tw / 2, by = best.sy - 58;
+  bx = clamp(bx, 6, w - tw - 6); if (by < 6) by = best.sy + 24;
+  g.fillStyle = "rgba(14,17,21,0.92)";
+  roundRect(g, bx, by, tw, 38, 8); g.fill();
+  g.strokeStyle = "rgba(255,255,255,0.25)"; g.lineWidth = 1; roundRect(g, bx, by, tw, 38, 8); g.stroke();
+  g.textAlign = "center"; g.textBaseline = "alphabetic";
+  g.fillStyle = "#ffffff"; g.font = "700 14px " + UI; g.fillText(t1, bx + tw / 2, by + 16);
+  g.fillStyle = "#9aa3ad"; g.font = "500 11px " + UI; g.fillText(t2, bx + tw / 2, by + 31);
+  g.restore();
+}
+
 function drawBigMap() {
   const cv = document.getElementById("mapcanvas");
   if (!cv) return;
@@ -12479,6 +12546,8 @@ function drawBigMap() {
   g.moveTo(w / 2, h / 2 - 13); g.lineTo(w / 2, h / 2 - 4);
   g.moveTo(w / 2, h / 2 + 4); g.lineTo(w / 2, h / 2 + 13);
   g.stroke();
+
+  drawMapTip(g, w, h, across);
 
   const where = document.getElementById("mapwhere");
   if (where) {
@@ -12644,8 +12713,11 @@ function initMap() {
   if (!cv) return;
   let dragging = false, lx = 0, ly = 0, moved = 0;
   cv.addEventListener("pointerdown", e => { dragging = true; lx = e.clientX; ly = e.clientY; moved = 0; });
+  cv.addEventListener("pointerleave", () => { nav.mouse = null; if (nav.mapOpen) drawBigMap(); });
   cv.addEventListener("pointermove", e => {
-    if (!dragging) return;
+    const rect = cv.getBoundingClientRect();
+    nav.mouse = { x: e.clientX - rect.left, y: e.clientY - rect.top, t: performance.now() };
+    if (!dragging) { drawBigMap(); return; }
     const across = mapAcross();
     const S = (cv.clientWidth || window.innerWidth) / across;
     nav.mapCx -= (e.clientX - lx) / S;
