@@ -4699,7 +4699,7 @@ function clearRoadCorridors(w, city, boxes) {
   let trimmed = 0, dropped = 0;
   for (let bi = boxes.length - 1; bi >= 0; bi--) {
     const b = boxes[bi];
-    if (b.deck || b.landmark) continue;
+    if (b.deck || b.landmark || b.shoulder) continue;
     let gone = false;
     for (let pass = 0; pass < 10 && !gone; pass++) {
       const R = Math.hypot(b.size[0], b.size[1]) * 0.5 + maxR + 1;
@@ -4740,7 +4740,7 @@ function groundBoxes(w, boxes) {
   const SX = [-0.5, 0, 0.5];
   for (let i = 0; i < boxes.length; i++) {
     const b = boxes[i];
-    if (b.deck) continue;
+    if (b.deck || b.shoulder) continue;
     const mid = w.sampleHeight(b.c[0], b.c[1]);
     if (b.y - mid > 8.0) continue;                     // a shoulder on a tower, not a base
     let low = Infinity;
@@ -4752,6 +4752,25 @@ function groundBoxes(w, boxes) {
     const drop = b.y - (low - 0.25);
     if (drop > 0.05) { const d = Math.min(drop, 40); b.y -= d; b.h += d; }
   }
+}
+
+// Once a shop's building has been trimmed and grounded, put its door and its sign
+// on the face of the building as it ended up, not on the plot it started from.
+function finishShops(boxes) {
+  for (let i = boxes.length - 1; i >= 0; i--) {
+    const b = boxes[i];
+    if (b.plantFor && boxes.indexOf(b.plantFor) < 0) boxes.splice(i, 1);   // its building was lost
+  }
+  boxes.forEach(b => {
+    const s = b.shopRef; if (!s) return;
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), face = b.size[1] * 0.5;
+    s.at = [b.c[0], b.c[1]];
+    s.size = [b.size[0], b.size[1]];
+    s.door = [b.c[0] + fx * (face + 1.6), b.c[1] + fz * (face + 1.6)];
+    s.sign = [b.c[0] + fx * (face + 0.3), b.c[1] + fz * (face + 0.3)];
+    s.height = b.h;
+    s.built = true;
+  });
 }
 
 function addGableRoofs(root, boxes) {
@@ -6250,6 +6269,11 @@ function buildScene(w) {
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
   root.add(sea);
 
+  // Shops are chosen now, before any building goes up, because each one is a
+  // building of its own on the plot it is given.
+  placeShops(w.cities[0]);
+  placeTownShops(w);
+
   // The garage lot has to be known before a single house is placed.
   findHome(w);
   planGarageReserve();
@@ -6320,6 +6344,19 @@ function buildScene(w) {
         return;
       }
       const r = rnd(Math.round(p.centre[0]), Math.round(p.centre[1]), 9173) ;
+      if (p.shop) {
+        // A shop is a building: the plot, nearly edge to edge, in the shopfront
+        // style of the street it is on, as many storeys as the kind of shop
+        // wants, with a plant room on the roof so the top is a roofline.
+        const sz = [Math.max(6, p.size[0] - 1.2), Math.max(6, p.size[1] - 1.2)];
+        const hh = (SHOP_BUILD[p.shop] || 6) * lerp(0.94, 1.08, r);
+        const main = { c: p.centre, size: sz, yaw: p.yaw, y: p.groundY, h: hh, style: facadeStyleFor("shop", region), shopRef: p.shopRef };
+        boxes.push(main);
+        const pr = rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9177);
+        boxes.push({ c: fromRectLocal((pr - 0.5) * sz[0] * 0.4, -sz[1] * 0.22, p.centre[0], p.centre[1], p.yaw),
+                     size: [sz[0] * 0.34, sz[1] * 0.26], yaw: p.yaw, y: p.groundY + hh, h: 2.2, style: "office", shoulder: true, plantFor: main });
+        return;
+      }
       if (p.kind === "houses") {
         const nx = clamp(Math.floor(p.size[0] / 9.5), 1, 6), nz = clamp(Math.floor(p.size[1] / 9.5), 1, 6);
         for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
@@ -6472,6 +6509,7 @@ function buildScene(w) {
 
     clearRoadCorridors(w, city, boxes);
     groundBoxes(w, boxes);
+    finishShops(boxes);
     if (boxes.length) {
       // Group by facade so each style can carry its own texture, and keep the
       // footprints for the character to bump into.
@@ -6597,10 +6635,8 @@ function buildScene(w) {
   buildRail(w, root);
   buildRailStops();
   buildNav(w);
-  placeShops(w.cities[0]);
   placeMalls(w);
   placePlazas(w);
-  placeTownShops(w);
   placeSafehouses(w);
   buildShopSigns(root);
   buildMallSigns(root);
@@ -18889,13 +18925,21 @@ function placeShops(city) {
   if (!city || !city.plots) return;
   const want = 40;
   const spacing = 240;
-  const candidates = city.plots.filter(p =>
-    p.size[0] > 14 && p.size[0] < 46 && p.size[1] > 12 && p.size[1] < 46);
+  // A shop is a building, so it goes on a plot that is meant to hold one: a
+  // shopping-street plot first, then a mid-rise, a block of flats or an office.
+  // Never a park, a car park, a shrine or a row of houses.
+  const okKind = k => k === "shop" || k === "midrise" || k === "flats" || k === "office";
+  const allC = city.plots.filter(p => okKind(p.kind) && !p.shop &&
+    p.size[0] > 11 && p.size[0] < 46 && p.size[1] > 11 && p.size[1] < 46);
+  const shopC = allC.filter(p => p.kind === "shop");
+  let candidates = allC;
   let seed = 4471;
   const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   for (let guard = 0; guard < 6000 && shops.list.length < want; guard++) {
+    candidates = shopC.length && rnd() < 0.8 ? shopC : allC;
     const p = candidates[(rnd() * candidates.length) | 0];
     if (!p) break;
+    if (p.shop) continue;
     let near = false;
     for (let i = 0; i < shops.list.length; i++) {
       const s = shops.list[i];
@@ -18910,7 +18954,7 @@ function placeShops(city) {
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
     const half = p.size[1] * 0.5 + 1.6;
-    shops.list.push({
+    const shopObj = {
       brand: brand,
       name: SHOP_BRANDS[brand].name,
       at: [p.centre[0], p.centre[1]],
@@ -18918,10 +18962,18 @@ function placeShops(city) {
       yaw: yaw,
       groundY: p.groundY,
       size: p.size
-    });
+    };
+    shops.list.push(shopObj);
+    p.shop = brand; p.shopRef = shopObj;          // the massing builds the shop on this plot
   }
   shops.ready = true;
 }
+
+// What each kind of shop is as a building: how many storeys it is, which is most
+// of what tells a konbini from a pharmacy from a bookshop in a street.
+const SHOP_BUILD = {
+  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6
+};
 
 // A lit sign band over each door. One instanced box per chain, with the brand
 // colour on it, which is enough to pick a shop out of a street at a hundred
@@ -18948,10 +19000,11 @@ function buildShopSigns(root) {
       const big = !!s.plaza;
       const w = Math.min(big ? 26 : 14, s.size[0] * 0.82);
       e.set(0, s.yaw, 0); q.setFromEuler(e);
-      pos.set(s.door[0], s.groundY + (big ? 6.6 : 4.3), s.door[1]);
+      const sg = s.sign || s.door;
+      pos.set(sg[0], s.groundY + (big ? 6.6 : 4.3), sg[1]);
       scl.set(w, big ? 3.0 : 1.5, 0.5);
       m.compose(pos, q, scl); band.setMatrixAt(i, m);
-      pos.set(s.door[0], s.groundY + (big ? 4.8 : 3.42), s.door[1]);
+      pos.set(sg[0], s.groundY + (big ? 4.8 : 3.42), sg[1]);
       scl.set(w, big ? 0.4 : 0.26, 0.52);
       m.compose(pos, q, scl); stripe.setMatrixAt(i, m);
       s.signY = s.groundY + (big ? 6.6 : 4.3);
@@ -19533,14 +19586,17 @@ function placeTownShops(w) {
     if (ci === 0 || !city.plots) return;
     const big = city.name === "Isobe" || city.name === "Nagisa" || city.name === "Shiokawa";
     const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen", "sushi"] : big ? ["eleven", "petmart", "ramen", "sushi", "pharmacy", "books", "clothes", "ramen", "sushi"] : ["eleven", "ramen", "sushi", "pharmacy"];
-    const pool = city.plots.filter(p => p.size[0] > 12 && p.size[0] < 46 && p.size[1] > 10 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "houses"));
+    const pool = city.plots.filter(p => !p.shop && p.size[0] > 11 && p.size[0] < 46 && p.size[1] > 11 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "flats"));
     recipe.forEach(brand => {
       for (let g = 0; g < 500 && pool.length; g++) {
         const p = pool[(rng() * pool.length) | 0];
         if (shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < 110)) continue;
+        if (p.shop) continue;
         const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
-        shops.list.push({ brand: brand, name: SHOP_BRANDS[brand].name, city: city.name, at: [p.centre[0], p.centre[1]],
-          door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size });
+        const so = { brand: brand, name: SHOP_BRANDS[brand].name, city: city.name, at: [p.centre[0], p.centre[1]],
+          door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size };
+        shops.list.push(so);
+        p.shop = brand; p.shopRef = so;
         break;
       }
     });
