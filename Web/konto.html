@@ -5408,6 +5408,7 @@ function initThree() {
     if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
     wakeAudio();
+    if (!title.on && !e.repeat) cheatKey(e);
     // The title screen swallows everything while it is up.
     if (title.on) {
       if (e.code === "ArrowUp" || e.code === "KeyW") titleMove(-1);
@@ -13018,6 +13019,10 @@ function routeSolve(from, to) {
 function updateRoute() {
   if (!nav.waypoint || !player.placed) { nav.route = null; return; }
   const at = drive.car ? drive.car.pos : player.pos;
+  // Arrived: the marker goes away when you get close to it, on foot or in a car.
+  if (Math.hypot(at.x - nav.waypoint.x, at.z - nav.waypoint.z) < (drive.car ? 28 : 14)) {
+    clearWaypoint(); say("You have arrived.", 2.5); nav.route = null; return;
+  }
   const r = nav.route;
   const moved = !r || Math.hypot(r.fx - at.x, r.fz - at.z) > 70 || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
   if (!moved) return;
@@ -18716,8 +18721,86 @@ const PHONE_RECORDINGS = {
 };
 
 // Every way of making a call ends up here.
+// ---- cheats ------------------------------------------------------------------
+// Type the word while you are playing, or dial the number on the phone (they
+// are in Web/CHEATS.md). Vehicles appear in front of you and you are put in the
+// driving seat. When aircraft are added they only need an entry in CHEAT_VEHICLES
+// with the kind's name; until then those codes say so.
+const CHEAT_VEHICLES = {
+  ROADSTER:  { kind: "sports",    dial: "5550101" },
+  SUPERCAR:  { kind: "super",     dial: "5550102" },
+  SPORTBIKE: { kind: "bike",      dial: "5550103" },
+  HADSON:    { kind: "cruiser",   dial: "5550104" },
+  TOURING:   { kind: "tourer",    dial: "5550105" },
+  KEICAR:    { kind: "kei",       dial: "5550106" },
+  TAXICAB:   { kind: "taxi",      dial: "5550107" },
+  BIGBUS:    { kind: "bus",       dial: "5550108" },
+  TRUCKER:   { kind: "truck",     dial: "5550109" },
+  PATROL:    { kind: "police",    dial: "5550110" },
+  AMBULANCE: { kind: "ambulance", dial: "5550111" },
+  FIRETRUCK: { kind: "fire",      dial: "5550112" },
+  RYDECAR:   { kind: "ryde",      dial: "5550113" },
+  SCOOTER:   { kind: "scooter",   dial: "5550114" },
+  DIRTBIKE:  { kind: "dirtbike",  dial: "5550115" },
+  TRAILBIKE: { kind: "mtb",       dial: "5550116" },
+  AIRPLANE:  { kind: "plane",     dial: "5550120" },
+  HELICOPTER:{ kind: "heli",      dial: "5550121" }
+};
+const CHEAT_ACTIONS = {
+  MONEYBAGS: { dial: "5550130", note: "\u00a51,000,000", fn: () => { purse.yen += 1000000; } },
+  HEALTHY:   { dial: "5550131", note: "Health and nerves restored", fn: () => { vitals.health = 1; vitals.stress = 0.05; } },
+  MIDDAY:    { dial: "5550132", note: "It is noon", fn: () => cheatHour(12) },
+  MIDNIGHT:  { dial: "5550133", note: "It is midnight", fn: () => cheatHour(0) },
+  SUNRISE:   { dial: "5550134", note: "Sunrise", fn: () => cheatHour(6) },
+  SUNSET:    { dial: "5550135", note: "Sunset", fn: () => cheatHour(18) },
+  LIGHTSOUT: { dial: "5550136", note: "Headlights on, all cars", fn: () => { if (drive.car) drive.car.lights = true; } }
+};
+function cheatHour(h) { clock = (((h * 60 - TIME.startMin) % 1440 + 1440) % 1440) / TIME.rate; if (typeof updateWorldSky === "function") updateWorldSky(0, true); }
+function cheatSpawn(kindName) {
+  const ki = CAR_KINDS.findIndex(k => k.name === kindName);
+  if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
+  const kind = CAR_KINDS[ki];
+  const base = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
+  let d = 4 + kind.L * 0.5, x = base.x + Math.sin(yaw) * d, z = base.z + Math.cos(yaw) * d;
+  for (let t = 0; t < 8 && (insideBuilding(x, z, kind.W * 0.5) || world.sampleHeight(x, z) < 0.5); t++) { d += 3; x = base.x + Math.sin(yaw) * d; z = base.z + Math.cos(yaw) * d; }
+  if (drive.car) leaveCar();
+  const pal = PAINTS[Math.floor(Math.random() * PAINTS.length)][1];
+  const rec = { kind: ki, pos: new THREE.Vector3(x, world.surfaceY(x, z) + 0.04, z), yaw: yaw,
+                colour: (kind.colour || pal).slice(), uv: [0, 0], spawned: true };
+  drive.parked.push(rec);
+  enterParked(drive.parked.length - 1);
+  say(kindName === "dirtbike" ? "Dirt bike." : kind.name[0].toUpperCase() + kind.name.slice(1) + " spawned.", 3);
+  return true;
+}
+function runCheat(name) {
+  const v = CHEAT_VEHICLES[name], a = CHEAT_ACTIONS[name];
+  if (v) return cheatSpawn(v.kind);
+  if (a) { a.fn(); say(a.note, 3); return true; }
+  return false;
+}
+window.cheat = n => runCheat(String(n).toUpperCase());
+let cheatBuf = "";
+function cheatKey(e) {
+  if (!/^Key[A-Z]$/.test(e.code) || e.ctrlKey || e.metaKey || e.altKey) return;
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
+  if (phone.open && (phone.entry || phone.app === "MyGram")) return;
+  cheatBuf = (cheatBuf + e.code.slice(3)).slice(-12);
+  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
+  for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ""; if (player.placed) runCheat(all[i]); return; }
+}
+function cheatDial(num) {
+  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
+  for (let i = 0; i < all.length; i++) {
+    const c = CHEAT_VEHICLES[all[i]] || CHEAT_ACTIONS[all[i]];
+    if (c.dial === num || c.dial === num.replace(/\D/g, "")) { setPhone(false); runCheat(all[i]); return true; }
+  }
+  return false;
+}
+
 function phoneDial(num) {
   num = String(num);
+  if (player.placed && cheatDial(num)) return;
   phone.app = "Phone"; phone.sub = 12; phone.dial = num.slice(0, 11); phone.dirty = true;
   phone.call = { number: num, t0ms: performance.now() };
   const em = EMERGENCY[num];
