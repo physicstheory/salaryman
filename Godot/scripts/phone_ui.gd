@@ -30,6 +30,11 @@ var _flash: ColorRect
 func _init() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
+func _gui_input(e: InputEvent) -> void:
+	if _viewfinder and e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		if (e.position - Vector2(size.x * 0.5, size.y - 60.0)).length() < 30.0:
+			_take_photo()
+
 func _fit() -> void:
 	position = Vector2.ZERO
 	size = get_viewport().get_visible_rect().size
@@ -52,7 +57,7 @@ func _sb(c: Color, r := 14.0, border := Color(0, 0, 0, 0), bw := 0) -> StyleBoxF
 	return s
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_PASS
 	visible = false
 	body = Panel.new()
 	body.custom_minimum_size = Vector2(W, H)
@@ -139,6 +144,8 @@ func _process(_dt: float) -> void:
 		return
 	_time_lbl.text = GameState.clock_text()
 	_flash.color.a = move_toward(_flash.color.a, 0.0, _dt * 3.0)
+	if _viewfinder:
+		queue_redraw()
 
 func open_phone() -> void:
 	visible = true
@@ -150,6 +157,7 @@ func open_phone() -> void:
 func close_phone() -> void:
 	if _viewfinder:
 		_viewfinder = false
+		body.visible = true
 	visible = false
 	closed.emit()
 
@@ -157,6 +165,7 @@ func go_home() -> void:
 	app = ""
 	_pages.clear()
 	_viewfinder = false
+	body.visible = true
 	_clear()
 	var apps: Array = GameData.raw.phone_apps
 	var basic: bool = GameState.device == "eleven" or GameState.device == "petmart"
@@ -226,6 +235,7 @@ func _push(builder: Callable) -> void:
 func _back() -> void:
 	if _viewfinder:
 		_viewfinder = false
+		body.visible = true
 	if _pages.size() > 1:
 		_pages.pop_back()
 		_clear()
@@ -464,6 +474,7 @@ func _wallet() -> void:
 # ---- Camera and Photos
 func _camera() -> void:
 	_viewfinder = true
+	body.visible = false              # the whole screen is the viewfinder
 	var vb := _page("Camera")
 	var dev: Dictionary = GameData.raw.devices.get(GameState.device, {"cam": 3, "camera": "12 MP"})
 	_text(vb, "%s · camera %d/10" % [dev.get("camera", "12 MP"), int(dev.get("cam", 3))], 13, Color(1, 1, 1, 0.65))
@@ -704,3 +715,26 @@ func _health() -> void:
 	_text(vb, "Awake for %d hours." % int(GameState.awake_min / 60.0), 16)
 	var tip := "You are fine." if GameState.strain() < 0.2 else "Your watch suggests ramen, a purchase, or fresh air."
 	_text(vb, tip, 15, Color(1, 1, 1, 0.7))
+
+## The camera's viewfinder: thirds, corner brackets, the lens line, and what the shutter does.
+func _draw() -> void:
+	if not _viewfinder or not visible:
+		return
+	var s := size
+	var m := 40.0
+	var c := Color(1, 1, 1, 0.8)
+	for k in [1.0 / 3.0, 2.0 / 3.0]:
+		draw_line(Vector2(m + (s.x - 2 * m) * k, m), Vector2(m + (s.x - 2 * m) * k, s.y - m), Color(1, 1, 1, 0.22), 1.0)
+		draw_line(Vector2(m, m + (s.y - 2 * m) * k), Vector2(s.x - m, m + (s.y - 2 * m) * k), Color(1, 1, 1, 0.22), 1.0)
+	for cx in [m, s.x - m]:
+		for cy in [m, s.y - m]:
+			var dx := 34.0 if cx == m else -34.0
+			var dy := 34.0 if cy == m else -34.0
+			draw_line(Vector2(cx, cy), Vector2(cx + dx, cy), c, 3.0)
+			draw_line(Vector2(cx, cy), Vector2(cx, cy + dy), c, 3.0)
+	var f := ThemeDB.fallback_font
+	var dev: Dictionary = GameData.raw.devices.get(GameState.device, {"name": "Phone", "cam": 3})
+	draw_string(f, Vector2(m + 4, m - 12), "%s · camera %d/10" % [dev.name, int(dev.get("cam", 3))], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, c)
+	draw_string(f, Vector2(s.x * 0.5, s.y - m + 28), "Space: take photo      Esc: back      %d in the gallery" % GameState.photos.size(), HORIZONTAL_ALIGNMENT_CENTER, -1, 18, c)
+	draw_circle(Vector2(s.x * 0.5, s.y - m - 20), 26.0, Color(1, 1, 1, 0.9))
+	draw_circle(Vector2(s.x * 0.5, s.y - m - 20), 21.0, Color(0.9, 0.2, 0.2, 0.95))

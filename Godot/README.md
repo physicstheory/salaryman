@@ -16,6 +16,29 @@ The project uses the **Compatibility** renderer on purpose: it runs on integrate
 everything here (shadows, glow, fog, MSAA) works in it. If you have a discrete GPU you can switch to
 Forward+ in Project Settings → Rendering and turn on SSAO and SSR in `city_world.gd`'s environment.
 
+## What there is to do
+
+* **Shops** (`shop_front.gd`, `shop_ui.gd`, `data/game_data.json`). 43 shopfronts across the city, every chain from the web build:
+  11 Eleven, Pet Mart (convenience stores), Menya Ippai (ramen), Sushi Go-Go, Kusuri Plus (pharmacy), Hon-no-Mori (books),
+  Suit Select (clothes), Kanamono (the back-street armourer), Konto Plaza (a four-floor mall with a lift), Dokoto Camera (phones,
+  audio, TVs, consoles, games), Capsule Hotel (sleep: stress gone, health back, ¥3,500), and drinks machines on the pavements. Walk to a
+  door and press **E**. Food is eaten at the counter or taken away; the numbers are the web game's, and the tables are extracted from it
+  by `tools/extract_game_data.js`, so the two stay the same.
+* **Stress and health** (`game_state.gd`). Health does not mend itself: food, sleep and the hospital do it. Stress creeps up, eases outdoors in
+  the park, drops when you eat comfort food (more when you are stressed), buy something, or do an activity. A stressed Seiko walks slower, and
+  drives badly: the pedal wavers, the wheel wanders, he lapses.
+* **Activities** (`activity_ui.gd`). A bathhouse (three courses), pachinko (a gamble, slightly against you), karaoke (a four-lane rhythm game),
+  a game centre (snake and brick breaker), fishing off the pier on the east edge, and the benches in the park. Each one moves your stress.
+* **The map** (**M**). Whole-city map: wheel zoom, right-drag pan, click to set a waypoint, X to clear. Every shop is a dot in its chain colour.
+  The minimap in the corner turns with the camera. The waypoint is a pink beam in the world, and it goes away when you reach it.
+* **The phone** (**P**). Home screen of apps over a wallpaper. *Ryde* takes you anywhere for a fare; *Poodle* is the web (42 sites; the shops and
+  Dokoto take online orders that arrive by Hayabin into the bag); *Wallet* shows your money, spending and parcels in transit; *Camera* is a
+  full-screen viewfinder and *Photos* the gallery; *MyGram* a feed; *Nihon* the real train times; *Phone*, *Contacts* and *Numbers* make calls
+  (119 sends an ambulance for a fee); *Mail*; *Music* (stations are synthesised, there are no recordings, and it needs earphones on); *Settings*.
+  Notifications appear as toasts above the minimap.
+* **Pause menu** (**Esc**): bag (use things), stats, settings (render scale, sharpen, volume, mouse), controls, save, quit. The title screen has
+  New game and Continue; the game saves when you leave a shop or the pause menu.
+
 ## Controls
 
 | | On foot | In a car |
@@ -27,8 +50,10 @@ Forward+ in Project Settings → Rendering and turn on SSAO and SSR in `city_wor
 | R | | flip the car upright |
 | L | | headlights |
 | Mouse | look | look (the camera swings back behind the car after a moment) |
+| M | the map | the map |
+| P | the phone | the phone |
 | H | hide the help | |
-| Esc | free the mouse | |
+| Esc | pause menu | pause menu |
 
 A gamepad works too: right trigger throttle, left trigger brake, left stick steer or move, X to get in and out, A for jump or handbrake.
 
@@ -92,7 +117,8 @@ Drop the GLBs in `assets/cars/` under those names and the cars use them; until t
 ```
 
 * `tests/physics_test.gd`: 0–100, braking, skidpad and a handbrake turn for every car; fails on NaN or a car that flies off.
-* `tests/smoke.gd`: boots the real game, gets in a car, drives, checks the traffic is moving and nothing is lost.
+* `tests/smoke.gd`: boots the real game, gets in a car, drives, checks the traffic is moving and nothing is lost, then exercises the shops, the map and waypoint, the pause menu, every activity, the whole phone (all apps and 42 sites) and an online order through to delivery.
+* `tests/state_test.gd`: the shop data and the stress/health rules.
 * `tests/shot*.gd`: render screenshots (needs a display; `xvfb-run` works). Not part of the pass/fail run.
 
 Run headless tests with `--fixed-fps 120`. Do not change `Engine.time_scale` in them: Godot scales the physics
