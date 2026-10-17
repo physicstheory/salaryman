@@ -7873,7 +7873,7 @@ function buildStreetLife(root, w) {
   const faceM = new THREE.MeshStandardMaterial({ color: 0xffffff, map: faceTex, emissive: new THREE.Color(1, 1, 1), emissiveMap: faceTex, emissiveIntensity: 0.45, roughness: 0.4 });
   nightMats.push({ m: faceM, gain: 1.1, floor: 0.45 });
   const spots = [];
-  const spotOK = (x, z) => !spots.some(q => Math.hypot(q[0] - x, q[1] - z) < 55);
+  const spotOK = (x, z) => !spots.some(q => Math.hypot(q[0] - x, q[1] - z) < 42);
   const place = (x, z, yaw, h) => {
     if (x < 40 || z < 40 || x > WORLD_X - 40 || z > WORLD_Z - 40) return false;
     if (world.sampleLand(x, z) < 0.9 || world.bridgeY(x, z) !== null) return false;
@@ -7905,8 +7905,10 @@ function buildStreetLife(root, w) {
         const cx = a[0] + tx * carry, cz = a[2] + tz * carry, nx = -tz * side, nz = tx * side;
         const px = cx + nx * (hw + 2.0), pz = cz + nz * (hw + 2.0);
         // a wall just behind it, and the road in front: it faces the road
-        if (insideBuilding(px + nx * 1.3, pz + nz * 1.3, 0.3) && spotOK(px, pz)) place(px, pz, Math.atan2(-nx, -nz), hash(px, pz, 7333));
-        carry += 28 + hash(px, pz, 7337) * 40; side = -side;
+        // a wall within a few metres behind it, and the road in front: it faces the road
+        const wall = [1.3, 2.6, 4.0].some(d => insideBuilding(px + nx * d, pz + nz * d, 0.3));
+        if (wall && spotOK(px, pz)) { const bx = px + nx * 0.4, bz = pz + nz * 0.4; place(bx, bz, Math.atan2(-nx, -nz), hash(px, pz, 7333)); }
+        carry += 22 + hash(px, pz, 7337) * 30; side = -side;
       }
       carry -= len;
     }
