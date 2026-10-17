@@ -7608,13 +7608,45 @@ function plantTrees(root, trees) {
 // ============================================================================
 const lampCells = [];
 const LAMP_CULL = { low: 380, medium: 600, high: 900, ultra: 1300 };
+// Soft light, drawn once: a round glow for lamps and pools, and a long cone for
+// headlight beams. Alpha only falls away smoothly, so nothing has an edge.
+const softTex = {};
+function softTexture(kind) {
+  if (softTex[kind]) return softTex[kind];
+  const W = kind === "beam" ? 128 : 128, H = kind === "beam" ? 256 : 128;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d"), img = g.createImageData(W, H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    let a;
+    if (kind === "beam") {
+      // v runs from the bumper (y = H) out to the far end (y = 0); a gaussian across, widening with distance
+      const d = 1 - y / (H - 1), nx = (x / (W - 1) - 0.5) * 2;
+      const wid = 0.30 + d * 0.70;
+      const across = Math.exp(-Math.pow(nx / wid * 1.7, 2));
+      const along = Math.pow(1 - d, 1.35) * Math.min(1, d * 14 + 0.25);
+      a = across * along;
+    } else {
+      const dx = (x / (W - 1) - 0.5) * 2, dy = (y / (H - 1) - 0.5) * 2, r = Math.hypot(dx, dy);
+      a = r >= 1 ? 0 : Math.pow(1 - r, 2.2) * (kind === "lamp" ? 1.0 : 0.9);
+      if (kind === "lamp") a = Math.min(1, a + Math.exp(-r * r * 38) * 0.9);
+    }
+    const i = (y * W + x) * 4, v = Math.round(255 * Math.max(0, Math.min(1, a)));
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
+  softTex[kind] = t; return t;
+}
+
 const lampLook = { head: null, pool: null };
 function buildStreetLights(root, w) {
   lampCells.length = 0;
   const CELL = 500, cells = {};
   const cellFor = (x, z) => {
     const k = Math.floor(x / CELL) + "," + Math.floor(z / CELL);
-    if (!cells[k]) cells[k] = { body: solidMesh(), head: solidMesh(), pool: { pos: [], col: [] }, minx: 1e9, maxx: -1e9, minz: 1e9, maxz: -1e9, n: 0 };
+    if (!cells[k]) cells[k] = { body: solidMesh(), head: solidMesh(), pool: { pos: [], col: [], uv: [] }, minx: 1e9, maxx: -1e9, minz: 1e9, maxz: -1e9, n: 0 };
     return cells[k];
   };
   const grid = w._corridors ? w._corridors.grid : null, cellC = w._corridors ? w._corridors.cell : 40;
@@ -7643,12 +7675,8 @@ function buildStreetLights(root, w) {
     c.head.box(0, H - 0.30, 2.3, 0.46, 0.14, 1.0);                  // the lamp
     // the pool on the road under it
     const qx = px + dx * 3.2, qz = pz + dz * 3.2, qy = world.surfaceY(qx, qz) + 0.22;
-    const seg = 10;
-    for (let k = 0; k < seg; k++) {
-      const a0 = k / seg * 6.2832, a1 = (k + 1) / seg * 6.2832;
-      c.pool.pos.push(qx, qy, qz, qx + Math.cos(a0) * POOL_R, qy, qz + Math.sin(a0) * POOL_R, qx + Math.cos(a1) * POOL_R, qy, qz + Math.sin(a1) * POOL_R);
-      c.pool.col.push(0.50, 0.40, 0.22, 0, 0, 0, 0, 0, 0);
-    }
+    const qa = [[-1, -1, 0, 0], [1, -1, 1, 0], [1, 1, 1, 1], [-1, -1, 0, 0], [1, 1, 1, 1], [-1, 1, 0, 1]];
+    qa.forEach(q => { c.pool.pos.push(qx + q[0] * POOL_R, qy, qz + q[1] * POOL_R); c.pool.col.push(0.62, 0.50, 0.28); c.pool.uv.push(q[2], q[3]); });
     c.n++;
     c.minx = Math.min(c.minx, px); c.maxx = Math.max(c.maxx, px); c.minz = Math.min(c.minz, pz); c.maxz = Math.max(c.maxz, pz);
   };
@@ -7681,7 +7709,7 @@ function buildStreetLights(root, w) {
   // static meshes, one set a square
   if (!lampLook.head) {
     lampLook.head = new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(0.55, 0.57, 0.60), toneMapped: false, fog: true });
-    lampLook.pool = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+    lampLook.pool = new THREE.MeshBasicMaterial({ vertexColors: true, map: softTexture("pool"), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
       opacity: 0, toneMapped: false, side: THREE.DoubleSide });
   }
   Object.keys(cells).forEach(k => {
@@ -7691,6 +7719,7 @@ function buildStreetLights(root, w) {
     const pg = new THREE.BufferGeometry();
     pg.setAttribute("position", new THREE.Float32BufferAttribute(c.pool.pos, 3));
     pg.setAttribute("color", new THREE.Float32BufferAttribute(c.pool.col, 3));
+    pg.setAttribute("uv", new THREE.Float32BufferAttribute(c.pool.uv, 2));
     const poolMesh = new THREE.Mesh(pg, lampLook.pool);
     poolMesh.renderOrder = 3; poolMesh.visible = false;
     [bodyMesh, headMesh, poolMesh].forEach(m => { m.castShadow = false; m.receiveShadow = false; m.geometry.computeBoundingSphere(); root.add(m); });
@@ -11190,35 +11219,41 @@ function trafficAhead(car, idx, dt) {
 // car also throws a real spotlight where the machine can afford one, so the road
 // and the shopfronts ahead are lit and not just painted.
 function makeHeadlights(root, cap) {
-  const pos = [], col = [];
-  const quad = (a, b, c, d, ca, cb) => { [a, b, c, a, c, d].forEach((p, i) => { pos.push(p[0], p[1], p[2]); const k = [ca, cb, cb, ca, cb, ca][i]; col.push(k[0], k[1], k[2]); }); };
-  const lampC = [1.5, 1.4, 1.05];
-  [-0.58, 0.58].forEach(x => quad([x - 0.17, 0.07, 0.03], [x + 0.17, 0.07, 0.03], [x + 0.17, -0.07, 0.03], [x - 0.17, -0.07, 0.03], lampC, lampC));
-  // the pool: five slices from the bumper to seventeen metres out
-  const rows = 5;
-  for (let r = 0; r < rows; r++) {
-    const t0 = r / rows, t1 = (r + 1) / rows;
-    const z0 = 0.4 + t0 * 16.6, z1 = 0.4 + t1 * 16.6;
-    const w0 = 0.95 + t0 * 2.7, w1 = 0.95 + t1 * 2.7;
-    const c0 = Math.pow(1 - t0, 1.5) * 0.46, c1 = Math.pow(1 - t1, 1.5) * 0.46;
-    quad([-w0, -1, z0], [w0, -1, z0], [w1, -1, z1], [-w1, -1, z1], [c0, c0 * 0.92, c0 * 0.62], [c1, c1 * 0.92, c1 * 0.62]);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
-  const m = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true,
-    depthWrite: false, side: THREE.DoubleSide, opacity: 0, toneMapped: false });
-  const mesh = new THREE.InstancedMesh(g, m, cap);
-  mesh.count = 0; mesh.frustumCulled = false; mesh.renderOrder = 4;
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  root.add(mesh);
+  // Two soft-edged textures on plain quads, nothing with a hard edge: a round
+  // glow at each lamp, and a beam laid on the road that thins away with distance.
+  const mk = (pos, uv, tex, rgb, order) => {
+    const col = []; for (let i = 0; i < pos.length / 3; i++) col.push(rgb[0], rgb[1], rgb[2]);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+    g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+    const m = new THREE.MeshBasicMaterial({ vertexColors: true, map: softTexture(tex), blending: THREE.AdditiveBlending, transparent: true,
+      depthWrite: false, side: THREE.DoubleSide, opacity: 0, toneMapped: false });
+    const mesh = new THREE.InstancedMesh(g, m, cap);
+    mesh.count = 0; mesh.frustumCulled = false; mesh.renderOrder = order;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    root.add(mesh);
+    return mesh;
+  };
+  const QUV = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
+  const lampPos = [];
+  [-0.58, 0.58].forEach(x => {
+    const s = 0.55;
+    [[-s, -s], [s, -s], [s, s], [-s, -s], [s, s], [-s, s]].forEach(q => lampPos.push(x + q[0], q[1], 0.05));
+  });
+  const lampUv = QUV.concat(QUV);
+  // v = 1 at the bumper, 0 at 19 m out; the texture carries the shape
+  const beamPos = [-4.2, -1, 19, 4.2, -1, 19, 4.2, -1, 0.3, -4.2, -1, 19, 4.2, -1, 0.3, -4.2, -1, 0.3];
+  const beamUv = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
+  const lamps = mk(lampPos, lampUv, "lamp", [1.0, 0.94, 0.72], 5);
+  const beam = mk(beamPos, beamUv, "beam", [0.85, 0.76, 0.48], 4);
   let spot = null;
   if (gfx.tier !== "low") {
     spot = new THREE.SpotLight(0xfff1d6, 0, 70, 0.52, 0.6, 1.3);
     spot.castShadow = false;
     root.add(spot); root.add(spot.target);
   }
-  return { mesh: mesh, mat: m, spot: spot };
+  return { mesh: beam, lamps: lamps, mat: beam.material, lampMat: lamps.material, spot: spot };
 }
 const _hlM = new THREE.Matrix4(), _hlQ = new THREE.Quaternion(), _hlE = new THREE.Euler(), _hlP = new THREE.Vector3(), _hlS = new THREE.Vector3();
 function updateHeadlights() {
@@ -11226,8 +11261,9 @@ function updateHeadlights() {
   const lit = nightState.lit;
   const own = drive.car && drive.car.lights;
   const night = lit > 0.22;
-  if (!night && !own) { L.mesh.count = 0; L.mat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
-  L.mat.opacity = clamp01(Math.max(lit * 1.05, own ? 0.38 : 0));
+  if (!night && !own) { L.mesh.count = 0; L.lamps.count = 0; L.mat.opacity = 0; L.lampMat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
+  const glow = clamp01(Math.max(lit * 1.05, own ? 0.38 : 0));
+  L.mat.opacity = glow * 0.72; L.lampMat.opacity = glow;
   let n = 0;
   const put = (x, y, z, yaw, pitch, kind) => {
     if (n >= L.mesh.instanceMatrix.count) return;
@@ -11236,7 +11272,10 @@ function updateHeadlights() {
     _hlP.set(x + Math.sin(yaw) * fwd, y + lh, z + Math.cos(yaw) * fwd);
     _hlS.set(kind.W / 1.8, Math.max(0.2, lh - 0.05), kind.body === "bus" || kind.body === "truck" ? 1.3 : 1);
     _hlM.compose(_hlP, _hlQ, _hlS);
-    L.mesh.setMatrixAt(n++, _hlM);
+    L.mesh.setMatrixAt(n, _hlM);
+    _hlS.set(kind.W / 1.8, 1, 1);
+    _hlM.compose(_hlP, _hlQ, _hlS);
+    L.lamps.setMatrixAt(n++, _hlM);
   };
   if (night) {
     for (let i = 0; i < traffic.cars.length; i++) {
@@ -11250,6 +11289,7 @@ function updateHeadlights() {
     const d = drive.car; put(d.pos.x, d.pos.y, d.pos.z, d.yaw, d.pitch || 0, CAR_KINDS[d.kind]);
   }
   L.mesh.count = n; L.mesh.instanceMatrix.needsUpdate = true;
+  L.lamps.count = n; L.lamps.instanceMatrix.needsUpdate = true;
   if (L.spot) {
     if (own && drive.car) {
       const d = drive.car, k = CAR_KINDS[d.kind], sy = Math.sin(d.yaw), cy = Math.cos(d.yaw);
@@ -12269,6 +12309,47 @@ function revsFor(speed, top) {
   while (gear < GEARS.length - 1 && frac > (gear + 1) / GEARS.length) gear++;
   const within = clamp01((frac - gear / GEARS.length) * GEARS.length);
   return { rpm: 0.18 + within * 0.82, gear: gear };
+}
+
+// A crash: a hard knock, a burst of crumpling metal, and glass on the big ones.
+// Louder and longer the harder you hit; quiet bumps are only a thud.
+function playCrash(impact) {
+  if (!sound.ready || !sound.ctx || !sound.master) return;
+  const ctx = sound.ctx, t = ctx.currentTime;
+  const k = clamp01((impact - 1.5) / 14);
+  const vol = 0.25 + k * 0.75;
+  if (!sound.crashBuf) {
+    const len = Math.floor(ctx.sampleRate * 1.2);
+    const b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    sound.crashBuf = b;
+  }
+  const out = ctx.createGain(); out.gain.value = vol; out.connect(sound.master);
+  // the thud: a sine dropping fast
+  const o = ctx.createOscillator(), og = ctx.createGain();
+  o.type = "sine"; o.frequency.setValueAtTime(130 + k * 30, t); o.frequency.exponentialRampToValueAtTime(38, t + 0.28);
+  og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(1.0, t + 0.008); og.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+  o.connect(og); og.connect(out); o.start(t); o.stop(t + 0.4);
+  // crumpling metal: band-passed noise in short irregular bursts
+  const bursts = 3 + Math.round(k * 4);
+  for (let i = 0; i < bursts; i++) {
+    const at = t + (i === 0 ? 0 : 0.03 + Math.random() * (0.12 + k * 0.28));
+    const src = ctx.createBufferSource(); src.buffer = sound.crashBuf;
+    const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 350 + Math.random() * 1600; f.Q.value = 1.4 + Math.random() * 2;
+    const g = ctx.createGain(); const d = 0.05 + Math.random() * 0.14 + k * 0.1;
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.55 - i * 0.04, at + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, at + d);
+    src.connect(f); f.connect(g); g.connect(out); src.start(at, Math.random() * 0.8, d + 0.05);
+  }
+  // glass on a hard hit: bright tinkles scattered after
+  if (k > 0.35) {
+    for (let i = 0; i < 9; i++) {
+      const at = t + 0.05 + Math.random() * 0.55;
+      const so = ctx.createOscillator(), sg = ctx.createGain();
+      so.type = "triangle"; so.frequency.value = 2600 + Math.random() * 4200;
+      sg.gain.setValueAtTime(0.0001, at); sg.gain.exponentialRampToValueAtTime(0.09 * k, at + 0.003); sg.gain.exponentialRampToValueAtTime(0.0001, at + 0.05 + Math.random() * 0.06);
+      so.connect(sg); sg.connect(out); so.start(at); so.stop(at + 0.14);
+    }
+  }
 }
 
 function updateSound(dt) {
@@ -24195,6 +24276,7 @@ function updateDrive(dt) {
     || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
     || insideBuilding(nx, nz, kind.W * 0.45);
   if (blocked) {
+    if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
     c.speed *= -0.22;                               // a thump, not a bounce
   } else {
     c.pos.x = nx; c.pos.z = nz;
@@ -24236,6 +24318,7 @@ function updateDrive(dt) {
 // seconds and is shoved down its lane a little. Parked cars do not move.
 const _pc = [], _oc = [];
 function driveCollisions(c, kind, dt) {
+  if (c.crashCool > 0) c.crashCool -= dt;
   const R1 = carCircles(c.pos.x, c.pos.z, c.yaw, kind, _pc);
   const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
   let worst = null;
@@ -24266,7 +24349,7 @@ function driveCollisions(c, kind, dt) {
     c.speed *= clamp(1 - impact / 15, 0.12, 0.82);
     drive.shake = Math.max(drive.shake || 0, clamp(impact / 12, 0.15, 1));
     vitals.stress = clamp01(vitals.stress + impact * 0.0018);
-    if (!(c.crashCool > 0) && impact > 3.5) { say("Crash.", 2); c.crashCool = 1.2; }
+    if (!(c.crashCool > 0) && impact > 1.8) { playCrash(impact); c.crashCool = impact > 3.5 ? 1.2 : 0.6; if (impact > 3.5) say("Crash.", 2); }
     const o = worst.ref.car;
     if (o) {
       const oy = o.yawNow, along = c.speed * (fx * Math.sin(oy) + fz * Math.cos(oy));
@@ -24275,7 +24358,6 @@ function driveCollisions(c, kind, dt) {
       o.s = Math.max(0, o.s + clamp(along * dt * 1.2, -1.2, 1.5));
     }
   }
-  if (c.crashCool > 0) c.crashCool -= dt;
 }
 
 // ---- being hit ---------------------------------------------------------
