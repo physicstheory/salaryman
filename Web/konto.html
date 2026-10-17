@@ -1447,6 +1447,22 @@ function makeWorld(seed, report) {
     return lerp(a, b, tz);
   }
 
+  // The height of the ground as it is DRAWN. The terrain mesh is two flat
+  // triangles to every cell, split along one diagonal, and on rough ground that is
+  // up to two or three metres off the smooth bilinear surface sampleField gives.
+  // Anything that stands on the ground (Seiko, cars, buildings, trees) asks this
+  // one, so it stands on what you can see and not an inch above or below it.
+  function sampleMesh(f, px, pz) {
+    const fx = clamp(px / CELL, 0, GRID_X - 1), fz = clamp(pz / CELL, 0, GRID_Z - 1);
+    let x0 = Math.floor(fx), z0 = Math.floor(fz);
+    if (x0 > GRID_X - 2) x0 = GRID_X - 2;
+    if (z0 > GRID_Z - 2) z0 = GRID_Z - 2;
+    const tx = fx - x0, tz = fz - z0;
+    const ha = f[idx(x0, z0)], hb = f[idx(x0, z0 + 1)], hc = f[idx(x0 + 1, z0 + 1)], hd = f[idx(x0 + 1, z0)];
+    return tx + tz <= 1 ? ha + tx * (hd - ha) + tz * (hb - ha)
+                        : hc + (1 - tx) * (hb - hc) + (1 - tz) * (hd - hc);
+  }
+
   // ---- site frames -------------------------------------------------------
   const frames = SITES.map(site => {
     const t = clamp01(site.alongT);
@@ -1970,7 +1986,7 @@ function makeWorld(seed, report) {
     seed: seed, arc: arc, height: height, landMask: landMask, coast: coast,
     arcT: arcT, arcLat: arcLat, flow: flow, river: river, urban: urban,
     highest: highest, cities: [],
-    sampleHeight: (px, pz) => sampleField(height, px, pz),
+    sampleHeight: (px, pz) => sampleMesh(height, px, pz),
     sampleLand: (px, pz) => sampleField(landMask, px, pz),
     sampleRiver: (px, pz) => sampleField(river, px, pz),
     sampleUrban: (px, pz) => sampleField(urban, px, pz),
@@ -2009,7 +2025,7 @@ function makeWorld(seed, report) {
       const f = world.cities[i].footprint;
       if (f) lift = Math.max(lift, clamp01((f(px, pz) - 0.10) / 0.22));
     }
-    return sampleField(height, px, pz) + CITY_LIFT * lift;
+    return sampleMesh(height, px, pz) + CITY_LIFT * lift;
   };
 
   // ---- the cities -------------------------------------------------------
@@ -4695,6 +4711,27 @@ function clearRoadCorridors(w, city, boxes) {
   city.roadClear = { trimmed: trimmed, dropped: dropped };
 }
 
+// A building's base was set from the ground at its middle, so on a slope the
+// downhill side hangs in the air. Reach the base down to the lowest ground under
+// the footprint, and make the building that much taller so its roof stays put.
+function groundBoxes(w, boxes) {
+  const SX = [-0.5, 0, 0.5];
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    if (b.deck) continue;
+    const mid = w.sampleHeight(b.c[0], b.c[1]);
+    if (b.y - mid > 8.0) continue;                     // a shoulder on a tower, not a base
+    let low = Infinity;
+    for (let a = 0; a < 3; a++) for (let c = 0; c < 3; c++) {
+      const p = fromRectLocal(SX[a] * b.size[0], SX[c] * b.size[1], b.c[0], b.c[1], b.yaw);
+      const h = w.sampleHeight(p[0], p[1]);
+      if (h < low) low = h;
+    }
+    const drop = b.y - (low - 0.25);
+    if (drop > 0.05) { const d = Math.min(drop, 40); b.y -= d; b.h += d; }
+  }
+}
+
 function addGableRoofs(root, boxes) {
   const byKind = {};
   boxes.forEach(b => {
@@ -6409,6 +6446,7 @@ function buildScene(w) {
     });
 
     clearRoadCorridors(w, city, boxes);
+    groundBoxes(w, boxes);
     if (boxes.length) {
       // Group by facade so each style can carry its own texture, and keep the
       // footprints for the character to bump into.
