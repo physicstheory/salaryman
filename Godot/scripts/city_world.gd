@@ -45,7 +45,7 @@ func _environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.32, 0.38, 0.6)
-	env.ambient_light_energy = 0.75
+	env.ambient_light_energy = 0.55
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.tonemap_exposure = 1.1
 	env.fog_enabled = true
@@ -236,7 +236,7 @@ func _place_kit(name: String, cx: float, cz: float, yaw: float, target: float, y
 		var raw := _world_aabb(inst)
 		_sizes[name] = raw
 		remove_child(inst)
-		_prepare_materials(inst, 0.42)
+		_prepare_materials(inst, 0.3)
 	var raw: AABB = _sizes[name]
 	var s := target / maxf(raw.size.x, raw.size.z)
 	inst.scale = Vector3.ONE * s

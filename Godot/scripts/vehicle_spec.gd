@@ -5,7 +5,8 @@ extends RefCounted
 
 var name := "sedan"
 var model := "res://assets/cars/sedan.glb"
-var model_yaw := 0.0            # degrees, turns the model so its nose points to -Z
+var model_yaw := 180.0          # degrees: the kit's models face +Z, the vehicle faces -Z
+var model_scale := Vector3.ONE
 var mass := 1350.0
 var body_size := Vector3(1.8, 0.85, 4.3)   # collision box
 var body_clear := 0.22                      # underside above the road at rest
@@ -57,7 +58,9 @@ static func make(kind: String) -> VehicleSpec:
 	s.name = kind
 	match kind:
 		"sports":
-			s.model = "res://assets/cars/sports.glb"
+			# the supplied sports.glb is a motorbike mesh, so the coupe body is the sedan's, lowered and widened
+			s.model = "res://assets/cars/sedan.glb"
+			s.model_scale = Vector3(1.04, 0.88, 1.0)
 			s.mass = 1480.0; s.body_size = Vector3(1.85, 0.75, 4.4); s.body_clear = 0.12
 			s.wheelbase = 2.65; s.front_weight = 0.5; s.track_f = 1.58; s.track_r = 1.6
 			s.com_height = 0.45; s.wheel_radius = 0.34; s.ride_freq_f = 1.7; s.ride_freq_r = 1.85

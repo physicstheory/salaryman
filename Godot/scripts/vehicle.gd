@@ -148,6 +148,17 @@ func _setup_wheels() -> void:
 		mat.albedo_color = Color(0.82, 0.82, 0.84, 0.3)
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		var grad := Gradient.new()
+		grad.set_color(0, Color(1, 1, 1, 1))
+		grad.set_color(1, Color(1, 1, 1, 0))
+		var gt := GradientTexture2D.new()
+		gt.gradient = grad
+		gt.fill = GradientTexture2D.FILL_RADIAL
+		gt.fill_from = Vector2(0.5, 0.5)
+		gt.fill_to = Vector2(0.5, 0.0)
+		gt.width = 64
+		gt.height = 64
+		mat.albedo_texture = gt
 		qm.material = mat
 		p.mesh = qm
 		p.position = w.pos + Vector3(0, -spec.com_height * 0.0 - spec.wheel_radius, 0)
@@ -161,6 +172,7 @@ func _setup_visuals() -> void:
 		_model = scene.instantiate()
 		_model.rotation_degrees.y = spec.model_yaw
 		_model.position.y = -spec.com_height
+		_model.scale = spec.model_scale
 		add_child(_model)
 	else:
 		var mi := MeshInstance3D.new()
