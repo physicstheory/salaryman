@@ -52,6 +52,9 @@ var drag_cda := 0.68            # Cd*A in m^2
 var lift_cla := 0.0             # downforce, negative lift area in m^2
 var esc := 0.35                 # stability control strength, 0 = off
 var roll_res := 0.012
+var electric := false            # one fixed gear, torque from standstill, regenerative braking on lift-off
+var fallback_model := "res://assets/cars/sedan.glb"   # shown until the real mesh is dropped into assets/cars
+var fallback_scale := Vector3.ONE
 
 static func make(kind: String) -> VehicleSpec:
 	var s := VehicleSpec.new()
@@ -83,6 +86,49 @@ static func make(kind: String) -> VehicleSpec:
 			s.idle_rpm = 1000.0; s.redline = 8000.0; s.shift_up = 7000.0; s.shift_down = 2800.0
 			s.gears = [3.7, 2.1, 1.4, 1.0]; s.final_drive = 4.6
 			s.brake_torque = 1400.0; s.tyre_mu = 0.98; s.tyre_mu_rear = 0.98; s.drag_cda = 0.72
+		"rsq8":
+			# Audi RS Q8: a 2.3 tonne, 4.0 V8 twin-turbo, eight-speed, quattro AWD SUV
+			s.model = "res://assets/cars/rsq8.glb"
+			s.fallback_scale = Vector3(1.1, 1.18, 1.07)
+			s.mass = 2350.0; s.body_size = Vector3(2.0, 1.1, 4.95); s.body_clear = 0.25
+			s.wheelbase = 3.0; s.front_weight = 0.56; s.track_f = 1.69; s.track_r = 1.68
+			s.com_height = 0.62; s.wheel_radius = 0.4; s.wheel_inertia = 2.6; s.travel = 0.26
+			s.ride_freq_f = 1.5; s.ride_freq_r = 1.6; s.arb_f = 18000.0; s.arb_r = 13000.0; s.damping_ratio = 0.5
+			s.drive = "awd"; s.awd_front_share = 0.4; s.lsd = 260.0
+			s.torque_curve = [Vector2(1000, 350), Vector2(2000, 700), Vector2(2200, 800), Vector2(4500, 800), Vector2(5500, 700), Vector2(6500, 560)]
+			s.idle_rpm = 800.0; s.redline = 6500.0; s.shift_up = 5800.0; s.shift_down = 2200.0
+			s.gears = [4.7, 3.2, 2.1, 1.7, 1.3, 1.0, 0.82, 0.64]; s.final_drive = 3.2
+			s.brake_torque = 4600.0; s.brake_bias = 0.64
+			s.max_steer = 32.0; s.max_steer_fast = 5.5; s.tyre_mu = 1.12; s.tyre_mu_rear = 1.12
+			s.drag_cda = 0.95; s.lift_cla = 0.1
+		"a7":
+			# Audi A7 Sportback: 1.9 tonnes, 3.0 V6 turbo, seven-speed dual clutch, quattro
+			s.model = "res://assets/cars/a7.glb"
+			s.fallback_scale = Vector3(1.05, 0.98, 1.08)
+			s.mass = 1950.0; s.body_size = Vector3(1.95, 0.9, 4.95); s.body_clear = 0.16
+			s.wheelbase = 2.93; s.front_weight = 0.54; s.track_f = 1.65; s.track_r = 1.64
+			s.com_height = 0.53; s.wheel_radius = 0.35; s.wheel_inertia = 2.0
+			s.ride_freq_f = 1.55; s.ride_freq_r = 1.65; s.arb_f = 14000.0; s.arb_r = 10000.0
+			s.drive = "awd"; s.awd_front_share = 0.4; s.lsd = 200.0
+			s.torque_curve = [Vector2(1000, 250), Vector2(1400, 500), Vector2(4500, 500), Vector2(5500, 430), Vector2(6500, 340)]
+			s.idle_rpm = 800.0; s.redline = 6500.0; s.shift_up = 5600.0; s.shift_down = 2300.0
+			s.gears = [3.5, 2.3, 1.6, 1.2, 0.95, 0.78, 0.64]; s.final_drive = 4.1
+			s.brake_torque = 3500.0; s.max_steer = 31.0; s.max_steer_fast = 5.5
+			s.tyre_mu = 1.18; s.tyre_mu_rear = 1.18; s.drag_cda = 0.62; s.lift_cla = 0.15
+		"byd_song":
+			# BYD Song: a 2.0 tonne electric SUV, one motor, one gear, regenerative braking
+			s.model = "res://assets/cars/byd_song.glb"
+			s.fallback_scale = Vector3(1.07, 1.12, 1.04)
+			s.mass = 2000.0; s.body_size = Vector3(1.95, 1.0, 4.75); s.body_clear = 0.2
+			s.wheelbase = 2.77; s.front_weight = 0.53; s.track_f = 1.67; s.track_r = 1.67
+			s.com_height = 0.52; s.wheel_radius = 0.36; s.wheel_inertia = 2.2
+			s.ride_freq_f = 1.4; s.ride_freq_r = 1.5; s.arb_f = 12000.0; s.arb_r = 8000.0
+			s.drive = "fwd"; s.electric = true
+			s.torque_curve = [Vector2(0, 310), Vector2(4000, 310), Vector2(8000, 190), Vector2(12000, 120)]
+			s.idle_rpm = 0.0; s.redline = 12000.0; s.shift_up = 1.0e9; s.shift_down = -1.0
+			s.gears = [1.0]; s.reverse_ratio = 1.0; s.final_drive = 9.0; s.driveline_eff = 0.92
+			s.engine_brake = 120.0; s.brake_torque = 3300.0
+			s.max_steer = 32.0; s.max_steer_fast = 6.0; s.tyre_mu = 1.05; s.tyre_mu_rear = 1.05; s.drag_cda = 0.8
 		"keivan":
 			s.model = "res://assets/cars/keivan.glb"
 			s.mass = 1010.0; s.body_size = Vector3(1.45, 1.2, 3.35); s.body_clear = 0.22

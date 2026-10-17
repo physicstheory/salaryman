@@ -60,6 +60,24 @@ Tuning lives in `vehicle_spec.gd`, one block per car. Measured by the headless t
 
 These are plausible, not calibrated against real cars. They are the numbers to adjust if a car feels wrong.
 
+## Real car meshes (`tools/prepare_car.py`)
+
+The three cars in the Drive folder (Audi RS Q8, Audi A7 Sportback, BYD Song) are showroom scans of 50–200 MB each,
+millions of triangles, far too heavy to drive around a city. `tools/prepare_car.py` turns one into a game-ready GLB with Blender
+(headless, free): it works out which way is up and which way is the nose, scales to the real length, decimates to a triangle
+budget (60k by default) while spending more on large panels, and rebuilds the materials as clear-coated paint, glass, chrome,
+rubber and lamps. The paint is a material called `CarPaint`, so a car can be recoloured in game.
+
+```
+blender -b -P Godot/tools/prepare_car.py -- BYD_SONG_2022.obj Godot/assets/cars/byd_song.glb --tris 60000 --length 4.78
+blender -b -P Godot/tools/prepare_car.py -- Audi+RS+Q8+2019.obj Godot/assets/cars/rsq8.glb --tris 70000 --length 5.0
+blender -b -P Godot/tools/prepare_car.py -- Audi+A7+Sportback+-+OBJ.obj Godot/assets/cars/a7.glb --tris 60000 --length 4.97
+```
+
+Drop the GLBs in `assets/cars/` under those names and the cars use them; until then each one shows a stretched stand-in body.
+`vehicle_spec.gd` already has the physics for them: `rsq8` (2.35 t, V8 twin-turbo, 8-speed, AWD), `a7` (1.95 t, V6, 7-speed DCT, AWD) and
+`byd_song`, which is **electric**: one fixed gear, full torque from standstill, regenerative braking when you lift off.
+
 ## Traffic, trains, crossings
 
 * `ai_driver.gd`: cars follow the left-hand lane on the road grid, plan each turn before the junction, slow for

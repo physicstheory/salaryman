@@ -94,7 +94,7 @@ func _spawn_vehicle(kind: String, pos: Vector3, yaw_deg: float) -> Vehicle:
 
 func _spawn_player_cars() -> void:
 	var P := CityWorld.P
-	var kinds := ["sports", "sedan", "kei", "keivan"]
+	var kinds := ["rsq8", "a7", "byd_song", "kei"]
 	for i in kinds.size():
 		# parked in the road beside the start, nose up the street
 		var v := _spawn_vehicle(kinds[i], Vector3(2.0 * P + 3.0, 0.9, 5.0 * P + 4.0 - 8.0 * i), 0.0)
@@ -105,7 +105,7 @@ func _spawn_traffic() -> void:
 	var N := CityWorld.N
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
-	var kinds := ["sedan", "sedan", "kei", "keivan"]
+	var kinds := ["a7", "byd_song", "rsq8", "kei", "keivan", "sedan"]
 	for i in TRAFFIC:
 		var vert := rng.randf() < 0.5
 		var road := rng.randi_range(0, N)

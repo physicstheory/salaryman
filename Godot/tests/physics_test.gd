@@ -32,7 +32,7 @@ func _steps(n: int) -> void:
 
 func _run() -> void:
 	var ok := true
-	for kind in ["sedan", "sports", "kei", "keivan"]:
+	for kind in ["sedan", "sports", "kei", "keivan", "rsq8", "a7", "byd_song"]:
 		var v := _spawn(kind)
 		await _steps(180)
 		var settled := v.global_position.y

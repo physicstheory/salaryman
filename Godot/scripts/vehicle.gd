@@ -167,12 +167,18 @@ func _setup_wheels() -> void:
 		wheels.append(w)
 
 func _setup_visuals() -> void:
-	var scene := load(spec.model) as PackedScene
+	var scene: PackedScene = null
+	var using_fallback := false
+	if ResourceLoader.exists(spec.model):
+		scene = load(spec.model) as PackedScene
+	if scene == null:
+		scene = load(spec.fallback_model) as PackedScene
+		using_fallback = true
 	if scene:
 		_model = scene.instantiate()
-		_model.rotation_degrees.y = spec.model_yaw
+		_model.rotation_degrees.y = spec.model_yaw if not using_fallback else 180.0
 		_model.position.y = -spec.com_height
-		_model.scale = spec.model_scale
+		_model.scale = spec.model_scale if not using_fallback else spec.fallback_scale
 		add_child(_model)
 	else:
 		var mi := MeshInstance3D.new()
@@ -491,7 +497,11 @@ func _wheel_drive_torque() -> float:
 	else:
 		t = _torque_at(rpm) * thr
 	if thr < 0.05:
-		t = -spec.engine_brake * (rpm / spec.redline) * (1.0 if forward_speed * ratio > 0.0 or gear == -1 else 0.0)
+		if spec.electric:
+			# regenerative braking: a steady drag from the motor once the car is moving
+			t = -spec.engine_brake * clampf(absf(forward_speed) / 3.0, 0.0, 1.0) * signf(ratio)
+		else:
+			t = -spec.engine_brake * (rpm / spec.redline) * (1.0 if forward_speed * ratio > 0.0 or gear == -1 else 0.0)
 	return t * ratio * spec.driveline_eff
 
 func _update_lights() -> void:
