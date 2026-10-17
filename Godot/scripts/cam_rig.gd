@@ -22,12 +22,11 @@ func _ready() -> void:
 	cam.current = true
 	add_child(cam)
 
-func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		var m := e as InputEventMouseMotion
-		yaw -= m.relative.x * 0.0028
-		pitch = clampf(pitch - m.relative.y * 0.0028, -1.2, 0.45)
-		_idle = 0.0
+## Mouse look; the game forwards the relative motion, since this node sits inside the 3D SubViewport.
+func look(rel: Vector2) -> void:
+	yaw -= rel.x * 0.0028
+	pitch = clampf(pitch - rel.y * 0.0028, -1.2, 0.45)
+	_idle = 0.0
 
 func bump(strength: float) -> void:
 	_shake = clampf(strength * 0.02, 0.0, 0.5)

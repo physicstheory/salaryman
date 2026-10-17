@@ -17,6 +17,7 @@ var rng := RandomNumberGenerator.new()
 var crossings: Array[Crossing] = []
 var trains: Array[Train] = []
 var building_count := 0
+var forest: BirchForest
 var _sizes := {}                 # kit name -> unscaled size
 var _prepared := {}
 var _asphalt: ImageTexture
@@ -26,9 +27,12 @@ func build() -> void:
 	_environment()
 	_ground()
 	_roads()
+	forest = BirchForest.new()
+	add_child(forest)
 	_blocks()
 	_rail()
 	_lamps()
+	forest.commit()
 
 # ---- sky, light and the sea
 func _environment() -> void:
@@ -286,13 +290,33 @@ func _blocks() -> void:
 			var pad := _box(self, Vector3(s, 0.12, s), Vector3(x0 + s * 0.5, 0.06, z0 + s * 0.5), park_mat if is_park else pad_mat)
 			pad.set_meta("grip", 1.0)
 			if is_park:
-				for t in 10:
-					_tree(Vector3(x0 + 5.0 + rng.randf() * (s - 10.0), 0.12, z0 + 5.0 + rng.randf() * (s - 10.0)), tree_cone)
+				for t in 16:
+					var v: int = BirchForest.VARIANTS[rng.randi() % BirchForest.VARIANTS.size()]
+					forest.add(v, Vector3(x0 + 4.0 + rng.randf() * (s - 8.0), 0.12, z0 + 4.0 + rng.randf() * (s - 8.0)), rng.randf_range(0.75, 1.15), rng.randf() * TAU, BirchForest.leaf_colour(rng))
 				continue
 			if i == 3:
 				continue            # the railway cutting
 			var mid := absf(i - 3.5) + absf(j - 3.5)
 			_lot(x0 + 1.0, z0 + 1.0, s - 2.0, mid)
+			_street_trees(x0, z0, s)
+
+## Birches along the pavement, in the strip between the kerb and the shopfronts, clear of the junctions.
+func _street_trees(x0: float, z0: float, s: float) -> void:
+	var edge := 0.9           # metres in from the kerb line of the block
+	for side in 4:
+		var n := 0
+		for k in [11.0, 27.0]:
+			if rng.randf() < 0.18:
+				continue
+			var p := Vector3.ZERO
+			match side:
+				0: p = Vector3(x0 + k, 0.12, z0 + edge)
+				1: p = Vector3(x0 + k, 0.12, z0 + s - edge)
+				2: p = Vector3(x0 + edge, 0.12, z0 + k)
+				3: p = Vector3(x0 + s - edge, 0.12, z0 + k)
+			var v: int = BirchForest.VARIANTS[rng.randi() % BirchForest.VARIANTS.size()]
+			forest.add(v, p, rng.randf_range(0.42, 0.6), rng.randf() * TAU, BirchForest.leaf_colour(rng))
+			n += 1
 
 func ConeMesh_make() -> Array:
 	var cone := CylinderMesh.new()

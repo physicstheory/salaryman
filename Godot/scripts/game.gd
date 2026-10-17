@@ -15,21 +15,34 @@ var current: Vehicle
 var lights := false
 var smoke_test := false
 
+# the 3D view is drawn into a SubViewport at a fraction of the window size and upscaled on screen,
+# which keeps the HUD at full resolution and buys frame rate on weaker graphics
+const SCALES := [1.0, 0.85, 0.75, 0.67, 0.5]
+var stage: SubViewport
+var view_layer: CanvasLayer
+var view: TextureRect
+var scale_index := 0
+var sharpness := 0.4
+var _settings_path := "user://settings.cfg"
+
 func _ready() -> void:
 	_input_map()
+	_load_settings()
+	_setup_stage()
 	world = CityWorld.new()
-	add_child(world)
+	stage.add_child(world)
 	world.build()
 	player = Player.new()
 	player.position = START
-	add_child(player)
+	stage.add_child(player)
 	player.died.connect(_on_died)
 	rig = CamRig.new()
-	add_child(rig)
+	stage.add_child(rig)
 	rig.target = player
 	rig.snap_to_target()
 	var layer := CanvasLayer.new()
 	add_child(layer)
+	layer.layer = 5
 	hud = Hud.new()
 	layer.add_child(hud)
 	_spawn_player_cars()
@@ -75,7 +88,7 @@ func _spawn_vehicle(kind: String, pos: Vector3, yaw_deg: float) -> Vehicle:
 	v.kind = kind
 	v.position = pos
 	v.rotation_degrees.y = yaw_deg
-	add_child(v)
+	stage.add_child(v)
 	v.crashed.connect(func(s: float): if v == current: rig.bump(s))
 	return v
 
@@ -216,3 +229,92 @@ func _physics_process(dt: float) -> void:
 		player.cam_yaw = rig.yaw
 		var v := nearest_vehicle(player.global_position)
 		hud.prompt = "E: get in" if v and not v.wrecked and not player.dead else ""
+
+# ---- render scale and the upscaler
+func _setup_stage() -> void:
+	stage = SubViewport.new()
+	stage.msaa_3d = Viewport.MSAA_2X
+	stage.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	stage.handle_input_locally = false
+	stage.audio_listener_enable_3d = true
+	stage.size = _target_size()
+	add_child(stage)
+	view_layer = CanvasLayer.new()
+	view_layer.layer = 0
+	add_child(view_layer)
+	view = TextureRect.new()
+	view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	view.stretch_mode = TextureRect.STRETCH_SCALE
+	view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	view.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	view.texture = stage.get_texture()
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://shaders_upscale.gdshader")
+	mat.set_shader_parameter("src", stage.get_texture())
+	view.material = mat
+	view_layer.add_child(view)
+	_apply_upscaler()
+
+func _target_size() -> Vector2i:
+	var win := get_window().size
+	var s: float = SCALES[scale_index]
+	return Vector2i(maxi(int(win.x * s), 320), maxi(int(win.y * s), 180))
+
+func _apply_upscaler() -> void:
+	stage.size = _target_size()
+	var mat := view.material as ShaderMaterial
+	mat.set_shader_parameter("src_size", Vector2(stage.size))
+	# at full scale there is nothing to resample, only the sharpen is worth having
+	mat.set_shader_parameter("resample", scale_index != 0)
+	mat.set_shader_parameter("sharpness", sharpness if scale_index != 0 else minf(sharpness, 0.25))
+
+func render_info() -> String:
+	var win := get_window().size
+	var s: Vector2i = stage.size
+	if scale_index == 0:
+		return "Render %dx%d (native)   sharpen %d%%" % [s.x, s.y, int(sharpness * 100.0)]
+	return "Render %dx%d, upscaled to %dx%d (%d%%)   sharpen %d%%" % [s.x, s.y, win.x, win.y, int(SCALES[scale_index] * 100.0), int(sharpness * 100.0)]
+
+func _step_scale(d: int) -> void:
+	scale_index = clampi(scale_index + d, 0, SCALES.size() - 1)
+	_apply_upscaler()
+	_save_settings()
+	hud.say_small(render_info())
+
+func _step_sharp() -> void:
+	sharpness = fposmod(sharpness + 0.2, 1.0 + 0.0001)
+	if sharpness > 1.0:
+		sharpness = 0.0
+	_apply_upscaler()
+	_save_settings()
+	hud.say_small(render_info())
+
+func _load_settings() -> void:
+	var cf := ConfigFile.new()
+	if cf.load(_settings_path) == OK:
+		scale_index = clampi(int(cf.get_value("video", "scale_index", 0)), 0, SCALES.size() - 1)
+		sharpness = clampf(float(cf.get_value("video", "sharpness", 0.4)), 0.0, 1.0)
+
+func _save_settings() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("video", "scale_index", scale_index)
+	cf.set_value("video", "sharpness", sharpness)
+	cf.save(_settings_path)
+
+func _input(e: InputEvent) -> void:
+	# the camera lives inside the SubViewport, which does not see the window's events, so mouse look is forwarded
+	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and rig:
+		rig.look((e as InputEventMouseMotion).relative)
+	if e is InputEventKey and e.pressed and not e.echo:
+		match e.keycode:
+			KEY_BRACKETLEFT: _step_scale(1)
+			KEY_BRACKETRIGHT: _step_scale(-1)
+			KEY_BACKSLASH: _step_sharp()
+
+var _last_win := Vector2i.ZERO
+func _process(_dt: float) -> void:
+	var w := get_window().size
+	if w != _last_win:
+		_last_win = w
+		_apply_upscaler()

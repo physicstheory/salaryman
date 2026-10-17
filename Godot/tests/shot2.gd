@@ -20,6 +20,7 @@ func _snap(name: String, pos: Vector3, look: Vector3) -> void:
 func _go(g: Game) -> void:
 	for i in 30: await physics_frame
 	g.rig.set_process(false)
+	g.view_layer.visible = false
 	cam = Camera3D.new()
 	cam.fov = 55
 	g.add_child(cam)

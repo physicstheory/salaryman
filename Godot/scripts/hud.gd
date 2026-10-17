@@ -8,6 +8,8 @@ var banner := ""
 var banner_t := 0.0
 var show_help := true
 var fps_text := ""
+var small := ""
+var small_t := 0.0
 var _font: Font
 
 func _ready() -> void:
@@ -19,8 +21,13 @@ func say(t: String, secs := 3.0) -> void:
 	banner = t
 	banner_t = secs
 
+func say_small(t: String, secs := 3.5) -> void:
+	small = t
+	small_t = secs
+
 func _process(dt: float) -> void:
 	banner_t = maxf(0.0, banner_t - dt)
+	small_t = maxf(0.0, small_t - dt)
 	fps_text = "%d fps" % Engine.get_frames_per_second()
 	queue_redraw()
 
@@ -31,6 +38,8 @@ func _txt(s: String, p: Vector2, size: int, col := Color.WHITE, align := HORIZON
 func _draw() -> void:
 	var sz := size
 	_txt(fps_text, Vector2(14, 22), 14, Color(1, 1, 1, 0.6))
+	if small_t > 0.0:
+		_txt(small, Vector2(14, 44), 15, Color(0.7, 0.95, 1.0, minf(1.0, small_t)))
 	if vehicle:
 		var c := Vector2(sz.x - 150, sz.y - 120)
 		var r := 82.0
@@ -57,6 +66,6 @@ func _draw() -> void:
 	if banner_t > 0.0:
 		_txt(banner, Vector2(sz.x * 0.5, sz.y * 0.28), 40, Color(1, 0.3, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
 	if show_help:
-		var lines := ["WASD / arrows: move and drive      Shift: run      Space: jump / handbrake", "E: get in or out      R: flip the car upright      L: headlights      H: hide this", "Mouse: look      Esc: release the mouse"]
+		var lines := ["WASD / arrows: move and drive      Shift: run      Space: jump / handbrake", "E: get in or out      R: flip the car upright      L: headlights      H: hide this", "Mouse: look      Esc: release the mouse      [ and ]: render scale      \\: sharpen"]
 		for i in lines.size():
 			_txt(lines[i], Vector2(14, sz.y - 62 + i * 20), 14, Color(1, 1, 1, 0.75))
