@@ -18,6 +18,7 @@ var crossings: Array[Crossing] = []
 var trains: Array[Train] = []
 var building_count := 0
 var forest: BirchForest
+var jp: JpBuildings
 var _sizes := {}                 # kit name -> unscaled size
 var _prepared := {}
 var _asphalt: ImageTexture
@@ -29,6 +30,7 @@ func build() -> void:
 	_roads()
 	forest = BirchForest.new()
 	add_child(forest)
+	jp = JpBuildings.new()
 	_blocks()
 	_rail()
 	_lamps()
@@ -355,7 +357,43 @@ func _tree(p: Vector3, meshes: Array) -> void:
 func _pick(a: Array) -> String:
 	return a[rng.randi() % a.size()]
 
+func _solid_box(b: AABB) -> void:
+	var body := StaticBody3D.new()
+	body.position = b.get_center()
+	var cs := CollisionShape3D.new()
+	var sh := BoxShape3D.new()
+	sh.size = b.size
+	cs.shape = sh
+	body.add_child(cs)
+	add_child(body)
+	building_count += 1
+
+## One city lot with the supplied buildings: either a single large one, or four small ones, each turned to
+## show a street face and dressed with signs.
+func _lot_jp(x: float, z: float, sz: float, mid: float) -> void:
+	var cx := x + sz * 0.5
+	var cz := z + sz * 0.5
+	var tall_bias := clampf(1.6 - mid * 0.35, -0.3, 1.4)
+	if rng.randf() < 0.28:
+		var it := jp.pick(rng, 18.0, 36.0, tall_bias)
+		var face := rng.randi() % 4
+		var outs: Array = [[Vector3(1, 0, 0), Vector3(-1, 0, 0), Vector3(0, 0, 1), Vector3(0, 0, -1)][face], [Vector3(-1, 0, 0), Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 0, 1)][face]]
+		var yaw := float(rng.randi() % 4) * PI * 0.5
+		_solid_box(jp.place(self, rng, it, cx, cz, yaw, sz - 2.0, outs))
+		return
+	for a in 2:
+		for b in 2:
+			var dx := 1.0 if a == 1 else -1.0
+			var dz := 1.0 if b == 1 else -1.0
+			var it := jp.pick(rng, 5.0, 17.2, tall_bias)
+			var outs2: Array = [Vector3(dx, 0, 0), Vector3(0, 0, dz)]
+			var yaw2 := float(rng.randi() % 4) * PI * 0.5
+			_solid_box(jp.place(self, rng, it, x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw2, sz * 0.5 - 1.6, outs2))
+
 func _lot(x: float, z: float, sz: float, mid: float) -> void:
+	if jp != null and jp.ok:
+		_lot_jp(x, z, sz, mid)
+		return
 	var cx := x + sz * 0.5
 	var cz := z + sz * 0.5
 	if rng.randf() < 0.26:
