@@ -6409,6 +6409,7 @@ function buildScene(w) {
   // The garage lot has to be known before a single house is placed.
   findHome(w);
   planGarageReserve();
+  planHomeReserve();
 
   // ---- city ground overlays
   w.cities.forEach(city => {
@@ -6526,6 +6527,11 @@ function buildScene(w) {
           const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5),
                      -p.size[1] * 0.5 + cellZ * (iz + 0.5) + back];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
+          if (homeReserve.on && city.name === homeReserve.city) {
+            const hr2 = toRectLocal(wc[0], wc[1], homeReserve.cx, homeReserve.cz, homeReserve.yawDeg);
+            if (Math.abs(hr2[0]) < homeReserve.w * 0.5 + hs[0] * 0.5 + 0.4 &&
+                Math.abs(hr2[1]) < homeReserve.d * 0.5 + hs[1] * 0.5 + 0.4) continue;
+          }
           if (garageReserve.on && city.name === garageReserve.city) {
             const lr = toRectLocal(wc[0], wc[1], garageReserve.cx, garageReserve.cz, garageReserve.yawDeg);
             if (Math.abs(lr[0]) < garageReserve.w * 0.5 + hs[0] * 0.5 + 0.4 &&
@@ -6782,6 +6788,7 @@ function buildScene(w) {
   buildTolls(root);
   buildSki(root);
   try { buildBikeParks(root); } catch (e) { console.warn("bike parks", e); }
+  try { buildFamilyHome(root); } catch (e) { console.warn("family home", e); }
   buildStreetLights(root, w);
   buildStreetLife(root, w);
   vegBuild(root);
@@ -21657,6 +21664,155 @@ function garageSignTexture() {
   const t = new THREE.CanvasTexture(c);
   t.encoding = THREE.sRGBEncoding;
   return t;
+}
+
+// ---- the family house -------------------------------------------------------------------
+// Everything else in Mizuho is a row of plain boxes. The house Seiko grew up in is
+// not: a walled compound with a gate and a tiled gate roof, a garden with a pond,
+// stepping stones, a pine, a stone lantern and a persimmon tree, and behind it a
+// two-storey wooden house with a hipped tile roof, a lattice front, paper windows
+// that glow at night, a verandah, an indigo curtain with the family crest, and
+// the small things of a lived-in place: a bicycle at the gate, washing on a pole,
+// a red postbox, a shrine the size of a bird house.
+const homeReserve = { on: false, cx: 0, cz: 0, yawDeg: 0, w: 15.4, d: 17.4, city: "" };
+function planHomeReserve() {
+  homeReserve.on = false;
+  if (!home.at || !home.door) return;
+  const out = [Math.sin(home.yaw), Math.cos(home.yaw)];
+  homeReserve.cx = home.door[0] - out[0] * (homeReserve.d * 0.5 + 0.2);
+  homeReserve.cz = home.door[1] - out[1] * (homeReserve.d * 0.5 + 0.2);
+  homeReserve.yawDeg = home.yaw * 180 / Math.PI;
+  homeReserve.city = home.city;
+  homeReserve.on = true;
+}
+function buildFamilyHome(root) {
+  if (!home.door || !homeReserve.on) return;
+  const yaw = home.yaw, dx = home.door[0], dz = home.door[1], gy = world.surfaceY(dx, dz);
+  const out = [Math.sin(yaw), Math.cos(yaw)], lat = [Math.cos(yaw), -Math.sin(yaw)];
+  const W = (u, v) => [dx + lat[0] * u + out[0] * v, dz + lat[1] * u + out[1] * v];
+  const grp = new THREE.Group(); root.add(grp);
+  const solid = solidMesh();
+  solid.frame(dx, gy, dz, yaw);
+  const PLASTER = [0.86, 0.83, 0.76], PLASTER2 = [0.74, 0.71, 0.64], WOOD = [0.30, 0.19, 0.11], WOOD2 = [0.46, 0.31, 0.18], TILE = [0.12, 0.13, 0.18], STONE = [0.55, 0.55, 0.52], MOSS = [0.30, 0.42, 0.22];
+  const box = (col, u, y, v, w, h, d) => { solid.colour(col).box(u, y, v, w, h, d); };
+  // ---- compound wall: a plaster wall under a tile cap, with the gate gap in the front
+  const wall = (u0, u1, v0, v1) => {
+    const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2, w = Math.abs(u1 - u0) + 0.0001, d = Math.abs(v1 - v0) + 0.0001;
+    const thick = w < d ? [0.4, 1.9, d] : [w, 1.9, 0.4];
+    box(PLASTER, cu, 0.95 + 0.16, cv, thick[0], thick[1], thick[2]);
+    box(PLASTER2, cu, 0.08, cv, thick[0] + 0.12, 0.3, thick[2] + 0.12);                   // plinth
+    box(TILE, cu, 1.98 + 0.16, cv, thick[0] + 0.28, 0.16, thick[2] + 0.28);                // tile cap
+  };
+  wall(-7.2, -1.6, -1.6, -1.6); wall(1.6, 7.2, -1.6, -1.6);                                  // front, either side of the gate
+  wall(-7.2, -7.2, -1.6, -17.0); wall(7.2, 7.2, -1.6, -17.0); wall(-7.2, 7.2, -17.0, -17.0); // sides and back
+  // gate: two posts under a roof, with a door left open
+  [-1.65, 1.65].forEach(u => box(WOOD, u, 1.6, -1.6, 0.34, 3.2, 0.34));
+  box(WOOD, 0, 3.05, -1.6, 3.9, 0.22, 0.4);
+  box(WOOD2, 0, 2.55, -1.6, 3.2, 0.14, 0.2);
+  box(WOOD, -1.45, 1.2, -1.2, 0.08, 2.1, 1.1);                                               // the leaf, swung open
+  // ---- garden: stepping stones, pond edge, lantern
+  for (let k = 0; k < 6; k++) box(STONE, (k % 2 ? 0.26 : -0.2), 0.04, -2.1 - k * 0.62, 0.74, 0.08, 0.5);
+  const lan = (u, v) => { box(STONE, u, 0.12, v, 0.46, 0.24, 0.46); box(STONE, u, 0.62, v, 0.17, 0.8, 0.17); box(STONE, u, 1.14, v, 0.46, 0.26, 0.46); box(STONE, u, 1.42, v, 0.62, 0.12, 0.62); box(STONE, u, 1.56, v, 0.2, 0.16, 0.2); };
+  lan(3.7, -3.2);
+  // ---- the house: ground floor on a stone footing, first floor set in
+  box(STONE, 0, 0.3, -10.1, 9.2, 0.6, 8.9);                                                 // footing
+  box(PLASTER, 0, 0.6 + 1.6, -10.1, 8.8, 3.2, 8.5);                                          // ground floor
+  box(PLASTER, 0, 3.8 + 1.4, -10.1, 7.6, 2.8, 7.3);                                          // first floor
+  box(WOOD, 0, 3.8, -10.1, 8.9, 0.22, 8.6);                                                  // the band between
+  // lattice front (koshi): a lot of thin dark slats over the front wall
+  for (let k = 0; k < 29; k++) box(WOOD, -4.2 + k * 0.3, 2.35, -5.78, 0.07, 3.0, 0.1);
+  box(WOOD, 0, 0.95, -5.76, 8.6, 0.14, 0.14); box(WOOD, 0, 3.58, -5.76, 8.6, 0.14, 0.14);
+  // the entrance: a recessed doorway, lighter than the lattice
+  box(WOOD2, 0, 1.55, -5.74, 1.5, 2.1, 0.14);
+  // upper floor: a window band with its own slats and a little rail
+  for (let k = 0; k < 17; k++) box(WOOD, -3.5 + k * 0.44, 5.3, -6.5, 0.06, 1.2, 0.09);
+  box(WOOD, 0, 4.7, -6.5, 7.4, 0.1, 0.14); box(WOOD, 0, 5.92, -6.5, 7.4, 0.1, 0.14);
+  box(WOOD, 0, 4.2, -6.2, 7.8, 0.12, 0.9);                                                    // the little balcony
+  [-3.8, 3.8].forEach(u => box(WOOD, u, 4.55, -6.6, 0.1, 0.6, 0.1));
+  // engawa: the verandah, with a step
+  box(WOOD2, 0, 0.62, -4.95, 9.0, 0.16, 1.5); box(WOOD2, 0, 0.3, -4.0, 2.0, 0.16, 0.7);
+  // side details: a drain pipe and a boiler flue, a chimney for the bath
+  box([0.45, 0.45, 0.47], 4.65, 2.8, -6.0, 0.14, 5.6, 0.14);
+  box([0.55, 0.55, 0.57], -3.8, 6.4, -13.0, 0.42, 1.6, 0.42);
+  // ---- washing pole at the back, a bike rack by the gate, a postbox outside it
+  [4.6, 6.4].forEach(u => box(WOOD, u, 1.3, -15.4, 0.1, 2.6, 0.1)); box(WOOD, 5.5, 2.55, -15.4, 2.0, 0.07, 0.07);
+  [[4.85, [0.9, 0.88, 0.5]], [5.45, [0.4, 0.62, 0.86]], [6.05, [0.85, 0.35, 0.4]]].forEach(c => box(c[1], c[0], 1.95, -15.4, 0.5, 1.2, 0.04));
+  box([0.7, 0.12, 0.1], 5.5, 0.35, -2.6, 0.08, 0.7, 0.08);
+  // postbox, outside the wall: a red cylinder in spirit, a box in practice
+  box([0.78, 0.1, 0.1], 2.6, 0.55, 0.9, 0.38, 1.1, 0.38); box([0.6, 0.06, 0.06], 2.6, 1.12, 0.9, 0.46, 0.1, 0.46);
+  // hokora: a shrine the size of a bird house, on a post
+  box(WOOD, 5.6, 0.45, -4.0, 0.12, 0.9, 0.12); box(WOOD2, 5.6, 1.1, -4.0, 0.6, 0.5, 0.5); box(TILE, 5.6, 1.45, -4.0, 0.82, 0.12, 0.7);
+  // solids: the house, the wall, the lantern
+  const solidAt = (u, v, sw, sd, h) => { const c = W(u, v); solids.push({ c: [c[0], c[1]], size: [sw, sd], yaw: yaw * 180 / Math.PI, y: gy, h: h }); };
+  solidAt(0, -10.1, 9.0, 8.7, 6.4);
+  solidAt(-4.4, -1.6, 5.6, 0.5, 2.1); solidAt(4.4, -1.6, 5.6, 0.5, 2.1);
+  solidAt(-7.2, -9.3, 0.5, 15.6, 2.1); solidAt(7.2, -9.3, 0.5, 15.6, 2.1); solidAt(0, -17.0, 14.9, 0.5, 2.1);
+  solidAt(3.7, -3.2, 0.7, 0.7, 1.6);
+  const mesh = new THREE.Mesh(solid.geometry(), furnitureMaterial()); mesh.castShadow = true; mesh.receiveShadow = true; grp.add(mesh);
+
+  // ---- roofs: dark tile, with deep eaves
+  const tile = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.14, 0.15, 0.21) });
+  const roofAt = (geo, u, y, v, rx, ry) => { const m = new THREE.Mesh(geo, tile); const p = W(u, v); m.position.set(p[0], gy + y, p[1]); m.rotation.order = "YXZ"; m.rotation.set(rx || 0, yaw + (ry || 0), 0); m.castShadow = true; grp.add(m); return m; };
+  // hipped roof over the first floor
+  const hip = new THREE.ConeGeometry(1, 1, 4); hip.rotateY(Math.PI / 4);
+  const main = roofAt(hip, 0, 6.6 + 1.5, -10.1, 0, 0); main.scale.set(5.9, 3.0, 5.6);
+  // lower pent roof over the ground floor front and the sides
+  const pent = (u, v, w, d, y, rx) => { const g2 = new THREE.BoxGeometry(w, 0.2, d); const m = roofAt(g2, u, y, v, rx, 0); return m; };
+  pent(0, -5.2, 10.4, 2.6, 4.0, 0.34);
+  pent(-4.95, -10.1, 1.8, 8.9, 3.95, 0); pent(4.95, -10.1, 1.8, 8.9, 3.95, 0);
+  // gate roof, pitched both ways
+  const gate = new THREE.ConeGeometry(1, 1, 4); gate.rotateY(Math.PI / 4);
+  const gr = roofAt(gate, 0, 3.3 + 0.38, -1.6, 0, 0); gr.scale.set(2.7, 0.76, 1.55);
+  // ridge ornaments: a small tile at each end of the hip
+  // ---- paper windows that glow, the noren, a hanging lantern
+  const paperTex = (() => { const cv = document.createElement("canvas"); cv.width = 64; cv.height = 64; const g = cv.getContext("2d"); g.fillStyle = "#f6e6b8"; g.fillRect(0, 0, 64, 64); g.strokeStyle = "rgba(90,60,30,0.7)"; g.lineWidth = 3; g.strokeRect(1, 1, 62, 62); g.beginPath(); g.moveTo(32, 0); g.lineTo(32, 64); g.moveTo(0, 32); g.lineTo(64, 32); g.stroke(); const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t; })();
+  const paper = new THREE.MeshStandardMaterial({ map: paperTex, emissive: new THREE.Color(1, 0.72, 0.38), emissiveMap: paperTex, emissiveIntensity: 0.12, roughness: 0.9 });
+  nightMats.push({ m: paper, gain: 1.15, floor: 0.12 });
+  const pane = (u, y, v, w, h) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), paper); const p = W(u, v); m.position.set(p[0], gy + y, p[1]); m.rotation.y = yaw; grp.add(m); };
+  [-3.0, 3.0].forEach(u => pane(u, 2.5, -5.70, 1.9, 1.9));          // behind the lattice
+  [-2.4, 0, 2.4].forEach(u => pane(u, 5.3, -6.44, 1.8, 1.0));
+  // the noren: indigo, with the crest
+  const nc = document.createElement("canvas"); nc.width = 128; nc.height = 96; { const g = nc.getContext("2d"); g.fillStyle = "#1c2b52"; g.fillRect(0, 0, 128, 96); g.fillStyle = "#e9e6dc"; g.font = "900 62px " + JP; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("志", 64, 42); g.fillStyle = "#e9e6dc"; g.fillRect(60, 70, 8, 26); g.fillRect(24, 76, 6, 20); g.fillRect(98, 76, 6, 20); }
+  const nt = new THREE.CanvasTexture(nc); nt.encoding = THREE.sRGBEncoding;
+  const noren = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.1), new THREE.MeshLambertMaterial({ map: nt, side: THREE.DoubleSide }));
+  { const p = W(0, -5.62); noren.position.set(p[0], gy + 2.35, p[1]); noren.rotation.y = yaw; grp.add(noren); }
+  // the name plate on the gate post
+  const pc = document.createElement("canvas"); pc.width = 64; pc.height = 128; { const g = pc.getContext("2d"); g.fillStyle = "#d8c89a"; g.fillRect(0, 0, 64, 128); g.fillStyle = "#1a1a1a"; g.font = "900 44px " + JP; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("志", 32, 36); g.fillText("具", 32, 90); }
+  const pt = new THREE.CanvasTexture(pc); pt.encoding = THREE.sRGBEncoding;
+  { const m = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.44), new THREE.MeshLambertMaterial({ map: pt })); const p = W(1.65, -1.38); m.position.set(p[0] + out[0] * 0.18, gy + 1.5, p[1] + out[1] * 0.18); m.rotation.y = yaw; grp.add(m); }
+  // a paper lantern over the door, which is the one light that is on all night
+  const lamp = new THREE.MeshStandardMaterial({ color: 0xd8442f, emissive: new THREE.Color(1, 0.4, 0.2), emissiveIntensity: 0.5, roughness: 0.6 });
+  nightMats.push({ m: lamp, gain: 1.6, floor: 0.35 });
+  [[-1.2, 3.0], [1.2, 3.0]].forEach(([u, y]) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 10), lamp); m.scale.set(0.8, 1.15, 0.8); const p = W(u, -5.2); m.position.set(p[0], gy + y, p[1]); grp.add(m); });
+  // ---- the garden: pond, pine, persimmon
+  { const pond = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.06, 20), new THREE.MeshStandardMaterial({ color: 0x2a6f86, roughness: 0.15, metalness: 0.1 })); pond.scale.set(1.0, 1, 0.65);
+    const p = W(-3.4, -3.3); pond.position.set(p[0], gy + 0.06, p[1]); pond.rotation.y = yaw; grp.add(pond);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.1, 6, 22), new THREE.MeshLambertMaterial({ color: 0x6b6b66 })); rim.rotation.x = Math.PI / 2; rim.scale.set(1.0, 0.65, 1); rim.position.set(p[0], gy + 0.08, p[1]); rim.rotation.z = -yaw; grp.add(rim);
+    // koi: a few orange and white shapes in it
+    [[-0.6, 0.1, 0xe8711a], [0.5, -0.15, 0xf4f1e6], [0.1, 0.3, 0xd8442f]].forEach(k => { const fish = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshLambertMaterial({ color: k[2] })); fish.scale.set(1.9, 0.5, 0.8); const q = W(-3.4 + k[0], -3.3 + k[1]); fish.position.set(q[0], gy + 0.1, q[1]); fish.rotation.y = yaw + k[0]; grp.add(fish); });
+  }
+  try {
+    const pine = new THREE.Mesh(treeGeometry("matsu", 0), treeMaterial("matsu")); const p = W(-5.6, -4.8); pine.position.set(p[0], gy - 0.05, p[1]); pine.scale.set(7.2, 7.2, 7.2); pine.castShadow = true; grp.add(pine);
+    trunkAdd("city", p[0], p[1], 0.42);
+  } catch (e) { /* the pine is a nicety */ }
+  { const p = W(5.2, -6.6);
+    const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.17, 2.6, 7), new THREE.MeshLambertMaterial({ color: 0x4a3322 })); tr.position.set(p[0], gy + 1.3, p[1]); grp.add(tr);
+    const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 1), new THREE.MeshLambertMaterial({ color: 0x5f7a36 })); crown.scale.set(1, 0.75, 1); crown.position.set(p[0], gy + 3.3, p[1]); grp.add(crown);
+    const fruit = new THREE.MeshLambertMaterial({ color: 0xf08a1c });
+    for (let k = 0; k < 9; k++) { const a = k * 2.4, f = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), fruit); f.position.set(p[0] + Math.cos(a) * 1.3, gy + 2.9 + Math.sin(k * 1.7) * 0.4, p[1] + Math.sin(a) * 1.3); grp.add(f); }
+    trunkAdd("city", p[0], p[1], 0.2); }
+  // a bicycle against the wall by the gate
+  { const bike = new THREE.Group(), tm = new THREE.MeshLambertMaterial({ color: 0x1b1b1d }), fm = new THREE.MeshLambertMaterial({ color: 0x5aa05a });
+    [-0.46, 0.46].forEach(x => { const w2 = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.025, 6, 20), tm); w2.position.set(x, 0.36, 0); bike.add(w2); });
+    const bar = (x0, y0, x1, y1) => { const l = Math.hypot(x1 - x0, y1 - y0), b = new THREE.Mesh(new THREE.BoxGeometry(l, 0.03, 0.03), fm); b.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); b.rotation.z = Math.atan2(y1 - y0, x1 - x0); bike.add(b); };
+    bar(-0.46, 0.36, -0.1, 0.7); bar(-0.1, 0.7, 0.4, 0.7); bar(0.4, 0.7, 0.46, 0.36); bar(-0.1, 0.7, 0.1, 0.36); bar(0.1, 0.36, 0.46, 0.36); bar(0.4, 0.7, 0.4, 0.95);
+    const basket = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.34), new THREE.MeshLambertMaterial({ color: 0xaaa090 })); basket.position.set(0.55, 0.9, 0); bike.add(basket);
+    const p = W(-5.8, -2.4); bike.position.set(p[0], gy, p[1]); bike.rotation.y = yaw + Math.PI / 2 + 0.2; grp.add(bike); }
+  // potted plants along the verandah
+  [[-3.6, 0xc8a03a], [3.4, 0xd8442f], [-1.9, 0x4a8a3a]].forEach(([u, c]) => { const p = W(u, -4.1); const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.17, 0.32, 8), new THREE.MeshLambertMaterial({ color: 0x8a5a3a })); pot.position.set(p[0], gy + 0.16, p[1]); grp.add(pot);
+    const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), new THREE.MeshLambertMaterial({ color: c })); bush.position.set(p[0], gy + 0.5, p[1]); grp.add(bush); });
+  // the veg and the lamps leave it alone
+  bikeParks.clear.push([homeReserve.cx, homeReserve.cz, 13]);
 }
 
 function buildGarage(root) {
