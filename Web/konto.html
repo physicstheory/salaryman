@@ -4625,6 +4625,70 @@ function gableMaterials(kind) {
 const GABLED = { machiya: "kawara", kura: "kawara", coast: "tin", houses: null };
 const GABLE_MAX_H = 12.5;        // metres: three storeys and a bit
 
+
+// The plots were laid out before the arterials and the railways were cut
+// through them, so here and there a road runs straight through a building. Each
+// building is trimmed back from any road or rail that touches it, from the side
+// it overlaps least, and dropped altogether if there is nothing left of it. An
+// elevated road only matters to a building tall enough to reach its deck.
+function clearRoadCorridors(city, boxes) {
+  const cell = 40, grid = new Map();
+  let maxR = 0;
+  const add = (x, z, r, deckY) => {
+    const k = Math.floor(x / cell) + "," + Math.floor(z / cell);
+    let l = grid.get(k); if (!l) { l = []; grid.set(k, l); }
+    l.push([x, z, r, deckY]);
+    if (r > maxR) maxR = r;
+  };
+  city.roads.concat(city.rails).forEach(path => {
+    const pts = path.pts; if (!pts || pts.length < 2) return;
+    const r = (path.halfWidth || 6) + (city.rails.indexOf(path) >= 0 ? 2.2 : 1.0);
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const len = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(1, Math.ceil(len / 3));
+      for (let k = 0; k <= n; k++) {
+        const t = k / n;
+        add(a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t, r, path.elevated ? a[1] + (b[1] - a[1]) * t : null);
+      }
+    }
+  });
+  let trimmed = 0, dropped = 0;
+  for (let bi = boxes.length - 1; bi >= 0; bi--) {
+    const b = boxes[bi];
+    if (b.deck || b.landmark) continue;
+    let gone = false;
+    for (let pass = 0; pass < 10 && !gone; pass++) {
+      const R = Math.hypot(b.size[0], b.size[1]) * 0.5 + maxR + 1;
+      const x0 = Math.floor((b.c[0] - R) / cell), x1 = Math.floor((b.c[0] + R) / cell);
+      const z0 = Math.floor((b.c[1] - R) / cell), z1 = Math.floor((b.c[1] + R) / cell);
+      let worst = null;
+      for (let gz = z0; gz <= z1 && !gone; gz++) for (let gx = x0; gx <= x1; gx++) {
+        const l = grid.get(gx + "," + gz); if (!l) continue;
+        for (let q = 0; q < l.length; q++) {
+          const pt = l[q];
+          if (pt[3] !== null && pt[3] - 3.5 > b.y + b.h) continue;     // the deck is over its roof
+          const lo = toRectLocal(pt[0], pt[1], b.c[0], b.c[1], b.yaw);
+          const px = b.size[0] * 0.5 + pt[2] - Math.abs(lo[0]), pz = b.size[1] * 0.5 + pt[2] - Math.abs(lo[1]);
+          if (px > 0 && pz > 0) {
+            const pen = Math.min(px, pz);
+            if (!worst || pen > worst.pen) worst = { pen: pen, axis: px < pz ? 0 : 1, sign: Math.sign(lo[px < pz ? 0 : 1]) || 1 };
+          }
+        }
+      }
+      if (!worst) break;
+      // shrink along that axis by the overlap, keeping the far side where it was
+      const ns = b.size[worst.axis] - worst.pen;
+      if (ns < 3) { gone = true; break; }
+      const shift = -worst.sign * worst.pen * 0.5;
+      const wc = fromRectLocal(worst.axis === 0 ? shift : 0, worst.axis === 1 ? shift : 0, b.c[0], b.c[1], b.yaw);
+      b.size = b.size.slice(); b.size[worst.axis] = ns; b.c = wc;
+      trimmed++;
+    }
+    if (gone) { boxes.splice(bi, 1); dropped++; }
+  }
+  city.roadClear = { trimmed: trimmed, dropped: dropped };
+}
+
 function addGableRoofs(root, boxes) {
   const byKind = {};
   boxes.forEach(b => {
@@ -6338,6 +6402,7 @@ function buildScene(w) {
       }
     });
 
+    clearRoadCorridors(city, boxes);
     if (boxes.length) {
       // Group by facade so each style can carry its own texture, and keep the
       // footprints for the character to bump into.
