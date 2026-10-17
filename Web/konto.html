@@ -23597,13 +23597,22 @@ function enterTV() {
   home.tvWatched = 0;
   drawHome();
 }
+function tvBoot(id) { tvui.con = id; tvui.sel = 0; tvui.mode = "boot"; tvui.bootT = 0; consoleChime(id); }
 function enterConsole() {
   const own = ownedConsoles();
   if (!own.length) return;
   tvui.pick = 0;
   if (own.length > 1) { tvui.mode = "pick"; }
-  else { tvui.con = own[0]; tvui.mode = tvui.setup[tvui.con] ? "console" : "setup"; tvui.sel = 0; }
+  else tvBoot(own[0]);
   drawHome();
+}
+// each machine has its own start-up sound
+function consoleChime(id) {
+  if (!sound.ready || !sound.ctx || !sound.master) return;
+  const ctx = sound.ctx, t = ctx.currentTime, out = ctx.createGain(); out.gain.value = 0.5; out.connect(sound.master);
+  const tone = (f, at, d, type, v) => { const o = ctx.createOscillator(), g2 = ctx.createGain(); o.type = type || "sine"; o.frequency.value = f; g2.gain.setValueAtTime(0.0001, t + at); g2.gain.exponentialRampToValueAtTime(v || 0.3, t + at + 0.04); g2.gain.exponentialRampToValueAtTime(0.0001, t + at + d); o.connect(g2); g2.connect(out); o.start(t + at); o.stop(t + at + d + 0.05); };
+  if (id === "playbox5") { [110, 165, 220].forEach(f => tone(f, 0, 2.6, "sawtooth", 0.07)); [440, 554, 659, 880].forEach((f, i) => tone(f, 0.8 + i * 0.16, 1.4, "triangle", 0.18)); tone(1320, 1.9, 1.2, "sine", 0.12); }
+  else { [523, 659, 784].forEach((f, i) => tone(f, 0.5 + i * 0.22, 1.8, "sine", 0.22)); tone(1046, 1.45, 1.8, "sine", 0.16); tone(262, 0.4, 2.4, "sine", 0.1); }
 }
 function tvEvent(ev) {
   const mode = tvui.mode;
@@ -23613,15 +23622,16 @@ function tvEvent(ev) {
     else if (ev === "right" || ev === "down") tvui.ch = (tvui.ch + 1) % n;
     else if (ev === "b") tvui.mode = "menu";
     else if (ev === "a" && tvui.ch === CHANNELS.length) {
-      const id = Object.keys(tvui.setup).find(k => tvui.setup[k]);
-      tvui.con = id; tvui.mode = "console"; tvui.sel = 0;
+      tvBoot(Object.keys(tvui.setup).find(k => tvui.setup[k]));
     }
   } else if (mode === "pick") {
     const own = ownedConsoles();
     if (ev === "up" || ev === "left") tvui.pick = (tvui.pick + own.length - 1) % own.length;
     else if (ev === "down" || ev === "right") tvui.pick = (tvui.pick + 1) % own.length;
     else if (ev === "b") tvui.mode = "menu";
-    else if (ev === "a") { tvui.con = own[tvui.pick]; tvui.mode = tvui.setup[tvui.con] ? "console" : "setup"; tvui.sel = 0; }
+    else if (ev === "a") tvBoot(own[tvui.pick]);
+  } else if (mode === "boot") {
+    if (ev === "a" || ev === "b") tvui.bootT = 99;
   } else if (mode === "setup") {
     if (ev === "a") { tvui.setup[tvui.con] = true; tvui.mode = "console"; tvui.sel = 0; say(CONSOLES[tvui.con].name + " connected on HDMI 1.", 4); }
     else if (ev === "b") tvui.mode = "menu";
@@ -23665,6 +23675,7 @@ function tvKey(code) {
 function updateTV(dt) {
   if (!home.inside || tvui.mode === "menu") return;
   tvui.t += dt;
+  if (tvui.mode === "boot") { tvui.bootT += dt; if (tvui.bootT > 4.2) { tvui.mode = tvui.setup[tvui.con] ? "console" : "setup"; tvui.sel = 0; } }
   if (tvui.mode === "install") {
     tvui.prog += dt;
     if (tvui.prog >= tvui.goal) {
@@ -23742,69 +23753,155 @@ function drawChannel(g, x, y, w, h, ch, t) {
   g.restore();
 }
 
+// ---- start-up logos: each machine introduces itself differently
+function drawBootLogo(g, x, y, w, h) {
+  const con = CONSOLES[tvui.con], t = tvui.bootT;
+  g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+  const cx = x + w / 2, cy = y + h * 0.46, k = h / 540;
+  if (con.id === "playbox5") {
+    g.fillStyle = "#020604"; g.fillRect(x, y, w, h);
+    // lines of light closing on the centre, then a ring that opens
+    const conv = clamp01(t / 1.0);
+    g.save(); g.translate(cx, cy);
+    for (let i = 0; i < 28; i++) { const a = i / 28 * 6.2832 + 0.2, r0 = h * (0.9 - 0.82 * conv), r1 = r0 + h * 0.18 * (1 - conv * 0.6); g.strokeStyle = "rgba(125,255,176," + (0.12 + 0.45 * (1 - Math.abs(conv - 0.55))) + ")"; g.lineWidth = 2 * k * 2; g.beginPath(); g.moveTo(Math.cos(a) * r0, Math.sin(a) * r0 * 0.9); g.lineTo(Math.cos(a) * r1, Math.sin(a) * r1 * 0.9); g.stroke(); }
+    const ring = clamp01((t - 0.9) / 0.9), pulse = 1 + Math.sin(t * 5) * 0.015;
+    if (t > 0.8) {
+      const gr = g.createRadialGradient(0, 0, h * 0.02, 0, 0, h * 0.3 * ring); gr.addColorStop(0, "rgba(125,255,176,0.8)"); gr.addColorStop(1, "rgba(14,122,74,0)"); g.fillStyle = gr; g.beginPath(); g.arc(0, 0, h * 0.3 * ring, 0, 7); g.fill();
+      g.strokeStyle = "#7dffb0"; g.lineWidth = 9 * k; g.beginPath(); g.arc(0, 0, h * 0.17 * ring * pulse, -1.2, 4.0); g.stroke();
+      g.strokeStyle = "#0e7a4a"; g.lineWidth = 9 * k; g.beginPath(); g.arc(0, 0, h * 0.17 * ring * pulse, 4.1, 5.08); g.stroke();
+      g.fillStyle = "#e8fff2"; g.font = "900 " + Math.round(h * 0.2 * ring) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("S", 0, h * 0.01);
+    }
+    g.restore();
+    const tx = clamp01((t - 1.9) / 0.7);
+    g.globalAlpha = tx; g.fillStyle = "#e8fff2"; g.font = "900 " + Math.round(h * 0.075) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("SOTI  PLAYBOX  5", cx, y + h * 0.77);
+    // a light sweeps across the lettering once
+    const sw = clamp01((t - 2.4) / 1.0); if (sw > 0 && sw < 1) { g.globalCompositeOperation = "lighter"; const sg = g.createLinearGradient(cx - w * 0.3 + sw * w * 0.6, 0, cx - w * 0.3 + sw * w * 0.6 + 90, 0); sg.addColorStop(0, "rgba(255,255,255,0)"); sg.addColorStop(0.5, "rgba(125,255,176,0.55)"); sg.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = sg; g.fillRect(cx - w * 0.3, y + h * 0.72, w * 0.6, h * 0.1); g.globalCompositeOperation = "source-over"; }
+    g.globalAlpha = clamp01((t - 2.6) / 0.6) * 0.8; g.fillStyle = "#7dffb0"; g.font = "600 " + Math.round(h * 0.026) + "px " + UI; g.fillText("Play has no limits", cx, y + h * 0.84);
+    g.globalAlpha = 1;
+    if (t > 3.6) { g.fillStyle = "rgba(0,0,0," + clamp01((t - 3.6) / 0.6) + ")"; g.fillRect(x, y, w, h); }
+  } else {
+    // Pear Cube: a soft white room, and a cube that is built, face by face, out of little ones
+    const bg = g.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, "#f4f1ff"); bg.addColorStop(1, "#d7dcf5"); g.fillStyle = bg; g.fillRect(x, y, w, h);
+    const S = h * 0.1;
+    const cubes = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) cubes.push([i - 1, j - 1]);
+    cubes.forEach((c, n) => {
+      const a = clamp01((t - 0.15 - n * 0.09) / 0.7), e = 1 - Math.pow(1 - a, 3);
+      const sx = (c[0] * 1.08) * S, sy = (c[1] * 1.08) * S, fx = cx + sx + (1 - e) * (c[0] * 400 + (n % 2 ? 300 : -300)), fy = cy + sy - (1 - e) * (260 + n * 18);
+      const hue = 235 + c[0] * 22 + c[1] * 18;
+      g.save(); g.translate(fx, fy); g.rotate((1 - e) * (n % 2 ? 2.2 : -2.2)); g.globalAlpha = e;
+      g.fillStyle = "hsl(" + hue + ",60%,82%)"; roundRect(g, -S * 0.48, -S * 0.48, S * 0.96, S * 0.96, S * 0.2); g.fill();
+      g.fillStyle = "rgba(255,255,255,0.55)"; roundRect(g, -S * 0.4, -S * 0.42, S * 0.5, S * 0.22, S * 0.1); g.fill();
+      g.restore();
+    });
+    const settle = clamp01((t - 1.5) / 0.6);
+    if (settle > 0) { g.fillStyle = "rgba(111,123,216," + 0.18 * settle + ")"; g.beginPath(); g.ellipse(cx, cy + S * 2.1, S * 1.8, S * 0.28, 0, 0, 7); g.fill(); }
+    g.globalAlpha = clamp01((t - 1.9) / 0.8); g.fillStyle = "#4b4e70"; g.font = "300 " + Math.round(h * 0.085) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("Pear Cube", cx, y + h * 0.75);
+    g.globalAlpha = clamp01((t - 2.5) / 0.8) * 0.7; g.fillStyle = "#6f7bd8"; g.font = "500 " + Math.round(h * 0.026) + "px " + UI; g.fillText("Everything fits.", cx, y + h * 0.82);
+    g.globalAlpha = 1;
+    if (t > 3.6) { g.fillStyle = "rgba(244,241,255," + clamp01((t - 3.6) / 0.6) + ")"; g.fillRect(x, y, w, h); }
+  }
+  g.restore();
+}
+
 function drawConsoleUI(g, x, y, w, h) {
   const con = CONSOLES[tvui.con];
+  if (tvui.mode === "boot") { drawBootLogo(g, x, y, w, h); return; }
   g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
-  g.fillStyle = con.bg; g.fillRect(x, y, w, h);
-  const gr = g.createRadialGradient(x + w * 0.7, y + h * 0.1, 10, x + w * 0.5, y + h * 0.4, w * 0.8);
-  gr.addColorStop(0, mixHex(con.a, "#000000", 0.45)); gr.addColorStop(1, "rgba(0,0,0,0)");
-  g.fillStyle = gr; g.fillRect(x, y, w, h);
-  const T = (txt, px, py, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + Math.round(sz * h / 540) + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, px, py); };
-  T(con.name, x + w * 0.04, y + h * 0.07, 34, con.b, "left", "800");
-  const t = phoneTime(); T(t.h + ":" + two(t.m), x + w * 0.96, y + h * 0.07, 30, "#fff", "right", "500");
+  const pear = con.id === "pearcube", k = h / 540;
+  const T = (txt, px, py, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + Math.round(sz * k) + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, px, py); };
+  const ink = pear ? "#3b3e5c" : "#ffffff", dim = pear ? "#7a7ea0" : "#a9b0b8";
+  const t0 = phoneTime();
 
   if (tvui.mode === "setup") {
-    g.fillStyle = "rgba(255,255,255,0.08)"; roundRect(g, x + w * 0.2, y + h * 0.28, w * 0.6, h * 0.44, 18); g.fill();
-    T("Connect " + con.name + " to the television?", x + w / 2, y + h * 0.38, 38, "#fff", "center");
-    T("Plug the HDMI lead into HDMI 1 and switch the input.", x + w / 2, y + h * 0.48, 26, "#a9b0b8", "center", "500");
+    g.fillStyle = pear ? "#eceaf8" : con.bg; g.fillRect(x, y, w, h);
+    g.fillStyle = pear ? "rgba(255,255,255,0.85)" : "rgba(255,255,255,0.08)"; roundRect(g, x + w * 0.2, y + h * 0.28, w * 0.6, h * 0.44, 18); g.fill();
+    T("Connect " + con.name + " to the television?", x + w / 2, y + h * 0.38, 38, ink, "center");
+    T("Plug the HDMI lead into HDMI 1 and switch the input.", x + w / 2, y + h * 0.48, 26, dim, "center", "500");
     g.fillStyle = con.a; roundRect(g, x + w * 0.35, y + h * 0.58, w * 0.30, h * 0.09, 14); g.fill();
     T("Connect  (A)", x + w / 2, y + h * 0.625, 30, "#fff", "center");
     g.restore(); return;
   }
   const tiles = consoleGames(con).filter(g2 => tvui.installed[g2.id]);
-  const cw = w * 0.15, ch = cw * 1.32, gap = w * 0.02;
-  const all = [{ lib: true }].concat(tiles);
-  const x0 = x + w * 0.5 - (tvui.sel * (cw + gap)) - cw / 2;
-  all.forEach((tl, i) => {
-    const px = x0 + i * (cw + gap), py = y + h * 0.30 + (i === tvui.sel ? -h * 0.02 : 0);
-    if (tvui.mode === "lib" || tvui.mode === "install") { /* dim behind the library */ g.globalAlpha = 0.35; }
-    if (tl.lib) {
-      g.fillStyle = "#1c2128"; roundRect(g, px, py, cw, ch, 12); g.fill();
-      T("◎", px + cw / 2, py + ch * 0.42, 70, con.b, "center");
-      T("Disc library", px + cw / 2, py + ch * 0.78, 22, "#fff", "center");
-    } else {
-      wheelIcon(g, { kind: "game", id: tl.id, item: null }, px + cw / 2, py + ch / 2, cw * 0.62 * 1.0, false);
+  const all = [{ lib: true }].concat(tiles), cur = all[clamp(tvui.sel, 0, all.length - 1)];
+  const dimmed = tvui.mode === "lib" || tvui.mode === "install";
+  const gm = cur.lib ? null : GAME_BY_ID[cur.id];
+
+  if (!pear) {
+    // PlayBox: a dark console with the game's own art blown up behind it, tabs along the
+    // top, one big hero tile and a rail of the rest
+    g.fillStyle = con.bg; g.fillRect(x, y, w, h);
+    if (gm) { const cov = gameCover(gm.id); g.globalAlpha = 0.5; g.filter = "blur(18px) saturate(1.3)"; g.drawImage(cov, x - w * 0.1, y - h * 0.2, w * 1.2, h * 1.6); g.filter = "none"; g.globalAlpha = 1; }
+    const sh = g.createLinearGradient(x, y, x, y + h); sh.addColorStop(0, "rgba(2,8,5,0.55)"); sh.addColorStop(0.5, "rgba(2,8,5,0.35)"); sh.addColorStop(1, "rgba(2,8,5,0.92)"); g.fillStyle = sh; g.fillRect(x, y, w, h);
+    ["Home", "Library", "Store", "Party"].forEach((nm, i) => { const on = i === 0; T(nm, x + w * (0.06 + i * 0.105), y + h * 0.075, 26, on ? "#7dffb0" : "#8d96a3", "left", on ? "800" : "600"); if (on) { g.fillStyle = "#7dffb0"; g.fillRect(x + w * 0.06, y + h * 0.105, w * 0.045, 3); } });
+    T(t0.h + ":" + two(t0.m), x + w * 0.96, y + h * 0.075, 26, "#fff", "right", "500");
+    if (gm) {
+      const cw = h * 0.40, ch = cw * 1.33, cx0 = x + w * 0.08, cy0 = y + h * 0.17;
+      g.save(); g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 24; g.drawImage(gameCover(gm.id), cx0, cy0, cw, ch); g.restore();
+      const tx = cx0 + cw + w * 0.04;
+      if (gm.tier === "aaa") T("PREMIUM RELEASE", tx, cy0 + h * 0.03, 22, "#f0b429", "left", "800");
+      T(gm.name, tx, cy0 + h * 0.10, 50, "#fff", "left", "800");
+      T(gm.genre + "   ·   best " + (arcade.hi[gm.id] || 0), tx, cy0 + h * 0.17, 24, "#7dffb0", "left", "600");
+      wrapLines(g, gm.blurb || "", w * 0.40).forEach((ln, i) => T(ln, tx, cy0 + h * 0.25 + i * h * 0.045, 24, "#d6dde3", "left", "500"));
+      if (!dimmed) { g.fillStyle = "#0e7a4a"; roundRect(g, tx, cy0 + h * 0.40, w * 0.18, h * 0.08, 12); g.fill(); T("▶  Play", tx + w * 0.09, cy0 + h * 0.44, 28, "#fff", "center", "800"); }
+    } else { T("Disc library", x + w * 0.08, y + h * 0.3, 54, "#fff", "left", "800"); T(consoleGames(con).length + " disc" + (consoleGames(con).length === 1 ? "" : "s") + " in your bag. Insert one to install it.", x + w * 0.08, y + h * 0.38, 26, "#a9b0b8", "left", "500"); }
+    // the rail
+    const tw = w * 0.072, th = tw * 1.33, gap = w * 0.012, ry = y + h * 0.745;
+    all.forEach((tl, i) => {
+      const px = x + w * 0.08 + (i - Math.max(0, tvui.sel - 7)) * (tw + gap); if (px < x || px > x + w - tw) return;
+      const on = i === tvui.sel; g.globalAlpha = dimmed ? 0.4 : 1;
+      if (tl.lib) { g.fillStyle = "#1c2128"; roundRect(g, px, ry, tw, th, 8); g.fill(); T("◎", px + tw / 2, ry + th * 0.45, 40, "#7dffb0", "center"); T("Library", px + tw / 2, ry + th * 0.82, 14, "#fff", "center"); }
+      else g.drawImage(gameCover(tl.id), px, ry, tw, th);
+      if (on) { g.strokeStyle = "#7dffb0"; g.lineWidth = 4; roundRect(g, px - 3, ry - 3, tw + 6, th + 6, 9); g.stroke(); }
+      g.globalAlpha = 1;
+    });
+    if (!dimmed) T("◀ ▶ browse     A open     B back to TV", x + w / 2, y + h * 0.975, 18, "#79818b", "center", "500");
+  } else {
+    // Pear Cube: a pale, quiet room. A dock of round icons, and a coverflow, the one in the
+    // middle large and the rest turned away.
+    const bg = g.createLinearGradient(x, y, x, y + h); bg.addColorStop(0, "#f4f1ff"); bg.addColorStop(1, "#d3d9f4"); g.fillStyle = bg; g.fillRect(x, y, w, h);
+    if (gm) { cvGlow(g, x + w * 0.5, y + h * 0.4, w * 0.5, mixHex(gm.a, "#ffffff", 0.45), 0.5); }
+    ["▦", "◎", "★", "⚙"].forEach((ic, i) => { const px = x + w * 0.5 + (i - 1.5) * w * 0.07; g.fillStyle = i === 0 ? "#6f7bd8" : "rgba(255,255,255,0.8)"; g.beginPath(); g.arc(px, y + h * 0.085, h * 0.034, 0, 7); g.fill(); T(ic, px, y + h * 0.087, 24, i === 0 ? "#fff" : "#6f7bd8", "center"); });
+    T(t0.h + ":" + two(t0.m), x + w * 0.94, y + h * 0.085, 24, "#4b4e70", "right", "500");
+    const cw = h * 0.36, ch = cw * 1.33;
+    for (let d = -3; d <= 3; d++) {
+      const i = tvui.sel + d; if (i < 0 || i >= all.length) continue;
+      const tl = all[i], ad = Math.abs(d), sc = d === 0 ? 1 : Math.max(0.55, 0.78 - ad * 0.06);
+      const px = x + w * 0.5 + d * w * 0.17 + Math.sign(d) * w * (d === 0 ? 0 : 0.03), py = y + h * 0.50;
+      g.save(); g.globalAlpha = dimmed ? 0.35 : 1 - ad * 0.14; g.translate(px, py);
+      g.transform(1, 0, d === 0 ? 0 : -d * 0.05, 1, 0, 0); g.scale(sc, sc);
+      g.shadowColor = "rgba(60,70,140,0.35)"; g.shadowBlur = 20;
+      if (tl.lib) { g.fillStyle = "#e4e7fb"; roundRect(g, -cw / 2, -ch / 2, cw, ch, 18); g.fill(); g.shadowBlur = 0; T("◎", 0, -ch * 0.06, 90, "#6f7bd8", "center"); T("Discs", 0, ch * 0.28, 30, "#4b4e70", "center"); }
+      else { g.save(); roundRect(g, -cw / 2, -ch / 2, cw, ch, 18); g.clip(); g.drawImage(gameCover(tl.id), -cw / 2, -ch / 2, cw, ch); g.restore(); }
+      // the reflection
+      if (!tl.lib && d === 0) { g.shadowBlur = 0; g.globalAlpha = 0.18; g.scale(1, -0.35); g.drawImage(gameCover(tl.id), -cw / 2, ch * 0.5 / 0.35 * -1 - ch * 0.5 / 0.35 * 0, cw, ch); }
+      g.restore();
     }
-    if (i === tvui.sel) { g.strokeStyle = "#fff"; g.lineWidth = 4; roundRect(g, px - 5, py - 5, cw + 10, ch + 10, 14); g.stroke(); }
-    g.globalAlpha = 1;
-  });
-  const cur = all[tvui.sel];
-  if (tvui.mode === "console") {
-    T(cur.lib ? "Open game disc library" : GAME_BY_ID[cur.id].name, x + w / 2, y + h * 0.74, 34, "#fff", "center");
-    T(cur.lib ? (consoleGames(con).length + " disc" + (consoleGames(con).length === 1 ? "" : "s") + " in your bag") : GAME_BY_ID[cur.id].genre + "   ·   best " + (arcade.hi[cur.id] || 0), x + w / 2, y + h * 0.80, 24, "#a9b0b8", "center", "500");
-    T("◀ ▶ browse     A open     B back to TV", x + w / 2, y + h * 0.93, 22, "#79818b", "center", "500");
-  } else if (tvui.mode === "lib") {
+    if (gm) { T(gm.name, x + w / 2, y + h * 0.84, 40, "#3b3e5c", "center", "700"); T(gm.genre + "   ·   best " + (arcade.hi[gm.id] || 0), x + w / 2, y + h * 0.90, 22, "#7a7ea0", "center", "500"); }
+    else { T("Game discs", x + w / 2, y + h * 0.84, 40, "#3b3e5c", "center", "700"); T(consoleGames(con).length + " in your bag", x + w / 2, y + h * 0.90, 22, "#7a7ea0", "center", "500"); }
+    if (!dimmed) T("◀ ▶ browse     A open     B back to TV", x + w / 2, y + h * 0.975, 18, "#9a9dc0", "center", "500");
+  }
+  if (tvui.mode === "lib") {
     const list = consoleGames(con);
-    g.fillStyle = "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.18, y + h * 0.16, w * 0.64, h * 0.72, 18); g.fill();
-    T("Game disc library", x + w * 0.22, y + h * 0.23, 32, con.b, "left", "800");
-    if (!list.length) T("No discs for this console in your bag.", x + w / 2, y + h * 0.5, 28, "#a9b0b8", "center", "500");
+    g.fillStyle = pear ? "rgba(244,243,255,0.97)" : "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.18, y + h * 0.16, w * 0.64, h * 0.72, 18); g.fill();
+    T("Game disc library", x + w * 0.22, y + h * 0.23, 32, pear ? "#6f7bd8" : con.b, "left", "800");
+    if (!list.length) T("No discs for this console in your bag.", x + w / 2, y + h * 0.5, 28, dim, "center", "500");
     const start = clamp(tvui.lib - 3, 0, Math.max(0, list.length - 7));
-    list.slice(start, start + 7).forEach((gm, k) => {
-      const li = start + k, ry = y + h * 0.29 + k * h * 0.075, on = li === tvui.lib;
-      g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x + w * 0.20, ry, w * 0.60, h * 0.066, 10); g.fill();
-      g.fillStyle = gm.a; roundRect(g, x + w * 0.21, ry + h * 0.008, w * 0.03, h * 0.05, 5); g.fill();
-      T(gm.name, x + w * 0.26, ry + h * 0.033, 26, "#fff", "left");
-      T(tvui.installed[gm.id] ? "Installed" : "Insert disc", x + w * 0.78, ry + h * 0.033, 22, tvui.installed[gm.id] ? "#7dffb0" : "#a9b0b8", "right", "500");
+    list.slice(start, start + 7).forEach((gm2, kk) => {
+      const li = start + kk, ry = y + h * 0.29 + kk * h * 0.075, on = li === tvui.lib;
+      g.fillStyle = on ? (pear ? "rgba(111,123,216,0.2)" : "rgba(255,255,255,0.16)") : (pear ? "rgba(0,0,0,0.04)" : "rgba(255,255,255,0.05)"); roundRect(g, x + w * 0.20, ry, w * 0.60, h * 0.066, 10); g.fill();
+      g.drawImage(gameCover(gm2.id), x + w * 0.21, ry + h * 0.004, h * 0.058 * 0.75, h * 0.058);
+      T(gm2.name, x + w * 0.26, ry + h * 0.033, 26, ink, "left");
+      T(tvui.installed[gm2.id] ? "Installed" : "Insert disc", x + w * 0.78, ry + h * 0.033, 22, tvui.installed[gm2.id] ? (pear ? "#3aa06a" : "#7dffb0") : dim, "right", "500");
     });
     T("▲ ▼ choose     A insert disc     B back", x + w / 2, y + h * 0.93, 22, "#79818b", "center", "500");
   } else if (tvui.mode === "install") {
-    const gm = GAME_BY_ID[tvui.disc], p = clamp01(tvui.prog / tvui.goal);
-    g.fillStyle = "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.22, y + h * 0.28, w * 0.56, h * 0.44, 18); g.fill();
-    wheelIcon(g, { kind: "game", id: gm.id, item: null }, x + w * 0.5, y + h * 0.43, h * 0.085, false);
-    T("Installing " + gm.name, x + w / 2, y + h * 0.58, 30, "#fff", "center");
-    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44, h * 0.025, 8); g.fill();
-    g.fillStyle = con.b; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44 * p, h * 0.025, 8); g.fill();
-    T(Math.round(p * 100) + "%   ·   keep the disc in the drive", x + w / 2, y + h * 0.69, 22, "#a9b0b8", "center", "500");
+    const gm2 = GAME_BY_ID[tvui.disc], p = clamp01(tvui.prog / tvui.goal);
+    g.fillStyle = pear ? "rgba(244,243,255,0.97)" : "rgba(10,12,16,0.94)"; roundRect(g, x + w * 0.22, y + h * 0.28, w * 0.56, h * 0.44, 18); g.fill();
+    g.drawImage(gameCover(gm2.id), x + w * 0.5 - h * 0.05, y + h * 0.31, h * 0.10, h * 0.133);
+    T("Installing " + gm2.name, x + w / 2, y + h * 0.58, 30, ink, "center");
+    g.fillStyle = pear ? "rgba(111,123,216,0.2)" : "rgba(255,255,255,0.12)"; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44, h * 0.025, 8); g.fill();
+    g.fillStyle = pear ? "#6f7bd8" : con.b; roundRect(g, x + w * 0.28, y + h * 0.63, w * 0.44 * p, h * 0.025, 8); g.fill();
+    T(Math.round(p * 100) + "%   ·   keep the disc in the drive", x + w / 2, y + h * 0.69, 22, dim, "center", "500");
   }
   g.restore();
 }
