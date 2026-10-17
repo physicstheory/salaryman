@@ -19909,6 +19909,7 @@ function settingsRows() {
     ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
     ["Storage", "126 GB of 256 GB"],
+    ["Radio source  A", (ytSourceFor(radioStation(radio.st)) ? "Live video" : "Built-in band") + " \u00b7 " + radioStation(radio.st).name],
     ["Spotify", spotify.state === "ready" ? "Signed in"
       : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
   ];
@@ -20130,6 +20131,7 @@ function phoneAct() {
   } else if (app === "Settings") {
     const row = (settingsRows()[phone.sub] || [""])[0];
     if (/^Spotify/.test(row)) phoneAskText("Spotify client id", ["From your own developer dashboard."], spotify.clientId || "", false, v => { spotify.clientId = v; spotifySave(); say("Saved.", 3); });
+    else if (/^Radio source/.test(row)) { const rs = radioStation(radio.st); phoneAskText("Radio source: " + rs.name, ["A YouTube video, playlist or link of real", "performances. Blank for the default."], "", false, v => { try { localStorage.setItem("konto.radio.yt." + rs.id, v.trim()); } catch (e) { /* none */ } ytRadio.failed = {}; say("Saved for " + rs.name + ".", 3); }); }
     else if (/^Wallpaper/.test(row)) wallStep(1);
     else if (/^Video source/.test(row)) phoneAskText("Video source", ["A YouTube playlist or video link. Blank for the", "default Japanese CM playlist."], "", false, v => { video.src = v || DEFAULT_CM; say("Video source set.", 3); });
   } else if (app === "Wallet") {
@@ -22540,6 +22542,7 @@ function radioPlaying(st, t) {
   return { i: i, song: st.songs[i], pos: pos };
 }
 function radioInfo(st) {
+  if (ytRadio.on && ytRadio.st === st.id && ytRadio.title) return { title: ytRadio.title, artist: "Live", pos: 0, dur: 1, idx: 0 };
   const p = radioPlaying(st, radioNow());
   if (st.talk) {
     const lines = TALK_LINES[st.talk];
@@ -22941,6 +22944,64 @@ function drawRadioWheel() {
 }
 
 // ---- the loop, the keys and the pad
+// ---- real performances on the radio ----------------------------------------------------
+// A station can be given a YouTube video or playlist of real performances in its
+// genre; it plays in a hidden player and replaces the synthesised songs for that
+// station. Where there is nothing set, or the video will not play (no network, a
+// video taken down), the synthesised band carries on. The source for each station
+// is set in the phone's Settings (a link, a video id or a playlist id), and
+// remembered. Only the defaults below ship with the game, and they are a starting
+// point, not a promise: a link that has been taken down simply falls back.
+const RADIO_YT = {
+  gold1: "A22oc_4NTs8"          // Queen at Live Aid, 1985
+};
+const ytRadio = { frame: null, src: "", on: false, title: "", t0: 0, failed: {} };
+function ytSourceFor(st) {
+  let v = "";
+  try { v = localStorage.getItem("konto.radio.yt." + st.id) || ""; } catch (e) { /* none */ }
+  return (v || RADIO_YT[st.id] || "").trim();
+}
+function ytEmbedUrl(src) {
+  let m;
+  const tail = "&autoplay=1&controls=0&rel=0&playsinline=1&enablejsapi=1&origin=" + encodeURIComponent(location.origin && location.origin !== "null" ? location.origin : "https://localhost");
+  if ((m = /[?&]list=([\w-]+)/.exec(src)) || /^(PL|UU|OL|FL|RD)[\w-]{10,}$/.test(src) && (m = [0, src])) return "https://www.youtube.com/embed/videoseries?list=" + m[1] + tail;
+  if ((m = /[?&]v=([\w-]{11})/.exec(src)) || (m = /youtu\.be\/([\w-]{11})/.exec(src)) || (m = /^([\w-]{11})$/.exec(src))) return "https://www.youtube.com/embed/" + m[1] + "?" + tail.slice(1);
+  return null;
+}
+function ytPost(cmd, args) { try { if (ytRadio.frame && ytRadio.frame.contentWindow) ytRadio.frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: cmd, args: args || [] }), "*"); } catch (e) { /* none */ } }
+function ytStop() {
+  if (ytRadio.frame) { try { ytRadio.frame.remove(); } catch (e) { /* none */ } ytRadio.frame = null; }
+  ytRadio.src = ""; ytRadio.on = false; ytRadio.title = "";
+}
+function ytSync() {
+  const st = radioStation(radio.st);
+  const src = (drive.car && !st.off && !st.talk) ? ytSourceFor(st) : "";
+  const url = src && !ytRadio.failed[st.id + "|" + src] && navigator.onLine !== false ? ytEmbedUrl(src) : null;
+  if (!url) { if (ytRadio.frame) ytStop(); return false; }
+  if (ytRadio.src !== st.id + "|" + src) {
+    ytStop();
+    const f = document.createElement("iframe");
+    f.allow = "autoplay; encrypted-media"; f.referrerPolicy = "strict-origin-when-cross-origin";
+    f.style.cssText = "position:fixed;left:-300px;top:-300px;width:200px;height:200px;border:0;opacity:0;pointer-events:none";
+    f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1 }), "*"); } catch (e) { /* none */ } setTimeout(() => ytPost("setVolume", [78]), 600); };
+    f.src = url; document.body.appendChild(f);
+    ytRadio.frame = f; ytRadio.src = st.id + "|" + src; ytRadio.t0 = performance.now(); ytRadio.on = false; ytRadio.title = ""; ytRadio.st = st.id; ytRadio.key = st.id + "|" + src;
+  }
+  return ytRadio.on;
+}
+window.addEventListener("message", e => {
+  if (!ytRadio.frame || e.source !== ytRadio.frame.contentWindow) return;
+  let d; try { d = typeof e.data === "string" ? JSON.parse(e.data) : e.data; } catch (x) { return; }
+  if (!d) return;
+  if (d.event === "onError" || (d.event === "infoDelivery" && d.info && d.info.playerState === -1 && performance.now() - ytRadio.t0 > 9000 && !ytRadio.on)) { ytRadio.failed[ytRadio.key] = true; ytStop(); return; }
+  if (d.event === "onStateChange" && d.info === 1) ytRadio.on = true;
+  if (d.event === "infoDelivery" && d.info) {
+    if (d.info.playerState === 1) ytRadio.on = true;
+    if (d.info.videoData && d.info.videoData.title) ytRadio.title = d.info.videoData.title;
+  }
+  if (d.event === "initialDelivery" && d.info && d.info.videoData && d.info.videoData.title) ytRadio.title = d.info.videoData.title;
+});
+
 function updateRadio(dt) {
   if (radio.toast > 0) { radio.toast -= dt; if (radio.toast <= 0) { const el = document.getElementById("radiotoast"); if (el) el.classList.remove("on"); } }
   // tap or hold, from the keyboard
@@ -22948,6 +23009,7 @@ function updateRadio(dt) {
     radio.holdT += dt;
     if (radio.holdT > 0.28 && !radio.wheel && drive.car) setRadioWheel(true);
   }
+  const real = ytSync();
   if (!sound.ready || !sound.ctx) return;
   const driving = !!drive.car;
   if (driving) {
@@ -22955,6 +23017,7 @@ function updateRadio(dt) {
     if (!radio.started || radio.tuned !== radio.st) { radio.started = true; radioSet(radio.st, radioIsOff()); }
     radioSchedule();
     radioTalk(dt);
+    if (real) radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.08);       // the real performance has the speakers
   } else if (radio.bus && radio.bus.gain.value > 0) {
     radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.05);
     radio.started = false; radio.tuned = -1;
