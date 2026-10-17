@@ -37,6 +37,9 @@ func build(kind: String, pos: Vector3, yaw: float) -> void:
 		l.position = Vector3(0, 2.4, -1.9)
 		l.visibility_range_end = 120.0
 		add_child(l)
+		var l2 := l.duplicate() as Label3D
+		l2.rotation.y = PI
+		add_child(l2)
 		door = global_position + Vector3(sin(yaw), 0, cos(yaw)) * 0.5
 	door.y = 0.0
 
