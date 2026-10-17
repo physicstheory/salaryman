@@ -416,6 +416,11 @@ func _rail() -> void:
 		l.pixel_size = 0.03
 		l.position = Vector3(px, 4.4, sz0 + 20.0 - 15.2)
 		add_child(l)
+		# the same sign again for people arriving from the other end, so it never reads backwards
+		var l2 := l.duplicate() as Label3D
+		l2.position = Vector3(px, 4.4, sz0 + 20.0 + 15.2)
+		l2.rotation.y = PI
+		add_child(l2)
 	for k in N + 1:
 		var c := Crossing.new()
 		add_child(c)
