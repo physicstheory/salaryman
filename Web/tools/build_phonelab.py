@@ -27,7 +27,7 @@ CUT = set("""clock nav garage drive home vitals deliveries purse spotify frameGr
 spotifyTransport spotifyLoad spotifySave takePhotograph setMapOpen wantFrame grabFrame placeAt phoneTime title post
 world player traffic renderer scene camera shops wheel TIME gameMinutes
 R N V T Tx arcRnd arcade ARC radio sound wanted tolls tvui mall parcels updateTolls enterMall enterTV
-enterConsole updateRadio radioSet radioNext sunLight skyDome frameGrab mnContext seikoPortrait ski rail emergencyDispatch""".split())
+enterConsole updateRadio radioSet radioNext sunLight skyDome frameGrab mnContext seikoPortrait ski rail emergencyDispatch rydeSend rydeStatus rydeCancel drawMapView""".split())
 
 def main():
     script = X.script_of(GAME)

@@ -14293,44 +14293,85 @@ function appRyde(g, W, H) {
 
   if (phone.ryde) {
     const r = phone.ryde;
-    // A little live map with the car crawling towards the dot in the middle.
+    // The map is the real one, centred between you and the car, with the road it is
+    // coming along drawn in. Where there is no real map (the phone lab) the old
+    // little diagram stands in.
     const mx = W * 0.075, my = H * 0.16, mw = W * 0.85, mh = H * 0.34;
+    const st = typeof rydeStatus === "function" ? rydeStatus() : null;
+    const real = st && typeof drawMapView === "function" && nav.ready;
     g.fillStyle = "#15181d";
     roundRect(g, mx, my, mw, mh, W * 0.04); g.fill();
     g.save(); roundRect(g, mx, my, mw, mh, W * 0.04); g.clip();
-    // streets
-    g.strokeStyle = "rgba(255,255,255,0.09)";
-    g.lineWidth = W * 0.010;
-    for (let i = 1; i < 6; i++) {
-      g.beginPath(); g.moveTo(mx, my + mh * i / 6); g.lineTo(mx + mw, my + mh * i / 6); g.stroke();
-      g.beginPath(); g.moveTo(mx + mw * i / 6, my); g.lineTo(mx + mw * i / 6, my + mh); g.stroke();
+    if (real) {
+      const ex = player.pos.x, ez = player.pos.z;
+      const cx = (ex + st.x) / 2, cz = (ez + st.z) / 2;
+      const across = Math.max(320, 2.6 * Math.abs(ex - st.x), 2.6 * Math.abs(ez - st.z) * mw / mh);
+      g.save(); g.translate(mx, my);
+      drawMapView(g, mw, mh, cx, cz, across, 0, {});
+      g.restore();
+      const S = mw / across, X = x => mx + mw / 2 + (x - cx) * S, Y = z => my + mh / 2 + (z - cz) * S;
+      // the road still to drive
+      g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012; g.lineCap = "round"; g.lineJoin = "round";
+      g.beginPath();
+      for (let q = st.s0, k = 0; k < 80; k++) {
+        const p = sampleLane(st.lane, Math.min(q, st.s1));
+        if (k === 0) g.moveTo(X(p.x), Y(p.z)); else g.lineTo(X(p.x), Y(p.z));
+        if (q >= st.s1) break;
+        q += 12;
+      }
+      g.stroke();
+      // you
+      g.fillStyle = "rgba(60,140,255,0.28)"; g.beginPath(); g.arc(X(ex), Y(ez), W * 0.05, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#3c8cff"; g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.008;
+      g.beginPath(); g.arc(X(ex), Y(ez), W * 0.020, 0, Math.PI * 2); g.fill(); g.stroke();
+      // the car
+      g.fillStyle = "#12b36b"; g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.010;
+      g.beginPath(); g.arc(X(st.x), Y(st.z), W * 0.032, 0, Math.PI * 2); g.fill(); g.stroke();
+      g.fillStyle = "#04140c"; g.font = "800 " + Math.round(W * 0.036) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText("R", X(st.x), Y(st.z) + 1); g.textBaseline = "alphabetic"; g.textAlign = "left";
+    } else {
+      g.strokeStyle = "rgba(255,255,255,0.09)";
+      g.lineWidth = W * 0.010;
+      for (let i = 1; i < 6; i++) {
+        g.beginPath(); g.moveTo(mx, my + mh * i / 6); g.lineTo(mx + mw, my + mh * i / 6); g.stroke();
+        g.beginPath(); g.moveTo(mx + mw * i / 6, my); g.lineTo(mx + mw * i / 6, my + mh); g.stroke();
+      }
+      const px = mx + mw * 0.5, py = my + mh * 0.62;
+      const k = clamp01(1 - r.eta / r.eta0);
+      const cx = lerp(mx + mw * 0.14, px, k), cy = lerp(my + mh * 0.18, py, k);
+      g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012;
+      g.setLineDash([W * 0.03, W * 0.02]);
+      g.beginPath(); g.moveTo(cx, cy); g.lineTo(px, py); g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = "#12b36b";
+      g.beginPath(); g.arc(cx, cy, W * 0.028, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#ffffff";
+      g.beginPath(); g.arc(px, py, W * 0.022, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = W * 0.008;
+      g.beginPath(); g.arc(px, py, W * 0.045, 0, Math.PI * 2); g.stroke();
     }
-    const px = mx + mw * 0.5, py = my + mh * 0.62;
-    const k = clamp01(1 - r.eta / r.eta0);
-    const cx = lerp(mx + mw * 0.14, px, k), cy = lerp(my + mh * 0.18, py, k);
-    g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012;
-    g.setLineDash([W * 0.03, W * 0.02]);
-    g.beginPath(); g.moveTo(cx, cy); g.lineTo(px, py); g.stroke();
-    g.setLineDash([]);
-    g.fillStyle = "#12b36b";
-    g.beginPath(); g.arc(cx, cy, W * 0.028, 0, Math.PI * 2); g.fill();
-    g.fillStyle = "#ffffff";
-    g.beginPath(); g.arc(px, py, W * 0.022, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = W * 0.008;
-    g.beginPath(); g.arc(px, py, W * 0.045, 0, Math.PI * 2); g.stroke();
     g.restore();
 
     g.fillStyle = "#ffffff";
     g.font = "700 " + Math.round(W * 0.095) + "px " + UI;
-    g.fillText(Math.max(1, Math.ceil(r.eta)) + " min", W * 0.075, H * 0.565);
+    const rs = typeof rydeStatus === "function" ? rydeStatus() : null;
+    if (rs) {
+      const secs = Math.ceil(rs.secs);
+      g.fillText(rs.arrived ? "Here" : (secs >= 60 ? Math.floor(secs / 60) + ":" + two(secs % 60) : secs + " sec"), W * 0.075, H * 0.565);
+    } else g.fillText(Math.max(1, Math.ceil(r.eta)) + " min", W * 0.075, H * 0.565);
     g.fillStyle = "#79818b";
     g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
     g.fillText(r.cls + "  \u00b7  " + r.plate + "  \u00b7  " + yenText(r.fare), W * 0.075, H * 0.605);
-    phoneRow(g, W, W * 0.075, H * 0.65, W * 0.85, H * 0.075, phone.sub === 0);
+    if (rs) {
+      g.fillStyle = rs.arrived ? "#12b36b" : "#79818b"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
+      g.fillText(rs.arrived ? "Your car is at the kerb. Walk up and press Y. Waiting " + Math.ceil(rs.wait) + " s" : Math.round(rs.left) + " m away, along the road shown",
+        W * 0.075, H * 0.640);
+    }
+    phoneRow(g, W, W * 0.075, H * 0.68, W * 0.85, H * 0.075, phone.sub === 0);
     g.fillStyle = "#e7ebee";
     g.font = "600 " + Math.round(W * 0.048) + "px " + UI;
     g.textAlign = "center";
-    g.fillText("Cancel", W * 0.5, H * 0.6875);
+    g.fillText("Cancel", W * 0.5, H * 0.7175);
     g.textAlign = "left";
     return;
   }
@@ -18141,19 +18182,21 @@ function phoneAct() {
   }
   const app = phone.app;
   if (app === "Ryde") {
-    if (phone.ryde) { phone.ryde = null; say("Ryde cancelled.", 3); }
+    if (phone.ryde) { rydeCancel(); say("Ryde cancelled.", 3); }
     else {
       const cls = RYDE_CLASSES[Math.min(phone.sub, RYDE_CLASSES.length - 1)];
       const fare = rydeFare(cls.mult);
       if (purse.yen < fare) { say("Not enough for that. " + yenText(purse.yen) + " left.", 4); }
       else {
-        const eta = 2 + Math.random() * 5;
-        phone.ryde = { cls: cls.name, kind: cls.kind, fare: fare, eta: eta, eta0: eta,
+        const rs = typeof rydeSend === "function" ? rydeSend(cls) : { ok: true, unit: null, eta: 120 + Math.random() * 200 };
+        if (!rs.ok) { say(rs.msg, 4); phone.dirty = true; return; }
+        const eta = rs.eta / 60;
+        phone.ryde = { cls: cls.name, kind: cls.kind, fare: fare, eta: eta, eta0: eta, unit: rs.unit,
                        plate: "品川 " + (300 + ((Math.random() * 99) | 0)) + " " +
                               String.fromCharCode(12354 + ((Math.random() * 40) | 0)) +
                               " " + (1000 + ((Math.random() * 8999) | 0)) };
         phone.sub = 0;
-        say("Ryde on the way \u00b7 " + Math.ceil(eta) + " min", 4);
+        say(rs.unit ? "Ryde on the way \u00b7 about " + Math.max(10, Math.round(rs.eta / 5) * 5) + " seconds" : "Ryde on the way \u00b7 " + Math.ceil(eta) + " min", 4);
       }
     }
   } else if (app === "Poodle") {
@@ -22231,13 +22274,15 @@ const DISPATCH_WHO = {
                meet: "“The Coast Guard asked us to meet you ashore. Is anyone in the water?”" },
   ambulance: { name: "ambulance", stay: 70, blip: ["#ffffff", "#d8483c"],
                meet: "The crew look you over, and it costs nothing. You are fit to go." },
+  ryde:      { name: "Ryde car", stay: 110, blip: ["#12b36b", "#ffffff"], meet: "" },
   fire:      { name: "fire engine", stay: 50, blip: ["#ffb02e", "#d8483c"],
                meet: "“Where is the fire? None? Good. Keep it that way.”" }
 };
 
 // The nearest paved lane, for the unit to drive up. Returns the best lane to come
 // in on: close to the player, and with road behind it to build up speed on.
-function dispatchRoadPoint() {
+function dispatchRoadPoint(maxRun) {
+  maxRun = maxRun || 300;
   const px = player.pos.x, pz = player.pos.z, py = player.pos.y;
   const per = [];
   let min = Infinity;
@@ -22257,7 +22302,7 @@ function dispatchRoadPoint() {
   }
   if (!per.length) return null;
   const near = per.filter(c => c.d <= min + 10);
-  near.forEach(c => { c.run = traffic.lanes[c.li].loop ? 300 : Math.min(300, c.s); });
+  near.forEach(c => { c.run = traffic.lanes[c.li].loop ? maxRun : Math.min(maxRun, c.s); });
   near.sort((a, b) => (b.run >= 120 ? 1 : 0) - (a.run >= 120 ? 1 : 0) || a.d - b.d || b.run - a.run);
   return near[0];
 }
@@ -22289,7 +22334,9 @@ function dispatchPlace(car, li, s) {
   }
   const kind = CAR_KINDS[car.kind];
   car.lane = li; car.s = s; car.v = 0; car.live = true;
-  car.colour = kind.colour.slice(); car.uv[0] = 0; car.uv[1] = 0;
+  if (kind.colour) car.colour = kind.colour.slice();
+  else { const pal = PAINT[kind.palette || "common"] || PAINT.common; car.colour = pal[(Math.random() * pal.length) | 0].slice(); }
+  car.uv[0] = 0; car.uv[1] = 0;
   let slot = list.length;
   while (slot > 0 && traffic.cars[list[slot - 1]].s > s) slot--;
   list.splice(slot, 0, idx);
@@ -22330,16 +22377,7 @@ function emergencyDispatch(svc) {
     const car = dispatchPickCar(ki);
     if (!car) return { ok: false, msg: "All our units are out. Please hold. 少々お待ちください。" };
     const lane = traffic.lanes[rp.li];
-    // a second unit on the same road pulls up behind the first
-    const queued = dispatch.units.filter(o => o.car && o.car.lane === rp.li && o.state !== "leaving").length;
-    const stop = rp.s - 3 - queued * 12;
-    let raw = stop - Math.max(40, rp.run);
-    if (!lane.loop) raw = Math.max(0, raw);
-    const start = raw < 0 ? raw + lane.length : raw;
-    dispatchPlace(car, rp.li, start);
-    u.car = car; u.target = start + (stop - raw);
-    car.dispatch = u; car.top = 2;
-    eta = Math.max(10, stop - raw) / (u.vmax * 0.8);
+    eta = dispatchOnLane(u, car, rp);
   } else {
     const st = dispatchFreeStart();
     if (!st) return { ok: false, msg: "We cannot find a way to you from here. Get to a road or a town, then call again. 道路に出てから、もう一度お電話ください。" };
@@ -22354,12 +22392,72 @@ function emergencyDispatch(svc) {
   return { ok: true, msg: "Your phone puts you at " + place + ". " + (/^[aeiou]/.test(who.name) ? "An " : "A ") + who.name + " is on its way, " + when + ". Please stay where you are. すぐに向かいます。" };
 }
 
+// Put a unit on the road behind the point it is coming to, and set it going.
+// Returns how many seconds it should take.
+function dispatchOnLane(u, car, rp) {
+  const lane = traffic.lanes[rp.li];
+  // a second unit on the same road pulls up behind the first
+  const queued = dispatch.units.filter(o => o.car && o.car.lane === rp.li && o.state !== "leaving").length;
+  const stop = rp.s - 3 - queued * 12;
+  let raw = stop - Math.max(40, rp.run);
+  if (!lane.loop) raw = Math.max(0, raw);
+  const start = raw < 0 ? raw + lane.length : raw;
+  dispatchPlace(car, rp.li, start);
+  u.car = car; u.target = start + (stop - raw); u.lane = rp.li;
+  car.dispatch = u; car.top = 2;
+  return Math.max(10, stop - raw) / (u.vmax * 0.8);
+}
 function dispatchRelease(u) {
-  if (u.car) { u.car.dispatch = null; u.car.top = CAR_KINDS[u.car.kind].top; }
+  if (u.car) { u.car.dispatch = null; u.car.top = CAR_KINDS[u.car.kind].top; u.car.hailed = false; u.car.stopped = false; }
 }
 function dispatchClear() {
   dispatch.units.forEach(dispatchRelease);
   dispatch.units.length = 0;
+}
+
+// ---- Ryde ---------------------------------------------------------------------
+// Booking sends a real car. It joins the street network a few hundred metres up
+// the nearest road, drives to the kerb beside you in the traffic, and waits. The
+// phone's map shows where it actually is. Climbing in is what pays for it.
+function rydeSend(cls) {
+  if (!player.placed || !traffic.ready) return { ok: false, msg: "There is no Ryde here." };
+  if (drive.car) return { ok: false, msg: "Park the car first. Ryde picks up people on foot." };
+  const existing = dispatch.units.find(u => u.svc === "ryde" && u.state !== "leaving");
+  if (existing) return { ok: false, msg: "You already have a car coming." };
+  const rp = dispatchRoadPoint(520);
+  if (!rp || rp.d > 140) return { ok: false, msg: "No street near enough for a pickup. Walk to a road." };
+  const ki = CAR_KINDS.findIndex(k => k.name === cls.kind);
+  const car = ki >= 0 ? dispatchPickCar(ki) : null;
+  if (!car) return { ok: false, msg: "No drivers free right now. Try again in a moment." };
+  const u = { svc: "ryde", kind: ki, state: "coming", t: 0, stuck: 0, met: true, vmax: Math.min(15.5, CAR_KINDS[ki].top + 2) };
+  const eta = dispatchOnLane(u, car, rp);
+  car.hailed = true;                       // the car is yours, so getting in is not a theft
+  dispatch.units.push(u);
+  return { ok: true, unit: u, eta: eta };
+}
+function rydeCancel() {
+  const r = phone.ryde; if (!r) return;
+  if (r.unit) { r.unit.state = "leaving"; r.unit.t2 = 0; if (r.unit.car) r.unit.car.hailed = false; }
+  phone.ryde = null; phone.dirty = true;
+}
+// Called as the player gets in.
+function rydeBoarded(u) {
+  const r = phone.ryde;
+  if (r && r.unit === u) {
+    purse.yen = Math.max(0, purse.yen - r.fare);
+    say("Ryde. " + yenText(r.fare) + " charged.", 4);
+    phone.ryde = null; phone.dirty = true;
+  }
+}
+// Where the car is, how far it has to come, and how long that is.
+function rydeStatus() {
+  const r = phone.ryde; if (!r || !r.unit || !r.unit.car || !r.unit.car.at) return null;
+  const u = r.unit, car = u.car, a = car.at;
+  const lane = traffic.lanes[car.lane];
+  const left = Math.max(0, u.target - car.s);
+  const secs = u.state === "coming" ? left / Math.max(8, car.v) : 0;
+  return { x: a.x, z: a.z, left: left, secs: secs, arrived: u.state === "waiting", lane: lane, s0: car.s, s1: u.target,
+           wait: Math.max(0, DISPATCH_WHO.ryde.stay - u.t) };
 }
 
 function updateDispatch(dt) {
@@ -22404,12 +22502,19 @@ function updateDispatch(dt) {
       const v = u.free ? u.v : u.car.v;
       if (remain < (u.free ? 3 : 4) && v < 1.5) {
         u.state = "waiting"; u.t = 0;
-        say("The " + who.name + " has arrived.", 4);
+        say(u.svc === "ryde" ? "Your Ryde is here. Walk up to it and press Y." : "The " + who.name + " has arrived.", 5);
+        if (u.svc === "ryde") { u.car.stopped = true; phone.dirty = true; }
       }
     } else if (u.state === "waiting") {
       u.t += dt;
       if (!u.met && Math.hypot(x - px, z - pz) < 14) { u.met = true; meetDispatch(u, who); }
-      if (u.t > who.stay) { u.state = "leaving"; u.t2 = 0; }
+      if (u.t > who.stay) {
+        u.state = "leaving"; u.t2 = 0;
+        if (u.svc === "ryde") {
+          if (u.car) { u.car.hailed = false; u.car.stopped = false; }
+          if (phone.ryde && phone.ryde.unit === u) { phone.ryde = null; phone.dirty = true; say("Your driver gave up waiting.", 4); }
+        }
+      }
     }
   }
   phone.dirty = phone.dirty || (phone.open && phone.app === "Numbers");
@@ -22420,7 +22525,7 @@ function meetDispatch(u, who) {
     vitals.health = 1;
     vitals.stress = clamp01(vitals.stress - 0.2);
   }
-  say(who.meet, 7);
+  if (who.meet) say(who.meet, 7);
 }
 
 // On the minimap while they are coming, in their own colours.
@@ -22699,7 +22804,13 @@ function updateHail(dt) {
       if (d > 200) { h.hailed = false; drive.hailed = null; say("It drove on.", 3); }
     }
   }
-  if (phone.ryde) {
+  if (phone.ryde && phone.ryde.unit) {
+    // a real car: the phone just reports on it, about four times a second
+    const st = rydeStatus();
+    if (st) phone.ryde.eta = st.secs / 60;
+    phone.ryde.redraw = (phone.ryde.redraw || 0) + dt;
+    if (phone.ryde.redraw > 0.25 && phone.open && phone.app === "Ryde") { phone.ryde.redraw = 0; phone.dirty = true; }
+  } else if (phone.ryde) {
     phone.ryde.eta -= dt / 60;
     if (phone.ryde.eta <= 0) {
       purse.yen = Math.max(0, purse.yen - phone.ryde.fare);
@@ -22995,6 +23106,7 @@ function updateJacking(dt) {
 function enterCar(index, jacked) {
   const c = traffic.cars[index];
   if (!c || !c.live) return;
+  if (c.dispatch && c.dispatch.svc === "ryde") rydeBoarded(c.dispatch);
   // Walking up to a moving car and pressing Y is a carjacking, not a lift.
   if (!jacked && c.v > 0.4 && !c.hailed && !c.stopped) {
     if (startJacking(index)) return;
