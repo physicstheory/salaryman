@@ -2017,6 +2017,26 @@ function makeWorld(seed, report) {
     }
     return null;
   };
+  // The painted city ground is its own mesh, on a coarser lattice than the
+  // terrain, so it does not sit exactly 0.7 m over the soil: in places it is a
+  // metre or two higher, and anything standing at "terrain plus 0.7" is then in
+  // it up to the knees. Each overlay registers its vertices here and the height
+  // of its drawn surface can be asked for.
+  world.overlays = [];
+  world.overlayY = (px, pz) => {
+    const L = world.overlays;
+    for (let i = 0; i < L.length; i++) {
+      const o = L[i];
+      const fx = (px - o.x0) / o.w * o.sx, fz = (pz - o.z0) / o.h * o.sz;
+      if (fx < 0 || fz < 0 || fx > o.sx || fz > o.sz) continue;
+      const x0 = Math.min(Math.floor(fx), o.sx - 1), z0 = Math.min(Math.floor(fz), o.sz - 1);
+      const tx = fx - x0, tz = fz - z0, W = o.sx + 1;
+      const ha = o.y[z0 * W + x0], hb = o.y[(z0 + 1) * W + x0], hc = o.y[(z0 + 1) * W + x0 + 1], hd = o.y[z0 * W + x0 + 1];
+      return tx + tz <= 1 ? ha + tx * (hd - ha) + tz * (hb - ha)
+                          : hc + (1 - tx) * (hb - hc) + (1 - tz) * (hd - hc);
+    }
+    return null;
+  };
   world.surfaceY = (px, pz) => {
     const deck = world.bridgeY(px, pz);
     if (deck !== null) return deck;
@@ -2025,7 +2045,9 @@ function makeWorld(seed, report) {
       const f = world.cities[i].footprint;
       if (f) lift = Math.max(lift, clamp01((f(px, pz) - 0.10) / 0.22));
     }
-    return sampleMesh(height, px, pz) + CITY_LIFT * lift;
+    const base = sampleMesh(height, px, pz) + CITY_LIFT * lift;
+    if (lift > 0.35) { const oy = world.overlayY(px, pz); if (oy !== null && oy > base) return oy; }
+    return base;
   };
 
   // ---- the cities -------------------------------------------------------
@@ -5369,7 +5391,7 @@ function initThree() {
     if (radio.wheel) {
       if (e.code === "ArrowLeft" || e.code === "ArrowUp") { radioStepSel(-1); e.preventDefault(); return; }
       if (e.code === "ArrowRight" || e.code === "ArrowDown") { radioStepSel(1); e.preventDefault(); return; }
-      if (/^Digit[1-7]$/.test(e.code)) { radio.sel = +e.code.slice(5) - 1; drawRadioWheel(); e.preventDefault(); return; }
+      if (/^Digit[1-8]$/.test(e.code)) { radio.sel = +e.code.slice(5) - 1; drawRadioWheel(); e.preventDefault(); return; }
     }
     if (wheel.open) {
       if (e.code === "ArrowLeft") { wheelStep(-1); e.preventDefault(); return; }
@@ -5882,7 +5904,7 @@ function fillPause(name) {
       const info = radioInfo(st);
       const logo = RADIO_LOGOS[st.logo] ? '<img src="' + RADIO_LOGOS[st.logo] + '" alt="">' : '<div class="rl" style="background:' + st.colour + '">' + st.name + '</div>';
       return '<div class="radrow' + (i === radio.st ? " on" : "") + '" id="prad' + i + '" style="--rc:' + st.colour + '">' + logo +
-        '<div><b>' + st.name + ' · ' + st.freq + '</b><span>' + (st.talk ? st.genre + ' · ' + info.title : info.title + ' — ' + info.artist) + '</span></div></div>';
+        '<div><b>' + st.name + (st.freq ? ' · ' + st.freq : '') + '</b><span>' + (st.off ? 'Silence in the car' : st.talk ? st.genre + ' · ' + info.title : info.title + ' — ' + info.artist) + '</span></div></div>';
     }).join(""));
     RADIO_STATIONS.forEach((st, i) => { const el = document.getElementById("prad" + i); if (el) el.addEventListener("click", () => { radio.st = i; radio.tuned = -1; fillPause("radio"); syncPauseRows(); say(st.name + " is set for the next drive.", 3); }); });
   }
@@ -6252,6 +6274,8 @@ function buildScene(w) {
       op.setY(i, w.sampleHeight(px, pz) + CITY_LIFT);
     }
     og.computeVertexNormals();
+    { const ys = new Float32Array(op.count); for (let i = 0; i < op.count; i++) ys[i] = op.getY(i);
+      w.overlays.push({ x0: paint.x0, z0: paint.z0, w: paint.w, h: paint.h, sx: segX, sz: segZ, y: ys }); }
     const overlayMat = new THREE.MeshLambertMaterial({
       map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
     });
@@ -10434,7 +10458,7 @@ function buildTrafficLanes(city) {
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
   const roadY = (x, z) => paved(x, z)
-    ? world.sampleHeight(x, z) + CITY_LIFT
+    ? Math.max(world.sampleHeight(x, z) + CITY_LIFT, world.overlayY ? (world.overlayY(x, z) === null ? -1e9 : world.overlayY(x, z)) : -1e9)
     : world.surfaceY(x, z);
   city.roads.forEach((road, ri) => {
     if (!road.pts || road.pts.length < 3) return;
@@ -12782,8 +12806,38 @@ function mapAct() {
   if (nav.waypoint) { clearWaypoint(); say("Waypoint cleared. Press A to set a new one.", 3); return; }
   setWaypointHere();
 }
+
+// The nearest point on a road to where a waypoint was dropped, so a marker is
+// always on tarmac. Looks wider and wider, up to a couple of kilometres, and
+// leaves the point alone only if there is no road anywhere near.
+function snapToRoad(x, z) {
+  let best = null, bd = Infinity;
+  const seg = (a0, a2, b0, b2) => {
+    const dx = b0 - a0, dz = b2 - a2, l2 = dx * dx + dz * dz;
+    const t = l2 > 1e-6 ? clamp(((x - a0) * dx + (z - a2) * dz) / l2, 0, 1) : 0;
+    const px = a0 + dx * t, pz = a2 + dz * t, d = Math.hypot(px - x, pz - z);
+    if (d < bd) { bd = d; best = [px, pz]; }
+  };
+  if (nav.ready) for (const R of [150, 500, 2000]) {
+    indexNear(nav.idx.roads, x - R, z - R, x + R, z + R, e => {
+      const road = world.cities[e.c].roads[e.r], a = road.pts[e.s], b = road.pts[e.s + 1];
+      if (a && b) seg(a[0], a[2], b[0], b[2]);
+    });
+    if (best) break;
+  }
+  if (world.highway) {
+    const P = world.highway.pts;
+    for (let i = 1; i < P.length; i++) {
+      if (Math.abs(P[i][0] - x) > bd + 40 || Math.abs(P[i][2] - z) > bd + 40) continue;
+      seg(P[i - 1][0], P[i - 1][2], P[i][0], P[i][2]);
+    }
+  }
+  return best || [x, z];
+}
+
 function setWaypointHere() {
-  nav.waypoint = { x: nav.mapCx, z: nav.mapCz };
+  const sp = snapToRoad(nav.mapCx, nav.mapCz);
+  nav.waypoint = { x: sp[0], z: sp[1] };
   const b = document.getElementById("kwaypoint");
   if (b) b.textContent = "Clear waypoint";
 }
@@ -12941,10 +12995,9 @@ function initMap() {
       const across = mapAcross();
       const S = (cv.clientWidth || window.innerWidth) / across;
       const r = cv.getBoundingClientRect();
-      nav.waypoint = {
-        x: nav.mapCx + (e.clientX - r.left - r.width / 2) / S,
-        z: nav.mapCz + (e.clientY - r.top - r.height / 2) / S
-      };
+      const sp = snapToRoad(nav.mapCx + (e.clientX - r.left - r.width / 2) / S,
+                            nav.mapCz + (e.clientY - r.top - r.height / 2) / S);
+      nav.waypoint = { x: sp[0], z: sp[1] };
       drawBigMap();
     }
   });
@@ -20384,7 +20437,9 @@ const RADIO_STATIONS = [
   { id: "talk", name: "Konto Talk 1080", freq: "108.0", genre: "Talk", style: "talk", colour: "#3a8f6a", talk: "daytime", songs: [
     ["The Morning Commute", "Dai & Dee", 180]] },
   { id: "owl", name: "Night Owl 24", freq: "99.9", genre: "Talk, all night", style: "talk", colour: "#7a5ad6", talk: "night", songs: [
-    ["Salaryman Confidential", "Kenji after midnight", 180]] }
+    ["Salaryman Confidential", "Kenji after midnight", 180]] },
+  // not a station: the last place on the wheel, so there is always a way to switch it off
+  { id: "off", name: "Radio off", freq: "", genre: "Silence", style: null, colour: "#59606a", off: true, songs: [["Radio off", "", 60]] }
 ];
 const TALK_LINES = {
   daytime: [
@@ -20417,6 +20472,7 @@ const radio = { st: 0, wheel: false, sel: 0, holdT: 0, holding: false, key: fals
 const radioT0 = Math.random() * 4000;
 function radioNow() { return performance.now() / 1000 + radioT0; }
 
+function radioIsOff() { return !!radioStation(radio.st).off; }
 function radioStation(i) { return RADIO_STATIONS[((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length]; }
 function radioPlaying(st, t) {
   const total = st.songs.reduce((a, s) => a + s[2], 0);
@@ -20616,6 +20672,15 @@ function radioSet(i, quiet) {
   radio.tuned = radio.st;
   if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ }
   radio.talkT = 0;
+  if (RADIO_STATIONS[radio.st].off) {
+    radio.plan = null;
+    if (sound.ctx && radio.bus) {
+      radio.bus.gain.cancelScheduledValues(sound.ctx.currentTime);
+      radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.04);
+    }
+    if (!quiet) radioToast();
+    return;
+  }
   if (sound.ctx && radioInitAudio()) {
     // a burst of static between stations, then the new one
     const ctx = sound.ctx;
@@ -20638,8 +20703,8 @@ function radioToast() {
   el.style.setProperty("--rc", st.colour);
   const img = el.querySelector("img");
   if (img) { img.src = RADIO_LOGOS[st.logo] || ""; img.style.display = RADIO_LOGOS[st.logo] ? "" : "none"; }
-  el.querySelector(".rn").textContent = st.name + "  ·  " + st.genre;
-  el.querySelector(".rt").textContent = info.title + " — " + info.artist;
+  el.querySelector(".rn").textContent = st.off ? "Radio off" : st.name + "  ·  " + st.genre;
+  el.querySelector(".rt").textContent = st.off ? "Tap to bring it back" : info.title + " — " + info.artist;
   el.classList.add("on");
 }
 
@@ -20678,6 +20743,14 @@ function talkLogo(g, st, x, y, w, h) {
   g.font = "700 " + Math.round(h * 0.22) + "px " + UI; g.fillText(st.freq + (st.talk === "night" ? "  ·  24 HOURS" : "  AM"), x, y + h * 0.24);
 }
 function drawRadioLogo(g, st, x, y, w, h) {
+  if (st.off) {                       // a power symbol on a dark plate
+    g.fillStyle = "#1b1e23"; roundRect(g, x - w / 2, y - h / 2, w, h, h * 0.2); g.fill();
+    g.strokeStyle = "#cfd5db"; g.lineWidth = Math.max(3, h * 0.07); g.lineCap = "round";
+    const r = h * 0.26;
+    g.beginPath(); g.arc(x, y + h * 0.02, r, -Math.PI * 0.30, Math.PI * 1.30 + 0, false); g.stroke();
+    g.beginPath(); g.moveTo(x, y - h * 0.30); g.lineTo(x, y + h * 0.02); g.stroke();
+    return;
+  }
   const im = radio.imgs[st.logo];
   if (st.talk || !im || !im.complete || !im.naturalWidth) { talkLogo(g, st, x, y, w, h); return; }
   const r = Math.min(w / im.naturalWidth, h / im.naturalHeight);
@@ -20718,6 +20791,7 @@ function drawRadioWheel() {
     const info = radioInfo(st);
     g.fillStyle = on ? "#0c0e12" : "#e9edf0"; g.textAlign = "center"; g.textBaseline = "middle";
     g.font = "600 " + Math.round(W * 0.0155) + "px " + UI;
+    if (st.off) { g.fillText("Radio off", gx, gy + outer * 0.115); return; }
     let tt = st.talk ? "On air" : info.title;
     while (tt.length > 4 && g.measureText(tt).width > outer * 0.38) tt = tt.slice(0, -2);
     g.fillText(tt === (st.talk ? "On air" : info.title) ? tt : tt + "…", gx, gy + outer * 0.115);
@@ -20727,6 +20801,14 @@ function drawRadioWheel() {
   g.strokeStyle = st.colour; g.lineWidth = 4; g.beginPath(); g.arc(cx, cy, inner - 8, 0, 7); g.stroke();
   drawRadioLogo(g, st, cx, cy - inner * 0.42, inner * 1.05, inner * 0.50);
   g.textAlign = "center"; g.textBaseline = "middle";
+  if (st.off) {
+    g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.026) + "px " + UI;
+    g.fillText("Radio off", cx, cy + inner * 0.10);
+    g.fillStyle = "#a9b0b8"; g.font = "500 " + Math.round(W * 0.018) + "px " + UI;
+    g.fillText("Let go to switch it off", cx, cy + inner * 0.34);
+    g.textAlign = "left"; g.textBaseline = "alphabetic";
+    return;
+  }
   g.fillStyle = st.colour; g.font = "800 " + Math.round(W * 0.019) + "px " + UI;
   g.fillText(st.freq + "  ·  " + st.genre, cx, cy + inner * 0.05);
   g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.024) + "px " + UI;
@@ -20754,7 +20836,7 @@ function updateRadio(dt) {
   const driving = !!drive.car;
   if (driving) {
     if (!radio.bus && !radioInitAudio()) return;
-    if (!radio.started || radio.tuned !== radio.st) { radio.started = true; radioSet(radio.st, false); }
+    if (!radio.started || radio.tuned !== radio.st) { radio.started = true; radioSet(radio.st, radioIsOff()); }
     radioSchedule();
     radioTalk(dt);
   } else if (radio.bus && radio.bus.gain.value > 0) {
@@ -25016,9 +25098,13 @@ function updateSki(dt) {
 
 function frameLoop() {
   let last = performance.now();
+  let slow = 1;
   function loop(now) {
     const raw = now - last;
-    const dt = Math.min(raw / 1000, 0.1);
+    // Picking from a wheel takes the world down to a third speed, eased in and out.
+    const want = (radio.wheel || wheel.open) ? 0.33 : 1;
+    slow += (want - slow) * Math.min(1, raw / 1000 * 12);
+    const dt = Math.min(raw / 1000, 0.1) * slow;
     last = now;
     if (world && scene) {
       tick(dt);
