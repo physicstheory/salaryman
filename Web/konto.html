@@ -449,6 +449,40 @@
     background: #1b2a33;
     box-shadow: 0 0 0 3px rgba(12, 14, 18, 0.72), 0 6px 22px rgba(0, 0, 0, 0.5);
   }
+  /* Phone notifications, as the phone would raise them, but over the picture and not on the handset. */
+  #strainveil { position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0; transition: opacity 1.2s;
+    background: radial-gradient(ellipse at center, rgba(20,10,10,0) 38%, rgba(35,12,16,0.55) 78%, rgba(12,4,8,0.88) 100%); }
+  #notifs {
+    position: absolute;
+    left: calc(18px + env(safe-area-inset-left, 0px));
+    bottom: calc(18px + 220px + 14px + env(safe-area-inset-bottom, 0px));
+    width: 304px;
+    display: flex; flex-direction: column-reverse; gap: 8px;
+  }
+  .notif {
+    display: flex; gap: 10px; align-items: center;
+    padding: 9px 12px 9px 9px;
+    background: rgba(18, 20, 25, 0.82);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 14px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(8px);
+    color: #f2f4f2;
+    font: 500 13px/1.25 var(--ui);
+    transform: translateX(-24px); opacity: 0;
+    transition: transform .28s ease-out, opacity .28s ease-out;
+  }
+  .notif.in { transform: none; opacity: 1; }
+  .notif.out { transform: translateX(-24px); opacity: 0; }
+  .notif i {
+    flex: none; width: 34px; height: 34px; border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font: 800 17px/1 var(--ui); font-style: normal; color: #fff;
+  }
+  .notif b { display: block; font-weight: 700; font-size: 12.5px; letter-spacing: .01em; }
+  .notif span { display: block; opacity: .82; font-size: 12.5px; max-height: 2.6em; overflow: hidden; }
+  .notif em { margin-left: auto; font: 600 11px var(--ui); font-style: normal; opacity: .5; align-self: flex-start; }
+  body:not(.walking):not(.driving) #notifs { display: none; }
   #prompt {
     position: absolute;
     left: 50%;
@@ -926,6 +960,7 @@
   <div id="minimapwrap">
     <canvas id="minimap" width="220" height="220"></canvas>
   </div>
+  <div id="notifs"></div>
   <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
   <div id="phone">
     <div id="phonebody">
@@ -965,6 +1000,7 @@
 <canvas id="stars" width="260" height="46" hidden></canvas>
 <div id="fade"></div>
 <div id="money">&yen;500,000</div>
+<div id="strainveil"></div>
 <div id="notice"></div>
 
 <div id="mapscreen">
@@ -5676,6 +5712,7 @@ function pollPad(dt) {
     if (pressed(PAD.UP)) heistPress("u"); if (pressed(PAD.DOWN)) heistPress("d");
     if (pressed(PAD.LEFT)) heistPress("l"); if (pressed(PAD.RIGHT)) heistPress("r");
     if (pressed(PAD.A)) heistPress("a"); if (pressed(PAD.B)) heistPress("b");
+    heist.padA = held(PAD.A);
     pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0;
     return;
   }
@@ -7061,7 +7098,7 @@ function updateWalk(dt) {
   updateHeist(dt);
   const w = wish();
   const running = keys.ShiftLeft || keys.ShiftRight || w.run;
-  const top = running ? 4.7 : 1.65;
+  const top = (running ? 4.7 : 1.65) * (1 - 0.42 * strainOf());       // stress slows him
   const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const wishDir = new THREE.Vector3();
@@ -7378,6 +7415,18 @@ function drawVitals() {
 
 // Stress climbs slowly through the day and faster when he is being hunted;
 // walking it off in the quiet does nothing, which is the joke.
+function strainOf() { return clamp01((vitals.stress - 0.5) / 0.5); }
+// Comfort food does more for a man who is running on nothing than it does for a rested one.
+const COMFORT_RE = /ramen|nigiri|sushi|salmon|omakase|tsukemen|tonkotsu|miso|shoyu|bento|gyoza|karaage|onigiri|nikuman|meatbun/i;
+function eatRelief(id, rel) {
+  if (!rel) return 0;
+  if (COMFORT_RE.test(id || "") && vitals.stress > 0.3) return rel * (1.6 + strainOf() * 1.2);
+  return rel;
+}
+// Buying something is a small lift in itself; it is not meant to be good for you.
+function retailRelief(yen) {
+  if (vitals.stress > 0.3) vitals.stress = clamp01(vitals.stress - clamp(0.012 + yen / 60000, 0, 0.06));
+}
 function updateVitals(dt) {
   if (!player.placed) return;
   vitals.stress = clamp01(vitals.stress + dt * 0.0016);
@@ -7386,11 +7435,31 @@ function updateVitals(dt) {
   vitals.awake = (vitals.awake || 0) + dt * TIME.rate;
   if (vitals.awake > 4320) vitals.stress = clamp01(vitals.stress + dt * 0.0004 * Math.min(2.5, (vitals.awake - 4320) / 2880));
   updateHealthData(dt);
-  if (vitals.health < 1) vitals.health = clamp01(vitals.health + dt * 0.012);
+  // Health does not mend itself. Food does it, and a bed does, and so does a hospital.
+  // Out in the open air stress eases (the outdoors is the free cure); in a car on a
+  // road, in a flat or in a shop it does not.
+  if (!home.inside && !shops.inside && !drive.train && !paused) {
+    const at = drive.car ? drive.car.pos : player.pos;
+    const open = world.sampleUrban(at.x, at.z) < 0.03 && !(drive.car && !TWO_WHEELERS[CAR_KINDS[drive.car.kind].body]);
+    if (open && vitals.stress > 0.05) {
+      const k = (ski.mode === "run" || (drive.car && (drive.car.kind === carKindIndex("mtb") || drive.car.kind === carKindIndex("dirtbike")))) ? 2 : 1;
+      vitals.stress = clamp01(vitals.stress - dt * 0.0036 * k);
+      vitals.outT = (vitals.outT || 0) + dt;
+      if (vitals.outT > 45 && vitals.stress > 0.45) { vitals.outT = 0; notify("Health", "The air helps", "Being outside is easing your nerves.", 4); }
+    }
+  }
+  // what a man at the end of his rope can and cannot do
+  const st = vitals.stress;
+  if (st > 0.72 && !vitals.hi1) { vitals.hi1 = true; notify("Health", "Stress is high", "You are slowing down. Eat something warm, buy something, or get outside.", 7); }
+  else if (st < 0.6) vitals.hi1 = false;
+  if (st > 0.92 && !vitals.hi2) { vitals.hi2 = true; notify("Health", "Running on empty", "You can hardly walk straight, let alone drive. Ramen. Sushi. Anything.", 8); }
+  else if (st < 0.8) vitals.hi2 = false;
   if (vitals.stress > 0.995 && !vitals.warned) {
     vitals.warned = true;
     say("Exhausted. Find a capsule hotel.", 6);
   } else if (vitals.stress < 0.9) vitals.warned = false;
+  const sv = document.getElementById("strainveil");
+  if (sv) sv.style.opacity = (strainOf() * 0.85).toFixed(2);
 }
 
 // A machine that cannot hold a playable frame rate should not have to be told
@@ -15757,6 +15826,7 @@ const LOYALTY = {
 // Everything that is bought from a brand's shop counts towards its card, and
 // once the card is active it earns a point for every hundred yen.
 function noteBuy(brand, yen) {
+  retailRelief(yen);
   if (!(brand in wallet.buys)) return;
   wallet.buys[brand]++;
   if (wallet.loyal[brand]) wallet.pts[brand] += Math.floor(yen / 100);
@@ -17931,20 +18001,45 @@ function mnJudgeDeal(post, A, caption) {
   const say = (text) => { if (th) { th.msgs.push({ from: "them", text: text, t: mnNow() + 4 }); th.unread = true; } };
   if (met) {
     res.paid = true; purse.yen += d.fee; mynet.me.income += d.fee;
-    mynet.pending.push({ at: mnNow() + 6, type: "dm", fn: () => { say("Posted and perfect. ¥" + d.fee.toLocaleString("en-US") + " is on its way to you. Thank you, Seiko!"); } });
+    mynet.pending.push({ at: mnNow() + 6, type: "dm", fn: () => { notify("MyGram", d.brand, "Posted and perfect. ¥" + d.fee.toLocaleString("en-US") + " is on its way to you. Thank you, Seiko!", 6); } });
     mynet.pending.push({ at: mnNow() + 6, type: "pay", n: d.fee, brand: d.brand });
     d.done = true;
   } else if (mention && ad && subjectOk && A.score < 42) {
-    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { say("We saw the post. It didn't reflect well on " + d.brand + " and we're withdrawing the offer."); d.done = true; } });
+    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { notify("MyGram", d.brand, "We saw the post. It didn't reflect well on " + d.brand + " and we're withdrawing the offer.", 6); d.done = true; } });
   } else {
     const why = !mention ? "didn't mention " + d.brand : !ad ? "had no #ad on it" : !subjectOk ? "didn't show " + (d.shop ? "one of our shops" : d.subject === "station" ? "the railway" : d.subject === "highway" ? "the expressway" : "the mountain") : "wasn't good enough yet";
-    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { say("Thanks for posting, but it " + why + ". The offer's still open until the deadline."); } });
+    mynet.pending.push({ at: mnNow() + 8, type: "dm", fn: () => { notify("MyGram", d.brand, "Thanks for posting, but it " + why + ". The offer's still open until the deadline.", 6); } });
   }
   if (d.done) { mynet.deal = null; }
   return res;
 }
 
-function mnSay(text, s) { const t = performance.now(); if (t - mynet.lastSay < 1500 && s !== 9) return; mynet.lastSay = t; say(text, s || 3); }
+// ---- notifications -----------------------------------------------------------------
+// What the phone would show on its glass is shown here instead, over the picture
+// and above the minimap, so that it can be seen without taking the phone out:
+// a coloured app tile, who it is from and what it says, for a few seconds.
+const NOTIF_APPS = { MyGram: ["#d6249f", "M"], Ryde: ["#101215", "R"], Messages: ["#31b36b", "\u2709"], Phone: ["#31b36b", "\u260e"],
+                     Hayabin: ["#e8711a", "\u25a3"], Wallet: ["#3b8cf0", "\u00a5"], Health: ["#e5483c", "\u2665"], Emergency: ["#d4152c", "!"] };
+function notify(app, title, body, secs) {
+  const host = document.getElementById("notifs"); if (!host) { say((title ? title + ": " : "") + (body || ""), secs || 4); return; }
+  const a = NOTIF_APPS[app] || ["#5a6068", String(app || "?")[0]];
+  const el = document.createElement("div"); el.className = "notif";
+  el.innerHTML = '<i style="background:' + a[0] + '">' + a[1] + '</i><div><b></b><span></span></div><em>now</em>';
+  el.querySelector("b").textContent = title || app; el.querySelector("span").textContent = body || "";
+  host.appendChild(el);
+  while (host.children.length > 4) host.removeChild(host.firstChild);
+  requestAnimationFrame(() => el.classList.add("in"));
+  setTimeout(() => { el.classList.add("out"); el.classList.remove("in"); setTimeout(() => { if (el.parentNode) el.parentNode.removeChild(el); }, 320); }, (secs || 5) * 1000);
+  try { playBlip(880, 0.07, 0.03); setTimeout(() => playBlip(1175, 0.09, 0.03), 90); } catch (e) { /* no sound yet */ }
+}
+
+function mnSay(text, s) {
+  const t = performance.now(); if (t - mynet.lastSay < 900 && s !== 9) return; mynet.lastSay = t;
+  let m;
+  if ((m = /^MyGram \u00b7 (.*)$/.exec(text))) { const parts = m[1].split(/: (.+)/); notify("MyGram", parts.length > 1 ? parts[0] : "MyGram", parts.length > 1 ? parts[1] : m[1], s || 4); return; }
+  if ((m = /^(@\S+) replied: (.*)$/.exec(text))) { notify("MyGram", m[1] + " replied", m[2], s || 4); return; }
+  say(text, s || 3);
+}
 function mynetBadge() { return mynet.threads.filter(t => t.unread).length + mynet.newReact; }
 
 // ---- messages
@@ -19005,7 +19100,7 @@ function heistStart(i) {
   const rec = drive.parked[i]; if (!rec) return;
   const kind = CAR_KINDS[rec.kind];
   if (!HOT_DIFF[kind.name]) { say("That one needs more than a coat hanger.", 3); return; }
-  heist.rec = rec; heist.diff = HOT_DIFF[kind.name]; heist.stage = "smash"; heist.t = 0; heist.strikes = 0; heist.struck = false; heist.step = 0; heist.msg = ""; heist.last = "";
+  heist.rec = rec; heist.diff = HOT_DIFF[kind.name] * (1 + 0.45 * strainOf()); heist.stage = "smash"; heist.t = 0; heist.strikes = 0; heist.struck = false; heist.step = 0; heist.msg = ""; heist.last = "";
   // stand at the door nearest to where he came from, facing the car
   const rx = Math.cos(rec.yaw), rz = -Math.sin(rec.yaw);
   heist.side = ((player.pos.x - rec.pos.x) * rx + (player.pos.z - rec.pos.z) * rz) >= 0 ? 1 : -1;
@@ -19032,15 +19127,24 @@ function heistStrike(msg) {
   playBlip(120, 0.25, 0.09);
   if (heist.strikes >= 3) heistFail();
 }
+const HOT_WIRES = [["red", "#e5483c"], ["yellow", "#f0c030"], ["brown", "#8a5a30"], ["blue", "#3b8cf0"], ["green", "#31b36b"], ["white", "#e8e8e8"]];
 function heistInitStep() {
   heist.msgT = 0;
   if (heist.step === 0) { heist.meter = 0.12; heist.tleft = 9 / heist.diff; heist.last = ""; }
   else if (heist.step === 1) {
-    const n = 4 + Math.round(heist.diff * 1.5), arr = ["u", "d", "l", "r"];
-    heist.seq = []; for (let k = 0; k < n; k++) { let c = arr[(Math.random() * 4) | 0]; if (k && c === heist.seq[k - 1] && Math.random() < 0.6) c = arr[(arr.indexOf(c) + 1) % 4]; heist.seq.push(c); }
-    heist.si = 0; heist.tleft = 2.4 / heist.diff;
+    // a harness of six wires, and a sticker under the dash that says which three matter
+    const idx = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5);
+    heist.harness = idx.map(i => HOT_WIRES[i]);              // left to right
+    const pick = k => heist.harness[k];
+    const roles = [0, 1, 2, 3, 4, 5].sort(() => Math.random() - 0.5).slice(0, 3);
+    heist.roles = { bat: pick(roles[0]), ign: pick(roles[1]), st: pick(roles[2]) };
+    heist.need = ["bat", "ign"]; heist.got = 0; heist.cw = 2; heist.tleft = 22 / heist.diff;
   } else if (heist.step === 2) {
-    heist.cur = 0; heist.dir = 1; heist.zone = 0.28 + Math.random() * 0.44; heist.hits = 0; heist.need = heist.diff > 1.4 ? 2 : 1;
+    heist.cur = 0; heist.dir = 1; heist.zone = 0.28 + Math.random() * 0.44; heist.hits = 0; heist.need2 = 1 + (heist.diff > 1.35 ? 1 : 0);
+  } else if (heist.step === 3) {
+    heist.crank = 0; heist.cz = 0.42 + Math.random() * 0.28; heist.tries = 0; heist.held = false; heist.tleft = 16 / heist.diff;
+  } else if (heist.step === 4) {
+    heist.meter = 0.1; heist.last = ""; heist.tleft = 8 / heist.diff;
   }
 }
 function heistSucceed() {
@@ -19054,31 +19158,43 @@ function heistSucceed() {
   say("Hot-wired. The engine catches.", 3.5);
   if (seen) commitCrime("jackSeen");
 }
+const HEIST_STEPS = ["Pry the column shroud off", "Find the wires", "Twist battery to ignition", "Crank the starter", "Break the steering lock"];
+function heistAdvance(msg) { heist.step++; heistInitStep(); heist.msg = msg; heist.msgT = 1.1; playBlip(660, 0.12); }
 function heistPress(ev) {
   if (!heist.stage) return false;
   if (ev === "b") { if (heist.stage === "wire") heistEnd("You back away from the car."); return true; }
   if (heist.stage !== "wire") return true;
   if (heist.step === 0) {
     if (ev === "a" || ev === "l" || ev === "r") {
-      // arrows have to alternate, or holding one would do it
-      if (ev !== "a" && ev === heist.last) return true;
+      if (ev !== "a" && ev === heist.last) return true;               // arrows have to alternate, or holding one would do it
       heist.last = ev; heist.meter = Math.min(1, heist.meter + 0.085 / heist.diff); playBlip(300 + heist.meter * 500, 0.05, 0.04);
-      if (heist.meter >= 1) { heist.step = 1; heistInitStep(); heist.msg = "Panel off."; heist.msgT = 1; playBlip(660, 0.12); }
+      if (heist.meter >= 1) heistAdvance("The shroud comes away.");
     }
   } else if (heist.step === 1) {
-    if (ev === "u" || ev === "d" || ev === "l" || ev === "r") {
-      if (ev === heist.seq[heist.si]) {
-        heist.si++; heist.tleft = 2.4 / heist.diff; playBlip(520 + heist.si * 70, 0.07, 0.05);
-        if (heist.si >= heist.seq.length) { heist.step = 2; heistInitStep(); heist.msg = "Wires twisted."; heist.msgT = 1; playBlip(740, 0.14); }
-      } else heistStrike("Wrong wire.");
+    if (ev === "l") heist.cw = Math.max(0, heist.cw - 1);
+    else if (ev === "r") heist.cw = Math.min(5, heist.cw + 1);
+    else if (ev === "a") {
+      const want = heist.roles[heist.need[heist.got]], w = heist.harness[heist.cw];
+      if (w === want) { heist.got++; playBlip(560 + heist.got * 120, 0.09, 0.05);
+        if (heist.got >= heist.need.length) heistAdvance("Both ends bare."); else { heist.msg = "Battery wire stripped."; heist.msgT = 0.9; } }
+      else heistStrike(w === heist.roles.st ? "That is the starter wire: it is live when cranked." : "Wrong wire. It sparks on the frame.");
     }
   } else if (heist.step === 2) {
     if (ev === "a") {
-      if (Math.abs(heist.cur - heist.zone) < 0.085 / Math.sqrt(heist.diff)) {
+      if (Math.abs(heist.cur - heist.zone) < 0.09 / Math.sqrt(heist.diff)) {
         heist.hits++; playBlip(880, 0.12);
-        if (heist.hits >= heist.need) { heist.stage = "start"; heist.t = 0; heist.msg = "It turns over."; heist.msgT = 2; }
+        if (heist.hits >= heist.need2) heistAdvance("The dash lights come on.");
         else { heist.zone = 0.2 + Math.random() * 0.6; heist.msg = "Again."; heist.msgT = 0.8; }
-      } else { heistStrike("Missed the spark."); heist.zone = 0.2 + Math.random() * 0.6; }
+      } else { heistStrike("The twist will not hold."); heist.zone = 0.2 + Math.random() * 0.6; }
+    }
+  } else if (heist.step === 3) {
+    // holding A is the starter: this edge only starts it. The release is judged in updateHeist.
+    if (ev === "a") heist.held = true;
+  } else if (heist.step === 4) {
+    if (ev === "l" || ev === "r") {
+      if (ev === heist.last) return true;
+      heist.last = ev; heist.meter = Math.min(1, heist.meter + 0.115 / heist.diff); playBlip(220 + heist.meter * 400, 0.05, 0.05);
+      if (heist.meter >= 1) { heist.stage = "start"; heist.t = 0; heist.msg = "The lock snaps."; heist.msgT = 2; playBlip(940, 0.2, 0.08); }
     }
   }
   return true;
@@ -19109,22 +19225,43 @@ function updateHeist(dt) {
       const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: 0xd8eef7, size: 0.13, transparent: true, opacity: 1, depthWrite: false }));
       pts.frustumCulled = false; scene.add(pts); heist.shards = { pts: pts, vel: vel, t: 0 };
       // a car worth stealing has an alarm worth hearing
-      if (heist.diff >= 1.2 || Math.random() < 0.28) { sound.alarmUntil = clock + 14; say("The alarm is going off.", 3); commitCrime("alarm"); }
+      heist.alarmT = 0;
+      if (heist.diff >= 1.2 || Math.random() < 0.28) { sound.alarmUntil = clock + 40; say("The alarm is going off.", 3); commitCrime("alarm"); heist.alarm = true; } else heist.alarm = false;
       let seen = false; const pk = CAR_KINDS.findIndex(k => k.name === "police");
       carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
       if (seen) commitCrime("jackSeen");
     }
     if (heist.t > 1.2) { heist.stage = "wire"; heist.step = 0; heistInitStep(); player.forceClip = "hotwire"; }
   } else if (heist.stage === "wire") {
+    // a ringing alarm brings the neighbours: forty seconds of it and somebody leans out
+    if (heist.alarm) { heist.alarmT += dt; if (heist.alarmT > 40) { heist.alarm = false; heistFail(); return; } }
     if (heist.step === 0) {
       heist.meter = Math.max(0, heist.meter - 0.22 * heist.diff * dt); heist.tleft -= dt;
-      if (heist.tleft <= 0) { heistStrike("The panel will not give."); heist.tleft = 9 / heist.diff; heist.meter = 0.1; }
+      if (heist.tleft <= 0) { heistStrike("The screwdriver slips off."); heist.tleft = 9 / heist.diff; heist.meter = 0.1; }
     } else if (heist.step === 1) {
-      heist.tleft -= dt;
-      if (heist.tleft <= 0) { heistStrike("Too slow."); heist.tleft = 2.4 / heist.diff; }
+      heist.tleft -= dt; if (heist.tleft <= 0) { heistStrike("Too slow, and the torch is dying."); heist.tleft = 22 / heist.diff; }
     } else if (heist.step === 2) {
       heist.cur += heist.dir * dt * 1.15 * heist.diff;
       if (heist.cur > 1) { heist.cur = 1; heist.dir = -1; } else if (heist.cur < 0) { heist.cur = 0; heist.dir = 1; }
+    } else if (heist.step === 3) {
+      const down = !!(keys.Enter || keys.Space || keys.KeyE || heist.padA);
+      heist.tleft -= dt;
+      if (down && heist.held) {
+        heist.crank = Math.min(1.02, heist.crank + dt * 0.62 * Math.sqrt(heist.diff));
+        if (!heist.cranking) { heist.cranking = true; }
+        if (Math.floor(heist.crank * 14) !== heist.lastTick) { heist.lastTick = Math.floor(heist.crank * 14); playBlip(110 + (heist.crank * 60), 0.06, 0.05); }
+        if (heist.crank >= 1.0) { heist.held = false; heist.cranking = false; heist.crank = 0; heistStrike("The starter grinds. Too long on it."); heist.cz = 0.42 + Math.random() * 0.28; }
+      } else if (heist.cranking) {
+        // let go: did it fire?
+        heist.cranking = false; heist.held = false;
+        const w = 0.075 / Math.sqrt(heist.diff);
+        if (Math.abs(heist.crank - heist.cz) <= w) { heistAdvance("It fires. Hold the revs."); }
+        else { heist.tries++; heist.msg = heist.crank < heist.cz ? "Not enough. It coughs and dies." : "Flooded it."; heist.msgT = 1.0; heist.crank = 0; if (heist.tries >= 4) { heistStrike("The battery is going flat."); heist.tries = 0; } }
+      }
+      if (heist.tleft <= 0) { heistStrike("The battery is dead."); heist.tleft = 16 / heist.diff; heist.crank = 0; heist.cranking = false; }
+    } else if (heist.step === 4) {
+      heist.meter = Math.max(0, heist.meter - 0.28 * heist.diff * dt); heist.tleft -= dt;
+      if (heist.tleft <= 0) { heistStrike("The lock will not break."); heist.tleft = 8 / heist.diff; heist.meter = 0.1; }
     }
   } else if (heist.stage === "start") {
     if (heist.t > 0.9) heistSucceed();
@@ -19158,42 +19295,45 @@ function drawHeist() {
   const W = innerWidth, H = innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
   if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
   const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
-  const pw = Math.min(W * 0.9, 560), ph = Math.min(H * 0.34, 250), px = (W - pw) / 2, py = H - ph - Math.max(24, H * 0.06);
-  g.fillStyle = "rgba(10,12,16,0.82)"; roundRect(g, px, py, pw, ph, 16); g.fill();
+  const pw = Math.min(W * 0.92, 600), ph = Math.min(H * 0.40, 290), px = W > pw + 560 ? W - pw - 28 : (W - pw) / 2, py = H - ph - Math.max(20, H * 0.05);
+  g.fillStyle = "rgba(10,12,16,0.86)"; roundRect(g, px, py, pw, ph, 16); g.fill();
   g.strokeStyle = "rgba(255,255,255,0.14)"; g.lineWidth = 1.5; roundRect(g, px, py, pw, ph, 16); g.stroke();
   const T = (txt, x, y, sz, c, al, wt) => { g.fillStyle = c; g.font = (wt || "700") + " " + sz + "px " + UI; g.textAlign = al || "left"; g.textBaseline = "middle"; g.fillText(txt, x, y); };
-  const titles = ["Pry the panel off", "Twist the right wires", "Spark the ignition"];
-  const step = heist.stage === "start" ? 2 : heist.step;
-  T("Hot-wire  ·  " + (step + 1) + " of 3", px + 22, py + 24, 13, "#9aa3ad", "left", "600");
-  T(titles[step], px + 22, py + 50, 24, "#ffffff", "left", "800");
-  // three strikes, as three small bulbs
-  for (let k = 0; k < 3; k++) { g.fillStyle = k < heist.strikes ? "#e5483c" : "rgba(255,255,255,0.18)"; g.beginPath(); g.arc(px + pw - 28 - k * 22, py + 28, 7, 0, 7); g.fill(); }
-  const cx = px + pw / 2, bw = pw - 60;
-  if (heist.stage === "start") { T("It turns over.", cx, py + ph * 0.62, 30, "#7dffb0", "center", "800"); }
-  else if (heist.step === 0) {
-    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, py + ph * 0.52, bw, 26, 13); g.fill();
-    g.fillStyle = "#f0b429"; roundRect(g, px + 30, py + ph * 0.52, Math.max(18, bw * heist.meter), 26, 13); g.fill();
-    T("Mash  A  (or ◀ ▶ in turn)", cx, py + ph * 0.80, 17, "#c5ccd3", "center", "600");
-  } else if (heist.step === 1) {
-    const n = heist.seq.length, sz = Math.min(54, (bw - 8 * (n - 1)) / n);
-    const x0 = cx - (n * sz + (n - 1) * 8) / 2, glyph = { u: "▲", d: "▼", l: "◀", r: "▶" };
-    const wire = ["#e5483c", "#3b8cf0", "#f0b429", "#31b36b", "#a56bf0", "#f08a2c", "#e8e8e8"];
-    heist.seq.forEach((c, k) => {
-      const x = x0 + k * (sz + 8), y = py + ph * 0.46, done = k < heist.si, now = k === heist.si;
-      g.fillStyle = done ? wire[k % wire.length] : now ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.12)";
-      roundRect(g, x, y, sz, sz, 10); g.fill();
-      T(glyph[c], x + sz / 2, y + sz / 2 + 1, sz * 0.5, done ? "#101216" : now ? "#101216" : "#8d96a0", "center", "800");
+  const step = heist.stage === "start" ? 4 : heist.step;
+  T("Hot-wire  ·  " + (step + 1) + " of 5" + (heist.alarm ? "   ·   ALARM " + Math.max(0, Math.ceil(40 - heist.alarmT)) + " s" : ""), px + 22, py + 22, 12.5, heist.alarm ? "#ff7a6e" : "#9aa3ad", "left", "700");
+  T(HEIST_STEPS[step], px + 22, py + 48, 23, "#ffffff", "left", "800");
+  for (let k = 0; k < 3; k++) { g.fillStyle = k < heist.strikes ? "#e5483c" : "rgba(255,255,255,0.18)"; g.beginPath(); g.arc(px + pw - 28 - k * 22, py + 26, 7, 0, 7); g.fill(); }
+  const cx = px + pw / 2, bw = pw - 60, by = py + ph * 0.50;
+  const bar = (f, col) => { g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, by, bw, 26, 13); g.fill(); g.fillStyle = col; roundRect(g, px + 30, by, Math.max(18, bw * f), 26, 13); g.fill(); };
+  if (heist.stage === "start") { T("The lock snaps. She is yours.", cx, py + ph * 0.62, 28, "#7dffb0", "center", "800"); }
+  else if (heist.step === 0) { bar(heist.meter, "#f0b429"); T("Mash  A  (or ◀ ▶ in turn)  ·  keep the screwdriver in", cx, py + ph * 0.82, 15, "#c5ccd3", "center", "600"); }
+  else if (heist.step === 1) {
+    // the sticker under the dash, then the harness
+    g.fillStyle = "#f2f0e6"; roundRect(g, px + 24, py + 62, pw - 48, 40, 6); g.fill();
+    const r = heist.roles, label = (nm, w, x) => { g.fillStyle = "#222"; g.font = "700 13px " + UI; g.textAlign = "left"; g.fillText(nm, x, py + 82); g.fillStyle = w[1]; g.beginPath(); g.arc(x + g.measureText(nm).width + 14, py + 82, 7, 0, 7); g.fill(); g.strokeStyle = "#444"; g.lineWidth = 1; g.stroke(); };
+    label("BATTERY", r.bat, px + 40); label("IGNITION", r.ign, px + 40 + pw * 0.33); label("STARTER", r.st, px + 40 + pw * 0.66);
+    const n = heist.harness.length, gap = bw / (n - 1);
+    heist.harness.forEach((w, k) => {
+      const x = px + 30 + k * gap, y0 = py + 120, y1 = py + ph - 34, on2 = k === heist.cw;
+      g.strokeStyle = w[1]; g.lineWidth = on2 ? 9 : 6; g.lineCap = "round"; g.beginPath(); g.moveTo(x, y0); g.bezierCurveTo(x + 10, y0 + 30, x - 10, y1 - 30, x, y1); g.stroke();
+      if (on2) { g.strokeStyle = "#ffffff"; g.lineWidth = 2; g.beginPath(); g.arc(x, y1 + 12, 10, 0, 7); g.stroke(); }
     });
-    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, py + ph * 0.82, bw, 8, 4); g.fill();
-    g.fillStyle = heist.tleft < 0.7 ? "#e5483c" : "#9aa3ad"; roundRect(g, px + 30, py + ph * 0.82, Math.max(8, bw * clamp01(heist.tleft / (2.4 / heist.diff))), 8, 4); g.fill();
-  } else {
-    const y = py + ph * 0.52, zw = bw * 0.17 / Math.sqrt(heist.diff);
-    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, y, bw, 30, 15); g.fill();
-    g.fillStyle = "rgba(49,179,107,0.85)"; g.fillRect(px + 30 + bw * heist.zone - zw / 2, y, zw, 30);
-    g.fillStyle = "#ffffff"; g.fillRect(px + 30 + bw * heist.cur - 3, y - 6, 6, 42);
-    T("Press  A  in the green" + (heist.need > 1 ? "  ·  " + heist.hits + " / " + heist.need : ""), cx, py + ph * 0.84, 17, "#c5ccd3", "center", "600");
-  }
-  if (heist.msgT > 0 && heist.msg) T(heist.msg, cx, py - 18, 20, heist.flash > 0 ? "#ff6a5e" : "#ffffff", "center", "800");
+    T((heist.got === 0 ? "Strip the BATTERY wire" : "Now the IGNITION wire") + "   ◀ ▶ choose  ·  A strip", cx, py + ph - 10, 14, "#c5ccd3", "center", "600");
+  } else if (heist.step === 2) {
+    const zw = bw * 0.17 / Math.sqrt(heist.diff);
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, by, bw, 30, 15); g.fill();
+    g.fillStyle = "rgba(49,179,107,0.85)"; g.fillRect(px + 30 + bw * heist.zone - zw / 2, by, zw, 30);
+    g.fillStyle = "#ffffff"; g.fillRect(px + 30 + bw * heist.cur - 3, by - 6, 6, 42);
+    T("Press  A  as the ends line up" + (heist.need2 > 1 ? "  ·  " + heist.hits + " / " + heist.need2 : ""), cx, py + ph * 0.84, 15, "#c5ccd3", "center", "600");
+  } else if (heist.step === 3) {
+    // the starter: hold it, and let go the moment it catches
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, px + 30, by, bw, 30, 15); g.fill();
+    const zw = bw * 0.15 / Math.sqrt(heist.diff);
+    g.fillStyle = "rgba(240,180,41,0.40)"; g.fillRect(px + 30 + bw * heist.cz - zw / 2, by, zw, 30);
+    g.fillStyle = heist.crank > 0.9 ? "#e5483c" : "#ffffff"; roundRect(g, px + 30, by, Math.max(10, bw * Math.min(1, heist.crank)), 30, 15); g.fill();
+    T(heist.cranking ? "Cranking…  let go when it catches" : "HOLD  A  to crank, let go as it catches", cx, py + ph * 0.84, 15, heist.cranking ? "#f0c030" : "#c5ccd3", "center", "600");
+  } else if (heist.step === 4) { bar(heist.meter, "#9aa3ad"); T("Wrench the wheel  ◀ ▶  in turn", cx, py + ph * 0.82, 15, "#c5ccd3", "center", "600"); }
+  if (heist.msgT > 0 && heist.msg) T(heist.msg, px + pw / 2, py - 18, 19, heist.flash > 0 ? "#ff6a5e" : "#ffffff", "center", "800");
   if (heist.flash > 0) { g.fillStyle = "rgba(229,72,60," + (heist.flash * 0.35).toFixed(2) + ")"; g.fillRect(0, 0, W, H); }
   g.textBaseline = "alphabetic";
 }
@@ -21042,7 +21182,7 @@ function takeFromShelf() {
   shops.basket.push(it.name);
   if (it.eat) {
     // eaten there and then, at the counter
-    vitals.stress = clamp01(vitals.stress + (it.stress || 0)); vitals.health = clamp01(vitals.health + (it.health || 0));
+    vitals.stress = clamp01(vitals.stress + eatRelief(it.id, it.stress || 0)); vitals.health = clamp01(vitals.health + (it.health || 0));
     advanceGameMinutes(it.min || 10);
     say("Ate " + it.name.toLowerCase() + " \u00b7 " + yenText(it.price), 3);
   } else if (it.read) {
@@ -21745,6 +21885,7 @@ function homeAct() {
     vitals.stress = clamp01(vitals.stress - 0.22);
     vitals.health = clamp01(vitals.health + 0.30);
     say("Ate. Not much, but something.", 4);
+    retailRelief(0);
   }
   if (a.id === "tv") { enterTV(); return; }
   if (a.id === "console") { enterConsole(); return; }
@@ -23779,7 +23920,7 @@ function setWheel(on) {
 function consumeItem(id) {
   const it = ITEM[id];
   if (!it || !bagTake(id)) return false;
-  if (it.stress) vitals.stress = clamp01(vitals.stress + it.stress);
+  if (it.stress) vitals.stress = clamp01(vitals.stress + eatRelief(it.id, it.stress));
   if (it.health) vitals.health = clamp01(vitals.health + it.health);
   if (it.min) advanceGameMinutes(it.min);
   say((it.cat === "drink" ? "Drank " : it.cat === "med" ? "Took " : "Ate ") + it.name.toLowerCase() + ".", 3);
@@ -24482,7 +24623,7 @@ function rydeBoarded(u) {
   const r = phone.ryde;
   if (r && r.unit === u) {
     purse.yen = Math.max(0, purse.yen - r.fare);
-    say("Ryde. " + yenText(r.fare) + " charged.", 4);
+    notify("Ryde", "Trip complete", yenText(r.fare) + " charged to your wallet.", 5);
     phone.ryde = null; phone.dirty = true;
   }
 }
@@ -24539,7 +24680,7 @@ function updateDispatch(dt) {
       const v = u.free ? u.v : u.car.v;
       if (remain < (u.free ? 3 : 4) && v < 1.5) {
         u.state = "waiting"; u.t = 0;
-        say(u.svc === "ryde" ? "Your Ryde is here. Walk up to it and press Y." : "The " + who.name + " has arrived.", 5);
+        if (u.svc === "ryde") notify("Ryde", "Your driver is here", "Walk up to the car and press Y.", 6); else notify("Emergency", who.name, "has arrived.", 6);
         if (u.svc === "ryde") { u.car.stopped = true; phone.dirty = true; }
       }
     } else if (u.state === "waiting") {
@@ -24549,7 +24690,7 @@ function updateDispatch(dt) {
         u.state = "leaving"; u.t2 = 0;
         if (u.svc === "ryde") {
           if (u.car) { u.car.hailed = false; u.car.stopped = false; }
-          if (phone.ryde && phone.ryde.unit === u) { phone.ryde = null; phone.dirty = true; say("Your driver gave up waiting.", 4); }
+          if (phone.ryde && phone.ryde.unit === u) { phone.ryde = null; phone.dirty = true; notify("Ryde", "Ride cancelled", "Your driver gave up waiting.", 5); }
         }
       }
     }
@@ -24898,7 +25039,7 @@ function updateDeliveries() {
     }
     parcels.list.push(d);
     refreshParcels();
-    say("Hayabin: " + d.name + " is on the step at " + (parcels.house ? parcels.house.name : "the flat in Mizuho") + ". Walk up and press Y.", 6);
+    notify("Hayabin", "Parcel delivered", d.name + " is on the step at " + (parcels.house ? parcels.house.name : "the flat in Mizuho") + ". Walk up and press Y.", 7);
     phone.dirty = true;
   }
 }
@@ -25400,6 +25541,18 @@ function updateDrive(dt) {
   let brake = clamp(pad.brake + (keys.KeyS || keys.ArrowDown ? 1 : 0), 0, 1);
   const hand = keys.Space || pad.handbrake;
   let steer = clamp((keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0) + w.x, -1, 1);
+
+  // A man this wound up cannot drive: the hands wander, the foot is late, and now and
+  // then he simply is not there for a third of a second.
+  const strain = strainOf();
+  if (strain > 0.05) {
+    throttle *= 1 - 0.28 * strain; brake *= 1 - 0.30 * strain;
+    steer = clamp(steer + (Math.sin(clock * 2.6) + Math.sin(clock * 4.1 + 1.3)) * 0.2 * strain, -1, 1);
+    c.lapse = (c.lapse || 0) - dt;
+    if (c.lapse <= 0 && strain > 0.5 && Math.random() < dt * 0.10 * strain) c.lapse = 0.3 + Math.random() * 0.4;
+    if (c.lapse > 0) { throttle = 0; brake = 0; steer = 0; }
+    drive.shake = Math.max(drive.shake || 0, strain * 0.06);
+  }
 
   if (TWO_WHEELERS[kind.body]) {
     updateBike(dt, c, kind, { throttle: throttle, brake: brake, steer: steer, hand: !!hand,
