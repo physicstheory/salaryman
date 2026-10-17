@@ -2903,14 +2903,15 @@ function appPhotos(g, W, H) {
 
 const MN_PEOPLE = [
   ["Mika Tanabe", "@mika.eats", "fan"], ["Daichi", "@daichi_1987", "fan"], ["Yui from Mizuho", "@yui_in_mizuho", "local"],
-  ["Haruto Rail", "@nhrail_fan", "rail"], ["Ichiban Ramen Club", "@ramen_ichiban", "foodie"], ["Sora", "@sora.shoots", "photographer"],
-  ["Granny Sato", "@satoba_chan", "aunty"], ["Kei Car Club", "@keicarclub", "car"], ["Ren", "@ren_ski_hard", "skier"],
+  ["Haruto Rail", "@nhrail_fan", "rail"], ["Ichiban Ramen Club", "@ramen_ichiban", "contact"], ["Sora", "@sora.shoots", "photographer"],
+  ["Granny Sato", "@satoba_chan", "contact"], ["Kei Car Club", "@keicarclub", "car"], ["Ren", "@ren_ski_hard", "skier"],
   ["Tokonto Eats", "@tokonto_eats", "foodie"], ["Aoi", "@aoi.mornings", "fan"], ["Last Train", "@last_train", "rail"],
   ["Takeshi", "@takeshi_no_blog", "troll"], ["Mr. Nobody", "@mr_nobody_77", "troll"], ["Riko", "@riko.rides", "car"],
   ["Section Chief Tanaka", "@section_chief_tanaka", "boss"], ["Hina", "@hina_cats", "fan"], ["Shun", "@shun_hikes", "skier"],
   ["Nanami", "@nanami.coffee", "foodie"], ["Office Floor 12", "@officefloor12", "local"], ["Kenta", "@kenta_wide", "photographer"],
-  ["Mai", "@mai_in_the_rain", "fan"], ["Dai the Taxi", "@hayashi_cabs", "local"], ["Natsuki", "@natsuki_n", "fan"],
+  ["Mai", "@mai_in_the_rain", "fan"], ["Dai the Taxi", "@hayashi_cabs", "contact"], ["Natsuki", "@natsuki_n", "fan"],
   ["Gen", "@gen_gen_gen", "troll"], ["Tomo", "@tomo.tabi", "photographer"], ["Aunt Reiko", "@reiko_obasan", "aunty"],
+  ["Kenji at the Lodge", "@kenji_lodge", "contact"], ["Ms. Ito", "@ito_agency", "contact"], ["Tomo from the Docks", "@tomo_docks", "contact"],
   ["Yuto", "@yuto.vending", "local"], ["Shiori", "@shiori_sakura", "fan"], ["Kaito", "@kaito_k", "troll"]
 ].map((p, i) => ({ name: p[0], handle: p[1], role: p[2], col: "hsl(" + ((i * 47) % 360) + ",52%,46%)" }));
 
@@ -2967,6 +2968,29 @@ const MN_MISSION = [
   { name: "Tomo from the Docks", handle: "@tomo_docks", phone: "090-7773-1004", hook: "Heard you drive the Coastal Expressway a lot. Got a delivery that needs doing quietly. Ring me.",
     line: "Tomo. A box, a car, a quiet road. That's all I'll say. I'll be in touch." }
 ];
+
+const MN_CONTACT_POSTS = {
+  "@hayashi_cabs":  { need: 4, scenes: ["kei", "rain", "bridge"], texts: ["Another night, another fare. The city never sleeps, but I do (in the cab).", "Left something in my back seat again. A whole umbrella. Whose?", "Quiet roads tonight, the meter is bored."] },
+  "@satoba_chan":   { need: 4, scenes: ["cat", "lantern", "tea"], texts: ["Mugi came home for dinner and left again. Cats.", "Made too much tea. Come by if you're passing.", "Lanterns are up. The whole street smells of grilled corn."] },
+  "@ramen_ichiban": { need: 5, scenes: ["ramen"], texts: ["Broth's been going 18 hours. Come hungry.", "Somebody copied my tare. I can taste it from here.", "Closing late tonight. The noodles insist."] },
+  "@kenji_lodge":   { need: 5, scenes: ["ski", "peak"], texts: ["Fresh snow on the upper runs. Patrol sweeping at seven.", "Lost-property box now holds three ski poles and a hat. Anyone?", "Black run is open. It is not a suggestion, it is a warning."] },
+  "@ito_agency":    { need: 6, scenes: ["skyline", "desk"], texts: ["Auditions all week. Talent is everywhere if you look.", "Someone's cousin has a very good voice. Naturally.", "Contracts are just letters with more commas."] },
+  "@tomo_docks":    { need: 6, scenes: ["sea", "bridge"], texts: ["Quiet night at the docks. Boxes don't move themselves.", "The tide is late and so is the truck.", "Fog on the water. Good night for not being noticed."] }
+};
+
+const MN_REACTIONS = [["\u2764\ufe0f", "Love it"], ["\ud83d\udd25", "Fire"], ["\ud83d\ude02", "Funny"], ["\ud83d\ude2e", "Wow"], ["\ud83d\ude4f", "Respect"]];
+
+const MN_REPLIES = {
+  food:   ["That looks incredible", "Where is this?? I'm suddenly starving", "Saving this for the weekend"],
+  train:  ["NHRail, never late (it was late)", "The 07:12 and I have history", "Classic commute shot"],
+  animal: ["I would do anything for this cat", "Judging all of us, and rightly", "Tell them I said hello"],
+  view:   ["That view though", "Take me there", "Konto really is something"],
+  night:  ["The mood in this one", "Love the lights", "Night shots are the best shots"],
+  car:    ["Nice ride", "That road looks so good", "Drive safe out there"],
+  any:    ["Love this", "Great shot", "This made my day"]
+};
+
+const MN_SCENE_KIND = { ramen: "food", sushi: "food", bento: "food", tea: "food", konbini: "food", train: "train", cat: "animal", sakura: "view", peak: "view", ski: "view", sea: "view", onsen: "view", sunset: "view", lantern: "night", rain: "night", vending: "night", skyline: "night", bridge: "night", kei: "car", desk: "any" };
 
 const MN_FAN_DMS = [
   "Omg you're real!! I've been following since you had 20 followers",
@@ -3286,7 +3310,7 @@ const mynet = {
   tab: 0, sel: 0, bar: false, view: "tab", detail: null, page: 0, cs: 0, thread: null, opt: 0,
   pick: { sel: 0 }, comp: { photo: null, text: "", r: 1, c: 5, shift: false, mode: "caption" },
   seen: 0, newReact: 0, lastSay: 0, portrait: null, key: "", busy: false, sharing: 0, best: 0,
-  intro: true
+  intro: true, rapport: {}, reacted: 0, unlocked: [], tray: { post: null, sel: 0 }
 };
 
 function mynetLoadKey() { try { mynet.key = localStorage.getItem("konto.mynet.key") || ""; } catch (e) {} }
@@ -3294,15 +3318,21 @@ function mynetLoadKey() { try { mynet.key = localStorage.getItem("konto.mynet.ke
 function mynetSaveKey() { try { localStorage.setItem("konto.mynet.key", mynet.key); } catch (e) {} }
 
 function mnPerson(role) {
-  const pool = MN_PEOPLE.filter(p => !role || p.role === role);
+  const pool = MN_PEOPLE.filter(p => role ? p.role === role : p.role !== "contact");
   return (pool.length ? pool : MN_PEOPLE)[(Math.random() * (pool.length || MN_PEOPLE.length)) | 0];
 }
 
 function mnPick(a) { return a[(Math.random() * a.length) | 0]; }
 
-function mnFeedPost(ageMin) {
-  const tpl = MN_POSTS[(Math.random() * MN_POSTS.length) | 0];
-  const who = mnPerson(tpl.role);
+function mnFeedPost(ageMin, contact) {
+  let tpl = MN_POSTS[(Math.random() * MN_POSTS.length) | 0], who = null;
+  if (contact === undefined) contact = Math.random() < 0.3;
+  if (contact) {
+    const keys = Object.keys(MN_CONTACT_POSTS), h = typeof contact === "string" ? contact : keys[(Math.random() * keys.length) | 0], c = MN_CONTACT_POSTS[h];
+    who = MN_PEOPLE.find(q => q.handle === h);
+    if (who) tpl = { scene: mnPick(c.scenes), text: mnPick(c.texts), place: tpl.place };
+  }
+  if (!who) who = mnPerson(tpl.role === "contact" ? "fan" : tpl.role);
   const p = { id: mynet.nid++, who: who, you: false, scene: tpl.scene, img: null, caption: tpl.text, place: tpl.place, t: mnNow() - ageMin,
               likes: Math.round(Math.pow(10, 2.3 + Math.random() * 2.4)), liked: false, comments: [], meta: null };
   const n = 1 + ((Math.random() * 4) | 0);
@@ -3312,14 +3342,38 @@ function mnFeedPost(ageMin) {
 
 const MN_FEED_COMMENTS = ["so good", "I need this", "wow 😍", "which shop is this?", "this is why I live here", "ok I'm going tomorrow", "the light!!", "saved", "same", "lol", "Seiko should see this", "okay that's nice", "please do more of these", "🔥🔥🔥", "I was there!!"];
 
-function mnImg(p) { if (!p.img) p.img = p.you ? p.photo : mnScene(p.scene, 320); return p.img; }
+function mnPhotoFor(p) {
+  if (p.photoTried || mnPhotos.off || p.you) return;
+  p.photoTried = true;
+  mnPhotoList(p.scene).then(list => {
+    if (!list.length) return;
+    const pick = list[(p.id * 7 + (p.who.handle.length * 3)) % list.length];
+    const img = new Image(); img.crossOrigin = "anonymous"; img.referrerPolicy = "no-referrer";
+    img.onload = () => {
+      try {
+        const S = 480, c = document.createElement("canvas"); c.width = c.height = S;
+        const g = c.getContext("2d"), m = Math.min(img.width, img.height);
+        g.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, S, S);
+        g.getImageData(0, 0, 1, 1);                   // a picture we may not read is a picture we may not use
+        p.img = c; p.credit = pick.a + " · " + pick.l; phone.dirty = true;
+      } catch (e) { p.photoErr = String(e && e.message || e); }
+    };
+    img.onerror = () => { p.photoErr = "load"; };
+    img.src = pick.u;
+  });
+}
+
+function mnImg(p) {
+  if (!p.img) { p.img = p.you ? p.photo : mnScene(p.scene, 320); if (!p.you) mnPhotoFor(p); }
+  return p.img;
+}
 
 function mynetInit() {
   if (mynet.ready) return;
   mynet.ready = true;
   try { if (document.fonts && document.fonts.load) document.fonts.load('40px "Grand Hotel"').then(() => { phone.dirty = true; }).catch(() => {}); } catch (e) {}
   mynetLoadKey();
-  for (let i = 0; i < 7; i++) mynet.feed.push(mnFeedPost(10 + i * 37 + Math.random() * 20));
+  for (let i = 0; i < 7; i++) mynet.feed.push(mnFeedPost(10 + i * 37 + Math.random() * 20, i === 1 ? "@satoba_chan" : i === 3 ? "@hayashi_cabs" : false));
   mynet.feed.sort((a, b) => b.t - a.t);
   mynet.feedAt = mnNow() + 7;
   mynet.dmAt = mnNow() + 25;
@@ -3571,11 +3625,6 @@ function mynetRandomDm() {
   const unreadNow = mynet.threads.filter(t => t.unread && !t.closed).length;
   if (unreadNow >= 5) return;
   const r = Math.random();
-  if (F >= 100 && mynet.contacts.length + mynet.threads.filter(t => t.kind === "mission" && !t.closed).length < MN_MISSION.length && r < 0.28) {
-    const used = {}; mynet.threads.forEach(t => { if (t.kind === "mission") used[t.who.handle] = 1; });
-    const m = MN_MISSION.find(x => !used[x.handle]);
-    if (m) { mnThread({ name: m.name, handle: m.handle, col: "#a0652d", role: "contact", phone: m.phone, line: m.line, hook: m.hook }, "mission", m.hook); return; }
-  }
   if (F >= 60 && r < 0.55) { mnThread(mnPerson("fan"), "fan", mnPick(MN_FAN_DMS)); return; }
   if (F >= 400 && (avg < 55 || F > 3000) && r < 0.75) { mnThread(mnPerson("troll"), "troll", mnPick(MN_TROLL_DMS)); return; }
   if (F >= 150 && r < 0.9 && !mynet.threads.some(t => t.kind === "boss" && mnNow() - t.msgs[0].t < 24 * 60)) { mnThread(MN_PEOPLE.find(p => p.role === "boss"), "boss", mnPick(MN_BOSS_DMS)); return; }
@@ -3591,6 +3640,7 @@ function updateMyNet(dt) {
     if (e.type === "like") { e.post.likes += e.n; e.post.unseen = (e.post.unseen || 0) + 1; if (!e.post.firstLike) { e.post.firstLike = true; mynet.newReact++; mnSay("MyGram · " + mnPerson().handle + " liked your post", 3); } }
     else if (e.type === "comment") { e.post.comments.push({ who: e.c.who, text: e.c.text, t: now, pol: e.c.pol }); mynet.newReact++; if (e.c.pol === "neg" || e.post.comments.length === 1) mnSay("MyGram · " + e.c.who.handle + ": " + e.c.text.slice(0, 48), 4); }
     else if (e.type === "follow") { mynet.me.followers = Math.max(0, mynet.me.followers + e.n); if (e.n < 0 && Math.random() < 0.4) mnSay("MyGram · you lost " + Math.abs(e.n) + " follower" + (Math.abs(e.n) > 1 ? "s" : ""), 3); else if (e.n >= 5 && Math.random() < 0.5) mnSay("MyGram · +" + e.n + " new followers", 3); }
+    else if (e.type === "reply") { e.post.comments.push({ who: e.c.who, text: e.c.text, t: now, pol: e.c.pol, replyToMe: true }); mynet.newReact++; mnSay(e.c.who.handle + " replied: " + e.c.text.slice(0, 44), 4); }
     else if (e.type === "dm" && e.fn) e.fn();
     else if (e.type === "pay") mnSay("MyGram · " + e.brand + " paid you ¥" + e.n.toLocaleString("en-US"), 6);
   }
@@ -3726,16 +3776,23 @@ function mnCard(g, W, H, p, y0, big) {
   mnText(g, p.who.handle.replace(/^@/, ""), W * 0.145, y0 + H * 0.0245, W * 0.04, MN_INK, "700", "left", W * 0.55);
   mnText(g, p.place + " · " + mnAgo(p.t), W * 0.145, y0 + H * 0.0425, W * 0.03, MN_DIM, "500", "left", W * 0.65);
   if (p.you) { g.fillStyle = "rgba(61,220,132,0.18)"; roundRect(g, W * 0.82, y0 + H * 0.014, W * 0.13, H * 0.026, W * 0.012); g.fill(); mnText(g, "YOU", W * 0.885, y0 + H * 0.0325, W * 0.029, MN_GOOD, "800", "center"); }
+  if (mnIsContact(p)) {
+    const need = mnNeed(p.who.handle), r = Math.min(mnRapport(p.who.handle), need);
+    g.fillStyle = "rgba(240,176,32,0.16)"; roundRect(g, W * 0.70, y0 + H * 0.013, W * 0.26, H * 0.03, W * 0.012); g.fill();
+    mnText(g, "\u2726 " + r + "/" + need, W * 0.83, y0 + H * 0.0345, W * 0.03, "#f0b020", "800", "center");
+  }
   const iy = y0 + H * 0.058;
   const img = mnImg(p);
   g.save(); try { g.drawImage(img, 0, iy, W, W); } catch (e) { g.fillStyle = "#222"; g.fillRect(0, iy, W, W); } g.restore();
+  if (p.credit) { g.font = "500 " + Math.round(W * 0.024) + "px " + UI; const cw = g.measureText("Photo: " + p.credit).width + W * 0.03; g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(0, iy + W - H * 0.02, cw, H * 0.02); mnText(g, "Photo: " + p.credit, W * 0.015, iy + W - H * 0.0055, W * 0.024, "rgba(255,255,255,0.85)", "500"); }
   const ay = iy + W + H * 0.027;
   mnIcon(g, "heart", W * 0.07, ay, W * 0.062 * (1 + (p.pulse || 0) * 0.3), p.liked ? MN_RED : MN_INK, p.liked);
   mnIcon(g, "comment", W * 0.17, ay, W * 0.058, MN_INK, false);
   mnIcon(g, "plane", W * 0.265, ay, W * 0.058, MN_INK, false);
   mnIcon(g, "save", W * 0.93, ay, W * 0.054, MN_INK, false);
   const ly = ay + H * 0.038;
-  mnText(g, mnCount(p.likes + (p.liked ? 1 : 0)) + " likes", W * 0.05, ly, W * 0.04, MN_INK, "700");
+  mnText(g, mnCount(p.likes + (p.liked && !(p.mine && p.mine.emoji) ? 1 : 0)) + " likes", W * 0.05, ly, W * 0.04, MN_INK, "700");
+  if (p.mine && p.mine.emoji) { g.font = "400 " + Math.round(W * 0.04) + "px " + UI; g.textAlign = "right"; g.fillStyle = MN_INK; g.fillText(p.mine.emoji, W * 0.95, ly); g.textAlign = "left"; }
   const cy = ly + H * 0.026;
   g.font = "700 " + Math.round(W * 0.037) + "px " + UI; const nameW = g.measureText(p.who.handle.replace(/^@/, "") + " ").width;
   mnText(g, p.who.handle.replace(/^@/, ""), W * 0.05, cy, W * 0.037, MN_INK, "700");
@@ -3757,7 +3814,7 @@ function mnDrawFeed(g, W, H) {
   const p = list[mynet.sel];
   if (p.pulse) p.pulse = Math.max(0, p.pulse - 0.08);
   mnCard(g, W, H, p, H * 0.166);
-  mnText(g, "Up/Down posts  ·  A like  ·  Right comments  ·  " + (mynet.sel + 1) + "/" + list.length, W * 0.5, H * 0.918, W * 0.029, "#6b7078", "500", "center");
+  mnText(g, "Up/Down posts  ·  A like  ·  Left react  ·  Right comments  ·  " + (mynet.sel + 1) + "/" + list.length, W * 0.5, H * 0.918, W * 0.029, "#6b7078", "500", "center");
 }
 
 function mnTile(g, x, y, s, img, on, label) {
@@ -3833,8 +3890,9 @@ function mnDrawProfile(g, W, H) {
   mnWrap(g, me.bio, W * 0.45, y0 + H * 0.135, W * 0.5, H * 0.0225, 2, W * 0.032, "#cfd3d8");
   // earnings, and the deal in hand
   g.fillStyle = "#14171c"; roundRect(g, W * 0.04, y0 + H * 0.178, W * 0.92, H * 0.045, W * 0.02); g.fill();
-  mnText(g, me.income ? "Earned from sponsors  ¥" + me.income.toLocaleString("en-US") : "Sponsors write once you post well and often", W * 0.06, y0 + H * 0.2075, W * 0.032, me.income ? MN_GOOD : MN_DIM, "700", "left", W * 0.55);
+  mnText(g, me.income ? "Earned  ¥" + me.income.toLocaleString("en-US") : "Sponsors write once you post well", W * 0.06, y0 + H * 0.2075, W * 0.032, me.income ? MN_GOOD : MN_DIM, "700", "left", W * 0.5);
   if (mynet.deal) mnText(g, "Deal: " + mynet.deal.brand, W * 0.94, y0 + H * 0.2075, W * 0.032, "#7ff0d6", "800", "right", W * 0.36);
+  else mnText(g, "\u2726 Contacts " + mynet.unlocked.length + "/" + Object.keys(MN_CONTACT_POSTS).length, W * 0.94, y0 + H * 0.2075, W * 0.032, "#f0b020", "800", "right", W * 0.36);
   // the engine
   const eOn = mynet.sel === -1 && !mynet.bar;
   g.fillStyle = eOn ? "rgba(255,255,255,0.14)" : "#14171c"; roundRect(g, W * 0.04, y0 + H * 0.23, W * 0.92, H * 0.04, W * 0.02); g.fill();
@@ -3871,7 +3929,9 @@ function mnDrawDetail(g, W, H) {
   mnText(g, p.you ? "Your post" : p.who.handle, W * 0.11, H * 0.095, W * 0.046, MN_INK, "800", "left", W * 0.7);
   // the picture, and what happened to it
   const s = W * 0.44, x0 = W * 0.04, y0 = H * 0.115;
-  g.save(); g.beginPath(); roundRect(g, x0, y0, s, s, W * 0.02); g.clip(); try { g.drawImage(mnImg(p), x0, y0, s, s); } catch (e) {} g.restore();
+  g.save(); g.beginPath(); roundRect(g, x0, y0, s, s, W * 0.02); g.clip(); try { g.drawImage(mnImg(p), x0, y0, s, s); } catch (e) {}
+  if (p.credit) { g.fillStyle = "rgba(0,0,0,0.5)"; g.fillRect(x0, y0 + s - H * 0.018, s, H * 0.018); mnText(g, "Photo: " + p.credit, x0 + W * 0.012, y0 + s - H * 0.0055, W * 0.022, "rgba(255,255,255,0.88)", "500", "left", s - W * 0.02); }
+  g.restore();
   const rx = x0 + s + W * 0.035;
   mnIcon(g, "heart", rx + W * 0.02, y0 + H * 0.02, W * 0.045, MN_RED, true);
   mnText(g, mnCount(p.likes + (p.liked ? 1 : 0)), rx + W * 0.065, y0 + H * 0.0275, W * 0.05, MN_INK, "800");
@@ -3907,13 +3967,14 @@ function mnDrawDetail(g, W, H) {
   p.comments.slice().reverse().slice(mynet.cs, mynet.cs + vis).forEach((c, k) => {
     const y = top + k * rowH;
     mnAvatar(g, W * 0.085, y + rowH * 0.36, W * 0.037, c.who, false);
-    mnText(g, c.who.handle.replace(/^@/, ""), W * 0.15, y + rowH * 0.3, W * 0.033, MN_INK, "700", "left", W * 0.5);
+    mnText(g, c.mine ? "you" : c.who.handle.replace(/^@/, ""), W * 0.15, y + rowH * 0.3, W * 0.033, c.mine ? "#9fd0ff" : MN_INK, "700", "left", W * 0.5);
     mnText(g, mnAgo(c.t), W * 0.95, y + rowH * 0.3, W * 0.027, MN_DIM, "500", "right");
     g.font = "500 " + Math.round(W * 0.035) + "px " + UI;
-    const col = c.pol === "neg" ? "#f3c0c0" : "#d8dce1";
+    const col = c.mine ? "#9fd0ff" : c.pol === "neg" ? "#f3c0c0" : "#d8dce1";
     mnWrap(g, c.text, W * 0.15, y + rowH * 0.62, W * 0.8, H * 0.021, 2, W * 0.035, col);
   });
-  if (p.comments.length > vis) mnText(g, "Up/Down scroll", W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
+  if (!p.you) mnText(g, "A or Left react" + (p.comments.length > vis ? "  \u00b7  Up/Down scroll" : ""), W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
+  else if (p.comments.length > vis) mnText(g, "Up/Down scroll", W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
 }
 
 function mnDrawWhy(g, W, H, p, top) {
@@ -3989,7 +4050,7 @@ const MN_KB_BOTTOM = ["Aa", "#", "@", "!", "?", "space", "back", "Share"];
 function mnDrawCompose(g, W, H) {
   const c = mynet.comp;
   mnIcon(g, "chev", W * 0.06, H * 0.087, W * 0.05, MN_INK, false);
-  mnText(g, c.mode === "key" ? "Claude key" : "New post", W * 0.11, H * 0.095, W * 0.05, MN_INK, "800");
+  mnText(g, c.mode === "key" ? "Claude key" : c.mode === "comment" ? "Comment on " + (c.post ? c.post.who.handle : "") : "New post", W * 0.11, H * 0.095, W * 0.05, MN_INK, "800", "left", W * 0.85);
   if (c.mode === "key") {
     mnText(g, "Paste your Anthropic API key (Ctrl+V) or type it.", W * 0.05, H * 0.17, W * 0.034, "#d5d8dd", "600", "left", W * 0.9);
     mnText(g, "It stays on this machine and is only sent to Anthropic.", W * 0.05, H * 0.195, W * 0.03, MN_DIM, "500", "left", W * 0.9);
@@ -4006,10 +4067,10 @@ function mnDrawCompose(g, W, H) {
   const fx = x0 + s + W * 0.03, fw = W * 0.96 - fx;
   g.fillStyle = "#14171c"; roundRect(g, fx, y0, fw, s, W * 0.02); g.fill();
   const cursor = Math.floor(performance.now() / 500) % 2 ? "" : "|";
-  if (!c.text) mnText(g, "Write a caption…", fx + W * 0.03, y0 + H * 0.03, W * 0.036, "#5d636c", "500");
+  if (!c.text) mnText(g, c.mode === "comment" ? "Say something kind…" : "Write a caption…", fx + W * 0.03, y0 + H * 0.03, W * 0.036, "#5d636c", "500");
   else mnWrap(g, c.text + cursor, fx + W * 0.03, y0 + H * 0.03, fw - W * 0.06, H * 0.0235, 6, W * 0.036, MN_INK, "500");
   mnText(g, c.text.length + "/140", fx + fw - W * 0.02, y0 + s - H * 0.012, W * 0.028, MN_DIM, "500", "right");
-  if (mynet.deal) mnDealBanner(g, W, H, H * 0.115 + s + H * 0.012);
+  if (mynet.deal && c.mode !== "comment") mnDealBanner(g, W, H, H * 0.115 + s + H * 0.012);
   // the keyboard
   const rows = MN_KB.map(r => r[0]).concat([null]);
   const ky = H * 0.395, kh = H * 0.062, gap = W * 0.011;
@@ -4023,7 +4084,7 @@ function mnDrawCompose(g, W, H) {
       g.fillStyle = on ? "#ffffff" : share ? "#2f6fe0" : "#2a2e35"; roundRect(g, kx, y, kw, kh, W * 0.014); g.fill();
       g.fillStyle = on ? "#101216" : "#eceff2"; g.textAlign = "center"; g.textBaseline = "middle";
       g.font = "700 " + Math.round(W * (k.length > 1 ? 0.03 : 0.042)) + "px " + UI;
-      const label = k === "space" ? "space" : k === "back" ? "⌫" : k === "Aa" ? (c.shift ? "AA" : "Aa") : (c.shift && k.length === 1 ? k.toUpperCase() : k);
+      const label = k === "Share" && c.mode === "comment" ? "Send" : k === "space" ? "space" : k === "back" ? "⌫" : k === "Aa" ? (c.shift ? "AA" : "Aa") : (c.shift && k.length === 1 ? k.toUpperCase() : k);
       g.fillText(label, kx + kw / 2, y + kh / 2 + 1);
     });
   }
@@ -4048,6 +4109,7 @@ function appMyNet(g, W, H) {
   else if (v === "sharing") mnDrawSharing(g, W, H);
   else if (v === "detail") mnDrawDetail(g, W, H);
   else if (v === "thread") mnDrawThread(g, W, H);
+  else if (v === "react") { if (mynet.trayFrom === "detail") mnDrawDetail(g, W, H); else { mnHeader(g, W, H); mnTabs(g, W, H); mnDrawFeed(g, W, H); } mnDrawTray(g, W, H); }
   else {
     mnHeader(g, W, H); mnTabs(g, W, H);
     if (mynet.tab === 0) mnDrawFeed(g, W, H);
@@ -4082,7 +4144,7 @@ function mnCompAct() {
   const c = mynet.comp;
   if (c.r === 4) {
     const k = MN_KB_BOTTOM[c.c];
-    if (k === "Aa") c.shift = !c.shift; else if (k === "space") mnType(" "); else if (k === "back") c.text = c.text.slice(0, -1); else if (k === "Share") { mynetShare(); return; } else mnType(k);
+    if (k === "Aa") c.shift = !c.shift; else if (k === "space") mnType(" "); else if (k === "back") c.text = c.text.slice(0, -1); else if (k === "Share") { if (c.mode === "comment") mnSendComment(); else mynetShare(); return; } else mnType(k);
   } else mnType(MN_KB[c.r][0][c.c]);
   phone.dirty = true;
 }
@@ -4091,10 +4153,115 @@ function mnOpenCompose(photo) { const c = mynet.comp; c.photo = photo; c.text = 
 
 function mynetSetTab(i) { mynet.tab = clamp(i, 0, 3); mynet.sel = mynet.tab === 3 ? 0 : 0; mynet.pick.sel = 0; if (mynet.tab === 3) mynet.newReact = 0; phone.dirty = true; }
 
+function mnNeed(handle) { const c = MN_CONTACT_POSTS[handle]; return c ? c.need : 0; }
+
+function mnIsContact(p) { return !p.you && !!MN_CONTACT_POSTS[p.who.handle]; }
+
+function mnRapport(handle) { return mynet.rapport[handle] || 0; }
+
+function mnTrayItems(p) {
+  const kind = MN_SCENE_KIND[p.scene] || "any", lines = (MN_REPLIES[kind] || MN_REPLIES.any).concat(MN_REPLIES.any.slice(0, 1));
+  const items = MN_REACTIONS.map(r => ({ kind: "emoji", label: r[1], icon: r[0], text: r[0], gain: 1 }));
+  lines.slice(0, 3).forEach(t => items.push({ kind: "line", label: t, icon: "💬", text: t, gain: 2 }));
+  items.push({ kind: "write", label: "Write a comment…", icon: "✎" });
+  return items;
+}
+
+function mnOpenTray(p) { if (!p || p.you) return; mynet.tray.post = p; mynet.tray.sel = 0; mynet.trayFrom = mynet.view; mynet.view = "react"; phone.dirty = true; }
+
+function mnOpenComment(p) { const c = mynet.comp; c.mode = "comment"; c.post = p; c.photo = mnImg(p); c.text = ""; c.r = 1; c.c = 5; c.shift = false; mynet.view = "compose"; phone.dirty = true; }
+
+function mnJudgeComment(text) {
+  const words = mnWords(text);
+  if (words.some(w => MN_RUDE.indexOf(w) >= 0) || words.filter(w => MN_NEG.indexOf(w) >= 0).length >= 2) return -2;
+  let g = 2;
+  if (words.length >= 4) g++;
+  if (words.some(w => MN_POS.indexOf(w) >= 0)) g++;
+  return Math.min(4, g);
+}
+
+function mnReactTo(p, item) {
+  const now = mnNow();
+  p.mine = p.mine || { emoji: null, comments: 0, gain: 0 };
+  let gain = item.gain || 0;
+  if (item.kind === "emoji") {
+    if (p.mine.emoji) gain = 0; else p.likes += 1;
+    p.mine.emoji = item.icon; p.liked = true;
+  } else {
+    if (item.kind === "write") gain = mnJudgeComment(item.text);
+    p.comments.push({ who: { name: mynet.me.name, handle: mynet.me.handle, col: "#3a7bd5" }, text: item.text, t: now, pol: "me", mine: true });
+    p.mine.comments++;
+    // no post will keep paying out: three points a post, a little more for something he wrote
+    if (gain > 0) gain = Math.max(0, Math.min(gain, 3 - p.mine.gain + (item.kind === "write" ? 1 : 0)));
+  }
+  const h = p.who.handle, contact = !!MN_CONTACT_POSTS[h];
+  if (contact) { mynet.rapport[h] = Math.max(0, mnRapport(h) + gain); if (gain > 0) p.mine.gain += gain; }
+  mynet.reacted++;
+  // they answer, some of the time
+  const nice = gain >= 0;
+  if (item.kind !== "emoji" && Math.random() < (contact ? 0.95 : 0.5)) {
+    const text = nice ? mnPick(contact ? (MN_CONTACT_REPLY[h] || ["Thank you!"]) : ["Thank you!! 🙏", "haha exactly", "you get it", "appreciate you", "come back anytime"])
+                      : mnPick(["Wow. Okay.", "That was uncalled for.", "I'll pretend I didn't see that.", "Blocked and reported (a bit)."]);
+    mynet.pending.push({ at: now + 1.5 + Math.random() * 4, type: "reply", post: p, c: { who: p.who, text: text, pol: nice ? "pos" : "neg" } });
+    mynet.pending.sort((a, b) => a.at - b.at);
+  }
+  if (contact && gain > 0) mnSay(p.who.name + " noticed you  ·  rapport " + Math.min(mnRapport(h), mnNeed(h)) + "/" + mnNeed(h), 3);
+  else if (!nice) mnSay("That did not go down well with " + p.who.name + ".", 3);
+  mnCheckUnlock(h);
+  phone.dirty = true;
+}
+
+const MN_CONTACT_REPLY = {
+  "@hayashi_cabs": ["Ha! You've got an eye, Seiko-san.", "Good to see a regular face on the road.", "Taxi drivers notice who notices. Thanks."],
+  "@satoba_chan": ["Oh Seiko-chan, you're too kind. Eat something!", "Such a polite boy. Come for tea.", "Mugi sends her regards (she doesn't, she's a cat)."],
+  "@ramen_ichiban": ["You know ramen. Good.", "Come in and say that to my face.", "A customer with taste. Rare."],
+  "@kenji_lodge": ["Thanks. Stay off the black run in the dark.", "Patrol appreciates it.", "See you on the mountain."],
+  "@ito_agency": ["Interesting. You write rather well.", "I notice people who comment well.", "Noted, Seiko-san."],
+  "@tomo_docks": ["Appreciated.", "You're observant. That's useful.", "Keep quiet about the docks, ok?"]
+};
+
+function mnCheckUnlock(h) {
+  const need = mnNeed(h); if (!need || mnRapport(h) < need || mynet.unlocked.indexOf(h) >= 0) return;
+  mynet.unlocked.push(h);
+  const m = MN_MISSION.find(x => x.handle === h); if (!m) return;
+  mynet.pending.push({ at: mnNow() + 3 + Math.random() * 5, type: "dm", fn: () => {
+    mnThread({ name: m.name, handle: m.handle, col: "#a0652d", role: "contact", phone: m.phone, line: m.line, hook: m.hook }, "mission", "I saw you under my posts. " + m.hook);
+  } });
+  mynet.pending.sort((a, b) => a.at - b.at);
+}
+
+function mnSendComment() {
+  const c = mynet.comp, p = c.post, text = c.text.trim();
+  if (!p || !text) { mnSay("Write something first.", 2); return; }
+  mnReactTo(p, { kind: "write", text: text, gain: 0 });
+  c.text = ""; c.post = null;
+  if (mynet.trayFrom === "detail") { mynet.detail = p; mynet.view = "detail"; } else mynet.view = "tab";
+  phone.dirty = true;
+}
+
+function mnDrawTray(g, W, H) {
+  const p = mynet.tray.post; if (!p) { mynet.view = "tab"; return; }
+  g.fillStyle = "rgba(0,0,0,0.62)"; g.fillRect(0, 0, W, H);
+  const items = mnTrayItems(p), rowH = H * 0.056, top = H * 0.935 - items.length * rowH - H * 0.085;
+  g.fillStyle = "#15171c"; roundRect(g, W * 0.03, top - H * 0.01, W * 0.94, items.length * rowH + H * 0.1, W * 0.04); g.fill();
+  mnAvatar(g, W * 0.1, top + H * 0.027, W * 0.037, p.who, false);
+  mnText(g, "React to " + p.who.handle, W * 0.165, top + H * 0.0325, W * 0.04, MN_INK, "800", "left", W * 0.6);
+  if (mnIsContact(p)) mnText(g, "Rapport " + Math.min(mnRapport(p.who.handle), mnNeed(p.who.handle)) + "/" + mnNeed(p.who.handle), W * 0.94, top + H * 0.0325, W * 0.03, "#f0b020", "800", "right");
+  items.forEach((it, i) => {
+    const y = top + H * 0.055 + i * rowH, on = i === mynet.tray.sel;
+    g.fillStyle = on ? "#ffffff" : "#1f2228"; roundRect(g, W * 0.05, y, W * 0.9, rowH - H * 0.008, W * 0.02); g.fill();
+    g.font = "400 " + Math.round(W * 0.05) + "px " + UI; g.fillStyle = on ? "#101216" : MN_INK; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(it.icon, W * 0.105, y + rowH * 0.46); g.textBaseline = "alphabetic"; g.textAlign = "left";
+    mnText(g, it.label, W * 0.165, y + rowH * 0.62, W * 0.037, on ? "#101216" : MN_INK, it.kind === "emoji" ? "700" : "600", "left", W * 0.72);
+    if (it.kind === "emoji" && p.mine && p.mine.emoji === it.icon) mnText(g, "sent", W * 0.92, y + rowH * 0.62, W * 0.028, on ? "#555" : MN_DIM, "600", "right");
+  });
+  mnText(g, "Up/Down choose  ·  A send  ·  B close", W * 0.5, H * 0.945, W * 0.028, "#6b7078", "500", "center");
+}
+
 function mynetMove(dx, dy) {
   mynetInit();
   const v = mynet.view;
   if (v === "sharing") return;
+  if (v === "react") { const items = mnTrayItems(mynet.tray.post); if (dy) mynet.tray.sel = clamp(mynet.tray.sel + dy, 0, items.length - 1); phone.dirty = true; return; }
   if (v === "compose") {
     const c = mynet.comp; if (c.mode === "key") return;
     c.r = clamp(c.r + dy, 0, 4);
@@ -4105,6 +4272,7 @@ function mynetMove(dx, dy) {
   if (v === "detail") {
     const p = mynet.detail;
     if (dx && p && p.you) { mynet.page = clamp(mynet.page + dx, 0, 1); mynet.cs = 0; }
+    else if (dx < 0 && p && !p.you) { mnOpenTray(p); return; }
     if (dy) mynet.cs = Math.max(0, mynet.cs + dy);
     phone.dirty = true; return;
   }
@@ -4120,6 +4288,7 @@ function mynetMove(dx, dy) {
     if (dy < 0) { if (mynet.sel > 0) mynet.sel--; else mynet.bar = true; }
     else if (dy > 0) mynet.sel = Math.min(mynet.sel + 1, mynet.feed.length - 1);
     else if (dx > 0 && mynet.feed[mynet.sel]) { mynet.detail = mynet.feed[mynet.sel]; mynet.page = 0; mynet.cs = 0; mynet.view = "detail"; }
+    else if (dx < 0 && mynet.feed[mynet.sel]) mnOpenTray(mynet.feed[mynet.sel]);
   } else if (t === 1) {
     const n = 1 + Math.min(15, phone.gallery.length), s = mynet.pick.sel;
     if (dy < 0) { if (s < 3) mynet.bar = true; else mynet.pick.sel = s - 3; }
@@ -4141,12 +4310,18 @@ function mynetAct() {
   mynetInit();
   const v = mynet.view;
   if (v === "sharing") return;
+  if (v === "react") {
+    const p = mynet.tray.post, it = mnTrayItems(p)[mynet.tray.sel];
+    if (!it) return;
+    if (it.kind === "write") { mnOpenComment(p); return; }
+    mnReactTo(p, it); mynet.view = mynet.trayFrom === "detail" ? "detail" : "tab"; phone.dirty = true; return;
+  }
   if (v === "compose") { if (mynet.comp.mode === "key") { mnKeySave(); return; } mnCompAct(); return; }
-  if (v === "detail") { const p = mynet.detail; if (p && !p.you) { p.liked = !p.liked; p.pulse = 1; } phone.dirty = true; return; }
+  if (v === "detail") { const p = mynet.detail; if (p && !p.you) mnOpenTray(p); phone.dirty = true; return; }
   if (v === "thread") { const th = mynet.thread; if (th && th.opts && th.opts[mynet.opt]) mnReply(th, th.opts[mynet.opt]); return; }
   if (mynet.bar) { mynet.bar = false; phone.dirty = true; return; }
   const t = mynet.tab;
-  if (t === 0) { const p = mynet.feed[mynet.sel]; if (p) { p.liked = !p.liked; p.pulse = 1; } }
+  if (t === 0) { const p = mynet.feed[mynet.sel]; if (p) { const was = p.liked; p.liked = !p.liked; p.pulse = 1; if (p.liked && !was && !p.you && !(p.mine && p.mine.emoji)) mnReactTo(p, { kind: "emoji", icon: "\u2764\ufe0f", gain: 1 }); } }
   else if (t === 1) {
     const s = mynet.pick.sel;
     if (s === 0) mnOpenCompose(mnSelfie());
@@ -4170,7 +4345,13 @@ function mnKeySave() {
 function mynetBack() {
   const v = mynet.view;
   if (v === "sharing") return true;
-  if (v === "compose") { if (mynet.comp.mode === "key") { mynet.comp.text = ""; mynet.view = "tab"; } else mynet.view = "tab"; phone.dirty = true; return true; }
+  if (v === "react") { mynet.view = mynet.trayFrom === "detail" ? "detail" : "tab"; phone.dirty = true; return true; }
+  if (v === "compose") {
+    const c = mynet.comp;
+    if (c.mode === "comment") { c.text = ""; mynet.view = "react"; phone.dirty = true; return true; }
+    if (c.mode === "key") c.text = "";
+    mynet.view = "tab"; phone.dirty = true; return true;
+  }
   if (v === "detail" || v === "thread") { mynet.view = "tab"; phone.dirty = true; return true; }
   if (mynet.bar && mynet.tab !== 0) { mynetSetTab(0); mynet.bar = true; return true; }
   mynet.bar = false; return false;
