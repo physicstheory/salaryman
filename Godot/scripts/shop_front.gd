@@ -30,19 +30,19 @@ func build(brand_id: String, wall_pos: Vector3, n: Vector3, width: float, ground
 	_box(Vector3(w, 1.25, 0.3), Vector3(0, ground_y + 3.55, 0.2), band, 0.8)
 	var jp: String = b.get("jp", "")
 	var title: String = b.name
-	var l := _label(title, ink, Vector3(0, ground_y + 3.78, 0.38), 0.0125 * minf(1.0, 8.0 / maxf(8.0, title.length() * 0.8)), 84)
+	_label(title, ink, Vector3(0, ground_y + 3.85, 0.38), 0.0068 * minf(1.0, 11.0 / maxf(11.0, title.length() * 1.0)), 84)
 	if jp != "":
-		_label(jp, ink, Vector3(0, ground_y + 3.38, 0.38), 0.0105, 70)
+		_label(jp, ink, Vector3(0, ground_y + 3.25, 0.38), 0.0052, 70)
 	else:
-		_label(b.get("tag", ""), ink, Vector3(0, ground_y + 3.36, 0.38), 0.007, 60)
+		_label(b.get("tag", ""), ink, Vector3(0, ground_y + 3.25, 0.38), 0.0042, 60)
 	# stripes under the fascia, as on a chain store
 	_box(Vector3(w, 0.16, 0.32), Vector3(0, ground_y + 2.82, 0.2), st1, 0.8)
 	_box(Vector3(w, 0.12, 0.32), Vector3(0, ground_y + 2.66, 0.2), st2, 0.8)
 	# canopy
 	_box(Vector3(w * 0.9, 0.08, 1.4), Vector3(0, ground_y + 2.5, 0.8), band.darkened(0.2), 0.0)
 	# glass door and windows, lit from inside
-	_box(Vector3(w * 0.88, 2.2, 0.12), Vector3(0, ground_y + 1.25, 0.15), Color(1.0, 0.93, 0.78), 0.9)
-	_box(Vector3(1.5, 2.25, 0.16), Vector3(0, ground_y + 1.2, 0.2), Color(0.85, 0.95, 1.0), 1.1)
+	_box(Vector3(w * 0.88, 2.2, 0.12), Vector3(0, ground_y + 1.25, 0.15), Color(1.0, 0.86, 0.6), 0.4)
+	_box(Vector3(1.5, 2.25, 0.16), Vector3(0, ground_y + 1.2, 0.2), Color(0.8, 0.92, 1.0), 0.55)
 	for sx in [-0.75, 0.75]:
 		_box(Vector3(0.06, 2.3, 0.2), Vector3(sx, ground_y + 1.2, 0.22), Color(0.08, 0.08, 0.1), 0.0)
 	# the door sits a couple of metres in front of the wall

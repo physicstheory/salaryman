@@ -52,7 +52,7 @@ func _go() -> void:
 
 	cam.current = true
 	g.set_physics_process(false)
-	var want := ["eleven", "ramen", "petmart", "sushi", "pharmacy", "books", "clothes", "plaza", "dokoto", "capsule", "arms"]
+	var want := ["eleven", "ramen", "plaza", "dokoto", "capsule"]
 	var seen := {}
 	for s in g.world.shops:
 		if want.has(s.brand) and not seen.has(s.brand):

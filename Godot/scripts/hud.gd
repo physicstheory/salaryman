@@ -12,8 +12,14 @@ var small := ""
 var small_t := 0.0
 var _font: Font
 
+func _fit() -> void:
+	# sit exactly over the window; a Control under a CanvasLayer does not size itself from anchors
+	position = Vector2.ZERO
+	size = get_viewport().get_visible_rect().size
+
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fit()
+	get_viewport().size_changed.connect(_fit)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = ThemeDB.fallback_font
 

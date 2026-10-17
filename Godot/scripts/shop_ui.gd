@@ -20,8 +20,14 @@ var _band: ColorRect
 var _plaza_floor := -1
 var _capsule := false
 
+func _fit() -> void:
+	# sit exactly over the window; a Control under a CanvasLayer does not size itself from anchors
+	position = Vector2.ZERO
+	size = get_viewport().get_visible_rect().size
+
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	_fit()
+	get_viewport().size_changed.connect(_fit)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	var dim := ColorRect.new()
 	dim.color = Color(0.02, 0.03, 0.06, 0.82)
