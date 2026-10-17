@@ -4631,7 +4631,10 @@ const GABLE_MAX_H = 12.5;        // metres: three storeys and a bit
 // building is trimmed back from any road or rail that touches it, from the side
 // it overlaps least, and dropped altogether if there is nothing left of it. An
 // elevated road only matters to a building tall enough to reach its deck.
-function clearRoadCorridors(city, boxes) {
+function clearRoadCorridors(w, city, boxes) {
+  // Every city's roads count, not just this one's: the capital's plots cover
+  // the ground the little towns' streets run over.
+  if (!w._corridors) {
   const cell = 40, grid = new Map();
   let maxR = 0;
   const add = (x, z, r, deckY) => {
@@ -4640,9 +4643,9 @@ function clearRoadCorridors(city, boxes) {
     l.push([x, z, r, deckY]);
     if (r > maxR) maxR = r;
   };
-  city.roads.concat(city.rails).forEach(path => {
+  w.cities.forEach(cc => cc.roads.concat(cc.rails).forEach(path => {
     const pts = path.pts; if (!pts || pts.length < 2) return;
-    const r = (path.halfWidth || 6) + (city.rails.indexOf(path) >= 0 ? 2.2 : 1.0);
+    const r = (path.halfWidth || 6) + (cc.rails.indexOf(path) >= 0 ? 2.2 : 1.0);
     for (let i = 1; i < pts.length; i++) {
       const a = pts[i - 1], b = pts[i];
       const len = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(1, Math.ceil(len / 3));
@@ -4651,7 +4654,10 @@ function clearRoadCorridors(city, boxes) {
         add(a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t, r, path.elevated ? a[1] + (b[1] - a[1]) * t : null);
       }
     }
-  });
+  }));
+  w._corridors = { cell: cell, grid: grid, maxR: maxR };
+  }
+  const cell = w._corridors.cell, grid = w._corridors.grid, maxR = w._corridors.maxR;
   let trimmed = 0, dropped = 0;
   for (let bi = boxes.length - 1; bi >= 0; bi--) {
     const b = boxes[bi];
@@ -6402,7 +6408,7 @@ function buildScene(w) {
       }
     });
 
-    clearRoadCorridors(city, boxes);
+    clearRoadCorridors(w, city, boxes);
     if (boxes.length) {
       // Group by facade so each style can carry its own texture, and keep the
       // footprints for the character to bump into.
