@@ -6689,6 +6689,7 @@ function buildScene(w) {
   placePlazas(w);
   placeSafehouses(w);
   buildShopSigns(root);
+  buildShopLivery(root);
   buildMallSigns(root);
   buildSafeSigns(root);
   findHome(w);
@@ -19663,9 +19664,107 @@ const SHOP_BUILD = {
 // A lit sign band over each door. One instanced box per chain, with the brand
 // colour on it, which is enough to pick a shop out of a street at a hundred
 // metres - which is what a convenience store sign is for.
+// ---- the chain livery -------------------------------------------------------------
+// A convenience store is not an office with a sign on it. These two chains get
+// their whole shopfront painted the way the real ones are: the fascia in the
+// house colours with the name, the stripe bands, a long lit glass front with
+// the shelves showing through and the door in the middle, a canopy over it,
+// and a roof cap. It is a skin on the front of the shop's own building, so it
+// is exactly as wide and as tall as the wall it covers and nothing shows
+// through it.
+const LIVERY_BRANDS = { eleven: true, petmart: true };
+function shopFacadeTex(brand) {
+  const key = "facade:" + brand;
+  if (brandTexCache[key]) return brandTexCache[key];
+  const b = SHOP_BRANDS[brand], W = 1024, H = 460;
+  const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const g = cv.getContext("2d");
+  const wall = brand === "eleven" ? "#f2f1ec" : "#f5f7fa";
+  g.fillStyle = wall; g.fillRect(0, 0, W, H);
+  // fascia
+  g.fillStyle = b.band; g.fillRect(0, 0, W, 138);
+  g.fillStyle = brand === "eleven" ? "#ffffff" : "#1272d6";
+  g.textBaseline = "middle"; g.textAlign = "left";
+  g.fillStyle = b.ink;
+  g.font = "900 92px " + UI; g.fillText(b.name, 52, 64);
+  g.textAlign = "right"; g.font = "800 40px " + UI; g.globalAlpha = 0.9; g.fillText(brand === "eleven" ? "24" : "PET & LIFE", W - 52, 60); g.globalAlpha = 1;
+  // stripes: three bars, the way a chain wears them
+  const st = brand === "eleven" ? ["#e8711a", "#ffffff", "#cf2027"] : ["#13a150", "#ffffff", "#1272d6"];
+  st.forEach((c, i) => { g.fillStyle = c; g.fillRect(0, 138 + i * 15, W, 15); });
+  // upper wall: a promotional band and a few panels
+  g.fillStyle = "#d9dde0"; g.fillRect(0, 183, W, 3);
+  g.fillStyle = wall;
+  g.fillStyle = brand === "eleven" ? "#e8711a" : "#13a150"; g.font = "800 30px " + UI; g.textAlign = "left";
+  g.fillText(b.tag.toUpperCase(), 52, 222);
+  g.textAlign = "right"; g.fillStyle = "#4d545b"; g.font = "700 26px " + UI; g.fillText(brand === "eleven" ? "Coffee \u00b7 Bento \u00b7 ATM \u00b7 Parcels" : "Food \u00b7 Toys \u00b7 Care \u00b7 Grooming", W - 52, 222);
+  // the glass front, lit from inside
+  const gy = 250, gh = H - gy - 14;
+  const warm = g.createLinearGradient(0, gy, 0, gy + gh);
+  warm.addColorStop(0, "#fff4cf"); warm.addColorStop(1, "#e9c982");
+  g.fillStyle = "#2b2f33"; g.fillRect(0, gy - 8, W, gh + 22);
+  g.fillStyle = warm; g.fillRect(14, gy, W - 28, gh);
+  // shelves and stock showing through
+  const rnd2 = k => { const x = Math.sin(k * 127.1) * 43758.5453; return x - Math.floor(x); };
+  for (let sh = 0; sh < 3; sh++) {
+    const y = gy + 28 + sh * 46;
+    g.fillStyle = "rgba(90,70,40,0.35)"; g.fillRect(14, y + 30, W - 28, 5);
+    for (let x = 24; x < W - 40; x += 28) {
+      const r = rnd2(x * 0.1 + sh * 7);
+      g.fillStyle = ["#d8452f", "#2f7fd0", "#38a15a", "#f2c230", "#8a5bd0", "#f7f7f2"][Math.floor(r * 6)];
+      g.fillRect(x, y + 30 - (14 + r * 12), 20, 14 + r * 12);
+    }
+  }
+  // posters in the window
+  [[90, "#cf2027", "SALE"], [260, "#1272d6", "NEW"], [770, "#13a150", "\u00a5100"], [900, "#e8711a", "HOT"]].forEach(([x, c, t]) => {
+    g.fillStyle = c; g.fillRect(x, gy + 16, 82, 56); g.fillStyle = "#fff"; g.font = "900 26px " + UI; g.textAlign = "center"; g.fillText(t, x + 41, gy + 44);
+  });
+  // mullions and the door
+  g.fillStyle = "#3a3f44";
+  for (let x = 0; x <= W; x += 128) g.fillRect(x - 5, gy - 6, 10, gh + 12);
+  const dx = W / 2 - 92;
+  g.fillStyle = "#2f3438"; g.fillRect(dx - 8, gy - 6, 200, gh + 14);
+  g.fillStyle = "#fff4cf"; g.fillRect(dx, gy, 88, gh); g.fillRect(dx + 96, gy, 88, gh);
+  g.fillStyle = "#9aa1a7"; g.fillRect(dx + 76, gy + gh * 0.45, 5, 46); g.fillRect(dx + 104, gy + gh * 0.45, 5, 46);
+  g.fillStyle = "#e3e6e8"; g.font = "800 20px " + UI; g.textAlign = "center"; g.fillStyle = "#555";
+  g.fillText("PUSH", dx + 44, gy + 20); g.fillText("PULL", dx + 140, gy + 20);
+  // plinth
+  g.fillStyle = "#4a4f55"; g.fillRect(0, H - 14, W, 14);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+  return (brandTexCache[key] = t);
+}
+function buildShopLivery(root) {
+  const mats = {};
+  shops.list.filter(s => LIVERY_BRANDS[s.brand] && s.built && !s.mall && !s.plaza && !s.safe).forEach(s => {
+    const b = SHOP_BRANDS[s.brand];
+    if (!mats[s.brand]) {
+      const tex = shopFacadeTex(s.brand);
+      const m = new THREE.MeshStandardMaterial({ map: tex, emissive: new THREE.Color(0xffffff), emissiveMap: tex, emissiveIntensity: 0.28, roughness: 0.5, metalness: 0.0 });
+      nightMats.push({ m: m, gain: 0.85, floor: 0.28 });
+      mats[s.brand] = { m: m, capM: new THREE.MeshStandardMaterial({ color: new THREE.Color(b.band), roughness: 0.6 }),
+                        canM: new THREE.MeshStandardMaterial({ color: new THREE.Color(0xf4f4f1), emissive: new THREE.Color(b.stripes[0]), emissiveIntensity: 0.18, roughness: 0.5 }) };
+    }
+    const M = mats[s.brand];
+    const fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), lx = fz, lz = -fx;
+    const face = s.size[1] * 0.5, w = s.size[0], h = Math.max(4.2, s.height);
+    const g = new THREE.Group();
+    g.position.set(s.at[0] + fx * (face + 0.05), s.groundY, s.at[1] + fz * (face + 0.05));
+    g.rotation.y = s.yaw; root.add(g);
+    // the painted front, the full width and height of the wall
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(w, h), M.m);
+    panel.position.set(0, h / 2, 0); g.add(panel);
+    // the roof cap, in the house colour
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(w + 0.3, 0.5, 0.6), M.capM); cap.position.set(0, h + 0.1, -0.1); g.add(cap);
+    // the canopy over the door, where the glass starts
+    const can = new THREE.Mesh(new THREE.BoxGeometry(Math.min(w * 0.8, 9), 0.18, 1.7), M.canM); can.position.set(0, h * 0.5 - 0.1, 0.9); g.add(can);
+    // the frame of the front, so it is a box and not a flat sheet when you walk past
+    [-1, 1].forEach(sx => { const post = new THREE.Mesh(new THREE.BoxGeometry(0.22, h, 0.3), M.capM); post.position.set(sx * (w / 2), h / 2, -0.05); g.add(post); });
+    s.liveried = true;
+  });
+}
+
 function buildShopSigns(root) {
   const byBrand = {};
-  shops.list.filter(s => !s.mall && !s.safe).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
+  shops.list.filter(s => !s.mall && !s.safe && !(LIVERY_BRANDS[s.brand] && s.built)).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
   Object.keys(byBrand).forEach(brand => {
     const list = byBrand[brand];
     const b = SHOP_BRANDS[brand];
