@@ -59,6 +59,7 @@ func _box(size: Vector3, pos: Vector3, c: Color, energy: float) -> void:
 		m.emission_enabled = true
 		m.emission = c
 		m.emission_energy_multiplier = energy
+		SkyCycle.glowers.append([m, energy, 0.4])
 	m.roughness = 0.7
 	bm.material = m
 	mi.mesh = bm

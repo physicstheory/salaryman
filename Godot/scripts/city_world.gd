@@ -45,42 +45,12 @@ func build() -> void:
 	forest.commit()
 
 # ---- sky, light and the sea
+var sky: SkyCycle
+
 func _environment() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.015, 0.025, 0.07)
-	sky_mat.sky_horizon_color = Color(0.17, 0.1, 0.22)
-	sky_mat.ground_horizon_color = Color(0.1, 0.08, 0.14)
-	sky_mat.ground_bottom_color = Color(0.02, 0.02, 0.04)
-	sky_mat.sun_angle_max = 0.0
-	var sky := Sky.new()
-	sky.sky_material = sky_mat
-	var env := Environment.new()
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.32, 0.38, 0.6)
-	env.ambient_light_energy = 0.55
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.1
-	env.fog_enabled = true
-	env.fog_light_color = Color(0.1, 0.09, 0.17)
-	env.fog_density = 0.0035
-	env.glow_enabled = true
-	env.glow_intensity = 0.7
-	env.glow_bloom = 0.05
-	env.adjustment_enabled = true
-	env.adjustment_saturation = 1.1
-	var we := WorldEnvironment.new()
-	we.environment = env
-	add_child(we)
-	var moon := DirectionalLight3D.new()
-	moon.light_color = Color(0.6, 0.7, 1.0)
-	moon.light_energy = 0.55
-	moon.rotation_degrees = Vector3(-52, 38, 0)
-	moon.shadow_enabled = true
-	moon.directional_shadow_max_distance = 140.0
-	moon.directional_shadow_mode = DirectionalLight3D.SHADOW_ORTHOGONAL
-	add_child(moon)
+	sky = SkyCycle.new()
+	sky.world = self
+	add_child(sky)
 
 func _mat(c: Color, rough := 0.9, metal := 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -124,7 +94,7 @@ func _ground() -> void:
 	var mi := MeshInstance3D.new()
 	var pl := PlaneMesh.new()
 	pl.size = Vector2(W + 160.0, W + 160.0)
-	pl.material = _mat(Color(0.08, 0.085, 0.1), 1.0)
+	pl.material = _road_material(false, true)
 	mi.mesh = pl
 	mi.position = Vector3(half, -0.02, half)
 	g.add_child(mi)
@@ -144,32 +114,39 @@ func _ground() -> void:
 	_box(self, Vector3(1.0, 3.0, W + 2 * e), Vector3(-e, 1.5, half), wall_m)
 	_box(self, Vector3(1.0, 3.0, W + 2 * e), Vector3(W + e, 1.5, half), wall_m)
 
-func _asphalt_texture() -> ImageTexture:
-	if _asphalt:
-		return _asphalt
-	var img := Image.create(32, 64, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.105, 0.115, 0.14))
-	for y in 64:
-		for x in 32:
-			var n := rng.randf() * 0.025
-			img.set_pixel(x, y, Color(0.105 + n, 0.115 + n, 0.14 + n))
-		if y > 4 and y < 26:
-			for x in range(14, 18):
-				img.set_pixel(x, y, Color(0.8, 0.7, 0.35))
-		img.set_pixel(1, y, Color(0.8, 0.8, 0.8))
-		img.set_pixel(30, y, Color(0.8, 0.8, 0.8))
-	_asphalt = ImageTexture.create_from_image(img)
-	return _asphalt
+## The tarmac's texture set. Real scans dropped into assets/textures/road/ win over the generated set: a Poly Haven asphalt pack
+## (asphalt_02_diff_*.jpg, asphalt_02_nor_gl_*.png, asphalt_02_arm_*.jpg) is picked up by name at any resolution.
+func _road_tex(kind: String) -> Texture2D:
+	var dir := "res://assets/textures/road/"
+	var d := DirAccess.open(dir)
+	if d:
+		for f in d.get_files():
+			if f.ends_with(".import") or f.begins_with("asphalt_02") == false:
+				continue
+			if f.contains("_" + kind + "_") and (f.ends_with(".jpg") or f.ends_with(".png")) and not f.contains("disp"):
+				_road_real = true
+				return load(dir + f) as Texture2D
+	var ext := "png" if kind == "nor" else "jpg"
+	return load("%sasphalt_%s.%s" % [dir, "nor" if kind == "nor" else kind, ext]) as Texture2D
+
+var _road_real := false
+
+func _road_material(markings: bool, pavement := false) -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/road.gdshader")
+	m.set_shader_parameter("alb_tex", _road_tex("diff"))
+	m.set_shader_parameter("nor_tex", _road_tex("nor_gl" if _road_real else "nor"))
+	m.set_shader_parameter("arm_tex", _road_tex("arm"))
+	m.set_shader_parameter("tile_m", 2.6 if _road_real else 4.0)
+	m.set_shader_parameter("road_len", W + 12.0)
+	m.set_shader_parameter("pitch", float(P))
+	m.set_shader_parameter("markings", 1.0 if markings else 0.0)
+	m.set_shader_parameter("surface", 1.0 if pavement else 0.0)
+	return m
 
 func _roads() -> void:
-	var road_mat := StandardMaterial3D.new()
-	road_mat.albedo_texture = _asphalt_texture()
-	road_mat.roughness = 0.38
-	road_mat.metallic_specular = 0.7
-	road_mat.uv1_scale = Vector3(1, (W + 12.0) / 16.0, 1)
-	road_mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	var plain := _mat(Color(0.11, 0.12, 0.145), 0.38)
-	plain.metallic_specular = 0.7
+	var road_mat := _road_material(true)
+	var plain := _road_material(false)
 	for k in N + 1:
 		var a := MeshInstance3D.new()
 		var pa := PlaneMesh.new()
@@ -225,6 +202,7 @@ func _prepare_materials(root: Node, glow: float) -> void:
 				m.emission_enabled = true
 				m.emission_texture = m.albedo_texture
 				m.emission_energy_multiplier = glow
+				SkyCycle.glowers.append([m, glow, 0.0])
 
 func _world_aabb(root: Node3D) -> AABB:
 	var box := AABB()
@@ -288,7 +266,7 @@ func _sign(cx: float, cz: float, yaw: float, size: Vector3, y: float) -> void:
 	add_child(l)
 
 func _blocks() -> void:
-	var pad_mat := _mat(Color(0.2, 0.21, 0.25), 0.9)
+	var pad_mat := _road_material(false, true)
 	var park_mat := _mat(Color(0.08, 0.2, 0.11), 1.0)
 	var tree_cone := ConeMesh_make()
 	for i in N:
@@ -585,9 +563,13 @@ func _lamps() -> void:
 	hm.radius = 0.5
 	hm.height = 1.0
 	var glow := StandardMaterial3D.new()
-	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	glow.albedo_color = Color(1.0, 0.86, 0.55)
+	glow.albedo_color = Color(0.55, 0.55, 0.5)
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.82, 0.5)
+	glow.emission_energy_multiplier = 4.0
+	SkyCycle.glowers.append([glow, 4.0, 0.0])
 	hm.material = glow
+	var lamp_pos := PackedVector3Array()
 	head.mesh = hm
 	head.instance_count = count
 	var idx := 0
@@ -596,6 +578,7 @@ func _lamps() -> void:
 			for o in [Vector2(7, 7), Vector2(-7, -7)]:
 				post.set_instance_transform(idx, Transform3D(Basis.IDENTITY, Vector3(i * P + o.x, 3.5, j * P + o.y)))
 				head.set_instance_transform(idx, Transform3D(Basis.IDENTITY, Vector3(i * P + o.x, 7.2, j * P + o.y)))
+				lamp_pos.append(Vector3(i * P + o.x, 7.2, j * P + o.y))
 				idx += 1
 	var a := MultiMeshInstance3D.new()
 	a.multimesh = post
@@ -603,3 +586,4 @@ func _lamps() -> void:
 	var b := MultiMeshInstance3D.new()
 	b.multimesh = head
 	add_child(b)
+	sky.set_lamps(lamp_pos)

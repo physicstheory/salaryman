@@ -53,6 +53,7 @@ static func _glow(c: Color, energy := 1.4) -> StandardMaterial3D:
 	m.emission = c
 	m.emission_energy_multiplier = energy
 	m.roughness = 0.6
+	SkyCycle.glowers.append([m, energy, 0.3])
 	return m
 
 static func _label(parent: Node3D, text: String, col: Color, pos: Vector3, yaw: float, px: float, size := 64, outline := 10) -> Label3D:

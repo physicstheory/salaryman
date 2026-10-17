@@ -55,6 +55,7 @@ func _ready() -> void:
 	player.position = START
 	stage.add_child(player)
 	player.died.connect(_on_died)
+	world.sky.focus = player
 	rig = CamRig.new()
 	stage.add_child(rig)
 	rig.target = player
@@ -192,7 +193,7 @@ func _spawn_traffic() -> void:
 			continue
 		var yaw := rad_to_deg(atan2(-h.x, -h.z))
 		var v := _spawn_vehicle(kinds[rng.randi() % kinds.size()], pos, yaw)
-		v.lights_on = true
+		v.lights_on = SkyCycle.night_amount > 0.3
 		var ai := AIDriver.new()
 		v.add_child(ai)
 		ai.setup(v, world, h, rng.randf_range(9.0, 14.0))
@@ -224,6 +225,8 @@ func enter(v: Vehicle) -> void:
 	player.remove_from_group("killable")
 	v.add_to_group("killable")
 	v.driver_present = true
+	# lights come on by themselves after dark; L still overrides
+	lights = SkyCycle.night_amount > 0.3
 	v.lights_on = lights
 	v.start_engine_audio()
 	rig.target = v
@@ -328,6 +331,10 @@ func _physics_process(dt: float) -> void:
 	if title_up:
 		return
 	GameState.tick(dt)
+	if fmod(_t, 2.0) < dt:
+		var dark := SkyCycle.night_amount > 0.3
+		for tv in traffic:
+			tv.lights_on = dark
 	radio.update(current != null and not smoke_test_mute)
 	if _radio_hold >= 0.0 and not radio_wheel.is_open:
 		_radio_hold += dt

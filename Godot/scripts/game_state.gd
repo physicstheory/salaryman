@@ -10,7 +10,7 @@ var money := 500000
 var health := 1.0                 # no passive regeneration: food, sleep and hospitals only
 var stress := 0.14
 var awake_min := 0.0
-var clock_min := 19.0 * 60.0       # minutes since midnight; the city is set at night
+var clock_min := 17.0 * 60.0 + 10.0  # minutes since midnight; a new game starts at ten past five, as the web build does
 var day := 1
 var bag: Dictionary = {}           # id -> count
 var wearing := ""                  # audio id on the ears
@@ -29,7 +29,7 @@ var deliveries: Array = []         # [{id, name, due}] due is an absolute game m
 var photos: Array = []             # file paths under user://photos
 var mails: Array = []              # [{from, subject, body, read}]
 var liked: Dictionary = {}
-const TIME_RATE := 1.0 / 2.0       # game minutes per real second
+const TIME_RATE := 0.4             # game minutes per real second: a day lasts an hour
 
 func _ready() -> void:
 	owned["so24"] = true

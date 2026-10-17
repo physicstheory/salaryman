@@ -14,6 +14,7 @@ uniform float floor_h = 3.4;
 uniform float bay_w = 3.1;
 uniform float shop_h = 4.6;
 uniform float glow = 1.0;
+global uniform float night;      // 0 by day, 1 in the dark: the day/night cycle sets it
 
 varying vec3 wpos;
 varying vec3 wnrm;
@@ -88,13 +89,13 @@ void fragment() {
 					// lit window with shelves or a counter showing through
 					float shelf = step(0.5, fract(v * 3.2 + h21(vec2(cx, 3.0))));
 					vec3 inner = mix(vec3(1.0, 0.92, 0.75), vec3(0.8, 0.9, 1.0), h21(vec2(cx, 9.0)));
-					emis = inner * (0.28 + 0.3 * shelf) * glow;
+					emis = inner * (0.28 + 0.3 * shelf) * glow * mix(0.3, 1.0, night);
 					col = vec3(0.05);
 					metal = 0.2; rough = 0.2;
 				}
 				if (fascia > 0.5) {
 					col = shop_col.rgb * (0.55 + 0.45 * h21(vec2(cx, 5.0)));
-					emis = shop_col.rgb * 0.55 * glow;
+					emis = shop_col.rgb * 0.55 * glow * mix(0.25, 1.0, night);
 				}
 				if (pillar > 0.5 && glass < 0.5 && fascia < 0.5) col = trim_col.rgb;
 			}
@@ -130,7 +131,7 @@ void fragment() {
 			col = mix(col, trim_col.rgb * 1.1, rail * 0.9);
 			col = mix(col, vec3(0.78, 0.8, 0.82), ac);
 			if (win > 0.5) {
-				float on = step(r, lit_ratio) * step(0.04, fract(r * 97.0));
+				float on = step(r, lit_ratio * night + 0.04 * (1.0 - night)) * step(0.04, fract(r * 97.0));
 				vec3 lc = lamp_colour(fract(r * 53.0));
 				float curtain = 0.55 + 0.45 * h21(vec2(cx, cy + 11.0));
 				if (on > 0.5) {

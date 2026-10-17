@@ -26,6 +26,7 @@ func build(pos: Vector3, yaw: float) -> void:
 	g.emission_enabled = true
 	g.emission = Color(0.7, 0.95, 1.0)
 	g.emission_energy_multiplier = 1.2
+	SkyCycle.glowers.append([g, 1.2, 0.5])
 	gm.material = g
 	glow.mesh = gm
 	glow.position = Vector3(0, 1.15, 0.42)
