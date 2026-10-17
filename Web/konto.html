@@ -349,6 +349,8 @@
   /* ---- touch controls -------------------------------------------------------
      A phone has no W key. These appear only where the pointer is coarse, sit on
      top of the canvas, and are deliberately large: a thumb is not a mouse. */
+  #onsenview { position: fixed; inset: 0; z-index: 34; pointer-events: none; }
+  #onsenview canvas { width: 100%; height: 100%; display: block; }
   #hotwire { position: fixed; inset: 0; z-index: 28; pointer-events: none; }
   #hotwire canvas { width: 100%; height: 100%; display: block; }
   #camfull { position: fixed; inset: 0; z-index: 30; pointer-events: none; }
@@ -1081,6 +1083,8 @@
   </div></div>
   <div id="pausefoot"><span id="pausehintbar"></span></div>
 </div>
+
+<div id="onsenview" hidden><canvas id="onsencv"></canvas></div>
 
 <div id="hotwire" hidden><canvas id="hotwirecv"></canvas></div>
 
@@ -5477,6 +5481,7 @@ function initThree() {
     if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
     wakeAudio();
+    if (onsens.active) { if (e.code === "Escape" || e.code === "Backspace") endSoak(true); e.preventDefault(); return; }
     if (heist.stage === "wire" || heist.stage === "start" || heist.stage === "smash") { if (!e.repeat) heistKey(e.code); e.preventDefault(); return; }
     if (!title.on && !e.repeat) cheatKey(e);
     // The title screen swallows everything while it is up.
@@ -5707,6 +5712,7 @@ function pollPad(dt) {
     return;
   }
 
+  if (onsens.active) { if (pressed(PAD.B)) endSoak(true); return; }
   // Both hands are busy: the pad is the minigame until it is over.
   if (heist.stage) {
     if (pressed(PAD.UP)) heistPress("u"); if (pressed(PAD.DOWN)) heistPress("d");
@@ -5828,6 +5834,8 @@ function useRide() {
     if (skiUse()) return;
     if (parcelNear(player.pos.x, player.pos.z)) { openParcels(); return; }
     if (homeNear(player.pos.x, player.pos.z)) { enterHome(); return; }
+    const ons = onsenNear(player.pos.x, player.pos.z);
+    if (ons) { enterOnsen(ons); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     if (sh) { enterShop(sh); return; }
   }
@@ -5860,6 +5868,8 @@ function updatePrompt() {
     if (parcelNear(player.pos.x, player.pos.z)) { setPromptText(parcels.list.length > 1 ? "Open parcels" : "Open parcel"); return; }
     // Doors are walked through, not pressed, so the prompt only says so.
     if (homeNear(player.pos.x, player.pos.z)) { setPromptText(null); return; }
+    const ons = onsenNear(player.pos.x, player.pos.z);
+    if (ons) { setPromptText("Enter the onsen"); return; }
     const sh = shopNear(player.pos.x, player.pos.z, 4.0);
     drive.nearShop = sh;
     if (sh) { setPromptText(sh.vend ? "Use the vending machine" : null); return; }
@@ -6789,6 +6799,7 @@ function buildScene(w) {
   buildSki(root);
   try { buildBikeParks(root); } catch (e) { console.warn("bike parks", e); }
   try { buildFamilyHome(root); } catch (e) { console.warn("family home", e); }
+  try { buildOnsens(root); } catch (e) { console.warn("onsens", e); }
   buildStreetLights(root, w);
   buildStreetLife(root, w);
   vegBuild(root);
@@ -7114,7 +7125,7 @@ function updateWalk(dt) {
   if (keys.KeyD || keys.ArrowRight) wishDir.add(right);
   if (keys.KeyA || keys.ArrowLeft) wishDir.sub(right);
   wishDir.addScaledVector(fwd, -w.y).addScaledVector(right, w.x);
-  if (heist.stage) wishDir.set(0, 0, 0);            // both hands are busy
+  if (heist.stage || onsens.active) wishDir.set(0, 0, 0);            // both hands are busy
 
   if (wishDir.lengthSq() > 0) {
     // How far the stick is pushed decides the pace, up to whatever running allows. The
@@ -7332,6 +7343,7 @@ function drawCameraFull(prof) {
 let hudTimer = 0;
 function updateHud(dt, force) {
   heistFx(dt);
+  updateOnsen(dt);
   updateSound(dt);
   updateRadio(dt);
   updateRoute();
@@ -13424,6 +13436,19 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Hot springs: a red disc with the steam mark.
+  if (opts.markers !== false && onsens.list.length && across < 9000) {
+    const orad = Math.max(7 * mPerPx, 17);
+    onsens.list.forEach(o => {
+      if (o.door[0] < vx0 || o.door[0] > vx1 || o.door[1] < vz0 || o.door[1] > vz1) return;
+      ctx.save(); ctx.translate(o.door[0], o.door[1]); ctx.rotate(-rot);
+      ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.beginPath(); ctx.arc(0, 0, orad * 1.05, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#c93a2f"; ctx.beginPath(); ctx.arc(0, 0, orad * 0.9, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#ffffff"; ctx.font = "800 " + Math.round(orad * 1.25) + "px " + UI; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("\u2668", 0, orad * 0.06);
+      ctx.restore();
+    });
+  }
+
   // Markers: stations, shrines and the places worth going.
   if (opts.markers !== false && across < 9000) {
     const r = Math.max(6 * mPerPx, 11);
@@ -13698,6 +13723,7 @@ function mapPois(across) {
     if (across <= 7000) { const bp = bikeParks.list.find(q => q.name === nm); if (bp) out.push({ x: bp.start[0], z: bp.start[1], name: nm + " bike park", kind: "Bike park" }); }
     if (across <= 7000) out.push({ x: R.res.base[0], z: R.res.base[1], name: nm + " lift station", kind: "Ski resort" });
   });
+  onsens.list.forEach(o => out.push({ x: o.door[0], z: o.door[1], name: o.name, kind: "Hot spring" }));
   if (across < 9000) {
     if (home.door && across < 2600) out.push({ x: home.door[0], z: home.door[1], name: "Home", kind: "Your flat" });
     shops.list.forEach(sh => {
@@ -21813,6 +21839,204 @@ function buildFamilyHome(root) {
     const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(0.28, 1), new THREE.MeshLambertMaterial({ color: c })); bush.position.set(p[0], gy + 0.5, p[1]); grp.add(bush); });
   // the veg and the lamps leave it alone
   bikeParks.clear.push([homeReserve.cx, homeReserve.cz, 13]);
+}
+
+// ============================================================================
+// ONSEN
+// ----------------------------------------------------------------------------
+// A bathhouse in the mountain countryside: a wooden house under a tiled roof with
+// a steaming chimney, an indigo curtain with the ゆ mark, paper lanterns, and
+// behind it an outdoor pool among rocks with steam drifting off it. Walk up and
+// press Y. A soak costs a little and takes real time off the clock; it is the
+// strongest cure for stress in the game.
+// ============================================================================
+const onsens = { list: [], steam: null, active: null };
+const ONSEN_NAMES = ["Yukemuri Onsen", "Shirakawa no Yu", "Tsukimi Onsen", "Hoshi no Yu", "Kamikaze Onsen", "Momiji no Yu"];
+function buildOnsens(root) {
+  onsens.list.length = 0; onsens.steam = null;
+  if (!world.cities || !world.cities.length) return;
+  const w = world;
+  const cands = [];
+  for (let x = 700; x < WORLD_X - 700; x += 120) for (let z = 700; z < WORLD_Z - 700; z += 120) {
+    const h = world.sampleHeight(x, z);
+    if (h < 70 || h > 640) continue;
+    if (world.sampleUrban(x, z) > 0.004 || world.sampleRiver(x, z) > 0.1) continue;
+    if (world.slopeAt(x, z) > 0.17) continue;
+    // flat enough underfoot for a house and a pool, and no road, rail or park clearing nearby
+    let ok = true;
+    for (let k = 0; k < 8 && ok; k++) { const a = k * 0.785, hh = world.sampleHeight(x + Math.cos(a) * 14, z + Math.sin(a) * 14); if (Math.abs(hh - h) > 3.6 || hh < 50) ok = false; }
+    if (!ok || !ownRoadFree(w, x, z, -1)) continue;
+    for (let k = 0; k < 8 && ok; k++) if (!ownRoadFree(w, x + Math.cos(k * 0.785) * 18, z + Math.sin(k * 0.785) * 18, -1)) ok = false;
+    for (const q of bikeParks.clear) if (Math.hypot(x - q[0], z - q[1]) < q[2] + 30) ok = false;
+    if (!ok) continue;
+    cands.push({ x: x, z: z, h: h, sc: rnd(Math.round(x), Math.round(z), 9411) * 80 + Math.min(h, 320) * 0.25 });
+  }
+  cands.sort((a, b) => b.sc - a.sc);
+  const chosen = [];
+  cands.forEach(c => { if (chosen.length < 6 && chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) > 1500)) chosen.push(c); });
+  if (!chosen.length) return;
+  const solid = solidMesh(), tile = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.14, 0.15, 0.21) });
+  const grp = new THREE.Group(); root.add(grp);
+  const nc = document.createElement("canvas"); nc.width = 128; nc.height = 96; { const g = nc.getContext("2d"); g.fillStyle = "#b02a2a"; g.fillRect(0, 0, 128, 96); g.fillStyle = "#f4efe2"; g.font = "900 70px " + JP; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("ゆ", 64, 40); g.fillRect(14, 74, 6, 22); g.fillRect(60, 74, 8, 22); g.fillRect(108, 74, 6, 22); }
+  const nt = new THREE.CanvasTexture(nc); nt.encoding = THREE.sRGBEncoding;
+  const norenM = new THREE.MeshLambertMaterial({ map: nt, side: THREE.DoubleSide });
+  const lamp = new THREE.MeshStandardMaterial({ color: 0xd8442f, emissive: new THREE.Color(1, 0.4, 0.2), emissiveIntensity: 0.5, roughness: 0.6 });
+  nightMats.push({ m: lamp, gain: 1.6, floor: 0.35 });
+  const water = new THREE.MeshStandardMaterial({ color: 0x5fb6c4, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.88, emissive: new THREE.Color(0.15, 0.4, 0.45), emissiveIntensity: 0.25 });
+  const steamPos = [], steamSeed = [];
+  chosen.forEach((c, i) => {
+    // face the house down the slope, so the way in looks out over the valley
+    const gx = world.sampleHeight(c.x + 8, c.z) - world.sampleHeight(c.x - 8, c.z), gz = world.sampleHeight(c.x, c.z + 8) - world.sampleHeight(c.x, c.z - 8);
+    const yaw = Math.atan2(-gx, -gz), gy = c.h, out = [Math.sin(yaw), Math.cos(yaw)], lat = [Math.cos(yaw), -Math.sin(yaw)];
+    const W = (u, v) => [c.x + lat[0] * u + out[0] * v, c.z + lat[1] * u + out[1] * v];
+    solid.frame(c.x, gy, c.z, yaw);
+    const WOOD = [0.30, 0.19, 0.11], WOOD2 = [0.46, 0.31, 0.18], PLASTER = [0.86, 0.83, 0.76], ROCK = [0.42, 0.42, 0.40];
+    const box = (col, u, y, v, ww, hh, dd) => solid.colour(col).box(u, y, v, ww, hh, dd);
+    // the bathhouse: 11 x 8, one storey and a half
+    box(ROCK, 0, 0.3, 0, 11.6, 0.6, 8.6); box(PLASTER, 0, 0.6 + 1.7, 0, 11, 3.4, 8);
+    for (let k = 0; k < 36; k++) box(WOOD, -5.3 + k * 0.3, 2.3, 4.05, 0.07, 3.1, 0.1);                 // lattice
+    box(WOOD, 0, 0.9, 4.05, 10.8, 0.14, 0.14); box(WOOD, 0, 3.6, 4.05, 10.8, 0.14, 0.14);
+    box(WOOD2, 0, 1.55, 4.02, 1.7, 2.2, 0.14);                                                         // the door
+    box(WOOD2, 0, 0.5, 4.9, 4.0, 0.16, 1.4);                                                          // the step
+    box([0.55, 0.55, 0.57], -4.2, 6.5, -2.2, 0.55, 3.0, 0.55);                                         // chimney
+    // changing hut and the pool, behind
+    box(WOOD, 0, 1.0, -9.5, 13, 2.0, 0.3); box(WOOD, -6.5, 1.0, -6.0, 0.3, 2.0, 7); box(WOOD, 6.5, 1.0, -6.0, 0.3, 2.0, 7);    // bamboo screen
+    for (let k = 0; k < 14; k++) { const a = k / 14 * 6.2832, rx = 3.6 * Math.cos(a), rz = 2.5 * Math.sin(a); box(ROCK, rx * 1.06, 0.3, -6.4 + rz * 1.2, 1.1 + (k % 3) * 0.3, 0.7 + (k % 2) * 0.3, 1.0 + (k % 3) * 0.2); }
+    box(WOOD2, -5.2, 0.3, -4.4, 0.7, 0.6, 0.7); box(WOOD2, -5.2, 0.8, -4.4, 0.6, 0.4, 0.6);            // stacked buckets
+    // lanterns
+    [[-3.2, 5.4], [3.2, 5.4]].forEach(([u, v]) => { box(WOOD, u, 1.3, v, 0.1, 2.6, 0.1); });
+    // the solid
+    const sd = (u, v, sw, sh, h) => { const q = W(u, v); solids.push({ c: [q[0], q[1]], size: [sw, sh], yaw: yaw * 180 / Math.PI, y: gy, h: h }); };
+    sd(0, 0, 11.2, 8.2, 6.0);
+    // roof, noren, lamps, water
+    const hip = new THREE.ConeGeometry(1, 1, 4); hip.rotateY(Math.PI / 4);
+    const roof = new THREE.Mesh(hip, tile); { const q = W(0, 0); roof.position.set(q[0], gy + 6.2, q[1]); roof.rotation.y = yaw; roof.scale.set(8.2, 2.9, 6.4); roof.castShadow = true; grp.add(roof); }
+    const eave = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.2, 3.0), tile); { const q = W(0, 4.4); eave.position.set(q[0], gy + 4.0, q[1]); eave.rotation.order = "YXZ"; eave.rotation.set(0.3, yaw, 0); grp.add(eave); }
+    const noren = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.2), norenM); { const q = W(0, 4.2); noren.position.set(q[0], gy + 2.45, q[1]); noren.rotation.y = yaw; grp.add(noren); }
+    [[-3.2, 5.4], [3.2, 5.4]].forEach(([u, v]) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), lamp); m.scale.set(0.8, 1.15, 0.8); const q = W(u, v); m.position.set(q[0], gy + 2.7, q[1]); grp.add(m); });
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 0.08, 24), water); pool.scale.set(1, 1, 0.7); { const q = W(0, -6.4); pool.position.set(q[0], gy + 0.45, q[1]); pool.rotation.y = yaw; grp.add(pool); }
+    // the door the player walks to
+    const door = W(0, 6.4);
+    const o = { name: ONSEN_NAMES[i % ONSEN_NAMES.length], at: [c.x, c.z], door: door, yaw: yaw, groundY: gy, fee: 800 + (i % 3) * 200 };
+    onsens.list.push(o);
+    // steam: a plume off the pool and another from the chimney
+    for (let k = 0; k < 26; k++) { const q = W((Math.random() - 0.5) * 6, -6.4 + (Math.random() - 0.5) * 3); steamPos.push(q[0], gy + 0.6 + Math.random() * 3, q[1]); steamSeed.push(gy + 0.6, Math.random() * 6.28); }
+    for (let k = 0; k < 8; k++) { const q = W(-4.2, -2.2); steamPos.push(q[0] + (Math.random() - 0.5), gy + 8 + Math.random() * 3, q[1] + (Math.random() - 0.5)); steamSeed.push(gy + 8, Math.random() * 6.28); }
+    bikeParks.clear.push([c.x, c.z, 24]);
+  });
+  const mesh = new THREE.Mesh(solid.geometry(), furnitureMaterial()); mesh.castShadow = true; mesh.receiveShadow = true; grp.add(mesh);
+  // steam as soft sprites, drifted a little each frame
+  const sc = document.createElement("canvas"); sc.width = sc.height = 64; { const g = sc.getContext("2d"), gr = g.createRadialGradient(32, 32, 2, 32, 32, 30); gr.addColorStop(0, "rgba(255,255,255,0.55)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(steamPos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ size: 4.6, map: new THREE.CanvasTexture(sc), transparent: true, depthWrite: false, opacity: 0.55, sizeAttenuation: true }));
+  pts.frustumCulled = false; grp.add(pts); onsens.steam = { pts: pts, seed: steamSeed, t: 0 };
+}
+function updateOnsenSteam(dt) {
+  const st = onsens.steam; if (!st) return;
+  st.t += dt;
+  const a = st.pts.geometry.attributes.position;
+  for (let k = 0; k < a.count; k++) {
+    const base = st.seed[k * 2], ph = st.seed[k * 2 + 1];
+    let y = a.getY(k) + dt * (0.5 + 0.35 * Math.sin(ph + st.t * 0.4));
+    if (y > base + 4.8 + (k >= a.count - 8 ? 4 : 0)) y = base;
+    a.setXYZ(k, a.getX(k) + Math.sin(st.t * 0.6 + ph) * dt * 0.25, y, a.getZ(k) + Math.cos(st.t * 0.5 + ph) * dt * 0.25);
+  }
+  a.needsUpdate = true;
+}
+function onsenNear(x, z) {
+  for (let i = 0; i < onsens.list.length; i++) { const o = onsens.list[i]; if (Math.hypot(o.door[0] - x, o.door[1] - z) < 4.0) return o; }
+  return null;
+}
+function enterOnsen(o) {
+  if (onsens.active) return;
+  const items = [
+    { label: "A short soak", sub: "30 minutes  ·  " + yenText(o.fee), sym: "♨", col: "#f0a050", fn: () => startSoak(o, 30, o.fee, 0.42, 0.04, "") },
+    { label: "A long soak with a beer", sub: "an hour and a half  ·  " + yenText(o.fee + 1200), sym: "♨", col: "#e5483c", fn: () => startSoak(o, 90, o.fee + 1200, 0.70, 0.10, "beer") },
+    { label: "The works: soak, dinner and a rest", sub: "three hours  ·  " + yenText(o.fee + 3400), sym: "♨", col: "#a56bf0", fn: () => startSoak(o, 180, o.fee + 3400, 0.95, 0.30, "kaiseki") },
+    { label: "Not now", sub: "", sym: "↩", fn: () => {} }
+  ];
+  skiMenuOpen(o.name, "Hot spring water, rock and steam. Leave your shoes at the step.", items, () => {});
+}
+function startSoak(o, minutes, fee, relief, heal, extra) {
+  if (purse.yen < fee) { say("The bath is " + yenText(fee) + ". You have " + yenText(purse.yen) + ".", 4); return; }
+  purse.yen -= fee;
+  onsens.active = { o: o, t: 0, dur: 7 + minutes / 40, minutes: minutes, s0: vitals.stress, relief: relief, heal: heal, extra: extra, h0: vitals.health, done: false };
+  document.body.classList.add("insoak");
+  const el = document.getElementById("onsenview"); if (el) el.hidden = false;
+  if (player.obj) player.obj.visible = false;
+}
+function endSoak(early) {
+  const a = onsens.active; if (!a) return;
+  const f = early ? clamp01(a.t / a.dur) : 1;
+  vitals.stress = clamp01(a.s0 - a.relief * f);
+  vitals.health = clamp01(a.h0 + a.heal * f);
+  advanceGameMinutes(a.minutes * f);
+  onsens.active = null;
+  document.body.classList.remove("insoak");
+  const el = document.getElementById("onsenview"); if (el) el.hidden = true;
+  if (player.obj) player.obj.visible = true;
+  notify("Health", early ? "You leave early" : "You are boiled and boneless", early ? "A little better for it." : "Every knot in your back has gone. Stress dropped a long way.", 7);
+}
+function updateOnsen(dt) {
+  updateOnsenSteam(dt);
+  const a = onsens.active; if (!a) return;
+  a.t += dt;
+  // the stress eases as the water does its work
+  const f = clamp01(a.t / a.dur);
+  vitals.stress = clamp01(a.s0 - a.relief * f);
+  drawOnsen(a, f);
+  if (a.t >= a.dur) endSoak(false);
+}
+function drawOnsen(a, f) {
+  const cv = document.getElementById("onsencv"); if (!cv) return;
+  const W = innerWidth, H = innerHeight, dpr = Math.min(2, window.devicePixelRatio || 1);
+  if (cv.width !== Math.round(W * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const night = nightState.lit > 0.4;
+  const sky = g.createLinearGradient(0, 0, 0, H);
+  if (night) { sky.addColorStop(0, "#0b1226"); sky.addColorStop(0.55, "#1a2540"); sky.addColorStop(1, "#0e3a44"); }
+  else { sky.addColorStop(0, "#a7c9e0"); sky.addColorStop(0.5, "#d8e6e8"); sky.addColorStop(1, "#4a9aa6"); }
+  g.fillStyle = sky; g.fillRect(0, 0, W, H);
+  const t = a.t;
+  // hills and maple across the valley
+  g.fillStyle = night ? "#10202c" : "#5f7f6c"; g.beginPath(); g.moveTo(0, H * 0.5);
+  for (let x = 0; x <= W; x += 20) g.lineTo(x, H * 0.46 + Math.sin(x * 0.006 + 1) * H * 0.05 + Math.sin(x * 0.017) * H * 0.02); g.lineTo(W, H * 0.62); g.lineTo(0, H * 0.62); g.fill();
+  for (let i = 0; i < 40; i++) { const x = (i * 97 % 997) / 997 * W, y = H * (0.5 + (i * 53 % 100) / 100 * 0.1); g.fillStyle = night ? "rgba(60,30,30,0.6)" : (i % 3 ? "rgba(200,70,40,0.75)" : "rgba(230,150,40,0.75)"); g.beginPath(); g.arc(x, y, 7 + (i % 5) * 2, 0, 7); g.fill(); }
+  if (night) { for (let i = 0; i < 60; i++) { g.fillStyle = "rgba(255,255,255," + (0.4 + (i % 4) * 0.12) + ")"; g.fillRect((i * 131 % 1000) / 1000 * W, (i * 71 % 300) / 1000 * H, 1.5, 1.5); } }
+  // the water
+  const wy = H * 0.62, wg = g.createLinearGradient(0, wy, 0, H);
+  wg.addColorStop(0, night ? "#17566a" : "#72c4cf"); wg.addColorStop(1, night ? "#082a36" : "#2f8896");
+  g.fillStyle = wg; g.fillRect(0, wy, W, H - wy);
+  g.strokeStyle = "rgba(255,255,255,0.18)"; g.lineWidth = 1.5;
+  for (let r = 0; r < 14; r++) { const y = wy + 10 + r * (H - wy) / 14; g.beginPath(); for (let x = 0; x <= W; x += 12) { const yy = y + Math.sin(x * 0.02 + t * 1.3 + r) * 2.2; if (x === 0) g.moveTo(x, yy); else g.lineTo(x, yy); } g.stroke(); }
+  // rocks along the edge
+  g.fillStyle = night ? "#1d2229" : "#6e6e68";
+  for (let i = 0; i < 9; i++) { const x = W * (i / 8) + Math.sin(i * 3.1) * 30, y = wy + 4, r = 40 + (i % 3) * 22; g.beginPath(); g.ellipse(x, y, r * 1.5, r * 0.55, 0, Math.PI, 0); g.fill(); }
+  // Seiko: a head above the water, a towel on it, shoulders under
+  const hx = W * 0.5, hy = H * 0.66 + Math.sin(t * 0.8) * 3;
+  g.fillStyle = "#d3a784"; g.beginPath(); g.arc(hx, hy, H * 0.075, 0, 7); g.fill();
+  g.fillStyle = "#16130f"; g.beginPath(); g.arc(hx, hy - H * 0.012, H * 0.075, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+  g.fillStyle = "#f2f2ee"; roundRect(g, hx - H * 0.055, hy - H * 0.108, H * 0.11, H * 0.04, 6); g.fill();
+  g.fillStyle = "rgba(0,0,0,0.65)"; g.fillRect(hx - H * 0.037, hy - H * 0.0, 5, 5); g.fillRect(hx + H * 0.025, hy - H * 0.0, 5, 5);
+  g.fillStyle = "#d3a784"; roundRect(g, hx - H * 0.12, hy + H * 0.075, H * 0.24, H * 0.09, 18); g.fill();
+  g.fillStyle = "rgba(114,196,207,0.55)"; g.fillRect(hx - H * 0.14, hy + H * 0.1, H * 0.28, H * 0.2);
+  // steam, drifting up the whole picture
+  for (let i = 0; i < 26; i++) {
+    const ph = i * 1.7, x = ((i * 137) % 1000) / 1000 * W + Math.sin(t * 0.4 + ph) * 40, y = H * 0.7 - ((t * 24 + i * 61) % (H * 0.75)), r = 40 + (i % 5) * 18;
+    const gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, "rgba(255,255,255,0.22)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  // words
+  const lines = ["Aaah.", "The water is the colour of milk and about forty-two degrees.", "Somewhere a bucket knocks against a rock.", "You have forgotten what the spreadsheet looked like.", "Nobody here wants anything from you."];
+  const li = Math.min(lines.length - 1, Math.floor(f * lines.length));
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "rgba(255,255,255,0.92)"; g.font = "700 " + Math.round(H * 0.034) + "px " + UI;
+  g.shadowColor = "rgba(0,0,0,0.55)"; g.shadowBlur = 8; g.fillText(lines[li], W / 2, H * 0.14); g.shadowBlur = 0;
+  g.fillStyle = "rgba(255,255,255,0.7)"; g.font = "600 " + Math.round(H * 0.022) + "px " + UI; g.fillText(a.o.name + (a.extra === "beer" ? "   ·   a cold beer on the rock" : a.extra === "kaiseki" ? "   ·   dinner is on its way" : ""), W / 2, H * 0.19);
+  // stress bar, falling
+  const bw = Math.min(W * 0.5, 420), bx = (W - bw) / 2, by = H * 0.9;
+  g.fillStyle = "rgba(0,0,0,0.4)"; roundRect(g, bx, by, bw, 14, 7); g.fill();
+  g.fillStyle = "#3f8fe0"; roundRect(g, bx, by, Math.max(14, bw * vitals.stress), 14, 7); g.fill();
+  g.fillStyle = "rgba(255,255,255,0.8)"; g.font = "600 " + Math.round(H * 0.02) + "px " + UI; g.fillText("Stress  " + Math.round(vitals.stress * 100) + "%      Esc: get out", W / 2, by - 14);
+  g.textBaseline = "alphabetic";
 }
 
 function buildGarage(root) {
