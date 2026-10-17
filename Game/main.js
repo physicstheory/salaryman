@@ -66,8 +66,8 @@ function resolve(request) {
 function createWindow() {
   const area = screen.getPrimaryDisplay().workAreaSize;
   win = new BrowserWindow({
-    width: Math.min(1600, Math.round(area.width * 0.9)),
-    height: Math.min(900, Math.round(area.height * 0.9)),
+    width: area.width,
+    height: area.height,
     minWidth: 1024,
     minHeight: 600,
     backgroundColor: "#0c0e12",
@@ -80,11 +80,16 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       preload: path.join(ROOT, "preload.js"),
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      autoplayPolicy: "no-user-gesture-required"
     }
   });
+  // Opens filling the work area, so the taskbar stays where it is. F11 goes to
+  // true fullscreen and back.
+  win.maximize();
   win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
+  win.on("leave-full-screen", () => { if (!win.isDestroyed()) win.maximize(); });
   win.loadURL("konto://app/index.html");
   const target = shotPath();
   if (target) win.webContents.once("did-finish-load", () => takeShot(target));

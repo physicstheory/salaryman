@@ -352,6 +352,7 @@
   #touch { display: none; }
   body.touch #touch { display: block; }
   body.touch #keyhints { display: none; }
+  body:not(.touch) #touch, #legend, #keyhints, #modehint, #modebtn { display: none !important; }
   body.touch #masthead { max-width: 46vw; }
 
   /* The thumbstick lives in the bottom left corner, which is exactly where the controls
@@ -6023,8 +6024,11 @@ function initPause() {
 // nothing downstream has to know which one is being used - and it is analogue, so a small
 // push walks and a big one strides.
 function initTouch() {
+  // Only a phone or tablet gets the on-screen stick. A touch-screen laptop or the
+  // desktop app has a keyboard, a pad or a mouse, and the buttons would only sit on the picture.
   const coarse = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
-  if (!coarse) return;
+  const handheld = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "") && !/Electron/i.test(navigator.userAgent || "");
+  if (!coarse || !handheld) return;
   document.body.classList.add("touch");
 
   const stick = document.getElementById("stick");
@@ -25203,14 +25207,39 @@ function buildSki(root) {
     const dx = r.dir[0], dz = r.dir[1], lx = -dz, lz = dx;                 // downhill and across
     const yaw = Math.atan2(dx, dz);
     const topY = world.sampleHeight(r.top[0], r.top[1]), baseY = world.sampleHeight(r.base[0], r.base[1]);
-    // pylons every ~85 m; the cable never dips under the ground
+    // Pylons every ~85 m. The cable is straight between them, so a rise in the
+    // ground in the middle of a span would put the line through the mountain:
+    // the ground is sampled along each span, across the width of the two
+    // cables and the chairs hanging under them, and the pylons either side are
+    // raised until every sample clears by eight metres.
     const n = Math.max(3, Math.round(r.len / 85));
     const poly = [];
+    const groundAt = (x, z) => Math.max(world.sampleHeight(x, z), world.sampleHeight(x + lx * 5, z + lz * 5), world.sampleHeight(x - lx * 5, z - lz * 5));
     for (let i = 0; i <= n; i++) {
       const f = i / n, x = r.top[0] + (r.base[0] - r.top[0]) * f, z = r.top[1] + (r.base[1] - r.top[1]) * f;
       const lin = topY + 7.2 + (baseY - topY) * f;
       const gy = world.sampleHeight(x, z);
-      poly.push({ x: x, z: z, y: i === 0 || i === n ? lin : Math.max(lin, gy + 9.5), gy: gy });
+      poly.push({ x: x, z: z, y: i === 0 || i === n ? lin : Math.max(lin, groundAt(x, z) + 10), gy: gy });
+    }
+    for (let pass = 0; pass < 40; pass++) {
+      let moved = false;
+      for (let i = 0; i < n; i++) {
+        const a = poly[i], b = poly[i + 1], span = Math.hypot(b.x - a.x, b.z - a.z), steps = Math.max(4, Math.round(span / 6));
+        let worst = 0, wf = 0;
+        for (let k = 1; k < steps; k++) {
+          const f = k / steps, x = a.x + (b.x - a.x) * f, z = a.z + (b.z - a.z) * f;
+          const need = groundAt(x, z) + 8.5 - (a.y + (b.y - a.y) * f);
+          if (need > worst) { worst = need; wf = f; }
+        }
+        if (worst > 0.05) {
+          moved = true;
+          const ia = i > 0, ib = i + 1 < n;       // the stations at the two ends stay put
+          if (ia && ib) { a.y += worst + 0.3; b.y += worst + 0.3; }
+          else if (ib) b.y += Math.min(40, worst / Math.max(0.15, wf) + 0.3);
+          else if (ia) a.y += Math.min(40, worst / Math.max(0.15, 1 - wf) + 0.3);
+        }
+      }
+      if (!moved) break;
     }
     // station frame, bull wheel and building at each end
     const station = (p, base) => {
@@ -25271,10 +25300,6 @@ function buildSki(root) {
       const f = (d - cum[i - 1]) / (cum[i] - cum[i - 1]), a = poly[i - 1], b = poly[i];
       return [a.x + (b.x - a.x) * f + lx * off, a.y + (b.y - a.y) * f, a.z + (b.z - a.z) * f + lz * off];
     };
-    // the sprites that mark the resort from a distance
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(skiMarkCanvas(256)), transparent: true, depthWrite: false, fog: false }));
-    spr.scale.set(70, 70, 1); spr.position.set(r.top[0], topY + 70, r.top[1]); g.add(spr);
-    const spr2 = spr.clone(); spr2.scale.set(18, 18, 1); spr2.position.set(r.base[0], baseY + 32, r.base[1]); g.add(spr2);
     // where you stand to use it
     const across = (p, along) => [p[0] - lx * 5.5 + dx * along, p[1] - lz * 5.5 + dz * along];
     const R = { name: r.name, res: r, poly: poly, at: at, total: total, chairs: chairs, count: count, yaw: yaw, topY: topY, baseY: baseY,
