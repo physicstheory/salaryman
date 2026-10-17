@@ -259,7 +259,7 @@ func _buy(i: int) -> void:
 	if (m.has("tv") or m.has("game") or m.has("gear")) and GameState.owned.has(id):
 		_say("You already own that.")
 		return
-	if not GameState.spend(price):
+	if not GameState.spend(price, m.name):
 		_say("Not enough money. That is %s." % GameState.yen(price))
 		return
 	var done := _deliver(m)

@@ -15,6 +15,14 @@ var current: Vehicle
 var lights := false
 var smoke_test := false
 var shop_ui: ShopUI
+var map_ui: MapUI
+var phone_ui: PhoneUI
+var phone_open := false
+var _fade: ColorRect
+var pause_menu: PauseMenu
+var title_screen: TitleScreen
+var title_up := false
+var beam: MeshInstance3D
 var ui_open := false
 var _t := 0.0
 
@@ -52,7 +60,29 @@ func _ready() -> void:
 	layer.add_child(shop_ui)
 	shop_ui.visible = false
 	shop_ui.closed.connect(_on_shop_closed)
-	GameState.notice.connect(func(app: String, title: String, body: String, secs: float): hud.say_small("%s: %s  %s" % [app, title, body], secs))
+	GameState.notice.connect(func(app: String, title: String, body: String, secs: float): hud.toast(app, title, body, secs))
+	map_ui = MapUI.new()
+	layer.add_child(map_ui)
+	map_ui.closed.connect(_on_map_closed)
+	pause_menu = PauseMenu.new()
+	pause_menu.game = self
+	layer.add_child(pause_menu)
+	pause_menu.resume.connect(_resume)
+	pause_menu.open_map.connect(func(): pause_menu.visible = false; _open_map())
+	pause_menu.quit_to_title.connect(_to_title)
+	hud.minimap.world = world
+	phone_ui = PhoneUI.new()
+	phone_ui.game = self
+	layer.add_child(phone_ui)
+	phone_ui.closed.connect(_on_phone_closed)
+	_fade = ColorRect.new()
+	_fade.color = Color(0, 0, 0, 0)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(_fade)
+	_make_beam()
+	if not smoke_test:
+		_show_title()
 	_spawn_player_cars()
 	_spawn_traffic()
 	if not smoke_test:
@@ -222,11 +252,18 @@ func _on_shop_closed() -> void:
 	GameState.save_game()
 
 func _unhandled_input(e: InputEvent) -> void:
-	if ui_open:
+	if ui_open or title_up or phone_open:
 		return
-	if e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED else Input.MOUSE_MODE_CAPTURED
-	elif e is InputEventMouseButton and e.pressed and not smoke_test:
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_ESCAPE:
+		_pause()
+		return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_M:
+		_open_map()
+		return
+	if e is InputEventKey and e.pressed and not e.echo and e.keycode == KEY_P:
+		_open_phone()
+		return
+	if e is InputEventMouseButton and e.pressed and not smoke_test and not get_tree().paused:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if Input.is_action_just_pressed("hide_help"):
 		hud.show_help = not hud.show_help
@@ -251,11 +288,13 @@ func _unhandled_input(e: InputEvent) -> void:
 
 func _physics_process(dt: float) -> void:
 	_t += dt
+	if title_up:
+		return
 	GameState.tick(dt)
 	GameState.outdoors = (not current) and world.in_park(player.global_position)
 	var strain := GameState.strain()
 	player.speed_mult = 1.0 - 0.42 * strain
-	if current:
+	if current and not phone_open:
 		var f := Input.get_action_strength("move_forward")
 		var b := Input.get_action_strength("move_back")
 		var s := Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
@@ -369,7 +408,158 @@ func _input(e: InputEvent) -> void:
 
 var _last_win := Vector2i.ZERO
 func _process(_dt: float) -> void:
+	if title_up and rig:
+		# the camera drifts slowly round the city behind the title
+		rig.set_process(false)
+		var a := Time.get_ticks_msec() * 0.00006
+		var cx := world.W * 0.5
+		var camp := Vector3(cx + cos(a) * 190.0, 70.0, cx + sin(a) * 190.0)
+		rig.global_position = camp
+		rig.look_at(Vector3(cx, 8.0, cx), Vector3.UP)
+	if hud and hud.minimap and rig:
+		var pos := current.global_position if current else player.global_position
+		hud.minimap.player_pos = pos
+		hud.minimap.cam_yaw = rig.yaw
+		if current:
+			var f := -current.global_transform.basis.z
+			hud.minimap.heading = atan2(f.z, f.x)
+		else:
+			hud.minimap.heading = atan2(-cos(rig.yaw), -sin(rig.yaw))
+		_update_waypoint()
 	var w := get_window().size
 	if w != _last_win:
 		_last_win = w
 		_apply_upscaler()
+
+# ---- pause, map, title
+func _pause() -> void:
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	pause_menu.open_menu()
+
+func _resume() -> void:
+	pause_menu.visible = false
+	get_tree().paused = false
+	if not smoke_test:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _open_map() -> void:
+	get_tree().paused = true
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var pos := current.global_position if current else player.global_position
+	var heading := atan2(-cos(rig.yaw), -sin(rig.yaw))
+	if current:
+		var f := -current.global_transform.basis.z
+		heading = atan2(f.z, f.x)
+	map_ui.open(world, pos, heading)
+
+func _on_map_closed() -> void:
+	get_tree().paused = false
+	if not smoke_test:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _make_beam() -> void:
+	beam = MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 1.4
+	cm.bottom_radius = 1.4
+	cm.height = 90.0
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(1.0, 0.25, 0.55, 0.3)
+	m.emission_enabled = true
+	m.emission = Color(1.0, 0.25, 0.55)
+	m.emission_energy_multiplier = 1.5
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	cm.material = m
+	beam.mesh = cm
+	beam.visible = false
+	stage.add_child(beam)
+
+func _update_waypoint() -> void:
+	var wp := GameState.waypoint
+	if wp == Vector3.INF:
+		beam.visible = false
+		hud.minimap.visible = true
+		hud.waypoint_line = ""
+		return
+	var pos := current.global_position if current else player.global_position
+	var d := Vector2(wp.x - pos.x, wp.z - pos.z).length()
+	beam.visible = true
+	beam.global_position = Vector3(wp.x, 45.0, wp.z)
+	hud.waypoint_line = "%s · %d m" % [GameState.waypoint_name, int(d)]
+	# arriving takes the waypoint away, as in the web build
+	if d < 14.0:
+		GameState.waypoint = Vector3.INF
+		GameState.say("Map", "You have arrived", GameState.waypoint_name, 3.5)
+
+func _show_title() -> void:
+	title_up = true
+	player.active = false
+	title_screen = TitleScreen.new()
+	title_screen.start_new.connect(func(): _begin(false))
+	title_screen.start_continue.connect(func(): _begin(true))
+	hud.get_parent().add_child(title_screen)
+	hud.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+func _begin(continue_game: bool) -> void:
+	if continue_game:
+		GameState.load_game()
+	title_up = false
+	title_screen.queue_free()
+	title_screen = null
+	hud.visible = true
+	player.active = true
+	rig.set_process(true)
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _to_title() -> void:
+	get_tree().paused = false
+	pause_menu.visible = false
+	GameState.save_game()
+	if current:
+		leave()
+	_show_title()
+
+func set_scale_index(i: int) -> void:
+	scale_index = clampi(i, 0, SCALES.size() - 1)
+	_apply_upscaler()
+	_save_settings()
+
+func set_sharpness(v: float) -> void:
+	sharpness = clampf(v, 0.0, 1.0)
+	_apply_upscaler()
+	_save_settings()
+
+func _open_phone() -> void:
+	phone_open = true
+	if current == null:
+		player.active = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	phone_ui.open_phone()
+
+func _on_phone_closed() -> void:
+	phone_open = false
+	if current == null:
+		player.active = true
+	if not smoke_test:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+## A Ryde car takes you to a place: a fade, a short ride, a fade back.
+func ryde_to(pos: Vector3, place: String) -> void:
+	GameState.say("Ryde", "Driver on the way", "Heading to %s" % place, 3.0)
+	player.active = false
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, 0.6)
+	await tw.finished
+	player.global_position = Vector3(pos.x, 0.4, pos.z)
+	player.velocity = Vector3.ZERO
+	GameState.advance_minutes(8.0)
+	GameState.add_stress(-0.02)
+	rig.snap_to_target()
+	await get_tree().create_timer(0.5).timeout
+	var tw2 := create_tween()
+	tw2.tween_property(_fade, "color:a", 0.0, 0.6)
+	player.active = true
+	GameState.say("Ryde", "You have arrived", place, 3.5)

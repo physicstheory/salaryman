@@ -10,6 +10,10 @@ var show_help := true
 var fps_text := ""
 var small := ""
 var small_t := 0.0
+var toasts: Array = []
+var minimap: MiniMap
+var waypoint_line := ""
+const APP_COLOURS := {"Ryde": "#12b36b", "Poodle": "#3b6ea8", "Wallet": "#2a2f38", "Camera": "#4a5058", "MyGram": "#8a2be2", "Nihon": "#157a46", "Phone": "#2f8a4c", "Mail": "#2f6fb0", "Music": "#b4365c", "Photos": "#d99a1c", "Health": "#ff2d55", "Map": "#e0457b", "Bag": "#9a6bf0", "System": "#6b7076", "Capsule": "#1d2430", "Hayabin": "#f08a2c"}
 var _font: Font
 
 func _fit() -> void:
@@ -20,6 +24,8 @@ func _fit() -> void:
 func _ready() -> void:
 	_fit()
 	get_viewport().size_changed.connect(_fit)
+	minimap = MiniMap.new()
+	add_child(minimap)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_font = ThemeDB.fallback_font
 
@@ -31,9 +37,18 @@ func say_small(t: String, secs := 3.5) -> void:
 	small = t
 	small_t = secs
 
+## A notification, shown as a toast stack above the minimap.
+func toast(app: String, title: String, body: String, secs := 4.0) -> void:
+	toasts.append({"app": app, "title": title, "body": body, "t": secs, "life": secs})
+	while toasts.size() > 4:
+		toasts.pop_front()
+
 func _process(dt: float) -> void:
 	banner_t = maxf(0.0, banner_t - dt)
 	small_t = maxf(0.0, small_t - dt)
+	for n in toasts:
+		n.t -= dt
+	toasts = toasts.filter(func(n): return n.t > 0.0)
 	fps_text = "%d fps" % Engine.get_frames_per_second()
 	queue_redraw()
 
@@ -43,6 +58,7 @@ func _txt(s: String, p: Vector2, size: int, col := Color.WHITE, align := HORIZON
 
 func _draw() -> void:
 	var sz := size
+	minimap.position = Vector2(14, sz.y - 200)
 	_txt(fps_text, Vector2(14, 22), 14, Color(1, 1, 1, 0.6))
 	# money and the clock, top right
 	_txt(GameState.yen(GameState.money), Vector2(sz.x - 20, 34), 28, Color(0.95, 0.9, 0.7), HORIZONTAL_ALIGNMENT_RIGHT)
@@ -51,10 +67,10 @@ func _draw() -> void:
 	for k in 2:
 		var vv: float = GameState.health if k == 0 else GameState.stress
 		var cc := Color(0.85, 0.28, 0.24) if k == 0 else Color(0.25, 0.55, 0.9)
-		var yy := sz.y - 96.0 + k * 16.0
-		draw_rect(Rect2(14, yy, 150, 9), Color(0, 0, 0, 0.55))
-		draw_rect(Rect2(15, yy + 1, 148.0 * vv, 7), cc)
-		_txt("HEALTH" if k == 0 else "STRESS", Vector2(172, yy + 9), 12, Color(1, 1, 1, 0.7))
+		var yy := sz.y - 38.0 + k * 16.0
+		draw_rect(Rect2(212, yy, 150, 9), Color(0, 0, 0, 0.55))
+		draw_rect(Rect2(213, yy + 1, 148.0 * vv, 7), cc)
+		_txt("HEALTH" if k == 0 else "STRESS", Vector2(370, yy + 9), 12, Color(1, 1, 1, 0.7))
 	if small_t > 0.0:
 		_txt(small, Vector2(14, 44), 15, Color(0.7, 0.95, 1.0, minf(1.0, small_t)))
 	if vehicle:
@@ -78,6 +94,21 @@ func _draw() -> void:
 			slip = maxf(slip, w.slip)
 		if slip > 1.2:
 			_txt("SLIDING", Vector2(sz.x - 150, sz.y - 14), 13, Color(1, 0.6, 0.2), HORIZONTAL_ALIGNMENT_CENTER)
+	# notification toasts above the minimap
+	var ty := sz.y - 214.0
+	for k in range(toasts.size() - 1, -1, -1):
+		var n: Dictionary = toasts[k]
+		var a := clampf(minf(n.t, 0.5) * 2.0, 0.0, 1.0)
+		var h := 52.0
+		ty -= h + 6.0
+		draw_rect(Rect2(14, ty, 330, h), Color(0.07, 0.08, 0.11, 0.9 * a))
+		draw_rect(Rect2(14, ty, 6, h), Color(APP_COLOURS.get(n.app, "#888888")))
+		_txt(n.app.to_upper(), Vector2(30, ty + 17), 11, Color(1, 1, 1, 0.55 * a))
+		_txt(n.title, Vector2(30, ty + 34), 16, Color(1, 1, 1, a))
+		if n.body != "":
+			_txt(n.body, Vector2(30, ty + 49), 12, Color(1, 1, 1, 0.7 * a))
+	if waypoint_line != "":
+		_txt(waypoint_line, Vector2(14, sz.y - 206.0), 14, Color(1.0, 0.5, 0.75))
 	if prompt != "":
 		_txt(prompt, Vector2(sz.x * 0.5, sz.y * 0.72), 22, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	if banner_t > 0.0:
@@ -85,4 +116,4 @@ func _draw() -> void:
 	if show_help:
 		var lines := ["WASD / arrows: move and drive      Shift: run      Space: jump / handbrake", "E: get in or out      R: flip the car upright      L: headlights      H: hide this", "Mouse: look      Esc: release the mouse      [ and ]: render scale      \\: sharpen"]
 		for i in lines.size():
-			_txt(lines[i], Vector2(14, sz.y - 62 + i * 20), 14, Color(1, 1, 1, 0.75))
+			_txt(lines[i], Vector2(14, 68 + i * 18), 13, Color(1, 1, 1, 0.65))

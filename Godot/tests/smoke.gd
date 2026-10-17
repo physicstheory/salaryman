@@ -88,5 +88,46 @@ func _run(g: Game) -> void:
 		print("bought one thing at %s: money %d -> %d, bag %s" % [door.shop_name, yen0, gs.money, str(gs.bag)])
 		if gs.money >= yen0: fails.append("purchase did not cost anything")
 		g.shop_ui.close()
+	# map, waypoint and pause menu
+	g._open_map()
+	if not g.map_ui.visible: fails.append("map did not open")
+	g.map_ui.close()
+	var gs2 = get_node("/root/GameState")
+	gs2.waypoint = g.player.global_position + Vector3(200, 0, 0)
+	g._update_waypoint()
+	if not g.beam.visible: fails.append("waypoint beam not shown")
+	g.player.global_position = Vector3(gs2.waypoint.x - 3.0, 0.3, gs2.waypoint.z)
+	g._update_waypoint()
+	if gs2.waypoint != Vector3.INF: fails.append("waypoint did not clear on arrival")
+	g._pause()
+	if not g.pause_menu.visible: fails.append("pause menu did not open")
+	g._resume()
+	if get_tree().paused: fails.append("still paused after resume")
+	print("street name test: ", MapDraw.street_name(g.world, 104.0, 104.0), " | ", MapDraw.street_name(g.world, 104.0, 130.0))
+	# the phone: open every app and make sure each builds without error
+	g._open_phone()
+	for a in GameData.raw.phone_apps:
+		g.phone_ui.open_app(a[0])
+		await get_tree().process_frame
+	g.phone_ui.open_app("Poodle")
+	await get_tree().process_frame
+	for s in GameData.raw.web:
+		g.phone_ui._site(s)
+		await get_tree().process_frame
+		g.phone_ui._back()
+	for s in GameData.raw.filler_sites:
+		g.phone_ui._site(s)
+		await get_tree().process_frame
+		g.phone_ui._back()
+	var gs3 = get_node("/root/GameState")
+	var money0: int = gs3.money
+	var item := {"id": "coffee", "name": "Canned coffee", "price": 130}
+	g.phone_ui._web_buy(item, 2.0)
+	if gs3.money != money0 - 130 or gs3.deliveries.size() != 1: fails.append("online order did not charge or queue")
+	gs3.advance_minutes(200.0)
+	gs3.tick(0.01)
+	if not gs3.has_item("coffee"): fails.append("parcel never arrived")
+	g.phone_ui.close_phone()
+	print("phone: all %d apps and %d sites built" % [GameData.raw.phone_apps.size(), GameData.raw.web.size() + GameData.raw.filler_sites.size()])
 	print("SMOKE TEST ", "PASSED" if fails.is_empty() else "FAILED: " + ", ".join(fails))
 	get_tree().quit(0 if fails.is_empty() else 1)

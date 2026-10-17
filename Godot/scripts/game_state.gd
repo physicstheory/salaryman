@@ -21,10 +21,20 @@ var outdoors := false              # set by the world each frame: true in a park
 var waypoint := Vector3.INF
 var waypoint_name := ""
 var toasts: Array = []
+var ledger: Array = []             # [{what, yen, day, clock}]
+var deliveries: Array = []         # [{id, name, due}] due is an absolute game minute
+var photos: Array = []             # file paths under user://photos
+var mails: Array = []              # [{from, subject, body, read}]
+var liked: Dictionary = {}
 const TIME_RATE := 1.0 / 2.0       # game minutes per real second
 
 func _ready() -> void:
 	owned["so24"] = true
+	mails = [
+		{"from": "Section Chief Hara", "subject": "Re: Re: Re: Report", "body": "Seiko-kun. The report is fine. Please redo it. Also, a brief word about the word 'brief'.\n\n— Hara", "read": false},
+		{"from": "Mom", "subject": "Eating properly?", "body": "Are you eating properly? Ramen is not a vegetable. Your father says hello. He did not say hello. I am saying it for him.", "read": false},
+		{"from": "Tōkonto Bank", "subject": "Your balance", "body": "Your account is in good standing. Thank you for your continued silence.", "read": true},
+		{"from": "Nihon Rail", "subject": "Last train notice", "body": "Please note that the last train is the last train. It will not wait. It has never waited.", "read": true}]
 
 # ---- stress and health, as in the web build
 func strain() -> float:
@@ -53,6 +63,7 @@ func hurt(d: float) -> void:
 	changed.emit()
 
 func tick(dt: float) -> void:
+	_deliver_due()
 	stress = clampf(stress + dt * 0.0016, 0.0, 1.0)
 	awake_min += dt * TIME_RATE
 	clock_min += dt * TIME_RATE
@@ -64,6 +75,28 @@ func tick(dt: float) -> void:
 	# being out in the open air is the free cure; a car or a street of shops is not
 	if outdoors and stress > 0.05:
 		stress = clampf(stress - dt * 0.0036, 0.0, 1.0)
+
+func abs_minute() -> float:
+	return float(day) * 1440.0 + clock_min
+
+## Order something online: it arrives after `hours` game hours, into the bag.
+func order(id: String, name: String, yen_cost: int, hours: float) -> bool:
+	if not spend(yen_cost, "Hayabin: " + name):
+		return false
+	deliveries.append({"id": id, "name": name, "due": abs_minute() + hours * 60.0})
+	say("Hayabin", "Order placed", "%s · arrives in about %d hours" % [name, int(hours)], 4.0)
+	return true
+
+func _deliver_due() -> void:
+	if deliveries.is_empty():
+		return
+	var now := abs_minute()
+	for d in deliveries.duplicate():
+		if now >= d.due:
+			deliveries.erase(d)
+			give(d.id, 1)
+			say("Hayabin", "Parcel delivered", "%s is in your bag" % d.name, 5.0)
+			mails.push_front({"from": "Hayabin", "subject": "Delivered: " + d.name, "body": "Your parcel was left with you, because you were the only person nearby.", "read": false})
 
 func advance_minutes(m: float) -> void:
 	clock_min += m
@@ -80,10 +113,13 @@ func clock_text() -> String:
 func can_afford(yen: int) -> bool:
 	return money >= yen
 
-func spend(yen: int) -> bool:
+func spend(yen: int, what := "Purchase") -> bool:
 	if money < yen:
 		return false
 	money -= yen
+	ledger.push_front({"what": what, "yen": -yen, "day": day, "clock": clock_text()})
+	if ledger.size() > 40:
+		ledger.pop_back()
 	retail_relief(yen)
 	changed.emit()
 	return true
@@ -139,7 +175,7 @@ func say(app: String, title: String, body: String, secs := 4.0) -> void:
 func save_game() -> void:
 	var f := FileAccess.open("user://save.json", FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"money": money, "health": health, "stress": stress, "bag": bag, "wearing": wearing, "owned": owned, "device": device, "shirt": shirt, "clock": clock_min, "day": day, "awake": awake_min}))
+		f.store_string(JSON.stringify({"money": money, "health": health, "stress": stress, "bag": bag, "wearing": wearing, "owned": owned, "device": device, "shirt": shirt, "clock": clock_min, "day": day, "awake": awake_min, "ledger": ledger, "deliveries": deliveries, "photos": photos, "mails": mails, "liked": liked}))
 
 func load_game() -> bool:
 	if not FileAccess.file_exists("user://save.json"):
@@ -151,5 +187,7 @@ func load_game() -> bool:
 	money = int(d.get("money", money)); health = float(d.get("health", health)); stress = float(d.get("stress", stress))
 	bag = d.get("bag", {}); wearing = d.get("wearing", ""); owned = d.get("owned", {"so24": true}); device = d.get("device", "so24")
 	shirt = d.get("shirt", shirt); clock_min = float(d.get("clock", clock_min)); day = int(d.get("day", 1)); awake_min = float(d.get("awake", 0.0))
+	ledger = d.get("ledger", []); deliveries = d.get("deliveries", []); photos = d.get("photos", []); liked = d.get("liked", {})
+	if d.has("mails"): mails = d.mails
 	changed.emit()
 	return true

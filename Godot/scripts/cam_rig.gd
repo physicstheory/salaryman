@@ -13,6 +13,7 @@ var cam: Camera3D
 var _idle := 0.0
 var _pos := Vector3.ZERO
 var _shake := 0.0
+var sens := 1.0
 
 func _ready() -> void:
 	cam = Camera3D.new()
@@ -24,8 +25,8 @@ func _ready() -> void:
 
 ## Mouse look; the game forwards the relative motion, since this node sits inside the 3D SubViewport.
 func look(rel: Vector2) -> void:
-	yaw -= rel.x * 0.0028
-	pitch = clampf(pitch - rel.y * 0.0028, -1.2, 0.45)
+	yaw -= rel.x * 0.0028 * sens
+	pitch = clampf(pitch - rel.y * 0.0028 * sens, -1.2, 0.45)
 	_idle = 0.0
 
 func bump(strength: float) -> void:
