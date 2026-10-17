@@ -6160,6 +6160,7 @@ function buildScene(w) {
   scene.environment = gfx.env || null;
   solids.length = 0;
   treeCells.length = 0;
+  lampCells.length = 0;
   // The grid indexes into the list that was just emptied. Left in place it
   // answers questions about buildings that no longer exist, by index, and the
   // first caller to ask during a rebuild - the street trees, which want to know
@@ -6611,6 +6612,7 @@ function buildScene(w) {
   buildHighwayMesh(root);
   buildTolls(root);
   buildSki(root);
+  buildStreetLights(root, w);
   vegBuild(root);
   drive.car = null;
   drive.train = null;
@@ -7449,6 +7451,14 @@ function updateTreeLod(dt, force) {
   if (!treeCells.length || !camera) return;
   const T = TREE_LOD[gfx.tier] || TREE_LOD.high;
   const px = camera.position.x, pz = camera.position.z;
+  {
+    const cull = LAMP_CULL[gfx.tier] || LAMP_CULL.high, dark = nightState.lit > 0.03;
+    for (let i = 0; i < lampCells.length; i++) {
+      const c = lampCells[i], near = Math.hypot(c.x - px, c.z - pz) - c.r < cull;
+      c.meshes[0].visible = c.meshes[1].visible = near;
+      c.pool.visible = near && dark;
+    }
+  }
   for (let i = 0; i < treeCells.length; i++) {
     const c = treeCells[i];
     const d = Math.max(0, Math.hypot(c.x - px, c.z - pz) - c.r);
@@ -7545,6 +7555,110 @@ function plantTrees(root, trees) {
       root.add(inst);
       treeCells.push({ mesh: inst, geos: geos, x: cx, z: cz, r: rad, n: list.length, cur: 0 });
     });
+  });
+}
+
+
+// ============================================================================
+// STREET LIGHTS
+// ----------------------------------------------------------------------------
+// A pole at the kerb every thirty-odd metres down every road in every town,
+// alternating sides, and one every fifty-five along the coastal expressway. Each
+// 500 m square of them is three static meshes (poles and arms, lamp heads, and
+// a pool of light laid on the road), so only the squares in front of the camera
+// are drawn and the far ones are skipped. After dusk the heads turn warm and the
+// pools come up; in daytime they are grey fittings on a pole.
+// ============================================================================
+const lampCells = [];
+const LAMP_CULL = { low: 380, medium: 600, high: 900, ultra: 1300 };
+const lampLook = { head: null, pool: null };
+function buildStreetLights(root, w) {
+  lampCells.length = 0;
+  const CELL = 500, cells = {};
+  const cellFor = (x, z) => {
+    const k = Math.floor(x / CELL) + "," + Math.floor(z / CELL);
+    if (!cells[k]) cells[k] = { body: solidMesh(), head: solidMesh(), pool: { pos: [], col: [] }, minx: 1e9, maxx: -1e9, minz: 1e9, maxz: -1e9, n: 0 };
+    return cells[k];
+  };
+  const grid = w._corridors ? w._corridors.grid : null, cellC = w._corridors ? w._corridors.cell : 40;
+  const onAnotherRoad = (x, z) => {
+    if (!grid) return false;
+    const gx = Math.floor(x / cellC), gz = Math.floor(z / cellC);
+    for (let j = gz - 1; j <= gz + 1; j++) for (let i = gx - 1; i <= gx + 1; i++) {
+      const l = grid.get(i + "," + j); if (!l) continue;
+      for (let k = 0; k < l.length; k++) if (Math.hypot(l[k][0] - x, l[k][1] - z) < l[k][2]) return true;
+    }
+    return false;
+  };
+  const BODY = [0.30, 0.32, 0.34, 0.45, 0.5], HEAD = [1, 1, 1], POOL_R = 9.5;
+  const put = (px, pz, dx, dz, tall) => {
+    // dx, dz: unit vector from the pole towards the road
+    if (px < 30 || pz < 30 || px > WORLD_X - 30 || pz > WORLD_Z - 30) return;
+    if (world.sampleLand(px, pz) < 0.9 || world.bridgeY(px, pz) !== null) return;
+    const y = world.surfaceY(px, pz);
+    if (y < 1.2) return;
+    if (insideBuilding(px, pz, 0.7) || onAnotherRoad(px, pz)) return;
+    const c = cellFor(px, pz), yaw = Math.atan2(dx, dz), H = tall ? 9.0 : 6.8;
+    c.body.colour(BODY).frame(px, y, pz, yaw);
+    c.body.box(0, H * 0.5, 0, 0.22, H, 0.22);                       // the pole
+    c.body.box(0, H - 0.14, 1.25, 0.12, 0.12, 2.5);                 // the arm
+    c.head.colour(HEAD).frame(px, y, pz, yaw);
+    c.head.box(0, H - 0.30, 2.3, 0.46, 0.14, 1.0);                  // the lamp
+    // the pool on the road under it
+    const qx = px + dx * 3.2, qz = pz + dz * 3.2, qy = world.surfaceY(qx, qz) + 0.22;
+    const seg = 10;
+    for (let k = 0; k < seg; k++) {
+      const a0 = k / seg * 6.2832, a1 = (k + 1) / seg * 6.2832;
+      c.pool.pos.push(qx, qy, qz, qx + Math.cos(a0) * POOL_R, qy, qz + Math.sin(a0) * POOL_R, qx + Math.cos(a1) * POOL_R, qy, qz + Math.sin(a1) * POOL_R);
+      c.pool.col.push(0.50, 0.40, 0.22, 0, 0, 0, 0, 0, 0);
+    }
+    c.n++;
+    c.minx = Math.min(c.minx, px); c.maxx = Math.max(c.maxx, px); c.minz = Math.min(c.minz, pz); c.maxz = Math.max(c.maxz, pz);
+  };
+  const walk = (pts, spacing, off, tall, both) => {
+    let carry = spacing * 0.5, side = 1;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const len = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (len < 0.01) continue;
+      const tx = (b[0] - a[0]) / len, tz = (b[2] - a[2]) / len;
+      while (carry <= len) {
+        const x = a[0] + tx * carry, z = a[2] + tz * carry;
+        // the normal, and which side this one goes on
+        const nx = -tz * side, nz = tx * side;
+        put(x + nx * off, z + nz * off, -nx, -nz, tall);
+        if (both) { const n2x = tz * side, n2z = -tx * side; put(x + n2x * off, z + n2z * off, -n2x, -n2z, tall); }
+        else side = -side;
+        carry += spacing;
+      }
+      carry -= len;
+    }
+  };
+  w.cities.forEach(city => city.roads.forEach(road => {
+    if (!road.pts || road.pts.length < 2 || road.elevated || road.dead) return;
+    const hw = road.halfWidth || 8, big = hw >= 12;
+    walk(road.pts, big ? 34 : 28, hw + 1.6, big, false);
+  }));
+  if (w.highway && w.highway.pts) walk(w.highway.pts, 55, (w.highway.hw || 10) + 2.4, true, false);
+
+  // static meshes, one set a square
+  if (!lampLook.head) {
+    lampLook.head = new THREE.MeshBasicMaterial({ vertexColors: true, color: new THREE.Color(0.55, 0.57, 0.60), toneMapped: false, fog: true });
+    lampLook.pool = new THREE.MeshBasicMaterial({ vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false,
+      opacity: 0, toneMapped: false, side: THREE.DoubleSide });
+  }
+  Object.keys(cells).forEach(k => {
+    const c = cells[k]; if (!c.n) return;
+    const bodyMesh = new THREE.Mesh(c.body.geometry(), furnitureMaterial());
+    const headMesh = new THREE.Mesh(c.head.geometry(), lampLook.head);
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute("position", new THREE.Float32BufferAttribute(c.pool.pos, 3));
+    pg.setAttribute("color", new THREE.Float32BufferAttribute(c.pool.col, 3));
+    const poolMesh = new THREE.Mesh(pg, lampLook.pool);
+    poolMesh.renderOrder = 3; poolMesh.visible = false;
+    [bodyMesh, headMesh, poolMesh].forEach(m => { m.castShadow = false; m.receiveShadow = false; m.geometry.computeBoundingSphere(); root.add(m); });
+    lampCells.push({ meshes: [bodyMesh, headMesh], pool: poolMesh,
+      x: (c.minx + c.maxx) / 2, z: (c.minz + c.maxz) / 2, r: Math.hypot(c.maxx - c.minx, c.maxz - c.minz) / 2 + 14 });
   });
 }
 
@@ -24151,6 +24265,11 @@ function setNightLights(lit) {
     gl.sprite.material.opacity = lit * gl.peak;
     gl.sprite.visible = lit > 0.02;
   });
+  if (lampLook.head) {
+    lampLook.head.color.setRGB(0.55 + lit * 0.85, 0.57 + lit * 0.62, 0.60 - lit * 0.05);
+    lampLook.pool.opacity = lit * 0.95;
+    updateTreeLod(1, true);               // the pools are shown only after dark
+  }
 }
 
 // Reflections are a daytime sky, and at night there is not one. Every material
