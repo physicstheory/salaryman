@@ -10238,6 +10238,11 @@ function buildTraffic(w, root) {
     // parked always have somewhere to be drawn.
     const cap = Math.max(2, Math.round(traffic.max * kind.share / total * 1.25)) + 3;
     const paint = new THREE.InstancedMesh(body.paint, paintMaterial(), cap);
+    // Made here, at full size. setColorAt would make it on the first car, while
+    // the count is still zero, and a zero-length colour buffer leaves every box
+    // body (the trucks, the buses, the vans) with no paint at all.
+    paint.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
+    paint.instanceColor.setUsage(THREE.DynamicDrawUsage);
     const trim = new THREE.InstancedMesh(body.trim, trimMaterial(), cap);
     const meshes = [paint, trim];
     let deco = null;
