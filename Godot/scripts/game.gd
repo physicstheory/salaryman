@@ -28,6 +28,7 @@ var beam: MeshInstance3D
 var equip_wheel: EquipWheel
 var radio_wheel: RadioWheel
 var radio: CarRadio
+var pad: PadInput
 var _ptr := Vector2.ZERO
 var _radio_hold := -1.0
 var ui_open := false
@@ -88,6 +89,9 @@ func _ready() -> void:
 	radio = CarRadio.new()
 	add_child(radio)
 	radio.changed.connect(func(t: String): GameState.say("Radio", t, "", 3.0))
+	pad = PadInput.new()
+	pad.game = self
+	add_child(pad)
 	equip_wheel = EquipWheel.new()
 	layer.add_child(equip_wheel)
 	radio_wheel = RadioWheel.new()
@@ -135,8 +139,11 @@ func _input_map() -> void:
 	jb.button_index = JOY_BUTTON_X
 	InputMap.action_add_event("interact", jb)
 	var jy := InputEventJoypadButton.new()
-	jy.button_index = JOY_BUTTON_Y
+	jy.button_index = JOY_BUTTON_RIGHT_STICK
 	InputMap.action_add_event("reset_car", jy)
+	var js := InputEventJoypadButton.new()
+	js.button_index = JOY_BUTTON_LEFT_STICK
+	InputMap.action_add_event("sprint", js)
 	var jc := InputEventJoypadButton.new()
 	jc.button_index = JOY_BUTTON_B
 	InputMap.action_add_event("lights", jc)
@@ -151,7 +158,10 @@ func _spawn_vehicle(kind: String, pos: Vector3, yaw_deg: float) -> Vehicle:
 	v.position = pos
 	v.rotation_degrees.y = yaw_deg
 	stage.add_child(v)
-	v.crashed.connect(func(s: float): if v == current: rig.bump(s))
+	v.crashed.connect(func(s: float):
+		if v == current:
+			rig.bump(s)
+			pad.rumble(s))
 	return v
 
 func _spawn_player_cars() -> void:

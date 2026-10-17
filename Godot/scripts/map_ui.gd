@@ -79,6 +79,13 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_EQUAL, KEY_KP_ADD: _zoom = clampf(_zoom * 1.2, 0.25, 4.0)
 		KEY_MINUS, KEY_KP_SUBTRACT: _zoom = clampf(_zoom / 1.2, 0.25, 4.0)
 		KEY_C: _pan = Vector2(player_pos.x, player_pos.z)
+		KEY_ENTER, KEY_KP_ENTER:
+			# with a controller there is no click: the waypoint goes where the crosshair is
+			GameState.waypoint = Vector3(_pan.x, 0, _pan.y)
+			GameState.waypoint_name = MapDraw.street_name(world, _pan.x, _pan.y)
+			GameState.say("Map", "Waypoint set", GameState.waypoint_name, 3.0)
+	if e.keycode in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+		_hover = size * 0.5
 	queue_redraw()
 
 func _draw() -> void:
@@ -92,6 +99,10 @@ func _draw() -> void:
 	_md.draw_marker(self, player_pos.x, player_pos.z, player_heading, Color(1, 0.9, 0.2), 10.0)
 	_md.draw_waypoint(self, GameState.waypoint)
 	var f := ThemeDB.fallback_font
+	# the crosshair a controller pans and sets the waypoint with
+	draw_arc(size * 0.5, 9.0, 0, TAU, 20, Color(1, 1, 1, 0.55), 1.5, true)
+	draw_line(size * 0.5 + Vector2(-16, 0), size * 0.5 + Vector2(-5, 0), Color(1, 1, 1, 0.55), 1.5)
+	draw_line(size * 0.5 + Vector2(16, 0), size * 0.5 + Vector2(5, 0), Color(1, 1, 1, 0.55), 1.5)
 	# header and the line under the cursor
 	draw_rect(Rect2(0, 0, size.x, 44), Color(0, 0, 0, 0.6))
 	draw_string(f, Vector2(20, 29), "TŌKONTO", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color(1, 1, 1))
@@ -100,7 +111,7 @@ func _draw() -> void:
 	var near := _nearest_shop(w)
 	if near != "":
 		draw_string(f, Vector2(size.x * 0.5, 29), near, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color(1, 0.9, 0.5))
-	draw_string(f, Vector2(size.x - 20, 29), "wheel zoom · right-drag pan · click waypoint · X clear · C centre · M close", HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color(1, 1, 1, 0.65))
+	draw_string(f, Vector2(size.x - 20, 29), "wheel zoom · right-drag pan · click or A waypoint · X clear · C centre · M close", HORIZONTAL_ALIGNMENT_RIGHT, -1, 14, Color(1, 1, 1, 0.65))
 	# legend
 	var shown := {}
 	var y := 70.0
