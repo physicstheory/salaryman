@@ -74,7 +74,9 @@ function main() {
   if (fs.existsSync(artIn)) {
     const artOut = path.join(OUT, "art");
     fs.mkdirSync(artOut, { recursive: true });
-    fs.readdirSync(artIn).forEach(f => fs.copyFileSync(path.join(artIn, f), path.join(artOut, f)));
+    // art/ has folders in it now (the radio covers), so copy it whole. The
+    // prompts for the artwork are notes for the author, not part of the game.
+    fs.cpSync(artIn, artOut, { recursive: true, filter: src => !/\.md$/i.test(src) });
   }
 
   const carsIn = path.join(SRC, "cars");
