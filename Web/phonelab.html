@@ -3342,6 +3342,39 @@ function mnFeedPost(ageMin, contact) {
 
 const MN_FEED_COMMENTS = ["so good", "I need this", "wow 😍", "which shop is this?", "this is why I live here", "ok I'm going tomorrow", "the light!!", "saved", "same", "lol", "Seiko should see this", "okay that's nice", "please do more of these", "🔥🔥🔥", "I was there!!"];
 
+const MN_PHOTO_TERMS = { ramen: "ramen bowl", sushi: "sushi nigiri", train: "Japan commuter train", cat: "tabby cat", kei: "kei car Japan", sakura: "cherry blossoms Japan",
+  peak: "Japanese Alps snow mountain", sunset: "Tokyo Bay sunset", vending: "Japan vending machine", konbini: "Japan convenience store", ski: "ski slope Japan",
+  sea: "Japan coast road sea", bridge: "Rainbow Bridge Tokyo night", rain: "rainy street Japan night", lantern: "shrine lanterns night Japan", desk: "office laptop desk coffee",
+  bento: "ekiben bento box", skyline: "Tokyo skyline night", onsen: "onsen Japan hot spring", tea: "matcha green tea"
+};
+
+const mnPhotos = { lists: {}, wait: {}, off: false, fails: 0 };
+
+function mnPhotoList(scene) {
+  if (mnPhotos.lists[scene]) return Promise.resolve(mnPhotos.lists[scene]);
+  if (mnPhotos.wait[scene]) return mnPhotos.wait[scene];
+  const key = "konto.mygram.photos.v1." + scene;
+  try { const c = JSON.parse(localStorage.getItem(key) || "null"); if (c && Date.now() - c.t < 7 * 864e5 && c.l.length) { mnPhotos.lists[scene] = c.l; return Promise.resolve(c.l); } } catch (e) {}
+  const q = (MN_PHOTO_TERMS[scene] || scene) + " filetype:bitmap";
+  const url = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(q) + "&gsrnamespace=6&gsrlimit=40&prop=imageinfo&iiprop=url%7Cextmetadata%7Csize%7Cmime&iiurlwidth=480&iiextmetadatafilter=Artist%7CLicenseShortName&format=json&origin=*";
+  mnPhotos.wait[scene] = fetch(url).then(r => { if (!r.ok) throw new Error("http " + r.status); return r.json(); }).then(j => {
+    const pages = Object.values((j.query && j.query.pages) || {});
+    const list = [];
+    pages.forEach(pg => {
+      const ii = pg.imageinfo && pg.imageinfo[0]; if (!ii || ii.mime !== "image/jpeg" || !ii.thumburl) return;
+      const ratio = ii.width / ii.height; if (ii.width < 640 || ratio < 0.7 || ratio > 1.9) return;
+      if (/map|diagram|logo|flag|chart|poster|stamp|sign|screenshot|drawing|painting|illustration|cover|book|ukiyo/i.test(pg.title)) return;
+      const md = ii.extmetadata || {};
+      const artist = String((md.Artist && md.Artist.value) || "Unknown").replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim().slice(0, 30);
+      list.push({ u: ii.thumburl, a: artist, l: String((md.LicenseShortName && md.LicenseShortName.value) || "CC").slice(0, 16) });
+    });
+    mnPhotos.lists[scene] = list;
+    try { if (list.length) localStorage.setItem(key, JSON.stringify({ t: Date.now(), l: list })); } catch (e) {}
+    return list;
+  }).catch(e => { mnPhotos.fails++; if (mnPhotos.fails >= 3) mnPhotos.off = true; mnPhotos.lists[scene] = []; return []; });
+  return mnPhotos.wait[scene];
+}
+
 function mnPhotoFor(p) {
   if (p.photoTried || mnPhotos.off || p.you) return;
   p.photoTried = true;
