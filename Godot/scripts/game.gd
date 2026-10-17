@@ -14,6 +14,7 @@ var traffic: Array[Vehicle] = []
 var current: Vehicle
 var lights := false
 var smoke_test := false
+var smoke_test_mute := false
 var shop_ui: ShopUI
 var activity_ui: ActivityUI
 var map_ui: MapUI
@@ -24,6 +25,11 @@ var pause_menu: PauseMenu
 var title_screen: TitleScreen
 var title_up := false
 var beam: MeshInstance3D
+var equip_wheel: EquipWheel
+var radio_wheel: RadioWheel
+var radio: CarRadio
+var _ptr := Vector2.ZERO
+var _radio_hold := -1.0
 var ui_open := false
 var _t := 0.0
 
@@ -79,6 +85,14 @@ func _ready() -> void:
 	phone_ui.game = self
 	layer.add_child(phone_ui)
 	phone_ui.closed.connect(_on_phone_closed)
+	radio = CarRadio.new()
+	add_child(radio)
+	radio.changed.connect(func(t: String): GameState.say("Radio", t, "", 3.0))
+	equip_wheel = EquipWheel.new()
+	layer.add_child(equip_wheel)
+	radio_wheel = RadioWheel.new()
+	radio_wheel.radio = radio
+	layer.add_child(radio_wheel)
 	_fade = ColorRect.new()
 	_fade.color = Color(0, 0, 0, 0)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -114,12 +128,18 @@ func _input_map() -> void:
 	add.call("jump", [KEY_SPACE])
 	add.call("sprint", [KEY_SHIFT])
 	add.call("interact", [KEY_E])
-	add.call("reset_car", [KEY_R])
+	add.call("reset_car", [KEY_T])
 	add.call("lights", [KEY_L])
 	add.call("hide_help", [KEY_H])
 	var jb := InputEventJoypadButton.new()
 	jb.button_index = JOY_BUTTON_X
 	InputMap.action_add_event("interact", jb)
+	var jy := InputEventJoypadButton.new()
+	jy.button_index = JOY_BUTTON_Y
+	InputMap.action_add_event("reset_car", jy)
+	var jc := InputEventJoypadButton.new()
+	jc.button_index = JOY_BUTTON_B
+	InputMap.action_add_event("lights", jc)
 	var jh := InputEventJoypadButton.new()
 	jh.button_index = JOY_BUTTON_A
 	InputMap.action_add_event("handbrake", jh)
@@ -298,13 +318,22 @@ func _physics_process(dt: float) -> void:
 	if title_up:
 		return
 	GameState.tick(dt)
+	radio.update(current != null and not smoke_test_mute)
+	if _radio_hold >= 0.0 and not radio_wheel.is_open:
+		_radio_hold += dt
+		if _radio_hold > 0.28 and current != null:
+			_ptr = Vector2.ZERO
+			radio_wheel.open()
+	if equip_wheel.is_open or radio_wheel.is_open:
+		_wheel_stick()
 	GameState.outdoors = (not current) and world.in_park(player.global_position)
 	var strain := GameState.strain()
 	player.speed_mult = 1.0 - 0.42 * strain
 	if current and not phone_open:
-		var f := Input.get_action_strength("move_forward")
-		var b := Input.get_action_strength("move_back")
-		var s := Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
+		var locked := radio_wheel.is_open or equip_wheel.is_open
+		var f := 0.0 if locked else Input.get_action_strength("move_forward")
+		var b := 0.0 if locked else Input.get_action_strength("move_back")
+		var s := 0.0 if locked else Input.get_action_strength("move_right") - Input.get_action_strength("move_left")
 		# a man at the end of his rope drives badly: he cannot hold the pedal, the wheel wanders, and he lapses
 		f *= 1.0 - 0.35 * strain
 		if strain > 0.2 and fmod(_t, 7.0) < 0.35 * strain:
@@ -403,15 +432,117 @@ func _save_settings() -> void:
 	cf.set_value("video", "sharpness", sharpness)
 	cf.save(_settings_path)
 
+func _wheel_ok() -> bool:
+	return not (ui_open or title_up or phone_open or get_tree().paused)
+
+func _open_equip() -> void:
+	if not _wheel_ok() or radio_wheel.is_open or equip_wheel.is_open:
+		return
+	_ptr = Vector2.ZERO
+	equip_wheel.open()
+	if current == null:
+		player.active = false
+
+func _close_equip() -> void:
+	if not equip_wheel.is_open:
+		return
+	var line := equip_wheel.close()
+	if current == null and not phone_open and not ui_open:
+		player.active = true
+	if line != "":
+		GameState.say("Bag", line, "", 2.5)
+
+func _radio_press() -> void:
+	if not _wheel_ok() or current == null:
+		return
+	_radio_hold = 0.0
+
+func _radio_release() -> void:
+	if radio_wheel.is_open:
+		radio_wheel.close()
+	elif _radio_hold >= 0.0 and current != null:
+		radio.next(1)
+	_radio_hold = -1.0
+
 func _input(e: InputEvent) -> void:
+	var wheel_on := equip_wheel.is_open or radio_wheel.is_open
 	# the camera lives inside the SubViewport, which does not see the window's events, so mouse look is forwarded
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and rig:
-		rig.look((e as InputEventMouseMotion).relative)
-	if e is InputEventKey and e.pressed and not e.echo:
+		if wheel_on:
+			# with a wheel up the mouse points instead of looking: nudge a virtual pointer away from the middle
+			_ptr = (_ptr + (e as InputEventMouseMotion).relative / 110.0).limit_length(1.0)
+			(equip_wheel if equip_wheel.is_open else radio_wheel).point(_ptr)
+		else:
+			rig.look((e as InputEventMouseMotion).relative)
+	if e is InputEventKey and not e.echo:
+		if e.pressed:
+			match e.keycode:
+				KEY_BRACKETLEFT: _step_scale(1)
+				KEY_BRACKETRIGHT: _step_scale(-1)
+				KEY_BACKSLASH: _step_sharp()
+				KEY_Q: _open_equip()
+				KEY_R: _radio_press()
+		else:
+			match e.keycode:
+				KEY_Q: _close_equip()
+				KEY_R: _radio_release()
+	if e is InputEventJoypadButton:
+		if e.button_index == JOY_BUTTON_LEFT_SHOULDER:
+			if e.pressed: _open_equip()
+			else: _close_equip()
+		elif e.button_index == JOY_BUTTON_DPAD_LEFT and not equip_wheel.is_open:
+			if e.pressed: _radio_press()
+			else: _radio_release()
+	if wheel_on and e.is_pressed() and not e.is_echo():
+		_wheel_nav(e)
+	if wheel_on and e is InputEventJoypadMotion and absf((e as InputEventJoypadMotion).axis_value) > 0.0:
+		_wheel_stick()
+
+## Arrows, the D-pad, the scroll wheel and 1-8 move around whichever wheel is up.
+func _wheel_nav(e: InputEvent) -> void:
+	var w: WheelBase = equip_wheel if equip_wheel.is_open else radio_wheel
+	var dx := 0
+	var dy := 0
+	if e is InputEventKey:
 		match e.keycode:
-			KEY_BRACKETLEFT: _step_scale(1)
-			KEY_BRACKETRIGHT: _step_scale(-1)
-			KEY_BACKSLASH: _step_sharp()
+			KEY_LEFT: dx = -1
+			KEY_RIGHT: dx = 1
+			KEY_UP: dy = -1
+			KEY_DOWN: dy = 1
+			KEY_ENTER, KEY_SPACE:
+				if equip_wheel.is_open: _close_equip()
+				else: radio_wheel.close()
+				return
+			_:
+				if radio_wheel.is_open and e.keycode >= KEY_1 and e.keycode <= KEY_8 and e.keycode - KEY_1 < w.count():
+					w.sel = e.keycode - KEY_1
+					w.queue_redraw()
+				return
+	elif e is InputEventJoypadButton:
+		match e.button_index:
+			JOY_BUTTON_DPAD_LEFT: dx = -1
+			JOY_BUTTON_DPAD_RIGHT: dx = 1
+			JOY_BUTTON_DPAD_UP: dy = -1
+			JOY_BUTTON_DPAD_DOWN: dy = 1
+			_: return
+	elif e is InputEventMouseButton and equip_wheel.is_open:
+		if e.button_index == MOUSE_BUTTON_WHEEL_UP: equip_wheel.step_item(-1)
+		elif e.button_index == MOUSE_BUTTON_WHEEL_DOWN: equip_wheel.step_item(1)
+		return
+	else:
+		return
+	if equip_wheel.is_open:
+		if dx != 0: equip_wheel.step(dx)
+		if dy != 0: equip_wheel.step_item(dy)
+	else:
+		radio_wheel.step(dx if dx != 0 else dy)
+	get_viewport().set_input_as_handled()
+
+func _wheel_stick() -> void:
+	var v := Vector2(Input.get_joy_axis(0, JOY_AXIS_RIGHT_X), Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y))
+	if v.length() < 0.45:
+		v = Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+	(equip_wheel if equip_wheel.is_open else radio_wheel).point(v)
 
 var _last_win := Vector2i.ZERO
 func _process(_dt: float) -> void:

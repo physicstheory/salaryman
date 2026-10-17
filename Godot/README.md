@@ -47,7 +47,10 @@ Forward+ in Project Settings → Rendering and turn on SSAO and SSR in `city_wor
 | Shift | run | |
 | Space | jump | handbrake |
 | E | get in the nearest car | get out (when nearly stopped) |
-| R | | flip the car upright |
+| T | Y | flip the car upright |
+| Q (hold) | LB (hold) | equipment wheel: point with the mouse or a stick, up/down or D-pad up/down choose within a category, let go to use |
+| R (tap) | D-pad left (tap) | next radio station (in a car) |
+| R (hold) | D-pad left (hold) | radio wheel: point, let go to tune |
 | L | | headlights |
 | Mouse | look | look (the camera swings back behind the car after a moment) |
 | M | the map | the map |

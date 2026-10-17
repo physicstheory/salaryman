@@ -16,6 +16,8 @@ var bag: Dictionary = {}           # id -> count
 var wearing := ""                  # audio id on the ears
 var owned: Dictionary = {}         # misc ownership: phones, tvs, games, gear
 var device := "so24"
+var held := "none"                 # what is in the hands: a hand item or a firearm, from the wheel
+var held_game := ""                # the disc in hand
 var phone_paint := 0               # which colour of the handset you carry
 var shirt := "#f2f4f6"
 var outdoors := false              # set by the world each frame: true in a park or open air
@@ -176,7 +178,7 @@ func say(app: String, title: String, body: String, secs := 4.0) -> void:
 func save_game() -> void:
 	var f := FileAccess.open("user://save.json", FileAccess.WRITE)
 	if f:
-		f.store_string(JSON.stringify({"money": money, "health": health, "stress": stress, "bag": bag, "wearing": wearing, "owned": owned, "device": device, "phone_paint": phone_paint, "shirt": shirt, "clock": clock_min, "day": day, "awake": awake_min, "ledger": ledger, "deliveries": deliveries, "photos": photos, "mails": mails, "liked": liked}))
+		f.store_string(JSON.stringify({"money": money, "health": health, "stress": stress, "bag": bag, "wearing": wearing, "owned": owned, "device": device, "phone_paint": phone_paint, "held": held, "held_game": held_game, "shirt": shirt, "clock": clock_min, "day": day, "awake": awake_min, "ledger": ledger, "deliveries": deliveries, "photos": photos, "mails": mails, "liked": liked}))
 
 func load_game() -> bool:
 	if not FileAccess.file_exists("user://save.json"):
@@ -186,7 +188,7 @@ func load_game() -> bool:
 	if typeof(d) != TYPE_DICTIONARY:
 		return false
 	money = int(d.get("money", money)); health = float(d.get("health", health)); stress = float(d.get("stress", stress))
-	bag = d.get("bag", {}); wearing = d.get("wearing", ""); owned = d.get("owned", {"so24": true}); device = d.get("device", "so24"); phone_paint = int(d.get("phone_paint", 0))
+	bag = d.get("bag", {}); wearing = d.get("wearing", ""); owned = d.get("owned", {"so24": true}); device = d.get("device", "so24"); phone_paint = int(d.get("phone_paint", 0)); held = d.get("held", "none"); held_game = d.get("held_game", "")
 	shirt = d.get("shirt", shirt); clock_min = float(d.get("clock", clock_min)); day = int(d.get("day", 1)); awake_min = float(d.get("awake", 0.0))
 	ledger = d.get("ledger", []); deliveries = d.get("deliveries", []); photos = d.get("photos", []); liked = d.get("liked", {})
 	if d.has("mails"): mails = d.mails

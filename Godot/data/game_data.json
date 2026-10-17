@@ -2922,5 +2922,342 @@
    "note": "",
    "detail": ""
   }
- ]
+ ],
+ "radio": [
+  {
+   "id": "gold1",
+   "name": "Gold 1",
+   "freq": "88.1",
+   "genre": "1980s pop and rock",
+   "style": "synth80",
+   "colour": "#f2b81c",
+   "logo": "gold1",
+   "songs": [
+    [
+     "Midnight Shinkansen",
+     "Mirage Tokyo",
+     63
+    ],
+    [
+     "Chrome Hearts",
+     "Hikari Boulevard",
+     71
+    ],
+    [
+     "Don't Stop the 6:42",
+     "The Salarymen",
+     66
+    ],
+    [
+     "Laser Karaoke",
+     "Neon Orchestra",
+     69
+    ],
+    [
+     "Rain on Roppongi",
+     "Velvet Ginza",
+     74
+    ],
+    [
+     "Bubble Economy",
+     "Yen Division",
+     61
+    ]
+   ]
+  },
+  {
+   "id": "tokonto43",
+   "name": "Tokonto.43",
+   "freq": "89.7",
+   "genre": "Japanese pop",
+   "style": "jpop",
+   "colour": "#e3191f",
+   "logo": "tokonto43",
+   "songs": [
+    [
+     "Sakura Signal",
+     "Hinata Mizuki",
+     62
+    ],
+    [
+     "Konbini Love",
+     "Aoi Hoshino",
+     64
+    ],
+    [
+     "Hanabi Heartbeat",
+     "Riko & The Lanterns",
+     67
+    ],
+    [
+     "Yuuyake Line",
+     "Sora Minato",
+     66
+    ],
+    [
+     "Tokyo Tokyo Tokyo",
+     "Pastel Express",
+     60
+    ],
+    [
+     "Wasurenai Natsu",
+     "Mei Kanda",
+     70
+    ]
+   ]
+  },
+  {
+   "id": "soul",
+   "name": "Soul Radio",
+   "freq": "91.3",
+   "genre": "K-pop and J-pop",
+   "style": "kpop",
+   "colour": "#ff8fcf",
+   "logo": "soul",
+   "songs": [
+    [
+     "Moonlight Pop",
+     "LUNAR 9",
+     61
+    ],
+    [
+     "Glow Up Tonight",
+     "STELLA",
+     63
+    ],
+    [
+     "Bias Wrecker",
+     "PRISM-7",
+     65
+    ],
+    [
+     "Nijiiro Step",
+     "Mika & Mei",
+     62
+    ],
+    [
+     "Replay (Again)",
+     "KOHAKU",
+     68
+    ],
+    [
+     "Hyper Neon Love",
+     "SOLARIS",
+     64
+    ]
+   ]
+  },
+  {
+   "id": "westside",
+   "name": "WestSide Radio",
+   "freq": "95.5",
+   "genre": "West Coast hip hop, 90s",
+   "style": "gfunk",
+   "colour": "#2b63e0",
+   "logo": "westside",
+   "songs": [
+    [
+     "Lowrider Sunset",
+     "Palmcrest ft. Young Marlow",
+     72
+    ],
+    [
+     "Coastline Cruise",
+     "Big Tide",
+     70
+    ],
+    [
+     "Pier 7",
+     "Kali Smooth",
+     69
+    ],
+    [
+     "Sunday Slow Roll",
+     "OG Baycity",
+     74
+    ],
+    [
+     "Bayside Hustle",
+     "Deuce Alvarez",
+     66
+    ],
+    [
+     "Westbound",
+     "The Marina Crew",
+     71
+    ]
+   ]
+  },
+  {
+   "id": "nashville",
+   "name": "Nashville 102.7",
+   "freq": "102.7",
+   "genre": "Country",
+   "style": "country",
+   "colour": "#b8502a",
+   "logo": "nashville",
+   "songs": [
+    [
+     "Pickup Truck Heart",
+     "Dusty Calloway",
+     66
+    ],
+    [
+     "Dirt Road to Mizuho",
+     "Lila Mae Turner",
+     70
+    ],
+    [
+     "Whiskey and the Radio",
+     "Hank Tanaka",
+     68
+    ],
+    [
+     "Honky Tonk Hanshin",
+     "The Porch Lights",
+     64
+    ],
+    [
+     "Cowboy Salaryman",
+     "Wade Ichikawa",
+     69
+    ],
+    [
+     "Porch Light",
+     "Clementine Rae",
+     72
+    ]
+   ]
+  },
+  {
+   "id": "talk",
+   "name": "Konto Talk 1080",
+   "freq": "108.0",
+   "genre": "Talk",
+   "style": "talk",
+   "colour": "#3a8f6a",
+   "talk": "daytime",
+   "songs": [
+    [
+     "The Morning Commute",
+     "Dai & Dee",
+     180
+    ]
+   ]
+  },
+  {
+   "id": "owl",
+   "name": "Night Owl 24",
+   "freq": "99.9",
+   "genre": "Talk, all night",
+   "style": "talk",
+   "colour": "#7a5ad6",
+   "talk": "night",
+   "songs": [
+    [
+     "Salaryman Confidential",
+     "Kenji after midnight",
+     180
+    ]
+   ]
+  },
+  {
+   "id": "off",
+   "name": "Radio off",
+   "freq": "",
+   "genre": "Silence",
+   "style": null,
+   "colour": "#59606a",
+   "off": true,
+   "songs": [
+    [
+     "Radio off",
+     "",
+     60
+    ]
+   ]
+  }
+ ],
+ "talk_lines": {
+  "daytime": [
+   [
+    "Dai",
+    "Good morning Tokonto. It is eight forty. That is the time it is, and also how late you are."
+   ],
+   [
+    "Dee",
+    "Traffic on the Central Loop is, how do I put this, a car park with ambitions."
+   ],
+   [
+    "Dai",
+    "Our first caller is Mr Sato from Isobe. Mr Sato, you are on the air."
+   ],
+   [
+    "Mr Sato",
+    "I would like to complain about the committee that studies committees."
+   ],
+   [
+    "Dee",
+    "Everyone would like to complain about that committee, Mr Sato. They are meeting about it on Thursday."
+   ],
+   [
+    "Dai",
+    "The Ministry has announced a new form that replaces the old form. The old form is still required."
+   ],
+   [
+    "Dee",
+    "Weather. It is raining in Hamaura, it will rain in Nagisa, and Mizuho has asked to be left out of this."
+   ],
+   [
+    "Dai",
+    "A cat has been appointed station master at Kaido for a third consecutive year. Union sources say the cat is doing fine."
+   ],
+   [
+    "Dee",
+    "Reminder: the vending machine on platform six is not a person, whatever the council says."
+   ],
+   [
+    "Dai",
+    "Stay with us. After the break, how to leave work on time. Our guest has never done it."
+   ]
+  ],
+  "night": [
+   [
+    "Kenji",
+    "It is two in the morning and you are listening to Night Owl. If you are awake, you have either a deadline or a feeling."
+   ],
+   [
+    "Kenji",
+    "Line one. You are on the air. What keeps you up?"
+   ],
+   [
+    "Caller",
+    "My boss sent an email at midnight that says: no rush."
+   ],
+   [
+    "Kenji",
+    "That is the loudest sentence in the language. Reply in the morning, and let it learn what silence feels like."
+   ],
+   [
+    "Kenji",
+    "Line two. You are through."
+   ],
+   [
+    "Caller",
+    "I fell asleep on the last train and woke up in Mizuho. I live in Tokonto."
+   ],
+   [
+    "Kenji",
+    "Many of us have gone to Mizuho. It is nice there. There is a shrine and almost no one wants anything from you."
+   ],
+   [
+    "Kenji",
+    "Here is tonight's advice. Eat something warm. Drink some water. Do not open the spreadsheet."
+   ],
+   [
+    "Kenji",
+    "The station will be back after the news, which is also awake, and also tired."
+   ]
+  ]
+ }
 }

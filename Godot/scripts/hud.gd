@@ -114,6 +114,6 @@ func _draw() -> void:
 	if banner_t > 0.0:
 		_txt(banner, Vector2(sz.x * 0.5, sz.y * 0.28), 40, Color(1, 0.3, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
 	if show_help:
-		var lines := ["WASD / arrows: move and drive      Shift: run      Space: jump / handbrake", "E: get in or out      R: flip the car upright      L: headlights      H: hide this", "Mouse: look      Esc: release the mouse      [ and ]: render scale      \\: sharpen"]
+		var lines := ["WASD / arrows: move and drive      Shift: run      Space: jump / handbrake", "E: get in or out      T: flip the car upright      L: headlights      H: hide this", "Q (hold): equipment wheel      R: radio, hold for the wheel      P: phone      M: map      Esc: pause"]
 		for i in lines.size():
 			_txt(lines[i], Vector2(14, 68 + i * 18), 13, Color(1, 1, 1, 0.65))
