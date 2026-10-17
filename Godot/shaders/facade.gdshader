@@ -86,9 +86,9 @@ void fragment() {
 			} else {
 				if (glass > 0.5) {
 					// lit window with shelves or a counter showing through
-					float shelf = step(0.5, fract(v * 1.6 + h21(vec2(cx, 3.0))));
+					float shelf = step(0.5, fract(v * 3.2 + h21(vec2(cx, 3.0))));
 					vec3 inner = mix(vec3(1.0, 0.92, 0.75), vec3(0.8, 0.9, 1.0), h21(vec2(cx, 9.0)));
-					emis = inner * (0.55 + 0.35 * shelf) * glow;
+					emis = inner * (0.28 + 0.3 * shelf) * glow;
 					col = vec3(0.05);
 					metal = 0.2; rough = 0.2;
 				}
