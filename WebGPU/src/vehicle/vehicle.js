@@ -54,6 +54,7 @@ export class Vehicle {
     this.userData = {};
     this._setupBody(position, yawDeg);
     this._setupWheels();
+    this._lampMeshes();
     if (visual) this._setupVisuals();
   }
 
@@ -128,7 +129,6 @@ export class Vehicle {
     holder.position.y = -s.comHeight;
     this.model = holder;
     this.group.add(holder);
-    this._lampMeshes(fallback ? 1 : 1);
   }
 
   /** Head and tail lamp meshes: emissive blocks on every car, and real spotlights once someone is driving. */

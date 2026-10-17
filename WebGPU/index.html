@@ -1,1 +1,25 @@
-<html><body>t</body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Man</title>
+<link rel="stylesheet" href="./src/ui/ui.css">
+<script type="importmap">
+{
+  "imports": {
+    "three": "./node_modules/three/build/three.webgpu.js",
+    "three/webgpu": "./node_modules/three/build/three.webgpu.js",
+    "three/tsl": "./node_modules/three/build/three.tsl.js",
+    "three/addons/": "./node_modules/three/examples/jsm/",
+    "@dimforge/rapier3d-compat": "./node_modules/@dimforge/rapier3d-compat/rapier.es.js"
+  }
+}
+</script>
+</head>
+<body>
+<div id="boot"><div id="boot-title">SALARY MAN</div><div id="boot-line">Loading…</div></div>
+<div id="ui"></div>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
