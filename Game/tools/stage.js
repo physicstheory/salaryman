@@ -79,6 +79,10 @@ function main() {
     fs.cpSync(artIn, artOut, { recursive: true, filter: src => !/\.md$/i.test(src) });
   }
 
+  // Kenney's city and train kits (CC0) build the Got No Auto city.
+  const kenIn = path.join(SRC, "kenney");
+  if (fs.existsSync(kenIn)) fs.cpSync(kenIn, path.join(OUT, "kenney"), { recursive: true });
+
   const carsIn = path.join(SRC, "cars");
   let cars = 0;
   if (fs.existsSync(carsIn)) {

@@ -23916,9 +23916,9 @@ function gtnBuild() {
   const jun = new THREE.InstancedMesh(new THREE.PlaneGeometry(12, 12), plain, (N + 1) * (N + 1)); const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, 0)), one = new THREE.Vector3(1, 1, 1), pp = new THREE.Vector3();
   for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) { m4.compose(pp.set(i * P, 0.04, j * P), qq, one); jun.setMatrixAt(i * (N + 1) + j, m4); } sc.add(jun);
   // signs: lettering on canvases, drawn unlit so they glow
-  const signs = [["ラーメン", "#ff5a7a"], ["パチンコ", "#ffd23a"], ["BAR 夜", "#6ad8ff"], ["HOTEL", "#ff9a3a"], ["24時間", "#7aff9a"], ["カラオケ", "#e07aff"], ["薬局", "#7aff9a"], ["居酒屋", "#ff7a4a"]].map(s => new THREE.MeshBasicMaterial({ map: mkTex(128, 48, (g, w, h) => { g.fillStyle = "#06080c"; g.fillRect(0, 0, w, h); g.strokeStyle = s[1]; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6); g.fillStyle = s[1]; g.font = "800 26px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(s[0], w / 2, h / 2 + 1); }), side: THREE.DoubleSide }));
-  const boxes = GTN.boxes = [];
-  const park = { "3,3": 1, "3,4": 1 };
+  const signs = [["ラーメン", "#ff5a7a"], ["パチンコ", "#ffd23a"], ["BAR 夜", "#6ad8ff"], ["HOTEL", "#ff9a3a"], ["24時間", "#7aff9a"], ["カラオケ", "#e07aff"], ["薬局", "#7aff9a"], ["居酒屋", "#ff7a4a"], ["東都駅", "#ffffff"]].map(s => new THREE.MeshBasicMaterial({ map: mkTex(128, 48, (g, w, h) => { g.fillStyle = "#06080c"; g.fillRect(0, 0, w, h); g.strokeStyle = s[1]; g.lineWidth = 3; g.strokeRect(3, 3, w - 6, h - 6); g.fillStyle = s[1]; g.font = "800 26px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(s[0], w / 2, h / 2 + 1); }), side: THREE.DoubleSide }));
+  const boxes = GTN.boxes = [], kit = GTN.kit;
+  const park = kit ? { "4,3": 1, "4,4": 1 } : { "3,3": 1, "3,4": 1 };
   const padMat = new THREE.MeshStandardMaterial({ color: 0x30333b, roughness: 0.9 });
   const treeG = new THREE.ConeGeometry(2.2, 6, 7), trunkG = new THREE.CylinderGeometry(0.3, 0.4, 2, 6), treeM = new THREE.MeshStandardMaterial({ color: 0x1c4a2c, roughness: 1 }), trunkM = new THREE.MeshStandardMaterial({ color: 0x3a2a1c });
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
@@ -23926,6 +23926,7 @@ function gtnBuild() {
     const pad = new THREE.Mesh(new THREE.BoxGeometry(s, 0.3, s), park[i + "," + j] ? new THREE.MeshStandardMaterial({ color: 0x1a3a22, roughness: 1 }) : padMat); pad.position.set(x0 + s / 2, 0.15, z0 + s / 2); sc.add(pad);
     if (park[i + "," + j]) { for (let t = 0; t < 9; t++) { const tx = x0 + 6 + rnd() * (s - 12), tz = z0 + 6 + rnd() * (s - 12); const c = new THREE.Mesh(treeG, treeM); c.position.set(tx, 5, tz); sc.add(c); const tr = new THREE.Mesh(trunkG, trunkM); tr.position.set(tx, 1.3, tz); sc.add(tr); } continue; }
     const mid = Math.abs(i - 3.5) + Math.abs(j - 3.5), hmax = 70 - mid * 6;
+    if (kit) { if (i !== 3) gtnKitLot(sc, kit, boxes, signs, rnd, x0 + 1, z0 + 1, s - 2, mid); continue; }
     const parts = rnd() < 0.5 ? [[0, 0, s - 4, s - 4]] : rnd() < 0.5 ? [[0, 0, (s - 6) / 2, s - 4], [(s - 6) / 2 + 2, 0, (s - 6) / 2, s - 4]] : [[0, 0, s - 4, (s - 6) / 2], [0, (s - 6) / 2 + 2, s - 4, (s - 6) / 2]];
     parts.forEach(pt => {
       const bw = pt[2], bd = pt[3], bh = 14 + rnd() * Math.max(10, hmax);
@@ -23934,9 +23935,10 @@ function gtnBuild() {
       const wm = wallMats[(rnd() * 3) | 0], mesh = new THREE.Mesh(geo, [wm, wm, roofMat, roofMat, wm, wm]);
       const cx = x0 + 2 + pt[0] + bw / 2, cz = z0 + 2 + pt[1] + bd / 2; mesh.position.set(cx, bh / 2 + 0.3, cz); sc.add(mesh);
       boxes.push({ x0: cx - bw / 2, x1: cx + bw / 2, z0: cz - bd / 2, z1: cz + bd / 2 });
-      if (rnd() < 0.7) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), signs[(rnd() * signs.length) | 0]); const side = (rnd() * 4) | 0; const dx = [1, -1, 0, 0][side], dz = [0, 0, 1, -1][side]; sg.position.set(cx + dx * (bw / 2 + 0.1), 4.2 + rnd() * 3, cz + dz * (bd / 2 + 0.1)); sg.rotation.y = Math.atan2(dx, dz); sc.add(sg); }
+      if (rnd() < 0.7) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), signs[(rnd() * 7) | 0]); const side = (rnd() * 4) | 0; const dx = [1, -1, 0, 0][side], dz = [0, 0, 1, -1][side]; sg.position.set(cx + dx * (bw / 2 + 0.1), 4.2 + rnd() * 3, cz + dz * (bd / 2 + 0.1)); sg.rotation.y = Math.atan2(dx, dz); sc.add(sg); }
     });
   }
+  if (kit) gtnRail(sc, kit, boxes, signs);
   // street lamps
   const lampN = (N + 1) * (N + 1) * 2, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.15, 7, 5), new THREE.MeshStandardMaterial({ color: 0x20242c }), lampN), head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe2a0 }), lampN);
   let li = 0; for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) [[7, 7], [-7, -7]].forEach(o => { m4.makeTranslation(i * P + o[0], 3.5, j * P + o[1]); pole.setMatrixAt(li, m4); m4.makeTranslation(i * P + o[0], 7.2, j * P + o[1]); head.setMatrixAt(li, m4); li++; }); sc.add(pole, head);
@@ -23961,6 +23963,88 @@ function gtnBuild() {
   GTN.pedMesh = col => { const g = new THREE.Group(); const b = new THREE.Mesh(pedG, new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 })); b.position.y = 0.85; g.add(b); const h = new THREE.Mesh(headG, new THREE.MeshStandardMaterial({ color: 0xd8b090 })); h.position.y = 1.65; g.add(h); return g; };
 }
 
+// Kenney's City Kit (Commercial) and Train Kit, both CC0, in Web/kenney/. Loaded once;
+// if they can't be fetched the city is built from plain boxes instead.
+const GTN_KIT_FILES = {
+  city: ["building-a", "building-b", "building-c", "building-d", "building-e", "building-f", "building-g", "building-h", "building-i", "building-j", "building-k", "building-l", "building-m", "building-n", "building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e"],
+  train: ["railroad-straight", "train-electric-city-a", "train-electric-city-b", "train-electric-city-c", "train-electric-bullet-a", "train-electric-bullet-b", "train-electric-bullet-c"]
+};
+function gtnLoadKit() {
+  if (GTN.kitP) return GTN.kitP;
+  GTN.kitP = new Promise(resolve => {
+    if (typeof THREE.GLTFLoader !== "function") { resolve(null); return; }
+    const loader = new THREE.GLTFLoader(), kit = {}; let left = 0, failed = false;
+    const finish = () => { if (--left === 0) { GTN.kit = failed ? null : kit; resolve(GTN.kit); } };
+    Object.keys(GTN_KIT_FILES).forEach(dir => GTN_KIT_FILES[dir].forEach(name => {
+      left++;
+      loader.load("kenney/" + dir + "/" + name + ".glb", gltf => {
+        const box = new THREE.Box3().setFromObject(gltf.scene), size = new THREE.Vector3(); box.getSize(size);
+        // at night the colour map doubles as a faint glow, so windows and lamps read as lit
+        gltf.scene.traverse(o => { if (o.isMesh && o.material) { o.material.emissiveMap = o.material.map; o.material.emissive = new THREE.Color(0xffffff); o.material.emissiveIntensity = dir === "city" ? 0.42 : 0.3; o.material.roughness = 0.85; o.material.metalness = 0; } });
+        kit[name] = { scene: gltf.scene, size, minY: box.min.y }; finish();
+      }, undefined, () => { failed = true; finish(); });
+    }));
+    setTimeout(() => { if (left > 0) { failed = true; left = 1; finish(); } }, 20000);
+  });
+  return GTN.kitP;
+}
+function gtnKitPlace(sc, kit, name, cx, cz, yaw, target, boxes, signs, rnd) {
+  const k = kit[name]; if (!k) return;
+  const m = k.scene.clone(true), s = target / Math.max(k.size.x, k.size.z);
+  m.scale.setScalar(s); m.rotation.y = yaw; m.position.set(cx, 0.3 - k.minY * s, cz); sc.add(m);
+  const q = Math.round(yaw / (Math.PI / 2)) & 1, hw = k.size.x * s / 2, hd = k.size.z * s / 2, bw = q ? hd : hw, bd = q ? hw : hd;
+  boxes.push({ x0: cx - bw, x1: cx + bw, z0: cz - bd, z1: cz + bd });
+  if (rnd() < 0.55) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.9), signs[(rnd() * 7) | 0]), fx = Math.sin(yaw), fz = Math.cos(yaw); sg.position.set(cx + fx * (hd + 0.12), 3.6 + rnd() * 1.6, cz + fz * (hd + 0.12)); sg.rotation.y = yaw; sc.add(sg); }
+}
+function gtnKitLot(sc, kit, boxes, signs, rnd, x, z, sz, mid) {
+  const tall = ["building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e", "building-m", "building-l"],
+    low = ["building-a", "building-b", "building-c", "building-d", "building-f", "building-g", "building-h"], wide = ["building-e", "building-i", "building-j", "building-k", "building-n"];
+  const pick = a => a[(rnd() * a.length) | 0], r = rnd(), cx = x + sz / 2, cz = z + sz / 2;
+  if (r < 0.26) { gtnKitPlace(sc, kit, pick(wide), cx, cz, (rnd() < 0.5 ? 0 : Math.PI) + (rnd() < 0.5 ? 0 : Math.PI / 2), sz - 1, boxes, signs, rnd); return; }
+  for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
+    const dx = a ? 1 : -1, dz = b ? 1 : -1, yaw = rnd() < 0.5 ? Math.atan2(dx, 0) : Math.atan2(0, dz);
+    gtnKitPlace(sc, kit, pick(mid < 3 && rnd() < 0.75 ? tall : rnd() < 0.15 ? tall : low), x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw, sz / 2 - 1.8, boxes, signs, rnd);
+  }
+}
+// The railway: a fenced cutting down the fourth block column, two tracks, a station,
+// and a level crossing wherever it meets a street. Trains run on GTN.rail.
+function gtnRail(sc, kit, boxes, signs) {
+  const P = GTN.P, N = GTN.N, W = N * P, X = 3 * P + P / 2, rail = GTN.rail = { X, W, cross: [] };
+  const gravel = new THREE.MeshStandardMaterial({ color: 0x2c2a28, roughness: 1 }), fenceM = new THREE.MeshStandardMaterial({ color: 0x3c4450, roughness: 0.7, metalness: 0.4 });
+  const tk = kit["railroad-straight"], ts = 3.4, tl = tk.size.z * ts;
+  for (let j = 0; j < N; j++) {
+    const z0 = j * P + 6, z1 = (j + 1) * P - 6, zc = (z0 + z1) / 2, len = z1 - z0;
+    const g = new THREE.Mesh(new THREE.BoxGeometry(P - 16, 0.12, len), gravel); g.position.set(X, 0.36, zc); sc.add(g);
+    [-1, 1].forEach(sd => {
+      const fx = X + sd * (P / 2 - 8.1), f = new THREE.Mesh(new THREE.BoxGeometry(0.25, 2.2, len), fenceM); f.position.set(fx, 1.4, zc); sc.add(f);
+      boxes.push({ x0: fx - 0.2, x1: fx + 0.2, z0, z1 });
+    });
+  }
+  for (let n = 0; n * tl < W + tl; n++) [-2, 2].forEach(off => { const m = tk.scene.clone(true); m.scale.setScalar(ts); m.position.set(X + off, 0.3 - tk.minY * ts, n * tl - tl / 2 + tl * 0.5); sc.add(m); });
+  // the station, in the fourth block down
+  const sz0 = 3 * P + 6, platM = new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.8 }), roofM = new THREE.MeshStandardMaterial({ color: 0x2a6a4a, roughness: 0.6, metalness: 0.2 });
+  [-1, 1].forEach(sd => {
+    const px = X + sd * 6.4, pl = new THREE.Mesh(new THREE.BoxGeometry(4.4, 1, 34), platM); pl.position.set(px, 0.8, sz0 + 20); sc.add(pl);
+    const rf = new THREE.Mesh(new THREE.BoxGeometry(5, 0.3, 30), roofM); rf.position.set(px, 5.4, sz0 + 20); sc.add(rf);
+    [-12, 0, 12].forEach(dz => { const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 5, 6), fenceM); pole.position.set(px + sd * 1.7, 3.1, sz0 + 20 + dz); sc.add(pole); });
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(6, 2.2), signs[7]); sg.position.set(px - sd * 0.1, 4.2, sz0 + 20 - 15.1); sg.rotation.y = 0; sc.add(sg);
+  });
+  // barriers and lights at each street
+  const armM = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, emissive: 0x442222, roughness: 0.5 }), stripeM = new THREE.MeshBasicMaterial({ color: 0xd02020 });
+  for (let k = 0; k <= N; k++) {
+    const zk = k * P, c = { z: zk, arms: [], lamps: [], down: false, a: 0 };
+    [[-1, -6, 1], [1, 6, -1]].forEach(d => {
+      const piv = new THREE.Group(); piv.position.set(X + d[0] * 7.4, 0.3, zk + d[1]); sc.add(piv);
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 6), armM); arm.position.z = d[2] * 3; piv.add(arm);
+      for (let n = 0; n < 3; n++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.24, 0.6), stripeM); st.position.set(0, 0, d[2] * (1 + n * 2)); piv.add(st); }
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 3.2, 6), fenceM); post.position.set(X + d[0] * 7.4, 1.9, zk + d[1]); sc.add(post);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0x401010 })); lamp.position.set(X + d[0] * 7.4, 3.6, zk + d[1]); sc.add(lamp);
+      c.arms.push({ piv, dir: d[2] }); c.lamps.push(lamp);
+    });
+    rail.cross.push(c);
+  }
+}
+
 function gtnPush(x, z, r) {
   for (const b of GTN.boxes) {
     if (x < b.x0 - r || x > b.x1 + r || z < b.z0 - r || z > b.z1 + r) continue;
@@ -23975,11 +24059,14 @@ function gtnPush(x, z, r) {
 
 ARC.gtn = {
   init(s) {
-    gtnBuild();
+    s.ready = false;
+    gtnLoadKit().then(() => { gtnBuild(); ARC.gtn.spawn(s); s.ready = true; });
+  },
+  spawn(s) {
     const P = GTN.P, N = GTN.N, W = N * P;
     if (s.grp) GTN.dyn.remove(s.grp);
     s.grp = new THREE.Group(); GTN.dyn.add(s.grp);
-    s.px = 3 * P + 7; s.pz = 5 * P + 11; s.yaw = Math.PI / 2; s.car = null; s.health = 100; s.wanted = 0; s.cool = 0; s.obj = 0; s.free = false; s.t = 0; s.fl = 0; s.bust = 0;
+    s.px = 2 * P + 7; s.pz = 5 * P + 11; s.yaw = Math.PI / 2; s.car = null; s.health = 100; s.wanted = 0; s.cool = 0; s.obj = 0; s.free = false; s.t = 0; s.fl = 0; s.bust = 0;
     s.me = GTN.pedMesh(0xd04a3a); s.grp.add(s.me);
     s.cars = []; s.peds = []; s.pick = []; s.cam = new THREE.Vector3(s.px, 6, s.pz - 8);
     const kinds = ["sedan", "sedan", "coupe", "van", "kei"], cols = [0xc02a2a, 0x2a5ac0, 0xe0e0e0, 0x1a1a1a, 0xe0b020, 0x2aa05a, 0x8a3ac0, 0xe06a1a];
@@ -23999,12 +24086,40 @@ ARC.gtn = {
     const gm = new THREE.BoxGeometry(0.7, 0.7, 0.7);
     for (let n = 0; n < 20; n++) { const hp = n % 3 === 0; const m = new THREE.Mesh(gm, new THREE.MeshBasicMaterial({ color: hp ? 0x40ff70 : 0xffd23a })); const i = (Math.random() * (N + 1)) | 0, j = (Math.random() * N) | 0; m.position.set(i * P + 7.5, 1.4, j * P + 10 + Math.random() * 32); s.grp.add(m); s.pick.push({ m, hp, got: 0 }); }
     s.mk = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xff3a8a, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); s.mk.visible = false; s.grp.add(s.mk);
+    s.trains = null;
+    if (GTN.rail && GTN.kit) {
+      const sets = [["train-electric-city-a", "train-electric-city-b", "train-electric-city-b", "train-electric-city-c"], ["train-electric-bullet-a", "train-electric-bullet-b", "train-electric-bullet-b", "train-electric-bullet-c"]];
+      s.trains = sets.map((names, n) => {
+        const dir = n ? -1 : 1, k3 = 3.0, e0 = GTN.kit[names[0]], cl = e0.size.z * k3 + 0.15, cars = [];
+        names.forEach((nm, ci) => { const e = GTN.kit[nm], m = e.scene.clone(true); m.scale.setScalar(k3); m.rotation.y = ci === names.length - 1 ? Math.PI : 0; const w = new THREE.Group(); w.add(m); w.rotation.y = dir > 0 ? 0 : Math.PI; s.grp.add(w); cars.push(w); });
+        return { dir, cars, cl, len: names.length * cl, sp: n ? 34 : 22, off: dir > 0 ? 2 : -2, y: 0.65 - e0.minY * k3, z: n ? dir * 1e4 : 90, wait: n ? 7 : 0 };
+      });
+    }
     s.pop = null; s.rain = []; for (let i = 0; i < 40; i++) s.rain.push([Math.random() * 320, Math.random() * 240, 3 + Math.random() * 3]);
   },
 
   upd(s, dt, i) {
-    const P = GTN.P, N = GTN.N, W = N * P, sinY = Math.sin, cosY = Math.cos;
+    if (!s.ready) return;
+    const P = GTN.P, N = GTN.N, W = N * P, sinY = Math.sin, cosY = Math.cos, rail = GTN.rail;
     s.t += dt; s.fl += dt;
+    // ---- trains and level crossings
+    if (rail && s.trains) {
+      for (const tr of s.trains) {
+        if (tr.wait > 0) { tr.wait -= dt; if (tr.wait <= 0) tr.z = tr.dir > 0 ? -tr.len - 20 : W + tr.len + 20; }
+        else { tr.z += tr.dir * tr.sp * dt; if ((tr.dir > 0 && tr.z - tr.len > W + 30) || (tr.dir < 0 && tr.z + tr.len < -30)) { tr.wait = 5 + Math.random() * 8; tr.z = tr.dir * 1e4; } }
+        tr.cars.forEach((m, n) => m.position.set(rail.X + tr.off, tr.y, tr.z - tr.dir * n * tr.cl));
+        const f = tr.z + tr.dir * tr.cl / 2, tl = tr.z - tr.dir * ((tr.cars.length - 1) * tr.cl + tr.cl / 2); tr.lo = Math.min(f, tl); tr.hi = Math.max(f, tl); tr.f = f; tr.tl = tl;
+      }
+      for (const c of rail.cross) {
+        c.down = s.trains.some(tr => tr.wait <= 0 && (tr.dir > 0 ? tr.f > c.z - 95 && tr.tl < c.z + 16 : tr.f < c.z + 95 && tr.tl > c.z - 16));
+        c.a += ((c.down ? 0 : 1) - c.a) * Math.min(1, 2.2 * dt);
+        c.arms.forEach(a => { a.piv.rotation.x = -a.dir * 1.3 * c.a; });
+        const on = c.down && (s.fl * 3 | 0) % 2; c.lamps.forEach((l, n) => l.material.color.setHex(c.down ? (on === (n % 2 ? 1 : 0) || on ? 0xff2020 : 0x401010) : 0x401010));
+      }
+      const hitTrain = (x, z) => s.trains.some(tr => tr.wait <= 0 && Math.abs(x - (rail.X + tr.off)) < 2.3 && z > tr.lo - 1 && z < tr.hi + 1);
+      if (hitTrain(s.px, s.pz)) { s.health = 0; s.trainHit = true; }
+      for (let n = s.cars.length - 1; n >= 0; n--) { const c = s.cars[n]; if (c !== s.car && hitTrain(c.x, c.z)) { s.grp.remove(c.m); s.cars.splice(n, 1); } }
+    }
     const car = s.car;
     // ---- the player
     if (car) {
@@ -24044,6 +24159,7 @@ ARC.gtn = {
       const a = c.ai, sp = c.cop ? 19 + 2.2 * s.wanted : a.sp; let tgt = sp;
       for (const o of s.cars) { if (o === c || (c.cop && o === s.car)) continue; const dx = o.x - c.x, dz = o.z - c.z, f = dx * c.hx + dz * c.hz; if (f > 0 && f < 10) { const l = Math.abs(dx * c.hz - dz * c.hx); if (l < 2.6) tgt = Math.min(tgt, Math.max(0, (f - 4.5) * 2.2)); } }
       if (!c.cop) { const dx = s.px - c.x, dz = s.pz - c.z, f = dx * c.hx + dz * c.hz; if (f > 0 && f < 10 && Math.abs(dx * c.hz - dz * c.hx) < 2.2) tgt = Math.min(tgt, Math.max(0, (f - 4) * 2.2)); }
+      if (rail && c.hx) { const kk = Math.round(c.z / P), cr = rail.cross[kk]; if (cr && cr.down && Math.abs(c.z - kk * P) < 6) { const d = c.hx > 0 ? rail.X - 10.8 - c.x : c.x - (rail.X + 10.8); if (d > -1 && d < 18) tgt = Math.min(tgt, Math.max(0, (d - 0.5) * 2.2)); } }
       c.v += Math.max(-26 * dt, Math.min(8 * dt, tgt - c.v));
       const px0 = c.hx ? c.x : c.z; c.x += c.hx * c.v * dt; c.z += c.hz * c.v * dt;
       const p1 = c.hx ? c.x : c.z, ka = Math.floor(px0 / P), kb = Math.floor(p1 / P);
@@ -24073,6 +24189,7 @@ ARC.gtn = {
     // ---- pedestrians
     for (const p of s.peds) {
       if (p.dead > 0) { p.dead -= dt; p.m.rotation.z = Math.PI / 2; p.m.position.y = 0.3; if (p.dead <= 0) { p.dead = 0; p.m.rotation.z = 0; p.m.position.y = 0; } continue; }
+      if (!p.vert && rail) { const cr = rail.cross[Math.round(p.off / P)], dx = Math.abs(p.a - rail.X); if (cr && cr.down && dx < 11 && dx > 8.5) p.dir = p.a < rail.X ? -1 : 1; }
       p.a += p.dir * 1.6 * dt; if (p.a < 0 || p.a > W) p.dir *= -1;
       p.m.position.set(p.vert ? p.off : p.a, 0.3, p.vert ? p.a : p.off); p.m.rotation.y = p.vert ? (p.dir > 0 ? 0 : Math.PI) : (p.dir > 0 ? Math.PI / 2 : -Math.PI / 2);
       if (car && Math.abs(car.v) > 4 && Math.hypot(p.m.position.x - car.x, p.m.position.z - car.z) < 1.8) { p.dead = 6; s.wanted = Math.min(5, s.wanted + 1); s.cool = 0; }
@@ -24119,10 +24236,11 @@ ARC.gtn = {
       s.fpt = 1; s.fx = ((Math.random() * (N - 1) + 0.5) | 0) * P + P, s.fz = ((Math.random() * (N - 1) + 0.5) | 0) * P + P;
     }
     if (s.obj === 3 && s.loseFrom === undefined) s.loseFrom = s.t;
-    if (s.health <= 0) arcadeOver("WASTED");
+    if (s.health <= 0) arcadeOver(s.trainHit ? "HIT BY A TRAIN" : "WASTED");
   },
 
   draw(s, g, gm) {
+    if (!s.ready) { Tx(g, "Loading Tōkonto…", AW / 2, AH / 2, 14, gm.b, "center"); return; }
     const P = GTN.P, rend = GTN.R, sc = GTN.scene, cam = GTN.cam || (GTN.cam = new THREE.PerspectiveCamera(62, 4 / 3, 0.3, 260));
     // poses
     for (const c of s.cars) { c.m.position.set(c.x, 0.3, c.z); c.m.rotation.y = c.yaw; }
@@ -24153,6 +24271,7 @@ ARC.gtn = {
     const dot = (x, z, c, r2) => { g.fillStyle = c; g.beginPath(); g.arc(-(x - s.px) * sc2, (z - s.pz) * sc2, r2, 0, 7); g.fill(); };
     // the radar is drawn in a frame where x is mirrored, matching the world's handedness
     s.cars.forEach(c => { if (c.cop) dot(c.x, c.z, (s.fl * 6 | 0) % 2 ? "#ff3030" : "#3a70ff", 2); });
+    if (GTN.rail) { g.strokeStyle = "#8a8f98"; g.lineWidth = 3; g.beginPath(); g.moveTo(-(GTN.rail.X - s.px) * sc2, -200); g.lineTo(-(GTN.rail.X - s.px) * sc2, 200); g.stroke(); (s.trains || []).forEach(tr => { if (tr.wait <= 0) dot(GTN.rail.X + tr.off, tr.z, "#ffffff", 3); }); }
     if (tgt) dot(tgt[0], tgt[1], "#ff3a8a", 3);
     g.restore(); g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = 1; g.beginPath(); g.arc(rx, ry, rr, 0, 7); g.stroke();
     g.fillStyle = "#fff"; g.beginPath(); g.moveTo(rx, ry - 4); g.lineTo(rx - 3, ry + 3); g.lineTo(rx + 3, ry + 3); g.fill();
