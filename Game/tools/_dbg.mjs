@@ -77,6 +77,7 @@ await ev(() => {
 });
 await wait(1500);
 await page.keyboard.press("KeyE"); await wait(2500);
+console.log(JSON.stringify(await ev(() => ({ vis: interior.room.group.visible, active: interior.active, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, near: camera.near, far: camera.far, dir: camera.getWorldDirection(new THREE.Vector3()).toArray(), bgfog: scene.fog ? [scene.fog.near, scene.fog.far] : null }))));
 console.log(JSON.stringify(await ev(() => { const c = interior.card; return c ? { cam: camera.position.toArray(), wp: c.wp.toArray(), room: [interior.room.ox, interior.floorY, interior.room.oz], fx: c.fx, fz: c.fz, camPos: camPos.toArray() } : "nocard"; })));
 await snap("dbg_close");
 await browser.close(); srv.close();
