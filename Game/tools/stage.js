@@ -94,8 +94,21 @@ function main() {
     });
   }
 
+  // "Add Your Files": anything the player drops in there goes over the game's own copy, so a new car or a real road scan is a copy-and-paste,
+  // with no upload and no git. cars/*.glb replaces a car of the same name, road/* replaces the road textures, seiko.glb replaces the character.
+  const drop = path.join(GAME, "Add Your Files");
+  let added = 0;
+  const overlay = (from, to, re) => {
+    if (!fs.existsSync(from)) return;
+    fs.mkdirSync(to, { recursive: true });
+    fs.readdirSync(from).filter(f => re.test(f)).forEach(f => { fs.copyFileSync(path.join(from, f), path.join(to, f)); added++; console.log("  using your file: " + f); });
+  };
+  overlay(path.join(drop, "cars"), path.join(OUT, "cars"), /\.glb$/i);
+  overlay(path.join(drop, "road"), path.join(OUT, "art", "road"), /\.(jpe?g|png)$/i);
+  overlay(drop, OUT, /^seiko\.glb$/i);
+
   console.log("staged app/index.html (" + rewrote + " script tags pointed at vendor/)"
-    + (fs.existsSync(glb) ? " and seiko.glb" : "") + ", " + cars + " car models");
+    + (fs.existsSync(glb) ? " and seiko.glb" : "") + ", " + cars + " car models" + (added ? ", " + added + " of your own files" : ""));
 }
 
 main();

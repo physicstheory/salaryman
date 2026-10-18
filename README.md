@@ -1,5 +1,17 @@
 # Salary Man
 
+## Play it (the original web game, as a desktop app)
+
+1. Install Node.js (the LTS version) from https://nodejs.org.
+2. Download this repository as a ZIP, extract it, and open the extracted folder.
+3. Double-click **Play Salary Man.bat**. The first run downloads what it needs (a few minutes); after that it starts straight away.
+
+This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. The `Godot` and `WebGPU` folders are earlier experiments, kept for reference and not used by the game.
+
+**Your own cars and road textures:** copy them into `Game/Add Your Files/` (see the README.txt there). No upload and no git needed.
+
+---
+
 An open world game set on **Konto**, a fictionalised island modelled on Honshu. A man leaves his
 village in the mountains for the capital, **Tōkonto**, to take a job at **Soti**, the tech company
 that owns half the skyline.

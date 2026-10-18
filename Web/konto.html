@@ -9456,6 +9456,41 @@ function asphaltTexture() {
   return gfx.asphalt;
 }
 
+// The high-definition road: art/road/asphalt_diff.jpg (colour), asphalt_nor.jpg (normal, GL convention) and asphalt_arm.jpg (green = roughness).
+// They are 2048 px and tile every four metres, so a stone is a few centimetres. Drop real scans over them with the same names (see "Add Your Files"
+// in the Game folder). Until they have loaded, or if they are missing, the painted 512 px surface above stays on the road.
+const roadHDState = { users: [], maps: null, started: false };
+function roadHD(t, m) {
+  const st = roadHDState;
+  st.users.push([t, m]);
+  if (st.maps) { roadHDApply(t, m); return; }
+  if (st.started) return;
+  st.started = true;
+  const L = new THREE.TextureLoader();
+  const get = (name) => new Promise(res => L.load("art/road/" + name, tx => res(tx), undefined, () => res(null)));
+  Promise.all([get("asphalt_diff.jpg"), get("asphalt_nor.jpg"), get("asphalt_arm.jpg")]).then(r => {
+    if (!r[0]) { console.warn("art/road/asphalt_diff.jpg not found, keeping the painted road"); return; }
+    st.maps = { diff: r[0], nor: r[1], arm: r[2] };
+    st.users.forEach(u => roadHDApply(u[0], u[1]));
+  });
+}
+function roadHDApply(t, m) {
+  const mp = roadHDState.maps, REP = 4.0;
+  const prep = (src, srgb) => {
+    const x = src.clone();
+    x.wrapS = x.wrapT = THREE.RepeatWrapping;
+    x.repeat.set(1 / REP, 1 / REP);
+    x.anisotropy = 16;
+    if (srgb) x.encoding = THREE.sRGBEncoding;
+    x.needsUpdate = true;
+    return x;
+  };
+  m.map = prep(mp.diff, true);
+  if (mp.nor) { m.normalMap = prep(mp.nor, false); m.normalScale = new THREE.Vector2(1.1, 1.1); }
+  if (mp.arm) { m.roughnessMap = prep(mp.arm, false); m.roughness = 1.0; }
+  m.needsUpdate = true;
+}
+
 function pavingTexture() {
   if (gfx.paving) return gfx.paving;
   const S = 512;
@@ -9572,6 +9607,7 @@ function buildRoadSurfaces(w, city, root) {
       ? new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0.0, envMapIntensity: 0.5 })
       : new THREE.MeshLambertMaterial({ map: t });
     if (gfx.high && gfx.env) m.envMap = gfx.env;
+    if (tex === gfx.asphalt && gfx.high) roadHD(t, m);
     const o = new THREE.Mesh(g, m);
     o.receiveShadow = true;
     o.frustumCulled = false;

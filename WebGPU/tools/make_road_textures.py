@@ -4,9 +4,9 @@ The road shader uses asphalt_diff / asphalt_nor / asphalt_arm if you drop real s
 import numpy as np
 from PIL import Image
 import os
-S = 1024
+S = int(os.environ.get("ROAD_SIZE", 1024))
 rng = np.random.default_rng(7)
-out = os.path.join(os.path.dirname(__file__), "..", "assets", "textures", "road")
+out = os.environ.get("ROAD_OUT") or os.path.join(os.path.dirname(__file__), "..", "assets", "textures", "road")
 
 def band(sigma, seed=None):
     r = np.random.default_rng(seed) if seed is not None else rng
