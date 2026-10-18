@@ -29827,9 +29827,10 @@ function inTryLabel(it) {
 function interiorCardOpen(e) {
   const wp = new THREE.Vector3(); e.mesh.getWorldPosition(wp);
   const fx = Math.sin(e.face), fz = Math.cos(e.face);
-  interior.card = { e: e, from: camera.position.clone(), t: 0, wp: wp, fx: fx, fz: fz, ask: null, mode: "look", prevShirt: player.shirtHex || null, bought: false, demo: null, spin: 0 };
+  const kd = inKind(e.it), big = kd === "tv" ? [1.5, 2.3] : kd === "console" ? [2.0, 1.5] : kd === "shirt" ? [2.0, 1.6] : kd === "umbrella" ? [1.6, 1.8] : [2.4, 1.05];
+  interior.card = { e: e, dist: big[1], from: camera.position.clone(), t: 0, wp: wp, fx: fx, fz: fz, ask: null, mode: "look", prevShirt: player.shirtHex || null, bought: false, demo: null, spin: 0 };
   e.mesh.getObjectByName("glow").visible = false;
-  e.mesh.scale.setScalar(2.4);
+  e.mesh.scale.setScalar(big[0]);
   e.mesh.position.y += 0.08;
   interior.prompt.classList.remove("on");
   player.speed = 0;
@@ -29864,7 +29865,7 @@ function interiorCardTick(dt) {
     if (player.mixer) updateSeikoClip(dt);
     target = new THREE.Vector3(c.camx, player.pos.y + 1.45, c.camz); look = new THREE.Vector3(player.pos.x, player.pos.y + 1.05, player.pos.z);
   } else {
-    target = new THREE.Vector3(c.wp.x + c.fx * 1.05, c.wp.y + 0.28, c.wp.z + c.fz * 1.05);
+    target = new THREE.Vector3(c.wp.x + c.fx * c.dist, c.wp.y + 0.28 + (c.dist - 1.05) * 0.25, c.wp.z + c.fz * c.dist);
     look = new THREE.Vector3(c.wp.x, c.wp.y + c.e.mesh.userData.top * 1.2 + 0.1, c.wp.z);
   }
   camPos.lerp(target, k);
