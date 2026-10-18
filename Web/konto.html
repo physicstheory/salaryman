@@ -29146,6 +29146,8 @@ function interiorEnter(s) {
     scene.add(interior.light);
   }
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0.9;
+  // the world's near plane is two metres, which would cut a close look at a shelf to nothing
+  interior.nearWas = camera.near; camera.near = 0.08; camera.updateProjectionMatrix();
   player.pos.copy(room.entry);
   player.yaw = player.targetYaw = Math.PI; yaw = 0; pitch = -0.22;
   player.speed = 0; player.onWalk = false;
@@ -29165,6 +29167,7 @@ function interiorLeave(quiet) {
   interior.room.group.visible = false;
   interior.light.intensity = 0;
   interior.active = false; interior.hi = null;
+  if (interior.nearWas) { camera.near = interior.nearWas; camera.updateProjectionMatrix(); }
   interiorUi();
   stepOutFrom(s.door, s.yaw);
   yaw = s.yaw + Math.PI; pitch = -0.18;

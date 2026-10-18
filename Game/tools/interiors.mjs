@@ -86,7 +86,7 @@ async function visit(brand, pickIdx, tryIt) {
     if (tryIt) { await page.keyboard.press("Escape"); await wait(800); }
     await page.keyboard.press("Escape"); await wait(1500);
     await ev(() => { if (interior.card) interiorAction("back"); });
-    await ev(() => { const R = interior.room; player.pos.set(R.ox, interior.floorY, R.oz + 4.7); });
+    await ev(() => { const R = interior.room; player.pos.set(R.ox, interior.floorY, R.oz + 5.1); });
     await wait(2000); console.log("left to street:", await ev(() => !interior.active));
     await snap(brand + "_back_outside");
   });
