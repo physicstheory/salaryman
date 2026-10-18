@@ -240,29 +240,39 @@ export class Game {
   wheelOpen() { return this.wheels && this.wheels.open; }
   setMenuMode(on) { Input.menuMode = on; if (on) Input.capture(false); }
 
-  /** Through the shop's door: fade, then the room. Leaving puts Seiko back on the pavement outside. */
+  /** Through the shop's door: no button, no loading screen. Seiko walks into the doorway and is in the room. */
   walkIn(door) {
-    this.doorOut = { x: door.door.x, z: door.door.z, face: this.player.face, brand: door.brand };
-    this.fade.style.opacity = 1;
-    setTimeout(() => {
-      const r = this.interiors.enter(door.brand);
-      this.inside = r;
-      this.player.teleport(r.entry.x, r.entry.y, r.entry.z);
-      this.player.face = Math.PI;
-      this.rig.snap();
-      this.fade.style.opacity = 0;
-    }, 350);
+    this.doorOut = { x: door.door.x, z: door.door.z, nx: door.outN.x, nz: door.outN.z };
+    const r = this.interiors.enter(door.brand);
+    this.inside = r;
+    this.player.teleport(r.entry.x, r.entry.y, r.entry.z);
+    this.player.face = Math.PI;
+    this.doorCool = 1.0;
+    this.rig.yaw = 0; this.rig.snap();
   }
   walkOut() {
-    this.fade.style.opacity = 1;
-    setTimeout(() => {
-      const o = this.doorOut;
-      this.interiors.leave();
-      this.inside = null;
-      this.player.teleport(o.x, 0.3, o.z);
-      this.rig.snap();
-      this.fade.style.opacity = 0;
-    }, 350);
+    const o = this.doorOut;
+    this.interiors.leave();
+    this.inside = null;
+    this.player.teleport(o.x + o.nx * 1.8, 0.3, o.z + o.nz * 1.8);
+    this.player.face = Math.atan2(o.nx, o.nz);
+    this.doorCool = 1.0;
+    this.rig.yaw = Math.atan2(o.nx, o.nz); this.rig.snap();
+  }
+  /** Doors you simply walk through: a shop's front door going in, the doorway of the room going out. */
+  doorTriggers(dt) {
+    this.doorCool = Math.max(0, (this.doorCool || 0) - dt);
+    if (this.doorCool > 0 || this.current || this.menuOpen() || this.uiOpen || this.player.dead || !this.player.active) return;
+    const p = this.player.position;
+    if (this.inside) {
+      const d = this.inside.exit.door;
+      if (Math.hypot(d.x - p.x, d.z - p.z) < 0.9) this.walkOut();
+      return;
+    }
+    for (const s of this.city.shops) {
+      if (s.kind !== 'shop' || ACTIVITIES.includes(s.brand)) continue;
+      if (Math.hypot(s.door.x - p.x, s.door.z - p.z) < 1.1) { this.walkIn(s); return; }
+    }
   }
 
   openShop(door) {
@@ -483,6 +493,7 @@ export class Game {
 
   fixedUpdate(dt) {
     gs.tick(dt);
+    this.doorTriggers(dt);
     gs.outdoors = !this.current && this.city.inPark(this.player.position.x, this.player.position.z);
     const strain = gs.strain();
     this.player.speedMult = 1 - 0.42 * strain;

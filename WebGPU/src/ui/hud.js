@@ -88,7 +88,8 @@ export class Hud {
       else {
         const door = g.nearestDoor(g.player.position);
         const veh = g.nearestVehicle(g.player.position);
-        if (door) p = door.brand === 'exit' ? 'F: leave' : door.interiorCounter ? 'F: speak to the clerk' : 'F: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
+        if (door && (door.brand === 'exit' || (door.kind === 'shop' && !g.inside && !['sento','pachinko','karaoke','arcade'].includes(door.brand)))) p = '';
+        else if (door) p = door.brand === 'exit' ? 'F: leave' : door.interiorCounter ? 'F: speak to the clerk' : 'F: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
         else if (veh && !veh.wrecked && !g.player.dead) p = 'F: get in';
       }
     }
