@@ -82,11 +82,23 @@ function userOverride(rel) {
 function userJson() { try { return JSON.parse(fs.readFileSync(path.join(USER_DIR, "cars", "user.json"), "utf8")); } catch (e) { return {}; } }
 function saveUserJson(j) { fs.mkdirSync(path.join(USER_DIR, "cars"), { recursive: true }); fs.writeFileSync(path.join(USER_DIR, "cars", "user.json"), JSON.stringify(j)); }
 
+// An .obj (with its .mtl and textures beside it) is converted to .glb on the way in, so a model downloaded as OBJ needs no Blender.
+async function modelToGlb(f) {
+  if (/\.glb$/i.test(f)) return fs.readFileSync(f);
+  const obj2gltf = require("obj2gltf");
+  if (win) win.webContents.executeJavaScript("typeof say === 'function' && say('Converting the model. A big one can take a minute.', 90)").catch(() => {});
+  if (win) win.setProgressBar(2);
+  try { return await obj2gltf(f, { binary: true }); }
+  finally { if (win) win.setProgressBar(-1); }
+}
 async function addFiles(files) {
   const added = [];
+  // textures and .mtl files dropped with a model belong to the model, not to the road
+  const hasModel = files.some(f => /\.(glb|obj)$/i.test(f));
   for (const f of files) {
     const name = path.basename(f);
-    if (/\.glb$/i.test(name)) {
+    if (hasModel && /\.(mtl|jpe?g|png|tga|bmp)$/i.test(name)) continue;
+    if (/\.(glb|obj)$/i.test(name)) {
       const ALL = SLOTS.concat(INTERIORS);
       let guess = INTERIORS.findIndex(sl => sl.re.test(name));
       guess = guess >= 0 ? SLOTS.length + guess : SLOTS.findIndex(sl => sl.re.test(name));
@@ -100,12 +112,14 @@ async function addFiles(files) {
       const slot = ALL[r.response];
       if (r.response >= SLOTS.length) {
         fs.mkdirSync(path.join(USER_DIR, "interiors"), { recursive: true });
-        fs.copyFileSync(f, path.join(USER_DIR, "interiors", slot.id + ".glb"));
+        try { fs.writeFileSync(path.join(USER_DIR, "interiors", slot.id + ".glb"), await modelToGlb(f)); }
+        catch (e) { await dialog.showMessageBox(win, { type: "error", message: "Could not convert " + name, detail: String(e && e.message || e) }); continue; }
         added.push(slot.label);
         continue;
       }
       fs.mkdirSync(path.join(USER_DIR, "cars"), { recursive: true });
-      fs.copyFileSync(f, path.join(USER_DIR, "cars", slot.id + ".glb"));
+      try { fs.writeFileSync(path.join(USER_DIR, "cars", slot.id + ".glb"), await modelToGlb(f)); }
+      catch (e) { await dialog.showMessageBox(win, { type: "error", message: "Could not convert " + name, detail: String(e && e.message || e) }); continue; }
       const j = userJson(); j[slot.id] = j[slot.id] || { yaw: 0 }; saveUserJson(j);
       added.push(slot.label);
     } else if (/\.(jpe?g|png)$/i.test(name)) {
@@ -128,7 +142,7 @@ async function addFiles(files) {
 async function pickFiles() {
   const r = await dialog.showOpenDialog(win, {
     title: "Add cars or road textures", properties: ["openFile", "multiSelections"],
-    filters: [{ name: "Cars (.glb) and textures (.jpg, .png)", extensions: ["glb", "jpg", "jpeg", "png"] }]
+    filters: [{ name: "Cars and models (.glb, .obj) and textures (.jpg, .png)", extensions: ["glb", "obj", "jpg", "jpeg", "png"] }]
   });
   if (!r.canceled && r.filePaths.length) await addFiles(r.filePaths);
 }

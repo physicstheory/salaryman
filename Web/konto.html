@@ -10819,7 +10819,11 @@ function loadCarModelsNow(root) {
     const cap = traffic.paint[ki] ? traffic.paint[ki].instanceMatrix.count : 8;
     const build = gltf => {
       const pool = { items: [] };
-      for (let i = 0; i < cap; i++) {
+      // a detailed car the player supplied is drawn a few times, not once per space in traffic
+      let tris = 0;
+      if (entry.user) gltf.scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+      const n = entry.user ? (tris > 200000 ? 2 : tris > 80000 ? 4 : cap) : cap;
+      for (let i = 0; i < n; i++) {
         const clone = fitCarModel(gltf.scene.clone(true), kind, entry);
         clone.visible = false;
         root.add(clone);

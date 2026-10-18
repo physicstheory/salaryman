@@ -68,5 +68,11 @@
       ],
       "category": "public.app-category.games"
     }
+  },
+  "dependencies": {
+    "obj2gltf": "3.1.6"
+  },
+  "overrides": {
+    "cesium": "1.99.0"
   }
 }
