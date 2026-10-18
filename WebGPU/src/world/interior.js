@@ -113,7 +113,7 @@ export class Interiors {
     const r = this.room(brandId);
     this.active = r;
     this.light.position.set(r.ox - 3, H - 0.6, r.oz); this.light2.position.set(r.ox + 3, H - 0.6, r.oz);
-    this.light.intensity = this.light2.intensity = 14;
+    this.light.intensity = this.light2.intensity = 3;
     return r;
   }
 
