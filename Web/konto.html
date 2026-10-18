@@ -817,6 +817,8 @@
     background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(255,255,255,0));
   }
   .title-btn[hidden] { display: none; }
+  #savemark { position: fixed; right: 18px; top: 16px; z-index: 60; padding: 6px 12px; font: 600 12px 'Segoe UI', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #eaf1ea; background: rgba(12,14,18,.7); border-left: 3px solid #43b36b; opacity: 0; transition: opacity .35s; pointer-events: none; }
+  #savemark.on { opacity: 1; }
   #titlehint {
     margin: 26px 0 0; font-family: var(--data); font-size: 11px;
     letter-spacing: 0.12em; text-transform: uppercase; color: #6f767e;
@@ -22376,6 +22378,7 @@ function homeAct() {
     advanceGameMinutes(60 * 8);            // morning
     say("Slept until morning. You feel human.", 5);
     leaveHome();
+    saveGame("Saved at the bed.");
     return;
   }
   if (a.id === "eat") {
@@ -27588,6 +27591,8 @@ function returnToTitle() {
   setPhone(false);
   if (paused) setPaused(false);
   if (player.placed) title.resume = { x: player.pos.x, z: player.pos.z, yaw: player.yaw };
+  title.save = null;
+  saveGame("");
   setPaused(false);
   title.from = null; title.t = 0; title.sel = 0;
   const c = document.getElementById("tcontinue"); if (c) c.hidden = !title.resume;
@@ -27608,10 +27613,13 @@ function titleChoose() {
     const r = title.resume;
     placeSeiko(new THREE.Vector3(r.x, world.surfaceY(r.x, r.z), r.z));
     player.placed = true;
+    if (title.save) { applySave(title.save); title.save = null; }
     updateWorldSky(0, true);
     player.yaw = player.targetYaw = r.yaw; yaw = r.yaw + Math.PI;
+    say("Welcome back. Your game was loaded.", 4);
     return;
   }
+  if (id === "tnew") newGameBackup();
   placeSeiko(seikoSpawn(world));
   player.placed = true;
   updateWorldSky(0, true);          // the title's sky is a screensaver; the world's is the clock
@@ -28918,7 +28926,85 @@ document.getElementById("regen").addEventListener("click", () => {
   const v = parseInt(document.getElementById("seed").value, 10);
   generate(isFinite(v) ? v : 19640101);
 });
+
+// ---- saving -----------------------------------------------------------------------------------------------------------------------------
+// One slot in the browser's own storage (the desktop app keeps it in its user-data folder, so it survives updates). It is written
+//  - by hand: sleeping in a bed (the flat in Mizuho or a capsule hotel), or F5 anywhere;
+//  - automatically: a second after money, the bag, the phone or the wallet change (a purchase, a top-up, a new handset), every 90 seconds
+//    while playing, when the window loses focus or closes, and when you go back to the title.
+// Continue on the title screen loads it. Starting a new game keeps the last save as a backup under konto.save.v1.prev.
+const SAVE_KEY = "konto.save.v1";
+function snapshotSave() {
+  const at = drive.car ? drive.car.pos : player.pos;
+  const wall = phone.wall && phone.wall.photo ? { kind: "default", g: 0, photo: null } : phone.wall;
+  return {
+    v: 1, t: Date.now(), clock: clock, yen: purse.yen,
+    vitals: { health: vitals.health, stress: vitals.stress, awake: vitals.awake || 0, slept: vitals.slept || 0 },
+    bag: { counts: bag.counts, phones: bag.phones, games: bag.games, gear: bag.gear, heldGame: bag.heldGame, watchOn: bag.watchOn },
+    phone: { device: phone.device, colourIdx: phone.colourIdx, pearWall: phone.pearWall, pearAccent: phone.pearAccent, wall: wall, watch: phone.watch, health: phone.health, owns: phone.owns, gallery: (phone.gallery || []).slice(-6) },
+    wallet: { ic: wallet.ic, toll: wallet.toll, loyal: wallet.loyal, buys: wallet.buys, pts: wallet.pts },
+    pos: { x: at.x, z: at.z, yaw: player.yaw }
+  };
+}
+function saveSig() {
+  return [purse.yen, JSON.stringify(bag), phone.device, phone.colourIdx, JSON.stringify(wallet.buys), JSON.stringify(wallet.ic), JSON.stringify(wallet.toll), phone.owns && JSON.stringify(phone.owns), (phone.gallery || []).length].join("|");
+}
+let saveLast = { sig: "", at: 0 };
+function saveMark(text) {
+  let el = document.getElementById("savemark");
+  if (!el) { el = document.createElement("div"); el.id = "savemark"; document.body.appendChild(el); }
+  el.textContent = text; el.classList.add("on");
+  clearTimeout(saveMark.t); saveMark.t = setTimeout(() => el.classList.remove("on"), 1800);
+}
+function saveGame(msg, quiet) {
+  if (!player.placed || !title.started) return false;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snapshotSave()));
+    saveLast.sig = saveSig(); saveLast.at = Date.now();
+    if (msg) { say(msg, 3.5); saveMark("Game saved"); } else if (!quiet) saveMark("Autosaved");
+    return true;
+  } catch (e) {
+    if (msg) say("Could not save: " + e.message, 4);
+    return false;
+  }
+}
+function readSave() {
+  try { const j = JSON.parse(localStorage.getItem(SAVE_KEY) || "null"); return j && j.v === 1 ? j : null; } catch (e) { return null; }
+}
+function applySave(s) {
+  try {
+    purse.yen = s.yen;
+    Object.assign(vitals, s.vitals);
+    bag.counts = s.bag.counts || {}; bag.phones = s.bag.phones || {}; bag.games = s.bag.games || {}; bag.gear = s.bag.gear || {};
+    bag.heldGame = s.bag.heldGame || null; bag.watchOn = s.bag.watchOn || false;
+    Object.assign(phone, s.phone); phone.dirty = true;
+    Object.assign(wallet, s.wallet);
+    if (typeof s.clock === "number") clock = s.clock;
+    saveLast.sig = saveSig();
+  } catch (e) { console.warn("[Konto] the save could not be applied:", e); }
+}
+function newGameBackup() {
+  try { const cur = localStorage.getItem(SAVE_KEY); if (cur) localStorage.setItem(SAVE_KEY + ".prev", cur); } catch (e) { /* none */ }
+  title.resume = null;
+}
+function offerSaveOnTitle() {
+  const s = readSave();
+  if (!s) return;
+  title.save = s; title.resume = { x: s.pos.x, z: s.pos.z, yaw: s.pos.yaw || 0 };
+  const c = document.getElementById("tcontinue"); if (c) c.hidden = false;
+}
+setInterval(() => {
+  if (!player.placed || !title.started || paused) return;
+  const sig = saveSig();
+  if (sig !== saveLast.sig && Date.now() - saveLast.at > 1000) saveGame("");
+  else if (Date.now() - saveLast.at > 90000) saveGame("", true);
+}, 1000);
+window.addEventListener("beforeunload", () => { saveGame("", true); });
+window.addEventListener("blur", () => { saveGame("", true); });
+window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed && title.started) { e.preventDefault(); saveGame("Game saved."); } });
+
 generate(19640101);
+offerSaveOnTitle();
 </script>
 <script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window'; }</script>
 

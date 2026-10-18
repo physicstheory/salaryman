@@ -63,15 +63,20 @@ const SLOTS = [
   { id: "keivan", label: "Kei truck / van", re: /truck|carry|pickup|pit|van|hijet|acty/i },
   { id: "bike", label: "Motorbike", re: /bike|moto|scooter|vespa|cub/i }
 ];
+// Interiors are kept the same way, in their own folder, named by what they are. The game serves them at interiors/<name>.glb.
+const INTERIORS = [
+  { id: "home", label: "Interior: your home", re: /home|house|flat|apartment|bedroom|room/i },
+  { id: "shop", label: "Interior: a shop", re: /shop|store|konbini|conveni|market|cafe|bar/i }
+];
 const ROAD = [
   { file: "asphalt_diff.jpg", label: "colour", re: /diff|colou?r|albedo|base/i },
   { file: "asphalt_nor.jpg", label: "normal map", re: /nor|normal/i },
   { file: "asphalt_arm.jpg", label: "roughness (ARM)", re: /arm|rough|orm/i }
 ];
 function userOverride(rel) {
-  const m = /^cars\/([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel);
+  const m = /^cars\/([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel) || /^interiors\/([\w.+-]+\.glb)$/i.exec(rel);
   if (!m) return null;
-  const f = path.join(USER_DIR, rel.startsWith("cars") ? "cars" : "road", m[1]);
+  const f = path.join(USER_DIR, rel.startsWith("cars") ? "cars" : rel.startsWith("interiors") ? "interiors" : "road", m[1]);
   return fs.existsSync(f) ? f : null;
 }
 function userJson() { try { return JSON.parse(fs.readFileSync(path.join(USER_DIR, "cars", "user.json"), "utf8")); } catch (e) { return {}; } }
@@ -82,15 +87,23 @@ async function addFiles(files) {
   for (const f of files) {
     const name = path.basename(f);
     if (/\.glb$/i.test(name)) {
-      let guess = SLOTS.findIndex(sl => sl.re.test(name));
+      const ALL = SLOTS.concat(INTERIORS);
+      let guess = INTERIORS.findIndex(sl => sl.re.test(name));
+      guess = guess >= 0 ? SLOTS.length + guess : SLOTS.findIndex(sl => sl.re.test(name));
       const r = await dialog.showMessageBox(win, {
-        type: "question", title: "Add a car", noLink: true, cancelId: SLOTS.length, defaultId: guess < 0 ? 0 : guess,
-        message: "Which car does \"" + name + "\" replace?",
-        detail: guess < 0 ? "Choose a slot." : "It looks like the " + SLOTS[guess].label.toLowerCase() + ".",
-        buttons: SLOTS.map(sl => sl.label).concat(["Skip it"])
+        type: "question", title: "Add a model", noLink: true, cancelId: ALL.length, defaultId: guess < 0 ? 0 : guess,
+        message: "What is \"" + name + "\"?",
+        detail: guess < 0 ? "Choose where it goes." : "It looks like: " + ALL[guess].label.toLowerCase() + ".",
+        buttons: ALL.map(sl => sl.label).concat(["Skip it"])
       });
-      if (r.response >= SLOTS.length) continue;
-      const slot = SLOTS[r.response];
+      if (r.response >= ALL.length) continue;
+      const slot = ALL[r.response];
+      if (r.response >= SLOTS.length) {
+        fs.mkdirSync(path.join(USER_DIR, "interiors"), { recursive: true });
+        fs.copyFileSync(f, path.join(USER_DIR, "interiors", slot.id + ".glb"));
+        added.push(slot.label);
+        continue;
+      }
       fs.mkdirSync(path.join(USER_DIR, "cars"), { recursive: true });
       fs.copyFileSync(f, path.join(USER_DIR, "cars", slot.id + ".glb"));
       const j = userJson(); j[slot.id] = j[slot.id] || { yaw: 0 }; saveUserJson(j);
