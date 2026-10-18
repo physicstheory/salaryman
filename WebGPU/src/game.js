@@ -25,6 +25,7 @@ import { CarRadio } from './radio.js';
 import { Audio_ } from './audio.js';
 import { Settings } from './settings.js';
 import { buildPost } from './post.js';
+import { Interiors } from './world/interior.js';
 
 export const START = new THREE.Vector3(2 * P + 7, 0.3, 5 * P + 11);
 const TRAFFIC = 14;
@@ -58,6 +59,8 @@ export class Game {
     say('Physics…');
     this.phys = await Physics.create();
     this.city = new City(this.phys, renderer, scene);
+    this.interiors = new Interiors(this.phys, scene);
+    this.inside = null;
     await this.city.build(say);
     this.sky = this.city.sky;
     say('People and cars…');
@@ -209,6 +212,11 @@ export class Game {
   /** The nearest door you can go through: a shop's, a vending machine's, a bench or the pier. */
   nearestDoor(p, r = 3.2) {
     let best = null, bd = r;
+    if (this.inside) {
+      const R = this.inside;
+      for (const s of [R.exit, R.counter]) { const d = Math.hypot(s.door.x - p.x, s.door.z - p.z); if (d < bd) { bd = d; best = s; } }
+      return best;
+    }
     for (const s of [...this.city.shops, ...this.city.vendors, ...this.city.spots]) {
       const d = Math.hypot(s.door.x - p.x, s.door.z - p.z);
       if (d < bd) { bd = d; best = s; }
@@ -232,7 +240,34 @@ export class Game {
   wheelOpen() { return this.wheels && this.wheels.open; }
   setMenuMode(on) { Input.menuMode = on; if (on) Input.capture(false); }
 
+  /** Through the shop's door: fade, then the room. Leaving puts Seiko back on the pavement outside. */
+  walkIn(door) {
+    this.doorOut = { x: door.door.x, z: door.door.z, face: this.player.face, brand: door.brand };
+    this.fade.style.opacity = 1;
+    setTimeout(() => {
+      const r = this.interiors.enter(door.brand);
+      this.inside = r;
+      this.player.teleport(r.entry.x, r.entry.y, r.entry.z);
+      this.player.face = Math.PI;
+      this.rig.snap();
+      this.fade.style.opacity = 0;
+    }, 350);
+  }
+  walkOut() {
+    this.fade.style.opacity = 1;
+    setTimeout(() => {
+      const o = this.doorOut;
+      this.interiors.leave();
+      this.inside = null;
+      this.player.teleport(o.x, 0.3, o.z);
+      this.rig.snap();
+      this.fade.style.opacity = 0;
+    }, 350);
+  }
+
   openShop(door) {
+    if (door.brand === 'exit') { this.walkOut(); return; }
+    if (!door.interiorCounter && !this.inside && !ACTIVITIES.includes(door.brand) && door.kind === 'shop' && !door.vending) { this.walkIn(door); return; }
     this.uiOpen = true;
     this.player.active = false;
     this.player.vel.set(0, 0, 0);

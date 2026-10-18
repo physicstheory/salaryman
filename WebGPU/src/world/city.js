@@ -215,6 +215,9 @@ export class City {
     sf.build(brand, { x: c.x + n.x * (depth + 0.02), y: 0.12, z: c.z + n.z * (depth + 0.02) }, n, faceW * 0.8, 0);
     this.group.add(sf.group);
     this.shops.push(sf);
+    // the canopy is solid to the camera, so it cannot swing in through the awning
+    const cw = Math.max(5, Math.min(9.5, faceW * 0.8)) * 0.45, ccx = c.x + n.x * (depth + 0.02 + 0.8), ccz = c.z + n.z * (depth + 0.02 + 0.8);
+    this.phys.staticBox(ccx, 2.5, ccz, Math.abs(n.x) > Math.abs(n.z) ? 0.7 : cw, 0.05, Math.abs(n.x) > Math.abs(n.z) ? cw : 0.7);
   }
 
   vending() {

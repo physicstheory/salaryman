@@ -22,7 +22,7 @@ export class Hud {
       <div id="hud-say"></div>
       <div id="hud-waypoint"></div>
       <div id="hud-toasts"></div>
-      <div id="hud-bars"><div class="bar"><i id="bar-health"></i><span>HEALTH</span></div><div class="bar"><i id="bar-stress"></i><span>STRESS</span></div></div>
+      
       <div id="hud-speed"><svg viewBox="0 0 180 180" width="180" height="180"><path id="rev-bg" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="7"/><path id="rev" fill="none" stroke="#66e6ff" stroke-width="7" stroke-linecap="round"/></svg><b id="spd">0</b><small>km/h</small><em id="gear">1</em><div id="dmg"><i></i></div><div id="slide">SLIDING</div></div>
       <div id="hud-fps"></div>`;
     root.appendChild(this.el);
@@ -61,8 +61,6 @@ export class Hud {
     const g = this.game;
     this.q('#hud-money').textContent = gs.yen(gs.money);
     this.q('#hud-clock').textContent = `Day ${gs.day}  ${gs.clockText()}`;
-    this.q('#bar-health').style.width = (gs.health * 100).toFixed(0) + '%';
-    this.q('#bar-stress').style.width = (gs.stress * 100).toFixed(0) + '%';
     const car = g.current;
     this.q('#hud-speed').style.display = car ? '' : 'none';
     if (car) {
@@ -90,7 +88,7 @@ export class Hud {
       else {
         const door = g.nearestDoor(g.player.position);
         const veh = g.nearestVehicle(g.player.position);
-        if (door) p = 'E: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
+        if (door) p = door.brand === 'exit' ? 'E: leave' : door.interiorCounter ? 'E: speak to the clerk' : 'E: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
         else if (veh && !veh.wrecked && !g.player.dead) p = 'E: get in';
       }
     }

@@ -50,6 +50,7 @@ export class PhoneUI {
     this.front.addEventListener('click', (e) => this.frontClick(e));
     this.kd = (e) => this.onKey(e);
     this.tick = 0;
+    addEventListener('resize', () => this.fit());
   }
 
   device() { return Data.raw.devices[gs.device] || Data.raw.devices.so24; }
@@ -225,8 +226,11 @@ export class PhoneUI {
   playing() { return Audio_.bandOn && Audio_.bandStyle >= 0 && Audio_.bandStyle <= 5; }
 
   // ---- opening and closing
+  fit() { this.root.style.setProperty('--ps', Math.min(0.8, innerHeight * 0.62 / 680).toFixed(3)); }
+
   open() {
     this.isOpen = true;
+    this.fit();
     this.root.classList.add('on');
     const d = this.device();
     if (d.id !== this.devId || gs.phonePaint !== this.paint) { this.app = ''; this.rebuild(); }
