@@ -247,7 +247,7 @@ export class Game {
     this.inside = r;
     this.player.teleport(r.entry.x, r.entry.y, r.entry.z);
     this.player.face = Math.PI;
-    this.doorCool = 1.0;
+    this.doorCool = 0.5;
     this.rig.yaw = 0; this.rig.snap();
   }
   walkOut() {
@@ -256,7 +256,7 @@ export class Game {
     this.inside = null;
     this.player.teleport(o.x + o.nx * 1.8, 0.3, o.z + o.nz * 1.8);
     this.player.face = Math.atan2(o.nx, o.nz);
-    this.doorCool = 1.0;
+    this.doorCool = 0.5;
     this.rig.yaw = Math.atan2(o.nx, o.nz); this.rig.snap();
   }
   /** Doors you simply walk through: a shop's front door going in, the doorway of the room going out. */

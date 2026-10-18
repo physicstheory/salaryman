@@ -10,7 +10,7 @@ export default async (page, snap) => {
   console.log('inside', await ev(() => !!window.game.inside));
   await snap('door_in');
   await ev(() => { const g = window.game; const d = g.inside.exit.door; g.player.teleport(d.x, 0.1, d.z); });
-  await wait(1500);
+  await wait(5000);
   console.log('inside after exit', await ev(() => !!window.game.inside));
   await snap('door_out');
 };
