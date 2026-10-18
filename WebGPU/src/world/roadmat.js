@@ -6,7 +6,7 @@
 // Real scans win: drop asphalt_02_diff_*.jpg, asphalt_02_nor_gl_*.png and asphalt_02_arm_*.jpg (Poly Haven) into assets/textures/road/
 // and list them in assets/textures/road/index.json (see README).
 import * as THREE from 'three/webgpu';
-import { Fn, Loop, float, vec2, vec3, texture, uv, positionWorld, mix, step, smoothstep, floor, fract, mod, abs, dot, max, min, clamp, select, normalize, transformNormalToView } from 'three/tsl';
+import { Fn, Loop, float, vec2, vec3, texture, uv, positionWorld, mix, step, smoothstep, floor, fract, mod, abs, dot, max, min, clamp, select } from 'three/tsl';
 import { Assets } from '../assets.js';
 import { nightU } from '../globals.js';
 
@@ -55,20 +55,21 @@ async function loadSet() {
  * @param opts.markings paint on the road (not on the junction tiles)
  * @param opts.pavement concrete slabs instead of tarmac
  */
-export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, markings = true, pavement = false } = {}) {
+export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, markings = true, pavement = false, normalMap = false } = {}) {
   const t = await loadSet();
   const wp = positionWorld.xz;
   const uvw = wp.div(t.tile);
   const uv2 = wp.div(t.tile * 3.7).add(vec2(0.37, 0.11));
   const a1 = texture(t.diff, uvw).rgb;
   const a2 = texture(t.diff, uv2).rgb;
-  const tnA = texture(t.nor, uvw).xyz.mul(2).sub(1);
-  const tnB = texture(t.nor, uvw.mul(5.3)).xyz.mul(2).sub(1);
   const arm = texture(t.arm, uvw).rgb;
   const night = nightU;
 
   const m = new THREE.MeshStandardNodeMaterial();
   m.metalness = 0;
+  // the micro-relief is an ordinary normal map, which needs the mesh's UVs to be the world's (see worldUV in city.js); a custom normal node
+  // does not survive the multiple-render-target pass the ambient occlusion needs
+  if (normalMap) { m.normalMap = t.nor; m.normalScale = new THREE.Vector2(1, 1); }
 
   if (pavement) {
     // concrete slabs a little over a metre across, with joints, stains and weathering
@@ -82,17 +83,14 @@ export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, mark
     c = mix(c, c.mul(0.45), joint);
     const damp = night.mul(0.5);
     c = c.mul(float(1).sub(damp.mul(0.3)));
-    const nw = normalize(vec3(tnA.x.mul(0.6), tnA.z, tnA.y.mul(-0.6)));
     m.colorNode = c;
     m.roughnessNode = clamp(float(0.85).sub(damp.mul(0.3)).sub(float(1).sub(joint).mul(slab).mul(0.1)), 0.2, 1);
-    m.normalNode = transformNormalToView(nw);
     m.aoNode = arm.r;
     return m;
   }
 
   const lumA2 = dot(a2, vec3(0.333));
   let alb = a1.mul(lumA2.mul(0.5).add(0.78));
-  let tn = vec3(tnA.x.add(tnB.x.mul(0.45)), tnA.y.add(tnB.y.mul(0.45)), tnA.z);
   let rough = arm.g;
   let ao = arm.r;
 
@@ -101,7 +99,7 @@ export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, mark
 
   let u = float(0), s = float(0), d = float(100), paint = float(0), track = float(0);
   if (markings) {
-    const p = uv();
+    const p = uv(1);
     u = p.x.mul(roadW);
     s = p.y.mul(roadLen).sub(6);
     const srel = mod(s.add(pitch * 0.5), pitch).sub(pitch * 0.5);
@@ -148,7 +146,6 @@ export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, mark
     const pcol = mix(vec3(0.78, 0.78, 0.76), vec3(0.82, 0.6, 0.08), yellow).mul(grain);
     alb = mix(alb, pcol, paint.mul(0.95));
     rough = mix(rough, 0.55, paint);
-    tn = mix(tn, vec3(0, 0, 1), paint.mul(0.5));
   }
 
   // after dark the street is damp, with standing water in the dips
@@ -156,13 +153,9 @@ export async function roadMaterial({ roadLen = 428, roadW = 12, pitch = 52, mark
   const pud = smoothstep(0.56, 0.66, fbm(wp.mul(0.16).add(3))).mul(night).mul(float(1).sub(paint.mul(0.6)));
   alb = alb.mul(float(1).sub(wet.mul(0.3)).sub(pud.mul(0.3)));
   rough = mix(rough.mul(float(1).sub(wet.mul(0.35))), 0.04, pud);
-  tn = mix(tn, vec3(0, 0, 1), pud);
 
-  // the tangent frame is the world's: image right is +X, image up is -Z
-  const nw = normalize(vec3(tn.x, tn.z, tn.y.negate()));
   m.colorNode = clamp(alb, 0, 1);
   m.roughnessNode = clamp(rough, 0.03, 1);
-  m.normalNode = transformNormalToView(nw);
   m.aoNode = ao;
   return m;
 }

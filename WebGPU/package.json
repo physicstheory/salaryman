@@ -12,7 +12,7 @@
     "start": "electron .",
     "start:dev": "electron . --dev",
     "serve": "node tools/serve.js",
-    "test": "node tools/test.mjs",
+    "test": "node tools/physics_test.mjs",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",

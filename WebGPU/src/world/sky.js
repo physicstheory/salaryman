@@ -137,7 +137,7 @@ export class SkyCycle {
     this.sun.target.position.set(fx, 0, fz);
     this.sun.position.set(fx + sd.x * 160, sd.y * 160, fz + sd.z * 160);
     this.sun.color.setRGB(1.0, 0.96 - 0.38 * low, 0.88 - 0.62 * low);
-    this.sun.intensity = 4.2 * day * lerp(0.45, 1, 1 - low);
+    this.sun.intensity = 3.1 * day * lerp(0.5, 1, 1 - low);
     this.sun.castShadow = day > 0.02;
     this.moon.target.position.set(fx, 0, fz);
     this.moon.position.set(fx - sd.x * 160, Math.max(-sd.y, 0.2) * 160, fz - sd.z * 160 + 24);
@@ -146,7 +146,7 @@ export class SkyCycle {
     this.moonMesh.position.set(camera.position.x - sd.x * 1800, Math.max(-sd.y, 0.12) * 1800 + 120, camera.position.z - sd.z * 1800);
     this.moonMat.opacity = smoothstep(-0.02, -0.2, el);
 
-    this.hemi.intensity = lerp(0.12, 0.28, day);
+    this.hemi.intensity = lerp(0.12, 0.22, day);
     this.scene.environmentIntensity = lerp(0.14, 1.0, day) + 0.04;
     this.skyView.rayleigh.value = lerp(0.5, 1.6 + 1.6 * dusk, day);
     this.starMat.opacity = smoothstep(-0.04, -0.22, el) * 0.9;
@@ -157,7 +157,8 @@ export class SkyCycle {
     this._c.setRGB(0.56, 0.66, 0.8).lerp(this._c2.setRGB(1.0, 0.55, 0.34), dusk * 0.8).lerp(this._c2.setRGB(0.03, 0.04, 0.09), night);
     this.scene.fog.color.copy(this._c);
     this.scene.fog.density = lerp(0.0021, 0.0009, day) + 0.0007 * dusk;
-    this.renderer.toneMappingExposure = lerp(1.7, 0.9, day);
+    this.renderer.toneMappingExposure = lerp(1.7, 0.78, day);
+    this.scene.backgroundIntensity = lerp(1.0, 0.55, day);
 
     for (const g of glowers) g[0].emissiveIntensity = g[1] * lerp(g[2], 1, night);
 

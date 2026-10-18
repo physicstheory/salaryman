@@ -9,6 +9,16 @@ import { ShopFront, VendingMachine, ActivitySpot, buildLamps } from './props.js'
 import { buildRail } from './rail.js';
 import { roadMaterial } from './roadmat.js';
 import { SkyCycle } from './sky.js';
+
+/** Makes a mesh's `uv` the world's (metres over the tile size), keeping the original UVs as `uv1`: the road's normal map is laid out in world space. */
+function worldUV(mesh, tile) {
+  const geo = mesh.geometry;
+  mesh.updateMatrix();
+  if (!geo.attributes.uv1) geo.setAttribute('uv1', geo.attributes.uv.clone());
+  const pos = geo.attributes.position, uv = geo.attributes.uv, v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrix); uv.setXY(i, v.x / tile, v.z / tile); }
+  uv.needsUpdate = true;
+}
 import { Lod } from '../lod.js';
 
 export const P = 52;
@@ -57,10 +67,11 @@ export class City {
   async ground() {
     const half = W * 0.5;
     this.phys.staticBox(half, -1, half, (W + 160) / 2, 1, (W + 160) / 2, { grip: 1 });
-    const pav = await roadMaterial({ pavement: true });
+    const pav = await roadMaterial({ pavement: true, normalMap: true });
     this.padMaterial = pav;
     const g = new THREE.Mesh(new THREE.PlaneGeometry(W + 160, W + 160), pav);
     g.rotation.x = -Math.PI / 2; g.position.set(half, -0.02, half); g.receiveShadow = true;
+    worldUV(g, 4);
     this.group.add(g);
     const sea = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshStandardMaterial({ color: 0x0a2438, roughness: 0.12, metalness: 0.6 }));
     sea.rotation.x = -Math.PI / 2; sea.position.set(half, -0.9, half);
@@ -73,14 +84,16 @@ export class City {
   }
 
   async roads() {
-    const road = await roadMaterial({ roadLen: W + 12, pitch: P, markings: true });
+    const road = await roadMaterial({ roadLen: W + 12, pitch: P, markings: true, normalMap: true });
     const plain = await roadMaterial({ markings: false });
     for (let k = 0; k <= N; k++) {
       const a = new THREE.Mesh(new THREE.PlaneGeometry(12, W + 12), road);
       a.rotation.x = -Math.PI / 2; a.position.set(k * P, 0.02, W * 0.5); a.receiveShadow = true;
+      a.geometry = a.geometry.clone(); worldUV(a, 4);
       this.group.add(a);
       const b = new THREE.Mesh(new THREE.PlaneGeometry(12, W + 12), road);
       b.rotation.x = -Math.PI / 2; b.rotation.z = Math.PI / 2; b.position.set(W * 0.5, 0.021, k * P); b.receiveShadow = true;
+      b.rotation.order = 'XYZ'; worldUV(b, 4);
       this.group.add(b);
     }
     // junctions are plain asphalt, so the lane paint stops at the kerb
