@@ -29842,6 +29842,7 @@ function interiorCardClose(silent) {
   if (c.mode === "wear" && !c.bought) interiorShirtRestore(c);
   if (c.demo) interiorDemoEnd(c);
   interior.card = null; interior.hi = null;
+  player.obj.visible = true;
   interior.cardEl.classList.remove("on");
 }
 function interiorShirtRestore(c) { setSeikoShirt(c.prevShirt || "#f7f7f5"); }
@@ -29853,6 +29854,7 @@ function interiorDemoEnd(c) {
 function interiorCardTick(dt) {
   const c = interior.card, R = interior.room;
   c.t += dt;
+  player.obj.visible = c.mode === "wear";            // Seiko steps out of the shot unless it is him being looked at
   const k = 1 - Math.pow(0.0004, dt);
   c.e.mesh.rotation.y += dt * 0.9;
   let target, look;
