@@ -9025,7 +9025,7 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card || interior.pod) { /* the camera is on the thing you are looking at, or the menu is up */ }
+    else if (interior.card || interior.pod || interior.lift || interior.bridge) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     updateTraffic(dt, player.pos);
@@ -20554,6 +20554,7 @@ function enterShop(s) {
 }
 function leaveShop() {
   if (!shops.inside) return;
+  if (interior.bridge) { interiorBridgeEnd(); return; }
   if (shops.ask) { shops.ask = null; drawShop(); return; }
   if (shops.inside.mall && mallBack()) { drawMall(); return; }
   if (shops.inside.parent) { shops.inside = shops.inside.parent; plaza.mode = "floor"; drawPlaza(); return; }
@@ -27605,7 +27606,8 @@ function returnToTitle() {
   if (drive.train) leaveTrain();
   if (home.inside) leaveHome();
   if (shops.inside) leaveShop();
-  if (interior.active) interiorLeave(true);
+  if (interior.bridge) interiorBridgeEnd();
+  if (interior.active) { interior.stack = null; interiorLeave(true); }
   tvui.mode = "menu"; arcadeStop(); setRadioWheel(false); setWheel(false);
   setPhone(false);
   if (paused) setPaused(false);
@@ -28954,9 +28956,10 @@ document.getElementById("regen").addEventListener("click", () => {
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
 const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
-const interior = { active: false, card: null, pod: null, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
+const interior = { active: false, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
+  plaza:   { wall: "#f1efe9", floor: "#c9c3b6", trim: "#2a2d33", cap: "#2a2d33" },
   capsule: { wall: "#cfd6de", floor: "#6b7078", trim: "#2a8fb8", cap: "#2a8fb8" },
   eleven:  { wall: "#eef3ef", floor: "#d9ddd8", trim: "#0a6b42", cap: "#cf2027" },
   petmart: { wall: "#f4f7fb", floor: "#dfe5ec", trim: "#1272d6", cap: "#13a150" },
@@ -28995,7 +28998,8 @@ const IN_PALETTE = ["#d9534f", "#e8a33d", "#4a90d9", "#5fb36b", "#9b6bd3", "#e8d
 function inKind(it) {
   if (it.kind === "phone" || it.phone) return "phone";
   if (it.kind === "tv") return "tv";
-  if (it.kind === "gear") return "console";
+  if (it.kind === "gear") return /watch/.test(it.id) ? "audio" : "console";
+  if (it.kind === "case") return "box";
   if (it.kind === "audio" || it.carry) return "audio";
   if (it.kind === "game") return "game";
   if (it.shirt) return "shirt";
@@ -29032,6 +29036,151 @@ function inItemMesh(it) {
   return g;
 }
 
+
+
+// ---- buildings with several floors -------------------------------------------------------------------------------------------------------
+// The Dokoto Camera building (five floors: TVs, games, watches and consoles, phones, cases) and the plaza (books, fashion, everyday, food hall).
+// Each floor is its own room; the lift on the right-hand wall takes you between them. The street door is on the first floor only. In the plaza
+// the floors are concourses, and each shop on them is one of the ordinary shop rooms: walk through its doorway, and out again to the concourse.
+function mallStock(id) {
+  const list = mallList(id).map(it => Object.assign({}, it, { col: it.colour }));
+  const groups = {};
+  const add = (name, it) => { (groups[name] = groups[name] || []).push(it); };
+  list.forEach(it => {
+    if (it.kind === "phone") add(DEVICES[it.id] && DEVICES[it.id].maker === "pear" ? "Pear phones" : "SOTI phones", it);
+    else if (it.kind === "gear") add(/watch/.test(it.id) ? "Watches" : "Consoles", it);
+    else if (it.kind === "audio") add("Audio", it);
+    else if (it.kind === "tv") add("Televisions", it);
+    else if (it.kind === "game") add("Games", it);
+    else add("Cases", it);
+  });
+  return Object.keys(groups).map(n => ({ name: n, items: groups[n] }));
+}
+function liftExtra(room, root) {
+  inAdd(root, 0.14, 2.35, 2.0, IN_W / 2 - 0.12, 1.18, -3.0, "#aeb6c0"); inAdd(root, 0.16, 2.3, 0.04, IN_W / 2 - 0.12, 1.18, -3.0, "#6d7580");
+  inAdd(root, 0.2, 0.3, 0.2, IN_W / 2 - 0.2, 1.2, -4.25, "#2a2d33");
+  const l = inLabel("LIFT  ▲▼", 1.4, 0.36, "#2a2d33", "#ffd21c"); l.position.set(IN_W / 2 - 0.2, 2.7, -3.0); l.rotation.y = -Math.PI / 2; root.add(l);
+  room.spots = (room.spots || []).concat([{ x: IN_W / 2 - 1.3, z: -3.0, label: "take the lift", act: "lift" }]);
+}
+function interiorMallLevel(s, idx) {
+  const f = MALL_FLOORS[idx];
+  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, extra: liftExtra });
+}
+function plazaExtra(def) {
+  return (room, root, th) => {
+    liftExtra(room, root);
+    room.spots = room.spots || [];
+    const n = def.stores.length;
+    def.stores.forEach((b, i) => {
+      const x = (i - (n - 1) / 2) * 5.2 + (n === 1 ? -1.2 : 0), br = SHOP_BRANDS[b];
+      inAdd(root, 4.4, 3.1, 0.3, x, 1.55, -IN_D / 2 + 0.2, br.band === "#ffffff" ? "#e8eef6" : br.band);
+      inAdd(root, 3.4, 2.5, 0.32, x, 1.25, -IN_D / 2 + 0.22, "#1b1f26");
+      inAdd(root, 3.0, 0.05, 0.4, x, 0.02, -IN_D / 2 + 0.6, "#2a2d33");
+      const sg = inLabel(br.name, 3.6, 0.5, br.band === "#ffffff" ? "#1272d6" : br.band, br.ink === "#1272d6" ? "#fff" : br.ink); sg.position.set(x, 2.78, -IN_D / 2 + 0.38); root.add(sg);
+      room.spots.push({ x: x, z: -IN_D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
+    });
+    inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
+    inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f");
+    room.colliders.push({ x0: 2.0, x1: 3.6, z0: 0.95, z1: 1.45 }, { x0: -4.4, x1: -2.8, z0: 0.95, z1: 1.45 }, { x0: 0.3, x1: 0.9, z0: 1.3, z1: 1.9 });
+    const dir = inLabel(PLAZA_FLOORS.map(f => f.label + " " + f.name).join("   "), 6.8, 0.4, "#2a2d33", "#ffffff"); dir.position.set(-3.0, 2.3, IN_D / 2 - 0.13); dir.rotation.y = Math.PI; root.add(dir);
+  };
+}
+function interiorPlazaLevel(s, idx) {
+  const f = PLAZA_FLOORS[idx];
+  return interiorRoom({ brand: "plaza", name: "Plaza" }, { key: "plaza:" + f.id, stock: [], title: "Plaza  " + f.label + "  " + f.name, noExit: f.id !== 1, extra: plazaExtra(f) });
+}
+function interiorLevels(s) {
+  if (s.mall) return { kind: "mall", floors: MALL_FLOORS, street: 1, make: (i) => interiorMallLevel(s, i) };
+  if (s.plaza) return { kind: "plaza", floors: PLAZA_FLOORS, street: 1, make: (i) => interiorPlazaLevel(s, i) };
+  return null;
+}
+function interiorShowRoom(room, at, face) {
+  if (interior.room && interior.room !== room) interior.room.group.visible = false;
+  interior.room = room; room.group.visible = true; interior.hi = null; interior.spot = null;
+  interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz);
+  player.pos.set(room.ox + at.x, interior.floorY, room.oz + at.z);
+  player.yaw = player.targetYaw = face; yaw = face + Math.PI; pitch = -0.22; player.speed = 0;
+  player.obj.position.copy(player.pos);
+  camPos.set(player.pos.x - Math.sin(face) * 3.0, interior.floorY + 2.3, player.pos.z - Math.cos(face) * 3.0);
+  interiorClampCam(camPos); camera.position.copy(camPos);
+}
+function interiorGoLevel(idx) {
+  const b = interior.bld; if (!b || idx === b.idx) { interiorLiftClose(); return; }
+  interiorLiftClose();
+  const fade = document.getElementById("fade");
+  if (fade) fade.style.opacity = "1";
+  setTimeout(() => {
+    const room = b.make(idx);
+    b.idx = idx;
+    interiorShowRoom(room, { x: IN_W / 2 - 2.4, z: -3.0 }, -Math.PI / 2);
+    const f = b.floors[idx];
+    say(f.label + "  " + f.name, 3.5);
+    if (fade) fade.style.opacity = "0";
+  }, 450);
+}
+function interiorLiftDraw() {
+  const el = interior.cardEl, b = interior.bld, L = interior.lift; if (!L || !b) return;
+  el.innerHTML = "<div class='ih'><b>Lift</b><i>" + b.floors[b.idx].label + "</i></div><div class='in'>Choose a floor.</div><div class='ib' style='flex-direction:column'>"
+    + b.floors.map((f, i) => "<button data-f='" + i + "' class='" + (i === L.sel ? "on" : "") + "'>" + f.label + "   " + f.name + (i === b.idx ? "   (you are here)" : "") + "</button>").join("")
+    + "</div><div class='ik'>▲ ▼ choose   Enter go   Esc back</div>";
+  el.classList.add("on");
+  el.querySelectorAll("button").forEach(bt => bt.addEventListener("click", () => interiorGoLevel(+bt.dataset.f)));
+}
+function interiorLiftOpen() { interior.lift = { sel: interior.bld.idx }; player.speed = 0; interior.prompt.classList.remove("on"); interiorLiftDraw(); }
+function interiorLiftClose() { interior.lift = null; if (!interior.card && !interior.pod) interior.cardEl.classList.remove("on"); }
+
+// walking from a plaza floor into one of its shops, and back
+function interiorEnterStore(sp) {
+  const P = interior.shop, brand = sp.brand;
+  const S = { brand: brand, name: SHOP_BRANDS[brand].name, door: P.door, yaw: P.yaw, groundY: P.groundY, city: P.city, parent: P };
+  let room;
+  try { room = interiorRoom(S); } catch (e) { console.warn("[Konto] a plaza shop could not be built:", e); return; }
+  interior.stack = { room: interior.room, spot: sp, shop: P };
+  interior.shop = S;
+  interiorShowRoom(room, { x: 0, z: IN_D / 2 - 3.4 }, Math.PI);
+  say("Irasshaimase!", 2.5);
+}
+function interiorReturnToConcourse() {
+  const st = interior.stack; if (!st) return;
+  interior.stack = null;
+  interior.shop = st.shop;
+  interiorShowRoom(st.room, { x: st.spot.x, z: st.spot.z + 1.9 }, 0);
+}
+
+// Dokoto's own rules for buying, and its test counters (phone camera, TVs, headphones and watches in the mirror, games on the arcade): the
+// original screens are borrowed for the test, and closing them drops you back in the room.
+function interiorMallFloorOf(it) { const b = interior.bld; return b.floors[b.idx].id; }
+function interiorMallBuy(it) {
+  if (purse.yen < it.price) { say("Not enough. " + it.name + " is " + yenText(it.price) + ".", 4); return false; }
+  purse.yen -= it.price; noteBuy("dokoto", it.price);
+  if (it.kind === "gear" && CONSOLE_COLOURS[it.id]) { orderDelivery("gear", it.id, it.name + ", " + CONSOLE_COLOURS[it.id][0][0], 2, 0); say(it.name + " ordered for delivery · " + yenText(it.price) + ". Consoles are sent, not carried.", 6); }
+  else if (it.kind === "tv") { orderDelivery("tv", it.id, it.name, 3); say(it.name + " ordered for delivery · " + yenText(it.price) + ". It goes in the flat in Mizuho.", 6); }
+  else if (it.kind === "audio") { giveItem("audio", it.id); say(it.name + " · " + yenText(it.price) + " · hold LB, Audio, to put them on.", 5); }
+  else if (it.kind === "phone") { giveItem("phone", it.id, 0); say(it.name + ", " + DEVICES[it.id].colours[0][0] + " · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "gear") { giveItem("gear", it.id); say(it.name + " · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "game") { giveItem("game", it.id); say(it.name + " disc · " + yenText(it.price) + " · in your bag.", 5); }
+  else if (it.kind === "case") { phone.cases = phone.cases || {}; phone.cases[phone.device] = it.colour; try { applyDeviceSkin(); } catch (e) { /* no skin yet */ } say(it.name + " fitted · " + yenText(it.price), 4); }
+  return true;
+}
+function interiorMallTry(it) {
+  const s = interior.shop;
+  const fid = interiorMallFloorOf(it), list = mallList(fid), at = list.findIndex(x => x.id === it.id);
+  shops.inside = s; shops.ask = null;
+  mall.floor = fid; mall.mode = "floor"; mall.sel2 = Math.max(0, at); mall.colour = 0; mall.zoom = 1; mall.flash = 0;
+  const el = document.getElementById("shop"); if (el) el.hidden = false;
+  document.body.classList.add("inshop");
+  mallTest();
+  if (mall.mode !== "test") { interiorBridgeEnd(); return; }
+  interior.bridge = true;
+  drawMall();
+}
+function interiorBridgeEnd() {
+  if (mall.mode === "test") mallEndTest();
+  mall.mode = "floor"; mall.tkind = null;
+  const el = document.getElementById("shop"); if (el) el.hidden = true;
+  document.body.classList.remove("inshop");
+  shops.inside = null; interior.bridge = false;
+}
 
 // The capsule hotel: a lobby with the 受付 desk, a wall of lockers, a vending machine, and the capsules stacked two high down the back wall. Yours
 // is the lit one. Walk up to it and press E: sleeping there is the same ¥3,500 night as at the old desk, and it saves the game.
@@ -29118,6 +29267,8 @@ function interiorSpotFocus() {
   return best;
 }
 function interiorSpotAct(sp) {
+  if (sp.act === "lift") { interiorLiftOpen(); return; }
+  if (sp.act === "store") { interiorEnterStore(sp); return; }
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
   if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorPodDraw(); }
 }
@@ -29159,16 +29310,17 @@ function inStock(s) {
   return shopShelves(s).filter(sh => sh.items.length).map(sh => ({ name: sh.name, items: sh.items }));
 }
 
-function interiorRoom(s) {
-  const brand = s.brand;
-  if (interior.rooms[brand]) return interior.rooms[brand];
-  if (brand === "capsule") return (interior.rooms[brand] = interiorCapsuleRoom());
+function interiorRoom(s, opts) {
+  opts = opts || {};
+  const brand = s.brand, key = opts.key || brand;
+  if (interior.rooms[key]) return interior.rooms[key];
+  if (brand === "capsule") return (interior.rooms[key] = interiorCapsuleRoom());
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
   const th = IN_THEME[brand] || IN_THEME.eleven;
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
-  const room = { brand: brand, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: inStock(s), units: [] };
+  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: opts.stock || inStock(s), units: [], noExit: !!opts.noExit };
   // shell
   inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
   for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) inAdd(root, IN_W / 8, 0.02, IN_D / 6, i * IN_W / 8, 0.005, j * IN_D / 6, inShade(th.floor, 0.93));
@@ -29180,15 +29332,18 @@ function interiorRoom(s) {
   inAdd(root, side, IN_H, 0.2, -(1.2 + side / 2), IN_H / 2, IN_D / 2, th.wall);
   inAdd(root, side, IN_H, 0.2, 1.2 + side / 2, IN_H / 2, IN_D / 2, th.wall);
   inAdd(root, 2.4, IN_H - 2.5, 0.2, 0, 2.5 + (IN_H - 2.5) / 2, IN_D / 2, th.wall);
-  // the door: a glass frame you walk through, with the street's light behind it
-  inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
-  inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
+  // the door: a glass frame you walk through, with the street's light behind it (upper floors have a solid wall instead)
+  if (opts.noExit) inAdd(root, 2.4, IN_H, 0.22, 0, IN_H / 2, IN_D / 2, th.wall);
+  else {
+    inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
+    inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
+  }
   // coloured band and ceiling lights
   inAdd(root, IN_W, 0.35, 0.22, 0, 2.95, -IN_D / 2 + 0.02, th.trim);
   inAdd(root, 0.22, 0.35, IN_D, -IN_W / 2 + 0.02, 2.95, 0, th.trim);
   inAdd(root, 0.22, 0.35, IN_D, IN_W / 2 - 0.02, 2.95, 0, th.trim);
   for (const x of [-5, 0, 5]) for (const z of [-3, 1.5]) inAdd(root, 2.4, 0.04, 0.5, x, IN_H - 0.01, z, "#ffffff");
-  const name = (typeof SHOP_BRANDS !== "undefined" && SHOP_BRANDS[brand]) ? SHOP_BRANDS[brand].name : brand;
+  const name = opts.title || ((typeof SHOP_BRANDS !== "undefined" && SHOP_BRANDS[brand]) ? SHOP_BRANDS[brand].name : brand);
   const sign = inLabel(name, 3.4, 0.55, th.trim, "#ffffff"); sign.position.set(0, 3.2, IN_D / 2 - 0.13); sign.rotation.y = Math.PI; root.add(sign);
   const sign2 = inLabel(name, 3.4, 0.55, th.trim, "#ffffff"); sign2.position.set(0, 3.2, -IN_D / 2 + 0.14); root.add(sign2);
 
@@ -29240,24 +29395,32 @@ function interiorRoom(s) {
   room.clerk = clerk;
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
   // a door mat
-  inAdd(root, 2.2, 0.03, 1.2, 0, 0.02, IN_D / 2 - 0.7, "#2a2d33");
+  if (!opts.noExit) inAdd(root, 2.2, 0.03, 1.2, 0, 0.02, IN_D / 2 - 0.7, "#2a2d33");
+  if (opts.extra) opts.extra(room, root, th);
 
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - 3.4);
   room.doorZ = oz + IN_D / 2;
-  interior.rooms[brand] = room;
+  interior.rooms[key] = room;
   return room;
 }
 
 function interiorSupports(s) {
-  return !!s && (!s.safe || s.brand === "capsule") && !s.plaza && !s.vend && !s.parent && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
+  if (!s || s.vend || s.parent) return false;
+  if (s.mall || s.plaza) return true;
+  return (!s.safe || s.brand === "capsule") && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
 }
 
 function interiorEnter(s) {
   if (!interiorSupports(s) || interior.active) return false;
   let room;
-  try { room = interiorRoom(s); } catch (e) { console.warn("[Konto] the shop interior could not be built:", e); return false; }
+  const bld = interiorLevels(s);
+  try {
+    if (bld) { const idx = bld.floors.findIndex(f => f.id === bld.street); interior.bld = { kind: bld.kind, floors: bld.floors, make: bld.make, idx: idx }; room = bld.make(idx); }
+    else { interior.bld = null; room = interiorRoom(s); }
+  } catch (e) { console.warn("[Konto] the shop interior could not be built:", e); interior.bld = null; return false; }
+  interior.stack = null; interior.lift = null; interior.bridge = false;
   interior.ret = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
   interior.active = true; interior.shop = s; interior.room = room; interior.card = null; interior.hi = null;
   room.group.visible = true;
@@ -29282,8 +29445,10 @@ function interiorEnter(s) {
 
 function interiorLeave(quiet) {
   if (!interior.active) return;
+  if (interior.stack) { interiorReturnToConcourse(); return; }
   if (interior.card) interiorCardClose(true);
   if (interior.pod) interiorPodClose();
+  if (interior.lift) interiorLiftClose();
   const s = interior.shop;
   interior.room.group.visible = false;
   interior.light.intensity = 0;
@@ -29301,7 +29466,7 @@ function interiorTryStep(dx, dz, radius) {
   const R = interior.room;
   const nx = player.pos.x + dx, nz = player.pos.z + dz;
   const lx = nx - R.ox, lz = nz - R.oz;
-  const inGap = Math.abs(lx) < 1.0;
+  const inGap = !R.noExit && Math.abs(lx) < 1.0;
   if (lx < -IN_W / 2 + radius + 0.1 || lx > IN_W / 2 - radius - 0.1) return false;
   if (lz < -IN_D / 2 + radius + 0.1) return false;
   if (lz > IN_D / 2 - radius - (inGap ? -0.6 : 0.1)) return false;
@@ -29359,10 +29524,11 @@ function interiorTick(dt) {
   interior.said = Math.max(0, interior.said - dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (interior.card) { interiorCardTick(dt); return; }
-  if (interior.pod) { player.speed = 0; return; }
+  if (interior.pod || interior.lift) { player.speed = 0; return; }
   const sp = R.spots ? interiorSpotFocus() : null;
   interior.spot = sp;
-  const hi = R.spots ? null : interiorFocus();
+  if (sp && sp.walk && Math.hypot(R.ox + sp.x - player.pos.x, R.oz + sp.z - player.pos.z) < 0.9) { interiorSpotAct(sp); return; }
+  const hi = interiorFocus();
   if (hi !== interior.hi) {
     if (interior.hi) { interior.hi.mesh.getObjectByName("glow").visible = false; interior.hi.mesh.scale.setScalar(1); }
     interior.hi = hi;
@@ -29374,7 +29540,7 @@ function interiorTick(dt) {
   else p.classList.remove("on");
   // out through the doorway
   const lz = player.pos.z - R.oz, lx = player.pos.x - R.ox;
-  if (lz > IN_D / 2 - 0.55 && Math.abs(lx) < 1.2) interiorLeave();
+  if (!R.noExit && lz > IN_D / 2 - 0.55 && Math.abs(lx) < 1.2) interiorLeave();
 }
 
 // ---- the close look ---------------------------------------------------------------------------------------------------------------------
@@ -29460,12 +29626,7 @@ function interiorBuy() {
   const c = interior.card; if (!c) return;
   const it = c.e.it, s = interior.shop;
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
-  if (s.brand === "dokoto") {
-    purse.yen -= it.price; noteBuy("dokoto", it.price);
-    orderDelivery(it.kind, it.id, it.name, it.days, 0);
-    say(it.name + " ordered · " + yenText(it.price) + " · arriving in " + it.days + " day" + (it.days > 1 ? "s" : ""), 5);
-    c.bought = true; interiorCardDraw(); return;
-  }
+  if (s.mall) { if (interiorMallBuy(it)) c.bought = true; interiorCardDraw(); return; }
   const shelves = shopShelves(s), si = shelves.findIndex(sh => sh.items.indexOf(it) >= 0);
   if (si < 0) return;
   if (shopConsumable(it) && !c.ask) { c.ask = { choice: 0 }; interiorCardDraw(); return; }
@@ -29482,6 +29643,7 @@ function interiorBuy() {
 function interiorTry() {
   const c = interior.card; if (!c) return;
   const it = c.e.it, k = inKind(it);
+  if (interior.shop.mall && it.kind) { interiorMallTry(it); return; }
   if (k === "shirt") {
     if (c.mode === "wear") { interiorShirtRestore(c); c.mode = "look"; interiorCardDraw(); return; }
     setSeikoShirt(it.shirt);
@@ -29532,8 +29694,17 @@ function interiorAction(a) {
 
 // Keys: returns true when it took the key.
 function interiorKey(e) {
-  if (!interior.active || phone.open || paused || nav.mapOpen || wheel.open) return false;
+  if (!interior.active || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
+  if (interior.lift) {
+    const L = interior.lift, n = interior.bld.floors.length;
+    if (k === "ArrowUp" || k === "KeyW") { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); return true; }
+    if (k === "ArrowDown" || k === "KeyS") { L.sel = (L.sel + 1) % n; interiorLiftDraw(); return true; }
+    if (k === "Enter" || k === "Space" || k === "KeyE") { interiorGoLevel(L.sel); return true; }
+    if (/^Digit[1-9]$/.test(k)) { const d = +k.slice(5) - 1; if (d < n) interiorGoLevel(d); return true; }
+    if (k === "Escape" || k === "Backspace" || k === "KeyF") { interiorLiftClose(); return true; }
+    return k !== "KeyP";
+  }
   if (interior.pod) {
     if (k === "Enter" || k === "Space" || k === "KeyE") { interiorPodAction("sleep"); return true; }
     if (k === "KeyT") { interiorPodAction("tv"); return true; }
@@ -29561,7 +29732,8 @@ function interiorKey(e) {
   return false;
 }
 function interiorPad(pressed) {
-  if (!interior.active) return false;
+  if (!interior.active || shops.inside) return false;
+  if (interior.lift) { const L = interior.lift, n = interior.bld.floors.length; if (pressed(PAD.UP)) { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); } if (pressed(PAD.DOWN)) { L.sel = (L.sel + 1) % n; interiorLiftDraw(); } if (pressed(PAD.A)) interiorGoLevel(L.sel); if (pressed(PAD.B)) interiorLiftClose(); return true; }
   const c = interior.card;
   if (c) {
     if (pressed(PAD.LEFT)) { if (c.ask) { c.ask.choice = 1 - c.ask.choice; interiorCardDraw(); } else interiorStepItem(-1); }
