@@ -70,7 +70,7 @@ await step("capsule", async () => {
   await ev(() => { enterShop(shops.list.find(x => x.brand === "capsule")); });
   await wait(2500); await snap("capsule_lobby");
   // walk to the lit capsule and face it
-  await ev(() => { const R = interior.room; const sp = R.spots[0]; player.pos.set(R.ox + sp.x, interior.floorY, R.oz + sp.z + 0.9); player.yaw = player.targetYaw = Math.PI * 0 ; yaw = player.yaw + Math.PI; });
+  await ev(() => { const R = interior.room; const sp = R.spots[0]; player.pos.set(R.ox + sp.x, interior.floorY, R.oz + sp.z + 0.9); player.yaw = player.targetYaw = Math.PI; yaw = player.yaw + Math.PI; });
   await wait(2500); await snap("capsule_pods_prompt");
   console.log("spot:", await ev(() => interior.spot && interior.spot.label));
   await page.keyboard.press("KeyE"); await wait(2000); await snap("capsule_menu");
