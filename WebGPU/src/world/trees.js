@@ -4,6 +4,8 @@ import * as THREE from 'three/webgpu';
 import { Assets } from '../assets.js';
 
 export const VARIANTS = [1, 2, 4, 5, 6];
+/** The city has no trees: they cost load time and frames and did not suit the mood. Set to true to bring them back. */
+export const TREES = false;
 
 export class BirchForest {
   constructor(phys, group) {
@@ -15,6 +17,7 @@ export class BirchForest {
   }
 
   async load() {
+    if (!TREES) return this;
     for (const v of VARIANTS) {
       const g = await Assets.obj(`./assets/trees/Birch_${v}.obj`);
       if (!g) continue;

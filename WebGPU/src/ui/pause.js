@@ -13,7 +13,7 @@ export class PauseMenu {
     this.names.forEach((n, i) => this.tabBar.append(el('button', { class: 'tab', text: n, onclick: () => this.setTab(i) })));
     this.pages = this.names.map(() => el('div', { class: 'page' }));
     this.buildBag(this.pages[0]); this.buildStats(this.pages[1]); this.buildSettings(this.pages[2]); this.buildControls(this.pages[3]); this.buildSystem(this.pages[4]);
-    this.root = el('div', { id: 'pause', class: 'overlay' }, el('div', { class: 'pwrap' }, el('h1', { text: 'SALARY MAN   ·   paused' }), this.tabBar, ...this.pages, el('div', { class: 'help', text: 'Q / E: change tab      ↑ ↓ choose      Enter: use      Esc: resume      M: map' })));
+    this.root = el('div', { id: 'pause', class: 'overlay' }, el('div', { class: 'pwrap' }, el('h1', { text: 'Salary Man  ·  Pause Menu' }), this.tabBar, ...this.pages, el('div', { class: 'help', text: 'Q / E  change tab      ↑ ↓  choose      Enter  select      Esc  resume      M  map' })));
     document.getElementById('ui').append(this.root);
     this.kd = (e) => this.onKey(e);
   }
@@ -62,11 +62,11 @@ export class PauseMenu {
 
   buildControls(p) {
     p.append(el('div', { class: 'controls', html: `
-      <b>On foot</b><br>W A S D move · Shift run · Space jump · E enter a shop, use a vending machine, or get in a car · Mouse look<br><br>
-      <b>In a car</b><br>W throttle · S brake and reverse · A D steer · Space handbrake · T flip upright · L headlights · E get out (when nearly stopped)<br><br>
-      <b>Wheels</b><br>Hold Q for the equipment wheel · tap R for the next radio station, hold R for the radio wheel (in a car) · point with the mouse, arrows or a stick, let go to use<br><br>
-      <b>Anywhere</b><br>M map · P phone · Esc pause · H hide help<br><br>
-      <b>Gamepad</b><br>Right trigger throttle · left trigger brake · left stick steer or move · right stick look · X use · A jump or handbrake · Y phone · View map · Start pause · LB equipment wheel · D-pad left radio · R3 flip car` }));
+      <b>On foot</b><br>W A S D move · Shift sprint · Space jump · F enter a shop, use a vending machine, or get in a car · Mouse look · Tab hold: equipment wheel<br><br>
+      <b>In a car</b><br>W throttle · S brake and reverse · A D steer · Space handbrake · T flip upright · H headlights · F get out (when nearly stopped)<br><br>
+      <b>Wheels</b><br>Hold Tab for the equipment wheel · in a car hold Q for the radio wheel, tap R for the next station · point with the mouse, arrows or a stick, let go to use<br><br>
+      <b>Anywhere</b><br>Up arrow (or P) phone · M map · Esc pause · F1 hide help<br><br>
+      <b>Gamepad</b><br>Right trigger throttle · left trigger brake · left stick steer or move · right stick look · Y enter or exit, use · X jump · A sprint or handbrake · D-pad up phone · View map · Start pause · LB hold: equipment wheel on foot, radio wheel in a car · R3 flip car` }));
   }
 
   buildSystem(p) {

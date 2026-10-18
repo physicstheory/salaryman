@@ -3,21 +3,21 @@
 import { Emitter } from './util.js';
 
 const KEYS = {
-  move_forward: ['KeyW', 'ArrowUp'],
-  move_back: ['KeyS', 'ArrowDown'],
-  move_left: ['KeyA', 'ArrowLeft'],
-  move_right: ['KeyD', 'ArrowRight'],
+  move_forward: ['KeyW'],
+  move_back: ['KeyS'],
+  move_left: ['KeyA'],
+  move_right: ['KeyD'],
   handbrake: ['Space'],
   jump: ['Space'],
   sprint: ['ShiftLeft', 'ShiftRight'],
-  interact: ['KeyE'],
+  interact: ['KeyF', 'KeyE'],
   reset_car: ['KeyT'],
-  lights: ['KeyL'],
-  hide_help: ['KeyH'],
+  lights: ['KeyH'],
+  hide_help: ['F1'],
 };
 // controller buttons (standard mapping): 0 A, 1 B, 2 X, 3 Y, 4 LB, 5 RB, 6 LT, 7 RT, 8 View, 9 Start, 10 L3, 11 R3, 12-15 D-pad
 const PAD_BUTTONS = {
-  handbrake: [0], jump: [0], interact: [2], lights: [1], sprint: [10], reset_car: [11],
+  handbrake: [0], jump: [2], interact: [3], lights: [1], sprint: [0], reset_car: [11],
 };
 
 class InputSystem extends Emitter {
@@ -41,6 +41,7 @@ class InputSystem extends Emitter {
   attach(canvas) {
     this.canvas = canvas;
     window.addEventListener('keydown', (e) => {
+      if (e.code === 'Tab' || e.code === 'F1') e.preventDefault();
       if (e.repeat) return;
       this.down.add(e.code);
       this.pressedThisFrame.add(e.code);

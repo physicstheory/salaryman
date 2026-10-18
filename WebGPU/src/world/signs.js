@@ -44,17 +44,14 @@ export function blade(parent, base, outN, height, word, colHex) {
   const yaw = Math.atan2(outN.x, outN.z);
   const h = holderAt(parent, { x: base.x + outN.x * 0.7, y: base.y, z: base.z + outN.z * 0.7 }, yaw);
   panel(h, [0.28, height, 1.15], [0, height * 0.5, 0], hexOf(shade(colHex, 0.6)), 0.7, 0.3);
-  const n = word.length;
-  const step = Math.min(height / (n + 1), 1.15);
+  // the word runs down the blade, one mesh a side (a mesh per letter was thousands of draw calls)
+  const stacked = word.split('').join('\n');
   const lc = hexOf(lighten(colHex, 0.35));
   for (const side of [-1, 1]) {
-    for (let i = 0; i < n; i++) {
-      const y = height - (i + 0.9) * step;
-      const l = textMesh(word[i], { color: lc, size: 110, px: 0.0095, outline: 14 });
-      l.position.set(side * 0.15, y, 0);
-      l.rotation.y = (Math.PI * 0.5) * side;
-      h.add(l);
-    }
+    const l = textMesh(stacked, { color: lc, size: 110, px: Math.min(0.0095, height / (word.length * 130 + 40)), outline: 14 });
+    l.position.set(side * 0.15, height * 0.5, 0);
+    l.rotation.y = (Math.PI * 0.5) * side;
+    h.add(l);
   }
   Lod.add(h, VISIBLE_TO);
 }
@@ -111,13 +108,7 @@ export function dress(parent, rng, box, outs, tallEnoughForBanner) {
     const depth = Math.abs(n.x) * size.x * 0.5 + Math.abs(n.z) * size.z * 0.5;
     const wall = { x: centre.x + n.x * depth, z: centre.z + n.z * depth };
     const yaw = Math.atan2(n.x, n.z);
-    // the shop name over the door
-    if (rng.chance(0.85)) {
-      const nm = rng.pick(SHOP_NAMES);
-      const col = rng.pick(BLADES)[1];
-      const off = rng.range(-faceW * 0.25, faceW * 0.25);
-      shopSign(parent, { x: wall.x + n.x * 0.16 + t.x * off, y: 3.55 + baseY, z: wall.z + n.z * 0.16 + t.z * off }, yaw, Math.min(nm.length * 0.95 + 1.2, faceW * 0.8), nm, col);
-    }
+    // shop names are only on the real shopfronts (props.js); a building that is not a shop has no name over a door
     // blade signs, one to three, at the corners and middle of the face
     const blades = rng.int(1, 3);
     for (let i = 0; i < blades; i++) {

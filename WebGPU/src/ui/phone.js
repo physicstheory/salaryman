@@ -264,7 +264,8 @@ export class PhoneUI {
     const ae = document.activeElement;
     const typing = ae && ae.tagName === 'INPUT' && ae.type === 'text';
     if (k === 'p' || k === 'P') { if (typing) return; this.close(); }
-    else if (k === 'Escape') { if (this.app === '') this.close(); else this.backPage(); }
+    else if (k === 'Backspace' && typing) return;
+    else if (k === 'Escape' || k === 'Backspace') { if (this.app === '') this.close(); else this.backPage(); }
     else if (this.viewfinder && (k === ' ' || k === 'Enter')) this.takePhoto();
     else if (k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight') {
       if (typing && (k === 'ArrowLeft' || k === 'ArrowRight')) return;

@@ -1,6 +1,6 @@
 // Player settings, kept between runs.
 const KEY = 'salaryman.settings';
-const defaults = { renderScale: 1.0, sens: 1.0, volume: 0.8, shadows: 2, bloom: false, ssao: false, ssr: false };
+const defaults = { renderScale: 1.0, sens: 1.0, volume: 0.8, shadows: 1, bloom: false, ssao: false, ssr: false };
 
 export const Settings = {
   v: { ...defaults },

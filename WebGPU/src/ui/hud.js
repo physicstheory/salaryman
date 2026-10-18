@@ -79,17 +79,17 @@ export class Hud {
     }
     this.q('#hud-help').style.display = this.showHelp ? '' : 'none';
     this.q('#hud-help').innerHTML = Input.padConnected
-      ? 'Left stick move · right stick look · X use · A jump / handbrake · Y phone · View map · LB equipment wheel · D-pad ◀ radio'
-      : 'WASD move &amp; drive · Shift run · Space jump / handbrake<br>E get in or out · T flip the car upright · L headlights · H hide this<br>Q (hold) equipment wheel · R radio, hold for the wheel · P phone · M map · Esc pause';
+      ? 'Left stick move · right stick look · Y enter / use · X jump · A sprint / handbrake · D-pad ▲ phone · View map · LB wheel (equipment on foot, radio in a car)'
+      : 'WASD move &amp; drive · Shift sprint · Space jump / handbrake<br>F get in or out · T flip the car upright · H headlights · F1 hide this<br>Tab (hold) equipment wheel · Q (hold, in a car) radio wheel · R next station · ↑ phone · M map · Esc pause';
     // prompts
     let p = '';
     if (!g.menuOpen()) {
-      if (car) p = car.wrecked ? 'Wrecked. E to get out.' : Math.abs(car.forwardSpeed) < 4 ? 'E: get out' : '';
+      if (car) p = car.wrecked ? 'Wrecked. F to get out.' : Math.abs(car.forwardSpeed) < 4 ? 'F: get out' : '';
       else {
         const door = g.nearestDoor(g.player.position);
         const veh = g.nearestVehicle(g.player.position);
-        if (door) p = door.brand === 'exit' ? 'E: leave' : door.interiorCounter ? 'E: speak to the clerk' : 'E: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
-        else if (veh && !veh.wrecked && !g.player.dead) p = 'E: get in';
+        if (door) p = door.brand === 'exit' ? 'F: leave' : door.interiorCounter ? 'F: speak to the clerk' : 'F: ' + (door.brand === 'vending' ? 'buy a drink' : door.brand === 'bench' ? 'sit down' : door.brand === 'fishing' ? 'fish' : 'enter ' + door.shopName);
+        else if (veh && !veh.wrecked && !g.player.dead) p = 'F: get in';
       }
     }
     const pe = this.q('#hud-prompt');

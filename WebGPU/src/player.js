@@ -95,7 +95,7 @@ export class Player extends Emitter {
   /** Per rendered frame. */
   sync(dt) {
     this.group.position.copy(this.position);
-    if (this.model) this.model.rotation.y = this.face;
+    if (this.model) this.model.rotation.y = this.face + Math.PI;
     if (this.mixer) this.mixer.update(dt);
   }
 

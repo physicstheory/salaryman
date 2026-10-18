@@ -98,7 +98,7 @@ export class Game {
   // ---- graphics settings
   applyGraphics() {
     const s = Settings.v;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * s.renderScale);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25) * s.renderScale);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     const sun = this.sky.sun, moon = this.sky.moon;
     this.renderer.shadowMap.enabled = s.shadows > 0;
@@ -112,7 +112,7 @@ export class Game {
   resize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * Settings.v.renderScale);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25) * Settings.v.renderScale);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     if (this.wheels) this.wheels.resize();
   }
@@ -394,17 +394,20 @@ export class Game {
       case 'Escape': this.pause(); break;
       case 'KeyM': this.openMap(); break;
       case 'KeyP': this.openPhone(); break;
-      case 'KeyE': this.interact(); break;
-      case 'KeyL': if (this.current) { this.lights = !this.lights; this.current.lightsOn = this.lights; } break;
+      case 'KeyE': case 'KeyF': this.interact(); break;
+      case 'ArrowUp': this.openPhone(); break;
+      case 'Tab': this.openEquip(); break;
+      case 'KeyH': if (this.current) { this.lights = !this.lights; this.current.lightsOn = this.lights; } break;
       case 'KeyT': if (this.current) this.current.resetUpright(); break;
-      case 'KeyH': this.hud.showHelp = !this.hud.showHelp; break;
-      case 'KeyQ': this.openEquip(); break;
+      case 'F1': this.hud.showHelp = !this.hud.showHelp; break;
+      case 'KeyQ': if (this.current) this.radioPress(); else this.openEquip(); break;
       case 'KeyR': this.radioPress(); break;
       default:
     }
   }
   onKeyUp(e) {
-    if (e.code === 'KeyQ') this.closeEquip();
+    if (e.code === 'Tab') this.closeEquip();
+    else if (e.code === 'KeyQ') { this.closeEquip(); this.radioRelease(); }
     else if (e.code === 'KeyR') this.radioRelease();
   }
 
@@ -440,8 +443,8 @@ export class Game {
   padWheels() {
     // the controller: LB holds the equipment wheel, D-pad left taps the radio and holds its wheel
     if (this.menuOpen()) return;
-    if (Input.btnJust(4)) this.openEquip();
-    if (!Input.btn(4) && this.wheels.mode === 'equip' && Input.padPrevHeld4) this.closeEquip();
+    if (Input.btnJust(4)) { if (this.current) { this.radioPress(); this.padLbRadio = true; } else this.openEquip(); }
+    if (!Input.btn(4) && Input.padPrevHeld4) { if (this.padLbRadio) { this.padLbRadio = false; this.radioRelease(); } else if (this.wheels.mode === 'equip') this.closeEquip(); }
     Input.padPrevHeld4 = Input.btn(4);
     if (Input.btnJust(14) && this.wheels.mode !== 'equip') this.radioPress();
     if (!Input.btn(14) && this.padRadioHeld) { this.padRadioHeld = false; this.radioRelease(); }
@@ -458,7 +461,7 @@ export class Game {
     // Start, View and Y reach the pause menu, the map and the phone
     if (Input.btnJust(9)) this.pause();
     if (Input.btnJust(8)) this.openMap();
-    if (Input.btnJust(3)) this.openPhone();
+    if (Input.btnJust(12) && !this.wheelOpen()) this.openPhone();
   }
 
   interact() {
