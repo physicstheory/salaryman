@@ -29011,7 +29011,7 @@ function inKind(it) {
   if (it.id === "umbrella") return "umbrella";
   return "box";
 }
-function inItemMesh(it) {
+function inItemMesh(it, noGlow) {
   const g = new THREE.Group();
   const kind = inKind(it);
   const col = it.shirt || it.col || IN_PALETTE[inHash(it.id || it.name) % IN_PALETTE.length];
@@ -29029,9 +29029,11 @@ function inItemMesh(it) {
   else if (kind === "umbrella") { inAdd(g, 0.04, 0.5, 0.04, 0, 0.25, 0, "#e8eef2"); inAdd(g, 0.2, 0.08, 0.2, 0, 0.5, 0, "#cfe0ea"); top = 0.55; }
   else { inAdd(g, 0.2, 0.22, 0.14, 0, 0.11, 0, col); inAdd(g, 0.2, 0.06, 0.145, 0, 0.13, 0, "#f4f4f2"); top = 0.22; }
   // a yellow shell round it, shown when it is the one you are looking at
-  const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
-  glow.scale.set(0.62, top + 0.06, 0.34); glow.position.y = top / 2; glow.visible = false; glow.name = "glow";
-  g.add(glow);
+  if (!noGlow) {
+    const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
+    glow.scale.set(0.62, top + 0.06, 0.34); glow.position.y = top / 2; glow.visible = false; glow.name = "glow";
+    g.add(glow);
+  }
   g.userData.top = top;
   return g;
 }
@@ -29064,7 +29066,7 @@ function liftExtra(room, root) {
 }
 function interiorMallLevel(s, idx) {
   const f = MALL_FLOORS[idx];
-  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, extra: liftExtra });
+  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: liftExtra });
 }
 function plazaExtra(def) {
   return (room, root, th) => {
@@ -29087,7 +29089,7 @@ function plazaExtra(def) {
 }
 function interiorPlazaLevel(s, idx) {
   const f = PLAZA_FLOORS[idx];
-  return interiorRoom({ brand: "plaza", name: "Plaza" }, { key: "plaza:" + f.id, stock: [], title: "Plaza  " + f.label + "  " + f.name, noExit: f.id !== 1, extra: plazaExtra(f) });
+  return interiorRoom({ brand: "plaza", name: "Plaza" }, { key: "plaza:" + f.id, stock: [], title: "Plaza  " + f.label + "  " + f.name, noExit: f.id !== 1, lift: true, extra: plazaExtra(f) });
 }
 function interiorLevels(s) {
   if (s.mall) return { kind: "mall", floors: MALL_FLOORS, street: 1, make: (i) => interiorMallLevel(s, i) };
@@ -29301,6 +29303,275 @@ function interiorPodAction(a) {
   }, 900);
 }
 
+
+// ---- dressing the rooms ------------------------------------------------------------------------------------------------------------------
+// Every room gets the same treatment, in its own colours: painted wall and floor textures (tile, wood, carpet, marble) with a skirting board and a
+// chair rail, a panelled ceiling, adverts for what the shop sells, shelves of stock that are only there to be looked at, and a few props that say
+// what kind of place it is (a freezer and an oden pot, a fish tank, noren curtains and paper lanterns, racks of shirts and mannequins, a TV wall).
+const inTex = {};
+function inCanvasTex(key, w, h, draw) {
+  if (inTex[key]) return inTex[key];
+  const c = document.createElement("canvas"); c.width = w; c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return (inTex[key] = t);
+}
+function inPlaneTex(tex, w, h, repX, repY, x, y, z, ry, rx) {
+  const t = tex.clone(); t.needsUpdate = true; t.repeat.set(repX, repY);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
+  m.position.set(x, y, z); if (ry) m.rotation.y = ry; if (rx) m.rotation.x = rx;
+  return m;
+}
+const IN_SKIN = {
+  // floor: [kind, colour a, colour b, grout]; wall: [upper, rail, lower, kind]
+  eleven:  { floor: ["tile", "#e8eeea", "#cdd8d1", "#aab5ae"], wall: ["#eef3ef", "#0a6b42", "#d6e4dc", "panels"] },
+  petmart: { floor: ["tile", "#e8eef5", "#cfdbe8", "#a9b8c8"], wall: ["#f4f7fb", "#1272d6", "#cfe0f2", "panels"] },
+  ramen:   { floor: ["planks", "#6a4a2e", "#5c3f27", "#2a1c10"], wall: ["#d9c9a6", "#7a1f1a", "#5b3b24", "boards"] },
+  sushi:   { floor: ["planks", "#b9a57a", "#a8946a", "#6b5a44"], wall: ["#e6d9bc", "#1d3b5a", "#7a5a3a", "boards"] },
+  arms:    { floor: ["concrete", "#4a4c50", "#3f4145", "#2a2b2e"], wall: ["#55585e", "#d9a21c", "#3a3d42", "hazard"] },
+  pharmacy: { floor: ["tile", "#e7f1ea", "#c9e0d1", "#a3bfae"], wall: ["#f3f7f4", "#2e9b5a", "#d8eadf", "panels"] },
+  books:   { floor: ["carpet", "#5a2e2a", "#4a2522", "#2a1412"], wall: ["#c9b48a", "#2c4a3a", "#3f2c20", "stripes"] },
+  clothes: { floor: ["parquet", "#b08a62", "#9a7650", "#6a4e34"], wall: ["#f1ece6", "#2a2d33", "#e2d8cc", "panels"] },
+  dokoto:  { floor: ["tile", "#d9dce0", "#c4c8cd", "#9ea3aa"], wall: ["#f4f4f2", "#d4152c", "#e6e7ea", "panels"] },
+  capsule: { floor: ["carpet", "#4a5260", "#3e4552", "#262b33"], wall: ["#cfd6de", "#2a8fb8", "#b4bfca", "panels"] },
+  plaza:   { floor: ["marble", "#e6e1d6", "#d9d2c3", "#b9b09c"], wall: ["#efe9dc", "#2a2d33", "#d8cfbd", "pilasters"] }
+};
+function inFloorTex(brand) {
+  const sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  return inCanvasTex("floor:" + brand, 256, 256, (g, w, h) => {
+    const [kind, a, b, grout] = sk.floor;
+    g.fillStyle = a; g.fillRect(0, 0, w, h);
+    if (kind === "tile") { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? b : a; g.fillRect(i * 64, j * 64, 64, 64); } g.strokeStyle = grout; g.lineWidth = 2; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, h); g.moveTo(0, i * 64); g.lineTo(w, i * 64); g.stroke(); } }
+    else if (kind === "planks") { for (let j = 0; j < 8; j++) { g.fillStyle = j % 2 ? b : a; g.fillRect(0, j * 32, w, 32); g.fillStyle = grout; g.fillRect(0, j * 32, w, 2); const off = (j * 83) % 256; g.fillRect(off, j * 32, 2, 32); } }
+    else if (kind === "parquet") { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? b : a; g.fillRect(i * 64, j * 64, 64, 64); g.strokeStyle = grout; g.lineWidth = 1; for (let k = 0; k < 64; k += 8) { g.beginPath(); if ((i + j) % 2) { g.moveTo(i * 64, j * 64 + k); g.lineTo(i * 64 + 64, j * 64 + k); } else { g.moveTo(i * 64 + k, j * 64); g.lineTo(i * 64 + k, j * 64 + 64); } g.stroke(); } } }
+    else if (kind === "carpet") { g.fillStyle = b; for (let i = 0; i < 256; i += 4) { g.fillRect(i, 0, 2, h); } g.fillStyle = grout; g.fillRect(0, 124, w, 8); }
+    else if (kind === "marble") { g.fillStyle = b; g.fillRect(0, 0, 128, 128); g.fillRect(128, 128, 128, 128); g.strokeStyle = grout; g.lineWidth = 2; g.beginPath(); g.moveTo(128, 0); g.lineTo(128, h); g.moveTo(0, 128); g.lineTo(w, 128); g.stroke(); g.lineWidth = 1; g.globalAlpha = 0.4; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(k * 50, 0); g.bezierCurveTo(k * 50 + 40, 80, k * 50 - 30, 160, k * 50 + 20, 256); g.stroke(); } g.globalAlpha = 1; }
+    else { for (let k = 0; k < 900; k++) { g.fillStyle = k % 3 ? b : grout; g.globalAlpha = 0.5; g.fillRect((k * 53) % 256, (k * 97) % 256, 2, 2); } g.globalAlpha = 1; }
+  });
+}
+function inWallTex(brand) {
+  const sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  return inCanvasTex("wall:" + brand, 256, 256, (g, w, h) => {
+    const [up, rail, low, kind] = sk.wall;
+    g.fillStyle = up; g.fillRect(0, 0, w, h);
+    const railY = h * 0.70;                         // the rail sits a metre up the wall; y runs down the texture
+    g.fillStyle = low; g.fillRect(0, railY, w, h - railY);
+    if (kind === "panels") { g.strokeStyle = "rgba(0,0,0,0.07)"; g.lineWidth = 2; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, railY); g.stroke(); } g.strokeStyle = "rgba(0,0,0,0.1)"; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, railY); g.lineTo(i * 64, h); g.stroke(); } }
+    else if (kind === "boards") { g.fillStyle = "rgba(0,0,0,0.18)"; for (let i = 0; i < 16; i++) g.fillRect(i * 16, railY, 2, h - railY); g.fillStyle = "rgba(60,30,10,0.35)"; g.fillRect(0, 0, w, 10); g.fillRect(0, h * 0.35, w, 6); }
+    else if (kind === "hazard") { g.fillStyle = "#d9a21c"; for (let i = -2; i < 12; i++) { g.beginPath(); g.moveTo(i * 28, railY - 26); g.lineTo(i * 28 + 14, railY - 26); g.lineTo(i * 28 + 30, railY - 4); g.lineTo(i * 28 + 16, railY - 4); g.fill(); } g.fillStyle = "#16181b"; g.fillRect(0, railY - 30, w, 4); g.fillRect(0, railY - 4, w, 4); }
+    else if (kind === "stripes") { g.fillStyle = "rgba(20,40,30,0.18)"; for (let i = 0; i < 8; i++) g.fillRect(i * 32 + 8, 0, 14, railY); }
+    else if (kind === "pilasters") { g.fillStyle = "rgba(0,0,0,0.08)"; g.fillRect(0, 0, 18, h); g.fillRect(w - 18, 0, 18, h); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(18, 0, 4, h); }
+    g.fillStyle = rail; g.fillRect(0, railY - 3, w, 6);               // the chair rail
+    g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, h - 14, w, 14);   // skirting
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "rgba(0,0,0,0.12)"); gr.addColorStop(0.1, "rgba(0,0,0,0)"); gr.addColorStop(0.92, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,0.25)");
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  });
+}
+const IN_ADS = {
+  eleven:  [["FRESH BENTO", "Made this morning ¥580", "bento", "#e8711a"], ["ICE COLD", "Cola ¥160 · Ganbare Energy ¥210", "drink", "#1272d6"], ["OPEN 24 HOURS", "Every day. Even you.", "clock", "#0a6b42"], ["HOT SNACKS", "Nikuman · Karaage · Oden", "bowl", "#cf2027"], ["POINT CARD", "Ask at the till", "card", "#6a3fb5"], ["NEW! CUP RAMEN", "Limited flavour", "bowl", "#e8a33d"]],
+  petmart: [["PET FOOD SALE", "Bags from ¥980", "paw", "#13a150"], ["CAT TOWER", "Now in store", "paw", "#1272d6"], ["AQUARIUM", "Everything for the tank", "fish", "#1a9ad6"], ["GOOD DOG", "Because they deserve it", "paw", "#e8a33d"], ["OPEN LATE", "Your neighbourhood store", "clock", "#13a150"], ["TREATS", "Buy two get one", "sale", "#d9534f"]],
+  ramen:   [["本日のおすすめ", "Tsukemen ¥1,100", "bowl", "#7a1f1a"], ["BEER ¥600", "Draught, cold", "drink", "#c8941a"], ["餃子 GYOZA", "Six for ¥480", "bowl", "#b5532a"], ["OPEN 11:00–24:00", "Last orders midnight", "clock", "#2a2d33"], ["味噂 MISO", "¥920", "bowl", "#8a4a1a"], ["ラーメン", "RAMEN", "bowl", "#a31d1d"]],
+  sushi:   [["寿司 FRESH DAILY", "Nigiri set ¥1,800", "fish", "#1d3b5a"], ["SALMON ¥300", "Straight from Hokkaido", "fish", "#d9604a"], ["GREEN TEA", "Free refills", "drink", "#4a8a3a"], ["TUNA ROLL", "¥450", "fish", "#a82a2a"], ["TAMAGO ¥150", "Sweet and soft", "bowl", "#e8c24a"], ["OPEN LATE", "Counter seats", "clock", "#2a2d33"]],
+  arms:    [["NO LOITERING", "Staff watching", "warning", "#d9a21c"], ["LICENCE REQUIRED", "By appointment only", "warning", "#b9823a"], ["KANAMONO 金物", "Hardware since 1971", "bolt", "#3a2a14"], ["NO PHOTOGRAPHY", "", "warning", "#8a1d1d"], ["CASH ONLY", "No receipts", "sale", "#2a2d33"], ["CLOSED SUNDAYS", "", "clock", "#55585e"]],
+  pharmacy: [["VITAMINS ¥980", "For the tired", "cross", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "cross", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
+  books:   [["BESTSELLER", "The Quiet Platform", "book", "#2c4a3a"], ["MANGA OUT NOW", "Shonen Salaryman 12", "book", "#d9534f"], ["NAP BETTER", "Business ¥1,400", "book", "#3f6fb5"], ["NEW ARRIVALS", "Novels · Manga · Business", "book", "#8a4a1a"], ["A YEAR IN MIZUHO", "¥1,300", "book", "#4a7a4a"], ["READ MORE", "Stress less", "book", "#6a3fb5"]],
+  clothes: [["DRESS SHIRTS", "¥3,900 · all colours", "shirt", "#2a2d33"], ["NEW SEASON", "Wear it on the train", "shirt", "#4a90d9"], ["SALE 30% OFF", "Socks · Towels", "sale", "#c8372d"], ["TRY IT ON", "Ask at the counter", "shirt", "#9b6bd3"], ["BUSINESS CASUAL", "Fridays only", "shirt", "#3fb8af"], ["CLEAR UMBRELLAS", "¥550", "sale", "#1272d6"]],
+  dokoto:  [["PEAR P17", "Pro Max · now in store", "phone", "#6a3fb5"], ["SOTI So25 ULTRA", "The best camera on the island", "phone", "#1d3b5a"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a"]],
+  capsule: [["QUIET HOURS", "22:00 – 06:00", "moon", "#2a8fb8"], ["SHOES OFF", "靴を脱いでください", "shoe", "#2a2d33"], ["WI-FI: KAPUSERU", "Password at the desk", "wifi", "#1a9ad6"], ["CHECK-OUT 10:00", "Thank you for staying", "clock", "#4a5260"], ["NO SMOKING", "", "warning", "#c8372d"], ["TOWELS ¥200", "At the desk", "sale", "#2a8fb8"]],
+  plaza:   [["PLAZA SALE", "Everything must go", "sale", "#c8372d"], ["FOOD HALL B1", "Ramen · Sushi", "bowl", "#7a1f1a"], ["FASHION 2F", "New season", "shirt", "#2a2d33"], ["BOOKS 3F", "Bestsellers", "book", "#2c4a3a"], ["EVERYDAY 1F", "Open until late", "clock", "#0a6b42"], ["WELCOME", "Please mind the lift", "wifi", "#2a8fb8"]]
+};
+function inIcon(g, kind, cx, cy, s, ink) {
+  g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = s * 0.08;
+  const rr = (x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  if (kind === "bento") { rr(cx - s * 0.5, cy - s * 0.3, s, s * 0.6, s * 0.08); g.stroke(); g.fillRect(cx - s * 0.45, cy - s * 0.02, s * 0.9, s * 0.05); g.beginPath(); g.arc(cx - s * 0.22, cy - s * 0.16, s * 0.11, 0, 7); g.fill(); g.fillRect(cx + s * 0.08, cy - s * 0.25, s * 0.3, s * 0.18); }
+  else if (kind === "drink") { rr(cx - s * 0.2, cy - s * 0.5, s * 0.4, s, s * 0.08); g.fill(); g.fillStyle = "rgba(255,255,255,0.8)"; g.fillRect(cx - s * 0.2, cy - s * 0.1, s * 0.4, s * 0.25); }
+  else if (kind === "clock") { g.beginPath(); g.arc(cx, cy, s * 0.45, 0, 7); g.stroke(); g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx, cy - s * 0.3); g.moveTo(cx, cy); g.lineTo(cx + s * 0.2, cy + s * 0.08); g.stroke(); }
+  else if (kind === "bowl") { g.beginPath(); g.arc(cx, cy - s * 0.05, s * 0.45, 0, Math.PI); g.fill(); g.fillRect(cx - s * 0.2, cy + s * 0.38, s * 0.4, s * 0.06); for (let i = -1; i <= 1; i++) { g.beginPath(); g.moveTo(cx + i * s * 0.2, cy - s * 0.15); g.quadraticCurveTo(cx + i * s * 0.2 + s * 0.08, cy - s * 0.35, cx + i * s * 0.2, cy - s * 0.5); g.stroke(); } }
+  else if (kind === "card") { rr(cx - s * 0.5, cy - s * 0.3, s, s * 0.6, s * 0.06); g.fill(); g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(cx - s * 0.5, cy - s * 0.12, s, s * 0.14); }
+  else if (kind === "paw") { g.beginPath(); g.ellipse(cx, cy + s * 0.12, s * 0.3, s * 0.24, 0, 0, 7); g.fill(); [[-0.32, -0.18], [-0.11, -0.36], [0.11, -0.36], [0.32, -0.18]].forEach(p => { g.beginPath(); g.ellipse(cx + p[0] * s, cy + p[1] * s, s * 0.1, s * 0.13, 0, 0, 7); g.fill(); }); }
+  else if (kind === "fish") { g.beginPath(); g.ellipse(cx - s * 0.08, cy, s * 0.4, s * 0.22, 0, 0, 7); g.fill(); g.beginPath(); g.moveTo(cx + s * 0.28, cy); g.lineTo(cx + s * 0.5, cy - s * 0.2); g.lineTo(cx + s * 0.5, cy + s * 0.2); g.fill(); g.fillStyle = "#fff"; g.beginPath(); g.arc(cx - s * 0.28, cy - s * 0.05, s * 0.04, 0, 7); g.fill(); }
+  else if (kind === "warning") { g.beginPath(); g.moveTo(cx, cy - s * 0.5); g.lineTo(cx + s * 0.5, cy + s * 0.4); g.lineTo(cx - s * 0.5, cy + s * 0.4); g.closePath(); g.fill(); g.fillStyle = "#16181b"; g.fillRect(cx - s * 0.04, cy - s * 0.2, s * 0.08, s * 0.3); g.fillRect(cx - s * 0.04, cy + s * 0.17, s * 0.08, s * 0.08); }
+  else if (kind === "bolt") { g.beginPath(); g.moveTo(cx + s * 0.1, cy - s * 0.5); g.lineTo(cx - s * 0.25, cy + s * 0.05); g.lineTo(cx, cy + s * 0.05); g.lineTo(cx - s * 0.1, cy + s * 0.5); g.lineTo(cx + s * 0.28, cy - s * 0.1); g.lineTo(cx + s * 0.03, cy - s * 0.1); g.closePath(); g.fill(); }
+  else if (kind === "cross") { g.fillRect(cx - s * 0.12, cy - s * 0.42, s * 0.24, s * 0.84); g.fillRect(cx - s * 0.42, cy - s * 0.12, s * 0.84, s * 0.24); }
+  else if (kind === "book") { g.fillRect(cx - s * 0.42, cy - s * 0.35, s * 0.4, s * 0.7); g.fillRect(cx + s * 0.02, cy - s * 0.35, s * 0.4, s * 0.7); g.fillStyle = "rgba(0,0,0,0.3)"; g.fillRect(cx - s * 0.03, cy - s * 0.35, s * 0.06, s * 0.7); }
+  else if (kind === "shirt") { g.beginPath(); g.moveTo(cx - s * 0.18, cy - s * 0.42); g.lineTo(cx - s * 0.5, cy - s * 0.2); g.lineTo(cx - s * 0.36, cy + s * 0.02); g.lineTo(cx - s * 0.26, cy - s * 0.04); g.lineTo(cx - s * 0.26, cy + s * 0.42); g.lineTo(cx + s * 0.26, cy + s * 0.42); g.lineTo(cx + s * 0.26, cy - s * 0.04); g.lineTo(cx + s * 0.36, cy + s * 0.02); g.lineTo(cx + s * 0.5, cy - s * 0.2); g.lineTo(cx + s * 0.18, cy - s * 0.42); g.closePath(); g.fill(); }
+  else if (kind === "sale") { g.beginPath(); for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, r = i % 2 ? s * 0.34 : s * 0.5; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } g.closePath(); g.fill(); }
+  else if (kind === "phone") { rr(cx - s * 0.22, cy - s * 0.5, s * 0.44, s, s * 0.08); g.fill(); g.fillStyle = "rgba(255,255,255,0.8)"; g.fillRect(cx - s * 0.17, cy - s * 0.42, s * 0.34, s * 0.78); }
+  else if (kind === "game") { rr(cx - s * 0.5, cy - s * 0.25, s, s * 0.5, s * 0.2); g.fill(); g.fillStyle = "rgba(255,255,255,0.85)"; g.fillRect(cx - s * 0.34, cy - s * 0.04, s * 0.24, s * 0.08); g.fillRect(cx - s * 0.26, cy - s * 0.12, s * 0.08, s * 0.24); g.beginPath(); g.arc(cx + s * 0.22, cy - s * 0.04, s * 0.06, 0, 7); g.arc(cx + s * 0.34, cy + s * 0.06, s * 0.06, 0, 7); g.fill(); }
+  else if (kind === "tv") { rr(cx - s * 0.5, cy - s * 0.32, s, s * 0.6, s * 0.04); g.stroke(); g.fillRect(cx - s * 0.12, cy + s * 0.3, s * 0.24, s * 0.08); g.fillRect(cx - s * 0.3, cy + s * 0.38, s * 0.6, s * 0.05); }
+  else if (kind === "moon") { g.beginPath(); g.arc(cx, cy, s * 0.42, 0.5, Math.PI * 2 - 0.5); g.arc(cx + s * 0.18, cy - s * 0.05, s * 0.34, Math.PI * 2 - 0.9, 0.9, true); g.fill(); }
+  else if (kind === "shoe") { g.beginPath(); g.moveTo(cx - s * 0.5, cy + s * 0.2); g.lineTo(cx - s * 0.5, cy - s * 0.15); g.lineTo(cx - s * 0.1, cy - s * 0.15); g.lineTo(cx + s * 0.1, cy + s * 0.02); g.lineTo(cx + s * 0.5, cy + s * 0.08); g.lineTo(cx + s * 0.5, cy + s * 0.2); g.closePath(); g.fill(); }
+  else if (kind === "wifi") { for (let i = 1; i <= 3; i++) { g.beginPath(); g.arc(cx, cy + s * 0.3, s * 0.2 * i, Math.PI * 1.2, Math.PI * 1.8); g.stroke(); } g.beginPath(); g.arc(cx, cy + s * 0.3, s * 0.05, 0, 7); g.fill(); }
+}
+function inPosterTex(brand, i) {
+  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length];
+  return inCanvasTex("poster:" + brand + ":" + (i % ads.length), 256, 340, (g, w, h) => {
+    const base = ad[3];
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, base); gr.addColorStop(1, inShade(base, 0.55));
+    g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(255,255,255,0.12)"; g.beginPath(); g.arc(w * 0.85, h * 0.15, w * 0.5, 0, 7); g.fill();
+    g.fillStyle = "rgba(0,0,0,0.18)"; g.fillRect(0, h * 0.74, w, h * 0.26);
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
+    inIcon(g, ad[2], w / 2, h * 0.34, w * 0.5, "#ffffff");
+    let fs = 38; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif";
+    while (g.measureText(ad[0]).width > w - 24 && fs > 14) { fs -= 2; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; }
+    g.fillText(ad[0], w / 2, h * 0.64, w - 20);
+    g.font = "600 16px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; g.fillStyle = "rgba(255,255,255,0.92)";
+    g.fillText(ad[1], w / 2, h * 0.84, w - 20);
+    g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 4; g.strokeRect(6, 6, w - 12, h - 12);
+  });
+}
+function inPoster(root, brand, i, x, y, z, ry, w, h) {
+  const t = inPosterTex(brand, i);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
+  m.position.set(x, y, z); m.rotation.y = ry; root.add(m);
+  inAdd(root, w + 0.06, h + 0.06, 0.02, x, y, z + (ry === 0 ? -0.01 : ry === Math.PI ? 0.01 : 0), "#2a2d33").rotation.y = ry;
+  return m;
+}
+function inBanner(root, brand, i, x, y, z, ry, w) {
+  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length];
+  const t = inCanvasTex("banner:" + brand + ":" + (i % ads.length), 512, 128, (g, cw, ch) => {
+    g.fillStyle = ad[3]; g.fillRect(0, 0, cw, ch); g.fillStyle = "rgba(0,0,0,0.2)"; g.fillRect(0, ch - 20, cw, 20);
+    inIcon(g, ad[2], 64, ch / 2 - 4, 76, "#ffffff");
+    g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; let fs = 46; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif";
+    while (g.measureText(ad[0]).width > cw - 150 && fs > 16) { fs -= 2; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; }
+    g.fillText(ad[0], 118, ch * 0.4, cw - 130);
+    g.font = "600 20px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; g.fillStyle = "rgba(255,255,255,0.9)"; g.fillText(ad[1], 118, ch * 0.72, cw - 130);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t, fog: false }));
+  m.position.set(x, y, z); m.rotation.y = ry; root.add(m);
+  return m;
+}
+
+// a unit of stock that is only there to be looked at: built like the real shelves, never in room.items, solid
+function inDecorUnit(room, root, th, x, z, len, face, pool, brand) {
+  const unit = new THREE.Group(); unit.position.set(x, 0, z); unit.rotation.y = face; root.add(unit);
+  inAdd(unit, len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c"); inAdd(unit, len + 0.06, 0.06, 0.62, 0, 1.73, 0, th.trim);
+  const sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  const tiers = [1.28, 0.84, 0.4], per = Math.max(3, Math.floor((len - 0.3) / 0.6));
+  for (let r = 0; r < 3; r++) {
+    inAdd(unit, len - 0.1, 0.04, 0.46, 0, tiers[r] - 0.02, 0.2, "#59606a");
+    inAdd(unit, len - 0.14, 0.05, 0.02, 0, tiers[r] - 0.06, 0.44, r % 2 ? "#fff3b0" : sk.wall[1]);     // the shelf-edge price strip
+    for (let c = 0; c < per; c++) {
+      const it = pool[(r * 7 + c * 3 + Math.floor(x * 10)) % pool.length];
+      const m = inItemMesh(it, true); m.position.set((c - (per - 1) / 2) * Math.min(0.72, (len - 0.4) / per), tiers[r], 0.3); unit.add(m);
+    }
+  }
+  const cosf = Math.abs(Math.cos(face)), sinf = Math.abs(Math.sin(face));
+  const hx = (len / 2) * cosf + 0.45 * sinf, hz = (len / 2) * sinf + 0.45 * cosf;
+  room.colliders.push({ x0: x - hx, x1: x + hx, z0: z - hz, z1: z + hz });
+  return unit;
+}
+function inTable(room, root, x, z, w, d, hex, top) {
+  inAdd(root, w, 0.08, d, x, 0.8, z, top || "#c8a878"); inAdd(root, 0.08, 0.8, 0.08, x - w / 2 + 0.08, 0.4, z - d / 2 + 0.08, hex); inAdd(root, 0.08, 0.8, 0.08, x + w / 2 - 0.08, 0.4, z - d / 2 + 0.08, hex);
+  inAdd(root, 0.08, 0.8, 0.08, x - w / 2 + 0.08, 0.4, z + d / 2 - 0.08, hex); inAdd(root, 0.08, 0.8, 0.08, x + w / 2 - 0.08, 0.4, z + d / 2 - 0.08, hex);
+  room.colliders.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
+}
+function inCyl(root, r, h, x, y, z, hex) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), inMat(hex)); m.position.set(x, y, z); root.add(m); return m; }
+function inMannequin(root, x, z, shirt, ry) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry || 0; root.add(g);
+  inAdd(g, 0.35, 0.05, 0.35, 0, 0.03, 0, "#2a2d33"); inAdd(g, 0.06, 0.7, 0.06, 0, 0.4, 0, "#8d939c");
+  inAdd(g, 0.4, 0.55, 0.2, 0, 1.15, 0, shirt); inAdd(g, 0.1, 0.5, 0.1, -0.26, 1.15, 0, shirt); inAdd(g, 0.1, 0.5, 0.1, 0.26, 1.15, 0, shirt);
+  inAdd(g, 0.16, 0.2, 0.16, 0, 1.55, 0, "#e8dccd"); inAdd(g, 0.34, 0.5, 0.18, 0, 0.62, 0, "#2a2d33");
+}
+function inRack(room, root, x, z, len, cols) {
+  inAdd(root, len, 0.04, 0.04, x, 1.5, z, "#8d939c"); inAdd(root, 0.04, 1.5, 0.04, x - len / 2, 0.75, z, "#8d939c"); inAdd(root, 0.04, 1.5, 0.04, x + len / 2, 0.75, z, "#8d939c");
+  const n = Math.floor(len / 0.18);
+  for (let i = 0; i < n; i++) { const c = cols[i % cols.length]; inAdd(root, 0.05, 0.55, 0.42, x - len / 2 + 0.15 + i * 0.18, 1.18, z, c); inAdd(root, 0.16, 0.06, 0.04, x - len / 2 + 0.15 + i * 0.18, 1.45, z, "#d8dce0"); }
+  room.colliders.push({ x0: x - len / 2, x1: x + len / 2, z0: z - 0.3, z1: z + 0.3 });
+}
+function inLantern(root, x, y, z, hex) { inCyl(root, 0.18, 0.4, x, y, z, hex); inAdd(root, 0.2, 0.04, 0.2, x, y + 0.22, z, "#2a2d33"); inAdd(root, 0.2, 0.04, 0.2, x, y - 0.22, z, "#2a2d33"); inAdd(root, 0.02, 0.5, 0.02, x, y + 0.48, z, "#2a2d33"); }
+
+function interiorDecor(room, root, th, brand, opts) {
+  const sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  const W = IN_W, D = IN_D, H = IN_H;
+  // ---- painted surfaces over the plain boxes
+  const floor = inPlaneTex(inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
+  const wt = inWallTex(brand);
+  root.add(inPlaneTex(wt, W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
+  root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
+  const side = (W - 2.4) / 2;
+  root.add(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
+  root.add(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
+  const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h); });
+  root.add(inPlaneTex(ceil, W, D, W / 2, D / 2, 0, H - 0.006, 0, 0, Math.PI / 2));
+  // ---- adverts: pillars either side of the door, banners above the shelves
+  const lift = !!opts.lift;
+  inPoster(root, brand, 0, -1.95, 1.75, D / 2 - 0.13, Math.PI, 0.85, 1.15);
+  inPoster(root, brand, 1, 1.95, 1.75, D / 2 - 0.13, Math.PI, 0.85, 1.15);
+  inBanner(root, brand, 2, -4.85, 2.5, D / 2 - 0.13, Math.PI, 3.0);
+  inBanner(root, brand, 3, 4.1, 2.5, D / 2 - 0.13, Math.PI, 2.6);
+  inBanner(root, brand, 4, -4.0, 2.5, -D / 2 + 0.13, 0, 3.2);
+  inBanner(root, brand, 5, 3.2, 2.5, -D / 2 + 0.13, 0, 2.8);
+  inBanner(root, brand, 1, -W / 2 + 0.13, 2.5, -0.2, Math.PI / 2, 3.2);
+  if (!lift) { inPoster(root, brand, 3, W / 2 - 0.13, 1.7, -4.2, -Math.PI / 2, 1.0, 1.35); inPoster(root, brand, 4, W / 2 - 0.13, 1.7, -2.6, -Math.PI / 2, 1.0, 1.35); inBanner(root, brand, 0, W / 2 - 0.13, 2.65, -1.0, -Math.PI / 2, 2.6); }
+  inPoster(root, brand, 5, -W / 2 + 0.13, 1.7, 3.9, Math.PI / 2, 0.9, 1.25);
+  // ---- looking-only stock
+  const pool = [];
+  (room.stock || []).forEach(sh => sh.items.forEach(it => pool.push(it)));
+  if (!pool.length) for (let i = 0; i < 6; i++) pool.push({ id: brand + i, name: brand, price: 0, col: IN_PALETTE[i % IN_PALETTE.length] });
+  inDecorUnit(room, root, th, -4.85, D / 2 - 0.6, 4.5, Math.PI, pool, brand);
+  inDecorUnit(room, root, th, 4.1, D / 2 - 0.6, 3.0, Math.PI, pool, brand);
+  const used = (room.stock || []).length;
+  if (used < 4 && !lift) inDecorUnit(room, root, th, -1.6, 0.6, 5.0, 0, pool, brand);
+  if (used < 5 && !lift) inDecorUnit(room, root, th, 1.4, -2.2, 4.6, 0, pool, brand);
+  if (!lift && room.stock.length < 6) inDecorUnit(room, root, th, W / 2 - 0.6, -3.6, 3.4, -Math.PI / 2, pool, brand);
+  // ---- props that say what kind of place it is
+  const trim = th.trim;
+  if (brand === "eleven" || brand === "petmart") {
+    inAdd(root, 0.9, 1.9, 2.6, W / 2 - 0.6, 0.95, 0.1, "#cfe2ee"); inAdd(root, 0.05, 1.6, 2.5, W / 2 - 1.05, 1.0, 0.1, "#a9d4ee");
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) inCyl(root, 0.06, 0.2, W / 2 - 1.1, 0.3 + r * 0.4, -0.95 + c * 0.4, IN_PALETTE[(r + c) % 8]);
+    room.colliders.push({ x0: W / 2 - 1.1, x1: W / 2, z0: -1.3, z1: 1.5 });
+    inAdd(root, 0.6, 1.6, 0.5, -W / 2 + 1.0, 0.8, D / 2 - 1.2, "#1272d6"); inAdd(root, 0.4, 0.3, 0.02, -W / 2 + 1.0, 1.3, D / 2 - 0.94, "#e8f4ff");   // the ATM
+    room.colliders.push({ x0: -W / 2 + 0.6, x1: -W / 2 + 1.4, z0: D / 2 - 1.5, z1: D / 2 - 0.9 });
+    if (brand === "petmart") { inAdd(root, 1.4, 0.9, 0.6, -6.6, 0.45, -1.4, "#1a9ad6"); inAdd(root, 1.3, 0.7, 0.5, -6.6, 0.5, -1.4, "#6fd0f0"); for (let i = 0; i < 4; i++) inAdd(root, 0.15, 0.08, 0.05, -7.1 + i * 0.3, 0.45 + (i % 2) * 0.15, -1.4, "#e8711a"); inAdd(root, 0.5, 1.4, 0.5, 3.5, 0.7, -D / 2 + 1.0, "#c8a878"); inAdd(root, 0.9, 0.12, 0.9, 3.5, 1.45, -D / 2 + 1.0, "#a98858"); }
+  } else if (brand === "ramen" || brand === "sushi") {
+    for (let i = 0; i < 4; i++) inCyl(root, 0.22, 0.6, -2.4 + i * 1.3, 0.3, D / 2 - 2.3, "#7a1f1a");
+    inAdd(root, 6.0, 0.9, 0.7, 0, 0.45, D / 2 - 3.1, "#6a4a2e"); inAdd(root, 6.1, 0.06, 0.8, 0, 0.93, D / 2 - 3.1, "#c8a878");
+    for (let i = 0; i < 5; i++) { inCyl(root, 0.17, 0.08, -2.4 + i * 1.2, 0.98, D / 2 - 3.1, brand === "sushi" ? ["#d9604a", "#f2efe6", "#e8c24a", "#a82a2a", "#4a8a3a"][i] : "#f2efe6"); }
+    room.colliders.push({ x0: -3.2, x1: 3.2, z0: D / 2 - 3.6, z1: D / 2 - 2.6 });
+    for (let i = 0; i < 3; i++) inLantern(root, -3 + i * 3, 2.9, D / 2 - 1.6, "#c8372d");
+    for (let i = 0; i < 3; i++) inAdd(root, 0.7, 0.9, 0.05, -1.05 + i * 0.7, 2.0, D / 2 - 0.2, i % 2 ? "#1d3b5a" : "#16294a");   // the noren over the door
+  } else if (brand === "arms") {
+    for (let i = 0; i < 4; i++) { inAdd(root, 0.08, 0.08, 1.1, W / 2 - 0.2, 1.7 - (i % 2) * 0.3, -4.2 + i * 0.1, "#16181b"); }
+    inAdd(root, 0.1, 1.2, 2.2, W / 2 - 0.16, 1.4, -2.0, "#25272b");
+    for (let i = 0; i < 5; i++) { inAdd(root, 0.08, 0.1, 0.9 - i * 0.1, W / 2 - 0.1, 1.9 - i * 0.18, -2.0, "#0f1012"); }
+    for (let i = 0; i < 6; i++) inAdd(root, 0.6, 0.3, 0.4, -W / 2 + 1.2 + (i % 3) * 0.62, 0.15 + Math.floor(i / 3) * 0.3, 4.6, "#6a6a4a");
+    room.colliders.push({ x0: -W / 2 + 0.8, x1: -W / 2 + 3.2, z0: 4.2, z1: 5.0 });
+    inAdd(root, 3.0, 0.02, 0.5, 0, 0.04, 2.2, "#d9a21c");
+  } else if (brand === "pharmacy") {
+    inAdd(root, 0.3, 1.1, 0.12, W / 2 - 0.2, 2.5, -2.0, "#2e9b5a").rotation.y = -Math.PI / 2; inAdd(root, 1.1, 0.3, 0.12, W / 2 - 0.2, 2.5, -2.0, "#2e9b5a").rotation.y = -Math.PI / 2;
+    inAdd(root, 0.5, 1.2, 0.5, -6.8, 0.6, 3.6, "#e8eef2"); inAdd(root, 0.3, 0.2, 0.02, -6.55, 1.0, 3.6, "#1a9ad6");   // the blood-pressure machine
+    room.colliders.push({ x0: -7.1, x1: -6.5, z0: 3.3, z1: 3.9 });
+    inAdd(root, 0.5, 0.12, 0.5, -6.8, 0.06, 2.4, "#cfd6de");
+  } else if (brand === "books") {
+    const cols = ["#8a2a2a", "#2a5a8a", "#2a6a3a", "#c8a84a", "#5a3a7a", "#d9d2c3", "#a85a2a", "#3a3a4a"];
+    for (let i = 0; i < 12; i++) { inAdd(root, 0.2, 1.7 + (i % 3) * 0.06, 0.04, -W / 2 + 0.5 + 0.0, 0, 0, "#000").visible = false; }
+    inTable(room, root, -1.5, D / 2 - 3.4, 1.8, 0.9, "#4a3220", "#8a6a44"); inCyl(root, 0.08, 0.5, -1.5, 1.05, D / 2 - 3.4, "#d9c24a"); inAdd(root, 0.4, 0.1, 0.4, -1.5, 1.35, D / 2 - 3.4, "#e8d98a");
+    inAdd(root, 0.7, 0.5, 0.7, -3.2, 0.25, D / 2 - 3.4, "#2c4a3a"); inAdd(root, 0.7, 0.5, 0.7, 0.2, 0.25, D / 2 - 3.4, "#2c4a3a");
+    inAdd(root, 0.06, 2.2, 0.5, -3.5, 1.1, -D / 2 + 0.5, "#8a6a44");   // a library ladder
+  } else if (brand === "clothes") {
+    inRack(room, root, -5.0, -1.2, 2.4, ["#4a90d9", "#e8e8e6", "#d9a3b8", "#2a2d33", "#7ac9a8"]);
+    inRack(room, root, -5.0, 1.8, 2.4, ["#e8e8e6", "#9b6bd3", "#e8d84a", "#4a90d9", "#c8372d"]);
+    inMannequin(root, 2.2, -4.2, "#4a90d9", 0.3); inMannequin(root, 3.1, -4.2, "#e8e8e6", -0.2); inMannequin(root, 4.0, -4.2, "#2a2d33", 0.1);
+    room.colliders.push({ x0: 1.9, x1: 4.3, z0: -4.55, z1: -3.85 });
+    inAdd(root, 1.3, 2.0, 0.06, -W / 2 + 0.2, 1.0, 4.2, "#bcd8ea"); inAdd(root, 1.4, 2.1, 0.04, -W / 2 + 0.17, 1.05, 4.2, "#2a2d33");   // the mirror
+    inAdd(root, 1.2, 2.1, 0.06, -W / 2 + 1.0, 1.05, 2.4, "#6a4a7a");   // a fitting-room curtain
+  } else if (brand === "dokoto") {
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) { const col = ["#2c4f8a", "#8a2c4f", "#2c8a5a", "#e8a33d", "#6a3fb5", "#1a9ad6"][(i + j * 2) % 6]; inAdd(root, 0.95, 0.55, 0.06, -4.8 + i * 1.05, 1.0 + j * 0.62, D / 2 - 0.2, "#14161a"); inAdd(root, 0.88, 0.48, 0.07, -4.8 + i * 1.05, 1.0 + j * 0.62, D / 2 - 0.22, col).rotation.y = 0; }
+    inTable(room, root, 4.6, -1.0, 2.0, 0.8, "#2a2d33", "#e8eaed");
+    for (let i = 0; i < 4; i++) inAdd(root, 0.16, 0.26, 0.03, 4.0 + i * 0.35, 1.0, -1.0, ["#2a6fb0", "#6a3fb5", "#2c8a5a", "#d4152c"][i]);
+    inAdd(root, 4.0, 0.04, 0.5, 0, 0.04, -1.6, "#d4152c");
+  } else if (brand === "plaza") {
+    inCyl(root, 0.5, 3.6, -4.0, 1.8, -1.0, "#e9e3d6"); inCyl(root, 0.5, 3.6, 4.0, 1.8, -1.0, "#e9e3d6");
+    room.colliders.push({ x0: -4.5, x1: -3.5, z0: -1.5, z1: -0.5 }, { x0: 3.5, x1: 4.5, z0: -1.5, z1: -0.5 });
+    const pp = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.2), new THREE.MeshBasicMaterial({ map: inPosterTex("plaza", 0), fog: false })); pp.position.set(-4.0, 1.7, -0.48); root.add(pp);
+    const pq = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.2), new THREE.MeshBasicMaterial({ map: inPosterTex("plaza", 3), fog: false })); pq.position.set(4.0, 1.7, -0.48); root.add(pq);
+  }
+}
+
+
 // What a shop stocks, as a list of shelves of plain item records.
 function inStock(s) {
   if (s.brand === "dokoto") {
@@ -29396,6 +29667,7 @@ function interiorRoom(s, opts) {
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
   // a door mat
   if (!opts.noExit) inAdd(root, 2.2, 0.03, 1.2, 0, 0.02, IN_D / 2 - 0.7, "#2a2d33");
+  try { interiorDecor(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the shop dressing failed:", e); }
   if (opts.extra) opts.extra(room, root, th);
 
   root.visible = false;
