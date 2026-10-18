@@ -29119,7 +29119,7 @@ function interiorSpotFocus() {
 }
 function interiorSpotAct(sp) {
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
-  if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interiorPodDraw(); }
+  if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorPodDraw(); }
 }
 function interiorPodDraw() {
   const el = interior.cardEl, p = interior.pod; if (!p) return;
