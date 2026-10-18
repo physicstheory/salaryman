@@ -542,11 +542,17 @@ export class Game {
     this.city.update(dt, this.camera);
     Lod.update(this.camera.position);
     this.hud.update(dt);
+    this.hud.el.classList.toggle('phone-up', !!this.phoneOpen);
     this.wheels.update(dt);
     this.sky.sun.castShadow = this.sky.sun.castShadow && this.shadowsOn;
     this.sky.moon.castShadow = this.sky.moon.castShadow && this.shadowsOn;
     Input.endFrame();
-    if (this.post) this.post.render(); else this.renderer.render(this.scene, this.camera);
+    try {
+      if (this.post) this.post.render(); else this.renderer.render(this.scene, this.camera);
+    } catch (err) {
+      console.error('render failed, dropping post-processing:', err);
+      this.post = null;
+    }
     if (this._capture) {
       const cb = this._capture; this._capture = null;
       const c = document.createElement('canvas'); c.width = 960; c.height = 540;
