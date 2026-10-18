@@ -91,9 +91,6 @@ async function visit(brand, pickIdx, tryIt) {
     await snap(brand + "_back_outside");
   });
 }
-await visit("eleven", 6, false);
-await visit("clothes", 1, true);
-await visit("dokoto", 1, true);
-await visit("ramen", 0, false);
-await visit("books", 0, false);
+const BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto"];
+for (const b of BRANDS) await visit(b, b === "clothes" ? 1 : b === "dokoto" ? 1 : 3, b === "clothes" || b === "dokoto");
 await browser.close(); srv.close();

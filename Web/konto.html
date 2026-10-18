@@ -7222,7 +7222,7 @@ function updateWalk(dt) {
 
   // Camera: over his shoulder, never underground, and never inside a wall.
   const head = player.pos.clone().add(new THREE.Vector3(0, 1.5, 0));
-  const dist = lerp(4.6, 7.0, clamp01(player.speed / 4.7));
+  const dist = interior.active ? 3.4 : lerp(4.6, 7.0, clamp01(player.speed / 4.7));
   const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
   const free = cameraReach(head, dir, dist);
   const want = head.clone().sub(dir.clone().multiplyScalar(free));
@@ -28969,7 +28969,7 @@ const IN_THEME = {
 };
 const inBox = new THREE.BoxGeometry(1, 1, 1);
 const inMats = {};
-function inMat(hex) { return inMats[hex] || (inMats[hex] = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex), fog: false })); }
+function inMat(hex) { return inMats[hex] || (inMats[hex] = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(0.74), fog: false })); }
 function inShade(hex, k) { return "#" + new THREE.Color(hex).multiplyScalar(k).getHexString(); }
 function inAdd(parent, w, h, d, x, y, z, hex) {
   const m = new THREE.Mesh(inBox, inMat(hex));
@@ -29085,27 +29085,27 @@ function interiorRoom(s) {
     const unit = new THREE.Group();
     unit.position.set(sl.x, 0, sl.z); unit.rotation.y = sl.face;
     root.add(unit);
-    inAdd(unit, sl.len, 1.7, 0.5, 0, 0.85, -0.02, "#8d939c");
-    inAdd(unit, sl.len + 0.06, 0.06, 0.58, 0, 1.73, -0.02, th.trim);
-    const lab = inLabel(shelf.name, Math.min(2.8, sl.len), 0.34, "#22262d", "#ffffff"); lab.position.set(0, 2.05, 0.25); unit.add(lab);
+    inAdd(unit, sl.len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c");
+    inAdd(unit, sl.len + 0.06, 0.06, 0.62, 0, 1.73, -0.0, th.trim);
+    const lab = inLabel(shelf.name, Math.min(2.8, sl.len), 0.34, "#22262d", "#ffffff"); lab.position.set(0, 2.05, 0.3); unit.add(lab);
     inAdd(unit, 0.05, 0.4, 0.05, -sl.len / 2 + 0.2, 1.9, 0.0, "#22262d"); inAdd(unit, 0.05, 0.4, 0.05, sl.len / 2 - 0.2, 1.9, 0.0, "#22262d");
     const n = shelf.items.length;
     const perRow = Math.max(Math.floor((sl.len - 0.3) / 0.6), Math.ceil(n / 3));
     const rows = Math.ceil(n / perRow);
     const tiers = [1.28, 0.84, 0.4];
-    for (let r = 0; r < rows; r++) inAdd(unit, sl.len - 0.1, 0.04, 0.42, 0, tiers[r] - 0.02, 0.07, "#59606a");
+    for (let r = 0; r < rows; r++) inAdd(unit, sl.len - 0.1, 0.04, 0.46, 0, tiers[r] - 0.02, 0.2, "#59606a");
     shelf.items.forEach((it, i) => {
       const r = Math.floor(i / perRow), c = i % perRow;
       const inRow = Math.min(perRow, n - r * perRow);
       const mesh = inItemMesh(it);
       const px = (c - (inRow - 1) / 2) * Math.min(0.72, (sl.len - 0.4) / Math.max(1, inRow));
-      mesh.position.set(px, tiers[r], 0.1);
+      mesh.position.set(px, tiers[r], 0.3);
       unit.add(mesh);
       room.items.push({ it: it, mesh: mesh, unit: unit, shelf: si, index: i, shelfItems: shelf.items, face: sl.face });
     });
     // the shelf is solid
     const cosf = Math.abs(Math.cos(sl.face)), sinf = Math.abs(Math.sin(sl.face));
-    const hx = (sl.len / 2) * cosf + 0.3 * sinf, hz = (sl.len / 2) * sinf + 0.3 * cosf;
+    const hx = (sl.len / 2) * cosf + 0.45 * sinf, hz = (sl.len / 2) * sinf + 0.45 * cosf;
     room.colliders.push({ x0: sl.x - hx, x1: sl.x + hx, z0: sl.z - hz, z1: sl.z + hz });
   });
 
@@ -29124,7 +29124,7 @@ function interiorRoom(s) {
 
   root.visible = false;
   scene.add(root);
-  room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - 1.7);
+  room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - 3.4);
   room.doorZ = oz + IN_D / 2;
   interior.rooms[brand] = room;
   return room;
@@ -29147,10 +29147,10 @@ function interiorEnter(s) {
   }
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0.9;
   player.pos.copy(room.entry);
-  player.yaw = player.targetYaw = Math.PI; yaw = 0; pitch = -0.1;
+  player.yaw = player.targetYaw = Math.PI; yaw = 0; pitch = -0.22;
   player.speed = 0; player.onWalk = false;
   player.obj.position.copy(player.pos);
-  camPos.set(room.ox, interior.floorY + 2.2, room.oz + IN_D / 2 - 3.2);
+  camPos.set(room.ox, interior.floorY + 2.4, room.oz + IN_D / 2 - 0.9);
   camera.position.copy(camPos);
   doorway.cool = 1.0;
   say("Irasshaimase!  Walk up to something and press E.", 4);
