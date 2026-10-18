@@ -9025,7 +9025,7 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card) { /* the camera is on the thing you are looking at */ }
+    else if (interior.card || interior.pod) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     updateTraffic(dt, player.pos);
@@ -28953,10 +28953,11 @@ document.getElementById("regen").addEventListener("click", () => {
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
-const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto"];
-const interior = { active: false, card: null, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
+const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
+const interior = { active: false, card: null, pod: null, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
+  capsule: { wall: "#cfd6de", floor: "#6b7078", trim: "#2a8fb8", cap: "#2a8fb8" },
   eleven:  { wall: "#eef3ef", floor: "#d9ddd8", trim: "#0a6b42", cap: "#cf2027" },
   petmart: { wall: "#f4f7fb", floor: "#dfe5ec", trim: "#1272d6", cap: "#13a150" },
   ramen:   { wall: "#a97c50", floor: "#5a4630", trim: "#7a1f1a", cap: "#f2efe6" },
@@ -29031,6 +29032,124 @@ function inItemMesh(it) {
   return g;
 }
 
+
+// The capsule hotel: a lobby with the 受付 desk, a wall of lockers, a vending machine, and the capsules stacked two high down the back wall. Yours
+// is the lit one. Walk up to it and press E: sleeping there is the same ¥3,500 night as at the old desk, and it saves the game.
+function interiorCapsuleRoom() {
+  const slot = interior.count++;
+  const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
+  const th = IN_THEME.capsule;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz);
+  const room = { brand: "capsule", group: root, ox: ox, oz: oz, colliders: [], items: [], spots: [], units: [] };
+  inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
+  for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) inAdd(root, IN_W / 8, 0.02, IN_D / 6, i * IN_W / 8, 0.005, j * IN_D / 6, inShade(th.floor, 0.9));
+  inAdd(root, IN_W, 0.1, IN_D, 0, IN_H + 0.05, 0, "#e9edf1");
+  inAdd(root, IN_W, IN_H, 0.2, 0, IN_H / 2, -IN_D / 2, th.wall);
+  inAdd(root, 0.2, IN_H, IN_D, -IN_W / 2, IN_H / 2, 0, inShade(th.wall, 0.94));
+  inAdd(root, 0.2, IN_H, IN_D, IN_W / 2, IN_H / 2, 0, inShade(th.wall, 0.94));
+  const side = (IN_W - 2.4) / 2;
+  inAdd(root, side, IN_H, 0.2, -(1.2 + side / 2), IN_H / 2, IN_D / 2, th.wall);
+  inAdd(root, side, IN_H, 0.2, 1.2 + side / 2, IN_H / 2, IN_D / 2, th.wall);
+  inAdd(root, 2.4, IN_H - 2.5, 0.2, 0, 2.5 + (IN_H - 2.5) / 2, IN_D / 2, th.wall);
+  inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
+  inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
+  inAdd(root, IN_W, 0.3, 0.22, 0, 2.95, -IN_D / 2 + 0.02, th.trim);
+  for (const x of [-5, 0, 5]) for (const z of [-3, 1.5]) inAdd(root, 2.4, 0.04, 0.4, x, IN_H - 0.01, z, "#cfe8ff");
+  const sign = inLabel("CAPSULE HOTEL  カプセル", 4.2, 0.55, th.trim, "#ffffff"); sign.position.set(0, 3.2, IN_D / 2 - 0.13); sign.rotation.y = Math.PI; root.add(sign);
+  const sign2 = inLabel("Kapuseru", 3.0, 0.55, th.trim, "#ffffff"); sign2.position.set(0, 3.2, -IN_D / 2 + 0.14); root.add(sign2);
+  // the genkan: a raised step, a mat and a rack of slippers just inside the door
+  inAdd(root, 4.6, 0.12, 1.2, 0, 0.06, IN_D / 2 - 0.7, "#8a7a62");
+  for (let i = 0; i < 5; i++) inAdd(root, 0.18, 0.05, 0.4, -0.8 + i * 0.4, 0.15, IN_D / 2 - 0.9, i % 2 ? "#2a8fb8" : "#e8edf2");
+  // the pods, two high, five across the back wall
+  const pods = [];
+  for (let lvl = 0; lvl < 2; lvl++) {
+    for (let i = 0; i < 5; i++) {
+      const n = lvl * 5 + i + 1, x = -6.6 + i * 2.35, y = lvl ? 1.95 : 0.62;
+      const mine = n === 3;
+      inAdd(root, 2.15, 1.18, 1.7, x, y, -IN_D / 2 + 1.05, "#e8edf2");
+      inAdd(root, 1.75, 0.82, 0.06, x, y, -IN_D / 2 + 1.92, mine ? "#fff1b8" : "#141820");
+      if (mine) inAdd(root, 1.75, 0.2, 0.07, x, y - 0.28, -IN_D / 2 + 1.93, "#e9a53a");
+      const lab = inLabel(String(n), 0.4, 0.22, "#c8d0d8", "#4a5058"); lab.position.set(x - 0.7, y + 0.46, -IN_D / 2 + 1.93); root.add(lab);
+      if (mine) room.mine = { x: x, y: y, z: -IN_D / 2 + 1.92 };
+    }
+  }
+  inAdd(root, 0.08, 2.5, 0.08, -7.8, 1.25, -IN_D / 2 + 1.7, "#8d939c"); inAdd(root, 0.06, 0.06, 0.4, -7.8, 1.9, -IN_D / 2 + 1.5, "#8d939c");
+  room.colliders.push({ x0: -7.9, x1: 4.9, z0: -IN_D / 2, z1: -IN_D / 2 + 1.95 });
+  // lockers down the left wall, with a bench
+  for (let r = 0; r < 6; r++) { inAdd(root, 0.5, 1.0, 0.56, -IN_W / 2 + 0.35, 0.5, -0.8 + r * 0.6, inShade("#9aa3ad", 0.88 + (r % 2) * 0.07)); inAdd(root, 0.5, 0.95, 0.56, -IN_W / 2 + 0.35, 1.5, -0.8 + r * 0.6, inShade("#9aa3ad", 0.95 - (r % 2) * 0.07)); }
+  room.colliders.push({ x0: -IN_W / 2, x1: -IN_W / 2 + 0.7, z0: -1.2, z1: 3.1 });
+  inAdd(root, 0.6, 0.45, 2.2, -4.2, 0.22, 3.6, "#5a4630");
+  room.colliders.push({ x0: -4.55, x1: -3.85, z0: 2.4, z1: 4.8 });
+  // a vending machine in the corner, because there is always one
+  inAdd(root, 0.9, 1.9, 0.8, -IN_W / 2 + 0.7, 0.95, IN_D / 2 - 1.3, "#c43a3a"); inAdd(root, 0.7, 0.9, 0.04, -IN_W / 2 + 1.12, 1.25, IN_D / 2 - 1.3, "#f4f4f2");
+  room.colliders.push({ x0: -IN_W / 2, x1: -IN_W / 2 + 1.2, z0: IN_D / 2 - 1.8, z1: IN_D / 2 - 0.8 });
+  // the desk, with the clerk behind it
+  const cx = IN_W / 2 - 1.5, cz = 2.6;
+  inAdd(root, 1.0, 1.05, 3.8, cx, 0.525, cz, "#5a4630"); inAdd(root, 1.1, 0.06, 3.9, cx, 1.08, cz, "#c8a878");
+  const desk = inLabel("受付", 0.9, 0.34, "#5a4630", "#f4f4f2"); desk.position.set(cx - 0.52, 0.85, cz); desk.rotation.y = -Math.PI / 2; root.add(desk);
+  room.colliders.push({ x0: cx - 0.55, x1: cx + 0.55, z0: cz - 1.95, z1: cz + 1.95 });
+  const clerk = new THREE.Group(); clerk.position.set(cx + 1.05, 0, cz); clerk.rotation.y = -Math.PI / 2; root.add(clerk);
+  inAdd(clerk, 0.34, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(clerk, 0.44, 0.62, 0.26, 0, 1.1, 0, th.trim);
+  inAdd(clerk, 0.26, 0.26, 0.26, 0, 1.62, 0, "#e8c4a0"); inAdd(clerk, 0.3, 0.1, 0.3, 0, 1.8, 0, "#1a1c20");
+  room.clerk = clerk;
+  room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.4, z1: cz + 0.4 });
+  // what you can do here
+  const mx = room.mine.x;
+  room.spots = [
+    { x: mx, z: -IN_D / 2 + 2.5, label: "get into your capsule  ¥" + CAPSULE_FEE, act: "pod" },
+    { x: cx - 1.3, z: cz, label: "talk to the desk", act: "desk" }
+  ];
+  root.visible = false;
+  scene.add(root);
+  room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - 3.4);
+  room.doorZ = oz + IN_D / 2;
+  return room;
+}
+function interiorSpotFocus() {
+  const R = interior.room; if (!R.spots) return null;
+  const fx = Math.sin(player.yaw), fz = Math.cos(player.yaw);
+  let best = null, bd = 1.9;
+  for (const sp of R.spots) {
+    const dx = R.ox + sp.x - player.pos.x, dz = R.oz + sp.z - player.pos.z, d = Math.hypot(dx, dz);
+    if (d > bd) continue;
+    if ((dx * fx + dz * fz) / Math.max(0.01, d) < 0.2) continue;
+    bd = d; best = sp;
+  }
+  return best;
+}
+function interiorSpotAct(sp) {
+  if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
+  if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interiorPodDraw(); }
+}
+function interiorPodDraw() {
+  const el = interior.cardEl, p = interior.pod; if (!p) return;
+  const can = purse.yen >= CAPSULE_FEE;
+  el.innerHTML = "<div class='ih'><b>Capsule 3</b><i>" + yenText(CAPSULE_FEE) + "</i></div><div class='in'>A white shell, a blind, a pillow that is mostly a rumour. Eight hours, and everything comes back.</div>"
+    + "<div class='ib'><button data-a='sleep' class='" + (can ? "on" : "dim") + "'>Sleep until morning</button><button data-a='tv'>Use the pod television</button><button data-a='back'>Back</button></div>"
+    + "<div class='ik'>Enter sleep   T television   Esc back   ·   You have " + yenText(purse.yen) + "</div>";
+  el.classList.add("on");
+  el.querySelectorAll("button").forEach(b => b.addEventListener("click", () => interiorPodAction(b.dataset.a)));
+}
+function interiorPodClose() { interior.pod = null; if (!interior.card) interior.cardEl.classList.remove("on"); }
+function interiorPodAction(a) {
+  if (!interior.pod) return;
+  if (a === "back") { interiorPodClose(); return; }
+  if (a === "tv") { const s = interior.shop; interiorPodClose(); interiorLeave(true); enterSafehouse(s); return; }
+  if (a !== "sleep") return;
+  if (purse.yen < CAPSULE_FEE) { say("Not enough for a capsule. " + yenText(CAPSULE_FEE) + " at the desk.", 4); return; }
+  interiorPodClose();
+  const fade = document.getElementById("fade");
+  if (fade) fade.style.opacity = "1";
+  setTimeout(() => {
+    purse.yen -= CAPSULE_FEE;
+    vitals.stress = 0; vitals.health = 1; vitals.slept = 60 * 8; vitals.awake = 0;
+    advanceGameMinutes(60 * 8);
+    say("Slept until morning. You feel human.", 5);
+    saveGame("Saved at the bed.");
+    if (fade) fade.style.opacity = "0";
+  }, 900);
+}
+
 // What a shop stocks, as a list of shelves of plain item records.
 function inStock(s) {
   if (s.brand === "dokoto") {
@@ -29043,6 +29162,7 @@ function inStock(s) {
 function interiorRoom(s) {
   const brand = s.brand;
   if (interior.rooms[brand]) return interior.rooms[brand];
+  if (brand === "capsule") return (interior.rooms[brand] = interiorCapsuleRoom());
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
   const th = IN_THEME[brand] || IN_THEME.eleven;
@@ -29131,7 +29251,7 @@ function interiorRoom(s) {
 }
 
 function interiorSupports(s) {
-  return !!s && !s.safe && !s.plaza && !s.vend && !s.parent && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
+  return !!s && (!s.safe || s.brand === "capsule") && !s.plaza && !s.vend && !s.parent && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
 }
 
 function interiorEnter(s) {
@@ -29163,6 +29283,7 @@ function interiorEnter(s) {
 function interiorLeave(quiet) {
   if (!interior.active) return;
   if (interior.card) interiorCardClose(true);
+  if (interior.pod) interiorPodClose();
   const s = interior.shop;
   interior.room.group.visible = false;
   interior.light.intensity = 0;
@@ -29238,7 +29359,10 @@ function interiorTick(dt) {
   interior.said = Math.max(0, interior.said - dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (interior.card) { interiorCardTick(dt); return; }
-  const hi = interiorFocus();
+  if (interior.pod) { player.speed = 0; return; }
+  const sp = R.spots ? interiorSpotFocus() : null;
+  interior.spot = sp;
+  const hi = R.spots ? null : interiorFocus();
   if (hi !== interior.hi) {
     if (interior.hi) { interior.hi.mesh.getObjectByName("glow").visible = false; interior.hi.mesh.scale.setScalar(1); }
     interior.hi = hi;
@@ -29246,6 +29370,7 @@ function interiorTick(dt) {
   }
   const p = interior.prompt;
   if (hi) { p.innerHTML = "<b>E</b>  look at " + hi.it.name + "  <i>" + yenText(hi.it.price) + "</i>"; p.classList.add("on"); }
+  else if (sp) { p.innerHTML = "<b>E</b>  " + sp.label; p.classList.add("on"); }
   else p.classList.remove("on");
   // out through the doorway
   const lz = player.pos.z - R.oz, lx = player.pos.x - R.ox;
@@ -29409,6 +29534,12 @@ function interiorAction(a) {
 function interiorKey(e) {
   if (!interior.active || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
+  if (interior.pod) {
+    if (k === "Enter" || k === "Space" || k === "KeyE") { interiorPodAction("sleep"); return true; }
+    if (k === "KeyT") { interiorPodAction("tv"); return true; }
+    if (k === "Escape" || k === "Backspace" || k === "KeyF") { interiorPodClose(); return true; }
+    return k !== "KeyP";
+  }
   if (c) {
     if (c.demo) return false;
     if (c.ask) {
@@ -29425,7 +29556,7 @@ function interiorKey(e) {
     if (k === "KeyP") return false;
     return true;
   }
-  if (k === "KeyE" || k === "Enter") { if (interior.hi) interiorCardOpen(interior.hi); else say("Walk up to something on a shelf first.", 2); return true; }
+  if (k === "KeyE" || k === "Enter") { if (interior.hi) interiorCardOpen(interior.hi); else if (interior.spot) interiorSpotAct(interior.spot); else say(interior.room.spots ? "Walk up to your capsule or the desk first." : "Walk up to something on a shelf first.", 2); return true; }
   if (k === "Escape" || k === "KeyF") { if (k === "Escape") return false; interiorLeave(); return true; }
   return false;
 }
@@ -29440,7 +29571,8 @@ function interiorPad(pressed) {
     if (pressed(PAD.B)) { if (c.ask) { c.ask = null; interiorCardDraw(); } else interiorAction("back"); }
     return true;
   }
-  if (pressed(PAD.Y) || pressed(PAD.X)) { if (interior.hi) interiorCardOpen(interior.hi); }
+  if (interior.pod) { if (pressed(PAD.A)) interiorPodAction("sleep"); if (pressed(PAD.X)) interiorPodAction("tv"); if (pressed(PAD.B)) interiorPodClose(); return true; }
+  if (pressed(PAD.Y) || pressed(PAD.X)) { if (interior.hi) interiorCardOpen(interior.hi); else if (interior.spot) interiorSpotAct(interior.spot); }
   return false;
 }
 
