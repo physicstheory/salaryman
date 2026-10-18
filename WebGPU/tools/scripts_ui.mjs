@@ -48,5 +48,16 @@ export default async (page, snap) => {
   // the radio wheel, in a car
   await ev(() => { const g = window.game; const v = g.parked[0]; const t = v.body.translation(); g.player.teleport(t.x - 2.5, 0.3, t.z); });
   await wait(800); await page.keyboard.press('KeyE'); await wait(600);
-  await page.keyboard.down('KeyR'); await wait(900); await snap('wheel_radio'); await page.keyboard.up('KeyR'); await wait(300);
+  await page.keyboard.down('KeyR'); await wait(3500); await snap('wheel_radio'); await page.keyboard.up('KeyR'); await wait(300);
+  await page.keyboard.press('KeyE'); await wait(600);
+  // an activity (the arcade) and a vending machine
+  await ev(() => { const g = window.game; const s = g.city.shops.find((x) => x.brand === 'arcade'); g.player.teleport(s.door.x, 0.3, s.door.z); });
+  await wait(800); await page.keyboard.press('KeyE'); await wait(800); await snap('activity_menu'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await wait(2500); await snap('activity_game'); await page.keyboard.press('Escape'); await wait(300); await page.keyboard.press('Escape'); await wait(400);
+  // the phone's Ryde, Poodle and Wallet
+  await ev(async () => { const m = await import('/src/state.js'); m.gs.device = 'p17pm'; m.gs.owned.p17pm = true; });
+  for (const [i, shot] of [[0, 'ryde'], [1, 'poodle'], [2, 'wallet']]) {
+    await page.keyboard.press('KeyP'); await wait(600);
+    for (let k = 0; k < i; k++) { await page.keyboard.press('ArrowRight'); await wait(80); }
+    await page.keyboard.press('Enter'); await wait(700); await snap('phone_' + shot); await page.keyboard.press('Escape'); await wait(300); await page.keyboard.press('KeyP'); await wait(400);
+  }
 };

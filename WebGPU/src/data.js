@@ -5,8 +5,8 @@ export const Data = {
   items: {},
   brands: {},
 
-  async load() {
-    const raw = await (await fetch('./assets/data/game_data.json')).json();
+  async load(preloaded = null) {
+    const raw = preloaded || await (await fetch('./assets/data/game_data.json')).json();
     this.raw = raw;
     this.brands = { ...raw.brands };
     for (const it of raw.items) this.items[it.id] = it;
