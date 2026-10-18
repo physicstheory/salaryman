@@ -989,7 +989,7 @@
       <button class="title-btn" id="tsettings" type="button">Settings</button>
       <button class="title-btn" id="tquit" type="button" hidden>Quit</button>
     </div>
-    <p id="titlehint">Enter, or <b>A</b> on the controller</p>
+    <p id="titlehint">Enter, or <b>A</b> on the controller<span id="addhint"></span></p>
   </div>
   <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
 </div>
@@ -10705,7 +10705,12 @@ function fitCarModel(object3d, kind, entry) {
   inner.add(object3d);
   inner.rotation.y = entry.yaw || 0;
   inner.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(inner);
+  let box = new THREE.Box3().setFromObject(inner);
+  // A model dropped in by the player may lie along X rather than Z; turn it a quarter so its length runs the way the game expects.
+  if (entry.user) {
+    const s0 = box.getSize(new THREE.Vector3());
+    if (s0.x > s0.z * 1.15) { inner.rotation.y += Math.PI / 2; inner.updateMatrixWorld(true); box = new THREE.Box3().setFromObject(inner); }
+  }
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
   const scale = kind.L / Math.max(0.3, size.z);
@@ -10738,7 +10743,10 @@ function fitCarModel(object3d, kind, entry) {
       }
       if (name === "glass") return sharedCarMat("glass", 0x0d1014, 0.0, 0.06, 1.1);
       if (name === "tyre") return sharedCarMat("tyre", 0x0a0a0b, 0.0, 0.95, 0.2);
-      return sharedCarMat("trim", 0x16181c, 0.35, 0.42, 0.6);
+      if (name === "trim" || !entry.user) return sharedCarMat("trim", 0x16181c, 0.35, 0.42, 0.6);
+      // a car the player supplied keeps its own materials and textures; it only gets the world's reflections
+      if (gfx.high && gfx.env && m.isMeshStandardMaterial) { m.envMap = gfx.env; m.envMapIntensity = Math.max(m.envMapIntensity || 0, 0.8); m.needsUpdate = true; }
+      return m;
     });
     o.material = Array.isArray(o.material) ? out : out[0];
   });
@@ -10769,8 +10777,20 @@ function sharedCarMat(name, colour, metal, rough, envI) {
   return m;
 }
 
+// cars/user.json, written by the desktop app when the player adds a car: { "sports": { "yaw": 3.14159 } }. A car listed there is the player's own.
 function loadCarModels(root) {
   if (typeof THREE.GLTFLoader !== "function") return;
+  const go = (user) => {
+    Object.keys(user || {}).forEach(k => {
+      Object.keys(CAR_MODELS).forEach(n => {
+        if (CAR_MODELS[n].url === "cars/" + k + ".glb") { CAR_MODELS[n].user = true; CAR_MODELS[n].yaw = (user[k] && user[k].yaw) || 0; }
+      });
+    });
+    loadCarModelsNow(root);
+  };
+  fetch("cars/user.json").then(r => (r.ok ? r.json() : {})).catch(() => ({})).then(go);
+}
+function loadCarModelsNow(root) {
   Object.keys(carMatCache).forEach(k => delete carMatCache[k]);
   const loader = new THREE.GLTFLoader();
   const cache = {};
@@ -28900,6 +28920,7 @@ document.getElementById("regen").addEventListener("click", () => {
 });
 generate(19640101);
 </script>
+<script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window'; }</script>
 
 </body>
 </html>

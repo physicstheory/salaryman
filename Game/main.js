@@ -10,8 +10,9 @@
 // arrive. Serving the staged folder over a private konto:// scheme gives the
 // page a normal origin without turning web security off.
 
-const { app, BrowserWindow, protocol, net, shell, screen } = require("electron");
+const { app, BrowserWindow, protocol, net, shell, screen, dialog, ipcMain } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const url = require("url");
 
 const APP_DIR = path.join(__dirname, "app");
@@ -51,12 +52,97 @@ async function takeShot(target) {
   app.quit();
 }
 
+// ---- the player's own files ------------------------------------------------------------------------------------------------------------
+// Press F8 (or drop files onto the window) to add a car or road textures. They are copied into a folder that belongs to the player, outside
+// the game, and served over the game's own copy, so nothing needs a file explorer, an upload or a rebuild.
+const USER_DIR = path.join(app.getPath("userData"), "Your Files");
+const SLOTS = [
+  { id: "sports", label: "Sports car", re: /revuelto|lambo|huracan|aventador|ferrari|mclaren|porsche|911|supercar|sport|gt/i },
+  { id: "sedan", label: "Saloon, taxis and Ryde cars", re: /sedan|saloon|taxi|crown|camry|audi|a7|byd|bmw|mercedes|civic|corolla/i },
+  { id: "kei", label: "Kei car", re: /kei|alto|n-?box|wagon|hatch|mini|cappuccino/i },
+  { id: "keivan", label: "Kei truck / van", re: /truck|carry|pickup|pit|van|hijet|acty/i },
+  { id: "bike", label: "Motorbike", re: /bike|moto|scooter|vespa|cub/i }
+];
+const ROAD = [
+  { file: "asphalt_diff.jpg", label: "colour", re: /diff|colou?r|albedo|base/i },
+  { file: "asphalt_nor.jpg", label: "normal map", re: /nor|normal/i },
+  { file: "asphalt_arm.jpg", label: "roughness (ARM)", re: /arm|rough|orm/i }
+];
+function userOverride(rel) {
+  const m = /^cars\/([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel);
+  if (!m) return null;
+  const f = path.join(USER_DIR, rel.startsWith("cars") ? "cars" : "road", m[1]);
+  return fs.existsSync(f) ? f : null;
+}
+function userJson() { try { return JSON.parse(fs.readFileSync(path.join(USER_DIR, "cars", "user.json"), "utf8")); } catch (e) { return {}; } }
+function saveUserJson(j) { fs.mkdirSync(path.join(USER_DIR, "cars"), { recursive: true }); fs.writeFileSync(path.join(USER_DIR, "cars", "user.json"), JSON.stringify(j)); }
+
+async function addFiles(files) {
+  const added = [];
+  for (const f of files) {
+    const name = path.basename(f);
+    if (/\.glb$/i.test(name)) {
+      let guess = SLOTS.findIndex(sl => sl.re.test(name));
+      const r = await dialog.showMessageBox(win, {
+        type: "question", title: "Add a car", noLink: true, cancelId: SLOTS.length, defaultId: guess < 0 ? 0 : guess,
+        message: "Which car does \"" + name + "\" replace?",
+        detail: guess < 0 ? "Choose a slot." : "It looks like the " + SLOTS[guess].label.toLowerCase() + ".",
+        buttons: SLOTS.map(sl => sl.label).concat(["Skip it"])
+      });
+      if (r.response >= SLOTS.length) continue;
+      const slot = SLOTS[r.response];
+      fs.mkdirSync(path.join(USER_DIR, "cars"), { recursive: true });
+      fs.copyFileSync(f, path.join(USER_DIR, "cars", slot.id + ".glb"));
+      const j = userJson(); j[slot.id] = j[slot.id] || { yaw: 0 }; saveUserJson(j);
+      added.push(slot.label);
+    } else if (/\.(jpe?g|png)$/i.test(name)) {
+      let guess = ROAD.findIndex(sl => sl.re.test(name));
+      const r = await dialog.showMessageBox(win, {
+        type: "question", title: "Add a road texture", noLink: true, cancelId: ROAD.length, defaultId: guess < 0 ? 0 : guess,
+        message: "What is \"" + name + "\" for the road?", buttons: ROAD.map(x => x.label).concat(["Skip it"])
+      });
+      if (r.response >= ROAD.length) continue;
+      fs.mkdirSync(path.join(USER_DIR, "road"), { recursive: true });
+      fs.copyFileSync(f, path.join(USER_DIR, "road", ROAD[r.response].file));
+      added.push("road " + ROAD[r.response].label);
+    }
+  }
+  if (added.length) {
+    await dialog.showMessageBox(win, { type: "info", title: "Added", message: "Added: " + added.join(", "), detail: "The world reloads now so they show up." });
+    win.reload();
+  }
+}
+async function pickFiles() {
+  const r = await dialog.showOpenDialog(win, {
+    title: "Add cars or road textures", properties: ["openFile", "multiSelections"],
+    filters: [{ name: "Cars (.glb) and textures (.jpg, .png)", extensions: ["glb", "jpg", "jpeg", "png"] }]
+  });
+  if (!r.canceled && r.filePaths.length) await addFiles(r.filePaths);
+}
+// F7: a car that is facing the wrong way is turned half a circle.
+async function flipCar() {
+  const j = userJson(), ids = Object.keys(j);
+  if (!ids.length) { await dialog.showMessageBox(win, { type: "info", message: "You have not added any cars yet.", detail: "Press F8 to add one." }); return; }
+  const r = await dialog.showMessageBox(win, { type: "question", noLink: true, message: "Turn which car round?", buttons: ids.map(id => SLOTS.find(x => x.id === id).label).concat(["Cancel"]), cancelId: ids.length });
+  if (r.response >= ids.length) return;
+  const id = ids[r.response];
+  j[id].yaw = ((j[id].yaw || 0) + Math.PI) % (Math.PI * 2);
+  saveUserJson(j);
+  win.reload();
+}
+async function removeUserFiles() {
+  const r = await dialog.showMessageBox(win, { type: "warning", noLink: true, message: "Go back to the game's own cars and roads?", detail: "This removes the cars and textures you added.", buttons: ["Remove them", "Cancel"], cancelId: 1, defaultId: 1 });
+  if (r.response === 0) { fs.rmSync(USER_DIR, { recursive: true, force: true }); win.reload(); }
+}
+
 function resolve(request) {
   const u = new URL(request.url);
   let rel = decodeURIComponent(u.pathname).replace(/^\/+/, "");
   if (!rel) rel = "index.html";
   // konto://app/... is the staged page; konto://app/../vendor/... is three.js.
   const base = u.hostname === "vendor" ? path.join(ROOT, "vendor") : APP_DIR;
+  const over = u.hostname === "vendor" ? null : userOverride(rel);
+  if (over) return over;
   const full = path.normalize(path.join(base, rel));
   // Nothing outside the two folders this app ships, whatever the url says.
   if (!full.startsWith(APP_DIR) && !full.startsWith(path.join(ROOT, "vendor"))) return null;
@@ -98,8 +184,15 @@ function createWindow() {
   win.webContents.on("before-input-event", (event, input) => {
     if (input.type !== "keyDown") return;
     if (input.key === "F11") { win.setFullScreen(!win.isFullScreen()); event.preventDefault(); }
+    if (input.key === "F8") { pickFiles(); event.preventDefault(); }
+    if (input.key === "F7") { flipCar(); event.preventDefault(); }
+    if (input.key === "F6") { removeUserFiles(); event.preventDefault(); }
     if (input.key === "F12") { win.webContents.toggleDevTools(); event.preventDefault(); }
     if (input.control && (input.key === "r" || input.key === "R")) { win.reload(); event.preventDefault(); }
+  });
+  // Dropping files on the window adds them, instead of the page navigating away to the file.
+  win.webContents.on("will-navigate", (event, target) => {
+    if (target.startsWith("file:")) { event.preventDefault(); try { addFiles([url.fileURLToPath(target)]); } catch (e) { /* not a path */ } }
   });
   win.webContents.setWindowOpenHandler(({ url: target }) => {
     shell.openExternal(target);
@@ -111,6 +204,8 @@ function createWindow() {
 app.commandLine.appendSwitch("force_high_performance_gpu");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 app.commandLine.appendSwitch("enable-gpu-rasterization");
+
+ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(paths.filter(p => typeof p === "string")); });
 
 app.whenReady().then(() => {
   protocol.handle("konto", request => {
