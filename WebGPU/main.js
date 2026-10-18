@@ -10,12 +10,13 @@ const isDev = process.argv.includes('--dev') || !app.isPackaged;
 // Everything here must be set before the app is ready.
 const features = ['Vulkan', 'WebGPU'];
 if (process.platform === 'linux') features.push('VaapiVideoDecoder');
-app.commandLine.appendSwitch('enable-features', features.join(','));
-app.commandLine.appendSwitch('enable-unsafe-webgpu');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
+const safe = process.argv.includes('--safe');   // npm run start:safe: plain WebGL2 on the default GPU settings
+if (!safe) app.commandLine.appendSwitch('enable-features', features.join(','));
+if (!safe) app.commandLine.appendSwitch('enable-unsafe-webgpu');
+if (!safe) app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('force_high_performance_gpu');
+if (!safe) app.commandLine.appendSwitch('force_high_performance_gpu');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
 // The game is served from its own secure origin (game://app/), not from file://, so that fetch(), ES modules and WebGPU all behave as they do on the web.
@@ -95,7 +96,12 @@ function createWindow() {
       app.quit();
     }, Number(process.env.SALARYMAN_WAIT || 25000));
   }
-  win.loadURL('game://app/index.html');
+  // the page's messages go to this terminal, so a blank window can be diagnosed from the command prompt
+  win.webContents.on('console-message', (_e, level, message) => { if (level >= 2) console.log('[page]', message); });
+  win.webContents.on('render-process-gone', (_e, d) => console.log('[renderer gone]', d.reason));
+  win.webContents.on('did-fail-load', (_e, code, desc, url) => console.log('[load failed]', code, desc, url));
+  app.on('child-process-gone', (_e, d) => console.log('[process gone]', d.type, d.reason));
+  win.loadURL(safe ? 'game://app/index.html?webgl' : 'game://app/index.html');
 }
 
 app.whenReady().then(() => {
