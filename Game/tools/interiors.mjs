@@ -81,14 +81,14 @@ async function visit(brand, pickIdx, tryIt) {
     await page.keyboard.press("KeyE"); await wait(2500); await snap(brand + "_close_look");
     if (tryIt) { await page.keyboard.press("KeyT"); await wait(3000); await snap(brand + "_try"); }
     console.log(brand, "card:", await ev(() => interior.card ? interior.card.e.it.name : "none"));
-    await page.keyboard.press("Enter"); await wait(1800); await snap(brand + "_bought");
+    await page.keyboard.press("Enter"); await wait(1800); if (!process.env.ATLAS) await snap(brand + "_bought");
     console.log(brand, "yen now", await ev(() => purse.yen));
     if (tryIt) { await page.keyboard.press("Escape"); await wait(800); }
     await page.keyboard.press("Escape"); await wait(1500);
     await ev(() => { if (interior.card) interiorAction("back"); });
     await ev(() => { const R = interior.room; player.pos.set(R.ox, interior.floorY, R.oz + 5.1); });
     await wait(2000); console.log("left to street:", await ev(() => !interior.active));
-    await snap(brand + "_back_outside");
+    if (!process.env.ATLAS) await snap(brand + "_back_outside");
   });
 }
 const BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto"];
