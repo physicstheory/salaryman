@@ -57,6 +57,7 @@ async function step(name, fn) { try { await fn(); } catch (e) { console.log("ste
 
 
 const fsx = fs;
+const SHARD0 = (process.env.SHARD || "0/1").startsWith("0/");
 await page.goto(`http://localhost:${port}/konto.html`);
 for (let i = 0; i < 90; i++) { if (/titleup/.test(await ev(() => document.body.className))) break; await wait(5000); }
 await wait(3000); await page.keyboard.press("Enter");
@@ -90,14 +91,18 @@ const base = await ev(({ b }) => {
   drawMapView(g, 2400, 2400, cx, cz, across, 0, { labels: true, markers: false, route: false, alwaysPlayer: false });
   return { cx, cz, across, png: cv.toDataURL("image/png") };
 }, { b: data.bounds });
-fsx.writeFileSync(path.join(OUT, "map.png"), Buffer.from(base.png.split(",")[1], "base64"));
+if (SHARD0) fsx.writeFileSync(path.join(OUT, "map.png"), Buffer.from(base.png.split(",")[1], "base64"));
 data.map = { cx: base.cx, cz: base.cz, across: base.across };
-fsx.writeFileSync(path.join(OUT, "places.json"), JSON.stringify(data, null, 1));
+if (SHARD0) fsx.writeFileSync(path.join(OUT, "places.json"), JSON.stringify(data, null, 1));
 console.log("map saved", JSON.stringify(data.map));
 
 // a street view of each
 await ev(() => document.body.classList.add("camfull"));
-for (const pl of data.places) {
+const SH = (process.env.SHARD || "0/1").split("/").map(Number);
+const ORDER = { mall: 0, plaza: 1, hotel: 2, shop: 3, hospital: 4, station: 5 };
+const todo = data.places.slice().sort((a, b) => ORDER[a.kind] - ORDER[b.kind]).filter((_, i) => i % SH[1] === SH[0]);
+for (const pl of todo) {
+  if (fsx.existsSync(path.join(OUT, pl.id + ".jpg"))) continue;
   await step(pl.id, async () => {
     await ev((p) => {
       const out = p.door ? p.yaw : 0, dx = p.door ? p.door[0] : p.x, dz = p.door ? p.door[1] : p.z;
