@@ -147,7 +147,7 @@ await step("ramen", async () => {
   await keyS("ArrowRight"); await keyS("Space");              // egg
   await wait(900); await snap("ramen_sheet_ticked");
   const before = await yen();
-  await keyS("Enter"); await ev(() => { const S = interior.sit; if (S.phase === "sheet") ramenSubmit(S); }); await wait(700);
+  await keyS("Enter"); await wait(700);
   await snap("ramen_blind_down_waiting");
   for (const [t, nm] of [[2.0, "blind_rising"], [3.0, "bowl_arrives"]]) {
     await ev(tt => { interior.sit.t = tt; }, t); await wait(900); await snap("ramen_" + nm);
@@ -160,5 +160,17 @@ await step("ramen", async () => {
   await leave();
 });
 
+
+// 4. the other shops, to see the new walls and adverts
+for (const b of ["eleven", "petmart", "pharmacy", "books", "clothes", "arms"]) {
+  await step("shop " + b, async () => {
+    await ev(() => { if (interior.active) interiorLeave(true); }); await wait(600);
+    await ev(br => { const s = shops.list.find(x => x.brand === br && !x.safe && !x.mall); enterShop(s); }, b); await wait(2200);
+    await snap(b + "_entry");
+    await ev(() => { const R = interior.room; player.pos.set(R.ox - 1.5, interior.floorY, R.oz + 0.5); player.yaw = player.targetYaw = Math.PI / 2; yaw = player.yaw + Math.PI; pitch = -0.1; }); await wait(1800); await snap(b + "_towards_counter");
+    await ev(() => { const R = interior.room; player.pos.set(R.ox + 1.5, interior.floorY, R.oz + 0.5); player.yaw = player.targetYaw = -Math.PI / 2; yaw = player.yaw + Math.PI; pitch = -0.1; }); await wait(1800); await snap(b + "_towards_window_wall");
+  });
+}
+await ev(() => { if (interior.active) interiorLeave(true); });
 console.log("sit state after:", await ev(() => interior.sit), "active:", await ev(() => interior.active));
 await browser.close(); srv.close();

@@ -29384,10 +29384,12 @@ function inFloorTex(brand) {
     else { for (let k = 0; k < 900; k++) { g.fillStyle = k % 3 ? b : grout; g.globalAlpha = 0.5; g.fillRect((k * 53) % 256, (k * 97) % 256, 2, 2); } g.globalAlpha = 1; }
   });
 }
-function inWallTex(brand) {
+const IN_ACCENT = { eleven: "#1f9a63", petmart: "#2f86e0", pharmacy: "#45b383", books: "#2f5d49", clothes: "#3a3f4a", sushi: "#c0172b", dokoto: "#d4152c" };   // the painted wall behind the counter
+function inWallTex(brand, accent) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
-  return inCanvasTex("wall:" + brand, 256, 256, (g, w, h) => {
-    const [up, rail, low, kind] = sk.wall;
+  return inCanvasTex("wall:" + brand + (accent ? ":a" : ""), 256, 256, (g, w, h) => {
+    let [up, rail, low, kind] = sk.wall;
+    if (accent && IN_ACCENT[brand]) { up = IN_ACCENT[brand]; low = inShade(up, 0.6); }
     g.fillStyle = up; g.fillRect(0, 0, w, h);
     const railY = h * 0.70;                         // the rail sits a metre up the wall; y runs down the texture
     g.fillStyle = low; g.fillRect(0, railY, w, h - railY);
@@ -29602,6 +29604,7 @@ function inBanner(root, brand, i, x, y, z, ry, w) {
     g.fillStyle = ad[3]; g.fillRect(0, 0, cw, ch);
     g.fillStyle = "rgba(255,255,255,0.12)"; if (v) { for (let k = -2; k < 14; k++) { g.beginPath(); g.moveTo(k * 48, ch); g.lineTo(k * 48 + 24, ch); g.lineTo(k * 48 + 24 + 40, 0); g.lineTo(k * 48 + 40, 0); g.fill(); } } else { for (let a = 0; a < cw; a += 32) for (let b = 0; b < ch; b += 32) { g.beginPath(); g.arc(a + ((b / 32) % 2) * 16, b, 6, 0, 7); g.fill(); } }
     g.fillStyle = "rgba(0,0,0,0.22)"; g.fillRect(0, ch - 16, cw, 16);
+    g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 5; g.strokeRect(3, 3, cw - 6, ch - 6);
     g.fillStyle = "rgba(255,255,255,0.92)"; g.beginPath(); g.arc(66, ch / 2 - 4, 54, 0, 7); g.fill();
     if (!inArt(g, ad[2], 66, ch / 2 - 4, 84, ad[4])) inIcon(g, ad[2], 66, ch / 2 - 4, 70, ad[3]);
     g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; g.shadowColor = "rgba(0,0,0,0.4)"; g.shadowBlur = 4;
@@ -29659,7 +29662,7 @@ function interiorDecor(room, root, th, brand, opts) {
   // ---- painted surfaces over the plain boxes
   const floor = inPlaneTex(inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
   const wt = inWallTex(brand);
-  root.add(inPlaneTex(wt, W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  root.add(inPlaneTex(IN_ACCENT[brand] ? inWallTex(brand, true) : wt, W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
   const side = (W - 2.4) / 2;
@@ -30076,10 +30079,10 @@ function ramenBuild(room, root, th) {
     for (let k = 0; k < 6; k++) inAdd(root, 1.1, 0.02, 0.055, x, 1.15 + k * 0.15, -2.28, "#4a6a30");
     inAdd(root, 0.05, 1.0, 0.8, x + 0.75, 0.9, -1.0, "#8a6a3a");                              // the partition
     inAdd(root, 0.2, 0.12, 0.02, x + 0.0, 1.14, -1.6, "#c8372d");                             // the call button
-    const bowl = new THREE.Group(); bowl.position.set(x, 1.08, -2.1); bowl.visible = false; root.add(bowl); room.bowls.push(bowl);
+    const bowl = new THREE.Group(); bowl.position.set(x, 1.08, -2.1); bowl.scale.setScalar(1.35); bowl.visible = false; root.add(bowl); room.bowls.push(bowl);
     const bw = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.17, 0.2, 12), inMat("#f2efe6")); bw.position.y = 0.1; bowl.add(bw);
     const br = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.02, 12), inMat("#c8903a")); br.position.y = 0.2; bowl.add(br); bowl.userData.broth = br;
-    inAdd(bowl, 0.2, 0.04, 0.12, -0.05, 0.23, 0.0, "#e8b0a0"); inAdd(bowl, 0.08, 0.05, 0.08, 0.1, 0.23, 0.05, "#f2efe6"); inAdd(bowl, 0.14, 0.02, 0.14, 0.0, 0.22, -0.1, "#4a6a30");
+    inCyl(bowl, 0.09, 0.03, -0.1, 0.235, 0.02, "#e8a0a0"); inCyl(bowl, 0.08, 0.03, 0.1, 0.235, 0.0, "#f2efe6"); inCyl(bowl, 0.035, 0.032, 0.1, 0.24, 0.0, "#f2a31c"); inAdd(bowl, 0.12, 0.2, 0.02, 0.12, 0.3, -0.12, "#16231d"); for (let q = 0; q < 6; q++) inAdd(bowl, 0.04, 0.02, 0.04, -0.12 + q * 0.05, 0.225, -0.14 + (q % 2) * 0.05, "#5fae44"); for (let q = 0; q < 4; q++) inAdd(bowl, 0.34, 0.012, 0.014, -0.0, 0.215, -0.12 + q * 0.07, "#f3dc8a");
     inStool(root, x, -0.6, "#2a2d33"); room.colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: -0.85, z1: -0.35 });
     seats.push({ x: x, z: -0.6 }); room.spots.push({ x: x, z: 0.0, label: "sit in booth " + (i + 1), act: "sit", seat: i });
   }
@@ -30097,7 +30100,7 @@ function ramenBuild(room, root, th) {
     room.staff.forEach((c, i) => { c.userData.armR.rotation.x = -0.6 + Math.sin(clock * 3 + i * 2) * 0.5; c.userData.armL.rotation.x = -0.5 + Math.cos(clock * 2.4 + i) * 0.4; });
     room.steam.forEach(m => { const t = (clock * 0.4 + m.userData.o * 0.37) % 1; m.position.y = 1.5 + t * 1.0; m.material.opacity = 0.28 * (1 - t); m.scale.setScalar(0.7 + t * 1.2); });
   };
-  room.seatCam = (st) => ({ pos: [st.x, 1.36, 0.1], look: [st.x, 1.12, -2.0] });
+  room.seatCam = (st) => ({ pos: [st.x, 1.62, 0.0], look: [st.x, 1.0, -1.75] });
 }
 
 // ---- sitting down
