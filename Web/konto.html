@@ -29756,6 +29756,135 @@ function inStock(s) {
   return shopShelves(s).filter(sh => sh.items.length).map(sh => ({ name: sh.name, items: sh.items }));
 }
 
+// ---- props to fill the floor --------------------------------------------------------------------------------------------------------------
+// Things that are only there to be walked round: pallets of stock with a sale card, stacked cartons, baskets, plants, A-frame boards, standees,
+// magazine racks, cat trees, rounders of clothes, crates and hanging price signs. Each one is dropped where there is room (clear of every shelf,
+// counter and spot, the door lane and the way in, with an aisle left either side), so the rooms read as stocked without ever blocking a route.
+const IN_CARTON = ["#c9a272", "#b8925f", "#d4b080"];
+function inCarton(g, w, h, d, x, y, z, tape, ry) {
+  const c = inAdd(g, w, h, d, x, y + h / 2, z, IN_CARTON[Math.abs(Math.round(x * 7 + z * 5)) % 3]); if (ry) c.rotation.y = ry;
+  const t = inAdd(g, w * 0.14, 0.012, d + 0.01, x, y + h + 0.002, z, tape || "#e8d9b8"); if (ry) t.rotation.y = ry;
+  const l = inAdd(g, w * 0.5, h * 0.4, 0.012, x, y + h * 0.5, z + d / 2 + 0.006, tape || "#e8d9b8"); if (ry) { l.position.set(x + Math.sin(ry) * (d / 2 + 0.006), y + h * 0.5, z + Math.cos(ry) * (d / 2 + 0.006)); l.rotation.y = ry; }
+  return c;
+}
+const IN_PROP = {
+  boxes: { r: 0.5, solid: true, zone: "wall", make(g, c) { inCarton(g, 0.62, 0.42, 0.5, 0, 0, 0, c.pal[0]); inCarton(g, 0.52, 0.38, 0.46, 0.02, 0.42, 0, c.pal[1], 0.2); if (c.n % 2) inCarton(g, 0.5, 0.4, 0.4, 0.7, 0, 0.1, c.pal[2], -0.3); } },
+  pallet: { r: 0.7, solid: true, zone: "floor", make(g, c) {
+    for (let i = 0; i < 3; i++) inAdd(g, 1.15, 0.04, 0.12, 0, 0.08, -0.3 + i * 0.3, "#b08a58"); inAdd(g, 1.15, 0.08, 0.92, 0, 0.04, 0, "#9a7648");
+    for (let ly = 0; ly < 3; ly++) for (let ix = 0; ix < 4; ix++) for (let iz = 0; iz < 2; iz++) inAdd(g, 0.26, 0.24, 0.36, -0.42 + ix * 0.28, 0.2 + ly * 0.25, -0.2 + iz * 0.4, c.pal[(ix + iz + ly + c.n) % c.pal.length]);
+    inAdd(g, 0.04, 1.75, 0.04, 0.52, 0.9, 0.42, "#2a2d33"); const s = inLabel(c.tag, 0.95, 0.36, c.sale, "#ffffff"); s.position.set(0.52 - 0.5, 1.7, 0.43); g.add(s); } },
+  basket: { r: 0.3, solid: false, zone: "door", make(g, c) { for (let i = 0; i < 5; i++) inAdd(g, 0.42 - i * 0.01, 0.1, 0.3, 0, 0.05 + i * 0.1, 0, i % 2 ? c.pal[0] : c.sale); inAdd(g, 0.5, 0.04, 0.34, 0, 0.02, 0, "#2a2d33"); } },
+  plant: { r: 0.32, solid: true, zone: "wall", make(g, c) { inCyl(g, 0.24, 0.42, 0, 0.21, 0, "#8a5a3a"); inCyl(g, 0.2, 0.03, 0, 0.43, 0, "#3a2a1a"); for (let i = 0; i < 5; i++) { const a = i * 1.26; const l = inAdd(g, 0.1, 0.7 + (i % 2) * 0.25, 0.04, Math.cos(a) * 0.12, 0.85, Math.sin(a) * 0.12, i % 2 ? "#3f8f4a" : "#5fae44"); l.rotation.set(Math.sin(a) * 0.4, a, Math.cos(a) * 0.4); } } },
+  sandwich: { r: 0.42, solid: true, zone: "floor", make(g, c) { const a = c.ad; for (const s of [-1, 1]) { const b = inAdd(g, 0.62, 0.95, 0.03, 0, 0.47, s * 0.17, "#2a2d33"); b.rotation.x = -s * 0.2; }
+    const f = inLabel(a[0], 0.56, 0.5, a[3], "#ffffff"); f.position.set(0, 0.62, 0.2); f.rotation.x = -0.2; g.add(f); const f2 = inLabel(a[1], 0.56, 0.2, "#fffdf4", "#222222"); f2.position.set(0, 0.28, 0.24); f2.rotation.x = -0.2; g.add(f2);
+    const k = inLabel(a[0], 0.56, 0.5, a[3], "#ffffff"); k.position.set(0, 0.62, -0.2); k.rotation.set(0.2, Math.PI, 0); g.add(k); } },
+  standee: { r: 0.45, solid: true, zone: "wall", make(g, c) { inAdd(g, 0.76, 0.06, 0.5, 0, 0.03, 0, "#2a2d33"); inAdd(g, 0.78, 1.45, 0.04, 0, 0.8, 0, "#fffdf4");
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.95), new THREE.MeshBasicMaterial({ map: inPosterTex(c.brand, c.n + 1), fog: false })); p.position.set(0, 1.1, 0.025); g.add(p);
+    const q = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.95), new THREE.MeshBasicMaterial({ map: inPosterTex(c.brand, c.n + 2), fog: false })); q.position.set(0, 1.1, -0.025); q.rotation.y = Math.PI; g.add(q);
+    inAdd(g, 0.7, 0.3, 0.05, 0, 0.42, 0.03, c.sale); } },
+  magrack: { r: 0.7, solid: true, zone: "wall", make(g, c) { inAdd(g, 1.3, 1.6, 0.14, 0, 0.8, -0.12, "#6a4a2e"); inAdd(g, 1.3, 0.08, 0.5, 0, 0.04, 0.08, "#6a4a2e"); inAdd(g, 0.05, 1.5, 0.5, -0.65, 0.75, 0.08, "#6a4a2e"); inAdd(g, 0.05, 1.5, 0.5, 0.65, 0.75, 0.08, "#6a4a2e");
+    for (let r = 0; r < 4; r++) { inAdd(g, 1.24, 0.03, 0.2, 0, 0.35 + r * 0.38, 0.12, "#4a3220"); for (let i = 0; i < 8; i++) { const m = inAdd(g, 0.13, 0.28, 0.015, -0.54 + i * 0.155, 0.52 + r * 0.38, 0.13, IN_PALETTE[(i * 3 + r + c.n) % 8]); m.rotation.x = -0.25; } } } },
+  spinner: { r: 0.4, solid: true, zone: "floor", make(g, c) { inCyl(g, 0.3, 0.05, 0, 0.03, 0, "#2a2d33"); inCyl(g, 0.04, 1.6, 0, 0.8, 0, "#8d939c"); for (let lv = 0; lv < 3; lv++) for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 + lv * 0.4; const m = inAdd(g, 0.2, 0.36, 0.02, Math.cos(a) * 0.26, 0.55 + lv * 0.4, Math.sin(a) * 0.26, IN_PALETTE[(i + lv * 3 + c.n) % 8]); m.rotation.y = -a + Math.PI / 2; } inCyl(g, 0.16, 0.08, 0, 1.64, 0, c.sale); } },
+  rounder: { r: 0.7, solid: true, zone: "floor", make(g, c) { inCyl(g, 0.35, 0.04, 0, 0.03, 0, "#2a2d33"); inCyl(g, 0.03, 1.5, 0, 0.75, 0, "#c9ced4");
+    for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2; const m = inAdd(g, 0.06, 0.62, 0.38, Math.cos(a) * 0.42, 1.1, Math.sin(a) * 0.42, IN_PALETTE[(i * 3 + c.n) % 8]); m.rotation.y = -a; }
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; inAdd(g, 0.2, 0.02, 0.03, Math.cos(a) * 0.42, 1.45, Math.sin(a) * 0.42, "#c9ced4").rotation.y = -a + Math.PI / 2; } inCyl(g, 0.5, 0.03, 0, 1.5, 0, c.sale); } },
+  foldtable: { r: 0.85, solid: true, zone: "floor", make(g, c) { inAdd(g, 1.5, 0.06, 0.95, 0, 0.78, 0, "#8a6a44"); for (const sx of [-1, 1]) for (const sz of [-1, 1]) inAdd(g, 0.06, 0.78, 0.06, sx * 0.68, 0.39, sz * 0.4, "#5a4430");
+    for (let ix = 0; ix < 4; ix++) for (let iz = 0; iz < 2; iz++) for (let k = 0; k < 3 + ((ix + iz) % 2); k++) inAdd(g, 0.3, 0.07, 0.34, -0.5 + ix * 0.34, 0.84 + k * 0.075, -0.2 + iz * 0.4, c.bookish ? IN_PALETTE[(ix * 2 + iz + k) % 8] : IN_PALETTE[(ix + iz * 3) % 8]); } },
+  umbrella: { r: 0.28, solid: true, zone: "wall", make(g, c) { inCyl(g, 0.22, 0.6, 0, 0.3, 0, "#2a2d33"); for (let i = 0; i < 7; i++) { const a = i * 0.9; const u = inAdd(g, 0.035, 0.95, 0.035, Math.cos(a) * 0.1, 0.9, Math.sin(a) * 0.1, ["#1272d6", "#c8372d", "#2a2d33", "#e8d84a", "#f4f4f2", "#5fae44", "#9b6bd3"][i]); u.rotation.set(Math.sin(a) * 0.12, 0, Math.cos(a) * 0.12); inAdd(g, 0.06, 0.1, 0.06, Math.cos(a) * 0.12, 1.4, Math.sin(a) * 0.12, "#2a2d33"); } } },
+  bench: { r: 0.8, solid: true, zone: "wall", make(g, c) { inAdd(g, 1.5, 0.1, 0.5, 0, 0.45, 0, c.wood); inAdd(g, 0.08, 0.45, 0.45, -0.65, 0.22, 0, "#2a2d33"); inAdd(g, 0.08, 0.45, 0.45, 0.65, 0.22, 0, "#2a2d33"); inAdd(g, 1.4, 0.4, 0.06, 0, 0.8, -0.24, c.wood); inAdd(g, 0.35, 0.12, 0.32, -0.35, 0.56, 0.0, c.sale); } },
+  cattree: { r: 0.55, solid: true, zone: "wall", make(g, c) { inAdd(g, 0.9, 0.1, 0.7, 0, 0.05, 0, "#c9a878"); inCyl(g, 0.09, 1.7, -0.15, 0.9, 0, "#d9c08a"); inAdd(g, 0.6, 0.08, 0.5, -0.1, 1.0, 0, "#c9a878"); inAdd(g, 0.5, 0.08, 0.45, 0.1, 1.55, 0.02, "#c9a878"); inAdd(g, 0.42, 0.4, 0.4, 0.22, 0.3, 0.05, "#b08a58"); inAdd(g, 0.12, 0.22, 0.02, 0.22, 0.28, 0.26, "#2a2d33"); inCyl(g, 0.08, 0.04, 0.2, 1.62, 0.05, "#e8604f"); } },
+  aquarium: { r: 0.75, solid: true, zone: "wall", make(g, c) { inAdd(g, 1.3, 0.75, 0.6, 0, 0.375, 0, "#3a3f46"); inAdd(g, 1.2, 0.62, 0.5, 0, 1.06, 0, "#7fd0f0"); inAdd(g, 1.24, 0.04, 0.54, 0, 1.4, 0, "#2a2d33"); for (let i = 0; i < 6; i++) inAdd(g, 0.12, 0.07, 0.04, -0.4 + i * 0.16, 0.95 + (i * 37 % 5) * 0.08, 0.1 - (i % 3) * 0.1, ["#f08a3a", "#e8d84a", "#e8604f", "#f4f4f2", "#3f6fb5", "#f08a3a"][i]); inAdd(g, 1.2, 0.08, 0.5, 0, 0.78, 0, "#e8d9a8"); inAdd(g, 0.06, 0.3, 0.06, 0.3, 0.95, -0.1, "#3f8f4a"); } },
+  dogbed: { r: 0.5, solid: false, zone: "wall", make(g, c) { inCyl(g, 0.46, 0.14, 0, 0.07, 0, c.pal[0]); inCyl(g, 0.34, 0.16, 0, 0.1, 0, "#f4efe6"); inCyl(g, 0.4, 0.14, 0.25, 0.21, -0.18, c.pal[2]); } },
+  bags: { r: 0.6, solid: true, zone: "wall", make(g, c) { for (let r = 0; r < 3; r++) for (let i = 0; i < 3 - (r > 1 ? 1 : 0); i++) { const col = IN_PALETTE[(i + r * 2 + c.n) % 8]; inAdd(g, 0.42, 0.22, 0.7, -0.45 + i * 0.45, 0.11 + r * 0.22, 0, col); inAdd(g, 0.3, 0.1, 0.01, -0.45 + i * 0.45, 0.11 + r * 0.22, 0.355, "#fffdf4"); } inAdd(g, 0.5, 0.7, 0.2, 0.55, 0.35, 0.0, c.pal[1]).rotation.z = 0.15; } },
+  crates: { r: 0.6, solid: true, zone: "wall", make(g, c) { const crate = (x, y, z, ry) => { const b = inAdd(g, 0.7, 0.45, 0.5, x, y + 0.225, z, "#a98858"); b.rotation.y = ry || 0; for (let i = 0; i < 3; i++) { const s = inAdd(g, 0.72, 0.05, 0.52, x, y + 0.08 + i * 0.15, z, "#7a5a38"); s.rotation.y = ry || 0; } };
+    crate(0, 0, 0, 0); crate(0.05, 0.45, 0, 0.3); crate(0.75, 0, 0.1, -0.2); } },
+  barrel: { r: 0.35, solid: true, zone: "wall", make(g, c) { inCyl(g, 0.3, 0.85, 0, 0.425, 0, c.n % 2 ? "#2a5a8a" : "#8a2a2a"); inCyl(g, 0.31, 0.05, 0, 0.2, 0, "#2a2d33"); inCyl(g, 0.31, 0.05, 0, 0.65, 0, "#2a2d33"); inCyl(g, 0.26, 0.02, 0, 0.86, 0, "#1a1c20"); } },
+  toolbox: { r: 0.4, solid: true, zone: "wall", make(g, c) { inAdd(g, 0.7, 0.35, 0.3, 0, 0.175, 0, "#c8372d"); inAdd(g, 0.72, 0.04, 0.32, 0, 0.36, 0, "#8a2a2a"); inAdd(g, 0.3, 0.05, 0.05, 0, 0.45, 0, "#2a2d33"); inAdd(g, 0.6, 0.3, 0.26, 0.05, 0.5, 0.0, "#d9a21c").position.y = 0.55; } },
+  reel: { r: 0.45, solid: true, zone: "wall", make(g, c) { inCyl(g, 0.4, 0.06, 0, 0.03, 0, "#8a6a44"); inCyl(g, 0.4, 0.06, 0, 0.5, 0, "#8a6a44"); inCyl(g, 0.12, 0.44, 0, 0.27, 0, "#6a4a2e"); inCyl(g, 0.32, 0.38, 0, 0.27, 0, "#1a1c20"); } },
+  paint: { r: 0.4, solid: false, zone: "wall", make(g, c) { for (let i = 0; i < 5; i++) { const x = (i % 3) * 0.28 - 0.28, z = Math.floor(i / 3) * 0.28 - 0.1; inCyl(g, 0.12, 0.24, x, 0.12, z, "#c9ced4"); inCyl(g, 0.121, 0.08, x, 0.14, z, IN_PALETTE[(i + c.n) % 8]); } } },
+  ladder: { r: 0.45, solid: false, zone: "wall", make(g, c) { for (const s of [-1, 1]) { const r = inAdd(g, 0.05, 2.4, 0.05, s * 0.28, 1.15, -0.1, "#c9a878"); r.rotation.x = 0.1; } for (let i = 0; i < 7; i++) inAdd(g, 0.56, 0.04, 0.04, 0, 0.3 + i * 0.3, -0.1 + (0.3 + i * 0.3) * 0.1 * -0.0, "#a98858"); } },
+  maneki: { r: 0.3, solid: true, zone: "door", make(g, c) { inAdd(g, 0.5, 0.5, 0.4, 0, 0.25, 0, "#5a3a22"); inAdd(g, 0.34, 0.36, 0.28, 0, 0.68, 0, "#f7f4ea"); inAdd(g, 0.3, 0.26, 0.26, 0, 0.99, 0, "#f7f4ea"); inAdd(g, 0.08, 0.1, 0.06, -0.12, 1.16, 0, "#f7f4ea"); inAdd(g, 0.08, 0.1, 0.06, 0.12, 1.16, 0, "#f7f4ea"); inAdd(g, 0.1, 0.3, 0.1, 0.24, 0.98, 0.04, "#f7f4ea").rotation.z = -0.4; inAdd(g, 0.3, 0.07, 0.03, 0, 0.84, 0.15, "#c8372d"); inAdd(g, 0.1, 0.12, 0.03, 0, 0.62, 0.15, "#e0b43a"); inAdd(g, 0.04, 0.04, 0.02, -0.06, 1.0, 0.14, "#222"); inAdd(g, 0.04, 0.04, 0.02, 0.06, 1.0, 0.14, "#222"); } },
+  tvboxes: { r: 0.7, solid: true, zone: "wall", make(g, c) { for (let i = 0; i < 3; i++) { const bx = inAdd(g, 1.0, 0.65, 0.16, -0.6 + i * 0.6, 0.33 + (i % 2) * 0.03, -0.1 + i * 0.1, "#f4f4f2"); bx.rotation.y = 0.15 - i * 0.12; const l = inLabel(["4K TV", "55 inch", "HDR"][i], 0.7, 0.34, ["#2a6fb0", "#14171b", "#d4152c"][i], "#fff"); l.position.set(-0.6 + i * 0.6, 0.38 + (i % 2) * 0.03, -0.1 + i * 0.1 + 0.09); l.rotation.y = 0.15 - i * 0.12; g.add(l); } } },
+  kiosk: { r: 0.8, solid: true, zone: "floor", make(g, c) { inAdd(g, 1.5, 0.08, 0.7, 0, 0.9, 0, "#e8eaed"); inAdd(g, 1.4, 0.82, 0.6, 0, 0.45, 0, "#2a2d33"); for (let i = 0; i < 4; i++) { const p = inAdd(g, 0.18, 0.02, 0.32, -0.5 + i * 0.34, 0.96, 0.0, "#14171b"); p.rotation.x = -0.1; inAdd(g, 0.15, 0.015, 0.28, -0.5 + i * 0.34, 0.975, 0.0, ["#6a8cff", "#c46ad8", "#3fb8af", "#e8a33d"][i]); } inAdd(g, 0.04, 0.5, 0.04, 0, 1.2, -0.2, "#8d939c"); const s = inLabel("CHARGE · TRY", 0.9, 0.24, c.sale, "#fff"); s.position.set(0, 1.55, -0.2); g.add(s); } },
+  wetfloor: { r: 0.25, solid: false, zone: "floor", make(g, c) { for (const s of [-1, 1]) { const b = inAdd(g, 0.34, 0.5, 0.025, 0, 0.26, s * 0.1, "#f2c230"); b.rotation.x = -s * 0.28; } inAdd(g, 0.2, 0.2, 0.01, 0, 0.3, 0.14, "#16181b").rotation.x = -0.28; } }
+};
+const IN_PROP_SETS = {
+  eleven:  [["pallet", 3], ["boxes", 3], ["basket", 1], ["plant", 1], ["sandwich", 2], ["standee", 2], ["wetfloor", 1], ["magrack", 1]],
+  petmart: [["bags", 3], ["cattree", 2], ["aquarium", 1], ["dogbed", 2], ["pallet", 2], ["boxes", 2], ["plant", 1], ["standee", 2], ["sandwich", 1]],
+  pharmacy: [["pallet", 3], ["spinner", 2], ["standee", 3], ["plant", 2], ["basket", 1], ["boxes", 2], ["wetfloor", 1], ["bench", 1]],
+  books:   [["magrack", 3], ["spinner", 2], ["foldtable", 2], ["plant", 3], ["bench", 2], ["boxes", 2], ["standee", 2]],
+  clothes: [["rounder", 3], ["foldtable", 2], ["umbrella", 2], ["bench", 1], ["plant", 2], ["standee", 2], ["wetfloor", 1]],
+  arms:    [["crates", 4], ["ladder", 1], ["barrel", 2], ["toolbox", 2], ["boxes", 3], ["reel", 1], ["paint", 2]],
+  dokoto:  [["standee", 4], ["kiosk", 2], ["tvboxes", 3], ["plant", 3], ["bench", 2], ["sandwich", 1]],
+  plaza:   [["plant", 3], ["bench", 2], ["standee", 3], ["sandwich", 1]],
+  ramen:   [["maneki", 1], ["plant", 2], ["bench", 1], ["umbrella", 1], ["sandwich", 1], ["boxes", 2]],
+  sushi:   [["maneki", 1], ["plant", 2], ["bench", 1], ["umbrella", 1], ["sandwich", 1], ["boxes", 2]],
+  sushiya: [["maneki", 1], ["plant", 3], ["bench", 1], ["umbrella", 1]]
+};
+function inClear(room, x, z, r, gap, placed) {
+  const W = IN_W, D = IN_D;
+  if (Math.abs(x) > W / 2 - r - 0.05 || z < -D / 2 + r + 0.05 || z > D / 2 - r - 0.05) return false;
+  if (Math.abs(x) < 1.6 + r * 0.5 && z > 0.6) return false;                           // the lane from the door
+  const ez = room.entry ? room.entry.z - room.oz : D / 2 - 3.4;
+  if (Math.hypot(x, z - ez) < 1.5 + r) return false;
+  for (const c of room.colliders) if (x > c.x0 - r - gap && x < c.x1 + r + gap && z > c.z0 - r - gap && z < c.z1 + r + gap) return false;
+  for (const sp of room.spots || []) if (Math.hypot(x - sp.x, z - sp.z) < 1.5 + r) return false;
+  for (const p of placed) if (Math.hypot(x - p.x, z - p.z) < r + p.r + 0.35) return false;
+  return true;
+}
+function interiorProps(room, root, th, brand, opts) {
+  const set = IN_PROP_SETS[brand]; if (!set) return;
+  const W = IN_W, D = IN_D, sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  const ads = IN_ADS[brand] || IN_ADS.eleven;
+  const trimC = th.trim, sale = brand === "clothes" || brand === "books" ? "#c8372d" : trimC;
+  const pal = brand === "pharmacy" ? ["#e8f4ee", "#2e9b5a", "#f4f4f2", "#3f6fb5", "#d96a8a"] : brand === "arms" ? ["#6a6a4a", "#8a8a6a", "#3a3d42"] : IN_PALETTE;
+  const tags = { eleven: ["¥98 SALE", "2 FOR ¥300", "NEW!"], petmart: ["¥980", "SALE", "NEW"], pharmacy: ["¥480", "SALE", "NEW"], books: ["¥600", "NEW", "SALE"], clothes: ["30% OFF", "NEW", "SALE"], arms: ["¥1,200", "SALE", "NEW"], dokoto: ["SALE", "NEW", "NEW"], plaza: ["SALE", "NEW", "OPEN"] }[brand] || ["SALE"];
+  let seed = inHash(brand + (opts && opts.key || "")) >>> 0; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  // candidate spots: round the walls for the wall pieces, anywhere on a 0.5 m grid for the floor pieces and by the door for the door pieces
+  const cand = { wall: [], floor: [], door: [] };
+  for (let x = -W / 2 + 0.5; x <= W / 2 - 0.5; x += 0.5) for (let z = -D / 2 + 0.5; z <= D / 2 - 0.5; z += 0.5) {
+    const dl = x + W / 2, dr = W / 2 - x, db = z + D / 2, df = D / 2 - z, m = Math.min(dl, dr, db, df);
+    const ry = m === db ? 0 : m === df ? Math.PI : m === dl ? Math.PI / 2 : -Math.PI / 2;
+    if (m >= 0.95) cand.floor.push({ x: x, z: z, ry: (Math.floor(rnd() * 4)) * Math.PI / 2 + (rnd() - 0.5) * 0.3, m: m });
+    if (Math.abs(x) > 1.7 && Math.abs(x) < 3.4 && z > D / 2 - 1.3) cand.door.push({ x: x, z: z, ry: Math.PI, m: m });
+  }
+  Object.keys(cand).forEach(k => { const a = cand[k]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } });
+  const wallSpots = (r) => {
+    const out = [], o = r + 0.12;
+    for (let t = -W / 2 + 0.6; t <= W / 2 - 0.6; t += 0.5) { out.push({ x: t, z: -D / 2 + o, ry: 0 }, { x: t, z: D / 2 - o, ry: Math.PI }); }
+    for (let t = -D / 2 + 0.6; t <= D / 2 - 0.6; t += 0.5) { out.push({ x: -W / 2 + o, z: t, ry: Math.PI / 2 }, { x: W / 2 - o, z: t, ry: -Math.PI / 2 }); }
+    for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); const q = out[i]; out[i] = out[j]; out[j] = q; }
+    return out;
+  };
+  const placed = [];
+  set.forEach(([kind, count]) => {
+    const P = IN_PROP[kind]; if (!P) return;
+    for (let n = 0; n < count; n++) {
+      const zones = P.zone === "door" ? ["door", "wall"] : P.zone === "wall" ? ["wall", "floor"] : ["floor", "wall"];
+      let spot = null;
+      for (const zn of zones) {
+        const gap = zn === "floor" ? 1.0 : 0.75;
+        for (const cd of (zn === "wall" ? wallSpots(P.r) : cand[zn])) { if (inClear(room, cd.x, cd.z, P.r, gap, placed)) { spot = cd; break; } }
+        if (spot) break;
+      }
+      if (!spot) continue;
+      const g = new THREE.Group(); g.position.set(spot.x, 0, spot.z); g.rotation.y = spot.ry; root.add(g);
+      const ad = ads[(n + placed.length) % ads.length];
+      P.make(g, { n: placed.length + n, th: th, brand: brand, pal: pal, sale: ad[3] || sale, tag: tags[(n + placed.length) % tags.length], ad: ad, wood: sk.wall[2] === "#5b3b24" ? "#6a4a2e" : "#8a6a44", bookish: brand === "books" });
+      placed.push({ x: spot.x, z: spot.z, r: P.r });
+      if (P.solid) { const h = P.r * 0.8; room.colliders.push({ x0: spot.x - h, x1: spot.x + h, z0: spot.z - h, z1: spot.z + h }); }
+    }
+  });
+  // hanging price signs high over the aisles, well above head height
+  const hang = room.restaurant ? 0 : (brand === "arms" ? 2 : 4);
+  for (let i = 0; i < hang; i++) {
+    const ad = ads[(i * 2 + 1) % ads.length], x = -5.4 + i * 3.6, z = (i % 2 ? 2.0 : -1.4);
+    const s = inLabel(ad[0], 1.5, 0.42, ad[3], "#ffffff"); s.position.set(x, IN_H - 0.38, z); root.add(s);
+    const s2 = inLabel(ad[0], 1.5, 0.42, ad[3], "#ffffff"); s2.position.set(x, IN_H - 0.38, z - 0.01); s2.rotation.y = Math.PI; root.add(s2);
+    inAdd(root, 0.02, 0.2, 0.02, x - 0.6, IN_H - 0.1, z, "#2a2d33"); inAdd(root, 0.02, 0.2, 0.02, x + 0.6, IN_H - 0.1, z, "#2a2d33");
+  }
+}
+
 function interiorRoom(s, opts) {
   opts = opts || {};
   const brand = s.brand, key = opts.key || brand;
@@ -29849,6 +29978,7 @@ function interiorRoom(s, opts) {
     try { ({ kaiten: kaitenBuild, sushiya: sushiyaBuild, ramen: ramenBuild })[RESTAURANT[brand]](room, root, th); } catch (e) { console.warn("[Konto] the restaurant could not be built:", e); }
   }
   if (opts.extra) opts.extra(room, root, th);
+  try { interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
 
   root.visible = false;
   scene.add(root);
