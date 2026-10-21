@@ -826,6 +826,19 @@
   #icard .ib { display: flex; gap: 8px; flex-wrap: wrap; } #icard .ib button { flex: 1; padding: 10px 14px; font: 700 15px 'Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(255,255,255,.12); border: 0; cursor: pointer; }
   #icard .ib button.on { background: #ffd21c; color: #111; } #icard .ib button.dim { opacity: .5; } #icard .ib button:hover { outline: 2px solid #fff; }
   #icard .ik { margin-top: 10px; font-size: 12px; letter-spacing: .06em; color: #8f98a3; }
+  #iplates { position: fixed; top: 14px; right: 14px; z-index: 42; opacity: 0; transition: opacity .2s; pointer-events: none; filter: drop-shadow(0 4px 10px rgba(0,0,0,.45)); } #iplates.on { opacity: 1; } #iplates canvas { display: block; border-radius: 10px; border: 2px solid rgba(255,255,255,.25); }
+  #isheet { position: fixed; left: 50%; bottom: 2.5%; transform: translate(-50%, 24px); z-index: 41; width: min(600px, 95vw); max-height: 86vh; overflow: auto; color: #8a1010; font-family: 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, 'Segoe UI', serif; background: #fbf5e2 repeating-linear-gradient(0deg, rgba(160,20,20,.05) 0 1px, transparent 1px 30px); border: 3px solid #b3201f; box-shadow: 0 10px 34px rgba(0,0,0,.55); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  #isheet.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  #isheet .hd { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 14px; background: #b3201f; color: #fff; font-size: 22px; } #isheet .hd b { font-weight: 900; letter-spacing: .12em; margin-right: 10px; } #isheet .hd i { font-style: normal; font-size: 13px; opacity: .85; }
+  #isheet .bs { padding: 6px 14px; font-size: 16px; border-bottom: 2px dashed #b3201f; } #isheet .bs b { float: right; }
+  #isheet .rw { display: flex; gap: 12px; align-items: center; padding: 5px 14px; border-bottom: 1px solid rgba(179,32,31,.35); } #isheet .rw > span { flex: 0 0 170px; font-weight: 700; font-size: 14px; }
+  #isheet .rw.cur { background: rgba(255,210,28,.35); } #isheet .rw > div { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
+  #isheet button { font: 600 13px/1.1 'Yu Mincho', Georgia, 'Segoe UI', serif; color: #8a1010; background: #fffdf4; border: 1.5px solid #b3201f; padding: 5px 9px 5px 24px; position: relative; cursor: pointer; }
+  #isheet button::before { content: ''; position: absolute; left: 6px; top: 50%; width: 11px; height: 11px; margin-top: -6px; border: 1.5px solid #b3201f; background: #fff; }
+  #isheet button.tick { background: #ffe9e4; } #isheet button.tick::after { content: '✔'; position: absolute; left: 7px; top: 50%; margin-top: -10px; font-size: 16px; color: #d4151c; font-weight: 900; }
+  #isheet button.foc { outline: 2px solid #ffb800; } #isheet button b { color: #b3201f; margin-left: 4px; }
+  #isheet .go { display: block; width: calc(100% - 28px); margin: 10px 14px; padding: 11px; text-align: center; font-size: 16px; font-weight: 900; color: #fff; background: #b3201f; border-color: #8a1010; } #isheet .go::before { display: none; } #isheet .go.foc { outline: 3px solid #ffb800; }
+  #isheet .ik { padding: 0 14px 10px; font-size: 11px; letter-spacing: .06em; color: #7a5a5a; }
   body.ininterior #hud, body.ininterior #minimapwrap { }
   #savemark { position: fixed; right: 18px; top: 16px; z-index: 60; padding: 6px 12px; font: 600 12px 'Segoe UI', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #eaf1ea; background: rgba(12,14,18,.7); border-left: 3px solid #43b36b; opacity: 0; transition: opacity .35s; pointer-events: none; }
   #savemark.on { opacity: 1; }
@@ -8183,7 +8196,7 @@ function buildStreetLife(root, w) {
       const q = at(lat, out); if (!free(q[0], q[1])) return;
       list.push(Object.assign({ x: q[0], y: gy + y, z: q[1], yaw: yaw }, extra || {}));
     };
-    const b = s.brand, izaka = b === "ramen" || b === "sushi";
+    const b = s.brand, izaka = b === "ramen" || b === "sushi" || b === "sushiya";
     if (izaka) {
       const red = b === "ramen";
       [-0.43, -0.31, 0.31, 0.43].forEach(f => add(dec.lantern, wd * f, 0.55, 2.75, { c: red ? [0.78, 0.08, 0.06] : [0.95, 0.92, 0.84] }));
@@ -9025,7 +9038,7 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card || interior.pod || interior.lift || interior.bridge) { /* the camera is on the thing you are looking at, or the menu is up */ }
+    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     updateTraffic(dt, player.pos);
@@ -13271,6 +13284,10 @@ function drawBrandMark(ctx, brand, r) {
     disc("#ffffff");
     ctx.fillStyle = "#f08a6a"; roundRect(ctx, -r * 0.6, -r * 0.34, r * 1.2, r * 0.42, r * 0.2); ctx.fill();
     ctx.fillStyle = "#f4efe0"; ctx.strokeStyle = "#c9c2b0"; ctx.lineWidth = r * 0.05; roundRect(ctx, -r * 0.56, r * 0.02, r * 1.12, r * 0.36, r * 0.14); ctx.fill(); ctx.stroke();
+  } else if (brand === "sushiya") {
+    disc("#16110d");
+    ctx.fillStyle = "#d9b25a"; roundRect(ctx, -r * 0.6, -r * 0.34, r * 1.2, r * 0.42, r * 0.2); ctx.fill();
+    ctx.fillStyle = "#f4efe0"; roundRect(ctx, -r * 0.56, r * 0.02, r * 1.12, r * 0.36, r * 0.14); ctx.fill();
   } else if (brand === "pharmacy") {
     disc("#0f8a52");
     ctx.fillStyle = "#ffffff"; ctx.fillRect(-r * 0.18, -r * 0.6, r * 0.36, r * 1.2); ctx.fillRect(-r * 0.6, -r * 0.18, r * 1.2, r * 0.36);
@@ -20365,7 +20382,8 @@ function placeShops(city) {
     // streets: a hardware shop with a shutter, a nod, and a price list.
     const n = shops.list.length;
     const CYCLE = ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"];
-    const brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
+    let brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
+    if (brand === "sushi" && (placeShops.sushiN = (placeShops.sushiN || 0) + 1) % 2 === 0) brand = "sushiya";     // every second sushi bar is the old-fashioned, expensive kind
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
     const half = p.size[1] * 0.5 + 1.6;
@@ -20387,7 +20405,7 @@ function placeShops(city) {
 // What each kind of shop is as a building: how many storeys it is, which is most
 // of what tells a konbini from a pharmacy from a bookshop in a street.
 const SHOP_BUILD = {
-  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6
+  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6
 };
 
 // A lit sign band over each door. One instanced box per chain, with the brand
@@ -21104,7 +21122,7 @@ function placeTownShops(w) {
   w.cities.forEach((city, ci) => {
     if (ci === 0 || !city.plots) return;
     const big = city.name === "Isobe" || city.name === "Nagisa" || city.name === "Shiokawa";
-    const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen", "sushi"] : big ? ["eleven", "petmart", "ramen", "sushi", "pharmacy", "books", "clothes", "ramen", "sushi"] : ["eleven", "ramen", "sushi", "pharmacy"];
+    const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen", "sushi"] : big ? ["eleven", "petmart", "ramen", "sushi", "pharmacy", "books", "clothes", "ramen", "sushiya"] : ["eleven", "ramen", "sushi", "pharmacy"];
     const pool = city.plots.filter(p => !p.shop && p.size[0] > 11 && p.size[0] < 46 && p.size[1] > 11 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "flats"));
     recipe.forEach(brand => {
       for (let g = 0; g < 500 && pool.length; g++) {
@@ -25038,6 +25056,7 @@ function phoneSwapped(id) { phone.dirty = true; }
 Object.assign(SHOP_BRANDS, {
   ramen:    { name: "Menya Ippai",   jp: "麺屋一杯", band: "#b3201f", ink: "#ffffff", stripes: ["#f2c230", "#14171b"], tag: "Ramen · open late" },
   sushi:    { name: "Sushi Go-Go",   jp: "すしゴーゴー", band: "#ffffff", ink: "#c0172b", stripes: ["#c0172b", "#14171b"], tag: "Plates from ¥150" },
+  sushiya:  { name: "Sushi Kōryū",   jp: "寿司 孝龍", band: "#16110d", ink: "#d9b25a", stripes: ["#d9b25a", "#16110d"], tag: "Counter seats · omakase" },
   pharmacy: { name: "Kusuri Plus",   jp: "クスリプラス", band: "#0f8a52", ink: "#ffffff", stripes: ["#ffffff", "#0b5a37"], tag: "Pharmacy · beauty · health" },
   books:    { name: "Hon-no-Mori",   jp: "本の森", band: "#5a3a22", ink: "#ffffff", stripes: ["#e8c46a", "#3a2414"], tag: "Books · manga · magazines" },
   clothes:  { name: "Suit Select",   jp: "スーツセレクト", band: "#1d2b4a", ink: "#ffffff", stripes: ["#c9ced4", "#0e1626"], tag: "Shirts · ties · socks" },
@@ -25068,6 +25087,15 @@ const STORE_SHELVES = {
     { name: "Soup and tea", items: [
       { id: "misosoup", name: "Miso soup", price: 200, eat: true, stress: -0.03, health: 0.04, min: 5 },
       { id: "greentea", name: "Green tea", price: 150, eat: true, stress: -0.02, health: 0.01, min: 3 }] }],
+  sushiya: [
+    { name: "Counter", items: [
+      { id: "omakase", name: "Omakase", price: 12000, eat: true, stress: -0.34, health: 0.20, min: 90 },
+      { id: "moriawase", name: "Nigiri moriawase", price: 4800, eat: true, stress: -0.20, health: 0.12, min: 50 },
+      { id: "otoro", name: "Otoro", price: 2600, eat: true, stress: -0.12, health: 0.05, min: 15 },
+      { id: "tamago", name: "Tamago", price: 900, eat: true, stress: -0.04, health: 0.02, min: 8 }] },
+    { name: "Soup and tea", items: [
+      { id: "misosoup", name: "Miso soup", price: 700, eat: true, stress: -0.03, health: 0.04, min: 6 },
+      { id: "greentea", name: "Green tea", price: 500, eat: true, stress: -0.02, health: 0.01, min: 5 }] }],
   pharmacy: [
     { name: "Medicine", items: [
       { id: "painkiller", name: "Painkillers", price: 780 }, { id: "eyedrops", name: "Eye drops", price: 620 },
@@ -28959,8 +28987,8 @@ document.getElementById("regen").addEventListener("click", () => {
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
-const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
-const interior = { active: false, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
+const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
+const interior = { active: false, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
   plaza:   { wall: "#f1efe9", floor: "#c9c3b6", trim: "#2a2d33", cap: "#2a2d33" },
@@ -28968,7 +28996,8 @@ const IN_THEME = {
   eleven:  { wall: "#eef3ef", floor: "#d9ddd8", trim: "#0a6b42", cap: "#cf2027" },
   petmart: { wall: "#f4f7fb", floor: "#dfe5ec", trim: "#1272d6", cap: "#13a150" },
   ramen:   { wall: "#a97c50", floor: "#5a4630", trim: "#7a1f1a", cap: "#f2efe6" },
-  sushi:   { wall: "#c9b28a", floor: "#6b5a44", trim: "#1d3b5a", cap: "#f2efe6" },
+  sushi:   { wall: "#f3ead6", floor: "#8a6a48", trim: "#c0172b", cap: "#ffffff" },
+  sushiya: { wall: "#3a2f27", floor: "#8a6a48", trim: "#c9a24a", cap: "#f2efe6" },
   arms:    { wall: "#3a3d42", floor: "#25272b", trim: "#b9823a", cap: "#1a1c20" },
   pharmacy: { wall: "#f3f7f4", floor: "#cfe3d6", trim: "#2e9b5a", cap: "#ffffff" },
   books:   { wall: "#9a7a58", floor: "#5b4631", trim: "#2c4a3a", cap: "#c8372d" },
@@ -29143,7 +29172,7 @@ function interiorEnterStore(sp) {
   try { room = interiorRoom(S); } catch (e) { console.warn("[Konto] a plaza shop could not be built:", e); return; }
   interior.stack = { room: interior.room, spot: sp, shop: P };
   interior.shop = S;
-  interiorShowRoom(room, { x: 0, z: IN_D / 2 - 3.4 }, Math.PI);
+  interiorShowRoom(room, { x: 0, z: IN_D / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
   say("Irasshaimase!", 2.5);
 }
 function interiorReturnToConcourse() {
@@ -29273,6 +29302,7 @@ function interiorSpotFocus() {
   return best;
 }
 function interiorSpotAct(sp) {
+  if (sp.act === "sit") { interiorSit(sp); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
   if (sp.act === "store") { interiorEnterStore(sp); return; }
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
@@ -29329,12 +29359,13 @@ function inPlaneTex(tex, w, h, repX, repY, x, y, z, ry, rx) {
 const IN_SKIN = {
   // floor: [kind, colour a, colour b, grout]; wall: [upper, rail, lower, kind]
   eleven:  { floor: ["tile", "#e8eeea", "#cdd8d1", "#aab5ae"], wall: ["#eef3ef", "#0a6b42", "#d6e4dc", "panels"] },
-  petmart: { floor: ["tile", "#e8eef5", "#cfdbe8", "#a9b8c8"], wall: ["#f4f7fb", "#1272d6", "#cfe0f2", "panels"] },
-  ramen:   { floor: ["planks", "#6a4a2e", "#5c3f27", "#2a1c10"], wall: ["#d9c9a6", "#7a1f1a", "#5b3b24", "boards"] },
-  sushi:   { floor: ["planks", "#b9a57a", "#a8946a", "#6b5a44"], wall: ["#e6d9bc", "#1d3b5a", "#7a5a3a", "boards"] },
+  petmart: { floor: ["tile", "#e8eef5", "#cfdbe8", "#a9b8c8"], wall: ["#f4f7fb", "#1272d6", "#cfe0f2", "dots"] },
+  ramen:   { floor: ["planks", "#6a4a2e", "#5c3f27", "#2a1c10"], wall: ["#c4452f", "#f2c230", "#4a2e1a", "bricks"] },
+  sushi:   { floor: ["planks", "#c9aa78", "#b99a68", "#7a5a3a"], wall: ["#f3ead6", "#c0172b", "#e8d9b8", "seigaiha"] },
+  sushiya: { floor: ["planks", "#9a7650", "#8a6644", "#3a2a18"], wall: ["#3a2f27", "#c9a24a", "#2a201a", "asanoha"] },
   arms:    { floor: ["concrete", "#4a4c50", "#3f4145", "#2a2b2e"], wall: ["#55585e", "#d9a21c", "#3a3d42", "hazard"] },
   pharmacy: { floor: ["tile", "#e7f1ea", "#c9e0d1", "#a3bfae"], wall: ["#f3f7f4", "#2e9b5a", "#d8eadf", "panels"] },
-  books:   { floor: ["carpet", "#5a2e2a", "#4a2522", "#2a1412"], wall: ["#c9b48a", "#2c4a3a", "#3f2c20", "stripes"] },
+  books:   { floor: ["carpet", "#5a2e2a", "#4a2522", "#2a1412"], wall: ["#c9b48a", "#2c4a3a", "#3f2c20", "damask"] },
   clothes: { floor: ["parquet", "#b08a62", "#9a7650", "#6a4e34"], wall: ["#f1ece6", "#2a2d33", "#e2d8cc", "panels"] },
   dokoto:  { floor: ["tile", "#d9dce0", "#c4c8cd", "#9ea3aa"], wall: ["#f4f4f2", "#d4152c", "#e6e7ea", "panels"] },
   capsule: { floor: ["carpet", "#4a5260", "#3e4552", "#262b33"], wall: ["#cfd6de", "#2a8fb8", "#b4bfca", "panels"] },
@@ -29364,6 +29395,22 @@ function inWallTex(brand) {
     else if (kind === "boards") { g.fillStyle = "rgba(0,0,0,0.18)"; for (let i = 0; i < 16; i++) g.fillRect(i * 16, railY, 2, h - railY); g.fillStyle = "rgba(60,30,10,0.35)"; g.fillRect(0, 0, w, 10); g.fillRect(0, h * 0.35, w, 6); }
     else if (kind === "hazard") { g.fillStyle = "#d9a21c"; for (let i = -2; i < 12; i++) { g.beginPath(); g.moveTo(i * 28, railY - 26); g.lineTo(i * 28 + 14, railY - 26); g.lineTo(i * 28 + 30, railY - 4); g.lineTo(i * 28 + 16, railY - 4); g.fill(); } g.fillStyle = "#16181b"; g.fillRect(0, railY - 30, w, 4); g.fillRect(0, railY - 4, w, 4); }
     else if (kind === "stripes") { g.fillStyle = "rgba(20,40,30,0.18)"; for (let i = 0; i < 8; i++) g.fillRect(i * 32 + 8, 0, 14, railY); }
+    else if (kind === "seigaiha") {                    // overlapping wave scales, the oldest pattern on a sushi bar wall
+      for (let y = 0; y < railY + 16; y += 16) for (let x = -16 + ((y / 16) % 2) * 16; x < w + 16; x += 32) for (let k = 3; k >= 1; k--) { g.beginPath(); g.arc(x + 16, y, k * 6.5, Math.PI, 0); g.fillStyle = k % 2 ? "rgba(255,255,255,0.35)" : "rgba(192,23,43,0.10)"; g.fill(); g.strokeStyle = "rgba(60,90,130,0.30)"; g.lineWidth = 1; g.stroke(); }
+      g.fillStyle = low; g.fillRect(0, railY, w, h - railY); g.fillStyle = "rgba(0,0,0,0.06)"; for (let i = 0; i < 16; i++) g.fillRect(i * 16, railY, 2, h - railY); }
+    else if (kind === "asanoha") {                     // hemp-leaf lattice in gold thread
+      g.strokeStyle = "rgba(201,162,74,0.34)"; g.lineWidth = 1.5;
+      for (let x = 0; x < w; x += 32) for (let y = 0; y < railY; y += 32) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + 32, y + 32); g.moveTo(x + 32, y); g.lineTo(x, y + 32); g.moveTo(x + 16, y); g.lineTo(x + 16, y + 32); g.moveTo(x, y + 16); g.lineTo(x + 32, y + 16); g.stroke(); }
+      g.fillStyle = low; g.fillRect(0, railY, w, h - railY); g.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 0; i < 8; i++) g.fillRect(i * 32 + 14, railY, 3, h - railY); }
+    else if (kind === "bricks") {
+      for (let y = 0, r = 0; y < railY; y += 16, r++) for (let x = -((r % 2) * 20); x < w; x += 40) { g.fillStyle = (x / 40 + r) % 3 ? "rgba(0,0,0,0.10)" : "rgba(255,255,255,0.08)"; g.fillRect(x + 1, y + 1, 38, 14); }
+      g.fillStyle = "rgba(255,230,190,0.22)"; for (let y = 0; y < railY; y += 16) g.fillRect(0, y, w, 1);
+      g.fillStyle = low; g.fillRect(0, railY, w, h - railY); g.fillStyle = "rgba(0,0,0,0.18)"; for (let i = 0; i < 16; i++) g.fillRect(i * 16, railY, 2, h - railY); }
+    else if (kind === "dots") {
+      g.fillStyle = "rgba(19,161,80,0.20)"; for (let y = 10; y < railY; y += 30) for (let x = 12 + ((y / 30) % 2) * 15; x < w; x += 30) { g.beginPath(); g.ellipse(x, y + 3, 5, 4, 0, 0, 7); g.fill(); [[-5, -4], [-1.5, -7], [2, -7], [5.5, -4]].forEach(o => { g.beginPath(); g.arc(x + o[0], y + o[1], 1.8, 0, 7); g.fill(); }); } }
+    else if (kind === "damask") {
+      g.strokeStyle = "rgba(60,30,10,0.20)"; g.lineWidth = 1.5; for (let x = 0; x <= w; x += 42) for (let y = 0; y < railY; y += 42) { g.beginPath(); g.moveTo(x, y + 21); g.lineTo(x + 21, y); g.lineTo(x + 42, y + 21); g.lineTo(x + 21, y + 42); g.closePath(); g.stroke(); g.fillStyle = "rgba(60,30,10,0.16)"; g.beginPath(); g.arc(x + 21, y + 21, 4, 0, 7); g.fill(); }
+      g.fillStyle = low; g.fillRect(0, railY, w, h - railY); }
     else if (kind === "pilasters") { g.fillStyle = "rgba(0,0,0,0.08)"; g.fillRect(0, 0, 18, h); g.fillRect(w - 18, 0, 18, h); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(18, 0, 4, h); }
     g.fillStyle = rail; g.fillRect(0, railY - 3, w, 6);               // the chair rail
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, h - 14, w, 14);   // skirting
@@ -29372,17 +29419,18 @@ function inWallTex(brand) {
   });
 }
 const IN_ADS = {
-  eleven:  [["FRESH BENTO", "Made this morning ¥580", "bento", "#e8711a"], ["ICE COLD", "Cola ¥160 · Ganbare Energy ¥210", "drink", "#1272d6"], ["OPEN 24 HOURS", "Every day. Even you.", "clock", "#0a6b42"], ["HOT SNACKS", "Nikuman · Karaage · Oden", "bowl", "#cf2027"], ["POINT CARD", "Ask at the till", "card", "#6a3fb5"], ["NEW! CUP RAMEN", "Limited flavour", "bowl", "#e8a33d"]],
-  petmart: [["PET FOOD SALE", "Bags from ¥980", "paw", "#13a150"], ["CAT TOWER", "Now in store", "paw", "#1272d6"], ["AQUARIUM", "Everything for the tank", "fish", "#1a9ad6"], ["GOOD DOG", "Because they deserve it", "paw", "#e8a33d"], ["OPEN LATE", "Your neighbourhood store", "clock", "#13a150"], ["TREATS", "Buy two get one", "sale", "#d9534f"]],
-  ramen:   [["本日のおすすめ", "Tsukemen ¥1,100", "bowl", "#7a1f1a"], ["BEER ¥600", "Draught, cold", "drink", "#c8941a"], ["餃子 GYOZA", "Six for ¥480", "bowl", "#b5532a"], ["OPEN 11:00–24:00", "Last orders midnight", "clock", "#2a2d33"], ["味噂 MISO", "¥920", "bowl", "#8a4a1a"], ["ラーメン", "RAMEN", "bowl", "#a31d1d"]],
-  sushi:   [["寿司 FRESH DAILY", "Nigiri set ¥1,800", "fish", "#1d3b5a"], ["SALMON ¥300", "Straight from Hokkaido", "fish", "#d9604a"], ["GREEN TEA", "Free refills", "drink", "#4a8a3a"], ["TUNA ROLL", "¥450", "fish", "#a82a2a"], ["TAMAGO ¥150", "Sweet and soft", "bowl", "#e8c24a"], ["OPEN LATE", "Counter seats", "clock", "#2a2d33"]],
+  eleven:  [["FRESH BENTO", "Made this morning ¥580", "bento", "#e8711a"], ["ICE COLD", "Cola ¥160 · Ganbare Energy ¥210", "can", "#1272d6", "#d9302c"], ["OPEN 24 HOURS", "Every day. Even you.", "clock", "#0a6b42"], ["HOT SNACKS", "Nikuman · Karaage · Oden", "gyoza", "#cf2027"], ["ONIGIRI ¥130", "Salmon · Umeboshi · Tuna mayo", "onigiri", "#2a8a5a"], ["NEW! CUP RAMEN", "Limited flavour ¥240", "ramen", "#e8a33d"]],
+  petmart: [["PET FOOD SALE", "Bags from ¥980", "paw", "#13a150"], ["CAT TOWER", "Now in store", "paw", "#1272d6"], ["AQUARIUM", "Everything for the tank", "fish", "#1a9ad6", "#f08a3a"], ["GOOD DOG", "Because they deserve it", "paw", "#e8a33d"], ["OPEN LATE", "Your neighbourhood store", "clock", "#13a150"], ["TREATS ¥300", "Buy two get one", "fish", "#d9534f", "#6ab0e8"]],
+  ramen:   [["本日のおすすめ", "Tsukemen ¥1,100", "ramen", "#7a1f1a"], ["BEER ¥600", "Draught, cold", "beer", "#2a2d33"], ["餃子 GYOZA", "Six for ¥480", "gyoza", "#b5532a"], ["OPEN 11:00–24:00", "Last orders midnight", "clock", "#2a2d33"], ["味噌 MISO", "Miso ramen ¥1,020", "ramen", "#8a4a1a"], ["ラーメン", "Tonkotsu ¥980", "ramen", "#a31d1d"]],
+  sushi:   [["寿司 FRESH DAILY", "Nigiri from ¥150", "nigiri", "#c0172b"], ["SALMON ¥200", "Straight from Hokkaido", "nigiri", "#d9604a", "#f0714f"], ["GREEN TEA", "Free refills", "tea", "#4a8a3a"], ["TUNA ROLL ¥250", "Hand rolled", "roll", "#a82a2a"], ["皿 EVERY PLATE", "White ¥150 · Red ¥200 · Blue ¥250", "plates", "#1d3b5a"], ["OPEN LATE", "The belt runs till midnight", "clock", "#2a2d33"]],
+  sushiya: [["極上 OMAKASE", "The chef's course ¥12,000", "nigiri", "#2a1f18", "#e8604f"], ["本鮪 HON-MAGURO", "Bluefin, aged five days", "nigiri", "#7a1f1a", "#b5202a"], ["日本酒 SAKE", "Junmai daiginjo, warm or cold", "sake", "#34495e"], ["雲丹 UNI", "Hokkaido, this morning ¥2,900", "nigiri", "#b8741a", "#f0a31c"], ["予約 RESERVATIONS", "Counter seats only", "clock", "#2a1f18"], ["江戸前 EDOMAE", "Since 1964", "tea", "#5a3a22"]],
   arms:    [["NO LOITERING", "Staff watching", "warning", "#d9a21c"], ["LICENCE REQUIRED", "By appointment only", "warning", "#b9823a"], ["KANAMONO 金物", "Hardware since 1971", "bolt", "#3a2a14"], ["NO PHOTOGRAPHY", "", "warning", "#8a1d1d"], ["CASH ONLY", "No receipts", "sale", "#2a2d33"], ["CLOSED SUNDAYS", "", "clock", "#55585e"]],
-  pharmacy: [["VITAMINS ¥980", "For the tired", "cross", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "cross", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
+  pharmacy: [["VITAMINS ¥980", "For the tired", "pill", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "pill", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
   books:   [["BESTSELLER", "The Quiet Platform", "book", "#2c4a3a"], ["MANGA OUT NOW", "Shonen Salaryman 12", "book", "#d9534f"], ["NAP BETTER", "Business ¥1,400", "book", "#3f6fb5"], ["NEW ARRIVALS", "Novels · Manga · Business", "book", "#8a4a1a"], ["A YEAR IN MIZUHO", "¥1,300", "book", "#4a7a4a"], ["READ MORE", "Stress less", "book", "#6a3fb5"]],
-  clothes: [["DRESS SHIRTS", "¥3,900 · all colours", "shirt", "#2a2d33"], ["NEW SEASON", "Wear it on the train", "shirt", "#4a90d9"], ["SALE 30% OFF", "Socks · Towels", "sale", "#c8372d"], ["TRY IT ON", "Ask at the counter", "shirt", "#9b6bd3"], ["BUSINESS CASUAL", "Fridays only", "shirt", "#3fb8af"], ["CLEAR UMBRELLAS", "¥550", "sale", "#1272d6"]],
-  dokoto:  [["PEAR P17", "Pro Max · now in store", "phone", "#6a3fb5"], ["SOTI So25 ULTRA", "The best camera on the island", "phone", "#1d3b5a"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a"]],
+  clothes: [["DRESS SHIRTS", "¥3,900 · all colours", "tie", "#2a2d33"], ["NEW SEASON", "Wear it on the train", "tie", "#4a90d9", "#1d3b5a"], ["SALE 30% OFF", "Socks · Towels", "sale", "#c8372d"], ["TRY IT ON", "Ask at the counter", "tie", "#9b6bd3", "#e8c24a"], ["BUSINESS CASUAL", "Fridays only", "tie", "#3fb8af", "#c8372d"], ["CLEAR UMBRELLAS", "¥550", "sale", "#1272d6"]],
+  dokoto:  [["PEAR P17", "Pro Max · now in store", "phone", "#6a3fb5", "#8a6aff"], ["SOTI So25 ULTRA", "The best camera on the island", "phone", "#1d3b5a", "#2a9ad6"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a", "#f0a31c"]],
   capsule: [["QUIET HOURS", "22:00 – 06:00", "moon", "#2a8fb8"], ["SHOES OFF", "靴を脱いでください", "shoe", "#2a2d33"], ["WI-FI: KAPUSERU", "Password at the desk", "wifi", "#1a9ad6"], ["CHECK-OUT 10:00", "Thank you for staying", "clock", "#4a5260"], ["NO SMOKING", "", "warning", "#c8372d"], ["TOWELS ¥200", "At the desk", "sale", "#2a8fb8"]],
-  plaza:   [["PLAZA SALE", "Everything must go", "sale", "#c8372d"], ["FOOD HALL B1", "Ramen · Sushi", "bowl", "#7a1f1a"], ["FASHION 2F", "New season", "shirt", "#2a2d33"], ["BOOKS 3F", "Bestsellers", "book", "#2c4a3a"], ["EVERYDAY 1F", "Open until late", "clock", "#0a6b42"], ["WELCOME", "Please mind the lift", "wifi", "#2a8fb8"]]
+  plaza:   [["PLAZA SALE", "Everything must go", "sale", "#c8372d"], ["FOOD HALL B1", "Ramen · Sushi", "ramen", "#7a1f1a"], ["FASHION 2F", "New season", "tie", "#2a2d33"], ["BOOKS 3F", "Bestsellers", "book", "#2c4a3a"], ["EVERYDAY 1F", "Open until late", "clock", "#0a6b42"], ["WELCOME", "Please mind the lift", "wifi", "#2a8fb8"]]
 };
 function inIcon(g, kind, cx, cy, s, ink) {
   g.fillStyle = ink; g.strokeStyle = ink; g.lineWidth = s * 0.08;
@@ -29407,24 +29455,6 @@ function inIcon(g, kind, cx, cy, s, ink) {
   else if (kind === "shoe") { g.beginPath(); g.moveTo(cx - s * 0.5, cy + s * 0.2); g.lineTo(cx - s * 0.5, cy - s * 0.15); g.lineTo(cx - s * 0.1, cy - s * 0.15); g.lineTo(cx + s * 0.1, cy + s * 0.02); g.lineTo(cx + s * 0.5, cy + s * 0.08); g.lineTo(cx + s * 0.5, cy + s * 0.2); g.closePath(); g.fill(); }
   else if (kind === "wifi") { for (let i = 1; i <= 3; i++) { g.beginPath(); g.arc(cx, cy + s * 0.3, s * 0.2 * i, Math.PI * 1.2, Math.PI * 1.8); g.stroke(); } g.beginPath(); g.arc(cx, cy + s * 0.3, s * 0.05, 0, 7); g.fill(); }
 }
-function inPosterTex(brand, i) {
-  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length];
-  return inCanvasTex("poster:" + brand + ":" + (i % ads.length), 256, 340, (g, w, h) => {
-    const base = ad[3];
-    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, base); gr.addColorStop(1, inShade(base, 0.55));
-    g.fillStyle = gr; g.fillRect(0, 0, w, h);
-    g.fillStyle = "rgba(255,255,255,0.12)"; g.beginPath(); g.arc(w * 0.85, h * 0.15, w * 0.5, 0, 7); g.fill();
-    g.fillStyle = "rgba(0,0,0,0.18)"; g.fillRect(0, h * 0.74, w, h * 0.26);
-    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle";
-    inIcon(g, ad[2], w / 2, h * 0.34, w * 0.5, "#ffffff");
-    let fs = 38; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif";
-    while (g.measureText(ad[0]).width > w - 24 && fs > 14) { fs -= 2; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; }
-    g.fillText(ad[0], w / 2, h * 0.64, w - 20);
-    g.font = "600 16px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; g.fillStyle = "rgba(255,255,255,0.92)";
-    g.fillText(ad[1], w / 2, h * 0.84, w - 20);
-    g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = 4; g.strokeRect(6, 6, w - 12, h - 12);
-  });
-}
 function inPoster(root, brand, i, x, y, z, ry, w, h) {
   const t = inPosterTex(brand, i);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
@@ -29432,15 +29462,152 @@ function inPoster(root, brand, i, x, y, z, ry, w, h) {
   inAdd(root, w + 0.06, h + 0.06, 0.02, x, y, z + (ry === 0 ? -0.01 : ry === Math.PI ? 0.01 : 0), "#2a2d33").rotation.y = ry;
   return m;
 }
+// ---- richer adverts ----------------------------------------------------------------------------------------------------------------------
+// Each poster is one of three layouts (a spotlit hero shot, a patterned card with a sticker, a diagonal split), set in the type that suits the
+// place, with a coloured illustration of the thing it sells rather than a one-colour symbol.
+const IN_FONT = {
+  sushiya: ["'Yu Mincho','Hiragino Mincho ProN','MS Mincho','IPAMincho',Georgia,'Noto Serif JP',serif", "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',Georgia,serif"],
+  sushi:   ["'Meiryo','Yu Gothic','IPAGothic','Arial Black',Impact,sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Segoe UI',sans-serif"],
+  ramen:   ["Impact,'Arial Black','Yu Gothic','IPAGothic',sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Segoe UI',sans-serif"],
+  books:   ["Georgia,'Palatino Linotype','Yu Mincho',serif", "Georgia,'Yu Mincho',serif"],
+  clothes: ["'Didot','Bodoni MT',Georgia,'Yu Mincho',serif", "'Segoe UI','Yu Gothic',sans-serif"],
+  arms:    ["Impact,'Arial Narrow Bold','Arial Black',sans-serif", "'Courier New',monospace"],
+  dokoto:  ["'Segoe UI Black','Arial Black','Yu Gothic',sans-serif", "'Segoe UI','Yu Gothic',sans-serif"],
+  capsule: ["'Trebuchet MS','Segoe UI','Yu Gothic',sans-serif", "'Segoe UI','Yu Gothic',sans-serif"],
+  _:       ["'Segoe UI Black','Arial Black','Meiryo','Yu Gothic','IPAGothic',sans-serif", "'Segoe UI','Meiryo','Yu Gothic','IPAGothic',sans-serif"]
+};
+function inFontsOf(brand) { return IN_FONT[brand] || IN_FONT._; }
+function inArt(g, kind, cx, cy, s, top) {
+  const E = (x, y, rx, ry, fill, rot) => { g.fillStyle = fill; g.beginPath(); g.ellipse(x, y, rx, ry, rot || 0, 0, 7); g.fill(); };
+  const R = (x, y, w, h, r, fill) => { g.fillStyle = fill; g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); g.fill(); };
+  g.save(); g.lineCap = "round"; g.lineJoin = "round";
+  if (kind === "nigiri") {
+    const tp = top || "#f0714f";
+    R(cx - s * 0.42, cy + s * 0.02, s * 0.84, s * 0.3, s * 0.12, "#f7f2e6"); R(cx - s * 0.42, cy + s * 0.2, s * 0.84, s * 0.12, s * 0.06, "#d9d0bb");
+    g.fillStyle = tp; g.beginPath(); g.moveTo(cx - s * 0.5, cy + s * 0.08); g.quadraticCurveTo(cx - s * 0.4, cy - s * 0.3, cx, cy - s * 0.28); g.quadraticCurveTo(cx + s * 0.42, cy - s * 0.3, cx + s * 0.5, cy + s * 0.1); g.quadraticCurveTo(cx, cy + s * 0.2, cx - s * 0.5, cy + s * 0.08); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.55)"; g.lineWidth = s * 0.03; for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(cx + i * s * 0.15 - s * 0.05, cy - s * 0.2); g.quadraticCurveTo(cx + i * s * 0.15, cy - s * 0.08, cx + i * s * 0.15 + s * 0.05, cy + s * 0.06); g.stroke(); }
+  } else if (kind === "roll") {
+    for (let k = -1; k <= 1; k++) { const x = cx + k * s * 0.34, y = cy + (k === 0 ? -s * 0.1 : s * 0.12);
+      E(x, y, s * 0.2, s * 0.2, "#16231d"); E(x, y, s * 0.165, s * 0.165, "#f7f2e6"); E(x, y, s * 0.07, s * 0.07, ["#e8604f", "#6ab04c", "#f2c230"][k + 1]); }
+  } else if (kind === "ramen") {
+    g.strokeStyle = "#caa46a"; g.lineWidth = s * 0.035; [[-0.1, -0.78, 0.5, -0.62], [0.05, -0.8, 0.62, -0.55]].forEach(p => { g.beginPath(); g.moveTo(cx + p[0] * s, cy - s * 0.1); g.lineTo(cx + p[2] * s * 0.7, cy + p[3] * s * 0.7); g.stroke(); });
+    g.fillStyle = "#f4efe0"; g.beginPath(); g.moveTo(cx - s * 0.52, cy - s * 0.04); g.lineTo(cx + s * 0.52, cy - s * 0.04); g.quadraticCurveTo(cx + s * 0.46, cy + s * 0.5, cx, cy + s * 0.52); g.quadraticCurveTo(cx - s * 0.46, cy + s * 0.5, cx - s * 0.52, cy - s * 0.04); g.fill();
+    g.fillStyle = "#c8372d"; g.fillRect(cx - s * 0.5, cy + s * 0.12, s, s * 0.05);
+    E(cx, cy - s * 0.04, s * 0.52, s * 0.14, "#d49a4a"); g.strokeStyle = "#f3dc8a"; g.lineWidth = s * 0.03;
+    for (let i = 0; i < 5; i++) { g.beginPath(); g.moveTo(cx - s * 0.36 + i * s * 0.18, cy - s * 0.1); g.quadraticCurveTo(cx - s * 0.28 + i * s * 0.18, cy - s * 0.2, cx - s * 0.2 + i * s * 0.18, cy - s * 0.08); g.stroke(); }
+    E(cx - s * 0.18, cy - s * 0.12, s * 0.11, s * 0.08, "#fff7e8"); E(cx - s * 0.18, cy - s * 0.12, s * 0.05, s * 0.04, "#f2a31c");
+    E(cx + s * 0.14, cy - s * 0.1, s * 0.12, s * 0.07, "#e8a0a0"); E(cx + s * 0.14, cy - s * 0.1, s * 0.07, s * 0.04, "#c8706c");
+    g.fillStyle = "#1b2a24"; g.fillRect(cx + s * 0.28, cy - s * 0.3, s * 0.1, s * 0.22);
+    for (let i = 0; i < 6; i++) E(cx - s * 0.06 + i * s * 0.05, cy - s * 0.15 + (i % 2) * s * 0.03, s * 0.02, s * 0.02, "#5fae44");
+    g.strokeStyle = "rgba(255,255,255,0.65)"; g.lineWidth = s * 0.03; [-0.22, 0.02, 0.26].forEach(o => { g.beginPath(); g.moveTo(cx + o * s, cy - s * 0.28); g.quadraticCurveTo(cx + o * s + s * 0.1, cy - s * 0.4, cx + o * s, cy - s * 0.54); g.stroke(); });
+  } else if (kind === "beer") {
+    R(cx - s * 0.26, cy - s * 0.3, s * 0.52, s * 0.72, s * 0.06, "#f2b21c"); R(cx - s * 0.26, cy - s * 0.3, s * 0.2, s * 0.72, s * 0.06, "rgba(255,255,255,0.28)");
+    g.strokeStyle = "#e8e8e6"; g.lineWidth = s * 0.07; g.beginPath(); g.arc(cx + s * 0.34, cy + s * 0.05, s * 0.17, -1.3, 1.3); g.stroke();
+    [[-0.2, -0.34], [0, -0.4], [0.2, -0.34], [-0.1, -0.3], [0.1, -0.3]].forEach(p => E(cx + p[0] * s, cy + p[1] * s, s * 0.13, s * 0.11, "#fffdf4"));
+    g.fillStyle = "rgba(255,255,255,0.7)"; [[-0.05, 0.1], [0.1, -0.05], [0.05, 0.28]].forEach(p => { g.beginPath(); g.arc(cx + p[0] * s, cy + p[1] * s, s * 0.025, 0, 7); g.fill(); });
+  } else if (kind === "gyoza") {
+    [[-0.22, 0.12, -0.2], [0.2, 0.0, 0.15], [0.0, -0.22, 0.0]].forEach(p => { g.save(); g.translate(cx + p[0] * s, cy + p[1] * s); g.rotate(p[2]);
+      g.fillStyle = "#f4e2b8"; g.beginPath(); g.ellipse(0, 0, s * 0.3, s * 0.15, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#c8832e"; g.beginPath(); g.ellipse(0, s * 0.05, s * 0.3, s * 0.1, 0, 0, Math.PI); g.fill();
+      g.strokeStyle = "rgba(160,110,50,0.8)"; g.lineWidth = s * 0.02; for (let k = -2; k <= 2; k++) { g.beginPath(); g.moveTo(k * s * 0.09, -s * 0.14); g.lineTo(k * s * 0.09 + s * 0.02, -s * 0.03); g.stroke(); } g.restore(); });
+  } else if (kind === "plates") {
+    ["#f4f4f2", "#d9453a", "#3f6fb5", "#e0b43a", "#2a2d33", "#f4f4f2", "#d9453a"].forEach((c, i) => { const y = cy + s * 0.36 - i * s * 0.12;
+      E(cx, y + s * 0.04, s * 0.42, s * 0.11, "rgba(0,0,0,0.25)"); E(cx, y + s * 0.03, s * 0.4, s * 0.1, inShade(c, 0.7)); g.fillStyle = inShade(c, 0.7); g.fillRect(cx - s * 0.4, y - s * 0.01, s * 0.8, s * 0.04); E(cx, y, s * 0.4, s * 0.1, c); });
+  } else if (kind === "onigiri") {
+    g.fillStyle = "#f7f2e6"; g.beginPath(); g.moveTo(cx, cy - s * 0.42); g.quadraticCurveTo(cx + s * 0.5, cy + s * 0.3, cx + s * 0.4, cy + s * 0.4); g.lineTo(cx - s * 0.4, cy + s * 0.4); g.quadraticCurveTo(cx - s * 0.5, cy + s * 0.3, cx, cy - s * 0.42); g.fill();
+    g.fillStyle = "#16231d"; g.fillRect(cx - s * 0.26, cy + s * 0.08, s * 0.52, s * 0.32);
+  } else if (kind === "tea") {
+    E(cx, cy + s * 0.36, s * 0.46, s * 0.1, "#e8e8e6"); R(cx - s * 0.3, cy - s * 0.18, s * 0.6, s * 0.5, s * 0.18, "#f4f4f2"); E(cx, cy - s * 0.18, s * 0.3, s * 0.08, "#7fb552");
+    g.strokeStyle = "rgba(255,255,255,0.7)"; g.lineWidth = s * 0.03; [-0.1, 0.1].forEach(o => { g.beginPath(); g.moveTo(cx + o * s, cy - s * 0.26); g.quadraticCurveTo(cx + o * s + s * 0.08, cy - s * 0.4, cx + o * s, cy - s * 0.52); g.stroke(); });
+  } else if (kind === "sake") {
+    R(cx - s * 0.2, cy - s * 0.1, s * 0.4, s * 0.52, s * 0.14, "#e8e4da"); R(cx - s * 0.07, cy - s * 0.46, s * 0.14, s * 0.4, s * 0.05, "#e8e4da");
+    g.fillStyle = "#34495e"; g.fillRect(cx - s * 0.2, cy + s * 0.08, s * 0.4, s * 0.1);
+    R(cx + s * 0.28, cy + s * 0.2, s * 0.22, s * 0.22, s * 0.07, "#f4f4f2"); E(cx + s * 0.39, cy + s * 0.22, s * 0.1, s * 0.03, "#dfeaf0");
+  } else if (kind === "bento") {
+    R(cx - s * 0.5, cy - s * 0.3, s, s * 0.62, s * 0.08, "#2a2d33"); R(cx - s * 0.45, cy - s * 0.25, s * 0.5, s * 0.52, s * 0.05, "#f7f2e6"); E(cx - s * 0.2, cy - s * 0.05, s * 0.08, s * 0.08, "#b5202a");
+    R(cx + s * 0.08, cy - s * 0.25, s * 0.34, s * 0.25, s * 0.04, "#e8a33d"); R(cx + s * 0.08, cy + s * 0.03, s * 0.34, s * 0.24, s * 0.04, "#5fae44");
+  } else if (kind === "can") {
+    R(cx - s * 0.2, cy - s * 0.42, s * 0.4, s * 0.84, s * 0.07, top || "#d9302c"); R(cx - s * 0.2, cy - s * 0.42, s * 0.4, s * 0.1, s * 0.04, "#d8dce0"); R(cx - s * 0.2, cy + s * 0.32, s * 0.4, s * 0.1, s * 0.04, "#d8dce0");
+    g.strokeStyle = "#fff"; g.lineWidth = s * 0.06; g.beginPath(); g.moveTo(cx - s * 0.2, cy + s * 0.04); g.quadraticCurveTo(cx, cy - s * 0.12, cx + s * 0.2, cy + s * 0.06); g.stroke(); R(cx - s * 0.2, cy - s * 0.3, s * 0.08, s * 0.6, s * 0.03, "rgba(255,255,255,0.22)");
+  } else if (kind === "fish") {
+    g.fillStyle = top || "#f08a3a"; g.beginPath(); g.moveTo(cx - s * 0.5, cy); g.quadraticCurveTo(cx - s * 0.1, cy - s * 0.42, cx + s * 0.24, cy); g.quadraticCurveTo(cx - s * 0.1, cy + s * 0.42, cx - s * 0.5, cy); g.fill();
+    g.beginPath(); g.moveTo(cx + s * 0.2, cy); g.lineTo(cx + s * 0.5, cy - s * 0.24); g.lineTo(cx + s * 0.5, cy + s * 0.24); g.closePath(); g.fill();
+    g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = s * 0.05; g.beginPath(); g.moveTo(cx - s * 0.12, cy - s * 0.2); g.quadraticCurveTo(cx - s * 0.02, cy, cx - s * 0.12, cy + s * 0.2); g.stroke(); E(cx - s * 0.34, cy - s * 0.05, s * 0.04, s * 0.04, "#16181b");
+  } else if (kind === "book") {
+    [["#c8372d", 0.9, 0], ["#2c6a8a", 0.8, 0.02], ["#e8b83d", 0.7, -0.02]].forEach((b, i) => { const y = cy + s * 0.36 - i * s * 0.22; R(cx - s * b[1] * 0.5 + b[2] * s, y - s * 0.2, s * b[1], s * 0.2, s * 0.03, b[0]); g.fillStyle = "#f7f2e6"; g.fillRect(cx - s * b[1] * 0.5 + b[2] * s + s * 0.05, y - s * 0.17, s * b[1] - s * 0.1, s * 0.03); });
+  } else if (kind === "pill") {
+    g.save(); g.translate(cx, cy); g.rotate(-0.6); R(-s * 0.4, -s * 0.16, s * 0.4, s * 0.32, s * 0.16, "#f4f4f2"); R(0, -s * 0.16, s * 0.4, s * 0.32, s * 0.16, "#e0463a"); g.restore();
+    E(cx + s * 0.34, cy + s * 0.3, s * 0.1, s * 0.1, "#f4f4f2"); g.fillStyle = "#c9ced4"; g.fillRect(cx + s * 0.25, cy + s * 0.3, s * 0.18, s * 0.02);
+  } else if (kind === "tie") {
+    g.fillStyle = "#f7f9fb"; g.beginPath(); g.moveTo(cx - s * 0.2, cy - s * 0.44); g.lineTo(cx - s * 0.52, cy - s * 0.2); g.lineTo(cx - s * 0.38, cy + s * 0.04); g.lineTo(cx - s * 0.28, cy - s * 0.02); g.lineTo(cx - s * 0.28, cy + s * 0.44); g.lineTo(cx + s * 0.28, cy + s * 0.44); g.lineTo(cx + s * 0.28, cy - s * 0.02); g.lineTo(cx + s * 0.38, cy + s * 0.04); g.lineTo(cx + s * 0.52, cy - s * 0.2); g.lineTo(cx + s * 0.2, cy - s * 0.44); g.closePath(); g.fill();
+    g.fillStyle = top || "#c8372d"; g.beginPath(); g.moveTo(cx - s * 0.06, cy - s * 0.4); g.lineTo(cx + s * 0.06, cy - s * 0.4); g.lineTo(cx + s * 0.1, cy + s * 0.3); g.lineTo(cx, cy + s * 0.38); g.lineTo(cx - s * 0.1, cy + s * 0.3); g.closePath(); g.fill();
+  } else if (kind === "phone") {
+    R(cx - s * 0.24, cy - s * 0.5, s * 0.48, s, s * 0.09, "#1b1e24"); const gr = g.createLinearGradient(cx, cy - s * 0.45, cx, cy + s * 0.45); gr.addColorStop(0, top || "#6a8cff"); gr.addColorStop(1, "#c46ad8"); R(cx - s * 0.2, cy - s * 0.45, s * 0.4, s * 0.88, s * 0.06, gr);
+    E(cx, cy - s * 0.1, s * 0.09, s * 0.09, "rgba(255,255,255,0.8)");
+  } else if (kind === "tv") {
+    R(cx - s * 0.5, cy - s * 0.32, s, s * 0.6, s * 0.04, "#14171b"); const gr = g.createLinearGradient(cx - s * 0.46, cy, cx + s * 0.46, cy); gr.addColorStop(0, "#3f8ae0"); gr.addColorStop(1, "#e06a8a"); R(cx - s * 0.46, cy - s * 0.28, s * 0.92, s * 0.52, s * 0.02, gr); R(cx - s * 0.2, cy + s * 0.3, s * 0.4, s * 0.06, s * 0.02, "#14171b");
+  } else if (kind === "game") {
+    R(cx - s * 0.5, cy - s * 0.25, s, s * 0.5, s * 0.22, "#232831"); R(cx - s * 0.36, cy - s * 0.04, s * 0.24, s * 0.08, 2, "#e8e8e6"); R(cx - s * 0.28, cy - s * 0.12, s * 0.08, s * 0.24, 2, "#e8e8e6"); E(cx + s * 0.22, cy - s * 0.06, s * 0.06, s * 0.06, "#e0463a"); E(cx + s * 0.34, cy + s * 0.06, s * 0.06, s * 0.06, "#3f8ae0");
+  } else { g.restore(); return false; }
+  g.restore(); return true;
+}
+function inSticker(g, text, x, y, r, bg, fg, font) {
+  g.save(); g.translate(x, y); g.rotate(0.2); g.fillStyle = bg; g.beginPath();
+  for (let i = 0; i < 20; i++) { const a = i / 20 * Math.PI * 2, rr = i % 2 ? r * 0.82 : r; g.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } g.closePath(); g.fill();
+  g.strokeStyle = fg; g.lineWidth = 2; g.stroke();
+  g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; let fs = r * 0.62; g.font = "900 " + fs + "px " + font;
+  while (g.measureText(text).width > r * 1.45 && fs > 8) { fs -= 1; g.font = "900 " + fs + "px " + font; }
+  g.fillText(text, 0, 2); g.restore();
+}
+function inFit(g, text, weight, maxW, size, font) { let fs = size; g.font = weight + " " + fs + "px " + font; while (g.measureText(text).width > maxW && fs > 10) { fs -= 2; g.font = weight + " " + fs + "px " + font; } return fs; }
+function inPosterTex(brand, i) {
+  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length], fonts = inFontsOf(brand);
+  return inCanvasTex("poster2:" + brand + ":" + (i % ads.length), 256, 340, (g, w, h) => {
+    const base = ad[3], v = (inHash(brand) + i) % 3, price = (ad[1].match(/¥[\d,]+/) || [""])[0];
+    const ink = new THREE.Color(base).getHSL({}).l > 0.62 ? "#1a1a1a" : "#ffffff";
+    if (v === 0) {                                                  // the hero shot: a spotlit picture with the name on a ribbon
+      const gr = g.createRadialGradient(w / 2, h * 0.38, 10, w / 2, h * 0.38, h * 0.75); gr.addColorStop(0, inShade(base, 1.45)); gr.addColorStop(1, inShade(base, 0.5));
+      g.fillStyle = gr; g.fillRect(0, 0, w, h);
+      g.fillStyle = "rgba(255,255,255,0.09)"; for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2; g.beginPath(); g.moveTo(w / 2, h * 0.38); g.arc(w / 2, h * 0.38, h, a, a + 0.22); g.closePath(); g.fill(); }
+      if (!inArt(g, ad[2], w / 2, h * 0.38, w * 0.74, ad[4])) inIcon(g, ad[2], w / 2, h * 0.38, w * 0.5, "#ffffff");
+      g.fillStyle = "#fff"; g.fillRect(0, h * 0.64, w, h * 0.14); g.fillStyle = base; g.fillRect(0, h * 0.655, w, h * 0.11);
+      g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff"; inFit(g, ad[0], 900, w - 24, 38, fonts[0]); g.fillText(ad[0], w / 2, h * 0.71, w - 20);
+      g.fillStyle = "#fff"; inFit(g, ad[1], 600, w - 24, 17, fonts[1]); g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 4; g.fillText(ad[1], w / 2, h * 0.88, w - 20); g.shadowBlur = 0;
+      if (price) inSticker(g, price, w * 0.8, h * 0.17, 34, "#ffd21c", "#b5202a", fonts[0]);
+    } else if (v === 1) {                                           // the patterned card: picture in a panel, a headline above, a sticker
+      g.fillStyle = base; g.fillRect(0, 0, w, h);
+      g.fillStyle = "rgba(255,255,255,0.14)"; for (let x = 0; x < w; x += 24) for (let y = 0; y < h; y += 24) { g.beginPath(); g.arc(x + ((y / 24) % 2) * 12, y, 5, 0, 7); g.fill(); }
+      g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = "#fff"; g.shadowColor = "rgba(0,0,0,0.45)"; g.shadowBlur = 5; inFit(g, ad[0], 900, w - 24, 36, fonts[0]); g.fillText(ad[0], w / 2, h * 0.12, w - 20); g.shadowBlur = 0;
+      g.fillStyle = "#fffdf4"; g.beginPath(); g.roundRect ? g.roundRect(20, h * 0.2, w - 40, h * 0.5, 22) : g.rect(20, h * 0.2, w - 40, h * 0.5); g.fill();
+      g.strokeStyle = inShade(base, 0.7); g.lineWidth = 4; g.stroke();
+      if (!inArt(g, ad[2], w / 2, h * 0.45, w * 0.6, ad[4])) inIcon(g, ad[2], w / 2, h * 0.45, w * 0.4, base);
+      g.fillStyle = "rgba(0,0,0,0.22)"; g.fillRect(0, h * 0.78, w, h * 0.22); g.fillStyle = "#fff"; inFit(g, ad[1], 700, w - 30, 20, fonts[1]); g.fillText(ad[1], w / 2, h * 0.89, w - 24);
+      if (price) inSticker(g, price, w * 0.8, h * 0.66, 32, "#ffd21c", "#b5202a", fonts[0]);
+    } else {                                                        // the split: two tones on a diagonal, the picture overlapping both
+      g.fillStyle = base; g.fillRect(0, 0, w, h); g.fillStyle = inShade(base, 0.55); g.beginPath(); g.moveTo(0, h * 0.5); g.lineTo(w, h * 0.22); g.lineTo(w, h); g.lineTo(0, h); g.closePath(); g.fill();
+      g.fillStyle = "rgba(255,255,255,0.16)"; g.beginPath(); g.arc(w * 0.3, h * 0.3, w * 0.4, 0, 7); g.fill();
+      g.save(); g.translate(w / 2, h * 0.13); g.rotate(-0.06); g.textAlign = "center"; g.textBaseline = "middle"; g.fillStyle = ink; g.shadowColor = "rgba(0,0,0,0.35)"; g.shadowBlur = 4; inFit(g, ad[0], 900, w - 24, 40, fonts[0]); g.fillText(ad[0], 0, 0, w - 20); g.restore(); g.shadowBlur = 0;
+      if (!inArt(g, ad[2], w * 0.5, h * 0.5, w * 0.72, ad[4])) inIcon(g, ad[2], w * 0.5, h * 0.5, w * 0.5, "#ffffff");
+      g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; inFit(g, ad[1], 700, w - 30, 19, fonts[1]); g.fillText(ad[1], w / 2, h * 0.86, w - 24);
+      g.fillStyle = "#ffd21c"; g.fillRect(w * 0.2, h * 0.93, w * 0.6, 4);
+      if (price) inSticker(g, price, w * 0.2, h * 0.64, 30, "#ffd21c", "#b5202a", fonts[0]);
+    }
+    g.strokeStyle = "rgba(255,255,255,0.75)"; g.lineWidth = 4; g.strokeRect(6, 6, w - 12, h - 12);
+  });
+}
 function inBanner(root, brand, i, x, y, z, ry, w) {
-  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length];
-  const t = inCanvasTex("banner:" + brand + ":" + (i % ads.length), 512, 128, (g, cw, ch) => {
-    g.fillStyle = ad[3]; g.fillRect(0, 0, cw, ch); g.fillStyle = "rgba(0,0,0,0.2)"; g.fillRect(0, ch - 20, cw, 20);
-    inIcon(g, ad[2], 64, ch / 2 - 4, 76, "#ffffff");
-    g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; let fs = 46; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif";
-    while (g.measureText(ad[0]).width > cw - 150 && fs > 16) { fs -= 2; g.font = "900 " + fs + "px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; }
-    g.fillText(ad[0], 118, ch * 0.4, cw - 130);
-    g.font = "600 20px 'Segoe UI', 'Noto Sans JP', system-ui, sans-serif"; g.fillStyle = "rgba(255,255,255,0.9)"; g.fillText(ad[1], 118, ch * 0.72, cw - 130);
+  const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length], fonts = inFontsOf(brand);
+  const t = inCanvasTex("banner2:" + brand + ":" + (i % ads.length), 512, 128, (g, cw, ch) => {
+    const price = (ad[1].match(/¥[\d,]+/) || [""])[0], v = (inHash(brand) + i) % 2;
+    g.fillStyle = ad[3]; g.fillRect(0, 0, cw, ch);
+    g.fillStyle = "rgba(255,255,255,0.12)"; if (v) { for (let k = -2; k < 14; k++) { g.beginPath(); g.moveTo(k * 48, ch); g.lineTo(k * 48 + 24, ch); g.lineTo(k * 48 + 24 + 40, 0); g.lineTo(k * 48 + 40, 0); g.fill(); } } else { for (let a = 0; a < cw; a += 32) for (let b = 0; b < ch; b += 32) { g.beginPath(); g.arc(a + ((b / 32) % 2) * 16, b, 6, 0, 7); g.fill(); } }
+    g.fillStyle = "rgba(0,0,0,0.22)"; g.fillRect(0, ch - 16, cw, 16);
+    g.fillStyle = "rgba(255,255,255,0.92)"; g.beginPath(); g.arc(66, ch / 2 - 4, 54, 0, 7); g.fill();
+    if (!inArt(g, ad[2], 66, ch / 2 - 4, 84, ad[4])) inIcon(g, ad[2], 66, ch / 2 - 4, 70, ad[3]);
+    g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle"; g.shadowColor = "rgba(0,0,0,0.4)"; g.shadowBlur = 4;
+    const maxW = cw - 150 - (price ? 90 : 0); inFit(g, ad[0], 900, maxW, 50, fonts[0]); g.fillText(ad[0], 134, ch * 0.38, maxW);
+    inFit(g, ad[1], 600, maxW, 22, fonts[1]); g.fillStyle = "rgba(255,255,255,0.94)"; g.fillText(ad[1], 134, ch * 0.7, maxW); g.shadowBlur = 0;
+    if (price) inSticker(g, price, cw - 56, ch / 2 - 6, 46, "#ffd21c", "#b5202a", fonts[0]);
   });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, w / 4), new THREE.MeshBasicMaterial({ map: t, fog: false }));
   m.position.set(x, y, z); m.rotation.y = ry; root.add(m);
@@ -29511,6 +29678,7 @@ function interiorDecor(room, root, th, brand, opts) {
   inBanner(root, brand, 1, -W / 2 + 0.13, 2.5, -0.2, Math.PI / 2, 3.2);
   if (!lift) { inPoster(root, brand, 3, W / 2 - 0.13, 1.7, -4.2, -Math.PI / 2, 1.0, 1.35); inPoster(root, brand, 4, W / 2 - 0.13, 1.7, -2.6, -Math.PI / 2, 1.0, 1.35); inBanner(root, brand, 0, W / 2 - 0.13, 2.65, -1.0, -Math.PI / 2, 2.6); }
   inPoster(root, brand, 5, -W / 2 + 0.13, 1.7, 3.9, Math.PI / 2, 0.9, 1.25);
+  if (RESTAURANT[brand]) return;            // a restaurant sets its own table; the walls above are all it keeps
   // ---- looking-only stock
   const pool = [];
   (room.stock || []).forEach(sh => sh.items.forEach(it => pool.push(it)));
@@ -29595,7 +29763,7 @@ function interiorRoom(s, opts) {
   const th = IN_THEME[brand] || IN_THEME.eleven;
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
-  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: opts.stock || inStock(s), units: [], noExit: !!opts.noExit };
+  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: RESTAURANT[brand] ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
   // shell
   inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
   for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) inAdd(root, IN_W / 8, 0.02, IN_D / 6, i * IN_W / 8, 0.005, j * IN_D / 6, inShade(th.floor, 0.93));
@@ -29659,8 +29827,9 @@ function interiorRoom(s, opts) {
     room.colliders.push({ x0: sl.x - hx, x1: sl.x + hx, z0: sl.z - hz, z1: sl.z + hz });
   });
 
-  // the counter on the right, with the clerk behind it
+  // the counter on the right, with the clerk behind it (a restaurant has its own furniture instead)
   const cx = IN_W / 2 - 1.5, cz = 2.6;
+  if (!RESTAURANT[brand]) {
   inAdd(root, 1.0, 1.05, 3.8, cx, 0.525, cz, "#4b5058"); inAdd(root, 1.1, 0.06, 3.9, cx, 1.08, cz, th.trim);
   inAdd(root, 0.4, 0.3, 0.4, cx, 1.26, cz + 0.8, "#1c1f24"); inAdd(root, 0.34, 0.02, 0.3, cx, 1.42, cz + 0.8, "#6fe0a0");
   room.colliders.push({ x0: cx - 0.55, x1: cx + 0.55, z0: cz - 1.95, z1: cz + 1.95 });
@@ -29669,17 +29838,477 @@ function interiorRoom(s, opts) {
   inAdd(clerk, 0.26, 0.26, 0.26, 0, 1.62, 0, "#e8c4a0"); inAdd(clerk, 0.3, 0.1, 0.3, 0, 1.8, 0, th.cap); inAdd(clerk, 0.1, 0.06, 0.02, 0, 1.64, 0.14, "#3a2a20");
   room.clerk = clerk;
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
+  }
   // a door mat
   if (!opts.noExit) inAdd(root, 2.2, 0.03, 1.2, 0, 0.02, IN_D / 2 - 0.7, "#2a2d33");
   try { interiorDecor(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the shop dressing failed:", e); }
+  if (RESTAURANT[brand]) {
+    try { ({ kaiten: kaitenBuild, sushiya: sushiyaBuild, ramen: ramenBuild })[RESTAURANT[brand]](room, root, th); } catch (e) { console.warn("[Konto] the restaurant could not be built:", e); }
+  }
   if (opts.extra) opts.extra(room, root, th);
 
   root.visible = false;
   scene.add(root);
-  room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - 3.4);
+  room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));
   room.doorZ = oz + IN_D / 2;
   interior.rooms[key] = room;
   return room;
+}
+
+
+// ---- restaurants -------------------------------------------------------------------------------------------------------------------------
+// Three kinds of place to sit down and eat, each with its own way of ordering:
+//   Sushi Go-Go (the chain)      a conveyor belt of plates round the chefs. Sit at the counter, and as a plate comes past your seat press E to
+//                                take it. The plates pile up in the corner of the screen, colour by colour, and you pay for the stack when you stand.
+//   a sushi-ya (the traditional) a hinoki counter with the chef in front of you. You choose from a menu, and the chef makes it there and then.
+//                                It costs several times as much.
+//   Menya Ippai (the ramen)      a row of booths with a bamboo blind in front of each. You tick an order sheet (strength, garlic, spice, noodles,
+//                                toppings), hand it in, and the blind rises on a steaming bowl.
+const RESTAURANT = { ramen: "ramen", sushi: "kaiten", sushiya: "sushiya" };
+const KAITEN = {
+  speed: 0.30, X: 5.0, Z0: -2.8, Z1: 0.2,
+  tiers: [
+    { id: "white", c: "#f4f4f2", price: 150, name: "Tamago", top: "#e8c24a", w: 40 },
+    { id: "red", c: "#d9453a", price: 200, name: "Salmon", top: "#f08a4a", w: 25 },
+    { id: "blue", c: "#3f6fb5", price: 250, name: "Maguro", top: "#b5202a", w: 15 },
+    { id: "gold", c: "#e0b43a", price: 330, name: "Ikura", top: "#e8502a", w: 12 },
+    { id: "black", c: "#2a2d33", price: 450, name: "Otoro", top: "#f0a3a0", w: 8 }
+  ]
+};
+KAITEN.L = 2 * (2 * KAITEN.X) + 2 * (KAITEN.Z1 - KAITEN.Z0);
+function kaitenPoint(s) {
+  const K = KAITEN, a = 2 * K.X, b = K.Z1 - K.Z0;
+  s = ((s % K.L) + K.L) % K.L;
+  if (s < a) return { x: -K.X + s, z: K.Z0 };
+  s -= a; if (s < b) return { x: K.X, z: K.Z0 + s };
+  s -= b; if (s < a) return { x: K.X - s, z: K.Z1 };
+  s -= a; return { x: -K.X, z: K.Z1 - s };
+}
+function kaitenS(x, z) {                              // where along the belt the point nearest (x, z) is
+  const K = KAITEN, a = 2 * K.X, b = K.Z1 - K.Z0;
+  const cx = Math.max(-K.X, Math.min(K.X, x)), cz = Math.max(K.Z0, Math.min(K.Z1, z));
+  const dN = Math.abs(z - K.Z0), dS = Math.abs(z - K.Z1), dW = Math.abs(x + K.X), dE = Math.abs(x - K.X);
+  const m = Math.min(dN, dS, dW, dE);
+  if (m === dN) return cx + K.X;
+  if (m === dE) return a + (cz - K.Z0);
+  if (m === dS) return a + b + (K.X - cx);
+  return 2 * a + b + (K.Z1 - cz);
+}
+function inRand(a) { let s = (a * 9301 + 49297) % 233280; return s / 233280; }
+function inChef(root, x, z, ry, hat) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
+  inAdd(g, 0.4, 0.8, 0.26, 0, 0.4, 0, "#2a2d33"); inAdd(g, 0.5, 0.7, 0.3, 0, 1.15, 0, "#f4f4f2");
+  inAdd(g, 0.3, 0.3, 0.3, 0, 1.68, 0, "#e8c4a0"); inAdd(g, 0.34, hat ? 0.22 : 0.1, 0.34, 0, hat ? 1.95 : 1.88, 0, "#ffffff");
+  inAdd(g, 0.34, 0.06, 0.34, 0, 1.8, 0, "#c0172b");                                                    // the headband
+  inAdd(g, 0.05, 0.05, 0.02, -0.07, 1.7, 0.155, "#222222"); inAdd(g, 0.05, 0.05, 0.02, 0.07, 1.7, 0.155, "#222222"); inAdd(g, 0.1, 0.02, 0.02, 0, 1.6, 0.155, "#8a4a3a");
+  const mk = (sx) => { const p = new THREE.Group(); p.position.set(sx * 0.31, 1.42, 0); g.add(p); inAdd(p, 0.12, 0.55, 0.12, 0, -0.27, 0, "#f4f4f2"); inAdd(p, 0.13, 0.12, 0.13, 0, -0.58, 0, "#e8c4a0"); return p; };
+  g.userData.armL = mk(-1); g.userData.armR = mk(1);
+  return g;
+}
+function inStool(root, x, z, hex) { inCyl(root, 0.22, 0.06, x, 0.58, z, hex || "#8a2a2a"); inCyl(root, 0.05, 0.55, x, 0.28, z, "#8d939c"); inCyl(root, 0.2, 0.04, x, 0.02, z, "#6d7580"); }
+function inNigiri(parent, x, y, z, topHex, sc) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(sc || 1); parent.add(g);
+  inAdd(g, 0.1, 0.04, 0.05, 0, 0.02, 0, "#f6f3ea"); inAdd(g, 0.11, 0.02, 0.055, 0, 0.05, 0, topHex);
+  return g;
+}
+
+// ---- Sushi Go-Go: the conveyor
+function kaitenBuild(room, root, th) {
+  const K = KAITEN; room.rest = "kaiten"; room.restaurant = true;
+  const wood = "#d8b88a", cw = "#8a5a3a", mz = (K.Z0 + K.Z1) / 2, X = K.X, Z0 = K.Z0, Z1 = K.Z1;
+  const ring = (x0, x1, z0, z1, h, hex, topHex) => { inAdd(root, x1 - x0, h, z1 - z0, (x0 + x1) / 2, h / 2, (z0 + z1) / 2, hex); if (topHex) inAdd(root, x1 - x0 + 0.02, 0.03, z1 - z0 + 0.02, (x0 + x1) / 2, h + 0.015, (z0 + z1) / 2, topHex); };
+  // the customers' counter on the outside, the belt in the middle, the chefs' counter inside it
+  ring(-X - 0.9, X + 0.9, Z0 - 0.9, Z0 - 0.2, 0.8, cw, wood); ring(-X - 0.9, X + 0.9, Z1 + 0.2, Z1 + 0.9, 0.8, cw, wood);
+  ring(-X - 0.9, -X - 0.2, Z0 - 0.2, Z1 + 0.2, 0.8, cw, wood); ring(X + 0.2, X + 0.9, Z0 - 0.2, Z1 + 0.2, 0.8, cw, wood);
+  ring(-X - 0.2, X + 0.2, Z0 - 0.2, Z0 + 0.2, 0.9, "#3a3f46"); ring(-X - 0.2, X + 0.2, Z1 - 0.2, Z1 + 0.2, 0.9, "#3a3f46");
+  ring(-X - 0.2, -X + 0.2, Z0 + 0.2, Z1 - 0.2, 0.9, "#3a3f46"); ring(X - 0.2, X + 0.2, Z0 + 0.2, Z1 - 0.2, 0.9, "#3a3f46");
+  ring(-X + 0.2, X - 0.2, Z0 + 0.2, Z0 + 0.8, 1.05, "#c0172b", "#f4f1ea"); ring(-X + 0.2, X - 0.2, Z1 - 0.8, Z1 - 0.2, 1.05, "#c0172b", "#f4f1ea");
+  ring(-X + 0.2, -X + 0.8, Z0 + 0.8, Z1 - 0.8, 1.05, "#c0172b", "#f4f1ea"); ring(X - 0.8, X - 0.2, Z0 + 0.8, Z1 - 0.8, 1.05, "#c0172b", "#f4f1ea");
+  room.colliders.push({ x0: -X - 0.95, x1: X + 0.95, z0: Z0 - 0.95, z1: Z1 + 0.95 });
+  inAdd(root, 2 * X - 1.6, 0.02, Z1 - Z0 - 1.6, 0, 0.03, mz, "#5a4a3a");              // the floor inside, where the chefs stand
+  room.chefs = [inChef(root, -2.2, mz, 0, true), inChef(root, 2.2, mz, 0, true)];
+  [-3.6, 3.6].forEach(x => { inAdd(root, 0.5, 0.35, 0.3, x, 1.22, mz, "#cfd6de"); });
+  // a hanging sign over the belt, and the price boards
+  const sg = inLabel("回転寿司  Sushi Go-Go", 4.0, 0.5, "#c0172b", "#ffffff"); sg.position.set(0, 3.3, mz + 0.01); root.add(sg);
+  const sg2 = inLabel("回転寿司  Sushi Go-Go", 4.0, 0.5, "#c0172b", "#ffffff"); sg2.position.set(0, 3.3, mz - 0.01); sg2.rotation.y = Math.PI; root.add(sg2);
+  inAdd(root, 0.04, 0.2, 0.04, -1.8, 3.6, mz, "#2a2d33"); inAdd(root, 0.04, 0.2, 0.04, 1.8, 3.6, mz, "#2a2d33");
+  K.tiers.forEach((t, i) => { const l = inLabel(t.name + "  ¥" + t.price, 1.2, 0.34, t.c, i === 0 || i === 3 ? "#222" : "#fff"); l.position.set(-2.6 + i * 1.3, 1.65, -IN_D / 2 + 0.16); root.add(l); });
+  // stools all the way round, and the player takes one of them
+  const seats = [];
+  for (let i = 0; i < 7; i++) { const x = -4.5 + i * 1.5; seats.push({ x: x, z: Z0 - 1.55, face: Math.PI }, { x: x, z: Z1 + 1.55, face: 0 }); }
+  [mz - 0.9, mz, mz + 0.9].forEach(z => { seats.push({ x: -X - 1.55, z: z, face: -Math.PI / 2 }, { x: X + 1.55, z: z, face: Math.PI / 2 }); });
+  room.spots = []; room.seats = seats;
+  seats.forEach((st, i) => { inStool(root, st.x, st.z); room.colliders.push({ x0: st.x - 0.25, x1: st.x + 0.25, z0: st.z - 0.25, z1: st.z + 0.25 });
+    room.spots.push({ x: st.x + Math.sin(st.face) * 0.6, z: st.z + Math.cos(st.face) * 0.6, label: "sit down at the belt", act: "sit", seat: i }); });
+  // the plates
+  const plates = [], N = 32;
+  const pick = (r) => { const tot = K.tiers.reduce((a, b) => a + b.w, 0); let v = r * tot; for (let i = 0; i < K.tiers.length; i++) { v -= K.tiers[i].w; if (v <= 0) return i; } return 0; };
+  const discGeo = new THREE.CylinderGeometry(0.15, 0.13, 0.025, 14);
+  for (let i = 0; i < N; i++) {
+    const g = new THREE.Group(); g.scale.setScalar(1.5); root.add(g);
+    const pl = { g: g, s: i * K.L / N, tier: 0, taken: false, glow: null };
+    plates.push(pl); kaitenSetTier(pl, pick(inRand(i * 7 + 3)), discGeo);
+  }
+  room.plates = plates; room.discGeo = discGeo; room.pick = pick; room.kt = 0;
+  room.tick = (dt) => {
+    room.kt += dt * K.speed;
+    plates.forEach(pl => {
+      if (pl.s0 === undefined) pl.s0 = pl.s;
+      const p = kaitenPoint(pl.s0 + room.kt);
+      pl.g.position.set(p.x, 0.93, p.z); pl.cur = ((pl.s0 + room.kt) % K.L + K.L) % K.L;
+      // a plate that has gone round the kitchen end comes back as a new one
+      if (pl.taken && pl.cur < 0.8) { kaitenSetTier(pl, room.pick(Math.random()), discGeo); pl.taken = false; pl.g.visible = true; }
+    });
+    room.chefs.forEach((c, i) => { c.userData.armR.rotation.x = -0.5 + Math.sin(clock * 6 + i * 2) * 0.35; c.userData.armL.rotation.x = -0.4 + Math.cos(clock * 5 + i) * 0.25; });
+  };
+  room.seatCam = (st) => { const r = kaitenS(st.x, st.z), p = kaitenPoint(r); const dx = Math.sin(st.face), dz = Math.cos(st.face);
+    return { pos: [st.x - dx * 0.15, 1.7, st.z - dz * 0.15], look: [p.x, 1.1, p.z], reach: r }; };
+}
+function kaitenSetTier(pl, ti, discGeo) {
+  const K = KAITEN, t = K.tiers[ti];
+  while (pl.g.children.length) pl.g.remove(pl.g.children[0]);
+  pl.tier = ti;
+  const d = new THREE.Mesh(discGeo, inMat(t.c)); d.position.y = 0.0; pl.g.add(d);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.155, 0.155, 0.012, 14), inMat(ti === 0 ? "#d94a4a" : "#f4f4f2")); ring.position.y = -0.005; pl.g.add(ring);
+  inNigiri(pl.g, -0.04, 0.012, 0, t.top, 1.0); inNigiri(pl.g, 0.05, 0.012, 0.0, t.top, 1.0);
+  const glow = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.01, 16), new THREE.MeshBasicMaterial({ color: 0xffd21c, fog: false, transparent: true, opacity: 0.8 }));
+  glow.position.y = -0.02; glow.visible = false; glow.name = "glow"; pl.g.add(glow); pl.glow = glow;
+}
+function kaitenNear(S) {                              // the plate in reach of the seat, if any
+  const R = interior.room, K = KAITEN; let best = null, bd = 0.62;
+  R.plates.forEach(pl => { if (pl.taken) return; let d = Math.abs(pl.cur - S.reach); d = Math.min(d, K.L - d); if (d < bd) { bd = d; best = pl; } });
+  return best;
+}
+function platesHudDraw(S) {
+  let el = $platesEl();
+  const c = el.firstChild, g = c.getContext("2d"), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(12,14,18,0.78)"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#fff"; g.font = "800 15px 'Segoe UI', system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillText("Plates  " + S.plates.length, 12, 22);
+  g.textAlign = "right"; g.fillStyle = "#ffd21c"; g.fillText(yenText(S.total), W - 12, 22);
+  // the pile, in the order it was eaten, each plate a thin disc a little under the one above
+  const base = H - 46, cx = W / 2, shown = S.plates.slice(-20), th = Math.min(11, 96 / Math.max(8, shown.length));
+  shown.forEach((ti, i) => {
+    const y = base - i * th, t = KAITEN.tiers[ti];
+    g.fillStyle = "rgba(0,0,0,0.35)"; g.beginPath(); g.ellipse(cx + 2, y + 5, 52, 10, 0, 0, 7); g.fill();
+    g.fillStyle = shadeCss(t.c, 0.7); g.beginPath(); g.ellipse(cx, y + th * 0.6, 50, 9, 0, 0, 7); g.fill();       // the side of the plate
+    g.fillRect(cx - 50, y, 100, th * 0.6);
+    g.fillStyle = t.c; g.beginPath(); g.ellipse(cx, y, 50, 9, 0, 0, 7); g.fill();                                  // the rim facing up
+    g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 1; g.stroke();
+    if (i === shown.length - 1) { g.fillStyle = shadeCss(t.c, 0.85); g.beginPath(); g.ellipse(cx, y, 34, 6, 0, 0, 7); g.fill(); }
+  });
+  if (S.plates.length > 20) { g.fillStyle = "#fff"; g.font = "600 12px 'Segoe UI', sans-serif"; g.textAlign = "left"; g.fillText("+" + (S.plates.length - 20) + " below", 12, base - 4); }
+  // what the colours cost
+  KAITEN.tiers.forEach((t, i) => { const x = 26 + i * 42, n = S.plates.filter(v => v === i).length; g.fillStyle = t.c; g.beginPath(); g.arc(x, H - 28, 11, 0, 7); g.fill(); g.strokeStyle = "rgba(255,255,255,0.5)"; g.stroke();
+    g.fillStyle = i === 0 || i === 3 ? "#222" : "#fff"; g.font = "800 12px 'Segoe UI', sans-serif"; g.textAlign = "center"; g.fillText(n, x, H - 24);
+    g.fillStyle = "#c8ced6"; g.font = "600 10px 'Segoe UI', sans-serif"; g.fillText("¥" + t.price, x, H - 7); });
+}
+function shadeCss(hex, k) { const c = new THREE.Color(hex).multiplyScalar(k); return "#" + c.getHexString(); }
+function $platesEl() {
+  let el = document.getElementById("iplates");
+  if (!el) { el = document.createElement("div"); el.id = "iplates"; const c = document.createElement("canvas"); c.width = 220; c.height = 190; el.appendChild(c); document.body.appendChild(el); }
+  return el;
+}
+
+// ---- the traditional sushi counter
+const SUSHIYA_MENU = [
+  { id: "omakase", name: "Omakase course", price: 12000, stress: -0.34, health: 0.20, min: 90, pcs: 8, note: "The chef decides. You do not argue." },
+  { id: "moriawase", name: "Nigiri moriawase, eight pieces", price: 4800, stress: -0.20, health: 0.12, min: 50, pcs: 8, note: "Tuna, sea bream, shrimp, squid, salmon." },
+  { id: "otoro", name: "Otoro, two pieces", price: 2600, stress: -0.12, health: 0.05, min: 15, pcs: 2, note: "The fattiest part of the tuna." },
+  { id: "uni", name: "Uni, two pieces", price: 2900, stress: -0.12, health: 0.05, min: 15, pcs: 2, note: "Sea urchin from Hokkaido." },
+  { id: "ikura", name: "Ikura gunkan", price: 1800, stress: -0.08, health: 0.04, min: 10, pcs: 2, note: "Salmon roe, a little warm from the rice." },
+  { id: "salmon", name: "Salmon, two pieces", price: 1400, stress: -0.06, health: 0.04, min: 10, pcs: 2, note: "" },
+  { id: "tamago", name: "Tamago", price: 900, stress: -0.04, health: 0.02, min: 8, pcs: 2, note: "Sweet omelette, the test of a sushi-ya." },
+  { id: "miso", name: "Miso soup", price: 700, stress: -0.03, health: 0.04, min: 6, pcs: 0, note: "" },
+  { id: "sake", name: "Hot sake", price: 1500, stress: -0.12, health: -0.01, min: 20, pcs: 0, note: "A small flask and a smaller cup." },
+  { id: "tea", name: "Green tea", price: 500, stress: -0.02, health: 0.01, min: 5, pcs: 0, note: "" }
+];
+function sushiyaBuild(room, root, th) {
+  room.rest = "sushiya"; room.restaurant = true;
+  inAdd(root, 9.4, 1.0, 0.9, 0, 0.5, -1.0, "#a98858"); inAdd(root, 9.6, 0.06, 1.0, 0, 1.03, -1.0, "#f0dcae");
+  room.colliders.push({ x0: -4.8, x1: 4.8, z0: -1.5, z1: -0.5 });
+  inAdd(root, 9.0, 0.7, 0.35, 0, 0.55, -5.1, "#6a4a2e");                                      // the back bar
+  inAdd(root, 4.2, 0.9, 0.5, -3.2, 1.2, -4.9, "#cfe6f0"); inAdd(root, 4.0, 0.7, 0.4, -3.2, 1.2, -4.9, "#e8f4fa");   // the glass fish case
+  for (let i = 0; i < 6; i++) inAdd(root, 0.4, 0.14, 0.24, -4.8 + i * 0.64, 1.1 + (i % 2) * 0.28, -4.9, ["#e0554a", "#f09a8a", "#f2efe6", "#e8a33d", "#b5202a", "#f0c8a0"][i]);
+  for (let i = 0; i < 9; i++) inAdd(root, 0.14, 0.4, 0.14, 0.8 + i * 0.5, 1.15, -5.1, ["#d9b24a", "#6ea8d8", "#e8e8e6", "#5a8a4a"][i % 4]);        // sake bottles
+  for (let i = -3; i <= 3; i++) { inAdd(root, 1.1, 1.3, 0.06, i * 1.2, 1.45, -5.35, "#f4ecd2"); inAdd(root, 0.04, 1.3, 0.08, i * 1.2 + 0.55, 1.45, -5.33, "#4a3220"); inAdd(root, 1.1, 0.04, 0.08, i * 1.2, 1.45, -5.33, "#4a3220"); }   // shoji
+  for (let i = 0; i < 4; i++) inLantern(root, -3.6 + i * 2.4, 2.9, -0.2, "#e8c24a");
+  inAdd(root, 8.2, 0.04, 0.5, 0, 2.6, -0.2, "#4a3220");
+  // the chef
+  room.chef = inChef(root, 0, -2.2, 0, true);
+  room.boardG = new THREE.Group(); room.boardG.position.set(0, 0, -1.0); root.add(room.boardG);
+  inAdd(room.boardG, 1.0, 0.04, 0.5, 0, 1.07, 0, "#d9c8a0"); room.board = { fish: inAdd(room.boardG, 0.6, 0.12, 0.18, 0.1, 1.15, -0.05, "#e8604f") };
+  // seats at the counter and two tatami rooms off to the sides
+  const seats = []; for (let i = 0; i < 7; i++) seats.push({ x: -3.6 + i * 1.2, z: 0.15 });
+  room.spots = []; room.seats = seats;
+  seats.forEach((st, i) => { inStool(root, st.x, st.z, "#5a3a22"); room.colliders.push({ x0: st.x - 0.25, x1: st.x + 0.25, z0: st.z - 0.25, z1: st.z + 0.25 }); room.spots.push({ x: st.x, z: st.z + 0.55, label: "sit at the counter", act: "sit", seat: i }); });
+  [-6.4, 6.4].forEach(x => { inAdd(root, 2.6, 0.25, 3.4, x, 0.125, 3.2, "#c8c07a"); inAdd(root, 1.4, 0.4, 1.0, x, 0.45, 3.2, "#5a3a22"); for (let k = 0; k < 4; k++) inAdd(root, 0.5, 0.08, 0.5, x + (k % 2 ? 0.9 : -0.9), 0.3, 3.2 + (k < 2 ? -0.7 : 0.7), "#8a2a2a");
+    inAdd(root, 0.04, 2.0, 3.4, x + (x < 0 ? 1.4 : -1.4), 1.2, 3.2, "#f4ecd2"); room.colliders.push({ x0: x - 1.4, x1: x + 1.4, z0: 1.4, z1: 5.0 }); });
+  room.tick = (dt) => { const a = room.chef.userData; a.armL.rotation.x = -0.3 + Math.sin(clock * 1.6) * 0.1; a.armR.rotation.x = -0.3 + Math.cos(clock * 1.3) * 0.1; };
+  room.seatCam = (st) => ({ pos: [st.x, 1.34, 0.5], look: [st.x, 1.16, -1.7] });
+}
+
+// ---- Menya Ippai: the booths
+const RAMEN_SHEET = [
+  { id: "flavour", name: "Richness of the broth", opts: ["Light", "Standard", "Rich"], def: 1 },
+  { id: "garlic", name: "Garlic", opts: ["None", "A little", "Standard", "A lot"], def: 1 },
+  { id: "onion", name: "Green onion", opts: ["None", "White", "Green"], def: 2 },
+  { id: "spice", name: "Red sauce", opts: ["None", "Mild", "Standard", "Hot", "Extra hot"], def: 2 },
+  { id: "noodles", name: "Noodle firmness", opts: ["Extra firm", "Firm", "Standard", "Soft"], def: 1 }
+];
+const RAMEN_TOP = [
+  { id: "chashu", name: "Extra chashu pork", price: 280 }, { id: "egg", name: "Soft-boiled egg", price: 150 },
+  { id: "kikurage", name: "Kikurage mushroom", price: 120 }, { id: "nori", name: "Extra nori", price: 100 }, { id: "kaedama", name: "Extra noodles (kaedama)", price: 210 }
+];
+const RAMEN_BASE = 980;
+function ramenBuild(room, root, th) {
+  room.rest = "ramen"; room.restaurant = true;
+  inAdd(root, 12.6, 1.0, 1.1, 0, 0.5, -1.85, "#6a4a2e"); inAdd(root, 12.8, 0.06, 1.25, 0, 1.03, -1.8, "#d9b878");
+  room.colliders.push({ x0: -6.5, x1: 6.5, z0: -2.5, z1: -1.15 });
+  inAdd(root, 12.8, 3.3, 0.12, 0, 1.65, -2.45, "#3a2a1c");                                    // the kitchen wall with the windows in it
+  for (let i = 0; i < 4; i++) inBanner(root, "ramen", i, -4.6 + i * 3.07, 2.65, -2.37, 0, 2.7);
+  room.blinds = []; room.bowls = []; const seats = []; room.spots = []; room.seats = seats;
+  for (let i = 0; i < 8; i++) {
+    const x = -5.25 + i * 1.5;
+    inAdd(root, 1.1, 0.9, 0.06, x, 1.55, -2.38, "#14100a");                                   // the window
+    const b = inAdd(root, 1.1, 0.9, 0.05, x, 1.55, -2.3, "#6a8a4a"); room.blinds.push(b); b.userData.base = 1.55;     // the blind, down
+    for (let k = 0; k < 6; k++) inAdd(root, 1.1, 0.02, 0.055, x, 1.15 + k * 0.15, -2.28, "#4a6a30");
+    inAdd(root, 0.05, 1.0, 0.8, x + 0.75, 0.9, -1.0, "#8a6a3a");                              // the partition
+    inAdd(root, 0.2, 0.12, 0.02, x + 0.0, 1.14, -1.6, "#c8372d");                             // the call button
+    const bowl = new THREE.Group(); bowl.position.set(x, 1.08, -2.1); bowl.visible = false; root.add(bowl); room.bowls.push(bowl);
+    const bw = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.17, 0.2, 12), inMat("#f2efe6")); bw.position.y = 0.1; bowl.add(bw);
+    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.235, 0.02, 12), inMat("#c8903a")); br.position.y = 0.2; bowl.add(br); bowl.userData.broth = br;
+    inAdd(bowl, 0.2, 0.04, 0.12, -0.05, 0.23, 0.0, "#e8b0a0"); inAdd(bowl, 0.08, 0.05, 0.08, 0.1, 0.23, 0.05, "#f2efe6"); inAdd(bowl, 0.14, 0.02, 0.14, 0.0, 0.22, -0.1, "#4a6a30");
+    inStool(root, x, -0.6, "#2a2d33"); room.colliders.push({ x0: x - 0.25, x1: x + 0.25, z0: -0.85, z1: -0.35 });
+    seats.push({ x: x, z: -0.6 }); room.spots.push({ x: x, z: 0.0, label: "sit in booth " + (i + 1), act: "sit", seat: i });
+  }
+  inAdd(root, 0.05, 1.0, 0.8, -6.0, 0.9, -1.0, "#8a6a3a");
+  // staff behind the wall, and the steam
+  room.staff = [inChef(root, -3.4, -4.1, Math.PI, false), inChef(root, 0.2, -4.1, Math.PI, false), inChef(root, 3.6, -4.1, Math.PI, false)];
+  inAdd(root, 12.0, 0.9, 1.0, 0, 0.45, -3.2, "#5a4a3a");
+  for (let i = 0; i < 3; i++) { inCyl(root, 0.35, 0.5, -3.4 + i * 3.6, 1.15, -3.2, "#8d939c"); }
+  room.steam = []; for (let i = 0; i < 9; i++) { const m = inAdd(root, 0.18, 0.18, 0.18, -3.4 + (i % 3) * 3.6, 1.6, -3.2, "#ffffff"); m.material = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, fog: false }); m.userData.o = i; room.steam.push(m); }
+  // a ticket machine by the door, and noren over the kitchen
+  inAdd(root, 0.9, 1.7, 0.6, 6.7, 0.85, 4.2, "#c8372d"); inAdd(root, 0.6, 0.5, 0.04, 6.4, 1.3, 4.2, "#f4f4f2"); for (let i = 0; i < 6; i++) inAdd(root, 0.1, 0.1, 0.04, 6.45 + (i % 3) * 0.15, 0.85 + Math.floor(i / 3) * 0.2, 3.9, "#ffd21c");
+  room.colliders.push({ x0: 6.2, x1: 7.2, z0: 3.8, z1: 4.6 });
+  for (let i = 0; i < 5; i++) inLantern(root, -4.5 + i * 2.25, 2.85, 0.4, "#c8372d");
+  room.tick = (dt) => {
+    room.staff.forEach((c, i) => { c.userData.armR.rotation.x = -0.6 + Math.sin(clock * 3 + i * 2) * 0.5; c.userData.armL.rotation.x = -0.5 + Math.cos(clock * 2.4 + i) * 0.4; });
+    room.steam.forEach(m => { const t = (clock * 0.4 + m.userData.o * 0.37) % 1; m.position.y = 1.5 + t * 1.0; m.material.opacity = 0.28 * (1 - t); m.scale.setScalar(0.7 + t * 1.2); });
+  };
+  room.seatCam = (st) => ({ pos: [st.x, 1.36, 0.1], look: [st.x, 1.12, -2.0] });
+}
+
+// ---- sitting down
+function interiorSit(sp) {
+  const R = interior.room, st = R.seats[sp.seat];
+  const cam = R.seatCam(st), w = (a) => new THREE.Vector3(R.ox + a[0], interior.floorY + a[1], R.oz + a[2]);
+  interior.sit = { kind: R.rest, seat: st, sp: sp, cam: w(cam.pos), look: w(cam.look), reach: cam.reach, phase: "menu", t: 0, plates: [], total: 0, order: null, sel: 0, bill: 0 };
+  player.speed = 0; player.obj.visible = false; interior.prompt.classList.remove("on");
+  const S = interior.sit;
+  if (S.kind === "kaiten") { $platesEl().classList.add("on"); platesHudDraw(S); say("Plates come past on the belt. Press E to take the one in front of you.", 5); }
+  else if (S.kind === "sushiya") sushiyaMenuDraw();
+  else if (S.kind === "ramen") ramenSheetOpen();
+}
+function interiorStand(quiet) {
+  const S = interior.sit; if (!S) return;
+  const R = interior.room;
+  if (S.kind === "kaiten") {
+    $platesEl().classList.remove("on");
+    if (S.plates.length) { purse.yen -= S.total; noteBuy("sushi", S.total); say("Paid " + yenText(S.total) + " for " + S.plates.length + " plate" + (S.plates.length > 1 ? "s" : "") + ". Gochisosama deshita.", 5); }
+  } else if (S.kind === "sushiya") { if (S.bowlMesh) { R.group.remove(S.bowlMesh); } if (S.plate) R.group.remove(S.plate); }
+  else if (S.kind === "ramen") { const b = R.bowls[S.seat ? R.seats.indexOf(S.seat) : 0]; if (b) b.visible = false; const sh = document.getElementById("isheet"); if (sh) sh.classList.remove("on"); }
+  interior.cardEl.classList.remove("on");
+  interior.sit = null; player.obj.visible = true;
+  const sp = S.sp; player.pos.set(R.ox + sp.x, interior.floorY, R.oz + sp.z); player.speed = 0;
+  player.obj.position.copy(player.pos); camPos.copy(camera.position);
+}
+function interiorSitTick(dt) {
+  const S = interior.sit, R = interior.room;
+  S.t += dt;
+  camPos.lerp(S.cam, 1 - Math.pow(0.0005, dt)); camera.position.copy(camPos);
+  const look = S.look.clone();
+  if (S.kind === "sushiya" && S.phase === "cook") look.set(R.ox + S.seat.x, interior.floorY + 1.25, R.oz - 1.6);
+  camera.lookAt(look);
+  if (S.kind === "kaiten") kaitenSitTick(S, dt);
+  else if (S.kind === "sushiya") sushiyaSitTick(S, dt);
+  else if (S.kind === "ramen") ramenSitTick(S, dt);
+}
+function interiorSitKey(e) {
+  const S = interior.sit, k = e.code;
+  if (S.kind === "kaiten") {
+    if (k === "KeyE" || k === "Enter" || k === "Space") { kaitenTake(S); return true; }
+    if (k === "Escape" || k === "KeyF" || k === "Backspace") { interiorStand(); return true; }
+    return k !== "KeyP";
+  }
+  if (S.kind === "sushiya") return sushiyaKey(S, e);
+  if (S.kind === "ramen") return ramenKey(S, e);
+  return false;
+}
+
+// kaiten
+function kaitenSitTick(S, dt) {
+  const R = interior.room;
+  R.plates.forEach(pl => { if (pl.glow) pl.glow.visible = false; });
+  const pl = kaitenNear(S); S.near = pl;
+  if (pl) { pl.glow.visible = true; const t = KAITEN.tiers[pl.tier]; interior.prompt.innerHTML = "<b>E</b>  take the " + t.name.toLowerCase() + " plate  <i>" + yenText(t.price) + "</i>"; interior.prompt.classList.add("on"); }
+  else interior.prompt.classList.remove("on");
+}
+function kaitenTake(S) {
+  const pl = S.near; if (!pl) { say("Wait for a plate to come past.", 1.8); return; }
+  const t = KAITEN.tiers[pl.tier];
+  if (purse.yen < S.total + t.price) { say("You cannot afford another plate.", 2.5); return; }
+  pl.taken = true; pl.g.visible = false; S.plates.push(pl.tier); S.total += t.price;
+  vitals.stress = clamp01(vitals.stress + eatRelief("nigiri", -0.010 * (1 + pl.tier * 0.3)));
+  vitals.health = clamp01(vitals.health + 0.004 + pl.tier * 0.001);
+  advanceGameMinutes(3);
+  say(t.name + " · " + yenText(t.price) + "  (" + S.plates.length + " on the pile)", 1.8);
+  platesHudDraw(S);
+}
+
+// the sushi-ya
+function sushiyaMenuDraw() {
+  const S = interior.sit, el = interior.cardEl; if (!S) return;
+  const rows = SUSHIYA_MENU.map((m, i) => "<button data-m='" + i + "' class='" + (i === S.sel ? "on" : "") + "'>" + m.name + "<b style='float:right'>" + yenText(m.price) + "</b></button>").join("");
+  el.innerHTML = "<div class='ih'><b>Oshinagaki  お品書き</b><i>" + yenText(purse.yen) + "</i></div><div class='in'>" + (SUSHIYA_MENU[S.sel].note || "&nbsp;") + "</div><div class='ib' style='flex-direction:column;max-height:42vh;overflow:auto'>" + rows + "</div><div class='ik'>▲ ▼ choose   Enter order   Esc stand up</div>";
+  el.classList.add("on");
+  el.querySelectorAll("button").forEach(b => { b.addEventListener("click", () => { S.sel = +b.dataset.m; sushiyaOrder(S); }); b.addEventListener("mouseenter", () => { S.sel = +b.dataset.m; }); });
+}
+function sushiyaOrder(S) {
+  const m = SUSHIYA_MENU[S.sel];
+  if (purse.yen < m.price) { say("Not enough for that. " + m.name + " is " + yenText(m.price) + ".", 3.5); return; }
+  S.order = m; S.phase = "cook"; S.t = 0; interior.cardEl.classList.remove("on");
+  const R = interior.room;
+  R.chef.position.x = S.seat.x; R.boardG.position.x = S.seat.x;                      // the chef steps along the counter to stand in front of you
+  S.plate = new THREE.Group(); S.plate.position.set(R.seats[0].x * 0 + S.seat.x, 1.075, -0.9); S.plate.visible = false; R.group.add(S.plate);
+  const geta = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.34), inMat("#5a3a22")); S.plate.add(geta);
+  S.pieces = []; const n = Math.min(m.pcs, 8);
+  for (let i = 0; i < n; i++) { const p = inNigiri(S.plate, -0.36 + (i % 4) * 0.24, 0.02, i < 4 ? -0.06 : 0.07, ["#e8604f", "#f0a3a0", "#f2efe6", "#e8a33d", "#b5202a", "#f08a4a", "#e8c24a", "#8a2a2a"][i % 8], 1.4); p.visible = false; S.pieces.push(p); }
+  if (m.pcs === 0) { const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.07, 0.1, 10), inMat(m.id === "miso" ? "#8a2a1a" : m.id === "sake" ? "#f4f4f2" : "#4a8a3a")); cup.position.y = 0.07; S.plate.add(cup); S.pieces = [cup]; cup.visible = false; }
+  say("Hai, domo. The chef gets to work.", 3);
+}
+function sushiyaSitTick(S, dt) {
+  const R = interior.room, a = R.chef.userData;
+  if (S.phase !== "cook") return;
+  const t = S.t, n = S.pieces.length;
+  if (t < 1.4) {                                              // slicing the fish
+    a.armR.rotation.x = -1.0 + Math.sin(t * 15) * 0.5; a.armL.rotation.x = -0.6; R.board.fish.scale.x = Math.max(0.3, 1 - t * 0.45);
+  } else if (t < 2.8) {                                       // pressing the rice
+    a.armL.rotation.x = -1.1 + Math.sin(t * 22) * 0.18; a.armR.rotation.x = -1.1 + Math.cos(t * 22) * 0.18;
+  } else if (t < 4.0) {                                       // setting the pieces on the geta
+    S.plate.visible = true; a.armR.rotation.x = -0.9 + Math.sin((t - 2.8) * 6) * 0.3; a.armL.rotation.x = -0.4;
+    const k = Math.floor((t - 2.8) / 1.2 * n + 0.001); S.pieces.forEach((p, i) => { p.visible = i <= k; });
+  } else if (t < 4.8) {                                       // sliding it across to you
+    S.pieces.forEach(p => { p.visible = true; }); S.plate.position.z = -0.9 + (t - 4.0) / 0.8 * 0.55; a.armR.rotation.x = -0.7; a.armL.rotation.x = -0.7;
+  } else {
+    R.board.fish.scale.x = 1; S.phase = "serve";
+    interior.prompt.innerHTML = "<b>E</b>  eat  <i>" + S.order.name + "</i>"; interior.prompt.classList.add("on");
+  }
+}
+function sushiyaKey(S, e) {
+  const k = e.code;
+  if (S.phase === "menu") {
+    if (k === "ArrowUp" || k === "KeyW") { S.sel = (S.sel + SUSHIYA_MENU.length - 1) % SUSHIYA_MENU.length; sushiyaMenuDraw(); return true; }
+    if (k === "ArrowDown" || k === "KeyS") { S.sel = (S.sel + 1) % SUSHIYA_MENU.length; sushiyaMenuDraw(); return true; }
+    if (k === "Enter" || k === "Space" || k === "KeyE") { sushiyaOrder(S); return true; }
+    if (k === "Escape" || k === "KeyF" || k === "Backspace") { interiorStand(); return true; }
+    return k !== "KeyP";
+  }
+  if (S.phase === "serve" && (k === "KeyE" || k === "Enter" || k === "Space")) {
+    const m = S.order; purse.yen -= m.price; noteBuy("sushi", m.price);
+    vitals.stress = clamp01(vitals.stress + eatRelief("nigiri", m.stress)); vitals.health = clamp01(vitals.health + m.health);
+    advanceGameMinutes(m.min); say("Ate " + m.name.toLowerCase() + " · " + yenText(m.price) + ". Oishii.", 4);
+    interior.room.group.remove(S.plate); S.plate = null; S.phase = "menu"; interior.prompt.classList.remove("on"); sushiyaMenuDraw(); return true;
+  }
+  if (S.phase !== "menu" && (k === "Escape" || k === "KeyF")) { if (S.phase === "cook") return true; interiorStand(); return true; }
+  return k !== "KeyP";
+}
+
+// the ramen booth: the order sheet
+function ramenSheetOpen() {
+  const S = interior.sit;
+  S.choice = {}; RAMEN_SHEET.forEach(r => { S.choice[r.id] = r.def; }); S.tops = {}; S.row = 0; S.phase = "sheet";
+  ramenSheetDraw();
+}
+function ramenTotal(S) { let t = RAMEN_BASE; RAMEN_TOP.forEach(x => { if (S.tops[x.id]) t += x.price; }); return t; }
+function ramenSheetDraw() {
+  const S = interior.sit; if (!S) return;
+  let el = document.getElementById("isheet");
+  if (!el) { el = document.createElement("div"); el.id = "isheet"; document.body.appendChild(el); }
+  const rows = [];
+  RAMEN_SHEET.forEach((r, i) => rows.push("<div class='rw" + (S.row === i ? " cur" : "") + "'><span>" + r.name + "</span><div>" + r.opts.map((o, j) => "<button data-r='" + i + "' data-o='" + j + "' class='" + (S.choice[r.id] === j ? "tick" : "") + "'>" + o + "</button>").join("") + "</div></div>"));
+  const base = RAMEN_SHEET.length;
+  rows.push("<div class='rw top" + (S.row >= base && S.row < base + RAMEN_TOP.length ? " cur" : "") + "'><span>Toppings</span><div class='tops'>" + RAMEN_TOP.map((x, j) => "<button data-t='" + j + "' class='" + (S.tops[x.id] ? "tick" : "") + (S.row === base + j ? " foc" : "") + "'>" + x.name + " <b>+" + yenText(x.price) + "</b></button>").join("") + "</div></div>");
+  const last = base + RAMEN_TOP.length;
+  el.innerHTML = "<div class='hd'><b>麺屋一杯</b> Menya Ippai<i>Order sheet · ご注文票</i></div><div class='bs'>Tonkotsu ramen <b>" + yenText(RAMEN_BASE) + "</b></div>" + rows.join("") +
+    "<button class='go" + (S.row === last ? " foc" : "") + "' data-go='1'>Press the button and hand in the order  ·  " + yenText(ramenTotal(S)) + "</button><div class='ik'>▲ ▼ row   ◀ ▶ choose   Space tick a topping   Enter order   Esc stand up   ·  You have " + yenText(purse.yen) + "</div>";
+  el.classList.add("on");
+  el.querySelectorAll("[data-o]").forEach(b => b.addEventListener("click", () => { S.choice[RAMEN_SHEET[+b.dataset.r].id] = +b.dataset.o; S.row = +b.dataset.r; ramenSheetDraw(); }));
+  el.querySelectorAll("[data-t]").forEach(b => b.addEventListener("click", () => { const x = RAMEN_TOP[+b.dataset.t]; S.tops[x.id] = !S.tops[x.id]; S.row = base + +b.dataset.t; ramenSheetDraw(); }));
+  el.querySelector("[data-go]").addEventListener("click", () => ramenSubmit(S));
+}
+function ramenKey(S, e) {
+  const k = e.code, base = RAMEN_SHEET.length, last = base + RAMEN_TOP.length;
+  if (S.phase === "sheet") {
+    if (k === "ArrowUp" || k === "KeyW") { S.row = (S.row + last) % (last + 1); ramenSheetDraw(); return true; }
+    if (k === "ArrowDown" || k === "KeyS") { S.row = (S.row + 1) % (last + 1); ramenSheetDraw(); return true; }
+    if (k === "ArrowLeft" || k === "ArrowRight" || k === "KeyA" || k === "KeyD") {
+      const d = (k === "ArrowRight" || k === "KeyD") ? 1 : -1;
+      if (S.row < base) { const r = RAMEN_SHEET[S.row], n = r.opts.length; S.choice[r.id] = (S.choice[r.id] + d + n) % n; }
+      else if (S.row < last) S.row = Math.max(base, Math.min(last - 1, S.row + d));
+      ramenSheetDraw(); return true;
+    }
+    if (k === "Space") { if (S.row >= base && S.row < last) { const x = RAMEN_TOP[S.row - base]; S.tops[x.id] = !S.tops[x.id]; ramenSheetDraw(); } return true; }
+    if (k === "Enter" || k === "KeyE") { ramenSubmit(S); return true; }
+    if (k === "Escape" || k === "KeyF" || k === "Backspace") { interiorStand(); return true; }
+    return k !== "KeyP";
+  }
+  if (S.phase === "serve" && (k === "KeyE" || k === "Enter" || k === "Space")) { ramenEat(S); return true; }
+  if ((S.phase === "serve" || S.phase === "done") && (k === "Escape" || k === "KeyF")) { interiorStand(); return true; }
+  return S.phase !== "sheet" && k !== "KeyP";
+}
+function ramenSubmit(S) {
+  const total = ramenTotal(S);
+  if (purse.yen < total) { say("Not enough for that order: " + yenText(total) + ".", 3.5); return; }
+  S.bill = total; S.phase = "wait"; S.t = 0;
+  document.getElementById("isheet").classList.remove("on");
+  S.bowlI = interior.room.seats.indexOf(S.seat);
+  say("The sheet goes through the slot. Ding.", 3);
+}
+function ramenSitTick(S, dt) {
+  const R = interior.room, i = S.bowlI, blind = R.blinds[i], bowl = R.bowls[i];
+  if (S.phase !== "wait" && S.phase !== "serve") return;
+  if (S.phase === "wait") {
+    const t = S.t;
+    if (t < 1.6) blind.position.y = blind.userData.base;                                    // down: nothing to see
+    else if (t < 2.4) blind.position.y = blind.userData.base + (t - 1.6) / 0.8 * 0.95;      // it rises
+    else if (t < 3.6) { blind.position.y = blind.userData.base + 0.95; bowl.visible = true; bowl.position.z = -2.1 + (t - 2.4) / 1.2 * 0.5; }   // the bowl comes through
+    else if (t < 4.2) { blind.position.y = blind.userData.base + 0.95 - (t - 3.6) / 0.6 * 0.95; }   // it comes down again
+    else { blind.position.y = blind.userData.base; S.phase = "serve"; interior.prompt.innerHTML = "<b>E</b>  eat the ramen  <i>" + yenText(S.bill) + "</i>"; interior.prompt.classList.add("on"); }
+  }
+}
+function ramenEat(S) {
+  const c = S.choice, tp = S.tops;
+  let stress = -0.13, health = 0.11, min = 30;
+  if (c.flavour === 2) { stress -= 0.02; health += 0.01; } else if (c.flavour === 0) { stress += 0.01; health += 0.015; }
+  if (c.garlic === 3) stress -= 0.01;
+  if (c.spice >= 3) { stress -= 0.02; health -= 0.02; } if (c.spice === 4) health -= 0.02;
+  if (tp.chashu) { stress -= 0.02; health += 0.02; } if (tp.egg) health += 0.01; if (tp.kaedama) { min += 8; stress -= 0.01; } if (tp.kikurage) health += 0.005;
+  purse.yen -= S.bill; noteBuy("ramen", S.bill);
+  vitals.stress = clamp01(vitals.stress + eatRelief("tonkotsu", stress)); vitals.health = clamp01(vitals.health + health);
+  advanceGameMinutes(min);
+  const bowl = interior.room.bowls[S.bowlI]; if (bowl) { bowl.userData.broth.visible = false; setTimeout(() => { if (bowl) bowl.visible = false; }, 700); }
+  interior.prompt.classList.remove("on");
+  say("Finished the bowl, drank the broth. " + yenText(S.bill) + ". " + RAMEN_SHEET[0].opts[c.flavour] + " broth, " + RAMEN_SHEET[4].opts[c.noodles].toLowerCase() + " noodles.", 5);
+  S.phase = "done"; setTimeout(() => { if (interior.sit === S) { if (bowl) bowl.userData.broth.visible = true; S.phase = "sheet"; S.row = 0; ramenSheetDraw(); } }, 900);
+}
+
+
+function interiorSitPad(pressed) {
+  const S = interior.sit, key = (code) => interiorSitKey({ code: code, preventDefault() {} });
+  if (pressed(PAD.UP)) key("ArrowUp"); if (pressed(PAD.DOWN)) key("ArrowDown"); if (pressed(PAD.LEFT)) key("ArrowLeft"); if (pressed(PAD.RIGHT)) key("ArrowRight");
+  if (pressed(PAD.A)) key("Enter"); if (pressed(PAD.X)) key("Space"); if (pressed(PAD.B)) key("Escape");
 }
 
 function interiorSupports(s) {
@@ -29721,6 +30350,7 @@ function interiorEnter(s) {
 
 function interiorLeave(quiet) {
   if (!interior.active) return;
+  if (interior.sit) interiorStand(true);
   if (interior.stack) { interiorReturnToConcourse(); return; }
   if (interior.card) interiorCardClose(true);
   if (interior.pod) interiorPodClose();
@@ -29799,6 +30429,8 @@ function interiorTick(dt) {
   const R = interior.room;
   interior.said = Math.max(0, interior.said - dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
+  if (R.tick) R.tick(dt);
+  if (interior.sit) { interiorSitTick(dt); return; }
   if (interior.card) { interiorCardTick(dt); return; }
   if (interior.pod || interior.lift) { player.speed = 0; return; }
   const sp = R.spots ? interiorSpotFocus() : null;
@@ -29975,6 +30607,7 @@ function interiorAction(a) {
 function interiorKey(e) {
   if (!interior.active || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
+  if (interior.sit) return interiorSitKey(e);
   if (interior.lift) {
     const L = interior.lift, n = interior.bld.floors.length;
     if (k === "ArrowUp" || k === "KeyW") { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); return true; }
@@ -30013,6 +30646,7 @@ function interiorKey(e) {
 function interiorPad(pressed) {
   if (!interior.active || shops.inside) return false;
   if (interior.lift) { const L = interior.lift, n = interior.bld.floors.length; if (pressed(PAD.UP)) { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); } if (pressed(PAD.DOWN)) { L.sel = (L.sel + 1) % n; interiorLiftDraw(); } if (pressed(PAD.A)) interiorGoLevel(L.sel); if (pressed(PAD.B)) interiorLiftClose(); return true; }
+  if (interior.sit) { interiorSitPad(pressed); return true; }
   const c = interior.card;
   if (c) {
     if (pressed(PAD.LEFT)) { if (c.ask) { c.ask.choice = 1 - c.ask.choice; interiorCardDraw(); } else interiorStepItem(-1); }

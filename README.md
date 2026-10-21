@@ -8,6 +8,11 @@
 
 This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. The `Godot` and `WebGPU` folders are earlier experiments, kept for reference and not used by the game.
 
+**Eating out:** walk into a restaurant and press **E** at a seat.
+- *Sushi Go-Go* (the cheap chain) has a conveyor belt. Plates pass your seat; press **E** as one reaches you to take it. The pile of plates builds in the top-right corner, colour by colour (white ¥150, red ¥200, blue ¥250, gold ¥330, black ¥450), and you pay for the stack when you stand up (Esc).
+- *Sushi Kōryū* (the traditional sushi-ya, ¥500 to ¥12,000) has a hinoki counter. Pick from the menu with the arrow keys and Enter, and the chef slices, presses and plates it in front of you.
+- *Menya Ippai* (ramen) has booths with a bamboo blind. Tick the order sheet (broth, garlic, onion, red sauce, noodles, toppings) and hand it in; the blind rises on your bowl.
+
 **Your own cars and road textures:** copy them into `Game/Add Your Files/` (see the README.txt there). No upload and no git needed.
 
 ---
