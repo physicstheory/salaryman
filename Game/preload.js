@@ -6,7 +6,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 contextBridge.exposeInMainWorld("KONTO_DESKTOP", {
   platform: process.platform,
-  version: process.versions.electron
+  version: process.versions.electron,
+  update: () => ipcRenderer.send("update-game")
 });
 
 // Files dropped on the window are handed to the main process, which asks where they belong (see main.js, addFiles). Only the paths go across.

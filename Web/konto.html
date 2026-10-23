@@ -9598,7 +9598,7 @@ function buildRoadSurfaces(w, city, root) {
       const nx = -dz, nz = dx;
       const edge = (t, up) => {
         const x = p[0] + nx * t, z = p[2] + nz * t;
-        return [x, groundAt(x, z) + 0.10 + (up || 0), z];
+        return [x, groundAt(x, z) + 0.06 + (up || 0), z];
       };
       const here = {
         ok: paved(p[0], p[2]),
@@ -9661,7 +9661,7 @@ function buildRoadSurfaces(w, city, root) {
     const wardLaid = {}; let metres = 0; const why = { paved: 0, low: 0, fp: 0, poly: 0, art: 0, ok: 0 };
     city.wards.forEach((wd, wi) => {
       const poly = cells[wi]; if (!poly || poly.length < 3) return;
-      wardLaid[wd.name] = 0;
+      wardLaid[wd.name] = 0; const why0 = Object.assign({}, why); wd._why0 = why0;
       const reach = Math.max(wd.radius * 1.6, 400), steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
       const wOf = k => (wd.alleys && (k & 1) !== 0) ? wd.alley : wd.street;
       const fwOf = k => (wd.alleys && (k & 1) !== 0) ? 0 : Math.min(2.6, wd.street * 0.25);
@@ -9677,8 +9677,8 @@ function buildRoadSurfaces(w, city, root) {
           bounds.sort((p, q) => p - q);
           const pt = t => axis === 0 ? fromRectLocal(k * wd.sx, t, wd.centre[0], wd.centre[1], wd.yaw) : fromRectLocal(t, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
           const A = pt(0), B = pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-          const nx = -dz, nz = dx, yR = 0.10 + axis * 0.004, yW = 0.25;
-          const live = (x, z) => { if (!paved(x, z)) { why.paved++; return false; } if (w.sampleHeight(x, z) <= 1.2) { why.low++; return false; } if (city.footprint(x, z) <= 0.22) { why.fp++; return false; } if (!inPoly(poly, x, z)) { why.poly++; return false; } if (nearArt(x, z)) { why.art++; return false; } why.ok++; return true; };
+          const nx = -dz, nz = dx, yR = 0.06 + axis * 0.003, yW = 0.20;
+          const live = (x, z) => { if (!paved(x, z)) { why.paved++; return false; } if (w.sampleHeight(x, z) <= 0.3) { why.low++; return false; } if (city.footprint(x, z) <= 0.22) { why.fp++; return false; } if (!inPoly(poly, x, z)) { why.poly++; return false; } if (nearArt(x, z)) { why.art++; return false; } why.ok++; return true; };
           const at = (t, o, y) => { const p = pt(t), x = p[0] + nx * o, z = p[1] + nz * o; return [x, groundAt(x, z) + y, z]; };
           let along = 0;
           for (let bi = 0; bi + 1 < bounds.length; bi++) {
@@ -9713,6 +9713,7 @@ function buildRoadSurfaces(w, city, root) {
         }
       }
     });
+    city.wards.forEach((wd, i) => { const a = wd._why0, b2 = city.wards[i + 1] ? city.wards[i + 1]._why0 : why; if (a) { wardLaid[wd.name] = { m: Math.round(wardLaid[wd.name]), why: Object.keys(why).map(k => k + ":" + (b2[k] - a[k])).join(" ") }; } });
     if (line.pos.length) {
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(line.pos, 3));
@@ -12402,7 +12403,7 @@ function buildStreetFurniture(w, city, root, boxes) {
   const built = city.furniture = { stops: [], hoardings: [], platforms: [], shrines: [] };
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 + 8 && x < b.x1 - 8 && z > b.z0 + 8 && z < b.z1 - 8;
-  const groundAt = (x, z) => paved(x, z) ? cityGroundMax(w, x, z) + 0.08 : w.surfaceY(x, z);
+  const groundAt = (x, z) => paved(x, z) ? cityGroundMax(w, x, z) + 0.12 : w.surfaceY(x, z);
   const R = (a, c) => rnd(a | 0, c | 0, 70001 + city.code.charCodeAt(0));
   // One advert follows another down the street rather than being drawn at
   // random, so you never see the same one twice side by side.
@@ -12626,8 +12627,8 @@ function buildStreetFurniture(w, city, root, boxes) {
         // round a circle rather than routed, so a chord between two of their
         // points can cross a ravine, and a centre line painted down that is
         // worse than no centre line.
-        if (!paved(x, z) || w.sampleHeight(x, z) < 1.2 || w.slopeAt(x, z) > 0.32) continue;
-        solid.frame(x, groundAt(x, z) + 0.05, z, yawL);
+        if (!paved(x, z) || w.sampleHeight(x, z) < 0.3 || w.slopeAt(x, z) > 0.32) continue;
+        solid.frame(x, groundAt(x, z) - 0.045, z, yawL);       // furniture ground sits 0.12 up; the carriageway is 0.06, so this is a hand's width over the tarmac
         solid.colour([0.88, 0.88, 0.82]);
         solid.box(0, 0.012, 0, 0.17, 0.024, Math.min(dash, seg - t));
         dashes++;
@@ -19597,8 +19598,72 @@ const CHEAT_ACTIONS = {
   MIDNIGHT:  { dial: "5550133", note: "It is midnight", fn: () => cheatHour(0) },
   SUNRISE:   { dial: "5550134", note: "Sunrise", fn: () => cheatHour(6) },
   SUNSET:    { dial: "5550135", note: "Sunset", fn: () => cheatHour(18) },
-  LIGHTSOUT: { dial: "5550136", note: "Headlights on, all cars", fn: () => { if (drive.car) drive.car.lights = true; } }
+  LIGHTSOUT: { dial: "5550136", note: "Headlights on, all cars", fn: () => { if (drive.car) drive.car.lights = true; } },
+  BROKE:     { dial: "5550137", note: "Pockets empty", fn: () => { purse.yen = 0; } },
+  LOADEDUP:  { dial: "5550138", note: "Five of everything edible in the bag", fn: () => { Object.keys(STORE_SHELVES).forEach(b => STORE_SHELVES[b].forEach(sh => sh.items.forEach(i => { if (i.eat || i.med) bagAdd(i.id, 5); }))); } },
+  CALMDOWN:  { dial: "5550139", note: "No stress at all", fn: () => { vitals.stress = 0; } },
+  SLEEPLESS: { dial: "5550140", note: "Rested, and awake all day", fn: () => { vitals.slept = 60 * 8; vitals.awake = 0; vitals.health = 1; } },
+  TIMEFAST:  { dial: "5550141", note: "Time runs ten times faster", fn: () => { TIME.rate = 4; } },
+  TIMENORMAL:{ dial: "5550142", note: "Time runs normally", fn: () => { TIME.rate = 0.4; } },
+  TIMESLOW:  { dial: "5550143", note: "Time crawls", fn: () => { TIME.rate = 0.05; } },
+  FREECAM:   { dial: "5550150", note: "Free camera. Type FREECAM again to land", fn: () => { setMode(player.mode === "fly" ? "walk" : "fly"); if (player.mode === "walk") placeSeiko(new THREE.Vector3(camPos.x, 0, camPos.z)); } },
+  GOHOME:    { dial: "5550151", note: "Home", fn: () => cheatGo(home.door || home.at, home.yaw + Math.PI) },
+  GOMALL:    { dial: "5550152", note: "Dokoto Camera", fn: () => cheatGoShop(s => s.mall) },
+  GOPLAZA:   { dial: "5550153", note: "Konto Plaza", fn: () => cheatGoShop(s => s.plaza) },
+  GOSTATION: { dial: "5550154", note: "The nearest station", fn: () => cheatGoStation() },
+  GOSHOP:    { dial: "5550155", note: "The nearest shop", fn: () => cheatGoShop(s => !s.mall && !s.plaza && !s.safe && !s.vend) },
+  GOTOKONTO: { dial: "5550160", note: "Tōkonto", fn: () => cheatGoCity("Tōkonto") },
+  GOMIZUHO:  { dial: "5550161", note: "Mizuho", fn: () => cheatGoCity("Mizuho") },
+  GOSHIOKAWA:{ dial: "5550162", note: "Shiokawa", fn: () => cheatGoCity("Shiokawa") },
+  GONAGISA:  { dial: "5550163", note: "Nagisa", fn: () => cheatGoCity("Nagisa") },
+  GOHAMAURA: { dial: "5550164", note: "Hamaura", fn: () => cheatGoCity("Hamaura") },
+  GOISOBE:   { dial: "5550165", note: "Isobe", fn: () => cheatGoCity("Isobe") },
+  GOKAIDO:   { dial: "5550166", note: "Kaido", fn: () => cheatGoCity("Kaido") },
+  GOTOMARI:  { dial: "5550167", note: "Tomari", fn: () => cheatGoCity("Tomari") },
+  CHEATLIST: { dial: "5550190", note: "", fn: () => say("Cheats: " + Object.keys(CHEAT_ACTIONS).concat(Object.keys(CHEAT_VEHICLES)).join("  "), 14) },
+  REFRESH:   { dial: "5550199", note: "Looking for a new version", fn: () => refreshGame() }
 };
+// Putting Seiko somewhere: out of a car, out of a shop, and onto the ground there.
+function cheatGo(at, face) {
+  if (!at) { say("Nowhere to go.", 2); return; }
+  if (drive.car) leaveCar();
+  if (interior.active) interiorLeave(true);
+  if (shops.inside) { let k = 0; while (shops.inside && k++ < 6) leaveShop(); }
+  if (player.mode !== "walk") setMode("walk");
+  const x = at.x !== undefined ? at.x : at[0], z = at.z !== undefined ? at.z : at[1];
+  placeSeiko(new THREE.Vector3(x, 0, z));
+  player.yaw = player.targetYaw = face || 0; yaw = player.yaw + Math.PI; pitch = -0.15;
+  camPos.set(x - Math.sin(player.yaw) * 4, player.pos.y + 2.4, z - Math.cos(player.yaw) * 4);
+}
+function cheatGoShop(test) {
+  let best = null, bd = 1e12;
+  shops.list.forEach(s => { if (!test(s) || !s.door) return; const d = Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z); if (d > 8 && d < bd) { bd = d; best = s; } });
+  if (!best) { say("There is none.", 2); return; }
+  const out = best.yaw; cheatGo([best.door[0] + Math.sin(out) * 5, best.door[1] + Math.cos(out) * 5], out);
+}
+function cheatGoStation() {
+  let best = null, bd = 1e12;
+  world.cities.forEach(c => (c.stations || []).forEach(st => { const d = Math.hypot(st.centre[0] - player.pos.x, st.centre[1] - player.pos.z); if (d > 30 && d < bd) { bd = d; best = st; } }));
+  if (!best) { say("There is none.", 2); return; }
+  const a = best.yaw * Math.PI / 180; cheatGo([best.centre[0] + Math.sin(a) * (best.size[1] * 0.5 + 14), best.centre[1] + Math.cos(a) * (best.size[1] * 0.5 + 14)], a);
+}
+function cheatGoCity(name) {
+  const c = world.cities.find(x => x.name === name); if (!c) { say("No such town.", 2); return; }
+  if (c.scramble) { cheatGo([c.scramble.at[0] + 10, c.scramble.at[1] + 10], 0); return; }
+  // otherwise the arterial point nearest the middle of town, which is open road with a footway beside it
+  let best = null, bd = 1e12;
+  c.roads.forEach(r => { if (r.elevated || !r.pts) return; r.pts.forEach(p => { const d = Math.hypot(p[0] - c.centre[0], p[2] - c.centre[1]); if (d < bd) { bd = d; best = [p[0], p[2], r.halfWidth]; } }); });
+  if (!best) best = [c.centre[0], c.centre[1], 0];
+  cheatGo([best[0], best[1]], 0);
+}
+// Fetch the newest version of the game. The desktop app downloads it from GitHub (see Game/main.js); in a browser the page is simply loaded afresh.
+function refreshGame() {
+  try { saveGame("", true); } catch (e) { /* not saved */ }
+  if (window.KONTO_DESKTOP && window.KONTO_DESKTOP.update) { window.KONTO_DESKTOP.update(); return; }
+  say("Reloading the page for the latest version...", 3);
+  setTimeout(() => { const u = new URL(location.href); u.searchParams.set("v", Date.now()); location.href = u.toString(); }, 600);
+}
+window.refreshGame = refreshGame;
 function cheatHour(h) { clock = (((h * 60 - TIME.startMin) % 1440 + 1440) % 1440) / TIME.rate; if (typeof updateWorldSky === "function") updateWorldSky(0, true); }
 function cheatSpawn(kindName) {
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
@@ -19619,7 +19684,7 @@ function cheatSpawn(kindName) {
 function runCheat(name) {
   const v = CHEAT_VEHICLES[name], a = CHEAT_ACTIONS[name];
   if (v) return cheatSpawn(v.kind);
-  if (a) { a.fn(); say(a.note, 3); return true; }
+  if (a) { a.fn(); if (a.note) say(a.note, 3); return true; }
   return false;
 }
 window.cheat = n => runCheat(String(n).toUpperCase());
@@ -19629,7 +19694,7 @@ function cheatKey(e) {
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
   if (phone.open && (phone.entry || phone.app === "MyGram")) return;
-  cheatBuf = (cheatBuf + e.code.slice(3)).slice(-12);
+  cheatBuf = (cheatBuf + e.code.slice(3)).slice(-14);
   const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
   for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ""; if (player.placed) runCheat(all[i]); return; }
 }
@@ -31202,7 +31267,7 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
 generate(19640101);
 offerSaveOnTitle();
 </script>
-<script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window'; }</script>
+<script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window<br><b>F9</b> get the latest version of the game'; }</script>
 
 </body>
 </html>

@@ -28,6 +28,19 @@ the driving seat.
 | HEALTHY | 5550131 | full health, calm nerves |
 | MIDDAY / MIDNIGHT / SUNRISE / SUNSET | 5550132-5550135 | set the time |
 | LIGHTSOUT | 5550136 | your headlights on |
+| BROKE | 5550137 | empty your pockets |
+| LOADEDUP | 5550138 | five of every food and medicine in the bag |
+| CALMDOWN | 5550139 | no stress |
+| SLEEPLESS | 5550140 | rested, full health |
+| TIMEFAST / TIMENORMAL / TIMESLOW | 5550141-5550143 | how fast the clock runs |
+| FREECAM | 5550150 | free camera (type again to land) |
+| GOHOME | 5550151 | go home |
+| GOMALL / GOPLAZA | 5550152 / 5550153 | the nearest Dokoto Camera / Konto Plaza |
+| GOSTATION | 5550154 | the nearest station |
+| GOSHOP | 5550155 | the nearest shop |
+| GOTOKONTO, GOMIZUHO, GOSHIOKAWA, GONAGISA, GOHAMAURA, GOISOBE, GOKAIDO, GOTOMARI | 5550160-5550167 | go to that town |
+| CHEATLIST | 5550190 | show every code |
+| REFRESH | 5550199 | get the latest version of the game (same as F9) |
 
 From the browser console, `cheat("roadster")` does the same.
 

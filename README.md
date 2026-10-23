@@ -8,6 +8,8 @@
 
 This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. The `Godot` and `WebGPU` folders are earlier experiments, kept for reference and not used by the game.
 
+**Getting the latest version:** press **F9** in the game (or type `REFRESH`, or dial 5550199 on the phone). It downloads whatever changed in the `Web` folder of `physicstheory/salaryman` on the branch named in `Game/update.json`, keeps your saves, and offers to restart. F9 also lets you go back to the installed version. The repository is private, so the first time it asks you for a read-only GitHub token: it opens the token page, you make one for this repository (Contents: read-only), copy it, and press "Use the token on my clipboard". It is kept on your computer (or put it in `Game/Add Your Files/github-token.txt` yourself). In a browser, `REFRESH` just reloads the page. Cheats are listed in `Web/CHEATS.md`, or type `CHEATLIST`.
+
 **Eating out:** walk into a restaurant and press **E** at a seat.
 - *Sushi Go-Go* (the cheap chain) has a conveyor belt. Plates pass your seat; press **E** as one reaches you to take it. The pile of plates builds in the top-right corner, colour by colour (white ¥150, red ¥200, blue ¥250, gold ¥330, black ¥450), and you pay for the stack when you stand up (Esc).
 - *Sushi Kōryū* (the traditional sushi-ya, ¥500 to ¥12,000) has a hinoki counter. Pick from the menu with the arrow keys and Enter, and the chef slices, presses and plates it in front of you.

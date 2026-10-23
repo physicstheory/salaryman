@@ -70,6 +70,6 @@ await wait(4000);
 
 
 
-const res = await ev(() => { const c = world.cities[0]; return { laid: c.streetDebug, wards: c.wards.map(w => [w.name, w.kind, Math.round(w.radius), Math.round(w.sx), Math.round(w.sz), w.alleys]) }; });
-console.log("DBG", JSON.stringify(res));
+const res = await ev(() => world.cities[0].streetDebug);
+for (const k of ["Sakaebashi", "Marukane", "Mirai-futo", "Hinodecho"]) console.log("DBG", k, JSON.stringify(res[k]));
 await browser.close(); srv.close();
