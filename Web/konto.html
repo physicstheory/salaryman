@@ -3898,7 +3898,7 @@ function paintCity(world, city, size) {
 
     const reach = Math.max(wd.radius * 1.6, 400);
     const steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
-    for (let pass = 0; pass < 2; pass++) {
+    for (let pass = 0; pass < (STREET_GEOMETRY ? 0 : 2); pass++) {
       for (let k = -steps; k <= steps; k++) {
         const isAlley = wd.alleys && (k & 1) !== 0;
         const width = isAlley ? wd.alley : wd.street;
@@ -5334,6 +5334,7 @@ function insideBuilding(px, pz, radius) {
 // ============================================================================
 // SCENE
 // ============================================================================
+const STREET_GEOMETRY = true;   // the local streets are real geometry (buildRoadSurfaces), not paint in the city texture
 const CITY_LIFT = 0.7;        // metres the painted city ground sits over the terrain
 let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
 let sunLight = null, skyDome = null;
@@ -9558,10 +9559,16 @@ function pavingTexture() {
 // A ribbon along a path: tarmac in the middle, a kerb and a footway each side.
 // UVs run across in u and along in v at a metre to the unit, so one texture
 // tiles the length of a city without a seam you can find.
+// The surface a person stands on in the city: the terrain lifted to the city ground, or the city-ground mesh itself where that is higher.
+// Roads are laid a few centimetres above it, so they stand proud of the ground instead of sinking into it.
+function cityGroundMax(w, x, z) { return w.surfaceY(x, z); }
 function buildRoadSurfaces(w, city, root) {
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
-  const groundAt = (x, z) => paved(x, z) ? w.sampleHeight(x, z) + CITY_LIFT : w.surfaceY(x, z);
+  // The city ground is a coarse 40 m grid drawn over the terrain, and between its corners the triangles can sit above a height read straight off
+  // the terrain. A road laid on that is partly buried. So take the highest of the cell's four corners, which no triangle of the cell can exceed:
+  // the road then always stands above the ground, and the kerb has a step to show.
+  const groundAt = (x, z) => paved(x, z) ? cityGroundMax(w, x, z) : w.surfaceY(x, z);
 
   const road = { pos: [], nrm: [], uv: [] };
   const walk = { pos: [], nrm: [], uv: [] };
@@ -9577,7 +9584,7 @@ function buildRoadSurfaces(w, city, root) {
   }
 
   city.roads.forEach(r => {
-    if (r.elevated || r.halfWidth < 8 || !r.pts || r.pts.length < 3) return;
+    if (r.elevated || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;
     const hw = r.halfWidth, fw = 4.4;            // carriageway and footway
     let along = 0;
     let prev = null;
@@ -9589,15 +9596,15 @@ function buildRoadSurfaces(w, city, root) {
       let dx = q[0] - o[0], dz = q[2] - o[2];
       const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
       const nx = -dz, nz = dx;
-      const edge = (t) => {
+      const edge = (t, up) => {
         const x = p[0] + nx * t, z = p[2] + nz * t;
-        return [x, groundAt(x, z) + 0.02, z];
+        return [x, groundAt(x, z) + 0.10 + (up || 0), z];
       };
       const here = {
         ok: paved(p[0], p[2]),
         inL: edge(-hw), inR: edge(hw),
-        outL: edge(-hw - fw), outR: edge(hw + fw),
-        kL: edge(-hw - 0.12), kR: edge(hw + 0.12)
+        outL: edge(-hw - fw, 0.14), outR: edge(hw + fw, 0.14),
+        kL: edge(-hw - 0.12, 0.14), kR: edge(hw + 0.12, 0.14)
       };
       if (prev && prev.ok && here.ok) {
         const seg = Math.hypot(p[0] - pts[i - 1][0], p[2] - pts[i - 1][2]);
@@ -9609,7 +9616,7 @@ function buildRoadSurfaces(w, city, root) {
         // follows down a street.
         [[prev.kL, here.kL, -1], [prev.kR, here.kR, 1]].forEach(e => {
           const a = e[0], c = e[1], s = e[2];
-          const drop = 0.125;
+          const drop = 0.14;
           const A = [a[0], a[1], a[2]], B = [c[0], c[1], c[2]];
           const Ad = [a[0], a[1] - drop, a[2]], Bd = [c[0], c[1] - drop, c[2]];
           const face = s > 0 ? [A, Ad, Bd, B] : [B, Bd, Ad, A];
@@ -9626,6 +9633,96 @@ function buildRoadSurfaces(w, city, root) {
     }
   });
 
+  // ---- the local streets, as geometry --------------------------------------------------------------------------------------------------
+  // The grid of streets between the blocks used to be painted into the city's ground texture, at about three metres to the pixel, which is why
+  // they looked like a smudge from the air. They are now laid like the arterials: a tarmac ribbon in the HD asphalt, a kerb and a narrow footway
+  // either side, a centre line and edge lines on the wider ones. Each street is cut where it crosses another so the kerbs do not wall off the
+  // junction, and cut where it meets an arterial so the two surfaces never lie on top of each other.
+  {
+    const pad = 200, x0 = b.x0 - pad, z0 = b.z0 - pad, bw = (b.x1 - b.x0) + pad * 2, bh = (b.z1 - b.z0) + pad * 2;
+    const cells = voronoiCells(city.wards.map(wd => wd.centre), [x0, z0, x0 + bw, z0 + bh]);
+    const inPoly = (poly, x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], q = poly[j]; if ((a[1] > z) !== (q[1] > z) && x < (q[0] - a[0]) * (z - a[1]) / (q[1] - a[1]) + a[0]) c = !c; } return c; };
+    // the arterials that already have a ribbon, in a hash grid, so a street can stop where one begins
+    const AC = 80, art = new Map();
+    city.roads.forEach(r => {
+      if (r.elevated || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;
+      const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+      for (let i = 1; i < pts.length; i++) {
+        const p = pts[i - 1], q = pts[i], reach = r.halfWidth + 5.4;
+        for (let cx = Math.floor((Math.min(p[0], q[0]) - reach) / AC); cx <= Math.floor((Math.max(p[0], q[0]) + reach) / AC); cx++)
+          for (let cz = Math.floor((Math.min(p[2], q[2]) - reach) / AC); cz <= Math.floor((Math.max(p[2], q[2]) + reach) / AC); cz++) {
+            const k = cx + "," + cz; if (!art.has(k)) art.set(k, []); art.get(k).push([p[0], p[2], q[0], q[2], reach]);
+          }
+      }
+    });
+    const nearArt = (x, z) => { const l = art.get(Math.floor(x / AC) + "," + Math.floor(z / AC)); if (!l) return false; for (const s of l) if (distToSeg(x, z, s[0], s[1], s[2], s[3]) < s[4]) return true; return false; };
+    const line = { pos: [] };
+    const quadFlat = (a, b2, c, d) => [0, 1, 2, 0, 2, 3].forEach(i => { const q = [a, b2, c, d][i]; line.pos.push(q[0], q[1], q[2]); });
+    const wardLaid = {}; let metres = 0; const why = { paved: 0, low: 0, fp: 0, poly: 0, art: 0, ok: 0 };
+    city.wards.forEach((wd, wi) => {
+      const poly = cells[wi]; if (!poly || poly.length < 3) return;
+      wardLaid[wd.name] = 0;
+      const reach = Math.max(wd.radius * 1.6, 400), steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
+      const wOf = k => (wd.alleys && (k & 1) !== 0) ? wd.alley : wd.street;
+      const fwOf = k => (wd.alleys && (k & 1) !== 0) ? 0 : Math.min(2.6, wd.street * 0.25);
+      for (let axis = 0; axis < 2; axis++) {
+        const sAlong = axis === 0 ? wd.sz : wd.sx;           // spacing of the streets that cross this one
+        const crossSteps = Math.ceil(reach / sAlong) + 1;
+        for (let k = -steps; k <= steps; k++) {
+          const hw = wOf(k) / 2, fw = fwOf(k), st = fw > 0;
+          // where it crosses the other streets, and so where its footway and kerb stop
+          const wins = [];
+          for (let j = -crossSteps; j <= crossSteps; j++) { const half = wOf(j) / 2 + (fwOf(j) > 0 ? fwOf(j) + 0.12 : 0.2); wins.push([j * sAlong - half, j * sAlong + half]); }
+          const bounds = [-reach, reach]; wins.forEach(wn => { if (wn[0] > -reach && wn[0] < reach) bounds.push(wn[0]); if (wn[1] > -reach && wn[1] < reach) bounds.push(wn[1]); });
+          bounds.sort((p, q) => p - q);
+          const pt = t => axis === 0 ? fromRectLocal(k * wd.sx, t, wd.centre[0], wd.centre[1], wd.yaw) : fromRectLocal(t, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
+          const A = pt(0), B = pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+          const nx = -dz, nz = dx, yR = 0.10 + axis * 0.004, yW = 0.25;
+          const live = (x, z) => { if (!paved(x, z)) { why.paved++; return false; } if (w.sampleHeight(x, z) <= 1.2) { why.low++; return false; } if (city.footprint(x, z) <= 0.22) { why.fp++; return false; } if (!inPoly(poly, x, z)) { why.poly++; return false; } if (nearArt(x, z)) { why.art++; return false; } why.ok++; return true; };
+          const at = (t, o, y) => { const p = pt(t), x = p[0] + nx * o, z = p[1] + nz * o; return [x, groundAt(x, z) + y, z]; };
+          let along = 0;
+          for (let bi = 0; bi + 1 < bounds.length; bi++) {
+            const ta = bounds[bi], tb = bounds[bi + 1]; if (tb - ta < 0.05) continue;
+            const mid = (ta + tb) / 2, junction = wins.some(wn => mid > wn[0] && mid < wn[1]);
+            const n = Math.max(1, Math.ceil((tb - ta) / 8));
+            for (let s = 0; s < n; s++) {
+              const t0 = ta + (tb - ta) * s / n, t1 = ta + (tb - ta) * (s + 1) / n, pm = pt((t0 + t1) / 2), p0 = pt(t0), p1 = pt(t1);
+              if (!live(pm[0], pm[1]) || !live(p0[0], p0[1]) || !live(p1[0], p1[1])) { along = 0; continue; }
+              if (Math.abs(p0[0]) > 1e6) continue;
+              const v0 = along, v1 = along + (t1 - t0); along = v1;
+              strip(road, at(t0, -hw, yR), at(t0, hw, yR), at(t1, hw, yR), at(t1, -hw, yR), 0, hw * 2, v0, v1);
+              metres += t1 - t0; wardLaid[wd.name] += t1 - t0;
+              if (junction) continue;
+              if (st) {
+                const kL0 = at(t0, -hw - 0.12, yW), kL1 = at(t1, -hw - 0.12, yW), kR0 = at(t0, hw + 0.12, yW), kR1 = at(t1, hw + 0.12, yW);
+                strip(walk, at(t0, -hw - fw, yW), kL0, kL1, at(t1, -hw - fw, yW), 0, fw, v0, v1);
+                strip(walk, kR0, at(t0, hw + fw, yW), at(t1, hw + fw, yW), kR1, 0, fw, v0, v1);
+                [[kL0, kL1, -1], [kR0, kR1, 1]].forEach(e => {
+                  const a = e[0], c = e[1], sg = e[2], drop = 0.15;
+                  const face = sg > 0 ? [a, [a[0], a[1] - drop, a[2]], [c[0], c[1] - drop, c[2]], c] : [c, [c[0], c[1] - drop, c[2]], [a[0], a[1] - drop, a[2]], a];
+                  [0, 1, 2, 0, 2, 3].forEach(q => { kerb.pos.push(face[q][0], face[q][1], face[q][2]); kerb.nrm.push(-nx * sg, 0, -nz * sg); kerb.col.push(0.74, 0.72, 0.68); kerb.mr.push(0, 0.82); });
+                });
+              }
+              if (hw * 2 >= 8.5) {
+                // the edge lines, and a dashed centre line, in white paint a hand's width across
+                [-1, 1].forEach(sg => quadFlat(at(t0, sg * (hw - 0.45) - 0.08, yR + 0.012), at(t0, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) - 0.08, yR + 0.012)));
+                for (let tt = t0; tt < t1 - 0.5; tt += 14) { const te = Math.min(t1, tt + 6); quadFlat(at(tt, -0.08, yR + 0.012), at(tt, 0.08, yR + 0.012), at(te, 0.08, yR + 0.012), at(te, -0.08, yR + 0.012)); }
+              }
+            }
+          }
+        }
+      }
+    });
+    if (line.pos.length) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(line.pos, 3));
+      g.computeVertexNormals();
+      const o = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xe4e4da, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+      o.frustumCulled = false; o.receiveShadow = true; root.add(o);
+    }
+    console.log("[Konto] " + city.name + ": " + Math.round(metres / 1000) + " km of street laid as geometry " + JSON.stringify(why)); city.streetDebug = wardLaid;
+  }
+
   function mesh(data, tex, repeat, rough) {
     if (!data.pos.length) return null;
     const g = new THREE.BufferGeometry();
@@ -9641,6 +9738,7 @@ function buildRoadSurfaces(w, city, root) {
       : new THREE.MeshLambertMaterial({ map: t });
     if (gfx.high && gfx.env) m.envMap = gfx.env;
     if (tex === gfx.asphalt && gfx.high) roadHD(t, m);
+    m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;     // the city ground is a coarse grid; never let it bury a street
     const o = new THREE.Mesh(g, m);
     o.receiveShadow = true;
     o.frustumCulled = false;
@@ -12304,7 +12402,7 @@ function buildStreetFurniture(w, city, root, boxes) {
   const built = city.furniture = { stops: [], hoardings: [], platforms: [], shrines: [] };
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 + 8 && x < b.x1 - 8 && z > b.z0 + 8 && z < b.z1 - 8;
-  const groundAt = (x, z) => paved(x, z) ? w.sampleHeight(x, z) + CITY_LIFT : w.surfaceY(x, z);
+  const groundAt = (x, z) => paved(x, z) ? cityGroundMax(w, x, z) + 0.08 : w.surfaceY(x, z);
   const R = (a, c) => rnd(a | 0, c | 0, 70001 + city.code.charCodeAt(0));
   // One advert follows another down the street rather than being drawn at
   // random, so you never see the same one twice side by side.
@@ -12529,7 +12627,7 @@ function buildStreetFurniture(w, city, root, boxes) {
         // points can cross a ravine, and a centre line painted down that is
         // worse than no centre line.
         if (!paved(x, z) || w.sampleHeight(x, z) < 1.2 || w.slopeAt(x, z) > 0.32) continue;
-        solid.frame(x, groundAt(x, z) + 0.016, z, yawL);
+        solid.frame(x, groundAt(x, z) + 0.05, z, yawL);
         solid.colour([0.88, 0.88, 0.82]);
         solid.box(0, 0.012, 0, 0.17, 0.024, Math.min(dash, seg - t));
         dashes++;
