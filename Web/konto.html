@@ -6442,6 +6442,8 @@ function buildScene(w) {
   // building of its own on the plot it is given.
   placeShops(w.cities[0]);
   placeTownShops(w);
+  placeMalls(w);
+  placePlazas(w);
 
   // The garage lot has to be known before a single house is placed.
   findHome(w);
@@ -6810,8 +6812,6 @@ function buildScene(w) {
   buildRail(w, root);
   buildRailStops();
   buildNav(w);
-  placeMalls(w);
-  placePlazas(w);
   placeSafehouses(w);
   buildShopSigns(root);
   buildShopLivery(root);
@@ -20405,7 +20405,7 @@ function placeShops(city) {
 // What each kind of shop is as a building: how many storeys it is, which is most
 // of what tells a konbini from a pharmacy from a bookshop in a street.
 const SHOP_BUILD = {
-  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6
+  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6, dokoto: 30, plaza: 26
 };
 
 // A lit sign band over each door. One instanced box per chain, with the brand
@@ -20511,7 +20511,7 @@ function buildShopLivery(root) {
 
 function buildShopSigns(root) {
   const byBrand = {};
-  shops.list.filter(s => !s.mall && !s.safe && !(LIVERY_BRANDS[s.brand] && s.built)).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
+  shops.list.filter(s => !s.mall && !s.safe && !(s.plaza && s.built) && !(LIVERY_BRANDS[s.brand] && s.built)).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
   Object.keys(byBrand).forEach(brand => {
     const list = byBrand[brand];
     const b = SHOP_BRANDS[brand];
@@ -20612,38 +20612,218 @@ const mall = { tkind: null, ch: 0, tt: 0, mirror: null, dsel: 0, floor: 1, mode:
 
 function placeMalls(w) {
   if (!w || !w.cities) return;
-  const taken = [];
   const rng = (() => { let sd = 9137; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  const okKind = p => p.kind === "office" || p.kind === "midrise" || p.kind === "shop";
   const make = (p, city) => {
     const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
     const s = { brand: "dokoto", mall: true, name: "Dokoto Camera", city: city.name,
       at: [p.centre[0], p.centre[1]], door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
       yaw: yaw, groundY: p.groundY, size: p.size };
-    shops.list.push(s); taken.push(s);
+    shops.list.push(s);
+    p.shop = "dokoto"; p.shopRef = s;                // the massing raises the block on this plot
   };
   w.cities.forEach((city, ci) => {
     if (!city.plots) return;
-    const near = (p, d) => shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < d);
-    let pool = city.plots.filter(p => p.size[0] > 30 && p.size[1] > 24 && p.size[0] < 80 && p.size[1] < 70 &&
-                                      (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
-    if (!pool.length) pool = city.plots.filter(p => p.size[0] > 24 && p.size[1] > 20);
+    const nearMall = (p, d) => shops.list.some(s => (s.mall || s.plaza) && Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < d);
+    // the biggest plots that can hold a building: a mall is a block, so it wants a lot of ground
+    let pool = city.plots.filter(p => !p.shop && okKind(p) && p.size[0] > 36 && p.size[1] > 30 && p.size[0] < 150 && p.size[1] < 130);
+    if (pool.length < 3) pool = city.plots.filter(p => !p.shop && okKind(p) && p.size[0] > 26 && p.size[1] > 22 && p.size[0] < 150 && p.size[1] < 130);
     if (!pool.length) return;
     const want = ci === 0 ? 3 : 1;
     for (let k = 0; k < want; k++) {
       let best = null;
-      for (let g = 0; g < 400 && pool.length; g++) {
+      for (let g = 0; g < 400; g++) {
         const p = pool[(rng() * pool.length) | 0];
-        if (near(p, ci === 0 ? 1000 : 40)) continue;
+        if (p.shop || nearMall(p, ci === 0 ? 700 : 150)) continue;
         if (!best || p.size[0] * p.size[1] > best.size[0] * best.size[1]) best = p;
-        if (g > 60 && best) break;
+        if (g > 120 && best) break;
       }
       if (best) make(best, city);
     }
   });
 }
 
+// ---- the mall as a building ----------------------------------------------------------------------------------------------------------------
+// A shopping centre is a block, not a shop with a sign: the whole plot, five or six storeys of it, a ribbon of glass round each floor, a glazed
+// atrium at the entrance under a canopy, a name you can read from the next street, LED screens, a big painted wall on each flank and a car park
+// on the roof. It is drawn as one box skinned with tiling textures (shared by every mall, so it costs a few canvases, not a few per building)
+// over the plain building the city already put on the plot.
+const MALL_PAL = {
+  dokoto: { base: "#eceef1", acc: "#d4152c", acc2: "#ffd21c", dark: "#14171b", name: "DOKOTO", sub: "CAMERA", jp: "ドコトカメラ", jp2: "スマホ・ゲーム・カメラ" },
+  plaza:  { base: "#ece5f2", acc: "#5a3a8a", acc2: "#ffd21c", dark: "#1a1226", name: "KONTO PLAZA", sub: "FOUR FLOORS OF EVERYTHING", jp: "コント・プラザ", jp2: "ファッション・グルメ・ブックス" }
+};
+const mallTexCache = {};
+function mallCanvas(key, w, h, draw) {
+  if (mallTexCache[key]) return mallTexCache[key];
+  const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return (mallTexCache[key] = t);
+}
+function mallRnd(i) { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }
+function mallFrontTex(kind) {                      // 32 m wide, 30 m tall: a shopfront floor and four floors of ribbon glass
+  const P = MALL_PAL[kind];
+  return mallCanvas("front:" + kind, 1024, 960, (g, w, h) => {
+    g.fillStyle = P.base; g.fillRect(0, 0, w, h);
+    const gf = 224, up = (h - gf) / 4;
+    for (let k = 0; k < 4; k++) {
+      const y0 = k * up;
+      g.fillStyle = "rgba(0,0,0,0.10)"; for (let j = 0; j < 4; j++) g.fillRect(0, y0 + 6 + j * 6, w, 1.5);          // the spandrel panel, grooved
+      const wy = y0 + up * 0.32, wh = up * 0.58;
+      const gr = g.createLinearGradient(0, wy, 0, wy + wh); gr.addColorStop(0, "#35506f"); gr.addColorStop(0.5, "#1d2d44"); gr.addColorStop(1, "#14202f");
+      g.fillStyle = gr; g.fillRect(0, wy, w, wh);
+      for (let x = 0; x < w; x += 96) {
+        const lit = mallRnd(x * 3 + k * 17) < 0.22; if (lit) { g.fillStyle = "rgba(255,214,150,0.75)"; g.fillRect(x + 4, wy + 3, 88, wh - 6); }
+        g.fillStyle = "rgba(255,255,255,0.12)"; g.beginPath(); g.moveTo(x + 4, wy + wh); g.lineTo(x + 40, wy + 3); g.lineTo(x + 62, wy + 3); g.lineTo(x + 26, wy + wh); g.fill();   // reflection
+        g.fillStyle = "#cfd3d8"; g.fillRect(x, wy, 4, wh);
+      }
+      g.fillStyle = "#f6f7f9"; g.fillRect(0, wy + wh, w, 5); g.fillStyle = "#b9bec6"; g.fillRect(0, wy - 3, w, 3);
+    }
+    g.fillStyle = P.acc; g.fillRect(0, 0, w, 16); g.fillStyle = P.acc2; g.fillRect(0, 16, w, 5);                      // the parapet stripe
+    for (let x = 0; x < w; x += 256) { g.fillStyle = P.acc; g.fillRect(x + 120, 24, 14, h - gf - 24); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(x + 122, 24, 3, h - gf - 24); }   // fins
+    // the shopfront floor
+    const y = h - gf;
+    g.fillStyle = P.acc; g.fillRect(0, y - 10, w, 12); g.fillStyle = P.dark; g.fillRect(0, y + 2, w, gf);
+    const gl = g.createLinearGradient(0, y + 8, 0, h - 24); gl.addColorStop(0, "#fff0c8"); gl.addColorStop(0.6, "#ffd89a"); gl.addColorStop(1, "#b98a52");
+    g.fillStyle = gl; g.fillRect(0, y + 10, w, gf - 40);
+    for (let x = 0; x < w; x += 64) {                                                                                  // goods behind the glass
+      const n = 2 + Math.floor(mallRnd(x + 5) * 3);
+      for (let i = 0; i < n; i++) { g.fillStyle = IN_PALETTE[Math.floor(mallRnd(x * 7 + i) * 8)]; const bw = 10 + mallRnd(x + i * 9) * 16, bh = 22 + mallRnd(x * 2 + i) * 60; g.fillRect(x + 6 + i * 17, h - 30 - bh, bw, bh); }
+      g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(x + 4, y + 14, 14, gf - 52);
+    }
+    g.fillStyle = "#3a3f46"; for (let x = 0; x < w; x += 64) g.fillRect(x, y + 6, 5, gf - 34);                           // mullions
+    g.fillStyle = "#23262b"; g.fillRect(0, h - 26, w, 26);
+  });
+}
+function mallSideTex(kind) {                       // the flank: mostly blank panel, a few service doors, one window strip under the roof
+  const P = MALL_PAL[kind];
+  return mallCanvas("side:" + kind, 1024, 960, (g, w, h) => {
+    g.fillStyle = P.base; g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(0,0,0,0.07)"; for (let x = 0; x < w; x += 64) g.fillRect(x, 0, 2, h - 120);
+    g.fillStyle = "rgba(0,0,0,0.06)"; for (let y = 60; y < h - 120; y += 120) g.fillRect(0, y, w, 2);
+    g.fillStyle = P.acc; g.fillRect(0, 0, w, 16); g.fillStyle = P.acc2; g.fillRect(0, 16, w, 5);
+    const gr = g.createLinearGradient(0, 40, 0, 120); gr.addColorStop(0, "#35506f"); gr.addColorStop(1, "#14202f"); g.fillStyle = gr; g.fillRect(0, 44, w, 70);
+    g.fillStyle = "#cfd3d8"; for (let x = 0; x < w; x += 96) g.fillRect(x, 44, 4, 70);
+    g.fillStyle = "#5b6169"; g.fillRect(0, h - 140, w, 140);                                                           // the loading-bay base
+    for (let x = 80; x < w; x += 320) { g.fillStyle = "#8d939c"; g.fillRect(x, h - 130, 150, 118); g.fillStyle = "rgba(0,0,0,0.25)"; for (let i = 0; i < 8; i++) g.fillRect(x, h - 128 + i * 15, 150, 2); g.fillStyle = P.acc2; g.fillRect(x, h - 138, 150, 6); }
+    g.fillStyle = "#23262b"; g.fillRect(0, h - 22, w, 22);
+  });
+}
+function mallRoofTex(kind) {
+  return mallCanvas("roof:" + kind, 512, 512, (g, w, h) => {
+    g.fillStyle = "#4d5056"; g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(255,255,255,0.0)"; g.strokeStyle = "rgba(255,255,255,0.8)"; g.lineWidth = 3;
+    for (let x = 16; x < w; x += 64) { g.beginPath(); g.moveTo(x, 20); g.lineTo(x, 150); g.moveTo(x, 360); g.lineTo(x, 490); g.stroke(); }
+    for (let x = 16; x < w - 64; x += 64) for (const y of [26, 366]) if (mallRnd(x + y) < 0.55) { g.fillStyle = IN_PALETTE[Math.floor(mallRnd(x * 3 + y) * 8)]; g.fillRect(x + 12, y + 8, 40, 98); g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(x + 16, y + 28, 32, 24); }
+    g.fillStyle = "#ffd21c"; g.fillRect(246, 190, 20, 130); g.beginPath(); g.moveTo(236, 200); g.lineTo(256, 160); g.lineTo(276, 200); g.fill();
+  });
+}
+function mallSignTex(kind) {
+  const P = MALL_PAL[kind];
+  return mallCanvas("sign:" + kind, 1024, 256, (g, w, h) => {
+    g.fillStyle = P.acc; g.fillRect(0, 0, w, h);
+    g.fillStyle = P.acc2; g.fillRect(0, h - 44, w, 44); g.fillStyle = P.dark; for (let x = 0; x < w; x += 64) g.fillRect(x, h - 44, 32, 44);
+    g.fillStyle = "#fff"; g.textAlign = "left"; g.textBaseline = "middle";
+    if (kind === "dokoto") {
+      g.font = "900 86px " + UI; g.fillText("DOKOTO", 160, 80); g.fillStyle = P.acc2; g.font = "800 60px " + UI; g.fillText("CAMERA", 160, 156);
+      g.fillStyle = "#fff"; g.font = "900 64px " + JP; g.textAlign = "right"; g.fillText("ドコトカメラ", 1000, 76); g.font = "700 30px " + JP; g.fillStyle = "#ffe9a0"; g.fillText("スマホ・ゲーム・カメラ", 1000, 150);
+      g.fillStyle = "#fff"; g.beginPath(); g.arc(88, 110, 56, 0, 7); g.fill(); g.fillStyle = "#14171b"; g.beginPath(); g.arc(88, 110, 42, 0, 7); g.fill(); g.fillStyle = "#3a4a8a"; g.beginPath(); g.arc(88, 110, 25, 0, 7); g.fill(); g.fillStyle = "rgba(255,255,255,0.7)"; g.beginPath(); g.arc(80, 100, 7, 0, 7); g.fill();
+    } else {
+      g.font = "900 104px " + UI; g.fillText("KONTO PLAZA", 150, 84); g.fillStyle = P.acc2; g.font = "700 44px " + UI; g.fillText("FOUR FLOORS OF EVERYTHING", 152, 160);
+      g.fillStyle = "#fff"; g.font = "900 70px " + JP; g.textAlign = "right"; g.fillText("コント・プラザ", 990, 70);
+      g.fillStyle = P.acc2; roundRect(g, 40, 56, 84, 100, 12); g.fill(); g.strokeStyle = P.acc2; g.lineWidth = 10; g.beginPath(); g.arc(82, 56, 26, Math.PI, 0); g.stroke();
+    }
+  });
+}
+function mallAtriumTex(kind) {                     // the glazed entrance hall, lit from inside, with the escalators crossing it
+  const P = MALL_PAL[kind];
+  return mallCanvas("atrium:" + kind, 512, 512, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#fff4d6"); gr.addColorStop(1, "#ffcf86"); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.strokeStyle = "rgba(60,50,40,0.55)"; g.lineWidth = 6; g.beginPath(); g.moveTo(40, h * 0.62); g.lineTo(w * 0.62, h * 0.18); g.moveTo(40, h * 0.7); g.lineTo(w * 0.62, h * 0.26); g.stroke();
+    g.beginPath(); g.moveTo(w - 40, h * 0.86); g.lineTo(w * 0.38, h * 0.42); g.moveTo(w - 40, h * 0.94); g.lineTo(w * 0.38, h * 0.5); g.stroke();
+    for (let i = 0; i < 14; i++) { g.fillStyle = "rgba(40,36,44,0.8)"; const x = 40 + mallRnd(i * 9) * (w - 80), y = h * 0.62 + mallRnd(i * 5) * h * 0.3; g.fillRect(x, y, 12, 38); g.beginPath(); g.arc(x + 6, y - 7, 8, 0, 7); g.fill(); }
+    for (let i = 0; i < 6; i++) { g.fillStyle = P.acc; g.fillRect(20 + i * 80, 10, 54, 36); }
+    g.fillStyle = "#2a2d33"; g.fillRect(0, 0, 10, h); g.fillRect(w - 10, 0, 10, h); g.fillRect(w / 2 - 5, 0, 10, h * 0.45); g.fillRect(0, h * 0.5, w, 8);
+    g.fillStyle = "rgba(255,255,255,0.25)"; g.fillRect(20, 60, 90, h - 120);
+    g.fillStyle = "#14171b"; g.fillRect(w * 0.28, h * 0.62, w * 0.44, h * 0.38); g.fillStyle = "#ffe9b8"; g.fillRect(w * 0.3, h * 0.64, w * 0.19, h * 0.36); g.fillRect(w * 0.51, h * 0.64, w * 0.19, h * 0.36);
+  });
+}
+function mallLedTex(kind, i) {
+  const P = MALL_PAL[kind];
+  return mallCanvas("led:" + kind + i, 256, 192, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, i ? "#ff3d8a" : "#27d3ff"); gr.addColorStop(1, i ? "#ffb02e" : "#6a3fb5"); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = "rgba(255,255,255,0.14)"; for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1);
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 54px " + JP;
+    const t = kind === "dokoto" ? (i ? ["SALE", "最大50%OFF"] : ["NEW", "新作入荷"]) : (i ? ["SALE", "春のセール"] : ["OPEN", "毎日10-22時"]);
+    g.fillText(t[0], w / 2, h * 0.38); g.font = "800 30px " + JP; g.fillText(t[1], w / 2, h * 0.72);
+    g.strokeStyle = "#fff"; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
+  });
+}
+function mallLogoWallTex(kind) {
+  const P = MALL_PAL[kind];
+  return mallCanvas("logo:" + kind, 1024, 256, (g, w, h) => {
+    g.fillStyle = P.acc; g.fillRect(0, 0, w, h); g.fillStyle = "rgba(255,255,255,0.08)"; for (let x = -h; x < w; x += 64) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 32, h); g.lineTo(x + 32 + h, 0); g.lineTo(x + h, 0); g.fill(); }
+    g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 150px " + JP; g.fillText(P.jp, w / 2, h * 0.46, w - 60);
+    g.fillStyle = P.acc2; g.font = "800 50px " + UI; g.fillText(P.name + (kind === "dokoto" ? "  " + P.sub : ""), w / 2, h * 0.86, w - 60);
+    g.fillStyle = P.acc2; g.fillRect(0, 0, w, 10); g.fillRect(0, h - 10, w, 10);
+  });
+}
+function mallBlockBox(W, H, D, kind) {
+  const geo = new THREE.BoxGeometry(W, H, D), uv = geo.attributes.uv;
+  const rep = [[D / 32, 1], [D / 32, 1], [W / 24, D / 24], [1, 1], [W / 32, 1], [W / 32, 1]];     // +x, -x, roof, floor, front, back
+  for (let f = 0; f < 6; f++) for (let v = 0; v < 4; v++) { const i = f * 4 + v; uv.setXY(i, uv.getX(i) * rep[f][0], uv.getY(i) * rep[f][1]); }
+  uv.needsUpdate = true;
+  const lam = (map, glow) => new THREE.MeshLambertMaterial({ map: map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: glow });
+  const side = lam(mallSideTex(kind), 0.12), front = lam(mallFrontTex(kind), 0.28);
+  return new THREE.Mesh(geo, [side, side, new THREE.MeshLambertMaterial({ map: mallRoofTex(kind) }), new THREE.MeshLambertMaterial({ color: 0x23262b }), front, side]);
+}
+function buildMallBlocks(root) {
+  shops.list.filter(s => (s.mall || s.plaza) && s.built).forEach(s => {
+    const kind = s.mall ? "dokoto" : "plaza", P = MALL_PAL[kind];
+    const W = s.size[0] + 0.5, D = s.size[1] + 0.5, H = (s.height || 28) + 0.3;
+    const gr = new THREE.Group(); gr.position.set(s.at[0], s.groundY, s.at[1]); gr.rotation.y = s.yaw; root.add(gr);
+    const box = mallBlockBox(W, H, D, kind); box.position.y = H / 2; gr.add(box);
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, 2.4, D + 0.4), new THREE.MeshLambertMaterial({ color: 0x23262b })); plinth.position.y = -0.9; gr.add(plinth);
+    const flat = (map, w, h, x, y, z, ry, basic) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), basic ? new THREE.MeshBasicMaterial({ map: map }) : new THREE.MeshLambertMaterial({ map: map, emissive: 0xffffff, emissiveMap: map, emissiveIntensity: 0.5 })); m.position.set(x, y, z); m.rotation.y = ry || 0; gr.add(m); return m; };
+    const zf = D / 2 + 0.06;
+    // the name, across the top of the front
+    const sw = clamp(W * 0.62, 20, 54), sh = sw / 4;
+    const board = new THREE.Mesh(new THREE.BoxGeometry(sw + 0.6, sh + 0.6, 0.7), new THREE.MeshLambertMaterial({ color: 0x15171b })); board.position.set(0, H - sh / 2 - 2.2, zf + 0.25); gr.add(board);
+    flat(mallSignTex(kind), sw, sh, 0, H - sh / 2 - 2.2, zf + 0.62, 0, true);
+    // the entrance: a glazed hall two floors high under a canopy
+    const aw = clamp(W * 0.3, 10, 17);
+    flat(mallAtriumTex(kind), aw, 12.5, 0, 6.25, zf + 0.08, 0, false);
+    const can = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.5, 4.6), new THREE.MeshLambertMaterial({ color: new THREE.Color(P.acc) })); can.position.set(0, 4.4, zf + 2.2); gr.add(can);
+    const cs = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.2, 0.3), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc2) })); cs.position.set(0, 4.15, zf + 4.4); gr.add(cs);
+    [-1, 1].forEach(sd => { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.5), new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })); pl.position.set(sd * (aw / 2 + 1.0), 2.1, zf + 4.2); gr.add(pl); });
+    // LED screens either side of the hall, high up
+    const sx = Math.max(aw / 2 + 6, W * 0.32);
+    [-1, 1].forEach((sd, i) => { if (sx < W / 2 - 4.5) { const f = flat(mallLedTex(kind, i), 8.4, 6.3, sd * sx, H * 0.46, zf + 0.22, 0, true); const fr = new THREE.Mesh(new THREE.BoxGeometry(8.8, 6.7, 0.3), new THREE.MeshLambertMaterial({ color: 0x15171b })); fr.position.set(sd * sx, H * 0.46, zf + 0.0); gr.add(fr); } });
+    // the painted wall on each flank
+    const lw = clamp(D * 0.6, 12, 40);
+    [-1, 1].forEach(sd => flat(mallLogoWallTex(kind), lw, lw / 4, sd * (W / 2 + 0.06), H * 0.55, 0, sd * Math.PI / 2, true));
+    // roof: a parapet, the plant and a tall blade sign on the corner
+    const par = new THREE.MeshLambertMaterial({ color: 0xcfd3d8 });
+    [[W, 0.9, 0.5, 0, D / 2], [W, 0.9, 0.5, 0, -D / 2], [0.5, 0.9, D, W / 2, 0], [0.5, 0.9, D, -W / 2, 0]].forEach(p => { const m = new THREE.Mesh(new THREE.BoxGeometry(p[0], p[1], p[2]), par); m.position.set(p[3], H + 0.4, p[4]); gr.add(m); });
+    for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(3 + mallRnd(i + W) * 3, 2.4, 3 + mallRnd(i * 3) * 3), new THREE.MeshLambertMaterial({ color: 0x8d939c })); m.position.set(-W * 0.3 + i * W * 0.2, H + 1.2, -D * 0.28); gr.add(m); }
+    const bl = new THREE.Mesh(new THREE.BoxGeometry(3.4, 22, 0.8), [new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc) }), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc) })]);
+    bl.position.set(W / 2 - 2.2, H - 8, zf + 1.2); gr.add(bl);
+    const bt = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 21), new THREE.MeshBasicMaterial({ map: mallBladeTex(kind) })); bt.position.set(W / 2 - 2.2, H - 8, zf + 1.62); gr.add(bt);
+    s.signY = s.groundY + H + 2;
+  });
+}
+function mallBladeTex(kind) {
+  const P = MALL_PAL[kind];
+  return mallCanvas("blade:" + kind, 128, 512, (g, w, h) => {
+    g.fillStyle = P.acc; g.fillRect(0, 0, w, h); g.fillStyle = P.acc2; g.fillRect(0, 0, 12, h); g.fillRect(w - 12, 0, 12, h);
+    g.fillStyle = "#fff"; g.font = "900 64px " + JP; g.textAlign = "center"; g.textBaseline = "middle";
+    (kind === "dokoto" ? "ドコト" : "プラザ").split("").forEach((c, i) => g.fillText(c, w / 2, 70 + i * 78));
+    g.fillStyle = P.acc2; g.font = "800 38px " + UI; g.save(); g.translate(w / 2, 410); g.rotate(-Math.PI / 2); g.fillText(kind === "dokoto" ? "CAMERA" : "PLAZA", 0, 0); g.restore();
+  });
+}
+
 function buildMallSigns(root) {
-  const malls = shops.list.filter(s => s.mall);
+  buildMallBlocks(root);
+  const malls = shops.list.filter(s => s.mall && !s.built);
   if (!malls.length) return;
   const tex = (() => {
     const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 256;
@@ -21145,15 +21325,20 @@ function placePlazas(w) {
     if (!city.plots) return;
     const want = ci === 0 ? 2 : (city.name === "Isobe" || city.name === "Nagisa" ? 1 : 0);
     const minA = ci === 0 ? 30 : 26, minB = ci === 0 ? 24 : 20;
-    const pool = city.plots.filter(p => p.size[0] > minA && p.size[1] > minB && p.size[0] < 80 && p.size[1] < 70 && (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
-    let placed = 0;
-    for (let g = 0; g < 700 && placed < want && pool.length; g++) {
-      const p = pool[(rng() * pool.length) | 0];
-      if (shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < (s.mall || s.plaza ? (ci === 0 ? 700 : 100) : 45))) continue;
+    const pool = city.plots.filter(p => !p.shop && p.size[0] > minA && p.size[1] > minB && p.size[0] < 130 && p.size[1] < 110 && (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
+    for (let placed = 0; placed < want && pool.length; placed++) {
+      // the biggest free plot out of a couple of hundred draws: a plaza is a block too
+      let p = null;
+      for (let g = 0; g < 260; g++) {
+        const c = pool[(rng() * pool.length) | 0];
+        if (c.shop || shops.list.some(s => Math.hypot(s.at[0] - c.centre[0], s.at[1] - c.centre[1]) < (s.mall || s.plaza ? (ci === 0 ? 700 : 100) : 45))) continue;
+        if (!p || c.size[0] * c.size[1] > p.size[0] * p.size[1]) p = c;
+      }
+      if (!p) break;
       const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
-      shops.list.push({ brand: "plaza", plaza: true, name: "Konto Plaza", city: city.name, at: [p.centre[0], p.centre[1]],
-        door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size });
-      placed++;
+      const so = { brand: "plaza", plaza: true, name: "Konto Plaza", city: city.name, at: [p.centre[0], p.centre[1]],
+        door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size };
+      shops.list.push(so); p.shop = "plaza"; p.shopRef = so;
     }
   });
 }
