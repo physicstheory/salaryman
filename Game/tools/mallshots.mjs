@@ -70,7 +70,8 @@ await wait(4000);
 const info = await ev(() => shops.list.filter(s => s.mall || s.plaza).map((s, i) => ({ i: i, name: s.name, city: s.city, built: !!s.built, w: Math.round(s.size[0]), d: Math.round(s.size[1]), h: Math.round(s.height || 0), at: s.at, yaw: s.yaw, door: s.door })));
 console.log(JSON.stringify(info));
 await ev(() => { document.body.classList.add("camfull"); cheat("MIDDAY"); });
-const ext = async (idx, tag) => {
+const ONLY = process.env.ONLY || "";
+const ext = async (idx, tag, hs = 1) => {
   const s = info[idx]; if (!s) return;
   const out = s.yaw, W = Math.max(s.w, s.d);
   // a free camera, so a neighbouring building cannot stand in the way: [name, angle round the building, distance, height, aim height]
@@ -79,7 +80,7 @@ const ext = async (idx, tag) => {
     await ev(([s, a, d, h, k]) => {
       setMode("fly");
       const px = s.at[0] + Math.sin(a) * d, pz = s.at[1] + Math.cos(a) * d, gy = world.surfaceY(s.at[0], s.at[1]);
-      camPos.set(px, gy + h, pz);
+      camPos.set(px, gy + h * hs, pz);
       const ty = gy + s.h * k, dx = s.at[0] - px, dz = s.at[1] - pz, dy = ty - camPos.y, L = Math.hypot(dx, dy, dz);
       yaw = Math.atan2(-dx, -dz); pitch = Math.asin(dy / L);
     }, [s, a, d, h, k]);
@@ -87,11 +88,11 @@ const ext = async (idx, tag) => {
   }
   await ev(() => setMode("walk"));
 };
-for (const [idx, tag] of [[0, "mallA"], [1, "mallB"], [2, "mallC"]]) await step("ext " + tag, () => ext(idx, tag));
+if (!ONLY) for (const [idx, tag] of [[0, "mallA"], [1, "mallB"], [2, "mallC"]]) await step("ext " + tag, () => ext(idx, tag));
 const big = (re, notCity) => { let best = -1, ba = 0; info.forEach((s, i) => { if (re.test(s.name) && (!notCity || s.city !== notCity) && s.w * s.d > ba) { ba = s.w * s.d; best = i; } }); return best; };
-await step("ext plaza", () => ext(big(/Plaza/), "plaza"));
-const farIdx = big(/Dokoto/, "Tōkonto"); if (farIdx >= 0) await step("ext far mall", () => ext(farIdx, "mallTown"));
-const plazaTown = big(/Plaza/, "Tōkonto"); if (plazaTown >= 0) await step("ext town plaza", () => ext(plazaTown, "plazaTown"));
+await step("ext plaza", () => ext(big(/Plaza/), "plaza", 4));
+const farIdx = big(/Dokoto/, "Tōkonto"); if (!ONLY && farIdx >= 0) await step("ext far mall", () => ext(farIdx, "mallTown"));
+const plazaTown = big(/Plaza/, "Tōkonto"); if (plazaTown >= 0) await step("ext town plaza", () => ext(plazaTown, "plazaTown", 3));
 await ev(() => { document.body.classList.remove("camfull"); });
 await ev(() => { const c = world.cities[0]; placeSeiko(new THREE.Vector3(c.scramble.at[0] + 12, c.scramble.groundY, c.scramble.at[1] + 12)); });
 await wait(3000);
@@ -114,6 +115,7 @@ async function lookAt(i) {
 }
 
 
+if (ONLY) { await browser.close(); srv.close(); process.exit(0); }
 await step("mall floors", async () => {
   await ev(() => { enterShop(shops.list.find(x => x.mall)); });
   await wait(2500); await snap("mall_1F_phones");
