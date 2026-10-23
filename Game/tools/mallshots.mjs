@@ -76,11 +76,11 @@ const ext = async (idx, tag, hs = 1) => {
   const out = s.yaw, W = Math.max(s.w, s.d);
   // a free camera, so a neighbouring building cannot stand in the way: [name, angle round the building, distance, height, aim height]
   const shots = [["front", out, s.d / 2 + W * 0.5 + 34, 7, 0.42], ["corner", out + 0.8, W * 0.7 + 60, 28, 0.4], ["aerial", out + 2.4, W * 1.1 + 90, 85, 0.3], ["entrance", out, s.d / 2 + 15, 3.5, 0.2]];
-  for (const [nm, a, d, h, k] of shots) {
+  for (const [nm, a, d, h0, k] of shots) { const h = h0 * hs;
     await ev(([s, a, d, h, k]) => {
       setMode("fly");
       const px = s.at[0] + Math.sin(a) * d, pz = s.at[1] + Math.cos(a) * d, gy = world.surfaceY(s.at[0], s.at[1]);
-      camPos.set(px, gy + h * hs, pz);
+      camPos.set(px, gy + h, pz);
       const ty = gy + s.h * k, dx = s.at[0] - px, dz = s.at[1] - pz, dy = ty - camPos.y, L = Math.hypot(dx, dy, dz);
       yaw = Math.atan2(-dx, -dz); pitch = Math.asin(dy / L);
     }, [s, a, d, h, k]);
