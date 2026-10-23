@@ -3298,7 +3298,7 @@ function planCity(world, F, seed, report, progressBase) {
       const rr = h01(blockId * 211, 29);
       addPlot(wi, blockId, index++, centre, inner, yaw,
         rr < 0.45 ? "parking" : kindFor(ward.kind, prof, coreness * 0.8, inner[0] * inner[1], rr),
-        floorsFor(prof, coreness * 0.8, inner[0] * inner[1], rr), blockNo);
+        floorsFor(prof, coreness * 0.8, inner[0] * inner[1], rr), blockNo, false, true);
     }
   }
 
@@ -3339,11 +3339,11 @@ function planCity(world, F, seed, report, progressBase) {
     if (area < 260) floors = Math.min(floors, 6);
     return Math.max(1, floors);
   }
-  function addPlot(ward, block, index, centre, size, yaw, kind, floors, blockNo, corner) {
+  function addPlot(ward, block, index, centre, size, yaw, kind, floors, blockNo, corner, inner) {
     L.plots.push({
       id: L.plots.length, ward: ward, block: block, index: index, blockNo: blockNo || 1,
       centre: [centre[0], centre[1]], size: [size[0], size[1]], yaw: ((yaw % 360) + 360) % 360,
-      kind: kind, floors: floors, corner: !!corner,
+      kind: kind, floors: floors, corner: !!corner, inner: !!inner,
       groundY: world.sampleHeight(centre[0], centre[1]),
       height: floors * floorHeight(kind)
     });
@@ -6500,6 +6500,7 @@ function buildScene(w) {
     const trees = [];
     let sotiPlot = null;
     city.plots.forEach(p => {
+      if (p.absorbed) return;                       // swallowed by a neighbouring mall or plaza
       if (p.kind === "landmark") { sotiPlot = p; return; }
       if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) {
         if (p.kind === "park" || p.kind === "shrine") {
@@ -20610,35 +20611,89 @@ const CONSOLE_COLOURS = { playbox5: [["White", "#f2f4f7"], ["Black", "#1c1e23"],
 SHOP_BRANDS.dokoto = { name: "Dokoto Camera", band: "#d4152c", ink: "#ffffff", stripes: ["#ffd21c", "#14171b"], tag: "Cameras · Phones · Games" };
 const mall = { tkind: null, ch: 0, tt: 0, mirror: null, dsel: 0, floor: 1, mode: "lift", sel: 0, colour: 0, zoom: 1, ride: 0, to: 1, case: 0, flash: 0 };
 
+// A shopping centre replaces plots that stand on a street: either a whole block, or a run of the street-side plots of one block laid end to end
+// (never the plot in the middle of a block, which has no street on it, and never anything beyond the plots themselves, so it cannot reach a road).
+const MALL_OK = ["office", "midrise", "shop", "flats", "houses"];
+function mallBlocks(city) { const m = new Map(); city.plots.forEach(p => { if (!m.has(p.block)) m.set(p.block, []); m.get(p.block).push(p); }); return m; }
+function mallRowOf(byBlock, p, cap) {
+  const th = p.yaw * Math.PI / 180, l = [Math.cos(th), -Math.sin(th)], f = [Math.sin(th), Math.cos(th)];
+  let lo = -p.size[0] / 2, hi = p.size[0] / 2; const members = [p];
+  if (p.index >= 4 && !p.corner) {
+    const info = (byBlock.get(p.block) || []).filter(q => q !== p && q.index >= 4 && !q.corner && !q.inner && !q.shop && !q.absorbed &&
+      Math.abs(((q.yaw - p.yaw + 540) % 360) - 180) < 0.5 && Math.abs(q.size[1] - p.size[1]) < 0.12 * p.size[1] && MALL_OK.indexOf(q.kind) >= 0)
+      .map(q => { const dx = q.centre[0] - p.centre[0], dz = q.centre[1] - p.centre[1]; return { q: q, dl: dx * l[0] + dz * l[1], df: dx * f[0] + dz * f[1] }; })
+      .filter(m => Math.abs(m.df) < 1.5);
+    for (let grew = true; grew;) {
+      grew = false;
+      for (const m of info) {
+        if (members.indexOf(m.q) >= 0) continue;
+        const qlo = m.dl - m.q.size[0] / 2, qhi = m.dl + m.q.size[0] / 2;
+        if ((Math.abs(qlo - hi) < 1.8 || Math.abs(qhi - lo) < 1.8) && Math.max(hi, qhi) - Math.min(lo, qlo) <= cap) { members.push(m.q); lo = Math.min(lo, qlo); hi = Math.max(hi, qhi); grew = true; }
+      }
+    }
+  }
+  return { members: members, lo: lo, hi: hi, loF: -p.size[1] / 2, hiF: p.size[1] / 2, depth: p.size[1], area: (hi - lo) * p.size[1], l: l, f: f };
+}
+// the whole block the plot is in, when every plot of it is free to be built over: the block's edges are the streets, so it cannot reach a road
+function mallBlockOf(byBlock, p, cap) {
+  const all = byBlock.get(p.block) || [];
+  if (all.length < 2 || all.some(q => q.shop || q.absorbed || (MALL_OK.indexOf(q.kind) < 0 && q.kind !== "parking" && q.kind !== "tower"))) return null;
+  const th = p.yaw * Math.PI / 180, l = [Math.cos(th), -Math.sin(th)], f = [Math.sin(th), Math.cos(th)];
+  let loL = 1e9, hiL = -1e9, loF = 1e9, hiF = -1e9, sum = 0;
+  all.forEach(q => {
+    const t = q.yaw * Math.PI / 180, ex = [Math.cos(t), -Math.sin(t)], ez = [Math.sin(t), Math.cos(t)];
+    for (let a = -1; a <= 1; a += 2) for (let b = -1; b <= 1; b += 2) {
+      const cx = q.centre[0] - p.centre[0] + ex[0] * q.size[0] / 2 * a + ez[0] * q.size[1] / 2 * b, cz = q.centre[1] - p.centre[1] + ex[1] * q.size[0] / 2 * a + ez[1] * q.size[1] / 2 * b;
+      const u = cx * l[0] + cz * l[1], v = cx * f[0] + cz * f[1];
+      loL = Math.min(loL, u); hiL = Math.max(hiL, u); loF = Math.min(loF, v); hiF = Math.max(hiF, v);
+    }
+    sum += q.size[0] * q.size[1];
+  });
+  const w = hiL - loL, d = hiF - loF;
+  if (w > cap || d > cap || sum < 0.8 * w * d || hiF > p.size[1] / 2 + 1.5) return null;      // the plot must be on the block's own edge
+  return { members: all, lo: loL, hi: hiL, loF: loF, hiF: hiF, depth: d, area: w * d, l: l, f: f };
+}
+function mallClaim(p, row, brand, city, name) {
+  const mid = (row.lo + row.hi) / 2, midF = (row.loF + row.hiF) / 2;
+  row.members.forEach(q => { if (q !== p) q.absorbed = true; });
+  p.centre = [p.centre[0] + row.l[0] * mid + row.f[0] * midF, p.centre[1] + row.l[1] * mid + row.f[1] * midF];
+  p.size = [row.hi - row.lo, row.hiF - row.loF];
+  p.groundY = Math.min.apply(null, row.members.map(q => q.groundY));
+  const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
+  const s = { brand: brand, name: name, city: city.name, at: [p.centre[0], p.centre[1]],
+    door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size };
+  s[brand === "dokoto" ? "mall" : "plaza"] = true;
+  shops.list.push(s); p.shop = brand; p.shopRef = s;           // the massing raises the block on this plot
+}
+// the best street-side site in a city for a block of at least minW x minD, at least apart from the others of its kind
+const MALL_WARDS = ["Core", "Station", "Retail", "Night", "Office", "Fill", "Water"];
+function mallSite(city, byBlock, minW, minD, cap, apart, rng, urban) {
+  const near = p => shops.list.some(s => (s.mall || s.plaza) && Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < apart);
+  const ok = p => !p.shop && !p.absorbed && !p.inner && !p.corner && MALL_OK.indexOf(p.kind) >= 0 && (p.index === 0 || p.index >= 4) &&
+    (!urban || (city.wards[p.ward] && MALL_WARDS.indexOf(city.wards[p.ward].kind) >= 0));
+  let best = null, bestRow = null;
+  const pool = city.plots.filter(ok);
+  for (let g = 0; g < Math.min(pool.length, 500); g++) {
+    const p = pool[(rng() * pool.length) | 0];
+    if (near(p)) continue;
+    let row = mallRowOf(byBlock, p, cap);
+    const blk = mallBlockOf(byBlock, p, cap);
+    if (blk && blk.area > row.area) row = blk;
+    if (row.hi - row.lo < minW || row.depth < minD || row.depth > 140) continue;
+    if (!bestRow || row.area > bestRow.area) { best = p; bestRow = row; }
+  }
+  return best ? { p: best, row: bestRow } : null;
+}
 function placeMalls(w) {
   if (!w || !w.cities) return;
   const rng = (() => { let sd = 9137; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
-  const okKind = p => p.kind === "office" || p.kind === "midrise" || p.kind === "shop";
-  const make = (p, city) => {
-    const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
-    const s = { brand: "dokoto", mall: true, name: "Dokoto Camera", city: city.name,
-      at: [p.centre[0], p.centre[1]], door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
-      yaw: yaw, groundY: p.groundY, size: p.size };
-    shops.list.push(s);
-    p.shop = "dokoto"; p.shopRef = s;                // the massing raises the block on this plot
-  };
   w.cities.forEach((city, ci) => {
     if (!city.plots) return;
-    const nearMall = (p, d) => shops.list.some(s => (s.mall || s.plaza) && Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < d);
-    // the biggest plots that can hold a building: a mall is a block, so it wants a lot of ground
-    let pool = city.plots.filter(p => !p.shop && okKind(p) && p.size[0] > 36 && p.size[1] > 30 && p.size[0] < 150 && p.size[1] < 130);
-    if (pool.length < 3) pool = city.plots.filter(p => !p.shop && okKind(p) && p.size[0] > 26 && p.size[1] > 22 && p.size[0] < 150 && p.size[1] < 130);
-    if (!pool.length) return;
-    const want = ci === 0 ? 3 : 1;
-    for (let k = 0; k < want; k++) {
-      let best = null;
-      for (let g = 0; g < 400; g++) {
-        const p = pool[(rng() * pool.length) | 0];
-        if (p.shop || nearMall(p, ci === 0 ? 700 : 150)) continue;
-        if (!best || p.size[0] * p.size[1] > best.size[0] * best.size[1]) best = p;
-        if (g > 120 && best) break;
-      }
-      if (best) make(best, city);
+    const byBlock = mallBlocks(city);
+    for (let k = 0; k < (ci === 0 ? 3 : 1); k++) {
+      const ap = ci === 0 ? 700 : 150;
+      const site = mallSite(city, byBlock, 40, 24, 130, ap, rng, true) || mallSite(city, byBlock, 28, 20, 130, ap, rng, true) || mallSite(city, byBlock, 28, 20, 130, ap, rng, false);
+      if (site) mallClaim(site.p, site.row, "dokoto", city, "Dokoto Camera");
     }
   });
 }
@@ -20792,9 +20847,9 @@ function buildMallBlocks(root) {
     // the entrance: a glazed hall two floors high under a canopy
     const aw = clamp(W * 0.3, 10, 17);
     flat(mallAtriumTex(kind), aw, 12.5, 0, 6.25, zf + 0.08, 0, false);
-    const can = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.5, 4.6), new THREE.MeshLambertMaterial({ color: new THREE.Color(P.acc) })); can.position.set(0, 4.4, zf + 2.2); gr.add(can);
-    const cs = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.2, 0.3), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc2) })); cs.position.set(0, 4.15, zf + 4.4); gr.add(cs);
-    [-1, 1].forEach(sd => { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.5), new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })); pl.position.set(sd * (aw / 2 + 1.0), 2.1, zf + 4.2); gr.add(pl); });
+    const can = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.5, 1.5), new THREE.MeshLambertMaterial({ color: new THREE.Color(P.acc) })); can.position.set(0, 4.4, zf + 0.7); gr.add(can);
+    const cs = new THREE.Mesh(new THREE.BoxGeometry(aw + 3, 0.2, 0.3), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc2) })); cs.position.set(0, 4.15, zf + 1.4); gr.add(cs);
+    [-1, 1].forEach(sd => { const pl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 4.2, 0.5), new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })); pl.position.set(sd * (aw / 2 + 1.0), 2.1, zf + 1.2); gr.add(pl); });
     // LED screens either side of the hall, high up
     const sx = Math.max(aw / 2 + 6, W * 0.32);
     [-1, 1].forEach((sd, i) => { if (sx < W / 2 - 4.5) { const f = flat(mallLedTex(kind, i), 8.4, 6.3, sd * sx, H * 0.46, zf + 0.22, 0, true); const fr = new THREE.Mesh(new THREE.BoxGeometry(8.8, 6.7, 0.3), new THREE.MeshLambertMaterial({ color: 0x15171b })); fr.position.set(sd * sx, H * 0.46, zf + 0.0); gr.add(fr); } });
@@ -20806,8 +20861,8 @@ function buildMallBlocks(root) {
     [[W, 0.9, 0.5, 0, D / 2], [W, 0.9, 0.5, 0, -D / 2], [0.5, 0.9, D, W / 2, 0], [0.5, 0.9, D, -W / 2, 0]].forEach(p => { const m = new THREE.Mesh(new THREE.BoxGeometry(p[0], p[1], p[2]), par); m.position.set(p[3], H + 0.4, p[4]); gr.add(m); });
     for (let i = 0; i < 4; i++) { const m = new THREE.Mesh(new THREE.BoxGeometry(3 + mallRnd(i + W) * 3, 2.4, 3 + mallRnd(i * 3) * 3), new THREE.MeshLambertMaterial({ color: 0x8d939c })); m.position.set(-W * 0.3 + i * W * 0.2, H + 1.2, -D * 0.28); gr.add(m); }
     const bl = new THREE.Mesh(new THREE.BoxGeometry(3.4, 22, 0.8), [new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshLambertMaterial({ color: 0x15171b }), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc) }), new THREE.MeshBasicMaterial({ color: new THREE.Color(P.acc) })]);
-    bl.position.set(W / 2 - 2.2, H - 8, zf + 1.2); gr.add(bl);
-    const bt = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 21), new THREE.MeshBasicMaterial({ map: mallBladeTex(kind) })); bt.position.set(W / 2 - 2.2, H - 8, zf + 1.62); gr.add(bt);
+    bl.position.set(W / 2 - 2.2, H - 8, zf + 0.5); gr.add(bl);
+    const bt = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 21), new THREE.MeshBasicMaterial({ map: mallBladeTex(kind) })); bt.position.set(W / 2 - 2.2, H - 8, zf + 0.92); gr.add(bt);
     s.signY = s.groundY + H + 2;
   });
 }
@@ -21324,21 +21379,11 @@ function placePlazas(w) {
   w.cities.forEach((city, ci) => {
     if (!city.plots) return;
     const want = ci === 0 ? 2 : (city.name === "Isobe" || city.name === "Nagisa" ? 1 : 0);
-    const minA = ci === 0 ? 30 : 26, minB = ci === 0 ? 24 : 20;
-    const pool = city.plots.filter(p => !p.shop && p.size[0] > minA && p.size[1] > minB && p.size[0] < 130 && p.size[1] < 110 && (p.kind === "office" || p.kind === "midrise" || p.kind === "shop"));
-    for (let placed = 0; placed < want && pool.length; placed++) {
-      // the biggest free plot out of a couple of hundred draws: a plaza is a block too
-      let p = null;
-      for (let g = 0; g < 260; g++) {
-        const c = pool[(rng() * pool.length) | 0];
-        if (c.shop || shops.list.some(s => Math.hypot(s.at[0] - c.centre[0], s.at[1] - c.centre[1]) < (s.mall || s.plaza ? (ci === 0 ? 700 : 100) : 45))) continue;
-        if (!p || c.size[0] * c.size[1] > p.size[0] * p.size[1]) p = c;
-      }
-      if (!p) break;
-      const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
-      const so = { brand: "plaza", plaza: true, name: "Konto Plaza", city: city.name, at: [p.centre[0], p.centre[1]],
-        door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size };
-      shops.list.push(so); p.shop = "plaza"; p.shopRef = so;
+    const byBlock = mallBlocks(city);
+    for (let k = 0; k < want; k++) {
+      const apart = ci === 0 ? 700 : 100;
+      const site = mallSite(city, byBlock, 34, 22, 90, apart, rng, true) || mallSite(city, byBlock, 26, 18, 90, apart, rng, true) || mallSite(city, byBlock, 26, 18, 90, apart, rng, false);
+      if (site) mallClaim(site.p, site.row, "plaza", city, "Konto Plaza");
     }
   });
 }

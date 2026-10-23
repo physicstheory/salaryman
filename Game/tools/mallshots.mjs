@@ -69,8 +69,25 @@ await wait(4000);
 
 const info = await ev(() => shops.list.filter(s => s.mall || s.plaza).map((s, i) => ({ i: i, name: s.name, city: s.city, built: !!s.built, w: Math.round(s.size[0]), d: Math.round(s.size[1]), h: Math.round(s.height || 0), at: s.at, yaw: s.yaw, door: s.door })));
 console.log(JSON.stringify(info));
-await ev(() => { document.body.classList.add("camfull"); cheat("MIDDAY"); });
 const ONLY = process.env.ONLY || "";
+// how close does each block come to a road? sample its footprint (building, canopy and all) against the road segments the game navigates by
+const clear = await ev(() => shops.list.filter(s => s.mall || s.plaza).map(s => {
+  const f = [Math.sin(s.yaw), Math.cos(s.yaw)], l = [f[1], -f[0]], W = s.size[0] / 2 + 0.5, D = s.size[1] / 2 + 1.6;
+  let min = 1e9, worst = null;
+  for (let u = -W; u <= W + 0.01; u += 2) for (let v = -s.size[1] / 2; v <= D + 0.01; v += 2) {
+    if (Math.abs(u) < W - 0.1 && Math.abs(v) < s.size[1] / 2 - 0.1 && v > -s.size[1] / 2 + 0.1) continue;      // the edge only
+    const x = s.at[0] + l[0] * u + f[0] * v, z = s.at[1] + l[1] * u + f[1] * v;
+    indexNear(nav.idx.roads, x - 40, z - 40, x + 40, z + 40, e => {
+      const road = world.cities[e.c].roads[e.r], a = road.pts[e.s], b = road.pts[e.s + 1];
+      const d = distToSeg(x, z, a[0], a[2], b[0], b[2]) - road.halfWidth;
+      if (d < min) { min = d; worst = [Math.round(u), Math.round(v)]; }
+    });
+  }
+  return { name: s.name, city: s.city, w: Math.round(s.size[0]), d: Math.round(s.size[1]), minClearToRoadEdge: Math.round(min * 10) / 10, at: worst };
+}));
+console.log("ROAD CLEARANCE", JSON.stringify(clear));
+if (ONLY === "check") { await browser.close(); srv.close(); process.exit(0); }
+await ev(() => { document.body.classList.add("camfull"); cheat("MIDDAY"); });
 const ext = async (idx, tag, hs = 1) => {
   const s = info[idx]; if (!s) return;
   const out = s.yaw, W = Math.max(s.w, s.d);
@@ -88,11 +105,11 @@ const ext = async (idx, tag, hs = 1) => {
   }
   await ev(() => setMode("walk"));
 };
-if (!ONLY) for (const [idx, tag] of [[0, "mallA"], [1, "mallB"], [2, "mallC"]]) await step("ext " + tag, () => ext(idx, tag));
+if (!ONLY || ONLY === "malls") for (const [idx, tag, hs] of [[0, "mallA", 1], [1, "mallB", 2.6], [2, "mallC", 2.6]]) await step("ext " + tag, () => ext(idx, tag, hs));
 const big = (re, notCity) => { let best = -1, ba = 0; info.forEach((s, i) => { if (re.test(s.name) && (!notCity || s.city !== notCity) && s.w * s.d > ba) { ba = s.w * s.d; best = i; } }); return best; };
-await step("ext plaza", () => ext(big(/Plaza/), "plaza", 4));
+if (ONLY !== "malls") await step("ext plaza", () => ext(big(/Plaza/), "plaza", 4));
 const farIdx = big(/Dokoto/, "Tōkonto"); if (!ONLY && farIdx >= 0) await step("ext far mall", () => ext(farIdx, "mallTown"));
-const plazaTown = big(/Plaza/, "Tōkonto"); if (plazaTown >= 0) await step("ext town plaza", () => ext(plazaTown, "plazaTown", 3));
+const plazaTown = big(/Plaza/, "Tōkonto"); if (ONLY !== "malls" && plazaTown >= 0) await step("ext town plaza", () => ext(plazaTown, "plazaTown", 3));
 await ev(() => { document.body.classList.remove("camfull"); });
 await ev(() => { const c = world.cities[0]; placeSeiko(new THREE.Vector3(c.scramble.at[0] + 12, c.scramble.groundY, c.scramble.at[1] + 12)); });
 await wait(3000);
