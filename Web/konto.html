@@ -31907,6 +31907,7 @@ function interiorTick(dt) {
   if (hi) { p.innerHTML = "<b>E</b>  look at " + hi.it.name + "  <i>" + yenText(hi.it.price) + "</i>"; p.classList.add("on"); }
   else if (sp) { p.innerHTML = "<b>E</b>  " + sp.label; p.classList.add("on"); }
   else p.classList.remove("on");
+  padGlyphs();
   // out through the doorway
   const lz = player.pos.z - R.oz, lx = player.pos.x - R.ox;
   if (!R.noExit && lz > IN_D / 2 - 0.55 && Math.abs(lx) < 1.2) interiorLeave();
