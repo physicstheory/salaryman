@@ -39,6 +39,10 @@ the driving seat.
 | GOSTATION | 5550154 | the nearest station |
 | GOSHOP | 5550155 | the nearest shop |
 | GOTOKONTO, GOMIZUHO, GOSHIOKAWA, GONAGISA, GOHAMAURA, GOISOBE, GOKAIDO, GOTOMARI | 5550160-5550167 | go to that town |
+| WANTED | 5550170 | three stars and a pursuit |
+| ARRESTME | 5550171 | get arrested now (cell, record, community service) |
+| CLEANSLATE | 5550172 | wipe stars and criminal record |
+| GOPOLICE / GOAIRPORT | 5550173 / 5550174 | the nearest police station / airport |
 | CHEATLIST | 5550190 | show every code |
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |
 

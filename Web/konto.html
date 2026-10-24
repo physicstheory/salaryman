@@ -1080,6 +1080,7 @@
     <section class="ppage" data-page="game">
       <div class="menucol" id="pgame">
         <button class="menu-btn sel" id="mresume" type="button">Resume</button>
+        <button class="menu-btn" id="mupdate" type="button">Get the latest version of the game</button>
         <button class="menu-btn" id="mtitle" type="button">Return to main menu</button>
       </div>
       <div class="pside" id="pgamelive"></div>
@@ -1097,6 +1098,9 @@
         <button class="menu-btn" id="mres" type="button">Resolution: 100%</button>
         <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
+        <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
+        <button class="menu-btn" id="mlook" type="button">Look speed: 100%</button>
+        <button class="menu-btn" id="minvert" type="button">Invert look: off</button>
       </div>
       <div class="pside">
         <p class="pkicker">Controller</p>
@@ -2168,6 +2172,7 @@ function makeWorld(seed, report) {
   report("laying the coastal expressway", 0.985);
   planHighway(world);
   planSki(world);
+  planAirports(world);
   return world;
 }
 
@@ -2525,6 +2530,242 @@ function planHighway(world) {
 // slope to a top station on the peak, cut into the mountain as a flat platform
 // at each end. The line is found, not drawn - the compass is swept for the
 // straightest, steadiest, most downhill run from the top.
+// ============================================================================
+// AIRPORTS
+// ----------------------------------------------------------------------------
+// One large international airport beside the capital and four smaller fields out in the country. Each is sited on the flattest open ground the
+// island has (not under a city, not across the expressway), and the terrain is graded flat under it before the mesh is made. An airport is laid
+// out in its own frame: x along the runway, z toward the terminal side. Runway, taxiway and apron are surfaces; the terminal, tower, hangars and
+// the aircraft on the stands are built from solids, and the international airport has an airliner landing and another taking off every few minutes.
+// ============================================================================
+const AIRPORT_SPECS = [
+  { name: "Tōkonto International Airport", code: "TKO", len: 3200, wid: 60, big: true, near: "Tōkonto", dmin: 3500, dmax: 11000 },
+  { name: "Nagisa Airport", code: "NGS", len: 1900, wid: 45, near: "Nagisa", dmin: 1800, dmax: 6500 },
+  { name: "Kaido Airfield", code: "KDO", len: 1300, wid: 32, near: "Kaido", dmin: 1500, dmax: 6000 },
+  { name: "Mizuho Airstrip", code: "MZH", len: 1000, wid: 28, near: "Mizuho", dmin: 1500, dmax: 9500 },
+  { name: "Tomari Airfield", code: "TMR", len: 1200, wid: 30, near: "Tomari", dmin: 1500, dmax: 9500 }
+];
+function planAirports(world) {
+  const H = world.height, list = world.airports = [];
+  let sd = 7717; const rng = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+  const inCity = (x, z, m) => world.cities.some(c => c.bounds && x > c.bounds.x0 - m && x < c.bounds.x1 + m && z > c.bounds.z0 - m && z < c.bounds.z1 + m && (!c.footprint || c.footprint(x, z) > 0.12));
+  const hwy = new Set();
+  if (world.highway) world.highway.pts.forEach(q => { const cx = Math.floor(q[0] / 200), cz = Math.floor(q[2] / 200); hwy.add(cx + "," + cz); });
+  const nearHwy = (x, z) => hwy.has(Math.floor(x / 200) + "," + Math.floor(z / 200));
+  AIRPORT_SPECS.forEach(sp => {
+    const city = world.cities.find(c => c.name === sp.near) || world.cities[0], cc = city.centre;
+    const big = !!sp.big, sx0 = sp.len + 260, sz0 = big ? 560 : 400;           // the site, in the airport's frame: x from -sx0/2 to sx0/2, z from -90 to 470
+    let best = null, fallback = null; const why = { tries: 0, water: 0, city: 0, hwy: 0, other: 0, rough: 0 };
+    // look for the flattest site; if the island has none that flat, accept a rougher one in steps (the grading below evens it out)
+    for (const limit of (big ? [8, 16, 28, 45] : [16, 28, 50, 80])) {
+      for (let t = 0; t < 900 && !best; t++) {
+        const a = rng() * Math.PI * 2, d = sp.dmin + rng() * (sp.dmax - sp.dmin);
+        const cx = cc[0] + Math.cos(a) * d, cz = cc[1] + Math.sin(a) * d;
+        if (cx < 600 || cz < 600 || cx > WORLD_X - 600 || cz > WORLD_Z - 600) continue;
+        for (let ang = 0; ang < 360; ang += 30) {
+          why.tries++;
+          const yaw = ang + rng() * 10;
+          let lo = 1e9, hi = -1e9, sum = 0, n = 0, bad = "";
+          for (let lx = -sx0 / 2; lx <= sx0 / 2 && !bad; lx += 120) for (let lz = -90; lz <= sz0 - 90; lz += 120) {
+            const p = fromRectLocal(lx, lz, cx, cz, yaw), h0 = world.sampleHeight(p[0], p[1]), h = big ? Math.max(0, h0) : h0;   // the big one may be built out into the bay, on reclaimed land
+            if (!big && h < 1.6) { bad = "water"; break; }
+            if (inCity(p[0], p[1], 200)) { bad = "city"; break; }
+            if (nearHwy(p[0], p[1])) { bad = "hwy"; break; }
+            lo = Math.min(lo, h); hi = Math.max(hi, h); sum += h; n++;
+          }
+          if (bad) { why[bad]++; continue; }
+          if (list.some(o => Math.hypot(o.cx - cx, o.cz - cz) < (big || o.big ? 3500 : 2200))) { why.other++; continue; }
+          if (hi - lo > limit) { why.rough++; if (!fallback || hi - lo < fallback.spread) fallback = { cx: cx, cz: cz, yaw: yaw, y: sum / n, score: -(hi - lo), spread: hi - lo }; continue; }
+          best = { cx: cx, cz: cz, yaw: yaw, y: sum / n, score: -(hi - lo), spread: hi - lo }; break;
+        }
+      }
+      if (best) break;
+    }
+    if (!best && fallback && fallback.spread < 160) best = fallback;
+    console.log("[Konto] airport " + sp.name + ": " + (best ? "sited, spread " + Math.round(best.spread) + " m" : "no site") + " " + JSON.stringify(why));
+    if (!best) { console.warn("[Konto] no site for " + sp.name); return; }
+    const y = Math.max(big ? 4.5 : 4, Math.round(best.y * 2) / 2);
+    // grade: flat across the site, easing back to the land over 220 m
+    const feather = 220, ex = (sx0 + feather * 2) / 2 + 60, ez = (sz0 + feather * 2) / 2 + 60;
+    const mx = Math.ceil((Math.max(ex, ez)) / CELL) + 2, gx0 = Math.round(best.cx / CELL), gz0 = Math.round(best.cz / CELL);
+    for (let gz = Math.max(0, gz0 - mx * 2); gz <= Math.min(GRID_Z - 1, gz0 + mx * 2); gz++) for (let gx = Math.max(0, gx0 - mx * 2); gx <= Math.min(GRID_X - 1, gx0 + mx * 2); gx++) {
+      const l = toRectLocal(gx * CELL, gz * CELL, best.cx, best.cz, best.yaw), lz = l[1] - (sz0 / 2 - 90);     // lz now measured from the middle of the site
+      const dx = Math.max(0, Math.abs(l[0]) - sx0 / 2), dz = Math.max(0, Math.abs(lz) - sz0 / 2), dd = Math.hypot(dx, dz);
+      if (dd >= feather) continue;
+      const i = gz * GRID_X + gx, k = dd <= 0 ? 1 : 1 - (dd / feather), s = k * k * (3 - 2 * k);
+      H[i] = H[i] * (1 - s) + y * s;
+    }
+    list.push({ name: sp.name, code: sp.code, len: sp.len, wid: sp.wid, big: big, cx: best.cx, cz: best.cz, yaw: best.yaw, y: y, sx: sx0, sz: sz0, spread: best.spread });
+  });
+}
+const apTex = {};
+function apCanvas(key, w, h, draw, repeat) {
+  if (apTex[key]) return apTex[key];
+  const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return (apTex[key] = t);
+}
+function airplaneMesh(len, span, tailHex, hi) {
+  const g = new THREE.Group(), r = len * 0.062;
+  const M = (c, rough, met) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.35 : rough, metalness: met === undefined ? 0.25 : met, envMap: gfx.env || null, envMapIntensity: 0.6 }) : new THREE.MeshLambertMaterial({ color: c });
+  const white = M(0xf2f3f4), grey = M(0xc4c8cc), dark = M(0x1b2430, 0.2, 0.5), tail = M(tailHex), engine = M(0x9ea4aa, 0.4, 0.5);
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  const fus = add(new THREE.CylinderGeometry(r, r, len * 0.74, 22), white, 0, 0, 0); fus.rotation.z = Math.PI / 2;
+  const nose = add(new THREE.SphereGeometry(r, 20, 14), white, len * 0.37, 0, 0); nose.scale.set(2.2, 1, 1);
+  const rear = add(new THREE.CylinderGeometry(r, r * 0.22, len * 0.26, 22), white, -len * 0.5, r * 0.12, 0); rear.rotation.z = Math.PI / 2;
+  add(new THREE.BoxGeometry(len * 0.52, r * 0.16, r * 2.03), dark, len * 0.1, r * 0.28, 0);                         // the window band
+  add(new THREE.BoxGeometry(len * 0.55, r * 0.07, r * 2.04), tail, len * 0.08, -r * 0.18, 0);                       // the cheat line in the airline's colour
+  [-1, 1].forEach(sd => {
+    const w = add(new THREE.BoxGeometry(len * 0.17, r * 0.12, span * 0.5), grey, -len * 0.02, -r * 0.5, sd * span * 0.25); w.rotation.y = -sd * 0.52; w.position.x = -len * 0.02 - Math.abs(Math.sin(0.52)) * span * 0.12;
+    w.position.z = sd * span * 0.23;
+    const e = add(new THREE.CylinderGeometry(r * 0.46, r * 0.4, len * 0.1, 14), engine, len * 0.06, -r * 1.05, sd * span * 0.17); e.rotation.z = Math.PI / 2;
+    const h = add(new THREE.BoxGeometry(len * 0.08, r * 0.08, span * 0.18), grey, -len * 0.45, r * 0.3, sd * span * 0.1); h.rotation.y = -sd * 0.4;
+  });
+  const fin = add(new THREE.BoxGeometry(len * 0.11, r * 2.6, r * 0.14), tail, -len * 0.44, r * 1.7, 0); fin.rotation.z = -0.28;
+  return g;
+}
+function buildAirports(root) {
+  const hi = gfx.high, aps = (world && world.airports) || [];
+  aps.forEach(ap => {
+    const G = new THREE.Group(); G.position.set(ap.cx, ap.y, ap.cz); G.rotation.y = ap.yaw * Math.PI / 180;
+    const Lm = (c) => new THREE.MeshLambertMaterial({ color: c });
+    const S = (c, rough) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.85 : rough, metalness: 0.05 }) : Lm(c);
+    const box = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; G.add(m); return m; };
+    const flat = (w, d, x, z, mat, y) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), mat); m.rotation.x = -Math.PI / 2; m.position.set(x, y || 0.07, z); m.receiveShadow = true; G.add(m); return m; };
+    const L = ap.len, W = ap.wid, big = ap.big;
+    // surfaces: runway in the HD asphalt, taxiway the same, apron in concrete slabs
+    const asph = () => { const t = asphaltTexture().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 13, 1 / 13); const m = hi ? new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0, envMapIntensity: 0.4 }) : new THREE.MeshLambertMaterial({ map: t }); if (hi && gfx.env) m.envMap = gfx.env; if (hi) roadHD(t, m); m.polygonOffset = true; m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -3; return m; };
+    const runwayMat = asph(), taxiMat = asph();
+    const conc = apCanvas("apron", 512, 512, (g, w, h) => { g.fillStyle = "#a9a89f"; g.fillRect(0, 0, w, h); for (let i = 0; i < 5000; i++) { g.fillStyle = "rgba(" + (i % 2 ? "255,255,255" : "40,40,36") + ",0.04)"; g.fillRect(rnd(i, 1, 9001) * w, rnd(i, 2, 9003) * h, 2, 2); } g.strokeStyle = "rgba(60,58,52,0.55)"; g.lineWidth = 3; g.strokeRect(1, 1, w - 2, h - 2); g.beginPath(); g.moveTo(w / 2, 0); g.lineTo(w / 2, h); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke(); });
+    const apronT = conc.clone(); apronT.needsUpdate = true; apronT.repeat.set(1 / 7.5, 1 / 7.5);
+    const apronMat = hi ? new THREE.MeshStandardMaterial({ map: apronT, roughness: 0.85, metalness: 0 }) : new THREE.MeshLambertMaterial({ map: apronT });
+    apronMat.polygonOffset = true; apronMat.polygonOffsetFactor = -3; apronMat.polygonOffsetUnits = -3;
+    const shoulder = S(0x4f5a3a, 1);
+    flat(L + 140, W + 90, 0, 0, shoulder, 0.04);                                              // the strip: graded turf either side
+    const runway = flat(L, W, 0, 0, runwayMat, 0.08);
+    const txz = big ? 120 : 110, tw = big ? 24 : 15;
+    const taxi = flat(L * 0.94, tw, 0, txz, taxiMat, 0.08);
+    const links = big ? 5 : 3;
+    for (let k = 0; k < links; k++) { const lx = -L * 0.45 + k * (L * 0.9 / (links - 1)); flat(tw, txz - W / 2 + 4, lx, (txz + W / 2) / 2, taxiMat, 0.081); }
+    const apronD = big ? 125 : 70, apronW = big ? 520 : 240, apronZ = txz + tw / 2 + apronD / 2 - 4;
+    flat(apronW, apronD, 0, apronZ, apronMat, 0.085);
+    // markings: white, as geometry so they are sharp at any distance
+    const white = new THREE.MeshBasicMaterial({ color: 0xf0f0e8, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+    const mk = (w, d, x, z, mat) => flat(w, d, x, z, mat, 0.095);
+    for (let x = -L / 2 + 120; x < L / 2 - 120; x += 50) mk(30, 0.9, x, 0, white);          // centreline
+    mk(L - 20, 0.5, 0, W / 2 - 1.4, white); mk(L - 20, 0.5, 0, -W / 2 + 1.4, white);          // edges
+    [-1, 1].forEach(sd => {
+      const ex = sd * (L / 2 - 6);
+      for (let k = -5; k <= 5; k++) if (k !== 0) mk(26, 1.7, sd * (L / 2 - 20), k * (W * 0.075) + (k > 0 ? 1 : -1) * 0.8, white);        // threshold bars
+      [[0.0, 0.3], [0.16, 0.2]].forEach((p, i) => { void p; });
+      for (const off of [150, 300, 450, 600]) { mk(22, 1.6, sd * (L / 2 - off), W * 0.17, white); mk(22, 1.6, sd * (L / 2 - off), -W * 0.17, white); }  // touchdown zone
+      mk(4, W * 0.8, sd * (L / 2 - 400), 0, white); void ex;
+    });
+    mk(L * 0.94, 0.4, 0, txz, yellow);                                                         // taxiway centreline
+    // the runway numbers, painted
+    const num = (txt, x, rotY) => { const t = apCanvas("num" + txt, 256, 256, (g, w, h) => { g.fillStyle = "rgba(0,0,0,0)"; g.clearRect(0, 0, w, h); g.fillStyle = "#f0f0e8"; g.font = "900 190px 'Arial Narrow', Impact, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(txt, w / 2, h / 2 + 8); }); const m = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.55, W * 0.55), new THREE.MeshBasicMaterial({ map: t, transparent: true, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 })); m.rotation.x = -Math.PI / 2; m.rotation.z = rotY; m.position.set(x, 0.1, 0); G.add(m); };
+    const hd = Math.round(((90 - ap.yaw + 360) % 360) / 10) || 36, hd2 = ((hd + 18 - 1) % 36) + 1;
+    num(String(hd).padStart(2, "0"), -L / 2 + 70, -Math.PI / 2); num(String(hd2).padStart(2, "0"), L / 2 - 70, Math.PI / 2);
+    // runway and taxiway lights, instanced
+    const lampGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5), nL = Math.floor(L / 60) * 2 + 8, nT = Math.floor(L * 0.94 / 60) * 2;
+    const rl = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0xfff1c0 }), nL), tl = new THREE.InstancedMesh(lampGeo, new THREE.MeshBasicMaterial({ color: 0x4aa3ff }), nT);
+    const m4 = new THREE.Matrix4(); let i1 = 0, i2 = 0;
+    for (let x = -L / 2; x <= L / 2; x += 60) for (const sd of [-1, 1]) { if (i1 < nL) { m4.makeTranslation(x, 0.3, sd * (W / 2 + 1.2)); rl.setMatrixAt(i1++, m4); } }
+    for (let x = -L * 0.47; x <= L * 0.47; x += 60) for (const sd of [-1, 1]) { if (i2 < nT) { m4.makeTranslation(x, 0.3, txz + sd * (tw / 2 + 1)); tl.setMatrixAt(i2++, m4); } }
+    rl.count = i1; tl.count = i2; rl.frustumCulled = tl.frustumCulled = false; G.add(rl); G.add(tl);
+    // the terminal, with a glazed front toward the apron, a flat roof and a deep canopy
+    const solids2 = [];
+    const glassTex = apCanvas("tglass", 512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#3a5878"); gr.addColorStop(1, "#1b2b3c"); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = "rgba(255,255,255,0.12)"; g.beginPath(); g.moveTo(40, h); g.lineTo(130, 0); g.lineTo(190, 0); g.lineTo(100, h); g.fill(); g.fillStyle = "#d8dcdf"; for (let x = 0; x < w; x += 64) g.fillRect(x, 0, 5, h); g.fillRect(0, h * 0.5, w, 4); for (let i = 0; i < 40; i++) { g.fillStyle = "rgba(255,220,150,0.5)"; g.fillRect(rnd(i, 3, 9011) * w, 20 + rnd(i, 4, 9013) * (h - 60), 24, 30); } });
+    const tz = big ? 290 : 205, tl_ = big ? 300 : 90, tw_ = big ? 46 : 22, th = big ? 22 : 9;
+    const glassT = glassTex.clone(); glassT.needsUpdate = true; glassT.repeat.set(tl_ / 32, 1);
+    const glassMat = hi ? new THREE.MeshStandardMaterial({ map: glassT, roughness: 0.15, metalness: 0.5, envMap: gfx.env || null, envMapIntensity: 0.9, emissive: new THREE.Color(1, 0.85, 0.6), emissiveMap: glassT, emissiveIntensity: nightState.lit > 0 ? nightState.lit * 0.9 : 0 }) : new THREE.MeshLambertMaterial({ map: glassT });
+    if (hi) nightMats.push({ m: glassMat, gain: 0.9 });
+    const wall = S(0xdfe2e4);
+    const term = box(tl_, th, tw_, 0, th / 2, tz, [wall, wall, wall, wall, glassMat, wall].length ? wall : wall);
+    // the front face is a separate glass sheet on the apron side so the building keeps its plain walls elsewhere
+    const frontSheet = new THREE.Mesh(new THREE.PlaneGeometry(tl_ - 4, th - 3), glassMat); frontSheet.rotation.y = Math.PI; frontSheet.position.set(0, th / 2 - 0.2, tz - tw_ / 2 - 0.08); G.add(frontSheet);
+    box(tl_ + 10, 1.2, tw_ + 14, 0, th + 0.6, tz - 2, S(0x39414c, 0.6));                                // the roof slab
+    box(tl_ - 10, 0.8, 16, 0, th - 3, tz - tw_ / 2 - 8, S(0x4a5361, 0.5));                              // the canopy over the kerb
+    for (let x = -tl_ / 2 + 20; x < tl_ / 2; x += 40) box(1.2, th - 3, 1.2, x, (th - 3) / 2, tz - tw_ / 2 - 15, S(0xc9ced4, 0.4));
+    solids2.push({ x: 0, z: tz, w: tl_ + 10, d: tw_ + 14, h: th + 1.2 });
+    // jet bridges and the aircraft on them
+    const nGate = big ? 6 : 1, jb = S(0xb9bec4, 0.5);
+    const lines = [0xc0172b, 0x1d5fb0, 0x1e8f5a, 0x7a3fb5, 0xe08a1c, 0x14284c];
+    for (let k = 0; k < nGate; k++) {
+      const gx = (k - (nGate - 1) / 2) * (big ? 62 : 0);
+      const plane = airplaneMesh(big ? (k % 3 === 0 ? 63 : 38) : 20, big ? (k % 3 === 0 ? 61 : 34) : 11, lines[k % lines.length], hi);
+      plane.rotation.y = -Math.PI / 2; plane.position.set(gx, big ? 5.2 : 2.2, txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
+      if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
+    }
+    // the tower: a shaft, a glazed cab with a flared roof, a mast
+    const tx = big ? -tl_ / 2 - 70 : tl_ / 2 + 25, tzz = tz - 10, th2 = big ? 58 : 20;
+    const shaftMat = S(0xd0d4d8, 0.7);
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(big ? 4.2 : 2.6, big ? 5.6 : 3.2, th2, 16), shaftMat); shaft.position.set(tx, th2 / 2, tzz); shaft.castShadow = true; G.add(shaft);
+    const cab = new THREE.Mesh(new THREE.CylinderGeometry(big ? 9 : 5, big ? 6.4 : 3.6, big ? 7.5 : 4, 16), glassMat); cab.position.set(tx, th2 + (big ? 3.7 : 2), tzz); G.add(cab);
+    const capm = new THREE.Mesh(new THREE.CylinderGeometry(big ? 10 : 5.6, big ? 9 : 5, 1.2, 16), S(0x30363e, 0.5)); capm.position.set(tx, th2 + (big ? 8.2 : 4.4), tzz); G.add(capm);
+    box(0.25, big ? 12 : 6, 0.25, tx, th2 + (big ? 14 : 7.4), tzz, S(0xb02020, 0.5));
+    solids2.push({ x: tx, z: tzz, w: big ? 12 : 7, d: big ? 12 : 7, h: th2 });
+    // hangars: a barrel roof on straight walls
+    const nH = big ? 3 : 1;
+    for (let k = 0; k < nH; k++) {
+      const hx = (big ? 380 : 120) + k * (big ? 70 : 0) * (k ? 1 : 0) + (big ? 0 : 0), hw = big ? 50 : 22, hl = big ? 60 : 26, hz = big ? 425 : 268;
+      const ox = hx + k * 60 * (big ? 1 : 0);
+      box(hw, 8, hl, ox, 4, hz, S(0xc4c8cb, 0.6));
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(hw / 2, hw / 2, hl, 20, 1, false, 0, Math.PI), S(0x8b929a, 0.5)); barrel.rotation.z = Math.PI / 2; barrel.rotation.y = Math.PI / 2; barrel.rotation.x = 0; barrel.position.set(ox, 8, hz); barrel.scale.set(1, 1, 0.5); barrel.castShadow = true; G.add(barrel);
+      box(hw * 0.7, 6.5, 0.4, ox, 3.4, hz - hl / 2 - 0.1, S(0x2a2f36, 0.4));
+      solids2.push({ x: ox, z: hz, w: hw, d: hl, h: 12 });
+    }
+    // fuel tanks and a cargo shed on the big one, a windsock on all of them
+    if (big) { for (let k = 0; k < 3; k++) { const tk = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 12, 20), S(0xe8e8e2, 0.5)); tk.position.set(-300 + k * 22, 6, 430); tk.castShadow = true; G.add(tk); solids2.push({ x: -300 + k * 22, z: 430, w: 18, d: 18, h: 12 }); } box(120, 12, 40, 160, 6, 420, S(0xb8bcc0, 0.7)); solids2.push({ x: 160, z: 420, w: 120, d: 40, h: 12 }); }
+    const pole = box(0.3, 9, 0.3, -L / 2 + 160, 4.5, -W / 2 - 25, S(0xc9ced4)); void pole;
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(1.0, 4.5, 10, 1, true), new THREE.MeshLambertMaterial({ color: 0xff7a1c, side: THREE.DoubleSide })); sock.rotation.z = -Math.PI / 2; sock.position.set(-L / 2 + 162.2, 8.6, -W / 2 - 25); G.add(sock);
+    // the car park and the road in, with the cars in it
+    const cpz = tz + tw_ / 2 + (big ? 48 : 24), cpw = big ? 260 : 70, cpd = big ? 70 : 24;
+    flat(cpw, cpd, 0, cpz, apronMat, 0.07);
+    const nCars = big ? 140 : 14, carG = new THREE.BoxGeometry(2.0, 1.4, 4.4), cars = new THREE.InstancedMesh(carG, new THREE.MeshLambertMaterial({ color: 0xffffff }), nCars), col = new THREE.Color();
+    for (let k = 0; k < nCars; k++) { const cx = -cpw / 2 + 6 + (k % Math.floor(cpw / 5)) * 5, cz = cpz - cpd / 2 + 8 + Math.floor(k / Math.floor(cpw / 5)) * 12; m4.makeTranslation(cx, 0.8, cz); cars.setMatrixAt(k, m4); col.setHSL(rnd(k, 5, 9021), 0.15 + rnd(k, 6, 9023) * 0.5, 0.25 + rnd(k, 7, 9025) * 0.45); cars.setColorAt(k, col); }
+    cars.frustumCulled = false; G.add(cars);
+    // a fence round the airfield, in a few long runs
+    const fm = S(0x6d7378, 0.6), fx0 = -ap.sx / 2 + 30, fx1 = ap.sx / 2 - 30, fz0 = -70, fz1 = ap.sz - 100;
+    [[fx1 - fx0, 0, (fx0 + fx1) / 2, fz0], [fx1 - fx0, 0, (fx0 + fx1) / 2, fz1]].forEach(f => box(f[0], 2.4, 0.1, f[2], 1.2, f[3], fm));
+    [[0, fz1 - fz0, fx0, (fz0 + fz1) / 2], [0, fz1 - fz0, fx1, (fz0 + fz1) / 2]].forEach(f => box(0.1, 2.4, f[1], f[2], 1.2, f[3], fm));
+    root.add(G);
+    ap.group = G;
+    // collision, in world space, for the walker
+    solids2.forEach(s2 => { const p = fromRectLocal(s2.x, s2.z, ap.cx, ap.cz, ap.yaw); solids.push({ c: [p[0], p[1]], size: [s2.w, s2.d], yaw: ap.yaw, y: ap.y, h: s2.h }); });
+    const bb = { x0: ap.cx - ap.sx, x1: ap.cx + ap.sx, z0: ap.cz - ap.sx, z1: ap.cz + ap.sx, y0: ap.y, y1: ap.y + 80 };
+    streamAdd(G, bb, big ? 9000 : 4500);
+    if (big) { ap.flight = { state: "idle", t: 20, mesh: airplaneMesh(50, 48, 0xc0172b, hi), a: 0 }; ap.flight.mesh.visible = false; root.add(ap.flight.mesh); }
+  });
+  if (aps.length) buildSolidGrid();
+}
+// Airliners at the big airport: one lands, one takes off, a few minutes apart. Only run when you are within sight of it.
+function updateAirports(dt) {
+  const aps = (world && world.airports) || [];
+  aps.forEach(ap => {
+    const f = ap.flight; if (!f) return;
+    const cam = camera.position, near = Math.hypot(cam.x - ap.cx, cam.z - ap.cz) < 9000;
+    if (!near) { f.mesh.visible = false; return; }
+    f.t -= dt;
+    const to = (lx, ly, lz, hdgLocal) => { const p = fromRectLocal(lx, lz, ap.cx, ap.cz, ap.yaw); f.mesh.position.set(p[0], ap.y + ly, p[1]); f.mesh.rotation.set(0, ap.yaw * Math.PI / 180 + hdgLocal, 0); };
+    const L = ap.len;
+    if (f.state === "idle") { f.mesh.visible = false; if (f.t <= 0) { f.state = f.a++ % 2 ? "landing" : "takeoff"; f.s = 0; f.mesh.visible = true; f.tail = [0xc0172b, 0x1d5fb0, 0x1e8f5a][f.a % 3]; } return; }
+    if (f.state === "landing") {                       // from 4 km out on a three degree path, touch down 400 m in, roll out and turn off
+      f.s += dt; const v = f.s < 50 ? 72 : Math.max(14, 72 - (f.s - 50) * 9), x0 = -L / 2 - 3600;
+      f.x = (f.x === undefined || f.s <= dt) ? x0 : f.x + v * dt;
+      const touch = -L / 2 + 400, h = f.x < touch ? Math.max(0, (touch - f.x) * 0.052) : 0, pitch = f.x < touch ? -0.07 : 0;
+      to(f.x, h + 2.7, 0, 0); f.mesh.rotation.z = pitch;
+      if (f.x > L / 2 - 650 && v <= 15) { f.state = "idle"; f.t = 80 + Math.random() * 90; f.x = undefined; }
+    } else {                                          // from the far end: accelerate, rotate, climb away
+      f.s += dt; const v = Math.min(88, 4 + f.s * 3.6), x0 = -L / 2 + 120;
+      f.x = (f.x === undefined || f.s <= dt) ? x0 : f.x + v * dt;
+      const rot = -L / 2 + L * 0.62, h = f.x < rot ? 0 : (f.x - rot) * 0.15;
+      to(f.x, h + 2.7, 0, 0); f.mesh.rotation.z = f.x < rot ? 0 : 0.14;
+      if (f.x > L / 2 + 4500) { f.state = "idle"; f.t = 80 + Math.random() * 90; f.x = undefined; }
+    }
+  });
+}
+
 function planSki(world) {
   const GX = GRID_X, GZ = GRID_Z, H = world.height;
   const floor = world.highest * 0.42;
@@ -4464,6 +4705,68 @@ function facadeTexture(style) {
 }
 
 let grainTex = null;
+// ---- ground you can look at ----------------------------------------------------------------------------------------------------------------
+// The terrain has a colour every nineteen metres and the city ground a pixel every three, so the surface itself has to come from somewhere else:
+// one tileable 1024 px texture holding three materials in its channels (red: turf, green: soil and gravel, blue: rock), sampled at three scales
+// (4 m, 23 m and 140 m) so there is fine grain underfoot, patches in the middle distance and no repeat you can find from the hill. The shaders
+// pick the material from what the base colour says it is: green is turf (parks, fields, verges), steep is rock, and the rest is soil or, in a
+// city lot, paving slabs with their joints. No normal maps are needed: the grain is lit by the sun through a derivative bump in the shader.
+let gdetailTex = null;
+function tileNoise(x, y, per, seed) {          // value noise that repeats every `per` cells
+  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+  const h = (a, b) => rnd(((a % per) + per) % per, ((b % per) + per) % per, seed);
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  return h(xi, yi) * (1 - u) * (1 - v) + h(xi + 1, yi) * u * (1 - v) + h(xi, yi + 1) * (1 - u) * v + h(xi + 1, yi + 1) * u * v;
+}
+function tileFbm(x, y, per, seed, oct) { let a = 0, amp = 0.5, f = 1, tot = 0; for (let o = 0; o < oct; o++) { a += tileNoise(x * f, y * f, per * f, seed + o * 17) * amp; tot += amp; amp *= 0.5; f *= 2; } return a / tot; }
+function groundDetail() {
+  if (gdetailTex) return gdetailTex;
+  const S = 1024, c = document.createElement("canvas"); c.width = c.height = S;
+  const g = c.getContext("2d"), img = g.createImageData(S, S), d = img.data;
+  // turf: blades are drawn as short strokes, wrapped so the tile repeats, over a mottled base
+  const tc = document.createElement("canvas"); tc.width = tc.height = S; const tg = tc.getContext("2d");
+  tg.fillStyle = "#808080"; tg.fillRect(0, 0, S, S);
+  for (let k = 0; k < 42000; k++) {
+    const x = rnd(k, 1, 5101) * S, y = rnd(k, 2, 5103) * S, len = 9 + rnd(k, 3, 5105) * 22, ang = -Math.PI / 2 + (rnd(k, 4, 5107) - 0.5) * 1.1;
+    const v = 70 + rnd(k, 5, 5109) * 150, dx = Math.cos(ang) * len, dy = Math.sin(ang) * len;
+    tg.strokeStyle = "rgb(" + v + "," + v + "," + v + ")"; tg.lineWidth = 1.2 + rnd(k, 6, 5111) * 1.6;
+    for (const ox of [-S, 0, S]) for (const oy of [-S, 0, S]) { if (ox && (x + ox < -40 || x + ox > S + 40)) continue; if (oy && (y + oy < -40 || y + oy > S + 40)) continue; tg.beginPath(); tg.moveTo(x + ox, y + oy); tg.quadraticCurveTo(x + ox + dx * 0.4 + 2, y + oy + dy * 0.5, x + ox + dx, y + oy + dy); tg.stroke(); }
+  }
+  const turf = tg.getImageData(0, 0, S, S).data;
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const o = (y * S + x) * 4, fx = x / S, fy = y / S;
+    const clump = tileFbm(fx * 9, fy * 9, 9, 6101, 3);                                   // the patches a lawn has, darker and lighter
+    const rr = clamp((turf[o] / 255) * 0.62 + clump * 0.55 + 0.05, 0, 1);
+    const soilN = tileFbm(fx * 40, fy * 40, 40, 6201, 4), peb = tileNoise(fx * 150, fy * 150, 150, 6203);
+    const gg = clamp(soilN * 0.7 + (peb > 0.86 ? 0.35 : 0) + (tileNoise(fx * 300, fy * 300, 300, 6207) - 0.5) * 0.28, 0, 1);
+    const rk = tileFbm(fx * 14, fy * 14, 14, 6301, 5), crack = Math.abs(tileNoise(fx * 22, fy * 22, 22, 6303) - 0.5) * 2;
+    const bb = clamp(rk * 0.9 + (crack < 0.07 ? -0.28 : 0.06) + (tileNoise(fx * 220, fy * 220, 220, 6307) - 0.5) * 0.2, 0, 1);
+    d[o] = rr * 255; d[o + 1] = gg * 255; d[o + 2] = bb * 255; d[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  gdetailTex = new THREE.CanvasTexture(c);
+  gdetailTex.wrapS = gdetailTex.wrapT = THREE.RepeatWrapping; gdetailTex.anisotropy = 8; gdetailTex.generateMipmaps = true; gdetailTex.minFilter = THREE.LinearMipmapLinearFilter;
+  return gdetailTex;
+}
+// The part of the fragment shader both surfaces share. `p` is the position on the ground in metres; `slope` is 0 flat to 1 vertical.
+const GDETAIL_GLSL = `
+uniform sampler2D gdetail;
+float gdLuma(vec2 p, vec3 base, float slope, float city) {
+  vec3 a = texture2D(gdetail, p / 4.0).rgb, b = texture2D(gdetail, p / 23.0 + 0.31).rgb, m = texture2D(gdetail, p / 140.0 + 0.7).rgb;
+  float green = clamp((base.g - max(base.r, base.b)) * 11.0, 0.0, 1.0);
+  float rock = clamp((slope - 0.36) * 4.0, 0.0, 1.0);
+  float fine = mix(mix(a.g, a.b, rock), a.r, green * (1.0 - rock));
+  float mid = mix(mix(b.g, b.b, rock), b.r, green * (1.0 - rock));
+  float macro = mix(mix(m.g, m.b, rock), m.r, green * (1.0 - rock));
+  float l = (0.30 + fine * 0.90) * (0.62 + mid * 0.76) * (0.74 + macro * 0.52);
+  if (city > 0.5 && green < 0.2) {                                         // paving: slabs 2.4 m across with a joint between them
+    vec2 q = abs(fract(p / 2.4) - 0.5);
+    float joint = smoothstep(0.468, 0.495, max(q.x, q.y));
+    l *= 1.0 - joint * 0.30;
+  }
+  return l * 1.55;
+}`;
+
 function groundGrain() {
   if (grainTex) return grainTex;
   const S = 128;
@@ -4694,6 +4997,7 @@ function facadeMaterials(style) {
   const base = gfx.high
     ? new THREE.MeshStandardMaterial({ color: 0x5d5a55, roughness: 0.9, metalness: 0.0 })
     : new THREE.MeshLambertMaterial({ color: 0x5d5a55 });
+  if (!glassy) [side, roof, base].forEach(m => bubbleFog(m, "low"));
   [side, roof, base].forEach(m => { m.userData.shared = true; });
   // BoxGeometry groups run +X, -X, +Y, -Y, +Z, -Z.
   facadeCache[style] = { mats: [side, side, roof, base, side, side], spec: spec };
@@ -4758,7 +5062,7 @@ function gableMaterials(kind) {
   const under = gfx.high
     ? new THREE.MeshStandardMaterial({ color: 0x2b2520, roughness: 0.93, metalness: 0.0 })
     : new THREE.MeshLambertMaterial({ color: 0x322b25 });
-  [tile, under].forEach(m => { m.userData.shared = true; });
+  [tile, under].forEach(m => { bubbleFog(m, "low"); m.userData.shared = true; });
   roofMatCache[kind] = [tile, under];
   return roofMatCache[kind];
 }
@@ -4889,8 +5193,11 @@ function addGableRoofs(root, boxes) {
     if (b.h > GABLE_MAX_H) return;
     (byKind[kind] || (byKind[kind] = [])).push(b);
   });
-  Object.keys(byKind).forEach(kind => {
-    const list = byKind[kind];
+  Object.keys(byKind).forEach(kind0 => {
+   const bk = {};
+   byKind[kind0].forEach(b => { const k = Math.floor(b.c[0] / STREAM_CH) + "," + Math.floor(b.c[1] / STREAM_CH); (bk[k] || (bk[k] = [])).push(b); });
+   Object.keys(bk).forEach(ck => {
+    const kind = kind0, list = bk[ck];
     const geo = gableGeometry();
     const inst = new THREE.InstancedMesh(geo, gableMaterials(kind), list.length);
     const tiles = new Float32Array(list.length * 2);
@@ -4917,6 +5224,10 @@ function addGableRoofs(root, boxes) {
     inst.castShadow = true;
     inst.receiveShadow = true;
     root.add(inst);
+    const bb = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y0: 0, y1: 0 };
+    list.forEach(b => { bb.x0 = Math.min(bb.x0, b.c[0] - b.size[0]); bb.x1 = Math.max(bb.x1, b.c[0] + b.size[0]); bb.z0 = Math.min(bb.z0, b.c[1] - b.size[1]); bb.z1 = Math.max(bb.z1, b.c[1] + b.size[1]); bb.y1 = Math.max(bb.y1, b.y + b.h + 4); });
+    streamAdd(inst, bb, STREAM.low);
+   });
   });
 }
 
@@ -5629,8 +5940,53 @@ function initThree() {
 // poll, so edges have to be worked out by remembering the last frame.
 const PAD = {
   A: 0, B: 1, X: 2, Y: 3, LB: 4, RB: 5, LT: 6, RT: 7,
-  BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15
+  BACK: 8, START: 9, L3: 10, R3: 11, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15,
+  SUP: 16, SDOWN: 17, SLEFT: 18, SRIGHT: 19          // the left stick pushed a long way, so a menu can be walked with it
 };
+
+// ---- the player's own settings, kept between sessions --------------------------------------------------------------------------------------
+const gameSet = { rumble: true, invertY: false, lookSens: 1.0 };
+try { Object.assign(gameSet, JSON.parse(localStorage.getItem("konto.settings.v1") || "{}")); } catch (e) { /* defaults */ }
+function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.stringify(gameSet)); } catch (e) { /* not kept */ } }
+
+// ---- what kind of pad it is, for the labels on screen and for shaking it -------------------------------------------------------------------
+function padKind() {
+  const n = pad.name || "";
+  if (/054c|dualsense|dualshock|playstation|sony|ps[345]/i.test(n)) return "ps";
+  if (/057e|nintendo|switch|joy-?con|pro controller/i.test(n)) return "switch";
+  return "xbox";
+}
+const PAD_GLYPHS = {
+  xbox:   { A: "A", B: "B", X: "X", Y: "Y", LB: "LB", RB: "RB", LT: "LT", RT: "RT", START: "Menu", BACK: "View" },
+  ps:     { A: "\u2715", B: "\u25CB", X: "\u25A1", Y: "\u25B3", LB: "L1", RB: "R1", LT: "L2", RT: "R2", START: "Options", BACK: "Share" },
+  switch: { A: "B", B: "A", X: "Y", Y: "X", LB: "L", RB: "R", LT: "ZL", RT: "ZR", START: "+", BACK: "-" }
+};
+function padLabel(btn) { return (PAD_GLYPHS[padKind()] || PAD_GLYPHS.xbox)[btn] || btn; }
+// Keyboard hints become button hints while a pad is the thing in your hands: "E take it" reads "Y take it" (or the triangle on a PlayStation pad).
+function padGlyphs() {
+  const connected = pad.index >= 0;
+  const p = document.getElementById("iprompt");
+  if (p && p.classList.contains("on")) {
+    const b = p.querySelector("b");
+    if (b) { const want = connected ? padLabel(interior.sit ? "A" : "Y") : "E"; if (b.textContent !== want && /^(E|A|Y|B|X|\u2715|\u25B3)$/.test(b.textContent)) b.textContent = want; }
+  }
+  const sh = document.querySelector("#isheet .ik");
+  if (sh && connected && !sh.dataset.pad) { sh.dataset.pad = "1"; sh.textContent = "\u25B2 \u25BC row   \u25C0 \u25B6 choose   " + padLabel("X") + " tick a topping   " + padLabel("A") + " hand in the order   " + padLabel("B") + " stand up"; }
+  const k = document.querySelector("#icard .ik");
+  if (k && connected && !k.dataset.pad && interior.sit) { k.dataset.pad = "1"; k.textContent = "\u25B2 \u25BC choose   " + padLabel("A") + " order   " + padLabel("B") + " stand up"; }
+}
+// Shake the pad. strong is the heavy motor (a thump), weak the light one (a buzz); both 0..1. Calls closer than 70 ms apart are dropped, so something that
+// calls every frame (a car shuddering) is a steady rumble and not a flood.
+let rumbleAt = 0;
+function rumble(strong, weak, ms) {
+  if (!gameSet.rumble || pad.index < 0 || !pad.gp) return;
+  const now = performance.now(); if (now - rumbleAt < 70) return; rumbleAt = now;
+  try {
+    const a = pad.gp.vibrationActuator;
+    if (a && a.playEffect) a.playEffect("dual-rumble", { startDelay: 0, duration: ms || 120, strongMagnitude: clamp01(strong), weakMagnitude: clamp01(weak) });
+    else if (pad.gp.hapticActuators && pad.gp.hapticActuators[0] && pad.gp.hapticActuators[0].pulse) pad.gp.hapticActuators[0].pulse(clamp01(Math.max(strong, weak)), ms || 120);
+  } catch (e) { /* this pad cannot */ }
+}
 
 function deadzone(v, limit) {
   // Sticks rest a little off centre, and a drifting stick that walks you into traffic is
@@ -5661,7 +6017,13 @@ function pollPad(dt) {
   }
   if (gp.buttons.some(b => b && b.pressed)) wakeAudio();
 
-  const held = i => !!(gp.buttons[i] && gp.buttons[i].pressed);
+  pad.gp = gp;
+  padGlyphs();
+  if (service.active) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; return; }
+  const held = i => {
+    if (i >= 16) { const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; return i === 16 ? ay < -0.6 : i === 17 ? ay > 0.6 : i === 18 ? ax < -0.6 : ax > 0.6; }
+    return !!(gp.buttons[i] && gp.buttons[i].pressed);
+  };
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
   // A trigger is analogue on an Xbox pad and reports through .value; some
@@ -5839,8 +6201,8 @@ function pollPad(dt) {
   pad.y = deadzone(gp.axes[1] || 0);
   if (pad.x || pad.y) { tour = false; flyTo = null; }
 
-  look.x = deadzone(gp.axes[2] || 0);
-  look.y = deadzone(gp.axes[3] || 0);
+  look.x = deadzone(gp.axes[2] || 0) * gameSet.lookSens;
+  look.y = deadzone(gp.axes[3] || 0) * gameSet.lookSens * (gameSet.invertY ? -1 : 1);
   // The radio wheel is pointed with the same stick; while it is up the camera stays put.
   if (radio.wheel || radio.holdingPad) look.x = look.y = 0;
 
@@ -5968,7 +6330,7 @@ function setPaused(on, tabName) {
 
 // ---- the tabs --------------------------------------------------------------
 const PAUSE_TABS = ["map", "game", "info", "stats", "items", "phone", "radio", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows"] };
+const PAUSE_ROWS = { game: ["mresume", "mupdate", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows", "mrumble", "mlook", "minvert"] };
 const pause = { tab: 0, row: 0 };
 const PAUSE_HINT = {
   map: "Stick pans · triggers zoom · A waypoint · Y clear · X transport · LB RB pages · B resume",
@@ -6069,7 +6431,7 @@ function fillPause(name) {
   } else if (name === "stats") {
     set("pstats", [["Money", yenText(purse.yen)], ["Health", Math.round(vitals.health * 100) + "%"], ["Stress", Math.round(vitals.stress * 100) + "%"],
       ["Awake for", hm(vitals.awake || 0)], ["Where", nav.place && nav.place.street ? nav.place.street : "Tōkonto"], ["Photographs taken", String(phone.gallery.length)],
-      ["Things bought", String(shops.basket.length)], ["Cars owned", String(garage.cars.length)], ["Driving", drive.car ? CAR_KINDS[drive.car.kind].name : "on foot"]]
+      ["Criminal record", record.arrests ? record.offences + " offence" + (record.offences === 1 ? "" : "s") + (record.owed ? ", " + record.owed + " h service owed" : "") : "Clean"], ["Things bought", String(shops.basket.length)], ["Cars owned", String(garage.cars.length)], ["Driving", drive.car ? CAR_KINDS[drive.car.kind].name : "on foot"]]
       .map(r => '<div class="statrow"><span>' + r[0] + '</span><b>' + r[1] + '</b></div>').join(""));
   } else if (name === "items") {
     const rowsI = [];
@@ -6122,6 +6484,17 @@ function initPause() {
   const mp = document.querySelector('.ppage[data-page="map"]'), ms = document.getElementById("mapscreen");
   if (mp && ms) mp.appendChild(ms);
   on("mresume", () => setPaused(false));
+  on("mupdate", () => { setPaused(false); refreshGame(); });
+  const syncSet = () => {
+    const g = id => document.getElementById(id);
+    if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
+    if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
+    if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
+  };
+  on("mrumble", () => { gameSet.rumble = !gameSet.rumble; saveSettings(); syncSet(); if (gameSet.rumble) rumble(0.6, 0.6, 200); });
+  on("mlook", () => { gameSet.lookSens = gameSet.lookSens >= 1.6 ? 0.5 : Math.round((gameSet.lookSens + 0.1) * 10) / 10; saveSettings(); syncSet(); });
+  on("minvert", () => { gameSet.invertY = !gameSet.invertY; saveSettings(); syncSet(); });
+  syncSet();
   on("mtitle", returnToTitle);
   on("mquality", () => { runMapMenu(MAP_MENU.indexOf("kquality")); });
   on("mres", cycleResolution);
@@ -6389,11 +6762,12 @@ function buildScene(w) {
   terrainMat.onBeforeCompile = shader => {
     shader.uniforms.detailMap = { value: terrainGrain };
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vTPos;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTPos = position.xz;");
+      .replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTPos = position.xz;\n  vTSlope = 1.0 - clamp(normal.y, 0.0, 1.0);");
+    shader.uniforms.gdetail = { value: groundDetail() };
     shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform sampler2D detailMap;\nvarying vec2 vTPos;")
-      .replace("#include <color_fragment>", "#include <color_fragment>\n  float tg1 = texture2D(detailMap, vTPos / 9.0).r;\n  float tg2 = texture2D(detailMap, vTPos / 67.0 + 0.37).r;\n  diffuseColor.rgb *= 0.58 + tg1 * 0.34 + tg2 * 0.30;");
+      .replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;\n" + GDETAIL_GLSL)
+      .replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.rgb *= gdLuma(vTPos, diffuseColor.rgb, vTSlope * 1.6, 0.0);");
   };
   terrainMat.customProgramCacheKey = () => "konto-terrain";
   // The island is 680 thousand triangles in one piece, and a mesh in one piece
@@ -6445,6 +6819,7 @@ function buildScene(w) {
   placeTownShops(w);
   placeMalls(w);
   placePlazas(w);
+  placePolice(w);
 
   // The garage lot has to be known before a single house is placed.
   findHome(w);
@@ -6483,12 +6858,13 @@ function buildScene(w) {
     const grain = groundGrain();
     const grainRepeat = new THREE.Vector2(paint.w / 8.5, paint.h / 8.5);
     overlayMat.onBeforeCompile = shader => {
-      shader.uniforms.detailMap = { value: grain };
-      shader.uniforms.detailRepeat = { value: grainRepeat };
+      shader.uniforms.gdetail = { value: groundDetail() };
+      shader.uniforms.ovSize = { value: new THREE.Vector2(paint.w, paint.h) };
+      shader.uniforms.ovOrigin = { value: new THREE.Vector2(paint.x0, paint.z0) };
       shader.fragmentShader = shader.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform sampler2D detailMap;\nuniform vec2 detailRepeat;")
+        .replace("#include <common>", "#include <common>\nuniform vec2 ovSize;\nuniform vec2 ovOrigin;\n" + GDETAIL_GLSL)
         .replace("#include <map_fragment>",
-          "#include <map_fragment>\n  float grain = texture2D(detailMap, vUv * detailRepeat).r;\n  diffuseColor.rgb *= 0.70 + grain * 0.30;");
+          "#include <map_fragment>\n  vec2 gp = ovOrigin + vec2(vUv.x, 1.0 - vUv.y) * ovSize;\n  diffuseColor.rgb *= gdLuma(gp, diffuseColor.rgb, 0.0, 1.0);");
     };
     overlayMat.customProgramCacheKey = () => "konto-ground";
     const overlay = new THREE.Mesh(og, overlayMat);
@@ -6689,6 +7065,7 @@ function buildScene(w) {
     clearRoadCorridors(w, city, boxes);
     groundBoxes(w, boxes);
     finishShops(boxes);
+    detailRegister(boxes);
     if (boxes.length) {
       // Group by facade so each style can carry its own texture, and keep the
       // footprints for the character to bump into.
@@ -6699,14 +7076,24 @@ function buildScene(w) {
         if (!b.deck) solids.push(b);
       });
 
+      // One instanced mesh per style per 512 m square (and the tall towers apart from the rest), instead of one for the whole city, so the streamer
+      // can switch off what is too far away to matter and the camera can skip what is behind it.
       Object.keys(byStyle).forEach(style => {
-        const list = byStyle[style];
         const set = facadeMaterials(style);
+        const buckets = {};
+        byStyle[style].forEach(b => {
+          const tower = !b.deck && b.h >= 60;
+          const key = (tower ? "T" : "L") + Math.floor(b.c[0] / STREAM_CH) + "," + Math.floor(b.c[1] / STREAM_CH);
+          (buckets[key] || (buckets[key] = { tower: tower, list: [] })).list.push(b);
+        });
+        Object.keys(buckets).forEach(key => {
+        const list = buckets[key].list;
         const geo = new THREE.BoxGeometry(1, 1, 1);
         const inst = new THREE.InstancedMesh(geo, set.mats, list.length);
         const tiles = new Float32Array(list.length * 3);
         const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
         const col = new THREE.Color();
+        const bb = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y1: 0 };
         list.forEach((b, i) => {
           e.set(b.pitch || 0, b.yaw * Math.PI / 180, 0, "YXZ");
           q.setFromEuler(e);
@@ -6716,6 +7103,8 @@ function buildScene(w) {
             new THREE.Vector3(b.size[0], b.h, b.size[1])
           );
           inst.setMatrixAt(i, m);
+          const reach = Math.hypot(b.size[0], b.size[1]) * 0.5;
+          bb.x0 = Math.min(bb.x0, b.c[0] - reach); bb.x1 = Math.max(bb.x1, b.c[0] + reach); bb.z0 = Math.min(bb.z0, b.c[1] - reach); bb.z1 = Math.max(bb.z1, b.c[1] + reach); bb.y1 = Math.max(bb.y1, b.y + b.h);
           // Whole bays only: a window sliced in half at a corner reads as a bug.
           tiles[i * 3] = Math.max(1, Math.round(b.size[0] / set.spec.cell[0]));
           tiles[i * 3 + 1] = Math.max(1, Math.round(b.size[1] / set.spec.cell[0]));
@@ -6734,6 +7123,8 @@ function buildScene(w) {
         inst.castShadow = true;
         inst.receiveShadow = true;
         root.add(inst);
+        streamAdd(inst, bb, buckets[key].tower && style === "glass" ? STREAM.tower : STREAM.low);
+        });
       });
       addGableRoofs(root, boxes);
     }
@@ -6818,6 +7209,7 @@ function buildScene(w) {
   buildShopSigns(root);
   buildShopLivery(root);
   buildMallSigns(root);
+  buildAirports(root);
   buildSafeSigns(root);
   findHome(w);
   placeHospitals(w);
@@ -7300,6 +7692,13 @@ function followSun() {
 // with the viewfinder drawn over it. The handset steps out of the way.
 const camMode = { on: false, fov0: 58, flash: 0, zoomShown: 1 };
 function cameraFullOn() { return !!(phone.open && phone.app === "Camera" && camera && player.placed); }
+// The field of view opens a little with speed, which is most of what makes a car feel quick; it settles back on foot.
+function fovFrame(dt) {
+  if (camMode.on || !camera) return;
+  const sp = drive.car ? Math.abs(drive.car.speed || 0) : 0;
+  const want = 58 + clamp01(sp / 42) * 13;
+  if (Math.abs(camera.fov - want) > 0.05) { camera.fov += (want - camera.fov) * (1 - Math.pow(0.02, dt)); camera.updateProjectionMatrix(); }
+}
 function applyCameraFull(dt) {
   const on = cameraFullOn();
   const wrap = document.getElementById("camfull");
@@ -8410,6 +8809,7 @@ function vegBuild(root) {
     for (let i = 0; i < P.length; i++) vegDisc(P[i][0], P[i][2], world.highway.hw + 7);
   }
   (world.ski ? world.ski.resorts : []).forEach(r => { vegDisc(r.base[0], r.base[1], 70); vegDisc(r.top[0], r.top[1], 60); });
+  (world.airports || []).forEach(ap => { for (let x = -ap.sx / 2; x <= ap.sx / 2; x += 60) for (let z = -90; z <= ap.sz - 90; z += 60) { const p = fromRectLocal(x, z, ap.cx, ap.cz, ap.yaw); vegDisc(p[0], p[1], 75); } });
 
   const dark = 0x2c4a2e;
   // the colours are written as paint chips, so they are taken out of sRGB
@@ -8994,6 +9394,7 @@ function tick(dt) {
   updateDeliveries();
   updateJacking(dt);
   updateWanted(dt);
+  updateChase(dt);
   updateDispatch(dt);
   updateDoorways(dt);
   updateTV(dt);
@@ -9017,6 +9418,9 @@ function tick(dt) {
   }
 
   clock += dt;
+  fovFrame(dt);
+  streamFrame();
+  updateAirports(dt);
   updateWorldSky(dt);
   followSun();
 
@@ -9040,7 +9444,7 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit) { /* the camera is on the thing you are looking at, or the menu is up */ }
+    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     updateTraffic(dt, player.pos);
@@ -9199,6 +9603,200 @@ function applyTier(name, opts) {
   if (!opts || !opts.quiet) rememberTier(gfx.tier);
 }
 
+
+// ---- the bubble --------------------------------------------------------------------------------------------------------------------------
+// Everything near Seiko is drawn in full; what is further out is drawn plainer; what is far enough away and not worth seeing is not drawn at all.
+// The terrain and the mountains are never switched off, so the view still reaches the horizon. Large static meshes are cut into 512 m squares and
+// registered here with the distance they stop being worth drawing at, and each frame the ones too far away or outside the view are hidden.
+const STREAM_CH = 512;
+const STREAM = { low: 1500, tower: 6500, road: 1700, detail: 260, on: true, fog: { low: { n: { value: 800 }, f: { value: 1450 } }, road: { n: { value: 900 }, f: { value: 1650 } } }, reg: [], frustum: new THREE.Frustum(), pv: new THREE.Matrix4(), shown: 0, hidden: 0 };
+// Beyond the bubble the buildings and streets are not simply cut off: they sink into the haze first, with a fog of their own that closes in just inside
+// the distance they stop being drawn. The sea, the terrain and the glass towers keep the long fog, so the mountains and the skyline stay.
+const BUBBLE_FOG = "#ifdef USE_FOG\n  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );\n  fogFactor = max( fogFactor, smoothstep( bfN, bfF, vFogDepth ) );\n  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );\n#endif";
+function bubbleFog(m, which) {
+  if (m.userData.bubble) return; m.userData.bubble = true;
+  const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
+  m.onBeforeCompile = (sh, rend) => {
+    if (prev) prev.call(m, sh, rend);
+    sh.uniforms.bfN = STREAM.fog[which].n; sh.uniforms.bfF = STREAM.fog[which].f;
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float bfN;\nuniform float bfF;").replace("#include <fog_fragment>", BUBBLE_FOG);
+  };
+  m.customProgramCacheKey = () => (prevKey ? prevKey.call(m) : "") + "|bubble-" + which;
+}
+function streamAdd(obj, bb, far) {
+  const cx = (bb.x0 + bb.x1) / 2, cz = (bb.z0 + bb.z1) / 2, y0 = bb.y0 !== undefined ? bb.y0 : 0, y1 = bb.y1 !== undefined ? bb.y1 : 40;
+  const r = Math.hypot((bb.x1 - bb.x0) / 2, (bb.z1 - bb.z0) / 2, (y1 - y0) / 2);
+  STREAM.reg.push({ o: obj, s: new THREE.Sphere(new THREE.Vector3(cx, (y0 + y1) / 2, cz), r), far: far });
+}
+// How far the bubble reaches, as a multiple: on foot as set, in a car faster so you do not drive into the edge of it, and wide open in the free camera and on the title.
+function streamReach() { return (title && title.on) || player.mode !== "walk" || tour ? 3.2 : (drive.car ? 1.8 : 1); }
+function streamFrame() {
+  if (!camera || !STREAM.reg.length) return;
+  STREAM.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  STREAM.frustum.setFromProjectionMatrix(STREAM.pv);
+  const k = STREAM.on ? streamReach() : 100, c = camera.position;
+  STREAM.fog.low.n.value = STREAM.low * k * 0.52; STREAM.fog.low.f.value = STREAM.low * k * 0.97; STREAM.fog.road.n.value = STREAM.road * k * 0.5; STREAM.fog.road.f.value = STREAM.road * k * 0.97;
+  let shown = 0;
+  for (let i = 0; i < STREAM.reg.length; i++) {
+    const e = STREAM.reg[i], d = e.s.center.distanceTo(c) - e.s.radius;
+    const vis = d < e.far * k && (d < 300 || STREAM.frustum.intersectsSphere(e.s));
+    if (e.o.visible !== vis) e.o.visible = vis;
+    if (vis) shown++;
+  }
+  STREAM.shown = shown; STREAM.hidden = STREAM.reg.length - shown;
+  STREAM.tick = (STREAM.tick || 0) + 1;
+  if (STREAM.tick % 6 === 0) detailTick();
+}
+
+// ---- buildings, close up ---------------------------------------------------------------------------------------------------------------
+// From a distance a building is a textured box, which is the right amount of work for something a kilometre away. Inside the bubble it is replaced
+// by a built one: walls with ledges and pilasters standing proud of them, every window an actual pane of glass in a frame with a sill and a head, a
+// parapet and plant on the roof, balconies with railings and air-conditioning units on flats, an awning over a shop, a canopy and glass doors on an
+// office lobby. It is built when you come within range, one or two buildings a tick, and thrown away when you leave.
+const DETAIL = { cells: new Map(), active: new Map(), mats: null, t: 0, built: 0 };
+const DET_STYLE = {
+  office:  { floor: 3.9, bay: 3.6, ww: 0.74, wh: 0.56, wall: [0.60, 0.61, 0.63], frame: [0.17, 0.19, 0.22], trim: [0.74, 0.75, 0.76], lobby: true, pil: 0.30 },
+  flats:   { floor: 3.0, bay: 3.2, ww: 0.56, wh: 0.64, wall: [0.80, 0.77, 0.70], frame: [0.84, 0.84, 0.82], trim: [0.68, 0.64, 0.58], balcony: true, pil: 0.0 },
+  shop:    { floor: 3.5, bay: 3.8, ww: 0.62, wh: 0.52, wall: [0.74, 0.70, 0.64], frame: [0.22, 0.22, 0.24], trim: [0.55, 0.50, 0.45], awning: true, pil: 0.18 },
+  civic:   { floor: 4.4, bay: 4.4, ww: 0.46, wh: 0.70, wall: [0.74, 0.72, 0.66], frame: [0.26, 0.24, 0.22], trim: [0.82, 0.80, 0.74], lobby: true, pil: 0.5 },
+  houses:  { floor: 3.0, bay: 2.8, ww: 0.50, wh: 0.52, wall: [0.84, 0.81, 0.73], frame: [0.30, 0.27, 0.24], trim: [0.52, 0.46, 0.40], pil: 0.0, houses: true },
+  shed:    { floor: 6.0, bay: 6.0, ww: 0.30, wh: 0.22, wall: [0.62, 0.64, 0.64], frame: [0.30, 0.32, 0.34], trim: [0.5, 0.52, 0.52], pil: 0.25, shed: true },
+  machiya: { floor: 3.0, bay: 2.4, ww: 0.54, wh: 0.40, wall: [0.80, 0.76, 0.66], frame: [0.20, 0.15, 0.11], trim: [0.20, 0.15, 0.11], pil: 0.22, timber: true },
+  kura:    { floor: 3.4, bay: 4.5, ww: 0.18, wh: 0.22, wall: [0.86, 0.84, 0.78], frame: [0.15, 0.12, 0.10], trim: [0.15, 0.12, 0.10], pil: 0.0, timber: true },
+  coast:   { floor: 3.0, bay: 2.6, ww: 0.50, wh: 0.44, wall: [0.66, 0.68, 0.64], frame: [0.24, 0.20, 0.17], trim: [0.30, 0.26, 0.22], pil: 0.15, timber: true }
+};
+function detailMats() {
+  if (DETAIL.mats) return DETAIL.mats;
+  const hi = gfx.high, env = gfx.env || null;
+  const solid = hi ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0.03 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
+  const glass = hi ? new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.07, metalness: 0.65, envMap: env, envMapIntensity: 1.1 }) : new THREE.MeshLambertMaterial({ color: 0x1a2c3c });
+  const lit = hi ? new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.1, metalness: 0.4, envMap: env, envMapIntensity: 0.6, emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 })
+                  : new THREE.MeshLambertMaterial({ color: 0x1a2c3c, emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 });
+  nightMats.push({ m: lit, gain: 1.3 });
+  DETAIL.mats = { solid: solid, glass: glass, lit: lit };
+  return DETAIL.mats;
+}
+// a unit cube about the origin: 24 vertices (four to a face, so the normals are flat) and 36 indices, every face wound outwards
+const dbUnit = (() => {
+  const p = [], n = [], ix = [];
+  [[[1, 0, 0], [0, 0, -1], [0, 1, 0]], [[-1, 0, 0], [0, 0, 1], [0, 1, 0]], [[0, 1, 0], [1, 0, 0], [0, 0, -1]], [[0, -1, 0], [1, 0, 0], [0, 0, 1]], [[0, 0, 1], [1, 0, 0], [0, 1, 0]], [[0, 0, -1], [-1, 0, 0], [0, 1, 0]]].forEach(f => {
+    const nm = f[0], u = f[1], v = f[2], base = p.length / 3;
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(c => { for (let k = 0; k < 3; k++) p.push(nm[k] * 0.5 + u[k] * c[0] * 0.5 + v[k] * c[1] * 0.5); n.push(nm[0], nm[1], nm[2]); });
+    ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  });
+  return { p: p, n: n, ix: ix };
+})();
+function dbNew() { return { p: [], n: [], c: [], ix: [] }; }
+function dbBox(B, x, y, z, sx, sy, sz, col) {                 // a box about (x, y, z) in the building's own frame
+  const base = B.p.length / 3, c = col || [0.7, 0.7, 0.7];
+  for (let i = 0; i < 24; i++) { B.p.push(x + dbUnit.p[i * 3] * sx, y + dbUnit.p[i * 3 + 1] * sy, z + dbUnit.p[i * 3 + 2] * sz); B.n.push(dbUnit.n[i * 3], dbUnit.n[i * 3 + 1], dbUnit.n[i * 3 + 2]); B.c.push(c[0], c[1], c[2]); }
+  for (let i = 0; i < 36; i++) B.ix.push(base + dbUnit.ix[i]);
+}
+function dbQuad(B, a, b, c, d, nm) {
+  const base = B.p.length / 3;
+  [a, b, c, d].forEach(v => { B.p.push(v[0], v[1], v[2]); B.n.push(nm[0], nm[1], nm[2]); B.c.push(1, 1, 1); });
+  B.ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
+}
+function dbMesh(B, mat) {
+  if (!B.ix.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(B.c, 3));
+  g.setIndex(B.p.length / 3 > 65000 ? new THREE.Uint32BufferAttribute(B.ix, 1) : new THREE.Uint16BufferAttribute(B.ix, 1));
+  const m = new THREE.Mesh(g, mat); m.castShadow = false; m.receiveShadow = true; return m;
+}
+function hash2(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return (h ^ (h >>> 16)) >>> 0; }
+function buildingDetail(b) {
+  const st = DET_STYLE[b.style] || DET_STYLE.office, hi = hash2(Math.round(b.c[0]), Math.round(b.c[1]));
+  const W = b.size[0], D = b.size[1], H = b.h, S = dbNew(), G = dbNew(), L = dbNew();
+  const tone = 0.93 + (hi % 100) / 100 * 0.14, wall = st.wall.map(v => clamp01(v * tone)), shade = (c, k) => c.map(v => v * k);
+  const floors = Math.max(1, Math.round(H / st.floor)), fh = H / floors, gh = (st.lobby || st.awning) ? Math.min(fh * 1.25, 5.2) : fh;
+  const e = 0.04;                                                  // the walls stand this far outside the box underneath, which they hide
+  // walls and the plinth, the cornice and the parapet
+  dbBox(S, 0, H / 2, 0, W + e * 2, H, D + e * 2, wall);
+  dbBox(S, 0, 0.22, 0, W + 0.30, 0.44, D + 0.30, shade(st.trim, 0.8));
+  if (!st.houses && !st.shed) { dbBox(S, 0, H + 0.45, 0, W + 0.5, 0.9, D + 0.5, shade(wall, 0.92)); dbBox(S, 0, H + 0.02, 0, W + 0.7, 0.16, D + 0.7, st.trim); }
+  // sides: 0 front +z, 1 back -z, 2 right +x, 3 left -x. n is the face's outward normal, t its tangent, len its width, off its distance from the centre
+  const sides = [{ n: [0, 0, 1], t: [1, 0, 0], len: W, off: D / 2 + e }, { n: [0, 0, -1], t: [-1, 0, 0], len: W, off: D / 2 + e }, { n: [1, 0, 0], t: [0, 0, -1], len: D, off: W / 2 + e }, { n: [-1, 0, 0], t: [0, 0, 1], len: D, off: W / 2 + e }];
+  const put = (B, s, u, y, d, wt, hy, dn, col) => {                 // a box on a side: u along it, y up, d out from the face; wt wide, hy tall, dn deep
+    const cx = s.n[0] * (s.off + d) + s.t[0] * u, cz = s.n[2] * (s.off + d) + s.t[2] * u;
+    const sx = Math.abs(s.t[0]) * wt + Math.abs(s.n[0]) * dn, sz = Math.abs(s.t[2]) * wt + Math.abs(s.n[2]) * dn;
+    dbBox(B, cx, y, cz, sx, hy, sz, col);
+  };
+  const quad = (B, s, u, y, d, wt, hy) => {
+    const cx = s.n[0] * (s.off + d) + s.t[0] * u, cz = s.n[2] * (s.off + d) + s.t[2] * u;
+    const hx = s.t[0] * wt / 2, hz = s.t[2] * wt / 2;
+    dbQuad(B, [cx - hx, y - hy / 2, cz - hz], [cx + hx, y - hy / 2, cz + hz], [cx + hx, y + hy / 2, cz + hz], [cx - hx, y + hy / 2, cz - hz], s.n);
+  };
+  const litShare = 0.22 + (hi % 7) * 0.03;
+  sides.forEach((s, si) => {
+    const nb = Math.max(1, Math.round(s.len / st.bay)), bw = s.len / nb;
+    if (st.pil) for (let k = 0; k <= nb; k++) put(S, s, -s.len / 2 + k * bw, H / 2, 0.06, Math.min(st.pil, bw * 0.3), H, 0.14, shade(st.trim, 1.0));
+    if (!st.houses && !st.shed) for (let j = 1; j < floors; j++) put(S, s, 0, gh + (j - 1) * fh, 0.05, s.len + 0.2, 0.2, 0.12, shade(st.trim, 0.96));
+    if (st.timber) { for (let k = 0; k <= nb; k++) put(S, s, -s.len / 2 + k * bw, H / 2, 0.05, 0.16, H, 0.14, st.frame); for (let j = 1; j <= floors; j++) put(S, s, 0, Math.min(H - 0.1, gh + (j - 1) * fh), 0.05, s.len + 0.2, 0.22, 0.14, st.frame); }
+    for (let j = 0; j < floors; j++) {
+      const y0 = j === 0 ? 0 : (gh + (j - 1) * fh), hh = j === 0 ? gh : fh;
+      for (let k = 0; k < nb; k++) {
+        const u = -s.len / 2 + (k + 0.5) * bw, r = hash2(si * 977 + k * 31 + j, hi) % 100;
+        if (st.shed && j > 0) continue;
+        // the ground floor of an office, a civic building or a shop: a glazed front on the street side
+        if (j === 0 && (st.lobby || st.awning) && si === 0) {
+          const gw = bw * 0.88, gy = y0 + hh * 0.5, gH = hh * 0.74, cy = gy - hh * 0.04;
+          quad(G, s, u, cy, 0.012, gw, gH);
+          put(S, s, u, cy + gH / 2 + 0.05, 0.05, gw + 0.14, 0.12, 0.14, st.frame); put(S, s, u, cy - gH / 2, 0.05, gw + 0.14, 0.14, 0.14, st.frame);
+          put(S, s, u - gw / 2, cy, 0.05, 0.08, gH, 0.12, st.frame); put(S, s, u + gw / 2, cy, 0.05, 0.08, gH, 0.12, st.frame);
+          if (k === (nb >> 1)) { put(S, s, u, cy, 0.07, 0.07, gH, 0.1, st.frame); put(S, s, u - gw * 0.25, cy, 0.07, 0.05, gH, 0.1, st.frame); }
+          continue;
+        }
+        const ww = bw * st.ww, wh = hh * st.wh, wy = y0 + hh * (j === 0 ? 0.55 : 0.52);
+        if (j === 0 && !(st.lobby || st.awning) && r < 18) continue;            // a blank bay now and then
+        quad(r < litShare * 100 ? L : G, s, u, wy, 0.012, ww, wh);
+        put(S, s, u, wy + wh / 2 + 0.05, 0.05, ww + 0.14, 0.1, 0.14, st.frame);                  // the head
+        put(S, s, u, wy - wh / 2 - 0.05, 0.08, ww + 0.30, 0.1, 0.24, shade(st.trim, 1.05));      // the sill, which sticks out
+        put(S, s, u - ww / 2 - 0.04, wy, 0.05, 0.08, wh, 0.12, st.frame); put(S, s, u + ww / 2 + 0.04, wy, 0.05, 0.08, wh, 0.12, st.frame);
+        if (ww > 1.5) put(S, s, u, wy, 0.06, 0.06, wh, 0.1, st.frame);
+        if (st.balcony && j > 0 && r > 54 && si < 2) {                                            // flats: a balcony with a rail and an air-conditioner
+          put(S, s, u, wy - wh / 2 - 0.12, 0.62, bw * 0.84, 0.14, 1.24, shade(st.trim, 1.1));
+          put(S, s, u, wy - wh / 2 + 0.45, 1.2, bw * 0.84, 0.9, 0.05, [0.5, 0.52, 0.54]);
+          if (r > 78) put(S, s, u + bw * 0.28, wy - wh / 2 + 0.28, 0.5, 0.7, 0.55, 0.3, [0.88, 0.89, 0.88]);
+        } else if (!st.balcony && j > 0 && r > 90) put(S, s, u + ww * 0.42, wy - wh * 0.62, 0.35, 0.7, 0.5, 0.28, [0.86, 0.87, 0.86]);
+      }
+    }
+    if (st.awning && si === 0) { put(S, s, 0, gh + 0.1, 0.75, s.len * 0.94, 0.12, 1.5, [0.55 + (hi % 5) * 0.08, 0.2 + (hi % 3) * 0.1, 0.18]); put(S, s, 0, gh + 0.7, 0.06, s.len * 0.9, 0.9, 0.1, shade(wall, 0.7)); }
+    if (st.lobby && si === 0) { put(S, s, 0, gh + 0.05, 1.3, Math.min(s.len * 0.45, 9), 0.22, 2.6, st.trim); for (const sg of [-1, 1]) put(S, s, sg * Math.min(s.len * 0.2, 4), gh / 2, 2.2, 0.3, gh, 0.3, st.trim); }
+  });
+  // the roof: a plant room, a water tank and a mast, and the outdoor units
+  if (!st.houses) {
+    const rx = (hi % 9 - 4) * W * 0.04, rz = (hi % 7 - 3) * D * 0.04;
+    dbBox(S, rx, H + 1.7, rz, Math.max(3, W * 0.3), 2.4, Math.max(3, D * 0.28), shade(wall, 0.85));
+    dbBox(S, rx - W * 0.2, H + 1.2, rz + D * 0.2, 2.0, 1.6, 2.0, [0.72, 0.74, 0.75]);
+    if (hi % 3 === 0) { dbBox(S, rx + W * 0.2, H + 2.0, rz - D * 0.15, 1.6, 2.4, 1.6, [0.6, 0.62, 0.64]); dbBox(S, rx + W * 0.2, H + 4.2, rz - D * 0.15, 0.08, 3.4, 0.08, [0.3, 0.3, 0.32]); }
+    for (let k = 0; k < 3; k++) dbBox(S, -W * 0.3 + k * W * 0.3, H + 0.8, D * 0.3, 1.3, 1.0, 1.0, [0.82, 0.83, 0.83]);
+  }
+  const g = new THREE.Group(), mats = detailMats();
+  [[S, mats.solid], [G, mats.glass], [L, mats.lit]].forEach(([B, mt]) => { const m = dbMesh(B, mt); if (m) g.add(m); });
+  g.position.set(b.c[0], b.y, b.c[1]); g.rotation.y = b.yaw * Math.PI / 180;
+  g.userData.tris = (S.ix.length + G.ix.length + L.ix.length) / 3;
+  return g;
+}
+function detailRegister(boxes) {
+  boxes.forEach(b => {
+    if (b.deck || b.shopRef || b.shoulder || b.plantFor || b.landmark || b.h < 4 || b.h > 70 || Math.min(b.size[0], b.size[1]) < 5 || b.pitch) return;
+    if (b.style === "glass" || b.style === "deck") return;
+    const k = Math.floor(b.c[0] / 128) + "," + Math.floor(b.c[1] / 128);
+    let c = DETAIL.cells.get(k); if (!c) DETAIL.cells.set(k, c = []);
+    c.push(b);
+  });
+}
+function detailTick() {
+  const cam = camera.position, reach = STREAM.on ? ((title && title.on) || player.mode !== "walk" ? 0 : (drive.car ? 0.6 : 1)) : 0, R = STREAM.detail * reach;
+  DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); DETAIL.active.delete(b); } });
+  if (!R) return;
+  const near = [], cx0 = Math.floor((cam.x - R) / 128), cx1 = Math.floor((cam.x + R) / 128), cz0 = Math.floor((cam.z - R) / 128), cz1 = Math.floor((cam.z + R) / 128);
+  for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const c = DETAIL.cells.get(cx + "," + cz); if (!c) continue; for (const b of c) { if (DETAIL.active.has(b)) continue; const d = Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) - Math.max(b.size[0], b.size[1]) * 0.5; if (d < R) near.push([d, b]); } }
+  if (!near.length) return;
+  near.sort((a, b) => a[0] - b[0]);
+  for (let i = 0; i < Math.min(2, near.length); i++) { const b = near[i][1]; const g = buildingDetail(b); scene.add(g); DETAIL.active.set(b, g); DETAIL.built++; }
+}
 
 // ---- keeping the frame rate ------------------------------------------------
 // Three things work together. The first run guesses a tier from the graphics
@@ -9562,6 +10160,19 @@ function pavingTexture() {
 // The surface a person stands on in the city: the terrain lifted to the city ground, or the city-ground mesh itself where that is higher.
 // Roads are laid a few centimetres above it, so they stand proud of the ground instead of sinking into it.
 function cityGroundMax(w, x, z) { return w.surfaceY(x, z); }
+// Cut a list of quads (six vertices each, in parallel arrays whose widths are given) into 512 m squares, so each can be shown or hidden on its own.
+function bucketQuads(data, widths) {
+  const out = {}, names = Object.keys(widths), per = 6;
+  const n = data.pos.length / 3 / per;
+  for (let q = 0; q < n; q++) {
+    const i = q * per * 3, cx = (data.pos[i] + data.pos[i + 6]) * 0.5, cz = (data.pos[i + 2] + data.pos[i + 8]) * 0.5;
+    const key = Math.floor(cx / STREAM_CH) + "," + Math.floor(cz / STREAM_CH);
+    const b = out[key] || (out[key] = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y0: 1e9, y1: -1e9, d: {} });
+    for (const nm of names) { const w = widths[nm]; (b.d[nm] || (b.d[nm] = [])).push(...data[nm].slice(q * per * w, (q + 1) * per * w)); }
+    for (let v = 0; v < per; v++) { const x = data.pos[i + v * 3], y = data.pos[i + v * 3 + 1], z = data.pos[i + v * 3 + 2]; b.x0 = Math.min(b.x0, x); b.x1 = Math.max(b.x1, x); b.z0 = Math.min(b.z0, z); b.z1 = Math.max(b.z1, z); b.y0 = Math.min(b.y0, y); b.y1 = Math.max(b.y1, y); }
+  }
+  return Object.values(out);
+}
 function buildRoadSurfaces(w, city, root) {
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
@@ -9715,21 +10326,21 @@ function buildRoadSurfaces(w, city, root) {
     });
     city.wards.forEach((wd, i) => { const a = wd._why0, b2 = city.wards[i + 1] ? city.wards[i + 1]._why0 : why; if (a) { wardLaid[wd.name] = { m: Math.round(wardLaid[wd.name]), why: Object.keys(why).map(k => k + ":" + (b2[k] - a[k])).join(" ") }; } });
     if (line.pos.length) {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.Float32BufferAttribute(line.pos, 3));
-      g.computeVertexNormals();
-      const o = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color: 0xe4e4da, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
-      o.frustumCulled = false; o.receiveShadow = true; root.add(o);
+      const lm = new THREE.MeshLambertMaterial({ color: 0xe4e4da, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+      bucketQuads(line, { pos: 3 }).forEach(bk => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute("position", new THREE.Float32BufferAttribute(bk.d.pos, 3));
+        g.computeVertexNormals();
+        const o = new THREE.Mesh(g, lm);
+        o.frustumCulled = false; o.receiveShadow = true; root.add(o);
+        streamAdd(o, bk, STREAM.road);
+      });
     }
     console.log("[Konto] " + city.name + ": " + Math.round(metres / 1000) + " km of street laid as geometry " + JSON.stringify(why)); city.streetDebug = wardLaid;
   }
 
   function mesh(data, tex, repeat, rough) {
     if (!data.pos.length) return null;
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(data.pos, 3));
-    g.setAttribute("normal", new THREE.Float32BufferAttribute(data.nrm, 3));
-    g.setAttribute("uv", new THREE.Float32BufferAttribute(data.uv, 2));
     const t = tex.clone();
     t.needsUpdate = true;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -9740,25 +10351,36 @@ function buildRoadSurfaces(w, city, root) {
     if (gfx.high && gfx.env) m.envMap = gfx.env;
     if (tex === gfx.asphalt && gfx.high) roadHD(t, m);
     m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;     // the city ground is a coarse grid; never let it bury a street
-    const o = new THREE.Mesh(g, m);
-    o.receiveShadow = true;
-    o.frustumCulled = false;
-    root.add(o);
-    return o;
+    bubbleFog(m, "road");
+    bucketQuads(data, { pos: 3, nrm: 3, uv: 2 }).forEach(bk => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(bk.d.pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(bk.d.nrm, 3));
+      g.setAttribute("uv", new THREE.Float32BufferAttribute(bk.d.uv, 2));
+      const o = new THREE.Mesh(g, m);
+      o.receiveShadow = true;
+      o.frustumCulled = false;
+      root.add(o);
+      streamAdd(o, bk, STREAM.road);
+    });
   }
 
   mesh(road, asphaltTexture(), 13.0, 0.9);
   mesh(walk, pavingTexture(), 4.2, 0.86);
   if (kerb.pos.length) {
-    const g = new THREE.BufferGeometry();
-    g.setAttribute("position", new THREE.Float32BufferAttribute(kerb.pos, 3));
-    g.setAttribute("normal", new THREE.Float32BufferAttribute(kerb.nrm, 3));
-    g.setAttribute("color", new THREE.Float32BufferAttribute(kerb.col, 3));
-    g.setAttribute("aMR", new THREE.Float32BufferAttribute(kerb.mr, 2));
-    const o = new THREE.Mesh(g, furnitureMaterial());
-    o.receiveShadow = true;
-    o.frustumCulled = false;
-    root.add(o);
+    const km = furnitureMaterial();
+    bucketQuads(kerb, { pos: 3, nrm: 3, col: 3, mr: 2 }).forEach(bk => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.Float32BufferAttribute(bk.d.pos, 3));
+      g.setAttribute("normal", new THREE.Float32BufferAttribute(bk.d.nrm, 3));
+      g.setAttribute("color", new THREE.Float32BufferAttribute(bk.d.col, 3));
+      g.setAttribute("aMR", new THREE.Float32BufferAttribute(bk.d.mr, 2));
+      const o = new THREE.Mesh(g, km);
+      o.receiveShadow = true;
+      o.frustumCulled = false;
+      root.add(o);
+      streamAdd(o, bk, STREAM.road);
+    });
   }
 }
 
@@ -12062,6 +12684,7 @@ function updateTraffic(dt, at) {
                           drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0);
   drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv));
   dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
+  police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
 
   // Recycle what has fallen behind, and write the transforms for what has not.
   for (let c = 0; c < traffic.cars.length; c++) {
@@ -13388,6 +14011,13 @@ function drawBrandMark(ctx, brand, r) {
     disc("#16110d");
     ctx.fillStyle = "#d9b25a"; roundRect(ctx, -r * 0.6, -r * 0.34, r * 1.2, r * 0.42, r * 0.2); ctx.fill();
     ctx.fillStyle = "#f4efe0"; roundRect(ctx, -r * 0.56, r * 0.02, r * 1.12, r * 0.36, r * 0.14); ctx.fill();
+  } else if (brand === "airport") {
+    disc("#14527a");
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.moveTo(0, -r * 0.72); ctx.quadraticCurveTo(r * 0.12, -r * 0.6, r * 0.12, -r * 0.2); ctx.lineTo(r * 0.7, r * 0.18); ctx.lineTo(r * 0.7, r * 0.34); ctx.lineTo(r * 0.12, r * 0.14); ctx.lineTo(r * 0.1, r * 0.5); ctx.lineTo(r * 0.3, r * 0.64); ctx.lineTo(r * 0.3, r * 0.74); ctx.lineTo(0, r * 0.66); ctx.lineTo(-r * 0.3, r * 0.74); ctx.lineTo(-r * 0.3, r * 0.64); ctx.lineTo(-r * 0.1, r * 0.5); ctx.lineTo(-r * 0.12, r * 0.14); ctx.lineTo(-r * 0.7, r * 0.34); ctx.lineTo(-r * 0.7, r * 0.18); ctx.lineTo(-r * 0.12, -r * 0.2); ctx.quadraticCurveTo(-r * 0.12, -r * 0.6, 0, -r * 0.72); ctx.closePath(); ctx.fill();
+  } else if (brand === "police") {
+    disc("#14284c");
+    ctx.fillStyle = "#f4f4f2"; ctx.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.26 : r * 0.62; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#d4152c"; ctx.beginPath(); ctx.arc(0, 0, r * 0.12, 0, 7); ctx.fill();
   } else if (brand === "pharmacy") {
     disc("#0f8a52");
     ctx.fillStyle = "#ffffff"; ctx.fillRect(-r * 0.18, -r * 0.6, r * 0.36, r * 1.2); ctx.fillRect(-r * 0.6, -r * 0.18, r * 1.2, r * 0.36);
@@ -13695,6 +14325,13 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
         ctx.restore();
       }
     }
+    (world.airports || []).forEach(ap => {
+      if (ap.cx < vx0 - 2000 || ap.cx > vx1 + 2000 || ap.cz < vz0 - 2000 || ap.cz > vz1 + 2000) return;
+      ctx.save(); ctx.translate(ap.cx, ap.cz); ctx.rotate(-rot);
+      // the runway to scale, so it reads as an airport at any zoom, and the badge over it
+      ctx.save(); ctx.rotate(-ap.yaw * Math.PI / 180); ctx.fillStyle = "#3a3d42"; ctx.fillRect(-ap.len / 2, -ap.wid / 2, ap.len, ap.wid); ctx.fillStyle = "#cfd3d8"; ctx.fillRect(-ap.len / 2, -2, ap.len, 4); ctx.restore();
+      drawBrandMark(ctx, "airport", Math.max(7 * mPerPx, 12) * (ap.big ? 1.3 : 1)); ctx.restore();
+    });
     if (shops.list.length) {
       const sr = Math.max(6 * mPerPx, 9);
       shops.list.forEach(sh => {
@@ -13920,11 +14557,12 @@ function mapPois(across) {
     if (across <= 7000) out.push({ x: R.res.base[0], z: R.res.base[1], name: nm + " lift station", kind: "Ski resort" });
   });
   onsens.list.forEach(o => out.push({ x: o.door[0], z: o.door[1], name: o.name, kind: "Hot spring" }));
+  (world.airports || []).forEach(ap => out.push({ x: ap.cx, z: ap.cz, name: ap.name + " (" + ap.code + ")", kind: "Airport" }));
   if (across < 9000) {
     if (home.door && across < 2600) out.push({ x: home.door[0], z: home.door[1], name: "Home", kind: "Your flat" });
     shops.list.forEach(sh => {
       if (!sh.mall && !sh.plaza && across > 14000) return;
-      out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.safe ? "Hotel" : "Shop" });
+      out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.police ? "Police station" : sh.safe ? "Hotel" : "Shop" });
     });
     if (garage.built && across < 3200) out.push({ x: garage.centre[0], z: garage.centre[1], name: "Garage", kind: "Yours" });
     if (garage.cars.length && across < 6500) garage.cars.forEach(rec => {
@@ -16054,6 +16692,7 @@ const LOYALTY = {
 // Everything that is bought from a brand's shop counts towards its card, and
 // once the card is active it earns a point for every hundred yen.
 function noteBuy(brand, yen) {
+  rumble(0.15, 0.4, 80);
   retailRelief(yen);
   if (!(brand in wallet.buys)) return;
   wallet.buys[brand]++;
@@ -19621,6 +20260,11 @@ const CHEAT_ACTIONS = {
   GOKAIDO:   { dial: "5550166", note: "Kaido", fn: () => cheatGoCity("Kaido") },
   GOTOMARI:  { dial: "5550167", note: "Tomari", fn: () => cheatGoCity("Tomari") },
   CHEATLIST: { dial: "5550190", note: "", fn: () => say("Cheats: " + Object.keys(CHEAT_ACTIONS).concat(Object.keys(CHEAT_VEHICLES)).join("  "), 14) },
+  WANTED:    { dial: "5550170", note: "Three stars", fn: () => { wanted.stars = 3; wanted.lastCrime = "Being a nuisance"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); } },
+  ARRESTME:  { dial: "5550171", note: "", fn: () => { wanted.stars = Math.max(1, wanted.stars); arrest(); } },
+  CLEANSLATE:{ dial: "5550172", note: "Record wiped, stars gone", fn: () => { wanted.stars = 0; record.offences = record.arrests = record.owed = record.fines = 0; record.history.length = 0; policeStandDown(); } },
+  GOAIRPORT: { dial: "5550174", note: "The nearest airport terminal", fn: () => cheatGoAirport() },
+  GOPOLICE:  { dial: "5550173", note: "The nearest police station", fn: () => cheatGoShop(s => s.police) },
   REFRESH:   { dial: "5550199", note: "Looking for a new version", fn: () => refreshGame() }
 };
 // Putting Seiko somewhere: out of a car, out of a shop, and onto the ground there.
@@ -19640,6 +20284,12 @@ function cheatGoShop(test) {
   shops.list.forEach(s => { if (!test(s) || !s.door) return; const d = Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z); if (d > 8 && d < bd) { bd = d; best = s; } });
   if (!best) { say("There is none.", 2); return; }
   const out = best.yaw; cheatGo([best.door[0] + Math.sin(out) * 5, best.door[1] + Math.cos(out) * 5], out);
+}
+function cheatGoAirport() {
+  let best = null, bd = 1e12;
+  (world.airports || []).forEach(a => { const d = Math.hypot(a.cx - player.pos.x, a.cz - player.pos.z); if (d > 200 && d < bd) { bd = d; best = a; } });
+  if (!best) { say("There is none.", 2); return; }
+  const p = fromRectLocal(0, best.big ? 244 : 200, best.cx, best.cz, best.yaw); cheatGo(p, best.yaw * Math.PI / 180);
 }
 function cheatGoStation() {
   let best = null, bd = 1e12;
@@ -20569,7 +21219,7 @@ function placeShops(city) {
 // What each kind of shop is as a building: how many storeys it is, which is most
 // of what tells a konbini from a pharmacy from a bookshop in a street.
 const SHOP_BUILD = {
-  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6, dokoto: 30, plaza: 26
+  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, police: 11.0, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6, dokoto: 30, plaza: 26
 };
 
 // A lit sign band over each door. One instanced box per chain, with the brand
@@ -22046,8 +22696,7 @@ function collapse() {
   vitals.health = 1;
   vitals.stress = clamp01(vitals.stress * 0.5 + 0.2);
   wanted.stars = 0;
-  wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
-  wanted.cops.length = 0;
+  policeClear();
   toggleSiren(false);
   dispatchClear();
   if (drive.car) leaveCar();
@@ -25449,6 +26098,7 @@ function phoneSwapped(id) { phone.dirty = true; }
 Object.assign(SHOP_BRANDS, {
   ramen:    { name: "Menya Ippai",   jp: "麺屋一杯", band: "#b3201f", ink: "#ffffff", stripes: ["#f2c230", "#14171b"], tag: "Ramen · open late" },
   sushi:    { name: "Sushi Go-Go",   jp: "すしゴーゴー", band: "#ffffff", ink: "#c0172b", stripes: ["#c0172b", "#14171b"], tag: "Plates from ¥150" },
+  police:   { name: "Police Station", jp: "警察署", band: "#14284c", ink: "#ffffff", stripes: ["#d4152c", "#ffffff"], tag: "Police · lost property · 24 hours" },
   sushiya:  { name: "Sushi Kōryū",   jp: "寿司 孝龍", band: "#16110d", ink: "#d9b25a", stripes: ["#d9b25a", "#16110d"], tag: "Counter seats · omakase" },
   pharmacy: { name: "Kusuri Plus",   jp: "クスリプラス", band: "#0f8a52", ink: "#ffffff", stripes: ["#ffffff", "#0b5a37"], tag: "Pharmacy · beauty · health" },
   books:    { name: "Hon-no-Mori",   jp: "本の森", band: "#5a3a22", ink: "#ffffff", stripes: ["#e8c46a", "#3a2414"], tag: "Books · manga · magazines" },
@@ -26780,40 +27430,339 @@ function commitCrime(id, at) {
   callPolice(at || player.pos);
 }
 
-// Turn the nearest few patrol cars into pursuers, and make more of them the
-// more stars you have.
+// ---- the police, properly ----------------------------------------------------------------------------------------------------------------
+// A crime puts patrol cars on the road behind you: they drive at you (round buildings, over the kerb), more of them the more stars you have, they
+// ram, they box you in, and when one is close to a person on foot its officers get out and run you down. You can outrun them and lose them (stars
+// only fall while nobody can see you), or you are caught and arrested: a fine, a night in the cells at the nearest station, a criminal record, and
+// community service you work off at the station desk, which clears the record when it has all been done.
+const police = { units: [], officers: [], nextAt: 0, stations: [], busy: 0 };
+const record = { offences: 0, owed: 0, served: 0, arrests: 0, fines: 0, history: [] };
+function recordText() {
+  if (!record.arrests) return "Clean. Nothing on your record.";
+  return record.offences + " offence" + (record.offences === 1 ? "" : "s") + " · " + record.arrests + " arrest" + (record.arrests === 1 ? "" : "s") + " · " + (record.owed ? record.owed + " hour" + (record.owed === 1 ? "" : "s") + " of community service owed" : "service done, record cleared at the next arrest-free day");
+}
+function policeSpawnPoint() {
+  const px = player.pos.x, pz = player.pos.z, fx = Math.sin(yaw + Math.PI), fz = Math.cos(yaw + Math.PI);
+  let best = null, bs = -1e9;
+  for (let t = 0; t < 90; t++) {
+    const lane = traffic.lanes[(Math.random() * traffic.lanes.length) | 0];
+    if (!lane || lane.elevated || lane.length < 30) continue;
+    const p = sampleLane(lane, Math.random() * lane.length), d = Math.hypot(p.x - px, p.z - pz);
+    if (d < 110 || d > 300 || Math.abs(p.y - player.pos.y) > 12) continue;
+    const behind = -((p.x - px) * fx + (p.z - pz) * fz) / d;          // out of the way you are looking
+    const score = behind * 80 - Math.abs(d - 170);
+    if (score > bs) { bs = score; best = p; }
+  }
+  return best;
+}
+// Turn the nearest few patrol cars into pursuers, and make more of them the more stars you have.
 function callPolice(at) {
   const ki = CAR_KINDS.findIndex(k => k.name === "police");
-  if (ki < 0) return;
+  if (ki < 0 || !player.placed) return;
   const want = Math.min(6, 1 + wanted.stars);
-  let have = wanted.cops.filter(c => c.live).length;
-  if (have >= want) return;
-  const candidates = [];
-  traffic.cars.forEach(c => {
-    // A car can be live a frame before the traffic pass has given it a
-    // position, so `at` is not guaranteed just because `live` is.
-    if (!c.live || !c.at || c.kind !== ki) return;
-    if (wanted.cops.indexOf(c) >= 0) return;
-    candidates.push({ c: c, d: Math.hypot(c.at.x - at.x, c.at.z - at.z) });
-  });
-  // Nothing in blue nearby: press an ordinary car into service, which is what
-  // an unmarked unit is.
-  if (!candidates.length) {
-    traffic.cars.forEach(c => {
-      if (!c.live || !c.at || wanted.cops.indexOf(c) >= 0) return;
-      const d = Math.hypot(c.at.x - at.x, c.at.z - at.z);
-      if (d > 40 && d < 260) candidates.push({ c: c, d: d });
+  police.units = police.units.filter(u => u.live);
+  if (police.units.filter(u => !u.leaving).length >= want) return;
+  if (clock < police.nextAt) return;
+  police.nextAt = clock + 1.2;
+  const p = policeSpawnPoint(); if (!p) return;
+  const kind = CAR_KINDS[ki], pal = PAINTS[0][1];
+  const u = { live: true, kind: ki, pos: new THREE.Vector3(p.x, p.y + 0.04, p.z), yaw: p.yaw, v: 8, colour: (kind.colour || pal).slice(), at: null, yawNow: p.yaw, stuck: 0, busting: 0, officer: null, cool: 0 };
+  u.at = u.pos; police.units.push(u); wanted.cops.push(u);
+  toggleSiren(true);
+  say("Patrol car in pursuit.", 2.5);
+}
+function chaseSteer(u, tx, tz, dt, vmax) {
+  const want = Math.atan2(tx - u.pos.x, tz - u.pos.z);
+  const free = (a, L) => !insideBuilding(u.pos.x + Math.sin(a) * L, u.pos.z + Math.cos(a) * L, 1.5);
+  let best = want, clear = false;
+  for (const off of [0, 0.3, -0.3, 0.6, -0.6, 0.95, -0.95, 1.4, -1.4, 2.2, -2.2]) { const a = want + off; if (free(a, 10) && free(a, 4)) { best = a; clear = true; break; } }
+  let diff = best - u.yaw; while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
+  u.yaw += clamp(diff, -2.3 * dt, 2.3 * dt);
+  const goal = clear ? vmax * (1 - clamp(Math.abs(diff) * 0.45, 0, 0.7)) : 3;
+  u.v += clamp(goal - u.v, -9 * dt, 6.5 * dt);
+}
+function officerMesh() {
+  const g = new THREE.Group(), M = (c) => new THREE.MeshLambertMaterial({ color: c });
+  const b = (w, h, d, x, y, z, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c)); m.position.set(x, y, z); g.add(m); return m; };
+  b(0.46, 0.8, 0.28, 0, 0.45, 0, 0x1a2a4c); b(0.5, 0.68, 0.3, 0, 1.15, 0, 0x22345e); b(0.28, 0.3, 0.28, 0, 1.66, 0, 0xe8c4a0); b(0.34, 0.12, 0.34, 0, 1.86, 0, 0x14203c); b(0.14, 0.52, 0.14, -0.33, 1.1, 0, 0x22345e); b(0.14, 0.52, 0.14, 0.33, 1.1, 0, 0x22345e); b(0.1, 0.06, 0.02, 0, 1.92, 0.17, 0xd9b25a);
+  return g;
+}
+function updateChase(dt) {
+  if (!police.units.length && !police.officers.length) return;
+  const onFoot = player.mode === "walk" && !drive.car, P = player.pos, car = drive.car;
+  const tx = car ? car.pos.x : P.x, tz = car ? car.pos.z : P.z, pv = car ? Math.abs(car.speed || 0) : (player.speed || 0);
+  const vmax = 21 + wanted.stars * 3.4;
+  for (let i = police.units.length - 1; i >= 0; i--) {
+    const u = police.units[i];
+    if (u.leaving) {
+      u.v = Math.min(16, u.v + 4 * dt); u.pos.x += Math.sin(u.yaw) * u.v * dt; u.pos.z += Math.cos(u.yaw) * u.v * dt; u.t = (u.t || 0) + dt;
+      u.pos.y = world.surfaceY(u.pos.x, u.pos.z) + 0.04; if (u.t > 14) { u.live = false; police.units.splice(i, 1); }
+      continue;
+    }
+    const d = Math.hypot(tx - u.pos.x, tz - u.pos.z);
+    if (onFoot && d < 16) { u.v += clamp(0 - u.v, -14 * dt, 0); }                     // pulls up beside you
+    else chaseSteer(u, tx, tz, dt, d < 40 && car ? Math.max(vmax, pv + 4) : vmax);
+    const ox = u.pos.x, oz = u.pos.z;
+    u.pos.x += Math.sin(u.yaw) * u.v * dt; u.pos.z += Math.cos(u.yaw) * u.v * dt;
+    if (insideBuilding(u.pos.x, u.pos.z, 1.3)) { u.pos.x = ox; u.pos.z = oz; u.v *= 0.3; u.stuck += dt; } else u.stuck = Math.max(0, u.stuck - dt * 0.5);
+    u.pos.y = world.surfaceY(u.pos.x, u.pos.z) + 0.04; u.yawNow = u.yaw;
+    if (u.stuck > 3.5 || d > 520) { const p = policeSpawnPoint(); if (p) { u.pos.set(p.x, p.y + 0.04, p.z); u.yaw = p.yaw; u.v = 6; u.stuck = 0; } }
+    // a patrol car is not polite: it rams
+    if (car && d < 3.8) {
+      const nx = (car.pos.x - u.pos.x) / (d || 1), nz = (car.pos.z - u.pos.z) / (d || 1);
+      car.pos.x += nx * (3.8 - d) * 0.5; car.pos.z += nz * (3.8 - d) * 0.5; u.pos.x -= nx * (3.8 - d) * 0.5; u.pos.z -= nz * (3.8 - d) * 0.5;
+      const rel = Math.abs(u.v - pv);
+      if (rel > 2.5 && u.cool <= 0) { u.cool = 0.7; car.speed *= 0.9; drive.shake = Math.max(drive.shake || 0, clamp(rel / 14, 0.25, 0.9)); vitals.stress = clamp01(vitals.stress + 0.02); try { playCrash(rel); } catch (e) { /* no sound yet */ } rumble(0.9, 0.5, 200); }
+      u.v *= 0.8;
+    }
+    u.cool -= dt;
+    // officers get out when you are on foot and the car is near
+    if (onFoot && d < 34 && !u.officer && police.officers.length < 5) {
+      const mesh = officerMesh(); scene.add(mesh); mesh.position.copy(u.pos);
+      const o = { mesh: mesh, x: u.pos.x + Math.cos(u.yaw) * 1.6, z: u.pos.z - Math.sin(u.yaw) * 1.6, step: Math.random() * 6, car: u }; mesh.position.set(o.x, 0, o.z);
+      police.officers.push(o); u.officer = o; say("Officers out of the car!", 2.5);
+    }
+  }
+  for (let i = police.officers.length - 1; i >= 0; i--) {
+    const o = police.officers[i];
+    if (!onFoot || !wanted.stars) { scene.remove(o.mesh); o.mesh.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); }); if (o.car) o.car.officer = null; police.officers.splice(i, 1); continue; }
+    const dx = P.x - o.x, dz = P.z - o.z, d = Math.hypot(dx, dz) || 1, sp = 4.3 + wanted.stars * 0.25;
+    let nx = o.x + dx / d * sp * dt, nz = o.z + dz / d * sp * dt;
+    if (insideBuilding(nx, nz, 0.5)) { if (!insideBuilding(nx, o.z, 0.5)) nz = o.z; else if (!insideBuilding(o.x, nz, 0.5)) nx = o.x; else { nx = o.x; nz = o.z; } }
+    o.x = nx; o.z = nz; o.step += dt * sp * 1.8;
+    o.mesh.position.set(o.x, world.surfaceY(o.x, o.z) + Math.abs(Math.sin(o.step)) * 0.05, o.z); o.mesh.rotation.y = Math.atan2(dx, dz);
+    // an officer is a pursuer in the sense wanted.cops understands
+    if (d < 1.5) { wanted.busting = (wanted.busting || 0) + dt * 3; if (wanted.busting > 1.2) { arrest(); return; } }
+    if (d > 140) { scene.remove(o.mesh); if (o.car) o.car.officer = null; police.officers.splice(i, 1); }
+  }
+}
+function policeStandDown() {
+  police.units.forEach(u => { u.leaving = true; u.t = 0; u.yaw += 0; });
+  police.officers.forEach(o => { scene.remove(o.mesh); if (o.car) o.car.officer = null; }); police.officers.length = 0;
+}
+function policeClear() { police.units.forEach(u => { u.live = false; }); police.units.length = 0; police.officers.forEach(o => scene.remove(o.mesh)); police.officers.length = 0; wanted.cops.length = 0; }
+// Caught.
+function arrest() {
+  if (arrest.busy || !player.placed) return;
+  arrest.busy = true;
+  enterThrough(() => { try { bookIn(); } catch (e) { console.warn("[Konto] booking failed:", e); } arrest.busy = false; });
+}
+function bookIn() {
+  const stars = Math.max(1, wanted.stars), what = wanted.lastCrime || "Evading police";
+  const fine = Math.min(purse.yen, 2000 + stars * 6000);
+  purse.yen -= fine;
+  record.arrests++; record.offences += stars; record.owed += 1 + stars; record.fines += fine;
+  record.history.push({ what: what, stars: stars, fine: fine, at: Math.round(clock) });
+  if (record.history.length > 12) record.history.shift();
+  wanted.stars = 0; wanted.busting = 0; wanted.heat = 0;
+  policeClear(); toggleSiren(false); dispatchClear();
+  if (drive.car) leaveCar();
+  if (home.inside) leaveHome();
+  if (shops.inside) leaveShop();
+  if (interior.active) interiorLeave(true);
+  advanceGameMinutes(60 * (5 + stars)); vitals.stress = clamp01(vitals.stress * 0.4 + 0.15);
+  let st = null, bd = 1e12;
+  shops.list.forEach(s => { if (s.police) { const d = Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z); if (d < bd) { bd = d; st = s; } } });
+  if (st && interiorEnter(st)) {
+    const R = interior.room;
+    if (R.cell) { player.pos.set(R.ox + R.cell.x, interior.floorY, R.oz + R.cell.z); player.yaw = player.targetYaw = Math.PI / 2; yaw = player.yaw + Math.PI; pitch = -0.1; camPos.set(R.ox + R.cell.x - 2.4, interior.floorY + 2.2, R.oz + R.cell.z); player.obj.position.copy(player.pos); }
+    interior.modal = { kind: "booked", sel: 0, what: what, stars: stars, fine: fine, station: st.name };
+    interiorModalDraw();
+  } else say("Busted. " + yenText(fine) + " gone. Record: " + recordText(), 8);
+  saveGame("", true);
+}
+// ---- the desk, and the cell ------------------------------------------------------------------------------------------------------------------
+function interiorModalDraw() {
+  const m = interior.modal, el = interior.cardEl; if (!m || !el) return;
+  let head, body, opts;
+  if (m.kind === "booked") {
+    head = "<b>Booked</b><i>" + (m.station || "Police station") + "</i>";
+    body = "<div class='in'>Charge: " + m.what + ".  Fine paid: " + yenText(m.fine) + ".  You were held overnight and let out in the morning.<br>Record: " + recordText() + "<br>The desk officer will set you to work: speak to the desk when you are ready.</div>";
+    opts = [["ok", "Walk out of the cell"]];
+  } else if (m.kind === "desk") {
+    head = "<b>Front desk</b><i>" + (record.owed ? record.owed + " h owed" : "nothing owed") + "</i>";
+    body = "<div class='in'>" + (record.owed ? "“You owe " + record.owed + " hour" + (record.owed === 1 ? "" : "s") + " of community service. The street outside will do. A hour is twelve pieces in a minute.”" : record.arrests ? "“You are square with us. Keep it that way.”" : "“Can I help you? No? Then please do not lean on the desk.”") + "</div>";
+    opts = [["service", record.owed ? "Do community service (litter pick, 1 hour)" : "Nothing to work off"], ["record", "Look at my record"], ["leave", "Leave"]];
+  } else if (m.kind === "record") {
+    head = "<b>Your record</b><i>" + recordText() + "</i>";
+    body = "<div class='in'>" + (record.history.length ? record.history.slice().reverse().map(h => "· " + h.what + " (" + h.stars + "★) fined " + yenText(h.fine)).join("<br>") : "Nothing on file.") + "</div>";
+    opts = [["back", "Back"]];
+  } else return;
+  m.opts = opts; m.sel = clamp(m.sel || 0, 0, opts.length - 1);
+  el.innerHTML = "<div class='ih'>" + head + "</div>" + body + "<div class='ib' style='flex-direction:column'>" + opts.map((o, i) => "<button data-i='" + i + "' class='" + (i === m.sel ? "on" : (o[0] === "service" && !record.owed ? "dim" : "")) + "'>" + o[1] + "</button>").join("") + "</div><div class='ik'>▲ ▼ choose   Enter select</div>";
+  el.classList.add("on");
+  el.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { m.sel = +b.dataset.i; interiorModalAct(); }));
+}
+function interiorModalAct() {
+  const m = interior.modal; if (!m) return;
+  const id = m.opts[m.sel][0];
+  if (id === "ok") { interior.modal = null; interior.cardEl.classList.remove("on"); say("Out of the cell. The desk is to the right.", 4); return; }
+  if (id === "leave") { interior.modal = null; interior.cardEl.classList.remove("on"); return; }
+  if (id === "record") { interior.modal = { kind: "record", sel: 0 }; interiorModalDraw(); return; }
+  if (id === "back") { interior.modal = { kind: "desk", sel: 0 }; interiorModalDraw(); return; }
+  if (id === "service") { if (!record.owed) { say("You do not owe any.", 2.5); return; } interior.modal = null; interior.cardEl.classList.remove("on"); serviceStart(); }
+}
+function interiorModalKey(e) {
+  const m = interior.modal, k = e.code; if (!m) return false;
+  if (k === "ArrowUp" || k === "KeyW") { m.sel = (m.sel + m.opts.length - 1) % m.opts.length; interiorModalDraw(); return true; }
+  if (k === "ArrowDown" || k === "KeyS") { m.sel = (m.sel + 1) % m.opts.length; interiorModalDraw(); return true; }
+  if (k === "Enter" || k === "Space" || k === "KeyE") { interiorModalAct(); return true; }
+  if (k === "Escape" || k === "Backspace" || k === "KeyF") { if (m.kind === "booked") { interior.modal = null; interior.cardEl.classList.remove("on"); } else if (m.kind === "record") { interior.modal = { kind: "desk", sel: 0 }; interiorModalDraw(); } else { interior.modal = null; interior.cardEl.classList.remove("on"); } return true; }
+  return k !== "KeyP";
+}
+function interiorModalPad(pressed) {
+  if (pressed(PAD.UP) | pressed(PAD.SUP)) interiorModalKey({ code: "ArrowUp" }); if (pressed(PAD.DOWN) | pressed(PAD.SDOWN)) interiorModalKey({ code: "ArrowDown" });
+  if (pressed(PAD.A)) interiorModalKey({ code: "Enter" }); if (pressed(PAD.B)) interiorModalKey({ code: "Escape" });
+}
+// ---- community service: a street, litter, and a bin ------------------------------------------------------------------------------------------
+const service = { active: false, cv: null, g: null, keys: {}, st: null, raf: 0 };
+function serviceStart() {
+  if (!service.cv) {
+    const c = document.createElement("canvas"); c.id = "service"; c.width = 960; c.height = 540;
+    c.style.cssText = "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(96vw,171vh);max-height:96vh;z-index:70;border:3px solid #ffd21c;background:#222;display:none;box-shadow:0 12px 50px rgba(0,0,0,.7)";
+    document.body.appendChild(c); service.cv = c; service.g = c.getContext("2d");
+    window.addEventListener("keydown", e => { if (service.active) { service.keys[e.code] = true; if (/^(Arrow|Key[WASD]|Space|Enter|Escape)/.test(e.code)) e.preventDefault(); if (e.code === "Escape") serviceEnd(false); if (e.code === "Space" || e.code === "Enter" || e.code === "KeyE") serviceAct(); e.stopImmediatePropagation(); } }, true);
+    window.addEventListener("keyup", e => { service.keys[e.code] = false; });
+  }
+  service.st = { t: 60, x: 300, y: 330, carry: 0, done: 0, goal: 12, items: [], spawn: 0, msg: "", flash: 0, ended: false, hold: 0 };
+  service.active = true; service.cv.style.display = "block"; document.body.classList.add("inservice");
+  say("Community service. Pick up litter, take it to the bin on the right. " + service.st.goal + " pieces in a minute.", 6);
+  service.last = performance.now(); service.raf = requestAnimationFrame(serviceFrame);
+}
+function serviceAct() {
+  const s = service.st; if (!s || s.ended) return;
+  if (s.x > 790 && s.carry) { s.done += s.carry; s.flash = 0.4; s.carry = 0; rumble(0.2, 0.5, 80); return; }
+  let best = null, bd = 56;
+  s.items.forEach(it => { const d = Math.hypot(it.x - s.x, it.y - s.y); if (d < bd) { bd = d; best = it; } });
+  if (best && s.carry < 4) { s.items.splice(s.items.indexOf(best), 1); s.carry++; rumble(0.1, 0.3, 50); }
+  else if (best) s.msg = "Hands full. Empty them in the bin.";
+}
+function serviceEnd(won) {
+  const s = service.st; if (!s || s.ended) return;
+  s.ended = true; service.active = false; service.cv.style.display = "none"; document.body.classList.remove("inservice");
+  cancelAnimationFrame(service.raf);
+  if (won) {
+    record.owed = Math.max(0, record.owed - 1); record.served++;
+    if (!record.owed) { say("That is the last of it. Your record is cleared.", 7); record.offences = 0; record.arrests = 0; record.history.length = 0; record.fines = 0; }
+    else say("One hour done. " + record.owed + " to go.", 5);
+    advanceGameMinutes(60); vitals.stress = clamp01(vitals.stress + 0.04);
+    saveGame("", true);
+  } else say("You stopped. Nothing counted.", 3.5);
+}
+function serviceFrame(now) {
+  if (!service.active) return;
+  const s = service.st, g = service.g, dt = Math.min(0.05, (now - service.last) / 1000); service.last = now;
+  const K = service.keys, gp = pad.gp;
+  let ax = (K.ArrowRight || K.KeyD ? 1 : 0) - (K.ArrowLeft || K.KeyA ? 1 : 0), ay = (K.ArrowDown || K.KeyS ? 1 : 0) - (K.ArrowUp || K.KeyW ? 1 : 0);
+  if (gp) { ax += deadzone(gp.axes[0] || 0); ay += deadzone(gp.axes[1] || 0); if (gp.buttons[PAD.A] && gp.buttons[PAD.A].pressed) { if (!service.aDown) serviceAct(); service.aDown = true; } else service.aDown = false; if (gp.buttons[PAD.B] && gp.buttons[PAD.B].pressed) { serviceEnd(false); return; } }
+  const L = Math.hypot(ax, ay) || 1, sp = 230 * (s.carry >= 3 ? 0.85 : 1);
+  if (Math.hypot(ax, ay) > 0.1) { s.x = clamp(s.x + ax / Math.max(1, L) * sp * dt, 30, 930); s.y = clamp(s.y + ay / Math.max(1, L) * sp * dt, 190, 500); s.face = ax < 0 ? -1 : ax > 0 ? 1 : s.face; }
+  s.t -= dt; s.flash = Math.max(0, s.flash - dt); s.spawn -= dt;
+  if (s.spawn <= 0 && s.items.length < 9) { s.spawn = 0.9 + Math.random() * 0.7; s.items.push({ x: 60 + Math.random() * 690, y: 200 + Math.random() * 290, type: (Math.random() * 4) | 0, rot: Math.random() * 6 }); }
+  if (s.done >= s.goal) { s.msg = "That will do. One hour."; draw(); setTimeout(() => serviceEnd(true), 900); s.ended2 = true; }
+  else if (s.t <= 0) { s.msg = "Time. Not enough."; draw(); setTimeout(() => serviceEnd(false), 900); s.ended2 = true; }
+  draw();
+  if (!s.ended2 && service.active) service.raf = requestAnimationFrame(serviceFrame);
+  function draw() {
+    g.fillStyle = "#4a4d52"; g.fillRect(0, 0, 960, 540);
+    g.fillStyle = "#6a6d72"; g.fillRect(0, 0, 960, 170);                                                  // pavement top
+    g.fillStyle = "#3b3d41"; g.fillRect(0, 170, 960, 340);                                                // the street
+    g.fillStyle = "#d8d8cf"; for (let x = 0; x < 960; x += 90) g.fillRect(x, 332, 50, 5);                 // lane line
+    g.fillStyle = "#8d8f93"; g.fillRect(0, 164, 960, 8); g.fillRect(0, 508, 960, 32);
+    for (let x = 40; x < 900; x += 150) { g.fillStyle = "#5a4630"; g.fillRect(x, 70, 22, 90); g.fillStyle = "#36452a"; g.beginPath(); g.arc(x + 11, 56, 38, 0, 7); g.fill(); }     // street trees
+    g.fillStyle = "#2c6a8a"; g.fillRect(800, 220, 120, 190); g.fillStyle = "#1d4a62"; g.fillRect(800, 220, 120, 26); g.fillStyle = "#fff"; g.font = "800 22px sans-serif"; g.textAlign = "center"; g.fillText("BIN", 860, 240);   // the bin
+    g.fillStyle = s.flash > 0 ? "#ffd21c" : "#14171b"; g.fillRect(812, 252, 96, 12);
+    s.items.forEach(it => {
+      g.save(); g.translate(it.x, it.y); g.rotate(it.rot);
+      g.fillStyle = ["#3f8ae0", "#c9ced4", "#e8a33d", "#5fae44"][it.type];
+      if (it.type === 0) { g.fillRect(-7, -11, 14, 22); g.fillStyle = "#fff"; g.fillRect(-7, -3, 14, 5); }
+      else if (it.type === 1) { g.beginPath(); g.ellipse(0, 0, 16, 11, 0, 0, 7); g.fill(); }
+      else if (it.type === 2) { g.beginPath(); g.moveTo(-13, 0); g.quadraticCurveTo(0, -17, 13, 0); g.quadraticCurveTo(0, 17, -13, 0); g.fill(); }
+      else { g.fillRect(-4, -14, 8, 28); g.fillRect(-7, -3, 14, 8); }
+      g.restore();
     });
+    // Seiko, in a hi-vis vest
+    g.fillStyle = "rgba(0,0,0,0.3)"; g.beginPath(); g.ellipse(s.x, s.y + 28, 20, 7, 0, 0, 7); g.fill();
+    g.fillStyle = "#14171b"; g.fillRect(s.x - 10, s.y + 4, 8, 24); g.fillRect(s.x + 2, s.y + 4, 8, 24);
+    g.fillStyle = "#e8d61c"; g.fillRect(s.x - 15, s.y - 22, 30, 30); g.fillStyle = "#fff"; g.fillRect(s.x - 15, s.y - 8, 30, 4);
+    g.fillStyle = "#e8c4a0"; g.beginPath(); g.arc(s.x, s.y - 32, 11, 0, 7); g.fill(); g.fillStyle = "#14171b"; g.beginPath(); g.arc(s.x, s.y - 37, 11, Math.PI, 0); g.fill();
+    for (let k = 0; k < s.carry; k++) { g.fillStyle = ["#3f8ae0", "#c9ced4", "#e8a33d", "#5fae44"][k]; g.fillRect(s.x + 16, s.y - 20 + k * 9, 12, 7); }
+    // the board
+    g.fillStyle = "rgba(10,12,16,0.82)"; g.fillRect(0, 0, 960, 52);
+    g.fillStyle = "#fff"; g.textAlign = "left"; g.font = "800 22px 'Segoe UI', sans-serif"; g.fillText("Community service", 16, 33);
+    g.textAlign = "center"; g.fillStyle = s.t < 12 ? "#ff8a7a" : "#fff"; g.fillText(Math.ceil(Math.max(0, s.t)) + " s", 480, 33);
+    g.textAlign = "right"; g.fillStyle = "#ffd21c"; g.fillText("In the bin: " + s.done + " / " + s.goal + "     Carrying: " + s.carry + " / 4", 944, 33);
+    g.textAlign = "center"; g.font = "600 15px 'Segoe UI', sans-serif"; g.fillStyle = "#c8ced6"; g.fillText(s.msg || "Move with WASD or the stick. " + (pad.index >= 0 ? padLabel("A") : "Space") + " picks up when you are next to something, and empties your hands at the bin. Esc gives up.", 480, 528);
   }
-  candidates.sort((a, b) => a.d - b.d);
-  for (let i = 0; i < candidates.length && have < want; i++) {
-    const c = candidates[i].c;
-    c.chasing = true;
-    c.siren = true;
-    wanted.cops.push(c);
-    have++;
-  }
-  if (wanted.cops.length) toggleSiren(true);
+}
+
+
+// ---- the stations ------------------------------------------------------------------------------------------------------------------------
+// A police station is a building on a street-side plot, like a mall: found by the same search (the biggest free street plots in the offices and
+// shops), a sign, and a room inside with a front desk, a waiting bench, a noticeboard and the cell you wake up in.
+function placePolice(w) {
+  const rng = (() => { let sd = 5521; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
+  w.cities.forEach((city, ci) => {
+    if (!city.plots) return;
+    const byBlock = mallBlocks(city), want = ci === 0 ? 3 : 1;
+    for (let k = 0; k < want; k++) {
+      const apart = ci === 0 ? 650 : 100;
+      const near = p => shops.list.some(s => s.police && Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < apart);
+      let best = null, bestRow = null;
+      for (const urban of [true, false]) {
+        const pool = city.plots.filter(p => !p.shop && !p.absorbed && !p.inner && !p.corner && MALL_OK.indexOf(p.kind) >= 0 && (p.index === 0 || p.index >= 4) && (!urban || (city.wards[p.ward] && MALL_WARDS.indexOf(city.wards[p.ward].kind) >= 0)));
+        for (let g = 0; g < Math.min(pool.length, 300); g++) {
+          const p = pool[(rng() * pool.length) | 0]; if (near(p)) continue;
+          const row = mallRowOf(byBlock, p, 44);
+          if (row.hi - row.lo < 18 || row.depth < 14 || row.depth > 60) continue;
+          const sc = -Math.abs(row.area - 1100);
+          if (!bestRow || sc > bestRow.sc) { best = p; bestRow = Object.assign(row, { sc: sc }); }
+        }
+        if (best) break;
+      }
+      if (!best) continue;
+      const mid = (bestRow.lo + bestRow.hi) / 2;
+      bestRow.members.forEach(q => { if (q !== best) q.absorbed = true; });
+      best.centre = [best.centre[0] + bestRow.l[0] * mid, best.centre[1] + bestRow.l[1] * mid]; best.size = [bestRow.hi - bestRow.lo, best.size[1]];
+      const yaw = best.yaw * Math.PI / 180, half = best.size[1] * 0.5 + 1.6;
+      const ward = city.wards[best.ward] ? city.wards[best.ward].name : city.name;
+      const s = { brand: "police", police: true, name: ward + " Police Station", city: city.name, at: [best.centre[0], best.centre[1]],
+        door: [best.centre[0] + Math.sin(yaw) * half, best.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: best.groundY, size: best.size };
+      shops.list.push(s); best.shop = "police"; best.shopRef = s;
+    }
+  });
+}
+function policeBuild(room, root, th) {
+  room.restaurant = true; room.custom = "police";
+  const c = (x, z, w, d) => room.colliders.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
+  // the front desk, with the officer behind it
+  inAdd(root, 5.2, 1.1, 1.0, 3.2, 0.55, -2.4, "#3a4a6a"); inAdd(root, 5.4, 0.08, 1.15, 3.2, 1.13, -2.4, "#d9d2c3"); c(3.2, -2.4, 5.4, 1.2);
+  inAdd(root, 0.5, 0.35, 0.4, 1.5, 1.32, -2.4, "#1c1f24"); inAdd(root, 0.34, 0.24, 0.02, 1.5, 1.52, -2.4, "#6fe0a0");
+  const off = inChef(root, 3.2, -3.5, 0, false); off.rotation.y = Math.PI; off.children.forEach(m => { if (m.material) { /* shared materials: leave */ } });
+  inAdd(root, 0.34, 0.12, 0.34, 3.2, 1.98, -3.5, "#14203c");
+  // the waiting bench and a pot plant
+  inAdd(root, 3.0, 0.1, 0.6, 3.2, 0.45, 1.6, "#5a4630"); inAdd(root, 3.0, 0.5, 0.08, 3.2, 0.8, 1.88, "#5a4630"); inAdd(root, 0.08, 0.45, 0.5, 1.8, 0.22, 1.6, "#2a2d33"); inAdd(root, 0.08, 0.45, 0.5, 4.6, 0.22, 1.6, "#2a2d33"); c(3.2, 1.7, 3.1, 0.8);
+  inCyl(root, 0.26, 0.5, 6.7, 0.25, 1.4, "#8a5a3a"); for (let i = 0; i < 4; i++) inAdd(root, 0.1, 0.7, 0.04, 6.7 + (i - 1.5) * 0.08, 0.85, 1.4, "#3f8f4a");
+  // the cell: bars on the open side, a cot, a steel basin and a bench, and a gate that is open
+  const bar = (x, z, w, d, h) => inAdd(root, w, h || 2.6, d, x, (h || 2.6) / 2, z, "#1a1d22");
+  for (let z = -5.2; z <= -1.9; z += 0.28) if (z < -3.7 || z > -2.5) bar(-3.3, z, 0.07, 0.07);                   // bars, with a gap for the gate
+  bar(-3.3, -5.2, 0.2, 0.2); bar(-3.3, -1.9, 0.2, 0.2); inAdd(root, 0.08, 0.1, 3.4, -3.3, 2.6, -3.55, "#1a1d22"); inAdd(root, 0.08, 0.08, 3.4, -3.3, 0.05, -3.55, "#1a1d22");
+  inAdd(root, 0.08, 2.2, 1.2, -3.3, 1.4, -3.1, "#1a1d22"); inAdd(root, 0.08, 2.2, 0.08, -3.3, 1.4, -2.5, "#1a1d22");          // the gate, swung open
+  inAdd(root, 4.6, 0.22, 0.12, -5.5, 2.6, -5.28, "#3a3f46");
+  inAdd(root, 2.2, 0.5, 0.9, -6.5, 0.25, -4.6, "#8d939c"); inAdd(root, 2.0, 0.14, 0.8, -6.5, 0.58, -4.6, "#c9c2a8"); inAdd(root, 0.6, 0.12, 0.45, -7.3, 0.7, -4.6, "#e8e6e0");     // the cot
+  inAdd(root, 0.6, 0.5, 0.5, -4.2, 0.25, -2.3, "#b9bec6"); inAdd(root, 0.5, 0.18, 0.4, -4.2, 0.6, -2.3, "#d9dde2");
+  c(-6.5, -4.6, 2.4, 1.1); c(-4.2, -2.3, 0.7, 0.7);
+  c(-3.3, -5.0, 0.3, 0.6); c(-3.3, -1.95, 0.3, 0.3); c(-3.3, -3.55, 0.12, 0.1);                                           // the bars in the way, the gate gap left open
+  for (const z of [-5.4, -1.8]) room.colliders.push({ x0: -7.8, x1: -3.3, z0: z - 0.08, z1: z + 0.08 }); room.colliders.push({ x0: -7.9, x1: -7.7, z0: -5.4, z1: -1.8 });
+  inAdd(root, 4.5, 0.02, 3.4, -5.6, 0.03, -3.55, "#7a7d82");
+  room.cell = { x: -5.8, z: -3.5 };
+  // a noticeboard of notices, a clock, a flag, and a counter sign
+  inAdd(root, 2.2, 1.3, 0.06, 0.0, 1.8, -5.32, "#6a4a2e"); for (let i = 0; i < 5; i++) inAdd(root, 0.32, 0.45, 0.02, -0.8 + i * 0.4, 1.8 + (i % 2) * 0.2, -5.28, i === 0 ? "#c8372d" : ["#f4f0d6", "#f2d44a", "#d9e6f2", "#f4f0d6"][i % 4]);
+  const sg = inLabel("警察  POLICE", 3.0, 0.5, "#14284c", "#ffffff"); sg.position.set(3.2, 2.9, -2.86); room.group && root.add(sg);
+  const clock = inLabel("●", 0.5, 0.5, "#f4f4f2", "#222"); clock.position.set(6.6, 2.7, -5.3); root.add(clock);
+  inAdd(root, 0.06, 1.4, 0.06, 7.2, 1.7, -5.2, "#c9ced4"); inAdd(root, 0.9, 0.6, 0.02, 7.65, 2.1, -5.2, "#f4f4f2"); inAdd(root, 0.3, 0.3, 0.025, 7.65, 2.1, -5.19, "#c8372d");
+  room.spots = [{ x: 3.2, z: -1.05, label: "talk to the desk officer", act: "police" }];
+  room.tick = () => {};
 }
 
 // Can this car see you? Cone, range, and a wall in the way stops it.
@@ -26843,9 +27792,9 @@ function updateWanted(dt) {
   if (!player.placed) return;
   wanted.flash += dt;
   if (!wanted.stars) {
-    if (wanted.cops.length) {
-      wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
+    if (wanted.cops.length || police.units.length) {
       wanted.cops.length = 0;
+      policeStandDown();
       toggleSiren(false);
     }
     return;
@@ -26876,44 +27825,21 @@ function updateWanted(dt) {
       wanted.stars--;
       if (!wanted.stars) {
         say("You lost them.", 4);
-        wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
         wanted.cops.length = 0;
+        policeStandDown();
         toggleSiren(false);
       }
     }
   }
-  // Arrest: on foot, stopped, with a patrol right on top of you.
-  if (player.mode === "walk" && !drive.car) {
-    let close = null;
-    wanted.cops.forEach(c => {
-      const d = Math.hypot(c.at.x - px, c.at.z - pz);
-      if (d < 7 && c.v < 3.5 && copSees(c, px, pz)) close = c;
-    });
-    wanted.busting = close ? (wanted.busting || 0) + dt : 0;
-    if (wanted.busting > 2.2) arrest();
-  } else wanted.busting = 0;
+  // Caught: boxed in while in a car, or stopped with a patrol on top of you on foot (officers running you down are handled with them).
+  const still = drive.car ? Math.abs(drive.car.speed || 0) < 3.2 : (player.speed || 0) < 1.2;
+  let boxed = 0;
+  police.units.forEach(u => { if (!u.leaving && Math.hypot(u.pos.x - px, u.pos.z - pz) < (drive.car ? 9 : 7)) boxed++; });
+  if (still && boxed >= (drive.car ? 1 : 1) && (drive.car ? boxed >= 1 : true)) wanted.busting = (wanted.busting || 0) + dt; else if (!police.officers.some(o => Math.hypot(o.x - px, o.z - pz) < 2)) wanted.busting = Math.max(0, (wanted.busting || 0) - dt * 2);
+  if (wanted.busting > (drive.car ? 2.4 : 2.0)) arrest();
   // They drive at you rather than round their lane.
-  wanted.cops.forEach(c => {
-    const d = Math.hypot(c.at.x - px, c.at.z - pz);
-    c.chaseHard = d < 180;
-  });
-}
-
-function arrest() {
-  const fine = Math.min(purse.yen, 2000 + wanted.stars * 6000);
-  purse.yen -= fine;
-  wanted.stars = 0;
-  wanted.busting = 0;
-  wanted.cops.forEach(c => { c.chasing = false; c.siren = false; });
-  wanted.cops.length = 0;
-  toggleSiren(false);
-  vitals.stress = clamp01(vitals.stress + 0.25);
-  // Put back on the pavement somewhere else, lighter.
-  const city = world.cities[0];
-  if (city && city.scramble) {
-    placeSeiko(new THREE.Vector3(city.scramble.at[0], city.scramble.groundY, city.scramble.at[1]));
-  }
-  say("Busted. " + yenText(fine) + " gone.", 6);
+  // pursuit: keep the road behind you stocked with patrol cars
+  callPolice(player.pos);
 }
 
 // ---- the stars, drawn ------------------------------------------------------
@@ -27679,6 +28605,7 @@ function updateDrive(dt) {
   camPos.lerp(want, 1 - Math.pow(0.0006, dt));
   camera.position.copy(camPos);
   if (drive.shake > 0.01) {
+    rumble(drive.shake, drive.shake * 0.8, 110);
     camera.position.x += (Math.random() - 0.5) * drive.shake * 0.5;
     camera.position.y += (Math.random() - 0.5) * drive.shake * 0.4;
     drive.shake *= Math.pow(0.02, dt);
@@ -29380,8 +30307,8 @@ document.getElementById("regen").addEventListener("click", () => {
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
-const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
-const interior = { active: false, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
+const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
+const interior = { active: false, modal: null, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
   plaza:   { wall: "#f1efe9", floor: "#c9c3b6", trim: "#2a2d33", cap: "#2a2d33" },
@@ -29391,6 +30318,7 @@ const IN_THEME = {
   ramen:   { wall: "#a97c50", floor: "#5a4630", trim: "#7a1f1a", cap: "#f2efe6" },
   sushi:   { wall: "#f3ead6", floor: "#8a6a48", trim: "#c0172b", cap: "#ffffff" },
   sushiya: { wall: "#3a2f27", floor: "#8a6a48", trim: "#c9a24a", cap: "#f2efe6" },
+  police:  { wall: "#dfe4ea", floor: "#8e949c", trim: "#14284c", cap: "#14284c" },
   arms:    { wall: "#3a3d42", floor: "#25272b", trim: "#b9823a", cap: "#1a1c20" },
   pharmacy: { wall: "#f3f7f4", floor: "#cfe3d6", trim: "#2e9b5a", cap: "#ffffff" },
   books:   { wall: "#9a7a58", floor: "#5b4631", trim: "#2c4a3a", cap: "#c8372d" },
@@ -29696,6 +30624,7 @@ function interiorSpotFocus() {
 }
 function interiorSpotAct(sp) {
   if (sp.act === "sit") { interiorSit(sp); return; }
+  if (sp.act === "police") { interior.modal = { kind: "desk", sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw(); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
   if (sp.act === "store") { interiorEnterStore(sp); return; }
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
@@ -29756,6 +30685,7 @@ const IN_SKIN = {
   ramen:   { floor: ["planks", "#6a4a2e", "#5c3f27", "#2a1c10"], wall: ["#c4452f", "#f2c230", "#4a2e1a", "bricks"] },
   sushi:   { floor: ["planks", "#c9aa78", "#b99a68", "#7a5a3a"], wall: ["#f3ead6", "#c0172b", "#e8d9b8", "seigaiha"] },
   sushiya: { floor: ["planks", "#9a7650", "#8a6644", "#3a2a18"], wall: ["#3a2f27", "#c9a24a", "#2a201a", "asanoha"] },
+  police:  { floor: ["tile", "#a9afb7", "#989ea6", "#6f757d"], wall: ["#dfe4ea", "#14284c", "#b8c0cc", "panels"] },
   arms:    { floor: ["concrete", "#4a4c50", "#3f4145", "#2a2b2e"], wall: ["#55585e", "#d9a21c", "#3a3d42", "hazard"] },
   pharmacy: { floor: ["tile", "#e7f1ea", "#c9e0d1", "#a3bfae"], wall: ["#f3f7f4", "#2e9b5a", "#d8eadf", "panels"] },
   books:   { floor: ["carpet", "#5a2e2a", "#4a2522", "#2a1412"], wall: ["#c9b48a", "#2c4a3a", "#3f2c20", "damask"] },
@@ -29818,6 +30748,7 @@ const IN_ADS = {
   petmart: [["PET FOOD SALE", "Bags from ¥980", "paw", "#13a150"], ["CAT TOWER", "Now in store", "paw", "#1272d6"], ["AQUARIUM", "Everything for the tank", "fish", "#1a9ad6", "#f08a3a"], ["GOOD DOG", "Because they deserve it", "paw", "#e8a33d"], ["OPEN LATE", "Your neighbourhood store", "clock", "#13a150"], ["TREATS ¥300", "Buy two get one", "fish", "#d9534f", "#6ab0e8"]],
   ramen:   [["本日のおすすめ", "Tsukemen ¥1,100", "ramen", "#7a1f1a"], ["BEER ¥600", "Draught, cold", "beer", "#2a2d33"], ["餃子 GYOZA", "Six for ¥480", "gyoza", "#b5532a"], ["OPEN 11:00–24:00", "Last orders midnight", "clock", "#2a2d33"], ["味噌 MISO", "Miso ramen ¥1,020", "ramen", "#8a4a1a"], ["ラーメン", "Tonkotsu ¥980", "ramen", "#a31d1d"]],
   sushi:   [["寿司 FRESH DAILY", "Nigiri from ¥150", "nigiri", "#c0172b"], ["SALMON ¥200", "Straight from Hokkaido", "nigiri", "#d9604a", "#f0714f"], ["GREEN TEA", "Free refills", "tea", "#4a8a3a"], ["TUNA ROLL ¥250", "Hand rolled", "roll", "#a82a2a"], ["皿 EVERY PLATE", "White ¥150 · Red ¥200 · Blue ¥250", "plates", "#1d3b5a"], ["OPEN LATE", "The belt runs till midnight", "clock", "#2a2d33"]],
+  police:  [["WANTED", "Information to the desk", "warning", "#8a1d1d"], ["CRIME PREVENTION", "Lock your bicycle", "bolt", "#14284c"], ["DRIVE SAFELY", "Please", "clock", "#2e7d4f"], ["LOST PROPERTY", "Umbrellas ¥0", "sale", "#5a4a8a"], ["COMMUNITY SERVICE", "Give an hour", "cross", "#2a6fb0"], ["24 HOUR DESK", "110 for emergencies", "clock", "#14284c"]],
   sushiya: [["極上 OMAKASE", "The chef's course ¥12,000", "nigiri", "#2a1f18", "#e8604f"], ["本鮪 HON-MAGURO", "Bluefin, aged five days", "nigiri", "#7a1f1a", "#b5202a"], ["日本酒 SAKE", "Junmai daiginjo, warm or cold", "sake", "#34495e"], ["雲丹 UNI", "Hokkaido, this morning ¥2,900", "nigiri", "#b8741a", "#f0a31c"], ["予約 RESERVATIONS", "Counter seats only", "clock", "#2a1f18"], ["江戸前 EDOMAE", "Since 1964", "tea", "#5a3a22"]],
   arms:    [["NO LOITERING", "Staff watching", "warning", "#d9a21c"], ["LICENCE REQUIRED", "By appointment only", "warning", "#b9823a"], ["KANAMONO 金物", "Hardware since 1971", "bolt", "#3a2a14"], ["NO PHOTOGRAPHY", "", "warning", "#8a1d1d"], ["CASH ONLY", "No receipts", "sale", "#2a2d33"], ["CLOSED SUNDAYS", "", "clock", "#55585e"]],
   pharmacy: [["VITAMINS ¥980", "For the tired", "pill", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "pill", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
@@ -30074,7 +31005,7 @@ function interiorDecor(room, root, th, brand, opts) {
   inBanner(root, brand, 1, -W / 2 + 0.13, 2.5, -0.2, Math.PI / 2, 3.2);
   if (!lift) { inPoster(root, brand, 3, W / 2 - 0.13, 1.7, -4.2, -Math.PI / 2, 1.0, 1.35); inPoster(root, brand, 4, W / 2 - 0.13, 1.7, -2.6, -Math.PI / 2, 1.0, 1.35); inBanner(root, brand, 0, W / 2 - 0.13, 2.65, -1.0, -Math.PI / 2, 2.6); }
   inPoster(root, brand, 5, -W / 2 + 0.13, 1.7, 3.9, Math.PI / 2, 0.9, 1.25);
-  if (RESTAURANT[brand]) return;            // a restaurant sets its own table; the walls above are all it keeps
+  if (RESTAURANT[brand] || brand === "police") return;            // a restaurant sets its own table; the walls above are all it keeps
   // ---- looking-only stock
   const pool = [];
   (room.stock || []).forEach(sh => sh.items.forEach(it => pool.push(it)));
@@ -30288,7 +31219,7 @@ function interiorRoom(s, opts) {
   const th = IN_THEME[brand] || IN_THEME.eleven;
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
-  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: RESTAURANT[brand] ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
+  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: (RESTAURANT[brand] || brand === "police") ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
   // shell
   inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
   for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) inAdd(root, IN_W / 8, 0.02, IN_D / 6, i * IN_W / 8, 0.005, j * IN_D / 6, inShade(th.floor, 0.93));
@@ -30354,7 +31285,7 @@ function interiorRoom(s, opts) {
 
   // the counter on the right, with the clerk behind it (a restaurant has its own furniture instead)
   const cx = IN_W / 2 - 1.5, cz = 2.6;
-  if (!RESTAURANT[brand]) {
+  if (!RESTAURANT[brand] && brand !== "police") {
   inAdd(root, 1.0, 1.05, 3.8, cx, 0.525, cz, "#4b5058"); inAdd(root, 1.1, 0.06, 3.9, cx, 1.08, cz, th.trim);
   inAdd(root, 0.4, 0.3, 0.4, cx, 1.26, cz + 0.8, "#1c1f24"); inAdd(root, 0.34, 0.02, 0.3, cx, 1.42, cz + 0.8, "#6fe0a0");
   room.colliders.push({ x0: cx - 0.55, x1: cx + 0.55, z0: cz - 1.95, z1: cz + 1.95 });
@@ -30367,6 +31298,7 @@ function interiorRoom(s, opts) {
   // a door mat
   if (!opts.noExit) inAdd(root, 2.2, 0.03, 1.2, 0, 0.02, IN_D / 2 - 0.7, "#2a2d33");
   try { interiorDecor(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the shop dressing failed:", e); }
+  if (brand === "police") { try { policeBuild(room, root, th); } catch (e) { console.warn("[Konto] the station could not be built:", e); } }
   if (RESTAURANT[brand]) {
     try { ({ kaiten: kaitenBuild, sushiya: sushiyaBuild, ramen: ramenBuild })[RESTAURANT[brand]](room, root, th); } catch (e) { console.warn("[Konto] the restaurant could not be built:", e); }
   }
@@ -30833,8 +31765,10 @@ function ramenEat(S) {
 
 function interiorSitPad(pressed) {
   const S = interior.sit, key = (code) => interiorSitKey({ code: code, preventDefault() {} });
-  if (pressed(PAD.UP)) key("ArrowUp"); if (pressed(PAD.DOWN)) key("ArrowDown"); if (pressed(PAD.LEFT)) key("ArrowLeft"); if (pressed(PAD.RIGHT)) key("ArrowRight");
-  if (pressed(PAD.A)) key("Enter"); if (pressed(PAD.X)) key("Space"); if (pressed(PAD.B)) key("Escape");
+  if (pressed(PAD.UP) | pressed(PAD.SUP)) key("ArrowUp"); if (pressed(PAD.DOWN) | pressed(PAD.SDOWN)) key("ArrowDown");
+  if (pressed(PAD.LEFT) | pressed(PAD.SLEFT)) key("ArrowLeft"); if (pressed(PAD.RIGHT) | pressed(PAD.SRIGHT)) key("ArrowRight");
+  if (pressed(PAD.A)) { if (S && S.kind === "ramen" && S.phase === "sheet" && S.row >= RAMEN_SHEET.length && S.row < RAMEN_SHEET.length + RAMEN_TOP.length) key("Space"); else key("Enter"); if (S && S.kind === "kaiten") rumble(0.25, 0.5, 90); }
+  if (pressed(PAD.X)) key("Space"); if (pressed(PAD.B)) key("Escape");
 }
 
 function interiorSupports(s) {
@@ -30956,6 +31890,7 @@ function interiorTick(dt) {
   interior.said = Math.max(0, interior.said - dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (R.tick) R.tick(dt);
+  if (interior.modal || service.active) { player.speed = 0; interior.prompt.classList.remove('on'); return; }
   if (interior.sit) { interiorSitTick(dt); return; }
   if (interior.card) { interiorCardTick(dt); return; }
   if (interior.pod || interior.lift) { player.speed = 0; return; }
@@ -31133,6 +32068,7 @@ function interiorAction(a) {
 function interiorKey(e) {
   if (!interior.active || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
+  if (interior.modal) return interiorModalKey(e);
   if (interior.sit) return interiorSitKey(e);
   if (interior.lift) {
     const L = interior.lift, n = interior.bld.floors.length;
@@ -31172,6 +32108,7 @@ function interiorKey(e) {
 function interiorPad(pressed) {
   if (!interior.active || shops.inside) return false;
   if (interior.lift) { const L = interior.lift, n = interior.bld.floors.length; if (pressed(PAD.UP)) { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); } if (pressed(PAD.DOWN)) { L.sel = (L.sel + 1) % n; interiorLiftDraw(); } if (pressed(PAD.A)) interiorGoLevel(L.sel); if (pressed(PAD.B)) interiorLiftClose(); return true; }
+  if (interior.modal) { interiorModalPad(pressed); return true; }
   if (interior.sit) { interiorSitPad(pressed); return true; }
   const c = interior.card;
   if (c) {
@@ -31204,11 +32141,12 @@ function snapshotSave() {
     bag: { counts: bag.counts, phones: bag.phones, games: bag.games, gear: bag.gear, heldGame: bag.heldGame, watchOn: bag.watchOn },
     phone: { device: phone.device, colourIdx: phone.colourIdx, pearWall: phone.pearWall, pearAccent: phone.pearAccent, wall: wall, watch: phone.watch, health: phone.health, owns: phone.owns, gallery: (phone.gallery || []).slice(-6) },
     wallet: { ic: wallet.ic, toll: wallet.toll, loyal: wallet.loyal, buys: wallet.buys, pts: wallet.pts },
-    pos: { x: at.x, z: at.z, yaw: player.yaw }
+    pos: { x: at.x, z: at.z, yaw: player.yaw },
+    record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) }
   };
 }
 function saveSig() {
-  return [purse.yen, JSON.stringify(bag), phone.device, phone.colourIdx, JSON.stringify(wallet.buys), JSON.stringify(wallet.ic), JSON.stringify(wallet.toll), phone.owns && JSON.stringify(phone.owns), (phone.gallery || []).length].join("|");
+  return [record.arrests, record.owed, purse.yen, JSON.stringify(bag), phone.device, phone.colourIdx, JSON.stringify(wallet.buys), JSON.stringify(wallet.ic), JSON.stringify(wallet.toll), phone.owns && JSON.stringify(phone.owns), (phone.gallery || []).length].join("|");
 }
 let saveLast = { sig: "", at: 0 };
 function saveMark(text) {
@@ -31241,6 +32179,7 @@ function applySave(s) {
     Object.assign(phone, s.phone); phone.dirty = true;
     Object.assign(wallet, s.wallet);
     if (typeof s.clock === "number") clock = s.clock;
+    if (s.record) Object.assign(record, s.record);
     saveLast.sig = saveSig();
   } catch (e) { console.warn("[Konto] the save could not be applied:", e); }
 }
