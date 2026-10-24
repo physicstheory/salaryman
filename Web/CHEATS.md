@@ -42,6 +42,9 @@ the driving seat.
 | WANTED | 5550170 | three stars and a pursuit |
 | ARRESTME | 5550171 | get arrested now (cell, record, community service) |
 | CLEANSLATE | 5550172 | wipe stars and criminal record |
+| TICKET | 5550175 | a free boarding pass from wherever you are |
+| SEOUL / KOHANA / RYUJIMA | 5550176-5550178 | go straight there |
+| HEATSEEKER | 5550179 | four stars, helicopters included |
 | GOPOLICE / GOAIRPORT | 5550173 / 5550174 | the nearest police station / airport |
 | CHEATLIST | 5550190 | show every code |
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |

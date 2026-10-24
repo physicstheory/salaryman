@@ -2173,6 +2173,7 @@ function makeWorld(seed, report) {
   planHighway(world);
   planSki(world);
   planAirports(world);
+  planDestinations(world);
   return world;
 }
 
@@ -2695,6 +2696,7 @@ function buildAirports(root) {
       const gx = (k - (nGate - 1) / 2) * (big ? 62 : 0);
       const plane = airplaneMesh(big ? (k % 3 === 0 ? 63 : 38) : 20, big ? (k % 3 === 0 ? 61 : 34) : 11, lines[k % lines.length], hi);
       plane.rotation.y = -Math.PI / 2; plane.position.set(gx, big ? 5.2 : 2.2, txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
+      (ap.planes || (ap.planes = [])).push({ mesh: plane, len: big ? (k % 3 === 0 ? 63 : 38) : 20, span: big ? (k % 3 === 0 ? 61 : 34) : 11, tail: lines[k % lines.length] });
       if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
     }
     // the tower: a shaft, a glazed cab with a flared roof, a mast
@@ -2725,11 +2727,11 @@ function buildAirports(root) {
     const nCars = big ? 140 : 14, carG = new THREE.BoxGeometry(2.0, 1.4, 4.4), cars = new THREE.InstancedMesh(carG, new THREE.MeshLambertMaterial({ color: 0xffffff }), nCars), col = new THREE.Color();
     for (let k = 0; k < nCars; k++) { const cx = -cpw / 2 + 6 + (k % Math.floor(cpw / 5)) * 5, cz = cpz - cpd / 2 + 8 + Math.floor(k / Math.floor(cpw / 5)) * 12; m4.makeTranslation(cx, 0.8, cz); cars.setMatrixAt(k, m4); col.setHSL(rnd(k, 5, 9021), 0.15 + rnd(k, 6, 9023) * 0.5, 0.25 + rnd(k, 7, 9025) * 0.45); cars.setColorAt(k, col); }
     cars.frustumCulled = false; G.add(cars);
-    // a fence round the airfield, in a few long runs
-    const fm = S(0x6d7378, 0.6), fx0 = -ap.sx / 2 + 30, fx1 = ap.sx / 2 - 30, fz0 = -70, fz1 = ap.sz - 100;
-    [[fx1 - fx0, 0, (fx0 + fx1) / 2, fz0], [fx1 - fx0, 0, (fx0 + fx1) / 2, fz1]].forEach(f => box(f[0], 2.4, 0.1, f[2], 1.2, f[3], fm));
-    [[0, fz1 - fz0, fx0, (fz0 + fz1) / 2], [0, fz1 - fz0, fx1, (fz0 + fz1) / 2]].forEach(f => box(0.1, 2.4, f[1], f[2], 1.2, f[3], fm));
+    // the fence, the gate, the terminal's door and (for the big one) the expressway
+    const fx0 = -ap.sx / 2 + 30, fx1 = ap.sx / 2 - 30, fz0 = -70, fz1 = ap.sz - 100;
+    ap.group = G;
     root.add(G);
+    airportExtras(ap, G, { L: L, tz: tz, tw_: tw_, tl_: tl_, fx0: fx0, fx1: fx1, fz0: fz0, fz1: fz1 });
     ap.group = G;
     // collision, in world space, for the walker
     solids2.forEach(s2 => { const p = fromRectLocal(s2.x, s2.z, ap.cx, ap.cz, ap.yaw); solids.push({ c: [p[0], p[1]], size: [s2.w, s2.d], yaw: ap.yaw, y: ap.y, h: s2.h }); });
@@ -6026,6 +6028,7 @@ function pollPad(dt) {
   };
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
+  if (ex.open || ife.open) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; if (ex.open) expedioPad(pressed); else ifePad(pressed); return; }
   // A trigger is analogue on an Xbox pad and reports through .value; some
   // drivers put it on an axis instead, so both are read and the larger wins.
   const trigger = (btn, axis) => {
@@ -6218,6 +6221,8 @@ function pollPad(dt) {
 
 // Y: get in, get out, board, alight.
 function useRide() {
+  if (flight.active) { if (!flight.air && flight.v < 6) flightLeave(); else say("Land it first.", 2); return; }
+  if (player.placed && player.mode === "walk" && !drive.car && !drive.train && airUse()) return;
   if (drive.car) { if (canKeepHere()) { keepCar(); return; } leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
   if (player.placed && player.mode === "walk") {
@@ -6248,6 +6253,8 @@ function setPromptText(text) {
 
 function updatePrompt() {
   if (heist.stage) { setPromptText(null); return; }
+  if (flight.active) { setPromptText(!flight.air && flight.v < 6 ? "Get out of the aircraft" : null); return; }
+  { const an = airNear(); if (an) { setPromptText(an.text); return; } }
   if (drive.car) { setPromptText(canKeepHere() ? "Park it here and keep it" : "Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
   // A shop door takes precedence over a car parked outside it, because you
@@ -6735,6 +6742,7 @@ function buildScene(w) {
   const root = new THREE.Group();
   groups.push(root);
   scene.add(root);
+  worldRoot = root;
 
   // ---- terrain
   const geo = new THREE.PlaneGeometry(WORLD_X, WORLD_Z, GRID_X - 1, GRID_Z - 1);
@@ -9421,10 +9429,19 @@ function tick(dt) {
   fovFrame(dt);
   streamFrame();
   updateAirports(dt);
+  destFrame(dt); updateAirportGates(dt); updateHelis(dt);
   updateWorldSky(dt);
   followSun();
 
   if (ski.mode === "ride") { updateSkiRide(dt); present(); return; }
+  if (flight.active) {
+    updateFlight(dt);
+    updateTraffic(dt, flight.pos);
+    updateRail(dt, flight.pos);
+    updateHud(dt);
+    present();
+    return;
+  }
   if (drive.car) {
     updateTolls(dt);
     updateDrive(dt);
@@ -9444,7 +9461,7 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active) { /* the camera is on the thing you are looking at, or the menu is up */ }
+    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active || ex.open || ife.open) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     updateTraffic(dt, player.pos);
@@ -14562,7 +14579,7 @@ function mapPois(across) {
     if (home.door && across < 2600) out.push({ x: home.door[0], z: home.door[1], name: "Home", kind: "Your flat" });
     shops.list.forEach(sh => {
       if (!sh.mall && !sh.plaza && across > 14000) return;
-      out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.police ? "Police station" : sh.safe ? "Hotel" : "Shop" });
+      out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.airport ? "Airport" : sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.police ? "Police station" : sh.safe ? "Hotel" : "Shop" });
     });
     if (garage.built && across < 3200) out.push({ x: garage.centre[0], z: garage.centre[1], name: "Garage", kind: "Yours" });
     if (garage.cars.length && across < 6500) garage.cars.forEach(rec => {
@@ -14921,7 +14938,8 @@ const PHONE_APPS = [
   ["Music",     "#b4365c", "note"],
   ["Photos",    "#d99a1c", "photo"],
   ["Settings",  "#6b7076", "gear"],
-  ["Numbers",   "#c8372d", "sos"]
+  ["Numbers",   "#c8372d", "sos"],
+  ["Expedio",   "#ffb400", "plane"]
 ];
 const PHONE_DOCK = [0, 1, 6, 3];
 
@@ -15240,6 +15258,8 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.lineTo(c - u * 0.5, m + u * 0.2);
     g.closePath();
     g.fill();
+  } else if (glyph === "plane") {
+    g.beginPath(); g.moveTo(c + u * 0.62, m); g.lineTo(c + u * 0.1, m - u * 0.14); g.lineTo(c - u * 0.1, m - u * 0.6); g.lineTo(c - u * 0.26, m - u * 0.6); g.lineTo(c - u * 0.14, m - u * 0.12); g.lineTo(c - u * 0.5, m - u * 0.1); g.lineTo(c - u * 0.62, m - u * 0.3); g.lineTo(c - u * 0.74, m - u * 0.3); g.lineTo(c - u * 0.62, m); g.lineTo(c - u * 0.74, m + u * 0.3); g.lineTo(c - u * 0.62, m + u * 0.3); g.lineTo(c - u * 0.5, m + u * 0.1); g.lineTo(c - u * 0.14, m + u * 0.12); g.lineTo(c - u * 0.26, m + u * 0.6); g.lineTo(c - u * 0.1, m + u * 0.6); g.lineTo(c + u * 0.1, m + u * 0.14); g.closePath(); g.fill();
   } else if (glyph === "cam") {
     g.beginPath(); g.arc(c, m + u * 0.05, u * 0.3, 0, 6.2832); g.stroke();
     g.strokeRect(c - u * 0.52, m - u * 0.3, u * 1.04, u * 0.78);
@@ -20264,12 +20284,18 @@ const CHEAT_ACTIONS = {
   ARRESTME:  { dial: "5550171", note: "", fn: () => { wanted.stars = Math.max(1, wanted.stars); arrest(); } },
   CLEANSLATE:{ dial: "5550172", note: "Record wiped, stars gone", fn: () => { wanted.stars = 0; record.offences = record.arrests = record.owed = record.fines = 0; record.history.length = 0; policeStandDown(); } },
   GOAIRPORT: { dial: "5550174", note: "The nearest airport terminal", fn: () => cheatGoAirport() },
+  TICKET:    { dial: "5550175", note: "A ticket from here to Seoul, in the bag", fn: () => { air.ticket = { from: air.at, to: air.at === "konto" ? "seoul" : "konto", cls: 0, ref: airRef(), price: 0, gate: "A1", seat: "23A" }; } },
+  SEOUL:     { dial: "5550176", note: "Seoul", fn: () => cheatDest("seoul") },
+  KOHANA:    { dial: "5550177", note: "The Kohana Islands", fn: () => cheatDest("kohana") },
+  RYUJIMA:   { dial: "5550178", note: "Ryūjima", fn: () => cheatDest("ryujima") },
+  HEATSEEKER:{ dial: "5550179", note: "Four stars, helicopters and all", fn: () => { wanted.stars = 4; wanted.lastCrime = "Stealing an aircraft"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); } },
   GOPOLICE:  { dial: "5550173", note: "The nearest police station", fn: () => cheatGoShop(s => s.police) },
   REFRESH:   { dial: "5550199", note: "Looking for a new version", fn: () => refreshGame() }
 };
 // Putting Seiko somewhere: out of a car, out of a shop, and onto the ground there.
 function cheatGo(at, face) {
   if (!at) { say("Nowhere to go.", 2); return; }
+  if (flight.active) flightAbort();
   if (drive.car) leaveCar();
   if (interior.active) interiorLeave(true);
   if (shops.inside) { let k = 0; while (shops.inside && k++ < 6) leaveShop(); }
@@ -20284,6 +20310,11 @@ function cheatGoShop(test) {
   shops.list.forEach(s => { if (!test(s) || !s.door) return; const d = Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z); if (d > 8 && d < bd) { bd = d; best = s; } });
   if (!best) { say("There is none.", 2); return; }
   const out = best.yaw; cheatGo([best.door[0] + Math.sin(out) * 5, best.door[1] + Math.cos(out) * 5], out);
+}
+function cheatDest(id) {
+  if (flight.active) flightAbort();
+  if (!DEST.sites.length) { say("There is nowhere out there.", 3); return; }
+  air.at = id; destArrive(id);
 }
 function cheatGoAirport() {
   let best = null, bd = 1e12;
@@ -20975,7 +21006,9 @@ function phoneAct() {
   if (phone.watchPrompt) { connectWatch(); return; }
   if (isBasic() && phone.pad.on) { padPress(PAD_KEYS[phone.pad.sel][1]); phone.dirty = true; return; }
   if (!phone.app) {
-    phone.app = (homeApps()[phone.sel] || homeApps()[0])[0];
+    const pick = (homeApps()[phone.sel] || homeApps()[0])[0];
+    if (pick === "Expedio") { setPhone(false); expedioOpen("app", air.at); return; }
+    phone.app = pick;
     phone.sub = 0; phone.site = null; phone.vmail = ""; phone.dial = "";
     phone.dirty = true;
     return;
@@ -21125,7 +21158,9 @@ const SHOP_BRANDS = {
   arms:    { name: "Kanamono",  band: "#1a1c20", ink: "#b9823a",
              stripes: ["#3a2a14", "#1a1c20"], tag: "Hardware \u00b7 by appointment" },
   vending: { name: "Jihanki",   band: "#c8372d", ink: "#ffffff", jp: "\u81ea\u52d5\u8ca9\u58f2\u6a5f",
-             stripes: ["#ffffff", "#c8372d"], tag: "Cold and hot drinks" }
+             stripes: ["#ffffff", "#c8372d"], tag: "Cold and hot drinks" },
+  airport: { name: "Airport",   band: "#14527a", ink: "#ffffff", jp: "\u7a7a\u6e2f",
+             stripes: ["#ffffff", "#14527a"], tag: "Departures" }
 };
 
 // What is actually on the shelves. The convenience stores carry the small
@@ -27544,6 +27579,7 @@ function policeClear() { police.units.forEach(u => { u.live = false; }); police.
 // Caught.
 function arrest() {
   if (arrest.busy || !player.placed) return;
+  if (flight.active) flightAbort();
   arrest.busy = true;
   enterThrough(() => { try { bookIn(); } catch (e) { console.warn("[Konto] booking failed:", e); } arrest.busy = false; });
 }
@@ -27587,6 +27623,8 @@ function interiorModalDraw() {
     head = "<b>Your record</b><i>" + recordText() + "</i>";
     body = "<div class='in'>" + (record.history.length ? record.history.slice().reverse().map(h => "· " + h.what + " (" + h.stars + "★) fined " + yenText(h.fine)).join("<br>") : "Nothing on file.") + "</div>";
     opts = [["back", "Back"]];
+  } else if (m.kind === "custom") {
+    head = "<b>" + m.head + "</b>"; body = "<div class='in'>" + m.body + "</div>"; opts = m.opts;
   } else return;
   m.opts = opts; m.sel = clamp(m.sel || 0, 0, opts.length - 1);
   el.innerHTML = "<div class='ih'>" + head + "</div>" + body + "<div class='ib' style='flex-direction:column'>" + opts.map((o, i) => "<button data-i='" + i + "' class='" + (i === m.sel ? "on" : (o[0] === "service" && !record.owed ? "dim" : "")) + "'>" + o[1] + "</button>").join("") + "</div><div class='ik'>▲ ▼ choose   Enter select</div>";
@@ -27595,6 +27633,7 @@ function interiorModalDraw() {
 }
 function interiorModalAct() {
   const m = interior.modal; if (!m) return;
+  if (m.kind === "custom") { const o = m.opts[m.sel]; if (o && o[2]) o[2](); return; }
   const id = m.opts[m.sel][0];
   if (id === "ok") { interior.modal = null; interior.cardEl.classList.remove("on"); say("Out of the cell. The desk is to the right.", 4); return; }
   if (id === "leave") { interior.modal = null; interior.cardEl.classList.remove("on"); return; }
@@ -27810,6 +27849,7 @@ function updateWanted(dt) {
       if (!seen && c.kind === ki && copSees(c, px, pz)) { seen = true; callPolice(player.pos); }
     });
   }
+  if (!seen && heli.list.length && policeHeliSees()) seen = true;
   wanted.seen = seen;
   if (seen) {
     wanted.escape = 0;
@@ -30235,6 +30275,918 @@ function updateSki(dt) {
   }
 }
 
+
+// ============================================================================
+// AIR TRAVEL
+// ----------------------------------------------------------------------------
+// The big airport is a place you can use. A highway runs to it from the capital. The terminal is walked through: a landside hall with check-in,
+// a ticket office, self-service kiosks, pop-up branches of Konto's shops and a security checkpoint; an airside concourse with more shops and the
+// gates; and the cabin, where you sit down to an in-flight screen. Tickets are bought at the office or on the Expedio app (a parody). Flights go to
+// Seoul and to two island groups, each a small explorable region of its own, and back. Or: drive through the airport gate, up to a parked airliner
+// and take it, with four stars and helicopters behind you.
+// ============================================================================
+const AIR_DESTS = {
+  seoul:   { id: "seoul",   name: "Seoul",           code: "SEL", fare: 48000, hours: 2.6, blurb: "Hangang, neon, fried chicken at 2 a.m." },
+  kohana:  { id: "kohana",  name: "Kohana Islands",  code: "KHN", fare: 72000, hours: 4.1, blurb: "White sand, one road, no deadlines." },
+  ryujima: { id: "ryujima", name: "Ryūjima",         code: "RYJ", fare: 64000, hours: 3.4, blurb: "A volcano with a hot spring and a ferry." },
+  konto:   { id: "konto",   name: "Tōkonto",         code: "TKO", fare: 0,     hours: 2.6, blurb: "Home." }
+};
+const AIR_CLASSES = [{ id: "eco", name: "Economy", mult: 1, seat: "23A" }, { id: "prem", name: "Premium economy", mult: 1.7, seat: "12A" }, { id: "biz", name: "Business", mult: 3.2, seat: "2A" }];
+const air = { ticket: null, flights: 0, gateDone: {}, at: "konto", flyHeli: 0 };
+function airRef() { const A = "ABCDEFGHJKLMNPQRSTUVWXYZ"; let r = ""; for (let i = 0; i < 6; i++) r += A[(Math.random() * A.length) | 0]; return r; }
+function airBuy(from, to, cls, via) {
+  const d = AIR_DESTS[to], c = AIR_CLASSES[cls], price = Math.round(d.fare * c.mult * (via === "office" ? 1 : 1.04) / 100) * 100 || Math.round(AIR_DESTS[from].fare * c.mult / 100) * 100;
+  const cost = from === "konto" ? price : Math.round(AIR_DESTS[from].fare * c.mult / 100) * 100;
+  if (purse.yen < cost) { say("Not enough. The fare is " + yenText(cost) + ".", 4); return false; }
+  purse.yen -= cost; noteBuy("airport", cost);
+  air.ticket = { from: from, to: to, cls: cls, ref: airRef(), price: cost, gate: "A" + (1 + ((Math.random() * 6) | 0)), seat: c.seat };
+  say("Booked " + AIR_DESTS[from].name + " to " + d.name + ", " + c.name + ". Reference " + air.ticket.ref + ".", 7);
+  return true;
+}
+function airTicketOk() { return !!(air.ticket && air.ticket.from === air.at && !air.ticket.used); }
+// the airport's own colours and the pieces every hall is built from
+const AIR_C = { floor: "#d9d6cf", wall: "#eef0f2", trim: "#14527a", glass: "#8fb8d4", dark: "#2a3039", red: "#c0172b" };
+function airFloorTex() { return inCanvasTex("airfloor", 256, 256, (g, w, h) => { g.fillStyle = "#e4e1da"; g.fillRect(0, 0, w, h); g.fillStyle = "#d3cfc6"; g.fillRect(0, 0, 128, 128); g.fillRect(128, 128, 128, 128); g.strokeStyle = "rgba(90,86,78,0.5)"; g.lineWidth = 2; g.strokeRect(0, 0, w, h); g.beginPath(); g.moveTo(128, 0); g.lineTo(128, h); g.moveTo(0, 128); g.lineTo(w, 128); g.stroke(); g.globalAlpha = 0.25; for (let i = 0; i < 18; i++) { g.strokeStyle = "#a8a39a"; g.beginPath(); g.moveTo(rnd(i, 1, 7001) * w, 0); g.bezierCurveTo(rnd(i, 2, 7003) * w, 80, rnd(i, 3, 7005) * w, 160, rnd(i, 4, 7007) * w, h); g.stroke(); } g.globalAlpha = 1; }); }
+function airShell(root, W, D, H, opts) {
+  opts = opts || {};
+  const fl = inPlaneTex(airFloorTex(), W, D, W / 3.2, D / 3.2, 0, 0.02, 0, 0, -Math.PI / 2); root.add(fl);
+  inAdd(root, W, 0.2, D, 0, -0.1, 0, "#a9a69f");
+  inAdd(root, W, 0.2, D, 0, H + 0.1, 0, "#eceef0");
+  for (let x = -W / 2 + 3; x < W / 2; x += 6) for (const z of [-D / 4, D / 4]) inAdd(root, 4.4, 0.06, 0.7, x, H - 0.02, z, "#ffffff");
+  inAdd(root, W, H, 0.3, 0, H / 2, -D / 2, opts.backWall || AIR_C.wall);
+  inAdd(root, 0.3, H, D, -W / 2, H / 2, 0, AIR_C.wall); inAdd(root, 0.3, H, D, W / 2, H / 2, 0, AIR_C.wall);
+  if (opts.door) { const gw = opts.door, sw = (W - gw) / 2; inAdd(root, sw, H, 0.3, -(gw / 2 + sw / 2), H / 2, D / 2, AIR_C.wall); inAdd(root, sw, H, 0.3, gw / 2 + sw / 2, H / 2, D / 2, AIR_C.wall); inAdd(root, gw, H - 3.4, 0.3, 0, 3.4 + (H - 3.4) / 2, D / 2, AIR_C.wall); inAdd(root, 0.2, 3.4, 0.2, -gw / 2, 1.7, D / 2, AIR_C.dark); inAdd(root, 0.2, 3.4, 0.2, gw / 2, 1.7, D / 2, AIR_C.dark); }
+  else inAdd(root, W, H, 0.3, 0, H / 2, D / 2, AIR_C.wall);
+  inAdd(root, W, 0.5, 0.34, 0, 0.25, -D / 2 + 0.02, "#b8bcc2"); inAdd(root, 0.34, 0.5, D, -W / 2 + 0.02, 0.25, 0, "#b8bcc2"); inAdd(root, 0.34, 0.5, D, W / 2 - 0.02, 0.25, 0, "#b8bcc2");
+  inAdd(root, W, 0.6, 0.34, 0, H - 0.3, -D / 2 + 0.02, opts.trim || AIR_C.trim);
+}
+function airBoard(root, x, y, z, ry, w, h, lines, title) {
+  const c = document.createElement("canvas"); c.width = 768; c.height = Math.round(768 * h / w); const g = c.getContext("2d");
+  g.fillStyle = "#06101c"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#ffd21c"; g.font = "800 38px 'Segoe UI', sans-serif"; g.fillText(title, 24, 50);
+  g.font = "700 28px 'Consolas','Courier New',monospace"; lines.forEach((l, i) => { g.fillStyle = l[3] || "#f2f4f6"; const y0 = 98 + i * 40; g.fillText(l[0], 24, y0); g.fillText(l[1], 190, y0); g.fillText(l[2], 560, y0); });
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false })); m.position.set(x, y, z); m.rotation.y = ry; root.add(m); return m;
+}
+function airFront(root, room, spots, x, z, w, brand, face) {      // a pop-up shopfront on a wall, and the way in
+  const b = SHOP_BRANDS[brand] || { name: brand, band: "#444", ink: "#fff" };
+  const wallZ = z, dir = face || 1;                                  // dir 1: the shop is behind a wall to the north of the walker; -1: to the south
+  inAdd(root, w, 3.6, 0.5, x, 1.8, wallZ - dir * 0.1, "#dfe4e8");
+  inAdd(root, w - 0.5, 2.5, 0.12, x, 1.45, wallZ + dir * 0.2, "#bfe3f2");                   // the glass front
+  inAdd(root, w - 0.5, 0.1, 0.2, x, 2.75, wallZ + dir * 0.22, "#2a3039"); inAdd(root, w - 0.5, 0.1, 0.2, x, 0.2, wallZ + dir * 0.22, "#2a3039");
+  const sg = inLabel(b.name + (b.jp ? "  " + b.jp : ""), w - 0.4, 0.8, b.band, b.ink || "#fff"); sg.position.set(x, 3.35, wallZ + dir * 0.28); sg.rotation.y = dir > 0 ? 0 : Math.PI; root.add(sg);
+  for (let k = 0; k < 3; k++) inAdd(root, 0.5, 0.5, 0.3, x - 1.2 + k * 1.2, 0.35, wallZ + dir * 0.4, ["#e8a33d", "#d9534f", "#4a90d9"][k]);
+  inAdd(root, 1.1, 0.04, 0.9, x, 0.03, wallZ + dir * 1.0, b.band);                              // a doormat in the shop's colour
+  spots.push({ x: x, z: wallZ + dir * 1.15, label: "step into " + b.name, act: "store", brand: brand, walk: true, ret: dir > 0 ? 1.9 : -1.9 });
+}
+function airPerson(root, x, z, ry, hex) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
+  const sh = hex || IN_PALETTE[((Math.abs(x * 7 + z * 3)) | 0) % 8];
+  inAdd(g, 0.38, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(g, 0.44, 0.62, 0.26, 0, 1.1, 0, sh); inAdd(g, 0.26, 0.26, 0.26, 0, 1.6, 0, "#e8c4a0"); inAdd(g, 0.28, 0.1, 0.28, 0, 1.78, 0, ["#2a2d33", "#4a3220", "#8a6a3a", "#14171b"][((Math.abs(x + z)) | 0) % 4]);
+  return g;
+}
+function airLandside(s, key) {
+  const W = 52, D = 26, H = 7, ox = -3000 - interior.count++ * 60, oz = -3000, fy = interior.floorY;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz);
+  const big = !!(s.ap && s.ap.big), spots = [], cols = [];
+  const room = { brand: "airport", key: key, group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: false, W: W, D: D, H: H, doorW: 3.2, restaurant: true, spots: spots, kind: "land", ap: s.ap };
+  airShell(root, W, D, H, { door: 6.4 });
+  const box = (w, h, d, x, z, hex, y) => { inAdd(root, w, h, d, x, y === undefined ? h / 2 : y, z, hex); };
+  const solid = (x, z, w, d) => cols.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
+  // front wall: glass flanking the door, and the sign inside
+  for (const sg of [-1, 1]) inAdd(root, 14, 3.2, 0.1, sg * 14, 2.6, D / 2 - 0.05, "#a9d0e6");
+  const nm = inLabel(s.name, 12, 1.1, AIR_C.trim, "#ffffff"); nm.position.set(0, 5.6, D / 2 - 0.2); nm.rotation.y = Math.PI; root.add(nm);
+  // the north wall: pop-up shops, and between them the departures boards
+  [-20, -13.6, -7.2].forEach((x, i) => airFront(root, room, spots, x, -D / 2 + 0.45, 6, ["eleven", "ramen", "books"][i], 1));
+  airBoard(root, 6.5, 4.4, -D / 2 + 0.35, 0, 9, 3, [["FLIGHT", "TO", "GATE"], ["KA 301", "Seoul", "A1", "#9be39b"], ["KA 412", "Kohana Islands", "A2", "#9be39b"], ["KA 517", "Ryūjima", "A3", "#ffd21c"], ["KA 118", "Seoul", "A4"], ["KA 640", "Kohana Islands", "A5", "#ff8a7a"]], "DEPARTURES  出発");
+  // check-in: eight desks in a row with an agent behind each and a sign overhead
+  for (let i = 0; i < 8; i++) {
+    const x = -22 + i * 3.1;
+    box(2.3, 1.05, 1.1, x, -3.0, "#d9dde2"); box(2.4, 0.07, 1.2, x, -3.0, "#14527a", 1.08); box(0.45, 0.32, 0.4, x, -3.0, "#1c1f24", 1.3);
+    airPerson(root, x, -4.15, 0, i % 2 ? "#14527a" : "#c0172b"); solid(x, -3.0, 2.4, 1.2);
+    inAdd(root, 0.08, 1.9, 0.08, x, 4.2, -3.0, "#8d939c");
+  }
+  const sgn = inLabel("KONTO AIR · NHA · PEAR PACIFIC · RYDE AIR", 24, 0.9, "#14527a", "#fff"); sgn.position.set(-10.4, 5.3, -3.0); root.add(sgn);
+  for (let i = 0; i < 9; i++) for (let j = 0; j < 4; j++) inCyl(root, 0.05, 0.9, -23 + i * 3.1, 0.45, -1.0 + j * 0.0 + 0.0, "#2a3039");        // stanchions
+  for (let i = 0; i < 8; i++) { inAdd(root, 3.1, 0.04, 0.04, -22 + i * 3.1 - 1.55, 0.85, -1.0, "#c0172b"); }
+  // the ticket office, in the north-east corner
+  box(5.2, 1.1, 1.2, 17.5, -7.6, "#8a5a3a"); box(5.4, 0.08, 1.3, 17.5, -7.6, "#d9d2c3", 1.14); airPerson(root, 17.5, -8.9, 0, "#c0172b"); solid(17.5, -7.6, 5.4, 1.3);
+  const to = inLabel("TICKET OFFICE  航空券", 5, 0.8, "#c0172b", "#fff"); to.position.set(17.5, 3.3, -D / 2 + 0.32); root.add(to);
+  spots.push({ x: 17.5, z: -6.2, label: "buy a ticket at the office", act: "ticketoffice" });
+  // self-service kiosks with the Expedio screen
+  for (let i = 0; i < 3; i++) { const x = 1 + i * 2.4; box(0.9, 1.6, 0.6, x, 3.2, "#e8eaed"); box(0.7, 0.55, 0.05, x, 3.2, "#ffb400", 1.35); const k = inLabel("Expedio", 0.7, 0.5, "#ffb400", "#14284c"); k.position.set(x, 1.35, 3.2 + 0.31); root.add(k); solid(x, 3.2, 1.0, 0.7); }
+  spots.push({ x: 3.4, z: 4.4, label: "use an Expedio kiosk", act: "kiosk" });
+  // security: lane barriers, an X-ray, an arch, and guards, at the east end
+  const sx = 21, sz = 4;
+  for (let k = 0; k < 3; k++) { box(2.6, 0.9, 1.0, sx + 1.6, sz - 3 + k * 3, "#4a5058"); box(2.4, 0.05, 0.8, sx + 1.6, sz - 3 + k * 3, "#14171b", 0.93); box(0.2, 2.1, 0.2, sx - 0.6, sz - 3 + k * 3 - 0.8, "#c9ced4"); box(0.2, 2.1, 0.2, sx - 0.6, sz - 3 + k * 3 + 0.8, "#c9ced4"); box(0.2, 0.2, 1.8, sx - 0.6, sz - 3 + k * 3, "#c9ced4", 2.1); solid(sx + 1.0, sz - 3 + k * 3, 4, 1.4); }
+  airPerson(root, sx + 3.4, sz - 1.6, -Math.PI / 2, "#14284c"); airPerson(root, sx + 3.4, sz + 1.6, -Math.PI / 2, "#14284c");
+  const sec = inLabel("SECURITY  保安検査", 6, 0.8, "#14284c", "#fff"); sec.position.set(sx + 1.4, 3.3, sz - 6); sec.rotation.y = -Math.PI / 2; root.add(sec);
+  for (let k = 0; k < 6; k++) inCyl(root, 0.05, 0.9, sx - 3 - k * 1.3, 0.45, sz - 4.2 + (k % 2) * 0.0, "#2a3039");
+  spots.push({ x: sx - 2.2, z: sz, label: "go through security", act: "security" });
+  // seating, columns, plants, signs: a hall that is lived in
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const x = -18 + c * 5.2, z = 8 + r * 2.4; box(3.6, 0.1, 0.7, x, z, "#2a3039", 0.5); box(3.6, 0.5, 0.1, x, z - 0.35, "#2a3039", 0.8); box(0.1, 0.5, 0.6, x - 1.7, z, "#8d939c", 0.25); box(0.1, 0.5, 0.6, x + 1.7, z, "#8d939c", 0.25); solid(x, z, 3.8, 0.9); if ((r + c) % 3 === 0) airPerson(root, x - 0.8, z, Math.PI, null); }
+  for (const x of [-24, -10, 4, 18]) for (const z of [-8.3, 8.6]) { box(0.9, H, 0.9, x, z, "#dfe2e5"); solid(x, z, 1.0, 1.0); }
+  for (let i = 0; i < 4; i++) { const x = [-23, -5, 11, 23][i]; inCyl(root, 0.4, 0.7, x, 0.35, 11.6, "#8a5a3a"); for (let k = 0; k < 6; k++) inAdd(root, 0.1, 1.5, 0.05, x + (k - 2.5) * 0.12, 1.4, 11.6, "#3f8f4a"); }
+  box(6, 1.0, 1.0, -6, 11.4, "#c9ced4"); box(6, 0.08, 1.1, -6, 11.4, "#14527a", 1.04); solid(-6, 11.4, 6, 1.0);
+  const info = inLabel("案内  INFORMATION", 5.5, 0.8, "#2e7d4f", "#fff"); info.position.set(-6, 2.4, 11.9); info.rotation.y = Math.PI; root.add(info);
+  const wl = inLabel("Welcome to Konto's gateway", 8, 0.9, "#f2f4f6", "#14527a"); wl.position.set(0, 5.6, -D / 2 + 0.34); root.add(wl);
+  for (let i = 0; i < 14; i++) airPerson(root, -20 + rnd(i, 1, 8101) * 40, -8 + rnd(i, 2, 8103) * 16, rnd(i, 3, 8105) * 6.28, null).traverse(m => { if (m.isMesh) m.userData.pax = true; });
+  room.entry = new THREE.Vector3(ox, fy, oz + D / 2 - 2.4); room.entryZ = D / 2 - 2.4; room.doorZ = oz + D / 2;
+  root.visible = false; scene.add(root);
+  room.tick = (dt) => { };
+  return room;
+}
+function airAirside(land) {
+  if (land.airside) return land.airside;
+  const W = 56, D = 24, H = 7, ox = -3000 - interior.count++ * 60, oz = -3000, fy = interior.floorY;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz);
+  const spots = [], cols = [], room = { brand: "airport", key: land.key + ":air", group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: true, W: W, D: D, H: H, restaurant: true, spots: spots, kind: "air", land: land };
+  airShell(root, W, D, H, { trim: "#1d5fb0" });
+  const box = (w, h, d, x, z, hex, y) => inAdd(root, w, h, d, x, y === undefined ? h / 2 : y, z, hex);
+  const solid = (x, z, w, d) => cols.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
+  // the apron side: a glazed wall, and what stands beyond it
+  inAdd(root, W, 0.4, 0.4, 0, 0.2, -D / 2, "#b8bcc2"); inAdd(root, W, 0.4, 0.4, 0, H - 0.2, -D / 2, "#2a3039");
+  inAdd(root, W - 0.6, H - 0.8, 0.1, 0, H / 2, -D / 2 - 0.05, "#7fb0d0");
+  for (let x = -W / 2 + 4; x < W / 2; x += 4) inAdd(root, 0.16, H, 0.2, x, H / 2, -D / 2, "#c9ced4");
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(W * 3, 80), new THREE.MeshBasicMaterial({ color: new THREE.Color("#8a8f92").multiplyScalar(0.8) })); apron.rotation.x = -Math.PI / 2; apron.position.set(0, 0.0, -D / 2 - 40); root.add(apron);
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(W * 3, 40), new THREE.MeshBasicMaterial({ color: 0x9cc4e8, fog: false })); sky.position.set(0, 20, -D / 2 - 79); root.add(sky);
+  [[-16, 0xc0172b, 63, 61], [14, 0x1d5fb0, 38, 34]].forEach(p => { const pl = airplaneMesh(p[2], p[3], p[1], false); pl.rotation.y = Math.PI / 2; pl.position.set(p[0], 5.0, -D / 2 - 22); root.add(pl); });
+  // gates, each with a desk and a sign; the numbered ones board
+  const gates = ["A1", "A2", "A3", "A4", "A5", "A6"];
+  gates.forEach((gname, i) => {
+    const x = -22 + i * 8.8;
+    box(2.4, 1.0, 0.9, x, -8.3, "#c9ced4"); box(2.5, 0.07, 1.0, x, -8.3, "#1d5fb0", 1.04); airPerson(root, x, -9.4, 0, "#1d5fb0"); solid(x, -8.3, 2.6, 1.0);
+    const gs = inLabel("GATE " + gname, 2.4, 0.7, "#ffd21c", "#14171b"); gs.position.set(x, 4.2, -D / 2 + 0.3); root.add(gs);
+    box(3.6, 2.6, 0.2, x + 3.2, -D / 2 + 0.3, "#3a4048"); inAdd(root, 3.2, 2.2, 0.06, x + 3.2, 1.4, -D / 2 + 0.4, "#14171b");
+    spots.push({ x: x + 3.2, z: -D / 2 + 2.2, label: "gate " + gname + ": jet bridge", act: "gate", gate: gname });
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const bx = x - 1.5 + c * 1.8, bz = -4.4 + r * 1.5; box(1.4, 0.1, 0.55, bx, bz, "#2a3039", 0.5); box(1.4, 0.45, 0.1, bx, bz + 0.3, "#2a3039", 0.8); if ((i + r + c) % 4 === 0) airPerson(root, bx, bz, Math.PI, null); }
+  });
+  // shops along the south wall
+  [-21, -13.5, -6, 1.5].forEach((x, i) => airFront(root, room, spots, x, D / 2 - 0.45, 6.4, ["sushi", "pharmacy", "clothes", "sushiya"][i], -1));
+  airBoard(root, 14, 4.4, D / 2 - 0.35, Math.PI, 9, 3, [["FLIGHT", "TO", "GATE"], ["KA 301", "Seoul", "A1", "#9be39b"], ["KA 412", "Kohana Islands", "A2", "#9be39b"], ["KA 517", "Ryūjima", "A3", "#ffd21c"], ["KA 118", "Seoul", "A4"], ["KA 640", "Kohana Islands", "A5", "#ff8a7a"]], "DEPARTURES  出発");
+  const dfs = inLabel("DUTY FREE 免税", 5, 0.8, "#14527a", "#ffd21c"); dfs.position.set(20, 3.3, D / 2 - 0.34); dfs.rotation.y = Math.PI; root.add(dfs);
+  for (let i = 0; i < 4; i++) { box(1.6, 1.2, 1.6, 17 + (i % 2) * 2.2, 8.6 + Math.floor(i / 2) * 0, "#e8eaed"); }
+  solid(18, 8.6, 5, 1.8); for (let k = 0; k < 8; k++) box(0.3, 0.8, 0.3, 16.5 + k * 0.6, 8.6, ["#7a1f1a", "#2a5a8a", "#c8a84a", "#f2efe6"][k % 4], 1.6);
+  for (const x of [-24, -10, 4, 18]) { box(0.9, H, 0.9, x, 2, "#dfe2e5"); solid(x, 2, 1.0, 1.0); }
+  for (let i = 0; i < 5; i++) { const x = [-26, -8, 8, 22, 12][i]; inCyl(root, 0.4, 0.7, x, 0.35, 6, "#8a5a3a"); for (let k = 0; k < 6; k++) inAdd(root, 0.1, 1.5, 0.05, x + (k - 2.5) * 0.12, 1.4, 6, "#3f8f4a"); }
+  for (let i = 0; i < 12; i++) airPerson(root, -24 + rnd(i, 5, 8201) * 48, 0 + rnd(i, 6, 8203) * 9, rnd(i, 7, 8205) * 6.28, null);
+  spots.push({ x: -26.4, z: 4, label: "back out through arrivals", act: "landside" });
+  const bk = inLabel("← ARRIVALS · LANDSIDE", 4.2, 0.7, "#2e7d4f", "#fff"); bk.position.set(-W / 2 + 0.3, 3.2, 4); bk.rotation.y = Math.PI / 2; root.add(bk);
+  room.entry = new THREE.Vector3(ox - 24, fy, oz + 4); room.entryZ = 4; room.doorZ = oz + D / 2;
+  root.visible = false; scene.add(root);
+  land.airside = room; return room;
+}
+function airCabin(land) {
+  if (land.cabin) return land.cabin;
+  const W = 11, D = 44, H = 2.9, ox = -3000 - interior.count++ * 60, oz = -3000, fy = interior.floorY;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz);
+  const spots = [], cols = [], room = { brand: "airport", key: land.key + ":cabin", group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: true, W: W, D: D, H: H, restaurant: true, spots: spots, kind: "cabin", land: land };
+  const box = (w, h, d, x, z, hex, y) => inAdd(root, w, h, d, x, y === undefined ? h / 2 : y, z, hex);
+  inAdd(root, W, 0.2, D, 0, -0.1, 0, "#3a4658"); inAdd(root, W, 0.2, D, 0, H + 0.1, 0, "#eceef0");
+  inAdd(root, 0.3, H, D, -W / 2, H / 2, 0, "#e8eaed"); inAdd(root, 0.3, H, D, W / 2, H / 2, 0, "#e8eaed"); inAdd(root, W, H, 0.3, 0, H / 2, -D / 2, "#e8eaed"); inAdd(root, W, H, 0.3, 0, H / 2, D / 2, "#e8eaed");
+  inAdd(root, 1.4, 0.04, D - 2, 0, 0.03, 0, "#8a2a3a");                                                         // aisle carpet
+  for (let r = 0; r < 20; r++) {
+    const z = -D / 2 + 5 + r * 1.85;
+    for (const side of [-1, 1]) {
+      for (let c = 0; c < 3; c++) {
+        const x = side * (1.1 + c * 0.55 + 0.35);
+        box(0.5, 0.45, 0.5, x, z, "#2a4a7a", 0.4); box(0.5, 0.9, 0.12, x, z + 0.28, "#2a4a7a", 0.95); box(0.46, 0.14, 0.1, x, z + 0.32, "#e8eaed", 1.42);
+        if (rnd(r * 7 + c, side + 2, 8301) > 0.35) { const pp = airPerson(root, x, z - 0.06, Math.PI, null); pp.scale.set(0.8, 0.7, 0.8); pp.position.y = 0.2; }
+        if (c === 2) { const wx = side * (W / 2 - 0.2); inAdd(root, 0.08, 0.5, 0.36, wx, 1.35, z, "#1b2a3a"); inAdd(root, 0.1, 0.56, 0.42, wx, 1.35, z, "#d8dce0"); inAdd(root, 0.06, 0.4, 0.28, wx, 1.35, z, "#8fc4ec"); }
+      }
+      box(0.04, 1.2, 1.5, side * 2.8, z, "#3a4658", 0.7);
+    }
+    box(5.6, 0.18, 0.9, 0, z - 0.2, "#d8dce0", H - 0.5);
+  }
+  cols.push({ x0: -W / 2, x1: -0.8, z0: -D / 2 + 4.3, z1: D / 2 - 1 }); cols.push({ x0: 0.8, x1: W / 2, z0: -D / 2 + 4.3, z1: D / 2 - 1 });     // the seat blocks: walk the aisle
+  box(W - 0.6, 2.4, 0.2, 0, -D / 2 + 3.4, "#8a2a3a", 1.2);                                                       // the galley curtain
+  const door = inLabel("EXIT", 0.8, 0.3, "#2e7d4f", "#fff"); door.position.set(0, 2.5, -D / 2 + 0.2); root.add(door);
+  for (let k = 0; k < 2; k++) airPerson(root, -0.5 + k, -D / 2 + 2.2, 0, "#c0172b");                              // the crew at the door
+  spots.push({ x: 0, z: -D / 2 + 9.2, label: "sit down in your seat", act: "plane_seat" });
+  room.entry = new THREE.Vector3(ox, fy, oz - D / 2 + 3); room.entryZ = -D / 2 + 3; room.doorZ = oz + D / 2;
+  root.visible = false; scene.add(root);
+  land.cabin = room; return room;
+}
+// moving between the halls of one terminal
+function airGoto(room, at, face, msg) {
+  const fake = interior.shop; interiorShowRoom(room, at, face); interior.shop = fake; interior.modal = null; interior.cardEl.classList.remove("on");
+  if (msg) say(msg, 4);
+}
+function airModal(head, body, opts) { interior.modal = { kind: "custom", head: head, body: body, opts: opts, sel: 0 }; interiorModalDraw(); }
+function airSecurity(room) {
+  const baton = bag.gear && bag.gear.baton || (bag.counts && bag.counts.baton);
+  if (!airTicketOk()) { airModal("Security", "The officer at the lane looks at your hands. “Boarding pass, please.” You do not have one for a flight from here. Buy a ticket at the office or on Expedio.", [["x", "Step back", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]); return; }
+  airModal("Security · " + AIR_DESTS[air.ticket.to].name + " (" + air.ticket.ref + ")", "Trays in the bin. Belt, keys, phone, anything in your pockets. " + (baton ? "<b>The X-ray picks out a baton in your bag. It is kept, and noted.</b>" : "The X-ray is clean. The officer waves you through, and a boarding gate sign flickers: " + air.ticket.gate + "."),
+    [["go", "Walk through the arch", () => { if (baton) { try { if (bag.gear) bag.gear.baton = 0; if (bag.counts) bag.counts.baton = 0; } catch (e) { /* none */ } } interior.modal = null; interior.cardEl.classList.remove("on"); airGoto(airAirside(room), { x: -24, z: 4 }, Math.PI / 2, "Airside. Your gate is " + air.ticket.gate + "."); }], ["x", "Step back", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]);
+}
+function airGate(room, gate) {
+  if (!airTicketOk()) { say("You need a boarding pass for a flight from here.", 3.5); return; }
+  if (gate !== air.ticket.gate) { say("Your gate is " + air.ticket.gate + ". This is " + gate + ".", 3.5); return; }
+  const d = AIR_DESTS[air.ticket.to];
+  airModal("Gate " + gate + " · Konto Air KA " + (300 + ((air.ticket.ref.charCodeAt(0) * 7) % 400)), "Boarding to " + d.name + " (" + d.code + "), " + AIR_CLASSES[air.ticket.cls].name + ", seat " + air.ticket.seat + ". About " + d.hours.toFixed(1) + " hours.", [["go", "Board the aircraft", () => { interior.modal = null; interior.cardEl.classList.remove("on"); airGoto(airCabin(room.land), { x: 0, z: -22 + 3 }, 0, "Welcome aboard. Seat " + air.ticket.seat + ": down the aisle."); }], ["x", "Not yet", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]);
+}
+
+
+// ---- Expedio, and the ticket office -------------------------------------------------------------------------------------------------------
+// One screen for both: on the phone it is Expedio ("Travel like you mean it*"), at the desk it is the airline's own counter. Up and down pick a place,
+// left and right pick a cabin, Enter books it, Esc leaves.
+const ex = { open: false, mode: "app", from: "konto", sel: 0, cls: 0, done: null, el: null, msg: "" };
+function expedioCss() {
+  if (document.getElementById("excss")) return;
+  const st = document.createElement("style"); st.id = "excss";
+  st.textContent = `
+#expedio { position: fixed; inset: 0; z-index: 80; display: none; background: rgba(8,12,20,.72); font-family: 'Segoe UI', system-ui, sans-serif; align-items: center; justify-content: center; }
+#expedio.on { display: flex; }
+#expedio .win { width: min(880px, 96vw); max-height: 92vh; overflow: auto; background: #f4f6f8; color: #1b2430; border-radius: 14px; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
+#expedio .hd { display: flex; align-items: center; gap: 14px; padding: 16px 22px; background: linear-gradient(90deg, #14284c, #1d4c8c); color: #fff; border-radius: 14px 14px 0 0; }
+#expedio .hd b { font-size: 30px; letter-spacing: -.5px; font-weight: 900; } #expedio .hd b i { color: #ffb400; font-style: normal; }
+#expedio .hd span { opacity: .85; font-size: 14px; flex: 1; } #expedio .hd em { font-style: normal; background: #ffb400; color: #14284c; padding: 3px 10px; border-radius: 99px; font-weight: 800; font-size: 13px; }
+#expedio.office .hd { background: linear-gradient(90deg, #7a0f1d, #c0172b); } #expedio.office .hd b i { color: #fff; }
+#expedio .bar { display: flex; gap: 10px; padding: 12px 22px; background: #e6ebf1; font-size: 14px; align-items: center; flex-wrap: wrap; }
+#expedio .chip { padding: 6px 14px; border-radius: 99px; background: #fff; border: 2px solid #c9d2dd; font-weight: 700; cursor: pointer; } #expedio .chip.on { border-color: #1d4c8c; background: #1d4c8c; color: #fff; }
+#expedio .row { display: flex; align-items: center; gap: 16px; padding: 14px 22px; border-bottom: 1px solid #dde3ea; cursor: pointer; }
+#expedio .row.sel { background: #fff4d6; outline: 3px solid #ffb400; outline-offset: -3px; }
+#expedio .row .big { width: 64px; height: 64px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; font-size: 22px; color: #fff; }
+#expedio .row h3 { margin: 0; font-size: 20px; } #expedio .row p { margin: 2px 0 0; color: #5b6676; font-size: 14px; } #expedio .row .mid { flex: 1; }
+#expedio .row .pr { text-align: right; } #expedio .row .pr b { font-size: 24px; color: #14284c; } #expedio .row .pr small { display: block; color: #3a8a4a; font-weight: 700; }
+#expedio .foot { padding: 12px 22px; font-size: 12px; color: #6a7686; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+#expedio .btn { background: #ffb400; color: #14284c; font-weight: 900; border: 0; padding: 12px 26px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+#expedio .done { padding: 28px 22px; text-align: center; } #expedio .done h2 { margin: 0 0 6px; font-size: 26px; } #expedio .pass { display: inline-block; text-align: left; margin: 14px auto; padding: 16px 24px; background: #fff; border-radius: 10px; border-left: 10px solid #c0172b; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-family: Consolas, monospace; font-size: 16px; line-height: 1.7; }
+`;
+  document.head.appendChild(st);
+}
+function expedioOpen(mode, from) {
+  expedioCss();
+  if (!ex.el) { ex.el = document.createElement("div"); ex.el.id = "expedio"; document.body.appendChild(ex.el); window.addEventListener("keydown", expedioKey, true); }
+  ex.mode = mode || "app"; ex.from = from || air.at || "konto"; ex.sel = 0; ex.cls = 0; ex.done = null; ex.open = true; player.speed = 0;
+  ex.el.className = "on" + (ex.mode === "office" ? " office" : "");
+  if (phone.open) setPhone(false);
+  expedioDraw();
+}
+function expedioList() { return Object.keys(AIR_DESTS).filter(k => k !== ex.from && (ex.from === "konto" ? k !== "konto" : (ex.from === "konto" ? true : k === "konto"))); }
+function expedioDraw() {
+  if (!ex.open || !ex.el) return;
+  const el = ex.el, from = AIR_DESTS[ex.from], list = expedioList(), office = ex.mode === "office";
+  if (ex.done) { const t = ex.done; el.innerHTML = "<div class='win'><div class='hd'>" + (office ? "<b><i>Konto Air</i> Ticket Office</b>" : "<b>expe<i>dio</i></b>") + "<span>Booking confirmed</span></div><div class='done'><h2>You're going to " + AIR_DESTS[t.to].name + "</h2><div class='pass'>PASSENGER  SHIGU / SEIKO MR<br>FROM  " + AIR_DESTS[t.from].name + " (" + AIR_DESTS[t.from].code + ")<br>TO  " + AIR_DESTS[t.to].name + " (" + AIR_DESTS[t.to].code + ")<br>CLASS  " + AIR_CLASSES[t.cls].name.toUpperCase() + "   SEAT " + t.seat + "<br>GATE  " + t.gate + "   REF  " + t.ref + "</div><p>" + (ex.from === "konto" ? "Go through security and to your gate. Gate " + t.gate + " is airside." : "Your flight home boards straight away.") + "</p><button class='btn' id='exok'>" + (ex.from === "konto" ? "Close" : "Board now") + "</button></div></div>";
+    el.querySelector("#exok").onclick = expedioFinish; return; }
+  const rows = list.map((k, i) => { const d = AIR_DESTS[k], p = Math.round((ex.from === "konto" ? d.fare : from.fare) * AIR_CLASSES[ex.cls].mult * (office ? 1 : 1.04) / 100) * 100; const col = { seoul: "#c0172b", kohana: "#12a6b3", ryujima: "#8a3a1f", konto: "#14527a" }[k];
+    return "<div class='row" + (i === ex.sel ? " sel" : "") + "' data-i='" + i + "'><div class='big' style='background:" + col + "'>" + d.code + "</div><div class='mid'><h3>" + from.name + " → " + d.name + "</h3><p>" + d.blurb + " · about " + d.hours.toFixed(1) + " h · nonstop</p></div><div class='pr'><b>" + yenText(p) + "</b>" + (office ? "<small>no booking fee</small>" : "<small>was " + yenText(Math.round(p * 1.22 / 100) * 100) + "*</small>") + "</div></div>"; }).join("");
+  el.innerHTML = "<div class='win'><div class='hd'>" + (office ? "<b><i>Konto Air</i> Ticket Office</b><span>The counter. A person will do this for you.</span>" : "<b>expe<i>dio</i></b><span>Travel like you mean it*</span>") + "<em>" + yenText(purse.yen) + "</em></div><div class='bar'><span>Cabin</span>" + AIR_CLASSES.map((c, i) => "<span class='chip" + (i === ex.cls ? " on" : "") + "' data-c='" + i + "'>" + c.name + "</span>").join("") + "<span style='flex:1'></span><span>1 adult · one way</span></div>" + (rows || "<div class='row'><div class='mid'><h3>No scheduled flights from here</h3><p>This airfield has no airline. Tōkonto International is the nearest with one.</p></div></div>") + "<div class='foot'><span>▲ ▼ choose · ◀ ▶ cabin · Enter book · Esc close" + (pad.index >= 0 ? " · " + padLabel("A") + " book · " + padLabel("B") + " close" : "") + "</span><span>" + (office ? "" : "*Savings based on a fare that has never existed. Expedio is not a real company. Nor is the 22%.") + (ex.msg ? " " + ex.msg : "") + "</span></div></div>";
+  el.querySelectorAll(".row[data-i]").forEach(r => { r.onclick = () => { ex.sel = +r.dataset.i; expedioBook(); }; r.onmouseenter = () => { ex.sel = +r.dataset.i; el.querySelectorAll(".row").forEach(x => x.classList.toggle("sel", x === r)); }; });
+  el.querySelectorAll(".chip[data-c]").forEach(c => { c.onclick = () => { ex.cls = +c.dataset.c; expedioDraw(); }; });
+}
+function expedioBook() {
+  const list = expedioList(); if (!list.length) return;
+  const to = list[ex.sel]; ex.msg = "";
+  if (airBuy(ex.from, to, ex.cls, ex.mode)) { ex.done = air.ticket; saveGame("", true); } else ex.msg = "Not enough yen.";
+  expedioDraw();
+}
+function expedioFinish() {
+  const board = ex.from !== "konto" && air.ticket && air.ticket.from === ex.from;
+  expedioClose();
+  if (board) airDepartDest();
+}
+function expedioClose() { ex.open = false; if (ex.el) ex.el.className = ""; }
+function expedioKey(e) {
+  if (!ex.open) return;
+  const k = e.code;
+  if (k === "ArrowUp" || k === "KeyW") ex.sel = Math.max(0, ex.sel - 1);
+  else if (k === "ArrowDown" || k === "KeyS") ex.sel = Math.min(Math.max(0, expedioList().length - 1), ex.sel + 1);
+  else if (k === "ArrowLeft" || k === "KeyA") ex.cls = (ex.cls + 2) % 3;
+  else if (k === "ArrowRight" || k === "KeyD") ex.cls = (ex.cls + 1) % 3;
+  else if (k === "Enter" || k === "Space" || k === "KeyE") { if (ex.done) expedioFinish(); else expedioBook(); }
+  else if (k === "Escape" || k === "Backspace") { if (ex.done) expedioFinish(); else expedioClose(); }
+  else if (k === "KeyP" || /^F\d/.test(k)) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  if (ex.open && !ex.done) expedioDraw();
+}
+function expedioPad(pressed) {
+  if (pressed(PAD.UP) | pressed(PAD.SUP)) expedioKey({ code: "ArrowUp", preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.DOWN) | pressed(PAD.SDOWN)) expedioKey({ code: "ArrowDown", preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.LEFT) | pressed(PAD.SLEFT) | pressed(PAD.LB)) expedioKey({ code: "ArrowLeft", preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.RIGHT) | pressed(PAD.SRIGHT) | pressed(PAD.RB)) expedioKey({ code: "ArrowRight", preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.A)) expedioKey({ code: "Enter", preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.B)) expedioKey({ code: "Escape", preventDefault() {}, stopImmediatePropagation() {} });
+}
+
+// ---- the seat, and the screen in the seat-back ----------------------------------------------------------------------------------------------------
+// A seat-back screen in a plane's own style: a status strip with the flight's numbers, a rail of things to do, a grid of films, and the films
+// themselves, which are short films that are free to watch (the Blender Foundation's open movies) played from YouTube. If the page cannot reach YouTube
+// (offline, or the player refuses to be embedded) the screen says so and offers the moving map instead. The map is the screen's other job.
+const IFE_FILMS = [
+  { id: "aqz-KE-bpKQ", title: "Big Buck Bunny", len: "10 min", tag: "Comedy · Family", a: "#3a8a3a", b: "#f2c230" },
+  { id: "eRsGyueVLvQ", title: "Sintel", len: "15 min", tag: "Fantasy · Adventure", a: "#8a2a1f", b: "#e8a33d" },
+  { id: "R6MlUcmOul8", title: "Tears of Steel", len: "12 min", tag: "Sci-fi", a: "#14284c", b: "#4aa3ff" },
+  { id: "TLkA0RELQ1g", title: "Elephants Dream", len: "11 min", tag: "Surreal", a: "#5a2a6a", b: "#ff9ac0" },
+  { id: "WhWc3b3KhnY", title: "Spring", len: "8 min", tag: "Drama · Animation", a: "#2a7a6a", b: "#e8f0a0" }
+];
+const ife = { open: false, el: null, t0: 0, dur: 150, to: "seoul", from: "konto", tab: "movies", sel: 0, playing: null, raf: 0, landed: false };
+function ifeCss() {
+  if (document.getElementById("ifecss")) return;
+  const st = document.createElement("style"); st.id = "ifecss";
+  st.textContent = `
+#ife { position: fixed; inset: 0; z-index: 85; display: none; background: radial-gradient(ellipse at 50% 20%, #0f2744, #050b16); color: #eaf2fb; font-family: 'Segoe UI', system-ui, sans-serif; flex-direction: column; }
+#ife.on { display: flex; }
+#ife .top { display: flex; align-items: center; gap: 22px; padding: 10px 24px; background: rgba(0,0,0,.45); border-bottom: 2px solid #c0172b; font-size: 14px; flex-wrap: wrap; }
+#ife .top b { font-size: 20px; letter-spacing: .12em; } #ife .top b i { color: #c0172b; font-style: normal; } #ife .top span { opacity: .9; } #ife .top .sp { flex: 1; }
+#ife .body { flex: 1; display: flex; min-height: 0; }
+#ife .rail { width: 190px; padding: 18px 12px; display: flex; flex-direction: column; gap: 8px; background: rgba(0,0,0,.28); }
+#ife .rail button { text-align: left; padding: 14px 16px; border: 0; border-radius: 10px; background: rgba(255,255,255,.07); color: #eaf2fb; font-size: 16px; font-weight: 700; cursor: pointer; }
+#ife .rail button.on { background: #c0172b; } #ife .rail .sp { flex: 1; }
+#ife .main { flex: 1; padding: 18px 26px; overflow: auto; min-width: 0; }
+#ife h2 { margin: 0 0 12px; font-size: 22px; letter-spacing: .04em; }
+#ife .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; }
+#ife .card { border-radius: 12px; overflow: hidden; background: #0c1a2e; cursor: pointer; outline: 3px solid transparent; transition: transform .15s; } #ife .card.sel { outline-color: #ffd21c; transform: scale(1.04); }
+#ife .card .po { height: 230px; display: flex; align-items: flex-end; padding: 14px; font-size: 24px; font-weight: 900; line-height: 1.05; text-shadow: 0 2px 8px rgba(0,0,0,.6); } #ife .card .in { padding: 10px 14px 14px; font-size: 13px; opacity: .85; }
+#ife .player { position: relative; width: min(100%, calc((100vh - 240px) * 16 / 9)); aspect-ratio: 16/9; background: #000; border-radius: 10px; overflow: hidden; margin: 0 auto; } #ife .player iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+#ife .note { margin-top: 10px; opacity: .7; font-size: 13px; text-align: center; }
+#ife canvas { width: 100%; max-height: 62vh; background: #07182c; border-radius: 10px; }
+#ife .bot { padding: 8px 24px; font-size: 12px; opacity: .65; display: flex; justify-content: space-between; background: rgba(0,0,0,.4); }
+`;
+  document.head.appendChild(st);
+}
+function ifeStart(from, to) {
+  ifeCss();
+  if (!ife.el) { ife.el = document.createElement("div"); ife.el.id = "ife"; document.body.appendChild(ife.el); window.addEventListener("keydown", ifeKey, true); }
+  ife.from = from; ife.to = to; ife.t0 = performance.now(); ife.tab = "movies"; ife.sel = 0; ife.playing = null; ife.landed = false; ife.open = true; player.speed = 0;
+  ife.el.classList.add("on"); ifeDraw(); cancelAnimationFrame(ife.raf); ife.raf = requestAnimationFrame(ifeTick);
+}
+function ifeProgress() { return clamp((performance.now() - ife.t0) / 1000 / ife.dur, 0, 1); }
+function ifeDraw() {
+  const el = ife.el, a = AIR_DESTS[ife.from], b = AIR_DESTS[ife.to], p = ifeProgress();
+  const left = Math.max(0, Math.round(b.hours * 60 * (1 - p))), tabs = [["movies", "Films"], ["map", "Flight map"], ["call", "Call attendant"]];
+  let main = "";
+  if (ife.playing) main = "<h2>" + ife.playing.title + "</h2><div class='player'><iframe src='https://www.youtube-nocookie.com/embed/" + ife.playing.id + "?autoplay=1&rel=0&modestbranding=1&playsinline=1' allow='autoplay; encrypted-media; fullscreen' allowfullscreen referrerpolicy='strict-origin-when-cross-origin'></iframe></div><div class='note'>If the picture does not come up the seat cannot reach the film server: try the moving map. · Esc: back to the films</div>";
+  else if (ife.tab === "movies") main = "<h2>Films · short and free</h2><div class='grid'>" + IFE_FILMS.map((f, i) => "<div class='card" + (i === ife.sel ? " sel" : "") + "' data-i='" + i + "'><div class='po' style='background:linear-gradient(160deg," + f.a + "," + f.b + ")'>" + f.title + "</div><div class='in'>" + f.tag + " · " + f.len + "</div></div>").join("") + "</div>";
+  else if (ife.tab === "map") main = "<h2>Flight map</h2><canvas id='ifemap' width='1000' height='520'></canvas>";
+  else main = "<h2>Cabin crew</h2><p style='font-size:18px'>A flight attendant is on the way with tea. You may also say nothing, which is normal in this airline.</p>";
+  el.innerHTML = "<div class='top'><b>KONTO<i>AIR</i></b><span>KA " + (300 + ife.to.length * 37) + " · " + a.name + " → " + b.name + "</span><span class='sp'></span><span>" + (p >= 1 ? "Arrived" : left + " min to go") + "</span><span>" + Math.round(10668 * Math.min(1, Math.min(p * 8, (1 - p) * 8))) + " m</span><span>" + Math.round(892 * Math.min(1, Math.min(p * 6, (1 - p) * 6))) + " km/h</span><span>" + Math.round(-52 * Math.min(1, p * 8)) + " °C outside</span></div><div class='body'><div class='rail'>" + tabs.map(t => "<button data-t='" + t[0] + "' class='" + (!ife.playing && ife.tab === t[0] ? "on" : "") + "'>" + t[1] + "</button>").join("") + "<div class='sp'></div><button data-t='land'>" + (p >= 1 ? "Disembark" : "Skip to landing") + "</button></div><div class='main'>" + main + "</div></div><div class='bot'><span>Seat " + (air.ticket ? air.ticket.seat : "23A") + " · " + (air.ticket ? AIR_CLASSES[air.ticket.cls].name : "Economy") + "</span><span>◀ ▶ ▲ ▼ choose · Enter select · Esc back · films by the Blender Foundation (CC)</span></div>";
+  el.querySelectorAll("[data-t]").forEach(bt => { bt.onclick = () => { const t = bt.dataset.t; if (t === "land") return ifeLand(); ife.playing = null; ife.tab = t; ifeDraw(); }; });
+  el.querySelectorAll(".card").forEach(c => { c.onclick = () => { ife.sel = +c.dataset.i; ifePlay(); }; });
+  if (!ife.playing && ife.tab === "map") ifeMap();
+}
+function ifeMap() {
+  const cv = document.getElementById("ifemap"); if (!cv) return; const g = cv.getContext("2d"), W = cv.width, H = cv.height, p = ifeProgress();
+  g.fillStyle = "#07182c"; g.fillRect(0, 0, W, H); g.strokeStyle = "rgba(120,170,220,.18)"; g.lineWidth = 1;
+  for (let x = 0; x < W; x += 50) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); } for (let y = 0; y < H; y += 50) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+  const place = { konto: [0.28, 0.52], seoul: [0.12, 0.28], kohana: [0.62, 0.8], ryujima: [0.84, 0.3] };
+  g.fillStyle = "#16365a"; [[0.22, 0.45, 70, 40], [0.32, 0.58, 56, 36], [0.1, 0.25, 60, 48], [0.62, 0.8, 40, 20], [0.84, 0.3, 30, 24]].forEach(b => { g.beginPath(); g.ellipse(b[0] * W, b[1] * H, b[2], b[3], 0.5, 0, 7); g.fill(); });
+  const A = place[ife.from], B = place[ife.to], ax = A[0] * W, ay = A[1] * H, bx = B[0] * W, by = B[1] * H, mx = (ax + bx) / 2, my = Math.min(ay, by) - 90;
+  g.strokeStyle = "#ffd21c"; g.lineWidth = 3; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(mx, my, bx, by); g.stroke(); g.setLineDash([]);
+  const t = p, px = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * bx, py = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * by;
+  [[A, AIR_DESTS[ife.from]], [B, AIR_DESTS[ife.to]]].forEach(o => { g.fillStyle = "#fff"; g.beginPath(); g.arc(o[0][0] * W, o[0][1] * H, 7, 0, 7); g.fill(); g.font = "700 20px 'Segoe UI'"; g.fillText(o[1].name + " " + o[1].code, o[0][0] * W + 14, o[0][1] * H - 10); });
+  const dx = 2 * (1 - t) * (mx - ax) + 2 * t * (bx - mx), dy = 2 * (1 - t) * (my - ay) + 2 * t * (by - my); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx)); g.fillStyle = "#fff"; g.beginPath(); g.moveTo(16, 0); g.lineTo(-10, -10); g.lineTo(-5, 0); g.lineTo(-10, 10); g.closePath(); g.fill(); g.restore();
+  g.fillStyle = "#eaf2fb"; g.font = "600 18px 'Segoe UI'"; g.fillText(Math.round(p * 100) + "% of the way", 20, H - 20);
+}
+function ifePlay() { ife.playing = IFE_FILMS[ife.sel]; ifeDraw(); }
+function ifeTick() {
+  if (!ife.open) return;
+  const p = ifeProgress();
+  if (!ife.playing) { ife.tickN = (ife.tickN || 0) + 1; if (ife.tickN % 30 === 0) ifeDraw(); }
+  if (p >= 1 && !ife.landed) { ife.landed = true; ifeDraw(); say("The captain: we have landed.", 4); }
+  ife.raf = requestAnimationFrame(ifeTick);
+}
+function ifeKey(e) {
+  if (!ife.open) return;
+  const k = e.code, n = IFE_FILMS.length;
+  if (/^F\d|KeyP/.test(k)) return;
+  if (ife.playing) { if (k === "Escape" || k === "Backspace") { ife.playing = null; ifeDraw(); } }
+  else if (k === "ArrowRight" || k === "KeyD") { ife.sel = (ife.sel + 1) % n; ifeDraw(); }
+  else if (k === "ArrowLeft" || k === "KeyA") { ife.sel = (ife.sel + n - 1) % n; ifeDraw(); }
+  else if (k === "ArrowDown" || k === "KeyS") { const ts = ["movies", "map", "call"]; ife.tab = ts[(ts.indexOf(ife.tab) + 1) % 3]; ifeDraw(); }
+  else if (k === "ArrowUp" || k === "KeyW") { const ts = ["movies", "map", "call"]; ife.tab = ts[(ts.indexOf(ife.tab) + 2) % 3]; ifeDraw(); }
+  else if (k === "Enter" || k === "Space" || k === "KeyE") { if (ife.tab === "movies") ifePlay(); else if (ife.landed) ifeLand(); }
+  else if (k === "KeyL" || k === "Escape") { if (k === "Escape" && ife.tab !== "movies") { ife.tab = "movies"; ifeDraw(); } else if (ife.landed || k === "KeyL") ifeLand(); }
+  e.preventDefault(); e.stopImmediatePropagation();
+}
+function ifePad(pressed) {
+  const fk = c => ifeKey({ code: c, preventDefault() {}, stopImmediatePropagation() {} });
+  if (pressed(PAD.LEFT) | pressed(PAD.SLEFT)) fk("ArrowLeft"); if (pressed(PAD.RIGHT) | pressed(PAD.SRIGHT)) fk("ArrowRight"); if (pressed(PAD.UP) | pressed(PAD.SUP)) fk("ArrowUp"); if (pressed(PAD.DOWN) | pressed(PAD.SDOWN)) fk("ArrowDown");
+  if (pressed(PAD.A)) fk("Enter"); if (pressed(PAD.B)) fk("Escape"); if (pressed(PAD.Y)) fk("KeyL");
+}
+function ifeLand() {
+  if (!ife.open) return;
+  ife.open = false; ife.el.classList.remove("on"); ife.el.innerHTML = ""; cancelAnimationFrame(ife.raf);
+  airLand(ife.to);
+}
+// Down on the other side: a fade, the clock moves on by the length of the flight, and Seiko is on the ground there.
+function airLand(to) {
+  const d = AIR_DESTS[to], hours = d.hours;
+  enterThrough(() => {
+    advanceGameMinutes(Math.round(hours * 60));
+    if (air.ticket) air.ticket.used = true;
+    air.at = to; air.flights++;
+    if (to === "konto") {
+      const ap = (world.airports || []).find(a => a.big) || world.airports[0], sh = ap && ap.shop;
+      if (interior.active) { if (sh) interior.shop = sh; interiorLeave(true); }
+      if (sh) { const p = fromRectLocal(0, ap.tzDoor + 26, ap.cx, ap.cz, ap.yaw); cheatGo(p, ap.yaw * Math.PI / 180); }
+      say("Welcome to Tōkonto. Local time " + phoneTime().h + ":" + two(phoneTime().m) + ".", 6);
+    } else destArrive(to);
+    saveGame("", true);
+  });
+}
+function airDepartDest() { enterThrough(() => { ifeStart(air.at, "konto"); }); }
+
+
+// ============================================================================
+// PLACES TO FLY TO
+// ----------------------------------------------------------------------------
+// Seoul and two island groups are small regions of their own. Each sits in deep open sea off the edge of Konto's map, where the terrain height is
+// replaced by a function of its own, so the walking, the camera and the collision work there exactly as they do at home; and each is walled in by water.
+// They are built the first time you arrive, and only drawn while you are near.
+// ============================================================================
+let worldRoot = null;
+const DEST = { sites: [], by: {}, active: null };
+function planDestinations(world) {
+  const W = WORLD_X, Hh = WORLD_Z; let sd = 4141; const rng = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
+  const defs = [{ id: "seoul", hx: 640, hz: 520 }, { id: "kohana", hx: 560, hz: 480 }, { id: "ryujima", hx: 560, hz: 520 }];
+  const taken = world.airports ? world.airports.map(a => [a.cx, a.cz, 2500]) : [];
+  defs.forEach(df => {
+    let found = null;
+    for (const thr of [-2.5, -1.2, 0]) {
+      for (let t = 0; t < 4000 && !found; t++) {
+        const cx = 700 + rng() * (W - 1400), cz = 700 + rng() * (Hh - 1400);
+        if (DEST.sites.some(s => Math.hypot(s.cx - cx, s.cz - cz) < 2000) || taken.some(o => Math.hypot(o[0] - cx, o[1] - cz) < o[2])) continue;
+        let ok = true;
+        for (let x = -df.hx - 160; x <= df.hx + 160 && ok; x += 160) for (let z = -df.hz - 160; z <= df.hz + 160; z += 160) if (world.sampleHeight(cx + x, cz + z) > thr) { ok = false; break; }
+        if (ok) found = [cx, cz];
+      }
+      if (found) break;
+    }
+    if (!found) { console.warn("[Konto] no open sea for " + df.id); return; }
+    const site = { id: df.id, cx: found[0], cz: found[1], hx: df.hx, hz: df.hz, built: false, group: null, solids: [], kiosk: null, spawn: null };
+    site.h = destHeightFn(site); DEST.sites.push(site); DEST.by[df.id] = site;
+    console.log("[Konto] destination " + df.id + " at " + Math.round(site.cx) + "," + Math.round(site.cz));
+  });
+  const sH = world.sampleHeight, sY = world.surfaceY, sS = world.slopeAt;
+  const at = (x, z) => { for (let i = 0; i < DEST.sites.length; i++) { const s = DEST.sites[i]; if (Math.abs(x - s.cx) < s.hx && Math.abs(z - s.cz) < s.hz) return s; } return null; };
+  DEST.at = at;
+  world.sampleHeight = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sH(x, z); };
+  world.surfaceY = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sY(x, z); };
+  world.slopeAt = (x, z) => { const s = at(x, z); if (!s) return sS(x, z); const e = 2, h = (a, b) => s.h(a - s.cx, b - s.cz); return Math.hypot(h(x + e, z) - h(x - e, z), h(x, z + e) - h(x, z - e)) / (2 * e); };
+}
+function smoothstepJS(a, b, x) { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
+function destHeightFn(site) {
+  const seed = inHash(site.id);
+  if (site.id === "seoul") {
+    const bridges = [-380, 0, 380];
+    return (x, z) => {
+      const ex = Math.max(Math.abs(x) - (site.hx - 40), Math.abs(z) - (site.hz - 40));
+      let h = 2.4 - 6 * smoothstepJS(0, 40, ex);
+      if (ex < 0) {
+        if (Math.abs(z) < 34 && !bridges.some(b => Math.abs(x - b) < 14)) h = -2.2 + 4.6 * smoothstepJS(34, 28, Math.abs(z)) * 0;      // the river
+        const nm = Math.hypot(x + 440, z + 330); h += 46 * Math.exp(-(nm * nm) / (2 * 120 * 120)) * smoothstepJS(40, 100, Math.abs(z));     // the hill with the tower
+      }
+      return h;
+    };
+  }
+  const islets = site.id === "kohana" ? [[0, 0, 330, 4.0], [-410, 80, 120, 3.2], [380, -150, 100, 3.0], [60, 330, 85, 2.8]] : [[0, 0, 410, 5.0]];
+  return (x, z) => {
+    let h = -3;
+    for (const [ix, iz, R, top] of islets) { const r = Math.hypot(x - ix, z - iz) * (1 + 0.1 * Math.sin(Math.atan2(z - iz, x - ix) * 5 + seed)), t = r / R; h = Math.max(h, -3 + (top + 3.6) * smoothstepJS(1.0, 0.68, t) + (t < 0.7 ? fbm(x * 0.02, z * 0.02, seed, 3) * 1.6 : 0)); }
+    if (site.id === "kohana") { for (const [ax, az, bx, bz] of [[-290, 60, -340, 80], [250, -90, 330, -140], [30, 260, 60, 300]]) { const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz, t = clamp(((x - ax) * dx + (z - az) * dz) / L2, 0, 1); if (Math.hypot(x - (ax + dx * t), z - (az + dz * t)) < 3) h = Math.max(h, 1.3); } }
+    else { const r = Math.hypot(x + 60, z - 20); h += 78 * Math.max(0, 1 - (r * r) / (190 * 190)) * smoothstepJS(1.0, 0.55, Math.hypot(x, z) / 410) - (r < 26 ? 10 * (1 - r / 26) : 0); if (x > 280 && x < 440 && Math.abs(z + 120) < 4) h = Math.max(h, 1.2); }
+    return Math.min(h, 95);
+  };
+}
+function destGroundMat() {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true });
+  m.onBeforeCompile = shader => {
+    shader.uniforms.gdetail = { value: groundDetail() };
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;").replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTPos = position.xz;\n  vTSlope = 1.0 - clamp(normal.y, 0.0, 1.0);");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;\n" + GDETAIL_GLSL).replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.rgb *= gdLuma(vTPos, diffuseColor.rgb, vTSlope * 1.6, 0.0);");
+  };
+  m.customProgramCacheKey = () => "konto-terrain";
+  return m;
+}
+function destGround(site, step, colour) {
+  const nx = Math.round(site.hx * 2 / step), nz = Math.round(site.hz * 2 / step), geo = new THREE.PlaneGeometry(site.hx * 2, site.hz * 2, nx, nz); geo.rotateX(-Math.PI / 2);
+  const p = geo.attributes.position, col = new Float32Array(p.count * 3), c = [0, 0, 0];
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), h = site.h(x, z); p.setY(i, h); colour(x, z, h, c); { const w = smoothstepJS(0, 180, Math.min(site.hx - Math.abs(x), site.hz - Math.abs(z))); if (w < 1) { c[0] += (0.094 - c[0]) * (1 - w); c[1] += (0.196 - c[1]) * (1 - w); c[2] += (0.235 - c[2]) * (1 - w); } } col[i * 3] = Math.pow(c[0], 2.2); col[i * 3 + 1] = Math.pow(c[1], 2.2); col[i * 3 + 2] = Math.pow(c[2], 2.2); }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3)); geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, destGroundMat()); m.position.set(site.cx, 0, site.cz); m.receiveShadow = true; return m;
+}
+function flatQuads(list, mat) {                  // [x0, z0, x1, z1, y] in local metres; uv in metres so a tiling texture keeps its scale
+  const pos = [], nrm = [], uv = [];
+  list.forEach(q => { const [x0, z0, x1, z1, y] = q, V = [[x0, z0], [x1, z0], [x1, z1], [x0, z1]]; [0, 2, 1, 0, 3, 2].forEach(i => { pos.push(V[i][0], y, V[i][1]); nrm.push(0, 1, 0); uv.push(V[i][0], V[i][1]); }); });
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  const m = new THREE.Mesh(g, mat); m.receiveShadow = true; m.frustumCulled = false; return m;
+}
+function destAsphalt(repeat) { const t = asphaltTexture().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / (repeat || 13), 1 / (repeat || 13)); const m = gfx.high ? new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0, envMapIntensity: 0.4 }) : new THREE.MeshLambertMaterial({ map: t }); if (gfx.high && gfx.env) m.envMap = gfx.env; if (gfx.high) roadHD(t, m); m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; }
+function destPaving() { const t = pavingTexture().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 4.2, 1 / 4.2); const m = new THREE.MeshLambertMaterial({ map: t }); m.polygonOffset = true; m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -3; return m; }
+function destSign(text, w, h, bg, fg, font) {
+  const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w)); const g = c.getContext("2d");
+  g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(5, 5, c.width - 10, c.height - 10);
+  g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; let fs = c.height * 0.55; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Segoe UI',sans-serif");
+  while (g.measureText(text).width > c.width - 28 && fs > 14) { fs -= 3; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Segoe UI',sans-serif"); }
+  g.fillText(text, c.width / 2, c.height / 2 + 2);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false, side: THREE.DoubleSide }));
+}
+function destKiosk(G, site, x, z, ry, label) {
+  const g = new THREE.Group(); g.position.set(x, site.h(x - site.cx, z - site.cz), z); g.rotation.y = ry; G.add(g);
+  const M = c => new THREE.MeshLambertMaterial({ color: c }), box = (w, h, d, px, py, pz, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c)); m.position.set(px, py, pz); g.add(m); return m; };
+  box(7, 0.3, 4.5, 0, 0.15, 0, 0xc9ced4); box(0.3, 3.4, 0.3, -3.2, 1.7, -1.9, 0x8d939c); box(0.3, 3.4, 0.3, 3.2, 1.7, -1.9, 0x8d939c); box(7.2, 0.3, 4.8, 0, 3.5, 0, 0xc0172b);
+  box(1.4, 1.9, 0.9, 0, 0.95 + 0.15, -0.5, 0xe8eaed); box(1.1, 0.7, 0.05, 0, 1.5, -0.03, 0xffb400);
+  const s = destSign(label, 6.6, 1.0, "#14284c", "#ffffff", "'Segoe UI',sans-serif"); s.position.set(0, 4.4, 0.1); g.add(s);
+  const e = destSign("Expedio  ·  Return flights", 1.0, 0.6, "#ffb400", "#14284c", "'Segoe UI',sans-serif"); e.scale.set(1.1, 0.7, 1); e.position.set(0, 1.5, 0.1); g.add(e);
+  const spot = [x + Math.sin(ry) * 3.2, z + Math.cos(ry) * 3.2];
+  site.kiosk = { x: x, z: z, sx: spot[0], sz: spot[1] };
+  solidsAdd(site, x, z, 7, 4.5, 3.6);
+  return g;
+}
+function solidsAdd(site, x, z, w, d, h, yaw) { const b = { c: [x, z], size: [w, d], yaw: yaw || 0, y: site.h(x - site.cx, z - site.cz), h: h || 6 }; solids.push(b); site.solids.push(b); }
+function destPlaceBuilding(G, site, x, z, w, d, h, style, yawDeg) {
+  const b = { c: [site.cx + x, site.cz + z], size: [w, d], yaw: yawDeg || 0, y: site.h(x, z), h: h, style: style };
+  const g = buildingDetail(b); G.add(g); solidsAdd(site, b.c[0], b.c[1], w, d, h, b.yaw);
+  const bb = { x0: b.c[0] - w, x1: b.c[0] + w, z0: b.c[1] - d, z1: b.c[1] + d, y0: b.y, y1: b.y + h + 6 }; streamAdd(g, bb, 650);
+  return b;
+}
+function destTrees(G, site, list, kind) {
+  const trunk = new THREE.CylinderGeometry(0.18, 0.3, 1, 6), crown = kind === "palm" ? new THREE.ConeGeometry(2.7, 0.8, 8) : new THREE.IcosahedronGeometry(2.4, 0);
+  const tm = new THREE.InstancedMesh(trunk, new THREE.MeshLambertMaterial({ color: kind === "palm" ? 0x8a6a44 : 0x6a4a2e }), list.length), cm = new THREE.InstancedMesh(crown, new THREE.MeshLambertMaterial({ color: kind === "palm" ? 0x3f9a3a : 0x3f8f3a }), list.length * (kind === "palm" ? 3 : 1));
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), p = new THREE.Vector3(), s = new THREE.Vector3(), cc = new THREE.Color(); let ci = 0;
+  list.forEach((t, i) => {
+    const hh = kind === "palm" ? 6 + t[3] * 4 : 3 + t[3] * 2.5, y = site.h(t[0], t[1]);
+    e.set((t[3] - 0.5) * 0.25, 0, (t[3] - 0.5) * 0.2); q.setFromEuler(e); p.set(site.cx + t[0], y + hh / 2, site.cz + t[1]); s.set(1, hh, 1); m4.compose(p, q, s); tm.setMatrixAt(i, m4);
+    if (kind === "palm") for (let k = 0; k < 3; k++) { e.set(0, k * 1.05 + t[3] * 6, (k - 1) * 0.12); q.setFromEuler(e); p.set(site.cx + t[0], y + hh, site.cz + t[1]); s.set(1 + t[3] * 0.3, 1, 1 + t[3] * 0.3); m4.compose(p, q, s); cm.setMatrixAt(ci, m4); cc.setHSL(0.31 + t[3] * 0.04, 0.55, 0.28 + k * 0.03); cm.setColorAt(ci++, cc); }
+    else { p.set(site.cx + t[0], y + hh + 1.2, site.cz + t[1]); s.set(1 + t[3] * 0.3, 1, 1 + t[3] * 0.3); e.set(0, t[3] * 6, 0); q.setFromEuler(e); m4.compose(p, q, s); cm.setMatrixAt(ci, m4); cc.setHSL(0.27 + t[3] * 0.06, 0.5, 0.3); cm.setColorAt(ci++, cc); }
+  });
+  tm.frustumCulled = cm.frustumCulled = false; G.add(tm); G.add(cm);
+}
+const DEST_HANGUL = ["치킨", "카페", "약국", "편의점", "노래방", "삼겹살", "호텔", "서울", "PC방", "떡볶이", "화장품", "안경", "미용실", "맥주"];
+function buildSeoul(site, G) {
+  const H = 2.4, step = 8, cx = site.cx, cz = site.cz;
+  G.add(destGround(site, step, (x, z, h, c) => { if (h < 0.2) { c[0] = 0.18; c[1] = 0.26; c[2] = 0.3; } else if (h > 6) { c[0] = 0.22; c[1] = 0.36; c[2] = 0.18; } else { c[0] = 0.42; c[1] = 0.41; c[2] = 0.39; } }));
+  // the river
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(site.hx * 2, 68), new THREE.MeshLambertMaterial({ color: 0x2c5a72, transparent: true, opacity: 0.88 })); water.rotation.x = -Math.PI / 2; water.position.set(cx, 0.4, cz); G.add(water);
+  // streets: a grid of 96 m blocks, 16 m streets, either side of the river
+  const pitch = 96, st = 16, asph = destAsphalt(), paving = destPaving(), roads = [], walks = [], stripes = [];
+  const cols = []; for (let x = -480; x <= 480; x += pitch) cols.push(x);
+  const rowsN = []; for (let z = -pitch * 4 - 32; z <= -80; z += pitch) rowsN.push(z); const rowsS = rowsN.map(z => -z);
+  const zones = [[-site.hz + 60, -50, rowsN], [50, site.hz - 60, rowsS]];
+  zones.forEach(([z0, z1, rows]) => {
+    cols.forEach(x => roads.push([x - st / 2, z0, x + st / 2, z1, H + 0.1]));
+    rows.forEach(z => roads.push([cols[0] - st / 2, z - st / 2, cols[cols.length - 1] + st / 2, z + st / 2, H + 0.1]));
+  });
+  [-380, 0, 380].forEach(b => { roads.push([b - 9, -52, b + 9, 52, H + 0.1]); });                              // the bridges
+  const lanesStyle = [];
+  roads.forEach(r => { for (let k = 0; k < 1; k++) { /* centre lines */ } });
+  G.add(flatQuads(roads, asph)); 
+  // sidewalks round every block, then the lots
+  const lots = [];
+  zones.forEach(([z0, z1, rows]) => {
+    const zs = rows.slice().sort((a, b) => a - b), edges = [z0].concat(zs.map(z => z)).concat([z1]);
+    for (let r = 0; r + 1 < zs.length + 1; r++) { /* blocks are between consecutive street rows */ }
+    const lines = zs;                                                                                            // street z positions in this zone
+    const bz = [z0 - 0].concat(lines).concat([z1]);
+    for (let i = 0; i < bz.length - 1; i++) for (let j = 0; j + 1 < cols.length; j++) {
+      const za = (i === 0 ? bz[i] : bz[i] + st / 2), zb = (i === bz.length - 2 ? bz[i + 1] : bz[i + 1] - st / 2), xa = cols[j] + st / 2, xb = cols[j + 1] - st / 2;
+      if (zb - za < 30) continue; walks.push([xa, za, xb, zb, H + 0.16]); lots.push([xa + 3, za + 3, xb - 3, zb - 3]);
+    }
+  });
+  G.add(flatQuads(walks, paving));
+  // crossings and lane lines, in white
+  const white = new THREE.MeshBasicMaterial({ color: 0xe8e8e0, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  cols.forEach(x => zones.forEach(([z0, z1]) => { for (let z = z0 + 6; z < z1; z += 14) stripes.push([x - 0.1, z, x + 0.1, z + 6, H + 0.12]); }));
+  G.add(flatQuads(stripes, white));
+  // the buildings: tall in the middle, lower out to the edges, every block full
+  const styles = ["office", "office", "flats", "shop", "flats", "office"];
+  lots.forEach((L, i) => {
+    const mx = (L[0] + L[2]) / 2, mz = (L[1] + L[3]) / 2, wide = L[2] - L[0], deep = L[3] - L[1], core = 1 - Math.min(1, Math.hypot(mx / 520, mz / 460));
+    const n = rnd(i, 1, 8401) < 0.55 ? 1 : 2;
+    for (let k = 0; k < n; k++) {
+      const w = n === 1 ? wide - 2 : wide / 2 - 2, d = deep - 2, x = n === 1 ? mx : L[0] + (k + 0.5) * wide / 2, h = Math.round((14 + core * 90 * rnd(i, k + 2, 8403) + rnd(i, k + 5, 8405) * 22) / 3.9) * 3.9, style = styles[(i + k) % styles.length];
+      const b = destPlaceBuilding(G, site, x, mz, w, d, Math.min(h, 120), style, 0);
+      // neon: blade signs sticking out over the street at the front, and shopfront boards on the ground floor
+      if (rnd(i, k + 7, 8407) < 0.9) for (let s = 0; s < 3; s++) {
+        const word = DEST_HANGUL[(i * 3 + k + s) % DEST_HANGUL.length], bg = ["#ff2d6a", "#17c3ff", "#ffd21c", "#7a3fff", "#18d27a", "#ff7a1c"][(i + s) % 6], fg = bg === "#ffd21c" ? "#14171b" : "#ffffff";
+        const sg = destSign(word, 1.6, 4.2, bg, fg); sg.rotation.y = Math.PI / 2; sg.position.set(site.cx + x + (s - 1) * Math.min(w * 0.3, 6), site.h(x, mz) + 5 + s * 3.2, site.cz + mz + d / 2 + 0.15); sg.rotation.y = 0; sg.scale.set(1, 1, 1); sg.rotation.y = Math.PI; G.add(sg); streamAdd(sg, { x0: sg.position.x - 3, x1: sg.position.x + 3, z0: sg.position.z - 3, z1: sg.position.z + 3, y0: 0, y1: 40 }, 500);
+      }
+      if (h > 20) { const bd = destSign(DEST_HANGUL[(i + k * 5) % DEST_HANGUL.length] + "  " + ["COFFEE", "CHICKEN", "PHARMACY", "KARAOKE", "HOTEL", "BEER"][(i + k) % 6], Math.min(w * 0.8, 10), 1.4, "#14171b", "#ffd21c"); bd.position.set(site.cx + x, site.h(x, mz) + 4.6, site.cz + mz + d / 2 + 0.2); bd.rotation.y = Math.PI; G.add(bd); }
+    }
+  });
+  // trees and lamps along the pavements, parked cars
+  const trees = []; for (let i = 0; i < 260; i++) { const x = cols[i % cols.length] + (i % 2 ? 11 : -11), z = (zones[i % 2][0] + rnd(i, 3, 8409) * (zones[i % 2][1] - zones[i % 2][0])); trees.push([x, z, 0, rnd(i, 4, 8411)]); }
+  destTrees(G, site, trees, "tree");
+  const lamp = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.1, 0.14, 7.5, 6), new THREE.MeshLambertMaterial({ color: 0x555b62 }), 220), head = new THREE.InstancedMesh(new THREE.BoxGeometry(2, 0.2, 0.6), new THREE.MeshBasicMaterial({ color: 0xfff1c0 }), 220), m4 = new THREE.Matrix4();
+  for (let i = 0; i < 220; i++) { const x = cols[i % cols.length] + 9.5, z = zones[i % 2][0] + 20 + (i * 17.3) % (zones[i % 2][1] - zones[i % 2][0] - 40), y = site.h(x, z) + 0.2; m4.makeTranslation(site.cx + x, y + 3.75, site.cz + z); lamp.setMatrixAt(i, m4); m4.makeTranslation(site.cx + x - 0.9, y + 7.4, site.cz + z); head.setMatrixAt(i, m4); }
+  lamp.frustumCulled = head.frustumCulled = false; G.add(lamp); G.add(head);
+  const cars = new THREE.InstancedMesh(new THREE.BoxGeometry(1.9, 1.4, 4.4), new THREE.MeshLambertMaterial({ color: 0xffffff }), 160), cc = new THREE.Color();
+  for (let i = 0; i < 160; i++) { const x = cols[i % cols.length] + (i % 2 ? 5.2 : -5.2), z = zones[i % 3 % 2][0] + 14 + (i * 23.7) % (zones[i % 3 % 2][1] - zones[i % 3 % 2][0] - 28); m4.makeTranslation(site.cx + x, site.h(x, z) + 0.95, site.cz + z); cars.setMatrixAt(i, m4); cc.setHSL(rnd(i, 8, 8413), 0.12 + rnd(i, 9, 8415) * 0.4, 0.3 + rnd(i, 10, 8417) * 0.4); cars.setColorAt(i, cc); }
+  cars.frustumCulled = false; G.add(cars);
+  // bridges: a deck, rails and piers in the river
+  [-380, 0, 380].forEach(b => { const M = c => new THREE.MeshLambertMaterial({ color: c }); const deck = new THREE.Mesh(new THREE.BoxGeometry(22, 1.2, 110), M(0x8d939c)); deck.position.set(cx + b, H - 0.5, cz); G.add(deck); for (const sd of [-1, 1]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.2, 108), M(0xc9ced4)); rail.position.set(cx + b + sd * 10.6, H + 0.9, cz); G.add(rail); } for (let k = -2; k <= 2; k++) { const pier = new THREE.Mesh(new THREE.BoxGeometry(8, 5, 3), M(0x777d85)); pier.position.set(cx + b, -0.3, cz + k * 18); G.add(pier); } solidsAdd(site, cx + b - 10.6, cz, 0.6, 110, 1.4); solidsAdd(site, cx + b + 10.6, cz, 0.6, 110, 1.4); });
+  // Namsan, the tower, and Gwanghwamun gate at the head of the avenue
+  { const x = -440, z = -330, y = site.h(x, z), M = c => new THREE.MeshLambertMaterial({ color: c });
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 5, 70, 14), M(0xd9d6cf)); shaft.position.set(cx + x, y + 35, cz + z); G.add(shaft);
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(9, 6.4, 8, 16), new THREE.MeshLambertMaterial({ color: 0x2b3a4c, emissive: 0x6a5a2a })); pod.position.set(cx + x, y + 66, cz + z); G.add(pod);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(10, 9, 1.6, 16), M(0xc0172b)); cap.position.set(cx + x, y + 70.6, cz + z); G.add(cap);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.4, 30, 6), M(0xb02020)); mast.position.set(cx + x, y + 86, cz + z); G.add(mast);
+    const ns = destSign("N 서울타워", 12, 2, "#14284c", "#ffffff"); ns.position.set(cx + x, y + 74, cz + z + 11); G.add(ns); solidsAdd(site, cx + x, cz + z, 10, 10, 90);
+    const gx = 0, gz = site.hz - 120, gy = site.h(gx, gz); const gate = new THREE.Group(); gate.position.set(cx + gx, gy, cz + gz); G.add(gate);
+    const gb = (w, h, d, px, py, pz, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c)); m.position.set(px, py, pz); gate.add(m); return m; };
+    gb(40, 6, 12, 0, 3, 0, 0x9b9a92); [-12, 0, 12].forEach(a => gb(7, 5, 12.4, a, 2.5, 0, 0x14171b)); gb(22, 5, 10, 0, 8.5, 0, 0xb8322a); for (let k = -4; k <= 4; k++) gb(0.6, 5, 10.2, k * 2.4, 8.5, 0, 0x7a1f1a);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(18, 5, 4), M(0x3f6a5a)); roof.rotation.y = Math.PI / 4; roof.scale.set(1, 1, 0.6); roof.position.set(0, 13.5, 0); gate.add(roof); const roof2 = new THREE.Mesh(new THREE.ConeGeometry(25, 4, 4), M(0x3f6a5a)); roof2.rotation.y = Math.PI / 4; roof2.scale.set(1, 1, 0.55); roof2.position.set(0, 7.6, 0); gate.add(roof2);
+    const gs = destSign("광화문  Gwanghwamun", 14, 1.6, "#14171b", "#ffd21c"); gs.position.set(0, 4.5, -6.3); gs.rotation.y = Math.PI; gate.add(gs); solidsAdd(site, cx + gx, cz + gz, 40, 12, 14);
+    site.spawn = [cx + 90, cz + site.hz - 190, Math.PI]; destKiosk(G, site, cx + 60, cz + site.hz - 168, Math.PI, "SEOUL  GIMPO  AIR  TERMINAL  ·  서울 김포"); }
+}
+function buildIsland(site, G) {
+  const kohana = site.id === "kohana", cx = site.cx, cz = site.cz;
+  G.add(destGround(site, 6, (x, z, h, c) => { if (h < 0.55) { c[0] = 0.8; c[1] = 0.74; c[2] = 0.56; } else if (kohana) { if (h < 1.4) { c[0] = 0.86; c[1] = 0.8; c[2] = 0.62; } else { c[0] = 0.26 + 0.1 * fbm(x * 0.03, z * 0.03, 11, 2); c[1] = 0.5; c[2] = 0.2; } } else { if (h > 40) { c[0] = 0.18; c[1] = 0.17; c[2] = 0.17; } else if (h > 6) { c[0] = 0.24; c[1] = 0.3; c[2] = 0.2; } else if (h < 1.4) { c[0] = 0.12; c[1] = 0.12; c[2] = 0.13; } else { c[0] = 0.3; c[1] = 0.46; c[2] = 0.2; } } }));
+  const trees = []; for (let i = 0; i < (kohana ? 420 : 260); i++) { const a = rnd(i, 1, 8501) * 6.283, r = Math.sqrt(rnd(i, 2, 8503)) * (kohana ? 480 : 380), x = Math.cos(a) * r, z = Math.sin(a) * r, h = site.h(x, z); if (h > 1.2 && h < (kohana ? 6 : 28) && !(kohana && Math.hypot(x, z) < 90)) trees.push([x, z, 0, rnd(i, 3, 8505)]); }
+  destTrees(G, site, trees, kohana ? "palm" : "tree");
+  const M = c => new THREE.MeshLambertMaterial({ color: c });
+  const box = (w, h, d, x, z, c, y0) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c)); m.position.set(cx + x, (y0 === undefined ? site.h(x, z) : y0) + h / 2, cz + z); G.add(m); return m; };
+  const hut = (x, z, ry) => { const y = site.h(x, z), g = new THREE.Group(); g.position.set(cx + x, y, cz + z); g.rotation.y = ry; G.add(g); const w = new THREE.Mesh(new THREE.BoxGeometry(5, 2.6, 4.4), M(kohana ? 0xe8d9b8 : 0x8a5a3a)); w.position.y = 1.3 + 0.8; g.add(w); const r = new THREE.Mesh(new THREE.ConeGeometry(4.6, 2.4, 4), M(kohana ? 0xb89a4a : 0x3a3f46)); r.rotation.y = Math.PI / 4; r.position.y = 4.4 + 0.2; g.add(r); const p = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.2, 5), M(0x8a6a44)); p.position.y = 0.4; g.add(p); [[-2.4, -2], [2.4, -2], [-2.4, 2], [2.4, 2]].forEach(o => { const l = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.1, 0.2), M(0x6a4a2e)); l.position.set(o[0], 0.1, o[1]); g.add(l); }); const door = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2, 0.06), M(0x3a2a1a)); door.position.set(0, 1.9, 2.25); g.add(door); solidsAdd(site, cx + x, cz + z, 5, 4.4, 5, ry * 180 / Math.PI); };
+  if (kohana) {
+    for (let i = 0; i < 14; i++) { const a = -0.5 + i * 0.37, r = 250; hut(Math.cos(a) * r + 20, Math.sin(a) * r * 0.9, -a + 1.57); }
+    // the resort hotel with a pool
+    destPlaceBuilding(G, site, -60, -90, 46, 22, 24, "flats", 0); const pool = box(18, 0.2, 9, -60, -62, 0x35b6d6, site.h(-60, -62) + 0.12); void pool; box(20, 0.3, 11, -60, -62, 0xe8e4d8, site.h(-60, -62) - 0.05);
+    for (let i = 0; i < 16; i++) { const x = -180 + i * 9, z = 160 + (i % 2) * 6, y = site.h(x, z); const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 5), M(0xdddddd)); pl.position.set(cx + x, y + 1.2, cz + z); G.add(pl); const um = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.7, 10), M(["#e8453a", "#ffd21c", "#3fb8e8", "#f4f4f4"][i % 4])); um.position.set(cx + x, y + 2.6, cz + z); G.add(um); box(0.7, 0.18, 1.8, x + 1.4, z, 0xf2efe6, y + 0.3); }
+    // the pier and the bar on it
+    box(4, 0.4, 150, -318, 120, 0x8a6a44, 0.9); for (let k = 0; k < 14; k++) box(0.3, 2, 0.3, -320 + (k % 2) * 4, 55 + k * 11, 0x5a4630, -0.6);
+    const bar = box(12, 3, 7, -150, 235, 0xd9b878); const bs = destSign("KOHANA BAR  ·  coconuts", 8, 1.2, "#12a6b3", "#ffffff", "'Segoe UI',sans-serif"); bs.position.set(cx - 150, site.h(-150, 235) + 3.4, cz + 231.4); bs.rotation.y = Math.PI; G.add(bs); void bar; solidsAdd(site, cx - 150, cz + 235, 12, 7, 4);
+    site.spawn = [cx + 120, cz + 60, 0]; destKiosk(G, site, cx + 150, cz + 25, 0, "KOHANA  AIRSTRIP  ·  DEPARTURES");
+  } else {
+    for (let i = 0; i < 9; i++) { const a = 2.7 + i * 0.28, r = 300; destPlaceBuilding(G, site, Math.cos(a) * r + 40, Math.sin(a) * r * 0.9, 9 + (i % 3) * 3, 8, 7.5, "machiya", (-a * 57.3 + 90) % 360); }
+    // the crater: a glow and a slow plume
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(16, 14, 10), new THREE.MeshBasicMaterial({ color: 0xff5a1a, fog: false })); glow.position.set(cx - 60, site.h(-60, 20) + 12, cz + 20); glow.scale.set(1, 0.4, 1); G.add(glow);
+    site.plume = []; for (let i = 0; i < 14; i++) { const p = new THREE.Mesh(new THREE.SphereGeometry(14, 8, 6), new THREE.MeshBasicMaterial({ color: 0x777b80, transparent: true, opacity: 0.4, fog: true })); p.position.set(cx - 60, site.h(-60, 20) + 20, cz + 20); p.userData.o = i; G.add(p); site.plume.push(p); }
+    // an onsen, a torii on the path to it, a lighthouse and the ferry pier
+    for (let k = 0; k < 3; k++) { const x = 120 + k * 12, z = -60 + k * 6; box(11, 0.5, 8, x, z, 0x6a6e74); box(9.6, 0.3, 6.6, x, z, 0x57b6d6, site.h(x, z) + 0.45); }
+    const t = new THREE.Group(); t.position.set(cx + 90, site.h(90, -40), cz - 40); G.add(t); [[-3, 0], [3, 0]].forEach(o => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 7, 8), M(0xc0172b)); p.position.set(o[0], 3.5, 0); t.add(p); }); const b1 = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.7, 0.8), M(0xc0172b)); b1.position.y = 7; t.add(b1); const b2 = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 0.5), M(0x14171b)); b2.position.y = 5.8; t.add(b2);
+    box(5, 14, 5, -230, -260, 0xf2efe6); box(7, 1.2, 7, -230, -260, 0xc0172b, site.h(-230, -260) + 14); box(3, 3, 3, -230, -260, 0xffe9a0, site.h(-230, -260) + 15.2); solidsAdd(site, cx - 230, cz - 260, 5, 5, 18);
+    box(5, 0.4, 150, 360, -50, 0x6a5a4a, 0.9); const boat = box(14, 3.2, 5, 372, 30, 0xe8e8e2, 0.8); void boat; box(8, 4, 4.4, 372, 30, 0xc0172b, 4);
+    const rs = destSign("RYŪJIMA  AIRSTRIP  ·  DEPARTURES", 8, 1.0, "#8a3a1f", "#ffffff", "'Segoe UI',sans-serif");
+    site.spawn = [cx + 300, cz - 120, -Math.PI / 2]; destKiosk(G, site, cx + 330, cz - 100, -Math.PI / 2, "RYŪJIMA  AIRSTRIP  ·  DEPARTURES"); void rs;
+  }
+}
+function destEnsure(id) {
+  const s = DEST.by[id]; if (!s || s.built) return s;
+  s.built = true; const G = new THREE.Group(); s.group = G; scene.add(G);
+  try { (id === "seoul" ? buildSeoul : buildIsland)(s, G); } catch (e) { console.warn("[Konto] could not build " + id + ":", e); }
+  buildSolidGrid();
+  streamAdd(G, { x0: s.cx - s.hx, x1: s.cx + s.hx, z0: s.cz - s.hz, z1: s.cz + s.hz, y0: -3, y1: 120 }, 2600);
+  return s;
+}
+function destArrive(id) {
+  const s = destEnsure(id); if (!s || !s.spawn) { say("The flight was diverted. (That destination could not be built.)", 5); return; }
+  const fake = { door: [s.spawn[0], s.spawn[1]], yaw: s.spawn[2] + Math.PI, groundY: s.h(s.spawn[0] - s.cx, s.spawn[1] - s.cz), name: s.id };
+  if (interior.active) { interior.shop = fake; interiorLeave(true); } else cheatGo([s.spawn[0], s.spawn[1]], s.spawn[2]);
+  player.pos.x = s.spawn[0]; player.pos.z = s.spawn[1]; placeSeiko(new THREE.Vector3(s.spawn[0], 0, s.spawn[1])); player.yaw = player.targetYaw = s.spawn[2]; yaw = player.yaw + Math.PI; pitch = -0.1;
+  camPos.set(player.pos.x - Math.sin(player.yaw) * 4, player.pos.y + 2.4, player.pos.z - Math.cos(player.yaw) * 4);
+  DEST.active = s; say("Welcome to " + AIR_DESTS[id].name + ". Local time " + phoneTime().h + ":" + two(phoneTime().m) + ". The departures kiosk is where you landed.", 8);
+}
+function destFrame(dt) {
+  const p = player.pos, s = DEST.at ? DEST.at(p.x, p.z) : null;
+  if (DEST.active && !s) DEST.active = null; else if (s && s !== DEST.active) { DEST.active = s; destEnsure(s.id); }
+  if (s && s.plume) s.plume.forEach(m => { const t = ((clock * 0.12 + m.userData.o / 14) % 1); m.position.y = s.h(-60, 20) + 20 + t * 150; m.position.x = s.cx - 60 + t * 60; m.scale.setScalar(0.6 + t * 1.8); m.material.opacity = 0.42 * (1 - t); });
+  s && s.kiosk && (DEST.near = Math.hypot(p.x - s.kiosk.sx, p.z - s.kiosk.sz) < 5.5 ? s : null);
+  if (!s) DEST.near = null;
+  // out there the mainland is not in the picture: the island's own sea and sky are all there is
+  if (worldRoot) { const hide = !!DEST.active; if (worldRoot.visible === hide) worldRoot.visible = !hide; }
+  if (DEST.active) {
+    if (!DEST.sea) { DEST.sea = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshLambertMaterial({ color: 0x1c3f4d })); DEST.sea.geometry.rotateX(-Math.PI / 2); scene.add(DEST.sea); }
+    DEST.sea.visible = true; DEST.sea.position.set(DEST.active.cx, 0, DEST.active.cz);
+  } else if (DEST.sea) DEST.sea.visible = false;
+}
+
+
+// ============================================================================
+// THE AIRFIELD GATE, STEALING A PLANE, FLYING IT, AND WHO COMES AFTER YOU
+// ============================================================================
+const flight = { active: false, mesh: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, air: false, len: 40, span: 36, crash: 0, hud: null, off: 0 };
+const AIR_CRIMES = { breach: { stars: 2, what: "Smashing through an airport gate" }, theft: { stars: 4, what: "Stealing an aircraft" } };
+function airportExtras(ap, G, ctx) {
+  const L = ctx.L, big = ap.big, M = c => new THREE.MeshLambertMaterial({ color: c });
+  const wp = (x, z) => fromRectLocal(x, z, ap.cx, ap.cz, ap.yaw);
+  ap.tzDoor = ctx.tz + ctx.tw_ / 2 + 8.4;
+  // the fence round the airfield, solid, with one vehicle gate on the road side
+  const fx0 = ctx.fx0, fx1 = ctx.fx1, fz0 = ctx.fz0, fz1 = ctx.fz1, fm = M(0x6d7378), gap = 12;
+  const run = (w, d, x, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), fm); m.position.set(x, 1.2, z); G.add(m); const p = wp(x, z); solids.push({ c: [p[0], p[1]], size: [w, d], yaw: ap.yaw, y: ap.y, h: 2.4 }); };
+  run(fx1 - fx0, 0.3, (fx0 + fx1) / 2, fz0); run(0.3, fz1 - fz0, fx0, (fz0 + fz1) / 2); run(0.3, fz1 - fz0, fx1, (fz0 + fz1) / 2);
+  run((fx1 - fx0) / 2 - gap / 2, 0.3, fx0 + ((fx1 - fx0) / 2 - gap / 2) / 2, fz1); run((fx1 - fx0) / 2 - gap / 2, 0.3, fx1 - ((fx1 - fx0) / 2 - gap / 2) / 2, fz1);
+  // the gate: two booths, a barrier arm across the road, a sign, and a camera on a pole
+  const gz = fz1, armMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+  for (const sd of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), M(0xe8eaed)); b.position.set(sd * (gap / 2 + 2.2), 1.5, gz); G.add(b); const w = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 3.05), M(0x2a4a6a)); w.position.set(sd * (gap / 2 + 2.2), 1.9, gz); G.add(w); const r = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.3, 3.6), M(0x14527a)); r.position.set(sd * (gap / 2 + 2.2), 3.1, gz); G.add(r); const p = wp(sd * (gap / 2 + 2.2), gz); solids.push({ c: [p[0], p[1]], size: [3, 3], yaw: ap.yaw, y: ap.y, h: 3.2 }); }
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(gap + 0.4, 0.28, 0.28), armMat); arm.position.set(0, 1.15, gz); G.add(arm);
+  for (let k = -5; k <= 5; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.3), M(k % 2 ? 0xc0172b : 0xffffff)); st.position.set(k * 1.0, 0, 0); arm.add(st); }
+  const gsg = destSign("SECURITY  ·  AIRPORT AREA  ·  STOP", 9, 1.2, "#c0172b", "#ffffff", "'Segoe UI',sans-serif"); gsg.position.set(0, 4.3, gz + 1.6); G.add(gsg);
+  const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4.3, 6), M(0x555b62)); pl.position.set(-gap / 2 - 5, 2.2, gz + 1.6); G.add(pl); const pl2 = pl.clone(); pl2.position.x = gap / 2 + 5; G.add(pl2);
+  const gp = wp(0, gz), armSolid = { c: [gp[0], gp[1]], size: [gap, 0.9], yaw: ap.yaw, y: ap.y, h: 1.4 };
+  solids.push(armSolid); ap.gate = { arm: arm, solid: armSolid, x: gp[0], z: gp[1], broken: false, group: G };
+  // the shop record that makes the terminal a place you can walk into
+  const dp = wp(0, ap.tzDoor), shop = { brand: "airport", airport: true, ap: ap, name: ap.name, city: "Tōkonto", at: wp(0, ctx.tz), door: [dp[0], dp[1]], yaw: ap.yaw * Math.PI / 180, groundY: ap.y, size: [ctx.tl_, ctx.tw_], built: true };
+  ap.shop = shop; shops.list.push(shop);
+  // the parked airliners can be taken
+  (ap.planes || []).forEach(p => { const w = wp(p.mesh.position.x, p.mesh.position.z); p.wx = w[0]; p.wz = w[1]; });
+  const door = destSign("✈  DEPARTURES  出発  ·  TERMINAL ENTRANCE", 14, 1.6, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); door.position.set(0, 5.2, ap.tzDoor + 1.2); G.add(door);
+  for (const sx of [-3.2, 3.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), M(0xc9ced4)); post.position.set(sx, 2.5, ap.tzDoor); G.add(post); }
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.5, 0.6), M(0x30363e)); lintel.position.set(0, 4.9, ap.tzDoor); G.add(lintel);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.4), new THREE.MeshBasicMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); glow.position.set(0, 2.4, ap.tzDoor); G.add(glow);
+  if (big) buildAirportHighway(ap, G);
+}
+// ---- the expressway from the capital ------------------------------------------------------------------------------------------------------------
+function buildAirportHighway(ap, G) {
+  const city = world.cities[0], start = fromRectLocal(0, ap.sz - 100 + 40, ap.cx, ap.cz, ap.yaw);
+  let goal = null, gd = 1e12; city.roads.forEach(r => { if (r.elevated || r.halfWidth < 9 || !r.pts) return; r.pts.forEach(p => { const d = Math.hypot(p[0] - start[0], p[2] - start[1]); if (d < gd) { gd = d; goal = [p[0], p[2]]; } }); });
+  if (!goal) return;
+  // a route that keeps off the steep ground and the deep water: A* on a 70 m grid
+  const C = 70, nx = Math.ceil(WORLD_X / C), nz = Math.ceil(WORLD_Z / C), hc = new Float32Array(nx * nz);
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) hc[j * nx + i] = world.sampleHeight(i * C + C / 2, j * C + C / 2);
+  const s0 = [Math.floor(start[0] / C), Math.floor(start[1] / C)], g0 = [Math.floor(goal[0] / C), Math.floor(goal[1] / C)], key = (i, j) => j * nx + i;
+  const gs = new Float32Array(nx * nz).fill(1e9), from = new Int32Array(nx * nz).fill(-1), open = [[0, s0[0], s0[1]]]; gs[key(s0[0], s0[1])] = 0;
+  const pop = () => { let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i; const r = open[bi]; open[bi] = open[open.length - 1]; open.pop(); return r; };
+  let found = false, guard = 0;
+  while (open.length && guard++ < 120000) {
+    const [, ci, cj] = pop(); if (ci === g0[0] && cj === g0[1]) { found = true; break; }
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      if (!di && !dj) continue; const ni = ci + di, nj = cj + dj; if (ni < 1 || nj < 1 || ni >= nx - 1 || nj >= nz - 1) continue;
+      const d = Math.hypot(di, dj) * C, h0 = hc[key(ci, cj)], h1 = hc[key(ni, nj)], slope = Math.abs(h1 - h0) / d;
+      const cost = d * (1 + slope * 55 + (h1 < 0.6 ? 7 : 0) + (h1 > 90 ? 6 : 0)), g = gs[key(ci, cj)] + cost, k = key(ni, nj);
+      if (g < gs[k]) { gs[k] = g; from[k] = key(ci, cj); open.push([g + Math.hypot(ni - g0[0], nj - g0[1]) * C, ni, nj]); }
+    }
+  }
+  if (!found) { console.warn("[Konto] no route for the airport expressway"); return; }
+  let cell = key(g0[0], g0[1]); const route = []; while (cell >= 0) { route.push([(cell % nx) * C + C / 2, Math.floor(cell / nx) * C + C / 2]); cell = from[cell]; }
+  route.reverse(); route[0] = [start[0], start[1]]; route.push(goal);
+  let pts = route; for (let it = 0; it < 3; it++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; o.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } o.push(pts[pts.length - 1]); pts = o; }
+  const res = [pts[0]]; let acc = 0; for (let i = 1; i < pts.length; i++) { const a = res[res.length - 1], d = Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); if (d >= 14 || i === pts.length - 1) res.push(pts[i]); }
+  const n = res.length, hh = res.map(p => world.sampleHeight(p[0], p[1])), dk = new Array(n);
+  for (let i = 0; i < n; i++) { let m = -1e9; for (let k = -3; k <= 3; k++) m = Math.max(m, hh[clamp(i + k, 0, n - 1)]); dk[i] = Math.max(m + 0.3, 3.4); }
+  const blur = (a, r) => a.map((_, i) => { let s = 0, c = 0; for (let k = -r; k <= r; k++) { s += a[clamp(i + k, 0, n - 1)]; c++; } return s / c; });
+  let d2 = dk; for (let it = 0; it < 5; it++) d2 = blur(d2, 4); for (let i = 0; i < n; i++) d2[i] = Math.max(d2[i], hh[i] + 0.3, 3.4); d2 = blur(d2, 2); for (let i = 0; i < n; i++) d2[i] = Math.max(d2[i], hh[i] + 0.15); d2[0] = ap.y + 0.1;
+  const hw = 12, sh = 2.6, road = { pos: [], nrm: [], uv: [] }, paint = { pos: [] }, bar = { pos: [], nrm: [], uv: [] }, along = [0];
+  for (let i = 1; i < n; i++) along.push(along[i - 1] + Math.hypot(res[i][0] - res[i - 1][0], res[i][1] - res[i - 1][1]));
+  const dir = i => { const a = res[Math.max(0, i - 1)], b = res[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+  const E = (i, t, up) => { const d = dir(i), x = res[i][0] - d[1] * t, z = res[i][1] + d[0] * t; return [x, d2[i] + (up || 0), z]; };
+  const strip = (buf, a, b, c, d, u0, u1, v0, v1) => { const q = [[a, u0, v0], [b, u1, v0], [c, u1, v1], [d, u0, v1]]; [0, 1, 2, 0, 2, 3].forEach(i => { buf.pos.push(q[i][0][0], q[i][0][1], q[i][0][2]); if (buf.nrm) buf.nrm.push(0, 1, 0); if (buf.uv) buf.uv.push(q[i][1], q[i][2]); }); };
+  const wall = (buf, a, b, c, d) => { [0, 1, 2, 0, 2, 3].forEach(i => { const q = [a, b, c, d][i]; buf.pos.push(q[0], q[1], q[2]); buf.nrm.push(0, 1, 0); buf.uv.push(0, 0); }); };
+  for (let i = 1; i < n; i++) {
+    const v0 = along[i - 1], v1 = along[i];
+    strip(road, E(i - 1, -hw - sh), E(i - 1, hw + sh), E(i, hw + sh), E(i, -hw - sh), 0, hw * 2 + sh * 2, v0, v1);
+    for (const sg of [-1, 1]) { strip(paint, E(i - 1, sg * (hw - 0.2) - 0.14, 0.03), E(i - 1, sg * (hw - 0.2) + 0.14, 0.03), E(i, sg * (hw - 0.2) + 0.14, 0.03), E(i, sg * (hw - 0.2) - 0.14, 0.03)); strip(paint, E(i - 1, sg * 0.18 - 0.07, 0.03), E(i - 1, sg * 0.18 + 0.07, 0.03), E(i, sg * 0.18 + 0.07, 0.03), E(i, sg * 0.18 - 0.07, 0.03)); }
+    if (i % 3 === 0) for (const sg of [-1, 1]) strip(paint, E(i - 1, sg * hw * 0.5 - 0.1, 0.03), E(i - 1, sg * hw * 0.5 + 0.1, 0.03), E(i, sg * hw * 0.5 + 0.1, 0.03), E(i, sg * hw * 0.5 - 0.1, 0.03));
+    for (const sg of [-1, 1]) { const o = sg * (hw + sh), t = (u, up) => E(i, o + sg * u, up), t0 = (u, up) => E(i - 1, o + sg * u, up); wall(bar, t0(0, 0), t0(0, 0.95), t(0, 0.95), t(0, 0)); wall(bar, t0(0.4, 0.95), t0(0, 0.95), t(0, 0.95), t(0.4, 0.95)); wall(bar, t0(0.4, 0), t0(0.4, 0.95), t(0.4, 0.95), t(0.4, 0)); }
+  }
+  const mat = destAsphalt(), barMat = new THREE.MeshLambertMaterial({ color: 0xb9b7b0, side: THREE.DoubleSide }), whiteMat = new THREE.MeshBasicMaterial({ color: 0xeeeee6, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
+  const emit = (data, widths, m) => bucketQuads(data, widths).forEach(bk => { const g = new THREE.BufferGeometry(); Object.keys(widths).forEach(nm => g.setAttribute(nm === "pos" ? "position" : nm === "nrm" ? "normal" : "uv", new THREE.Float32BufferAttribute(bk.d[nm], widths[nm]))); if (!widths.nrm) g.computeVertexNormals(); const o = new THREE.Mesh(g, m); o.frustumCulled = false; o.receiveShadow = true; scene.add(o); streamAdd(o, bk, STREAM.road * 1.4); });
+  emit(road, { pos: 3, nrm: 3, uv: 2 }, mat); emit(paint, { pos: 3 }, whiteMat); emit(bar, { pos: 3, nrm: 3, uv: 2 }, barMat);
+  // piers wherever it stands well above the ground, lamps, and two overhead signs
+  const piers = []; for (let i = 0; i < n; i += 2) if (d2[i] - hh[i] > 3.2) piers.push(i);
+  if (piers.length) { const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0x9a9a94 }), piers.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(); piers.forEach((i, k) => { const d = dir(i); e.set(0, Math.atan2(d[0], d[1]), 0); q.setFromEuler(e); const top = d2[i] - 0.9, bot = Math.min(hh[i], 0) - 3, ht = top - bot; m4.compose(new THREE.Vector3(res[i][0], bot + ht / 2, res[i][1]), q, new THREE.Vector3(hw * 1.1, ht, 3.2)); im.setMatrixAt(k, m4); }); im.frustumCulled = false; scene.add(im); }
+  const lamps = []; for (let i = 3; i < n; i += 4) for (const sg of [-1, 1]) lamps.push([i, sg]);
+  const lp = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.16, 9, 6), new THREE.MeshLambertMaterial({ color: 0x555b62 }), lamps.length), lh = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 0.22, 0.6), new THREE.MeshBasicMaterial({ color: 0xfff1c0 }), lamps.length), m5 = new THREE.Matrix4();
+  lamps.forEach(([i, sg], k) => { const p = E(i, sg * (hw + sh + 0.3)); m5.makeTranslation(p[0], p[1] + 4.5, p[2]); lp.setMatrixAt(k, m5); m5.makeTranslation(p[0] - sg * 0.2, p[1] + 9, p[2]); lh.setMatrixAt(k, m5); });
+  lp.frustumCulled = lh.frustumCulled = false; scene.add(lp); scene.add(lh);
+  [Math.floor(n * 0.08), Math.floor(n * 0.5), n - 12].forEach((i, k) => { const p = E(i, 0), d = dir(i), ang = Math.atan2(d[0], d[1]); const g = new THREE.Group(); g.position.set(p[0], p[1], p[2]); g.rotation.y = ang; scene.add(g); for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); post.position.set(sx * (hw + sh + 0.6), 3.7, 0); g.add(post); } const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + sh) * 2 + 1.4, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); beam.position.y = 7.2; g.add(beam); const sg = destSign(k === 0 ? "TŌKONTO INTERNATIONAL AIRPORT  ✈  空港" : k === 1 ? "✈  TKO  空港  ·  Airport Expressway" : "✈  TŌKONTO  ·  Airport  ✈", 14, 3, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); sg.position.set(0, 5.4, 0.3); g.add(sg); const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -0.3; g.add(sg2); });
+  // and on the map
+  city.roads.push({ pts: res.map((p, i) => [p[0], d2[i], p[1]]), halfWidth: hw + sh, elevated: false, loop: false, name: "Airport Expressway" });
+  ap.highway = { n: n, len: along[n - 1], hw: hw, pts: res, deck: d2 };
+  console.log("[Konto] airport expressway: " + Math.round(along[n - 1] / 100) / 10 + " km");
+}
+// ---- the gate: ram it ---------------------------------------------------------------------------------------------------------------------------
+function updateAirportGates(dt) {
+  const aps = (world && world.airports) || []; if (!aps.length || !drive.car) return;
+  aps.forEach(ap => {
+    const g = ap.gate; if (!g || g.broken) return;
+    const d = Math.hypot(drive.car.pos.x - g.x, drive.car.pos.z - g.z);
+    if (d < 7 && Math.abs(drive.car.speed || 0) > 5.5) {
+      g.broken = true; g.arm.visible = false;
+      const i = solids.indexOf(g.solid); if (i >= 0) { solids.splice(i, 1); buildSolidGrid(); }
+      const fly = new THREE.Mesh(new THREE.BoxGeometry(12, 0.28, 0.28), new THREE.MeshLambertMaterial({ color: 0xffffff })); fly.position.set(g.x, ap.y + 1.2, g.z); scene.add(fly); g.fly = fly; g.t = 0;
+      drive.shake = Math.max(drive.shake || 0, 0.8); rumble(1, 0.8, 260); try { playCrash(8); } catch (e) { /* sound */ }
+      say("Smashed through the airport gate.", 4);
+      wanted.lastCrime = AIR_CRIMES.breach.what; wanted.stars = Math.min(5, Math.max(wanted.stars, 2)); wanted.heat = 1; wanted.escape = 0; callPolice(player.pos);
+    }
+  });
+  aps.forEach(ap => { const g = ap.gate; if (g && g.fly) { g.t += dt; g.fly.position.y -= 3 * dt * (g.t < 0.6 ? 0 : 1); g.fly.position.x += 2 * dt; g.fly.rotation.z += dt * 3; if (g.t > 4) { scene.remove(g.fly); g.fly = null; } } });
+}
+// ---- the planes you can take --------------------------------------------------------------------------------------------------------------------
+function airNear() {
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train || flight.active) return null;
+  const aps = (world && world.airports) || [], p = player.pos;
+  for (const ap of aps) for (const pl of (ap.planes || [])) { if (pl.taken) continue; if (Math.hypot(pl.wx - p.x, pl.wz - p.z) < pl.len * 0.5 + 6 && Math.abs(p.y - ap.y) < 6) return { kind: "plane", ap: ap, plane: pl, text: "Take the aircraft  (this is a crime)" }; }
+  for (const pl of (flight.parked || [])) if (Math.hypot(pl.mesh.position.x - p.x, pl.mesh.position.z - p.z) < pl.len * 0.5 + 6) return { kind: "parked", plane: pl, text: "Get back in the aircraft" };
+  if (DEST.near) return { kind: "kiosk", text: "Departures · return flights" };
+  return null;
+}
+function airUse() {
+  const a = airNear(); if (!a) return false;
+  if (a.kind === "kiosk") { expedioOpen("dest", air.at); return true; }
+  if (a.kind === "parked") { flightEnter(a.plane); return true; }
+  stealPlane(a.ap, a.plane); return true;
+}
+function stealPlane(ap, pl) {
+  pl.taken = true; pl.mesh.visible = false;
+  const m = airplaneMesh(pl.len, pl.span, pl.tail || 0xc0172b, gfx.high); scene.add(m);
+  const q0 = fromRectLocal(pl.mesh.position.x, pl.mesh.position.z, ap.cx, ap.cz, ap.yaw), q1 = fromRectLocal(pl.mesh.position.x + 100, pl.mesh.position.z, ap.cx, ap.cz, ap.yaw);
+  const entry = { mesh: m, len: pl.len, span: pl.span, tail: pl.tail, ap: ap, h: Math.atan2(q1[0] - q0[0], q1[1] - q0[1]) };
+  m.position.set(pl.wx, ap.y + pl.len * 0.0825, pl.wz);
+  (flight.parked || (flight.parked = [])).push(entry);
+  wanted.lastCrime = AIR_CRIMES.theft.what; wanted.stars = Math.max(wanted.stars, 4); wanted.heat = 1; wanted.escape = 0; wanted.seen = true;
+  say("Stealing an aircraft · 4 stars", 5); vitals.stress = clamp01(vitals.stress + 0.3); callPolice(player.pos);
+  flightEnter(entry);
+}
+function flightEnter(en) {
+  flight.active = true; flight.mesh = en.mesh; flight.en = en; flight.ap = en.ap; flight.len = en.len; flight.span = en.span; flight.air = false; flight.v = 0; flight.thr = 0; flight.pitch = 0; flight.roll = 0; flight.h = en.h; flight.crash = 0;
+  flight.pos.copy(en.mesh.position); flight.off = en.len * 0.0825;
+  const i = flight.parked.indexOf(en); if (i >= 0) flight.parked.splice(i, 1);
+  player.obj.visible = false; player.speed = 0;
+  if (!flight.hud) { const h = document.createElement("div"); h.id = "flighthud"; h.style.cssText = "position:fixed;left:50%;bottom:6%;transform:translateX(-50%);z-index:60;padding:10px 20px;background:rgba(8,12,18,.78);border-left:4px solid #ffd21c;color:#fff;font:700 15px 'Segoe UI',sans-serif;white-space:nowrap;display:none"; document.body.appendChild(h); flight.hud = h; }
+  flight.hud.style.display = "block";
+  say("W / S throttle · ↓ pull up, ↑ nose down · ← → bank · A D rudder on the ground · F / Y gets you out when stopped" + (pad.index >= 0 ? " · pad: left stick, RT/LT throttle, LB/RB rudder, " + padLabel("Y") + " gets out" : ""), 12);
+}
+function flightLeave() {
+  const e = { mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h }; (flight.parked || (flight.parked = [])).push(e);
+  flight.active = false; flight.hud.style.display = "none";
+  const sx = flight.pos.x + Math.cos(flight.h) * 0 - Math.sin(flight.h + Math.PI / 2) * (flight.span * 0.2), sz = flight.pos.z - Math.cos(flight.h + Math.PI / 2) * (flight.span * 0.2);
+  player.obj.visible = true; placeSeiko(new THREE.Vector3(sx, 0, sz)); player.mode = "walk"; camPos.copy(camera.position);
+}
+function flightCrash(why) {
+  flight.lastCrash = why;
+  const m = flight.mesh; flight.active = false; flight.hud.style.display = "none"; scene.remove(m); flight.crash = 0;
+  say(why, 6); vitals.health = clamp01(vitals.health - 0.45); vitals.stress = clamp01(vitals.stress + 0.3); drive.shake = 1; rumble(1, 1, 500);
+  const ap = flight.ap || world.airports[0], p = fromRectLocal(0, ap.big ? 244 : 200, ap.cx, ap.cz, ap.yaw); player.obj.visible = true; placeSeiko(new THREE.Vector3(p[0], 0, p[1])); player.mode = "walk";
+}
+function updateFlight(dt) {
+  const f = flight, gp = pad.gp, K = keys;
+  let pitchIn = (K.ArrowDown ? 1 : 0) - (K.ArrowUp ? 1 : 0), rollIn = (K.ArrowRight ? 1 : 0) - (K.ArrowLeft ? 1 : 0), rud = (K.KeyD ? 1 : 0) - (K.KeyA ? 1 : 0), thr = (K.KeyW ? 1 : 0) - (K.KeyS ? 1 : 0);
+  if (gp && pad.index >= 0) { pitchIn += deadzone(gp.axes[1] || 0); rollIn += deadzone(gp.axes[0] || 0); thr += (pad.throttle || 0) - (pad.brake || 0); rud += (gp.buttons[PAD.RB] && gp.buttons[PAD.RB].pressed ? 1 : 0) - (gp.buttons[PAD.LB] && gp.buttons[PAD.LB].pressed ? 1 : 0); }
+  pitchIn = clamp(pitchIn, -1, 1); rollIn = clamp(rollIn, -1, 1);
+  f.thr = clamp(f.thr + thr * 0.5 * dt, 0, 1);
+  const g0 = world.surfaceY(f.pos.x, f.pos.z) + f.off, alt = f.pos.y - g0;
+  if (!f.air) {
+    // on the ground: thrust against a drag, brakes on S with the throttle closed, the rudder steers, and the nose comes up when you pull back past rotation speed
+    const brake = K.KeyS && f.thr < 0.05;
+    f.v += (f.thr * 6.5 - f.v * 0.012 - (brake ? 12 : 0)) * dt; f.v = Math.max(0, f.v);
+    f.h -= rud * clamp(f.v / 8, 0, 1) * 0.45 * dt;
+    f.pitch = f.v > 40 ? lerp(f.pitch, clamp(pitchIn, 0, 1) * 0.16, 1 - Math.pow(0.05, dt)) : 0; f.roll = 0;
+    if (f.v > 52 && pitchIn > 0.3) { f.air = true; f.vy = 4; say("Airborne.", 2); }
+    f.pos.x += Math.sin(f.h) * f.v * dt; f.pos.z += Math.cos(f.h) * f.v * dt; f.pos.y = world.surfaceY(f.pos.x, f.pos.z) + f.off;
+    if (insideBuilding(f.pos.x, f.pos.z, f.span * 0.12)) { if (f.v > 14) return flightCrash("You ploughed an aircraft into a building."); f.pos.x -= Math.sin(f.h) * f.v * dt; f.pos.z -= Math.cos(f.h) * f.v * dt; f.v = 0; }
+  } else {
+    // in the air: thrust against drag, lift that grows with speed, a bank that turns, a nose that wants to settle level
+    f.pitch = clamp(f.pitch + pitchIn * 0.5 * dt - (pitchIn ? 0 : f.pitch * 0.35 * dt), -0.7, 0.62);
+    f.roll = lerp(f.roll, rollIn * 0.75, 1 - Math.pow(0.02, dt));
+    f.v += (f.thr * 12 - f.v * f.v * 0.001 - Math.sin(f.pitch) * 14) * dt; f.v = clamp(f.v, 14, 125);
+    f.h -= Math.sin(f.roll) * 0.5 * dt * clamp(f.v / 60, 0.3, 1.4);
+    const lift = clamp((f.v - 34) / 26, 0, 1), vy = Math.sin(f.pitch) * f.v * lift - (1 - lift) * 16 + (f.pitch < 0 ? Math.sin(f.pitch) * f.v * (1 - lift) : 0);
+    f.pos.y += vy * dt; f.pos.x += Math.sin(f.h) * Math.cos(f.pitch) * f.v * dt; f.pos.z += Math.cos(f.h) * Math.cos(f.pitch) * f.v * dt; f.vy = vy;
+    const gnow = world.surfaceY(f.pos.x, f.pos.z) + f.off;
+    if (f.pos.y < gnow) {
+      const hard = -vy;
+      if (hard > 9 || Math.abs(f.roll) > 0.35 || (f.v > 95 && hard > 5)) return flightCrash("You crashed the aircraft.");
+      f.air = false; f.pos.y = gnow; f.pitch = 0; say(hard < 3 ? "A smooth landing." : "Down, hard.", 2.5);
+    } else if (alt < 90 && insideBuilding(f.pos.x, f.pos.z, f.span * 0.2)) return flightCrash("You flew an aircraft into a building.");
+    if (f.pos.x < 0 || f.pos.z < 0 || f.pos.x > WORLD_X || f.pos.z > WORLD_Z) f.h += Math.PI * dt * 0.4;
+  }
+  player.speed = f.v;
+  const m = f.mesh; m.visible = true; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
+  player.pos.copy(f.pos); player.pos.y = f.pos.y; player.yaw = f.h;
+  // chase camera: well back and a little above, swinging with the heading
+  const back = f.len * 1.1 + 14, tx = f.pos.x - Math.sin(f.h) * back, tz = f.pos.z - Math.cos(f.h) * back, ty = f.pos.y + 6 + f.len * 0.12 - Math.sin(f.pitch) * 8;
+  camPos.lerp(new THREE.Vector3(tx, Math.max(ty, world.surfaceY(tx, tz) + 3), tz), 1 - Math.pow(0.002, dt)); camera.position.copy(camPos); camera.lookAt(f.pos.x + Math.sin(f.h) * 12, f.pos.y + 2, f.pos.z + Math.cos(f.h) * 12);
+  if (f.hud) f.hud.textContent = "✈  " + Math.round(f.v * 3.6) + " km/h   ·   " + Math.round(Math.max(0, f.pos.y - f.off - world.surfaceY(f.pos.x, f.pos.z))) + " m up   ·   throttle " + Math.round(f.thr * 100) + "%" + (f.air ? "" : "   ·   on the ground" + (f.v < 6 ? "  ·  F: get out" : ""));
+}
+// ---- the helicopters ---------------------------------------------------------------------------------------------------------------------------
+const heli = { list: [] };
+function heliMesh() {
+  const g = new THREE.Group(), M = c => new THREE.MeshLambertMaterial({ color: c }), add = (geo, c, x, y, z) => { const m = new THREE.Mesh(geo, M(c)); m.position.set(x, y, z); g.add(m); return m; };
+  const body = add(new THREE.SphereGeometry(1.6, 12, 10), 0x1c2a4a, 0, 0, 0); body.scale.set(1.5, 1, 1); add(new THREE.BoxGeometry(5.5, 0.5, 0.5), 0x1c2a4a, -4.2, 0.3, 0); add(new THREE.BoxGeometry(0.4, 1.6, 0.2), 0x1c2a4a, -6.8, 0.9, 0);
+  add(new THREE.BoxGeometry(0.2, 0.2, 3.4), 0x333a44, 0, -1.7, 1.1); add(new THREE.BoxGeometry(0.2, 0.2, 3.4), 0x333a44, 0, -1.7, -1.1);
+  const glass = add(new THREE.SphereGeometry(1.05, 10, 8), 0x7fb0d0, 1.5, 0.25, 0); glass.scale.set(1, 0.8, 1);
+  const rot = new THREE.Group(); rot.position.y = 1.7; g.add(rot); for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(11, 0.06, 0.4), M(0x2a2d33)); b.rotation.y = k * Math.PI / 2; rot.add(b); } g.userData.rot = rot;
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(8, 60, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, fog: false })); beam.position.set(0, -30, 0); g.add(beam); g.userData.beam = beam;
+  const l1 = add(new THREE.SphereGeometry(0.2, 6, 4), 0xff2a2a, -0.2, 1.7, 1.2), l2 = add(new THREE.SphereGeometry(0.2, 6, 4), 0x2a6aff, -0.2, 1.7, -1.2); g.userData.l = [l1, l2];
+  return g;
+}
+function updateHelis(dt) {
+  const want = wanted.stars >= 5 ? 3 : wanted.stars >= 4 ? 2 : 0, target = flight.active ? flight.pos : (drive.car ? drive.car.pos : player.pos);
+  while (heli.list.length < want && player.placed) {
+    const a = Math.random() * 6.28, m = heliMesh(); scene.add(m); const h = { m: m, pos: new THREE.Vector3(target.x + Math.cos(a) * 320, target.y + 90, target.z + Math.sin(a) * 320), a: a, k: heli.list.length, yaw: 0 }; heli.list.push(h); m.position.copy(h.pos);
+    say("Helicopter overhead.", 3);
+  }
+  for (let i = heli.list.length - 1; i >= 0; i--) {
+    const h = heli.list[i];
+    if (i >= want) { h.pos.y += 18 * dt; h.pos.x += 22 * dt; h.m.position.copy(h.pos); h.m.userData.rot.rotation.y += dt * 30; h.m.userData.beam.visible = false; if (h.pos.y > target.y + 500) { scene.remove(h.m); heli.list.splice(i, 1); } continue; }
+    h.a += dt * (0.25 + h.k * 0.06);
+    const tx = target.x + Math.cos(h.a) * (flight.active ? 90 + h.k * 40 : 55 + h.k * 25), tz = target.z + Math.sin(h.a) * (flight.active ? 90 + h.k * 40 : 55 + h.k * 25), ty = Math.max(target.y + (flight.active ? 14 + h.k * 18 : 46 + h.k * 10), world.surfaceY(h.pos.x, h.pos.z) + 40);
+    const dx = tx - h.pos.x, dy = ty - h.pos.y, dz = tz - h.pos.z, d = Math.hypot(dx, dy, dz) || 1, sp = Math.min(d * 0.9, flight.active ? 80 : 46);
+    h.pos.x += dx / d * sp * dt; h.pos.y += dy / d * sp * dt; h.pos.z += dz / d * sp * dt; h.m.position.copy(h.pos);
+    const face = Math.atan2(target.x - h.pos.x, target.z - h.pos.z); h.yaw += (((face - h.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 2 * dt; h.m.rotation.set(0, h.yaw - Math.PI / 2, 0); h.m.userData.rot.rotation.y += dt * 36;
+    const b = h.m.userData.beam; b.visible = true; b.lookAt(target.x, target.y, target.z); b.rotateX(Math.PI / 2); const dd = h.pos.distanceTo(target); b.scale.set(1, dd / 60, 1); b.position.copy(target).sub(h.pos).multiplyScalar(0.5).applyMatrix4(new THREE.Matrix4().makeRotationY(-(h.yaw - Math.PI / 2)));
+    const fl = Math.floor(clock * 5) % 2 === 0; h.m.userData.l[0].visible = fl; h.m.userData.l[1].visible = !fl;
+  }
+}
+function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
+function flightAbort() {
+  if (!flight.active) return;
+  flight.active = false; if (flight.hud) flight.hud.style.display = "none";
+  (flight.parked || (flight.parked = [])).push({ mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h });
+  if (player.obj) player.obj.visible = true;
+}
+
 function frameLoop() {
   let last = performance.now();
   let slow = 1;
@@ -30307,7 +31259,7 @@ document.getElementById("regen").addEventListener("click", () => {
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
-const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule"];
+const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule", "airport"];
 const interior = { active: false, modal: null, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
@@ -30500,7 +31452,8 @@ function interiorReturnToConcourse() {
   const st = interior.stack; if (!st) return;
   interior.stack = null;
   interior.shop = st.shop;
-  interiorShowRoom(st.room, { x: st.spot.x, z: st.spot.z + 1.9 }, 0);
+  const ret = st.spot.ret === undefined ? 1.9 : st.spot.ret;
+  interiorShowRoom(st.room, { x: st.spot.x, z: st.spot.z + ret }, ret < 0 ? Math.PI : 0);
 }
 
 // Dokoto's own rules for buying, and its test counters (phone camera, TVs, headphones and watches in the mirror, games on the arcade): the
@@ -30623,6 +31576,12 @@ function interiorSpotFocus() {
   return best;
 }
 function interiorSpotAct(sp) {
+  if (sp.act === "ticketoffice") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("office", air.at); return; }
+  if (sp.act === "kiosk") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("app", air.at); return; }
+  if (sp.act === "security") { player.speed = 0; interior.prompt.classList.remove("on"); airSecurity(interior.room); return; }
+  if (sp.act === "gate") { player.speed = 0; interior.prompt.classList.remove("on"); airGate(interior.room, sp.gate); return; }
+  if (sp.act === "landside") { airGoto(interior.room.land, { x: 19, z: 4 }, -Math.PI / 2, "Back in the hall. The security lanes are behind you."); return; }
+  if (sp.act === "plane_seat") { if (!air.ticket) { say("This is not your flight.", 3); return; } player.speed = 0; interior.prompt.classList.remove("on"); ifeStart(air.ticket.from, air.ticket.to); return; }
   if (sp.act === "sit") { interiorSit(sp); return; }
   if (sp.act === "police") { interior.modal = { kind: "desk", sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw(); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
@@ -30951,7 +31910,7 @@ function inDecorUnit(room, root, th, x, z, len, face, pool, brand) {
     inAdd(unit, len - 0.1, 0.04, 0.46, 0, tiers[r] - 0.02, 0.2, "#59606a");
     inAdd(unit, len - 0.14, 0.05, 0.02, 0, tiers[r] - 0.06, 0.44, r % 2 ? "#fff3b0" : sk.wall[1]);     // the shelf-edge price strip
     for (let c = 0; c < per; c++) {
-      const it = pool[(r * 7 + c * 3 + Math.floor(x * 10)) % pool.length];
+      const it = pool[(((r * 7 + c * 3 + Math.floor(x * 10)) % pool.length) + pool.length) % pool.length];
       const m = inItemMesh(it, true); m.position.set((c - (per - 1) / 2) * Math.min(0.72, (len - 0.4) / per), tiers[r], 0.3); unit.add(m);
     }
   }
@@ -31214,6 +32173,7 @@ function interiorRoom(s, opts) {
   const brand = s.brand, key = opts.key || brand;
   if (interior.rooms[key]) return interior.rooms[key];
   if (brand === "capsule") return (interior.rooms[key] = interiorCapsuleRoom());
+  if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x"); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
   const th = IN_THEME[brand] || IN_THEME.eleven;
@@ -31800,7 +32760,7 @@ function interiorEnter(s) {
   player.yaw = player.targetYaw = Math.PI; yaw = 0; pitch = -0.22;
   player.speed = 0; player.onWalk = false;
   player.obj.position.copy(player.pos);
-  camPos.set(room.ox, interior.floorY + 2.4, room.oz + IN_D / 2 - 0.9);
+  camPos.set(room.ox, interior.floorY + 2.4, room.oz + (room.D || IN_D) / 2 - 0.9);
   camera.position.copy(camPos);
   doorway.cool = 1.0;
   say("Irasshaimase!  Walk up to something and press E.", 4);
@@ -31832,10 +32792,11 @@ function interiorTryStep(dx, dz, radius) {
   const R = interior.room;
   const nx = player.pos.x + dx, nz = player.pos.z + dz;
   const lx = nx - R.ox, lz = nz - R.oz;
-  const inGap = !R.noExit && Math.abs(lx) < 1.0;
-  if (lx < -IN_W / 2 + radius + 0.1 || lx > IN_W / 2 - radius - 0.1) return false;
-  if (lz < -IN_D / 2 + radius + 0.1) return false;
-  if (lz > IN_D / 2 - radius - (inGap ? -0.6 : 0.1)) return false;
+  const W = R.W || IN_W, D = R.D || IN_D;
+  const inGap = !R.noExit && Math.abs(lx) < (R.doorW ? R.doorW / 2 - 0.2 : 1.0);
+  if (lx < -W / 2 + radius + 0.1 || lx > W / 2 - radius - 0.1) return false;
+  if (lz < -D / 2 + radius + 0.1) return false;
+  if (lz > D / 2 - radius - (inGap ? -0.6 : 0.1)) return false;
   for (const c of R.colliders) if (nx > c.x0 + R.ox - radius && nx < c.x1 + R.ox + radius && nz > c.z0 + R.oz - radius && nz < c.z1 + R.oz + radius) return false;
   player.pos.x = nx; player.pos.z = nz;
   return true;
@@ -31845,15 +32806,16 @@ function interiorReach(head, dir, want) {
   for (let i = 1; i <= 10; i++) {
     const d = want * (i / 10);
     const px = head.x - dir.x * d - R.ox, pz = head.z - dir.z * d - R.oz;
-    if (Math.abs(px) > IN_W / 2 - 0.35 || pz < -IN_D / 2 + 0.35 || pz > IN_D / 2 - 0.3) return Math.max(0.9, want * ((i - 1) / 10) - 0.1);
+    if (Math.abs(px) > (R.W || IN_W) / 2 - 0.35 || pz < -(R.D || IN_D) / 2 + 0.35 || pz > (R.D || IN_D) / 2 - 0.3) return Math.max(0.9, want * ((i - 1) / 10) - 0.1);
   }
   return want;
 }
 function interiorClampCam(p) {
   const R = interior.room;
-  p.x = clamp(p.x, R.ox - IN_W / 2 + 0.3, R.ox + IN_W / 2 - 0.3);
-  p.z = clamp(p.z, R.oz - IN_D / 2 + 0.3, R.oz + IN_D / 2 - 0.3);
-  p.y = clamp(p.y, interior.floorY + 0.5, interior.floorY + IN_H - 0.25);
+  const W = R.W || IN_W, D = R.D || IN_D, H = R.H || IN_H;
+  p.x = clamp(p.x, R.ox - W / 2 + 0.3, R.ox + W / 2 - 0.3);
+  p.z = clamp(p.z, R.oz - D / 2 + 0.3, R.oz + D / 2 - 0.3);
+  p.y = clamp(p.y, interior.floorY + 0.5, interior.floorY + H - 0.25);
 }
 
 // Which item is Seiko looking at: the nearest one in front of him, within arm's reach of the aisle.
@@ -31910,7 +32872,7 @@ function interiorTick(dt) {
   padGlyphs();
   // out through the doorway
   const lz = player.pos.z - R.oz, lx = player.pos.x - R.ox;
-  if (!R.noExit && lz > IN_D / 2 - 0.55 && Math.abs(lx) < 1.2) interiorLeave();
+  if (!R.noExit && lz > (R.D || IN_D) / 2 - 0.55 && Math.abs(lx) < (R.doorW ? R.doorW / 2 : 1.2)) interiorLeave();
 }
 
 // ---- the close look ---------------------------------------------------------------------------------------------------------------------
@@ -32143,7 +33105,8 @@ function snapshotSave() {
     phone: { device: phone.device, colourIdx: phone.colourIdx, pearWall: phone.pearWall, pearAccent: phone.pearAccent, wall: wall, watch: phone.watch, health: phone.health, owns: phone.owns, gallery: (phone.gallery || []).slice(-6) },
     wallet: { ic: wallet.ic, toll: wallet.toll, loyal: wallet.loyal, buys: wallet.buys, pts: wallet.pts },
     pos: { x: at.x, z: at.z, yaw: player.yaw },
-    record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) }
+    record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) },
+    air: { ticket: air.ticket, flights: air.flights, at: air.at }
   };
 }
 function saveSig() {
@@ -32181,6 +33144,7 @@ function applySave(s) {
     Object.assign(wallet, s.wallet);
     if (typeof s.clock === "number") clock = s.clock;
     if (s.record) Object.assign(record, s.record);
+    if (s.air) { air.ticket = s.air.ticket || null; air.flights = s.air.flights || 0; air.at = AIR_DESTS[s.air.at] ? s.air.at : "konto"; }
     saveLast.sig = saveSig();
   } catch (e) { console.warn("[Konto] the save could not be applied:", e); }
 }
