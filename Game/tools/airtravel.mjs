@@ -111,23 +111,32 @@ await step("steal", async () => {
   await wait(6000);
   const st = await ev(() => ({ flying: flight.active, stars: wanted.stars, crime: wanted.lastCrime, h: heli.list.length }));
   ok("stolen: flying, four stars", st.flying && st.stars >= 4, st); await snap("plane_stolen");
-  await ev(() => { flight.thr = 1; flight.v = 56; keys.ArrowDown = true; });
+  await ev(() => { flight.thr = 1; flight.v = 60; keys.ArrowDown = true; });
   for (let i = 0; i < 30; i++) { await wait(1500); if (await ev(() => flight.air)) break; }
   await ev(() => { keys.ArrowDown = false; });
-  const up = await ev(() => ({ air: flight.air, v: Math.round(flight.v), alt: Math.round(flight.pos.y - world.surfaceY(flight.pos.x, flight.pos.z)) }));
+  const up = await ev(() => ({ air: flight.air, v: Math.round(flight.v), alt: Math.round(flight.pos.y - flight.off - world.surfaceY(flight.pos.x, flight.pos.z)), gamma: Math.round(flight.gamma * 100) / 100 }));
   ok("took off", up.air, up);
-  await ev(() => { flight.pos.y += 120; flight.thr = 0.8; flight.v = 70; keys.ArrowDown = true; });
-  await wait(1500); await ev(() => { keys.ArrowDown = false; });
+  await ev(() => { flight.pos.y += 300; flight.v = 95; flight.thr = 0.55; flight.pitch = 0.03; flight.gamma = 0; });
   await wait(9000);
-  const h = await ev(() => ({ h: heli.list.length, stars: wanted.stars, air: flight.air, alt: Math.round(flight.pos.y - world.surfaceY(flight.pos.x, flight.pos.z)), v: Math.round(flight.v) }));
-  ok("helicopters in the air with you", h.h >= 2, h); await snap("flight_helis");
-  await ev(() => { keys.ArrowRight = true; }); await wait(6000); await snap("flight_bank"); await ev(() => { keys.ArrowRight = false; });
-  // put it down on the runway
-  await ev(() => { const a = world.airports.find(x => x.big); const p = fromRectLocal(-a.len / 2 - 900, 0, a.cx, a.cz, a.yaw); flight.pos.set(p[0], a.y + 30, p[1]); flight.h = Math.atan2(...(() => { const q = fromRectLocal(-a.len / 2 - 800, 0, a.cx, a.cz, a.yaw); return [q[0] - p[0], q[1] - p[1]]; })()); flight.v = 52; flight.thr = 0.3; flight.pitch = 0; flight.roll = 0; });
-  for (let i = 0; i < 30; i++) { await wait(1500); if (!(await ev(() => flight.air)) || !(await ev(() => flight.active))) break; }
-  const ld = await ev(() => ({ active: flight.active, air: flight.air, v: Math.round(flight.v), crash: flight.lastCrash || null }));
-  console.log("landing", JSON.stringify(ld)); await snap("landed_or_crashed");
-  await ev(() => { if (flight.active) flightAbort(); wanted.stars = 0; policeClear(); heli.list.forEach(h => scene.remove(h.m)); heli.list.length = 0; });
+  const h = await ev(() => ({ h: heli.list.length, stars: wanted.stars, air: flight.air, alt: Math.round(flight.pos.y - flight.off - world.surfaceY(flight.pos.x, flight.pos.z)), v: Math.round(flight.v), gamma: Math.round(flight.gamma * 100) / 100, lowres: flight.lowres }));
+  ok("level flight holds, helicopters with you", h.h >= 2 && Math.abs(h.gamma) < 0.2 && h.v > 60, h); await snap("flight_helis");
+  await ev(() => { keys.ArrowRight = true; }); await wait(5000); await snap("flight_bank"); await ev(() => { keys.ArrowRight = false; });
+  const bank = await ev(() => ({ roll: Math.round(flight.roll * 100) / 100, h: Math.round(flight.h * 100) / 100 })); console.log("BANK", JSON.stringify(bank));
+  await ev(() => { flight.cam = 1; }); await wait(3000); await snap("flight_cockpit"); await ev(() => { flight.cam = 2; }); await wait(3000); await snap("flight_far"); await ev(() => { flight.cam = 0; });
+  // jump out, free fall, open the parachute, glide down
+  await ev(() => { flight.pos.y = world.surfaceY(flight.pos.x, flight.pos.z) + flight.off + 900; });
+  await wait(1500); await ev(() => useRide()); await wait(3500);
+  const fall = await ev(() => ({ chute: chute.active, state: chute.state, alt: Math.round(chute.pos.y - world.surfaceY(chute.pos.x, chute.pos.z)), vy: Math.round(chute.vy) }));
+  ok("jumped, falling", fall.chute && fall.state === "fall" && fall.vy < -10, fall); await snap("freefall");
+  await ev(() => chuteOpen()); await wait(5000);
+  const open = await ev(() => ({ state: chute.state, vy: Math.round(chute.vy * 10) / 10, hs: Math.round(chute.hs * 10) / 10, alt: Math.round(chute.pos.y - world.surfaceY(chute.pos.x, chute.pos.z)) }));
+  ok("parachute open, gliding", open.state === "open" && open.vy > -8 && open.hs > 6, open); await snap("parachute_open");
+  await ev(() => { keys.KeyD = true; }); await wait(4000); await ev(() => { keys.KeyD = false; }); await snap("parachute_turn");
+  await ev(() => { chute.pos.y = world.surfaceY(chute.pos.x, chute.pos.z) + 25; });
+  for (let i = 0; i < 25; i++) { await wait(1500); if (!(await ev(() => chute.active))) break; }
+  const landed = await ev(() => ({ active: chute.active, mode: player.mode, health: Math.round(vitals.health * 100) / 100 }));
+  ok("landed on the parachute", !landed.active && landed.mode === "walk" && landed.health > 0.2, landed); await snap("parachute_landed");
+  await ev(() => { wanted.stars = 0; policeClear(); heli.list.forEach(h => scene.remove(h.m)); heli.list.length = 0; });
 });
 
 // the terminal
@@ -150,13 +159,14 @@ await step("terminal", async () => {
   const bought = await ev(() => { if (!air.ticket) airBuy("konto", "seoul", 0, "office"); expedioClose(); return !!air.ticket && air.ticket.to; });
   ok("ticket in hand", !!bought, bought);
   // security
-  await ev(() => interiorSpotAct(interior.room.spots.find(s => s.act === "security"))); await wait(2000); await snap("security_modal");
-  await ev(() => { interior.modal.sel = 0; interiorModalAct(); }); await wait(2500);
+  // walk into the security arch: no button
+  await ev(() => { const R = interior.room, sp = R.spots.find(s => s.act === "security"); player.pos.set(R.ox + sp.x - 2.2, interior.floorY, R.oz + sp.z); player.yaw = player.targetYaw = Math.PI / 2; yaw = player.yaw + Math.PI; });
+  await wait(1200); await ev(() => { keys.KeyW = true; }); await wait(7000); await ev(() => { keys.KeyW = false; }); await snap("security_walked");
   const air1 = await ev(() => interior.room.kind); ok("airside", air1 === "air", air1); await snap("airside");
   await ev(() => { const R = interior.room; const g = R.spots.find(s => s.act === "gate" && s.gate === air.ticket.gate); player.pos.set(R.ox + g.x, interior.floorY, R.oz + g.z + 2.5); player.yaw = player.targetYaw = Math.PI; yaw = 0; camPos.set(player.pos.x, interior.floorY + 2.3, player.pos.z + 3.2); interiorClampCam(camPos); camera.position.copy(camPos); }); await wait(2200); await snap("gate_desk");
   await view(-6, 3, 0, "airside_shops");
-  await ev(() => { const R = interior.room; interiorSpotAct(R.spots.find(s => s.act === "gate" && s.gate === air.ticket.gate)); }); await wait(2000); await snap("boarding_modal");
-  await ev(() => { interior.modal.sel = 0; interiorModalAct(); }); await wait(2500);
+  await ev(() => { const R = interior.room, sp = R.spots.find(s => s.act === "gate" && s.gate === air.ticket.gate); player.pos.set(R.ox + sp.x, interior.floorY, R.oz + sp.z + 1.4); player.yaw = player.targetYaw = Math.PI; yaw = player.yaw + Math.PI; });
+  await wait(1200); await ev(() => { keys.KeyW = true; }); await wait(7000); await ev(() => { keys.KeyW = false; }); await snap("boarded");
   const cab = await ev(() => interior.room.kind); ok("cabin", cab === "cabin", cab); await snap("cabin");
   await ev(() => { const R = interior.room; const sp = R.spots.find(s => s.act === "plane_seat"); player.pos.set(R.ox + sp.x, interior.floorY, R.oz + sp.z - 3); player.yaw = player.targetYaw = Math.PI; yaw = 0; camPos.set(player.pos.x, interior.floorY + 2.0, player.pos.z + 3); interiorClampCam(camPos); camera.position.copy(camPos); }); await wait(2200); await snap("cabin_aisle");
   await ev(() => interiorSpotAct(interior.room.spots.find(s => s.act === "plane_seat"))); await wait(3000);
@@ -190,5 +200,23 @@ await step("home", async () => {
   await ev(() => { ife.t0 = performance.now() - ife.dur * 1000 - 100; }); await wait(2500); await ev(() => ifeLand()); await wait(9000);
   const back = await ev(() => ({ at: air.at, hall: !!world.airports.find(x => x.big) }));
   ok("home again", back.at === "konto", back); await snap("back_in_konto");
+});
+
+await step("routes", async () => {
+  const r = await ev(() => {
+    const list = shops.list.filter(s => s.door && !s.safe && !s.airport && !s.mall && !s.plaza), out = []; let seed = 7;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let t = 0; t < 16; t++) {
+      const a = list[(rnd() * list.length) | 0], same = list.filter(x => x.city === a.city), b = same[(rnd() * same.length) | 0]; if (a === b || !b) continue;
+      const sp = snapToRoad(b.door[0], b.door[1]), route = routeSolve({ x: a.door[0], z: a.door[1] }, { x: sp[0], z: sp[1] });
+      let inB = 0, n = 0, len = 0;
+      for (let i = 1; i < route.length; i++) { const dx = route[i][0] - route[i - 1][0], dz = route[i][1] - route[i - 1][1], L = Math.hypot(dx, dz); len += L; for (let d = 0; d < L; d += 2) { n++; if (insideBuilding(route[i - 1][0] + dx * d / L, route[i - 1][1] + dz * d / L, 0.2)) inB++; } }
+      out.push({ city: a.city, pts: route.length, len: Math.round(len), straight: Math.round(Math.hypot(a.door[0] - sp[0], a.door[1] - sp[1])), inB: inB, n: n });
+    }
+    return out;
+  });
+  const tot = r.reduce((a, x) => a + x.n, 0), bad = r.reduce((a, x) => a + x.inB, 0), fall = r.filter(x => x.pts <= 3 && x.straight > 60).length;
+  console.log("ROUTES", JSON.stringify(r));
+  ok("routes stay out of buildings", r.length >= 5 && bad / Math.max(1, tot) < 0.03 && fall === 0, { samples: tot, inBuildings: bad, straightFallbacks: fall });
 });
 await browser.close(); srv.close();

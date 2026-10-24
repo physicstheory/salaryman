@@ -74,7 +74,36 @@ const ROAD = [
   { file: "asphalt_nor.jpg", label: "normal map", re: /nor|normal/i },
   { file: "asphalt_arm.jpg", label: "roughness (ARM)", re: /arm|rough|orm/i }
 ];
+// ---- real music for the radio ------------------------------------------------------------------------------------------------------------
+// Songs go in "Add Your Files\music" (or are dropped on the window, or added with F8). Loose files make up the station "My Music"; a sub-folder named
+// after a station (gold1, tokonto43, soul, westside, nashville) replaces that station's made-up songs with yours. "Artist - Title.mp3" is read as
+// the artist and the title. The game asks for the list at music/index.json and plays the files from music/<station>/<file>.
+const MUSIC_STATIONS = [["mymusic", "My Music"], ["gold1", "Gold 1"], ["tokonto43", "Tokonto.43"], ["soul", "Soul Radio"], ["westside", "WestSide Radio"], ["nashville", "Nashville 102.7"]];
+const AUDIO_RE = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac|webm)$/i;
+function musicDirs() { return [path.join(ROOT, "Add Your Files", "music"), path.join(USER_DIR, "music")]; }
+function musicIndex() {
+  const out = {}, seen = {};
+  const add = (st, file) => {
+    const key = st + "/" + file; if (seen[key]) return; seen[key] = 1;
+    const base = file.replace(AUDIO_RE, ""), m = /^(.+?)\s+[-\u2013\u2014]\s+(.+)$/.exec(base);
+    (out[st] || (out[st] = [])).push({ f: "music/" + st + "/" + file, a: m ? m[1].trim() : "", t: m ? m[2].trim() : base.trim() });
+  };
+  for (const d of musicDirs()) {
+    let names = []; try { names = fs.readdirSync(d, { withFileTypes: true }); } catch (e) { continue; }
+    for (const e of names) {
+      if (e.isFile() && AUDIO_RE.test(e.name)) add("mymusic", e.name);
+      else if (e.isDirectory() && /^[\w-]+$/.test(e.name)) { try { for (const f of fs.readdirSync(path.join(d, e.name))) if (AUDIO_RE.test(f)) add(e.name.toLowerCase(), f); } catch (x) { /* unreadable */ } }
+    }
+  }
+  return { stations: out };
+}
+function musicFile(rel) {
+  const m = /^music\/([\w-]+)\/([^/\\]+)$/.exec(rel); if (!m || !AUDIO_RE.test(m[2])) return null;
+  for (const d of musicDirs()) for (const f of [path.join(d, m[1], m[2]), m[1] === "mymusic" ? path.join(d, m[2]) : ""]) { if (f && fs.existsSync(f)) return f; }
+  return null;
+}
 function userOverride(rel) {
+  const mf = musicFile(rel); if (mf) return mf;
   const m = /^cars\/([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel) || /^interiors\/([\w.+-]+\.glb)$/i.exec(rel);
   if (!m) return null;
   const f = path.join(USER_DIR, rel.startsWith("cars") ? "cars" : rel.startsWith("interiors") ? "interiors" : "road", m[1]);
@@ -123,6 +152,13 @@ async function addFiles(files) {
       catch (e) { await dialog.showMessageBox(win, { type: "error", message: "Could not convert " + name, detail: String(e && e.message || e) }); continue; }
       const j = userJson(); j[slot.id] = j[slot.id] || { yaw: 0 }; saveUserJson(j);
       added.push(slot.label);
+    } else if (AUDIO_RE.test(name)) {
+      const r = await dialog.showMessageBox(win, { type: "question", title: "Add a song", noLink: true, cancelId: MUSIC_STATIONS.length, defaultId: 0,
+        message: "Which radio station should \"" + name + "\" play on?", detail: "Songs play on the car radio. \"My Music\" is a station of your own songs; a named station swaps its made-up songs for yours.",
+        buttons: MUSIC_STATIONS.map(x => x[1]).concat(["Skip it"]) });
+      if (r.response >= MUSIC_STATIONS.length) continue;
+      const dir = path.join(USER_DIR, "music", MUSIC_STATIONS[r.response][0]); fs.mkdirSync(dir, { recursive: true }); fs.copyFileSync(f, path.join(dir, name));
+      added.push("song " + name);
     } else if (/\.(jpe?g|png)$/i.test(name)) {
       let guess = ROAD.findIndex(sl => sl.re.test(name));
       const r = await dialog.showMessageBox(win, {
@@ -143,7 +179,7 @@ async function addFiles(files) {
 async function pickFiles() {
   const r = await dialog.showOpenDialog(win, {
     title: "Add cars or road textures", properties: ["openFile", "multiSelections"],
-    filters: [{ name: "Cars and models (.glb, .obj) and textures (.jpg, .png)", extensions: ["glb", "obj", "jpg", "jpeg", "png"] }]
+    filters: [{ name: "Cars, models, textures and songs", extensions: ["glb", "obj", "jpg", "jpeg", "png", "mp3", "m4a", "aac", "ogg", "opus", "wav", "flac"] }]
   });
   if (!r.canceled && r.filePaths.length) await addFiles(r.filePaths);
 }
@@ -220,9 +256,9 @@ async function askForToken(cfg, refused) {
   for (;;) {
     const r = await dialog.showMessageBox(win, { type: "info", title: "Update Salary Man", noLink: true, cancelId: 3, defaultId: 1,
       message: refused ? "GitHub refused the saved token." : "GitHub needs a token to download the game.",
-      detail: "The game's repository is private. Make a read-only token once:\n  1. Open the token page (button below) and sign in.\n  2. Choose this repository only, and Contents: Read-only.\n  3. Generate it and copy it.\n  4. Come back here and press \"Use the token on my clipboard\".\n\nIt is kept on this computer and used only to download the game.",
+      detail: "The game's repository is private, so GitHub wants to know who is asking. Make a token once:\n  1. Press \"Open the token page\" and sign in as the owner of the repository.\n  2. The page is already set up (the \"repo\" box is ticked). Scroll down and press Generate token.\n  3. Copy the token it shows (it starts with ghp_).\n  4. Come back here and press \"Use the token on my clipboard\".\n\nIt is kept on this computer and used only to download the game.",
       buttons: ["Open the token page", "Use the token on my clipboard", "Open the folder instead", "Cancel"] });
-    if (r.response === 0) { shell.openExternal("https://github.com/settings/personal-access-tokens/new"); continue; }
+    if (r.response === 0) { shell.openExternal("https://github.com/settings/tokens/new?scopes=repo&description=Salary%20Man%20updater"); continue; }
     if (r.response === 2) { fs.mkdirSync(path.join(ROOT, "Add Your Files"), { recursive: true }); shell.openPath(path.join(ROOT, "Add Your Files")); return false; }
     if (r.response !== 1) return false;
     const t = clipboard.readText().trim();
@@ -277,7 +313,7 @@ async function updateGame() {
       detail: next.message + "\n\n" + got + " file" + (got === 1 ? "" : "s") + " downloaded. Restart the game now? It saves first.", buttons: ["Restart now", "Later"] });
     if (r.response === 0) { await win.webContents.executeJavaScript("typeof saveGame==='function'&&saveGame('',true)").catch(() => {}); win.webContents.reloadIgnoringCache(); }
   } catch (err) {
-    if ((err.status === 404 || err.status === 401) && await askForToken(cfg, err.status === 401)) { updating = false; win.setProgressBar(-1); return updateGame(); }
+    if ((err.status === 404 || err.status === 401 || (err.status === 403 && cfg.token)) && await askForToken(cfg, err.status === 401 || err.status === 403)) { updating = false; win.setProgressBar(-1); return updateGame(); }
     await dialog.showMessageBox(win, { type: "error", message: "Could not update.", detail: String(err && err.message || err) + "\n\nThe game you have still works as it was." });
   } finally { updating = false; win.setProgressBar(-1); }
 }
@@ -360,6 +396,7 @@ ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(path
 app.whenReady().then(() => {
   dropStaleUpdate();
   protocol.handle("konto", request => {
+    if (new URL(request.url).pathname.replace(/^\/+/, "") === "music/index.json") return new Response(JSON.stringify(musicIndex()), { headers: { "content-type": "application/json" } });
     const file = resolve(request);
     if (!file) return new Response("Not found", { status: 404 });
     return net.fetch(url.pathToFileURL(file).toString());

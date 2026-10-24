@@ -23,6 +23,15 @@ road\     Road surface textures (2048 px or larger is fine, 4K works):
           asphalt_02_arm_4k.jpg to asphalt_arm.jpg. (A .png normal map must be
           converted to .jpg, or renamed .jpg after saving it as a JPEG.)
 
+music\    Songs for the car radio (.mp3, .m4a, .ogg, .wav, .flac). Name them
+          "Artist - Title.mp3" and the game shows the artist and the title.
+          Loose files make a station of their own, "My Music" (107.7).
+          A sub-folder named after a station swaps that station's made-up
+          songs for yours: music\gold1, music\tokonto43, music\soul,
+          music\westside, music\nashville.
+          You can also drop songs on the game window, or press F8, and it
+          asks which station each one goes on.
+
 seiko.glb (in this folder, not in a subfolder) replaces the character model.
 
 Sending files to Claude

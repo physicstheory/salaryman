@@ -2546,6 +2546,43 @@ const AIRPORT_SPECS = [
   { name: "Mizuho Airstrip", code: "MZH", len: 1000, wid: 28, near: "Mizuho", dmin: 1500, dmax: 9500 },
   { name: "Tomari Airfield", code: "TMR", len: 1200, wid: 30, near: "Tomari", dmin: 1500, dmax: 9500 }
 ];
+// ---- streets and plots: where the local streets are, so nothing is built on one and every shop faces the nearest road -----------------------
+// How far (metres) a point is inside a ward's local street, footway and kerb included; negative when it is clear of every street of that ward.
+function streetPen(wd, x, z, noFoot) {
+  const l = toRectLocal(x, z, wd.centre[0], wd.centre[1], wd.yaw), k0 = Math.round(l[0] / wd.sx), k1 = Math.round(l[1] / wd.sz);
+  const ext = k => { const odd = wd.alleys && (k & 1) !== 0; return (odd ? wd.alley : wd.street) / 2 + (noFoot ? 0.15 : (odd ? 0 : Math.min(2.6, wd.street * 0.25) + 0.12) + 0.3); };
+  return Math.max(ext(k0) - Math.abs(l[0] - k0 * wd.sx), ext(k1) - Math.abs(l[1] - k1 * wd.sz));
+}
+// Distance from a point to the nearest road edge in a city: the arterials, and the local streets of the ward the point is in.
+function roadEdgeDist(city, x, z) {
+  let best = 1e9;
+  const roads = city._artList || (city._artList = city.roads.filter(r => !r.elevated && r.halfWidth >= 4 && r.pts && r.pts.length > 2));
+  for (const r of roads) {
+    const P = r.pts;
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i];
+      if (Math.abs(a[0] - x) > 140 || Math.abs(a[2] - z) > 140) continue;
+      const dx = b[0] - a[0], dz = b[2] - a[2], L = dx * dx + dz * dz || 1;
+      const t = clamp(((x - a[0]) * dx + (z - a[2]) * dz) / L, 0, 1);
+      const d = Math.hypot(a[0] + dx * t - x, a[2] + dz * t - z) - r.halfWidth - 4.4;
+      if (d < best) best = d;
+    }
+  }
+  const wards = city.wards || []; let wd = null, bd = 1e30;
+  for (const w of wards) { const d = (w.centre[0] - x) * (w.centre[0] - x) + (w.centre[1] - z) * (w.centre[1] - z); if (d < bd) { bd = d; wd = w; } }
+  if (wd && wd.sx) best = Math.min(best, -streetPen(wd, x, z));
+  return best;
+}
+// Turn a plot a quarter turn at a time until its front (the face the door is on) looks at the nearest road.
+function plotFaceRoad(city, p) {
+  let best = null;
+  for (let r = 0; r < 4; r++) {
+    const ang = (p.yaw + r * 90) * Math.PI / 180, half = (r % 2 === 0 ? p.size[1] : p.size[0]) * 0.5 + 1.6;
+    const d = roadEdgeDist(city, p.centre[0] + Math.sin(ang) * half, p.centre[1] + Math.cos(ang) * half);
+    if (!best || d < best.d - 0.01) best = { d: d, r: r };
+  }
+  if (best && best.r) { p.yaw = (((p.yaw + best.r * 90) % 360) + 360) % 360; if (best.r % 2) p.size = [p.size[1], p.size[0]]; }
+}
 function planAirports(world) {
   const H = world.height, list = world.airports = [];
   let sd = 7717; const rng = () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; };
@@ -2606,25 +2643,104 @@ function apCanvas(key, w, h, draw, repeat) {
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
   return (apTex[key] = t);
 }
-function airplaneMesh(len, span, tailHex, hi) {
-  const g = new THREE.Group(), r = len * 0.062;
-  const M = (c, rough, met) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.35 : rough, metalness: met === undefined ? 0.25 : met, envMap: gfx.env || null, envMapIntensity: 0.6 }) : new THREE.MeshLambertMaterial({ color: c });
-  const white = M(0xf2f3f4), grey = M(0xc4c8cc), dark = M(0x1b2430, 0.2, 0.5), tail = M(tailHex), engine = M(0x9ea4aa, 0.4, 0.5);
-  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
-  const fus = add(new THREE.CylinderGeometry(r, r, len * 0.74, 22), white, 0, 0, 0); fus.rotation.z = Math.PI / 2;
-  const nose = add(new THREE.SphereGeometry(r, 20, 14), white, len * 0.37, 0, 0); nose.scale.set(2.2, 1, 1);
-  const rear = add(new THREE.CylinderGeometry(r, r * 0.22, len * 0.26, 22), white, -len * 0.5, r * 0.12, 0); rear.rotation.z = Math.PI / 2;
-  add(new THREE.BoxGeometry(len * 0.52, r * 0.16, r * 2.03), dark, len * 0.1, r * 0.28, 0);                         // the window band
-  add(new THREE.BoxGeometry(len * 0.55, r * 0.07, r * 2.04), tail, len * 0.08, -r * 0.18, 0);                       // the cheat line in the airline's colour
-  [-1, 1].forEach(sd => {
-    const w = add(new THREE.BoxGeometry(len * 0.17, r * 0.12, span * 0.5), grey, -len * 0.02, -r * 0.5, sd * span * 0.25); w.rotation.y = -sd * 0.52; w.position.x = -len * 0.02 - Math.abs(Math.sin(0.52)) * span * 0.12;
-    w.position.z = sd * span * 0.23;
-    const e = add(new THREE.CylinderGeometry(r * 0.46, r * 0.4, len * 0.1, 14), engine, len * 0.06, -r * 1.05, sd * span * 0.17); e.rotation.z = Math.PI / 2;
-    const h = add(new THREE.BoxGeometry(len * 0.08, r * 0.08, span * 0.18), grey, -len * 0.45, r * 0.3, sd * span * 0.1); h.rotation.y = -sd * 0.4;
-  });
-  const fin = add(new THREE.BoxGeometry(len * 0.11, r * 2.6, r * 0.14), tail, -len * 0.44, r * 1.7, 0); fin.rotation.z = -0.28;
+// A swept, tapered, thick wing (or fin, or tailplane) as one prism: root and tip chords, sweep, dihedral, and a thickness that tapers with the chord.
+function wingPrism(x0, y0, z0, root, tip, span, sweepDeg, dih, thickRoot, thickTip, vertical) {
+  const sw = Math.tan(sweepDeg * Math.PI / 180) * span;
+  // root leading edge, root trailing edge, tip leading edge, tip trailing edge; each with a top and a bottom
+  const P = [
+    [x0, y0 + thickRoot, z0], [x0 - root, y0 + thickRoot, z0], [x0 - sw, y0 + dih + thickTip, z0 + span], [x0 - sw - tip, y0 + dih + thickTip, z0 + span],
+    [x0, y0 - thickRoot, z0], [x0 - root, y0 - thickRoot, z0], [x0 - sw, y0 + dih - thickTip, z0 + span], [x0 - sw - tip, y0 + dih - thickTip, z0 + span]
+  ];
+  const q = (a, b, c, d) => [a, b, c, a, c, d];
+  const faces = [].concat(q(0, 1, 3, 2), q(4, 6, 7, 5), q(0, 2, 6, 4), q(1, 5, 7, 3), q(0, 4, 5, 1), q(2, 3, 7, 6));
+  const pos = []; faces.forEach(i => pos.push(P[i][0], P[i][1], P[i][2]));
+  const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
   return g;
 }
+function airplaneMesh(len, span, tailHex, hi) {
+  if (len < 26) return propPlaneMesh(len, span, tailHex, hi);
+  const g = new THREE.Group(), r = len * 0.062, L = len;
+  const M = (c, rough, met) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.4 : rough, metalness: met === undefined ? 0.2 : met, envMap: gfx.env || null, envMapIntensity: 0.55 }) : new THREE.MeshLambertMaterial({ color: c });
+  const white = M(0xf3f4f5), grey = M(0xc9cdd1, 0.5, 0.3), dark = M(0x141b24, 0.15, 0.5), tailM = M(tailHex, 0.4, 0.15), engM = M(0xaeb4ba, 0.35, 0.6), tyre = M(0x16181b, 0.9, 0);
+  const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); (parent || g).add(m); return m; };
+  // the fuselage: one lathe from the tail cone to the nose, so it is round and tapers where a real one does
+  const prof = [[0.02, -0.5], [0.10, -0.47], [0.30, -0.42], [0.58, -0.36], [0.82, -0.30], [0.96, -0.24], [1.0, -0.16], [1.0, 0.22], [0.98, 0.30], [0.90, 0.37], [0.74, 0.43], [0.50, 0.47], [0.24, 0.495], [0.0, 0.5]];
+  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * r, p[1] * L)), 28); lathe.rotateZ(-Math.PI / 2);
+  const fus = add(lathe, white, 0, 0, 0);
+  // the upswept tail cone sits a little high: lift the aft vertices
+  const fp = lathe.attributes.position; for (let i = 0; i < fp.count; i++) { const x = fp.getX(i); if (x < -0.2 * L) fp.setY(i, fp.getY(i) + (-0.2 * L - x) / (0.3 * L) * r * 0.55); } fp.needsUpdate = true; lathe.computeVertexNormals();
+  // the airline's cheat line, either side
+  [-1, 1].forEach(sd => add(new THREE.BoxGeometry(L * 0.52, r * 0.09, r * 0.04), tailM, L * 0.05, -r * 0.18, sd * r * 0.99));
+  // windows: a row either side, and a windscreen
+  const nW = Math.floor(L * 0.44 / (L * 0.016));
+  const winG = new THREE.BoxGeometry(L * 0.007, r * 0.15, r * 0.05), wi = new THREE.InstancedMesh(winG, dark, nW * 2), m4 = new THREE.Matrix4();
+  for (let i = 0; i < nW; i++) for (let sd = 0; sd < 2; sd++) { const x = -L * 0.22 + i * L * 0.016, y = r * 0.3, zz = Math.sqrt(Math.max(0, r * r - y * y)) * (sd ? 1 : -1); m4.makeTranslation(x, y, zz * 1.005); wi.setMatrixAt(i * 2 + sd, m4); }
+  wi.frustumCulled = false; g.add(wi);
+  add(new THREE.BoxGeometry(L * 0.03, r * 0.22, r * 1.3), dark, L * 0.425, r * 0.42, 0);
+  [-1, 1].forEach(sd => add(new THREE.BoxGeometry(L * 0.022, r * 0.2, r * 0.05), dark, L * 0.41, r * 0.4, sd * r * 0.7));
+  // wings: swept, tapered, dihedral, with a winglet, and slim flap tracks
+  const semi = span * 0.5 - r * 0.9, wx = L * 0.04;
+  [-1, 1].forEach(sd => {
+    const wg = wingPrism(wx, -r * 0.5, 0, L * 0.17, L * 0.045, semi, 27, r * 0.45, r * 0.10, r * 0.025);
+    const w = new THREE.Mesh(wg, grey); w.position.z = sd * r * 0.9; if (sd < 0) w.scale.z = -1; if (sd < 0) { w.material = grey; } g.add(w);
+    const tip = wingPrism(0, 0, 0, L * 0.035, L * 0.012, r * 0.9, 20, 0, r * 0.015, r * 0.008); const wl = new THREE.Mesh(tip, tailM);
+    const sw = Math.tan(27 * Math.PI / 180) * semi; wl.position.set(wx - sw, -r * 0.5 + r * 0.45, sd * (r * 0.9 + semi)); g.add(wl);
+    wl.rotation.x = -Math.PI / 2;
+    // engines: nacelle, a dark intake, a fan, an exhaust cone, on a pylon
+    const ez = sd * (r * 0.9 + semi * 0.36), ex = wx + L * 0.01, ey = -r * 0.95;
+    const nac = add(new THREE.CylinderGeometry(r * 0.52, r * 0.46, L * 0.085, 20), engM, ex, ey, ez); nac.rotation.z = Math.PI / 2;
+    const inl = add(new THREE.CylinderGeometry(r * 0.47, r * 0.47, L * 0.004, 20), dark, ex + L * 0.0435, ey, ez); inl.rotation.z = Math.PI / 2;
+    const lip = add(new THREE.TorusGeometry(r * 0.5, r * 0.05, 8, 24), grey, ex + L * 0.0425, ey, ez); lip.rotation.y = Math.PI / 2;
+    const cone = add(new THREE.ConeGeometry(r * 0.26, L * 0.03, 14), grey, ex - L * 0.0575, ey, ez); cone.rotation.z = Math.PI / 2;
+    add(new THREE.BoxGeometry(L * 0.07, r * 0.55, r * 0.07), grey, ex - L * 0.005, ey + r * 0.45, ez);
+    // main gear on each side, under the wing root
+    userGear(g, tyre, grey, r, sd * r * 0.62, wx - L * 0.09, 0);
+  });
+  // tail: fin, and tailplanes
+  const fin = new THREE.Mesh(wingPrism(0, 0, 0, L * 0.13, L * 0.06, r * 3.1, 36, 0, r * 0.07, r * 0.025), tailM); fin.rotation.x = -Math.PI / 2; fin.position.set(-L * 0.355, r * 0.85, 0); g.add(fin);
+  [-1, 1].forEach(sd => { const tp = new THREE.Mesh(wingPrism(-L * 0.405, r * 0.95, 0, L * 0.075, L * 0.03, span * 0.17, 30, r * 0.12, r * 0.035, r * 0.012), grey); tp.position.z = sd * r * 0.2; if (sd < 0) tp.scale.z = -1; g.add(tp); });
+  // nose gear
+  userGear(g, tyre, grey, r, 0, L * 0.34, 1);
+  g.userData = { gearH: r * 1.9, gear: g.children.filter(c => c.userData && c.userData.gear), hi: !!hi, jet: true, r: r, len: len, span: span };
+  g.traverse(o => { if (o.isMesh) { o.castShadow = hi && o !== wi; } });
+  return g;
+}
+// one undercarriage leg: a strut, a pair of wheels, in a group that can be hidden when it is up
+function userGear(g, tyre, grey, r, z, x, nose) {
+  const leg = new THREE.Group(); leg.userData.gear = true; leg.position.set(x, -r * 0.8, z);
+  const strut = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.07, r * 0.07, r * 1.0, 8), grey); strut.position.y = -r * 0.5; leg.add(strut);
+  [-1, 1].forEach(sd => { const wh = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.38, r * 0.38, r * 0.2, 14), tyre); wh.rotation.x = Math.PI / 2; wh.position.set(0, -r * 1.05, sd * r * (nose ? 0.17 : 0.24)); leg.add(wh); });
+  g.add(leg); return leg;
+}
+// a light plane for the airfields: high wing, one engine and a propeller that turns
+function propPlaneMesh(len, span, tailHex, hi) {
+  const g = new THREE.Group(), r = len * 0.085, L = len;
+  const M = (c, rough, met) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.45 : rough, metalness: met === undefined ? 0.15 : met, envMap: gfx.env || null, envMapIntensity: 0.5 }) : new THREE.MeshLambertMaterial({ color: c });
+  const white = M(0xf4f2ec), tailM = M(tailHex), dark = M(0x161c24, 0.2, 0.4), grey = M(0xb9bec3, 0.5, 0.3), tyre = M(0x15171a, 0.9, 0);
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); g.add(m); return m; };
+  const prof = [[0.05, -0.5], [0.22, -0.44], [0.55, -0.30], [0.9, -0.12], [1.0, 0.0], [1.0, 0.18], [0.9, 0.30], [0.78, 0.40], [0.5, 0.47], [0.0, 0.5]];
+  const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * r, p[1] * L)), 20); lathe.rotateZ(-Math.PI / 2); add(lathe, white, 0, 0, 0);
+  add(new THREE.BoxGeometry(L * 0.18, r * 0.5, r * 1.7), dark, L * 0.1, r * 0.45, 0);                  // the cabin glass
+  add(new THREE.BoxGeometry(L * 0.5, r * 0.07, r * 0.07), tailM, -L * 0.02, -r * 0.1, r * 0.95);
+  add(new THREE.BoxGeometry(L * 0.5, r * 0.07, r * 0.07), tailM, -L * 0.02, -r * 0.1, -r * 0.95);
+  const semi = span * 0.5;
+  [-1, 1].forEach(sd => {
+    const w = new THREE.Mesh(wingPrism(L * 0.1, r * 1.0, 0, L * 0.22, L * 0.14, semi, 2, 0, r * 0.09, r * 0.05), white); if (sd < 0) w.scale.z = -1; g.add(w);
+    const strut = add(new THREE.CylinderGeometry(r * 0.04, r * 0.04, semi * 0.5, 6), grey, L * 0.02, r * 0.1, sd * semi * 0.3); strut.rotation.x = sd * 0.75;
+    const tp = new THREE.Mesh(wingPrism(-L * 0.4, r * 0.1, 0, L * 0.12, L * 0.07, span * 0.2, 8, 0, r * 0.05, r * 0.02), white); tp.position.z = sd * r * 0.1; if (sd < 0) tp.scale.z = -1; g.add(tp);
+    const leg = new THREE.Group(); leg.userData.gear = true; leg.position.set(L * 0.1, -r * 0.7, sd * r * 1.2); const st = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.06, r * 0.06, r * 0.7, 6), grey); st.position.y = -r * 0.1; leg.add(st);
+    const wh = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.32, r * 0.32, r * 0.18, 12), tyre); wh.rotation.x = Math.PI / 2; wh.position.y = -r * 0.5; leg.add(wh); g.add(leg);
+  });
+  const fin = new THREE.Mesh(wingPrism(0, 0, 0, L * 0.16, L * 0.07, r * 1.6, 28, 0, r * 0.05, r * 0.02), tailM); fin.rotation.x = -Math.PI / 2; fin.position.set(-L * 0.36, r * 0.5, 0); g.add(fin);
+  const nl = new THREE.Group(); nl.userData.gear = true; nl.position.set(L * 0.3, -r * 0.7, 0); const nst = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.06, r * 0.06, r * 0.7, 6), grey); nst.position.y = -r * 0.1; nl.add(nst);
+  const nw = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.26, r * 0.26, r * 0.16, 12), tyre); nw.rotation.x = Math.PI / 2; nw.position.y = -r * 0.5; nl.add(nw); g.add(nl);
+  const spin = new THREE.Mesh(new THREE.ConeGeometry(r * 0.22, r * 0.5, 12), tailM); spin.rotation.z = -Math.PI / 2; spin.position.set(L * 0.5 + r * 0.2, 0, 0); g.add(spin);
+  const prop = new THREE.Mesh(new THREE.BoxGeometry(L * 0.012, r * 0.1, r * 3.0), M(0x23262b, 0.5, 0.2)); prop.position.set(L * 0.5 + r * 0.02, 0, 0); g.add(prop);
+  g.userData = { gearH: r * 1.2 + r * 0.7 + r * 0.2, gear: g.children.filter(c => c.userData && c.userData.gear), prop: prop, hi: !!hi, jet: false, r: r, len: len, span: span };
+  g.traverse(o => { if (o.isMesh) o.castShadow = !!hi; });
+  return g;
+}
+
 function buildAirports(root) {
   const hi = gfx.high, aps = (world && world.airports) || [];
   aps.forEach(ap => {
@@ -2695,7 +2811,7 @@ function buildAirports(root) {
     for (let k = 0; k < nGate; k++) {
       const gx = (k - (nGate - 1) / 2) * (big ? 62 : 0);
       const plane = airplaneMesh(big ? (k % 3 === 0 ? 63 : 38) : 20, big ? (k % 3 === 0 ? 61 : 34) : 11, lines[k % lines.length], hi);
-      plane.rotation.y = -Math.PI / 2; plane.position.set(gx, big ? 5.2 : 2.2, txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
+      plane.rotation.y = -Math.PI / 2; plane.position.set(gx, plane.userData.gearH || (big ? 5.2 : 2.2), txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
       (ap.planes || (ap.planes = [])).push({ mesh: plane, len: big ? (k % 3 === 0 ? 63 : 38) : 20, span: big ? (k % 3 === 0 ? 61 : 34) : 11, tail: lines[k % lines.length] });
       if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
     }
@@ -2756,13 +2872,13 @@ function updateAirports(dt) {
       f.s += dt; const v = f.s < 50 ? 72 : Math.max(14, 72 - (f.s - 50) * 9), x0 = -L / 2 - 3600;
       f.x = (f.x === undefined || f.s <= dt) ? x0 : f.x + v * dt;
       const touch = -L / 2 + 400, h = f.x < touch ? Math.max(0, (touch - f.x) * 0.052) : 0, pitch = f.x < touch ? -0.07 : 0;
-      to(f.x, h + 2.7, 0, 0); f.mesh.rotation.z = pitch;
+      to(f.x, h + (f.mesh.userData.gearH || 2.7), 0, 0); f.mesh.rotation.z = pitch;
       if (f.x > L / 2 - 650 && v <= 15) { f.state = "idle"; f.t = 80 + Math.random() * 90; f.x = undefined; }
     } else {                                          // from the far end: accelerate, rotate, climb away
       f.s += dt; const v = Math.min(88, 4 + f.s * 3.6), x0 = -L / 2 + 120;
       f.x = (f.x === undefined || f.s <= dt) ? x0 : f.x + v * dt;
       const rot = -L / 2 + L * 0.62, h = f.x < rot ? 0 : (f.x - rot) * 0.15;
-      to(f.x, h + 2.7, 0, 0); f.mesh.rotation.z = f.x < rot ? 0 : 0.14;
+      to(f.x, h + (f.mesh.userData.gearH || 2.7), 0, 0); f.mesh.rotation.z = f.x < rot ? 0 : 0.14;
       if (f.x > L / 2 + 4500) { f.state = "idle"; f.t = 80 + Math.random() * 90; f.x = undefined; }
     }
   });
@@ -3465,6 +3581,25 @@ function planCity(world, F, seed, report, progressBase) {
       }
     }
   });
+  // A block that straddles two wards runs into the other ward's streets. Shrink such a plot until it is clear of every street, or drop it.
+  {
+    const worst = (p, k) => {
+      const r = p.yaw * Math.PI / 180, cs = Math.cos(r), sn = Math.sin(r); let m = -99;
+      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) {
+        const lx = i * 0.25 * p.size[0] * k, lz = j * 0.25 * p.size[1] * k, x = p.centre[0] + lx * cs + lz * sn, z = p.centre[1] - lx * sn + lz * cs;
+        const w = L.wards[nearestWard(x, z)]; if (w && w.sx) m = Math.max(m, streetPen(w, x, z, true));
+      }
+      return m;
+    };
+    let shrunk = 0, dropped = 0;
+    L.plots = L.plots.filter(p => {
+      if (worst(p, 1) <= 0.3) return true;
+      for (const k of [0.82, 0.66, 0.5]) if (worst(p, k) <= 0.3) { p.size = [p.size[0] * k, p.size[1] * k]; shrunk++; return true; }
+      dropped++; return false;
+    });
+    L.plots.forEach((p, i) => { p.id = i; });
+    console.log("[Konto] " + site.name + ": " + shrunk + " plots shrunk and " + dropped + " dropped to keep off the streets");
+  }
   L.plots.forEach(p => { if (L.wards[p.ward]) L.wards[p.ward].plots++; });
 
   function groundUsable(cx, cz, size, yaw) {
@@ -5080,6 +5215,73 @@ const GABLE_MAX_H = 12.5;        // metres: three storeys and a bit
 // building is trimmed back from any road or rail that touches it, from the side
 // it overlaps least, and dropped altogether if there is nothing left of it. An
 // elevated road only matters to a building tall enough to reach its deck.
+// The same for the buildings that were actually raised: whatever still stands in a local street is shrunk about its middle until it is clear, or removed.
+function clearLocalStreets(w, city, boxes) {
+  // every town's streets count, not just this one's: the capital's plots cover ground that Mizuho's and Shiokawa's streets run over
+  const towns = w.cities.filter(c => c.wards && c.wards.length && c.footprint && c.bounds);
+  const penAt = (x, z) => {
+    let m = -99;
+    for (let t = 0; t < towns.length; t++) {
+      const c = towns[t], bd = c.bounds;
+      if (x < bd.x0 || x > bd.x1 || z < bd.z0 || z > bd.z1 || c.footprint(x, z) <= 0.22) continue;
+      let best = null, bdist = 1e30; const wards = c.wards;
+      for (let i = 0; i < wards.length; i++) { const wd = wards[i], d = (wd.centre[0] - x) * (wd.centre[0] - x) + (wd.centre[1] - z) * (wd.centre[1] - z); if (d < bdist) { bdist = d; best = wd; } }
+      if (best && best.sx) m = Math.max(m, streetPen(best, x, z, true));
+    }
+    return m;
+  };
+  const worst = (b, k) => {
+    let m = -99;
+    for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) {
+      const q = fromRectLocal(i / 3 * b.size[0] * 0.5 * k, j / 3 * b.size[1] * 0.5 * k, b.c[0], b.c[1], b.yaw);
+      m = Math.max(m, penAt(q[0], q[1]));
+    }
+    return m;
+  };
+  let shrunk = 0, dropped = 0;
+  for (let bi = boxes.length - 1; bi >= 0; bi--) {
+    const b = boxes[bi]; if (b.deck || b.shoulder || b.shopRef || !b.size) continue;
+    if (worst(b, 1) <= 0.35) continue;
+    let ok = false;
+    for (const k of [0.9, 0.8, 0.68, 0.55]) if (worst(b, k) <= 0.35) { b.size = [b.size[0] * k, b.size[1] * k]; ok = true; shrunk++; break; }
+    if (!ok && !b.landmark) { boxes.splice(bi, 1); dropped++; }
+  }
+  city.streetClear = { shrunk: shrunk, dropped: dropped };
+  console.log("[Konto] " + city.name + ": " + shrunk + " buildings shrunk and " + dropped + " removed to clear the local streets");
+}
+// Two buildings never share a footprint: where one stands inside another (a plot shrunk into its neighbour, a shop on the ground a block was already given),
+// the smaller of the two goes. Rooftop shoulders, plants and decks overlap by design and are left alone.
+function clearOverlaps(city, boxes) {
+  const cell = 40, grid = new Map(), live = [];
+  boxes.forEach(b => { if (b.deck || b.shoulder || b.plantFor || !b.size) return; live.push(b); const k = Math.floor(b.c[0] / cell) + "," + Math.floor(b.c[1] / cell); let l = grid.get(k); if (!l) { l = []; grid.set(k, l); } l.push(b); });
+  const inside = (a, b, k) => {
+    let n = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      const q = fromRectLocal(i * a.size[0] * 0.5 * 0.9, j * a.size[1] * 0.5 * 0.9, a.c[0], a.c[1], a.yaw), lo = toRectLocal(q[0], q[1], b.c[0], b.c[1], b.yaw);
+      if (Math.abs(lo[0]) < b.size[0] * 0.5 * k && Math.abs(lo[1]) < b.size[1] * 0.5 * k) n++;
+    }
+    return n;
+  };
+  const gone = new Set();
+  live.forEach(a => {
+    if (gone.has(a)) return;
+    const gx = Math.floor(a.c[0] / cell), gz = Math.floor(a.c[1] / cell), R = Math.ceil((Math.hypot(a.size[0], a.size[1]) * 0.5 + 40) / cell);
+    for (let dz = -R; dz <= R; dz++) for (let dx = -R; dx <= R; dx++) {
+      const l = grid.get((gx + dx) + "," + (gz + dz)); if (!l) continue;
+      for (const b of l) {
+        if (b === a || gone.has(b) || gone.has(a)) continue;
+        if (Math.hypot(a.c[0] - b.c[0], a.c[1] - b.c[1]) > (Math.hypot(a.size[0], a.size[1]) + Math.hypot(b.size[0], b.size[1])) * 0.5) continue;
+        if (Math.abs((a.y + a.h * 0.5) - (b.y + b.h * 0.5)) > Math.max(a.h, b.h) * 0.5 + Math.min(a.h, b.h) * 0.5 + 0.5) continue;       // one is on top of the other
+        if (inside(a, b, 1) >= 3 || inside(b, a, 1) >= 3) {
+          const keep = (a.landmark || a.shopRef) ? a : (b.landmark || b.shopRef) ? b : (a.size[0] * a.size[1] >= b.size[0] * b.size[1] ? a : b);
+          gone.add(keep === a ? b : a);
+        }
+      }
+    }
+  });
+  if (gone.size) { for (let i = boxes.length - 1; i >= 0; i--) if (gone.has(boxes[i])) boxes.splice(i, 1); }
+  console.log("[Konto] " + city.name + ": " + gone.size + " buildings removed for sharing a footprint");
+}
 function clearRoadCorridors(w, city, boxes) {
   // Every city's roads count, not just this one's: the capital's plots cover
   // the ground the little towns' streets run over.
@@ -5133,7 +5335,7 @@ function clearRoadCorridors(w, city, boxes) {
       if (!worst) break;
       // shrink along that axis by the overlap, keeping the far side where it was
       const ns = b.size[worst.axis] - worst.pen;
-      if (ns < 3) { gone = true; break; }
+      if (ns < 3) { if (b.shopRef) break; gone = true; break; }
       const shift = -worst.sign * worst.pen * 0.5;
       const wc = fromRectLocal(worst.axis === 0 ? shift : 0, worst.axis === 1 ? shift : 0, b.c[0], b.c[1], b.yaw);
       b.size = b.size.slice(); b.size[worst.axis] = ns; b.c = wc;
@@ -6022,6 +6224,7 @@ function pollPad(dt) {
   pad.gp = gp;
   padGlyphs();
   if (service.active) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; return; }
+  if (chute.active && gp.buttons[PAD.A] && gp.buttons[PAD.A].pressed && !pad.was.chuteA) { pad.was.chuteA = true; chuteOpen(); } else if (!(gp.buttons[PAD.A] && gp.buttons[PAD.A].pressed)) pad.was.chuteA = false;
   const held = i => {
     if (i >= 16) { const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0; return i === 16 ? ay < -0.6 : i === 17 ? ay > 0.6 : i === 18 ? ax < -0.6 : ax > 0.6; }
     return !!(gp.buttons[i] && gp.buttons[i].pressed);
@@ -6221,7 +6424,8 @@ function pollPad(dt) {
 
 // Y: get in, get out, board, alight.
 function useRide() {
-  if (flight.active) { if (!flight.air && flight.v < 6) flightLeave(); else say("Land it first.", 2); return; }
+  if (chute.active) return;
+  if (flight.active) { if (!flight.air && flight.v < 6) flightLeave(); else if (flight.air) bailOut(); else say("Slow down first.", 2); return; }
   if (player.placed && player.mode === "walk" && !drive.car && !drive.train && airUse()) return;
   if (drive.car) { if (canKeepHere()) { keepCar(); return; } leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
@@ -6253,7 +6457,8 @@ function setPromptText(text) {
 
 function updatePrompt() {
   if (heist.stage) { setPromptText(null); return; }
-  if (flight.active) { setPromptText(!flight.air && flight.v < 6 ? "Get out of the aircraft" : null); return; }
+  if (chute.active) { setPromptText(chute.state === "fall" ? "Open the parachute" : null); return; }
+  if (flight.active) { setPromptText(!flight.air && flight.v < 6 ? "Get out of the aircraft" : flight.air ? "Jump out and use the parachute" : null); return; }
   { const an = airNear(); if (an) { setPromptText(an.text); return; } }
   if (drive.car) { setPromptText(canKeepHere() ? "Park it here and keep it" : "Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
@@ -7071,6 +7276,8 @@ function buildScene(w) {
     });
 
     clearRoadCorridors(w, city, boxes);
+    clearLocalStreets(w, city, boxes);
+    clearOverlaps(city, boxes);
     groundBoxes(w, boxes);
     finishShops(boxes);
     detailRegister(boxes);
@@ -7499,6 +7706,7 @@ function fitSeiko(object3d) {
 
 function placeSeiko(pos) {
   if (!player.obj) return;
+  DETAIL.rush = 40;
   player.pos.copy(pos);
   player.pos.y = world.surfaceY(player.pos.x, player.pos.z);
   player.obj.position.copy(player.pos);
@@ -9429,7 +9637,7 @@ function tick(dt) {
   fovFrame(dt);
   streamFrame();
   updateAirports(dt);
-  destFrame(dt); updateAirportGates(dt); updateHelis(dt);
+  destFrame(dt); updateAirportGates(dt); updateHelis(dt); updateGhostPlanes(dt);
   updateWorldSky(dt);
   followSun();
 
@@ -9438,6 +9646,14 @@ function tick(dt) {
     updateFlight(dt);
     updateTraffic(dt, flight.pos);
     updateRail(dt, flight.pos);
+    updateHud(dt);
+    present();
+    return;
+  }
+  if (chute.active) {
+    updateChute(dt);
+    updateTraffic(dt, chute.pos);
+    updateRail(dt, chute.pos);
     updateHud(dt);
     present();
     return;
@@ -9626,7 +9842,7 @@ function applyTier(name, opts) {
 // The terrain and the mountains are never switched off, so the view still reaches the horizon. Large static meshes are cut into 512 m squares and
 // registered here with the distance they stop being worth drawing at, and each frame the ones too far away or outside the view are hidden.
 const STREAM_CH = 512;
-const STREAM = { low: 1500, tower: 6500, road: 1700, detail: 260, on: true, fog: { low: { n: { value: 800 }, f: { value: 1450 } }, road: { n: { value: 900 }, f: { value: 1650 } } }, reg: [], frustum: new THREE.Frustum(), pv: new THREE.Matrix4(), shown: 0, hidden: 0 };
+const STREAM = { low: 2400, tower: 9000, road: 2600, detail: 340, on: true, fog: { low: { n: { value: 1200 }, f: { value: 2300 } }, road: { n: { value: 1300 }, f: { value: 2500 } } }, reg: [], frustum: new THREE.Frustum(), pv: new THREE.Matrix4(), shown: 0, hidden: 0 };
 // Beyond the bubble the buildings and streets are not simply cut off: they sink into the haze first, with a fog of their own that closes in just inside
 // the distance they stop being drawn. The sea, the terrain and the glass towers keep the long fog, so the mountains and the skyline stay.
 const BUBBLE_FOG = "#ifdef USE_FOG\n  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );\n  fogFactor = max( fogFactor, smoothstep( bfN, bfF, vFogDepth ) );\n  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );\n#endif";
@@ -9646,7 +9862,7 @@ function streamAdd(obj, bb, far) {
   STREAM.reg.push({ o: obj, s: new THREE.Sphere(new THREE.Vector3(cx, (y0 + y1) / 2, cz), r), far: far });
 }
 // How far the bubble reaches, as a multiple: on foot as set, in a car faster so you do not drive into the edge of it, and wide open in the free camera and on the title.
-function streamReach() { return (title && title.on) || player.mode !== "walk" || tour ? 3.2 : (drive.car ? 1.8 : 1); }
+function streamReach() { return (title && title.on) || player.mode !== "walk" || tour || flight.active || chute.active ? 3.2 : (drive.car ? 1.8 : 1); }
 function streamFrame() {
   if (!camera || !STREAM.reg.length) return;
   STREAM.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
@@ -9662,7 +9878,7 @@ function streamFrame() {
   }
   STREAM.shown = shown; STREAM.hidden = STREAM.reg.length - shown;
   STREAM.tick = (STREAM.tick || 0) + 1;
-  if (STREAM.tick % 6 === 0) detailTick();
+  if (STREAM.tick % 2 === 0) detailTick();
 }
 
 // ---- buildings, close up ---------------------------------------------------------------------------------------------------------------
@@ -9670,7 +9886,7 @@ function streamFrame() {
 // by a built one: walls with ledges and pilasters standing proud of them, every window an actual pane of glass in a frame with a sill and a head, a
 // parapet and plant on the roof, balconies with railings and air-conditioning units on flats, an awning over a shop, a canopy and glass doors on an
 // office lobby. It is built when you come within range, one or two buildings a tick, and thrown away when you leave.
-const DETAIL = { cells: new Map(), active: new Map(), mats: null, t: 0, built: 0 };
+const DETAIL = { cells: new Map(), active: new Map(), mats: null, t: 0, built: 0, rush: 0 };
 const DET_STYLE = {
   office:  { floor: 3.9, bay: 3.6, ww: 0.74, wh: 0.56, wall: [0.60, 0.61, 0.63], frame: [0.17, 0.19, 0.22], trim: [0.74, 0.75, 0.76], lobby: true, pil: 0.30 },
   flats:   { floor: 3.0, bay: 3.2, ww: 0.56, wh: 0.64, wall: [0.80, 0.77, 0.70], frame: [0.84, 0.84, 0.82], trim: [0.68, 0.64, 0.58], balcony: true, pil: 0.0 },
@@ -9805,14 +10021,17 @@ function detailRegister(boxes) {
   });
 }
 function detailTick() {
-  const cam = camera.position, reach = STREAM.on ? ((title && title.on) || player.mode !== "walk" ? 0 : (drive.car ? 0.6 : 1)) : 0, R = STREAM.detail * reach;
+  const cam = camera.position, reach = STREAM.on ? ((title && title.on) || player.mode !== "walk" || flight.active || (chute.active && chute.state === "fall") ? 0 : (drive.car ? 0.8 : 1)) : 0, R = STREAM.detail * reach;
   DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); DETAIL.active.delete(b); } });
   if (!R) return;
   const near = [], cx0 = Math.floor((cam.x - R) / 128), cx1 = Math.floor((cam.x + R) / 128), cz0 = Math.floor((cam.z - R) / 128), cz1 = Math.floor((cam.z + R) / 128);
   for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const c = DETAIL.cells.get(cx + "," + cz); if (!c) continue; for (const b of c) { if (DETAIL.active.has(b)) continue; const d = Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) - Math.max(b.size[0], b.size[1]) * 0.5; if (d < R) near.push([d, b]); } }
   if (!near.length) return;
   near.sort((a, b) => a[0] - b[0]);
-  for (let i = 0; i < Math.min(2, near.length); i++) { const b = near[i][1]; const g = buildingDetail(b); scene.add(g); DETAIL.active.set(b, g); DETAIL.built++; }
+  // as many as fit in a few milliseconds, nearest first: standing still builds the street round you at once, and walking never waits on it
+  const t0 = performance.now(), cap = DETAIL.rush > 0 ? 14 : 6;
+  for (let i = 0; i < Math.min(cap, near.length); i++) { const b = near[i][1]; const g = buildingDetail(b); scene.add(g); DETAIL.active.set(b, g); DETAIL.built++; if (performance.now() - t0 > (DETAIL.rush > 0 ? 14 : 5)) break; }
+  if (DETAIL.rush > 0) DETAIL.rush--;
 }
 
 // ---- keeping the frame rate ------------------------------------------------
@@ -9826,7 +10045,7 @@ function detailTick() {
 // F3 shows what it is doing.
 const perf = { mult: 1, ceil: 1, acc: 0, n: 0, win: 0, hold: 3, up: 0, floorHits: 0, potato: 0,
                fps: 60, shown: false, el: null, calm: 0 };
-const PERF_FLOOR = 0.5;
+const PERF_FLOOR = 0.72;
 
 function guessTier() {
   try {
@@ -9837,8 +10056,8 @@ function guessTier() {
     const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
     const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
     if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(name)) return "low";
-    if (/intel|uhd|iris|hd graphics|mesa|vega \d|radeon\(tm\) (vega|graphics)|adreno|mali|powervr|apple gpu/i.test(name)
-        && !/arc a[3-9]\d\d|iris xe max/i.test(name)) return "low";
+    if (/iris.? xe|arc|radeon\(tm\) (vega|graphics)|apple gpu|vega \d/i.test(name)) return "medium";
+    if (/intel|uhd|iris|hd graphics|mesa|adreno|mali|powervr/i.test(name)) return "low";
     if (/rtx|gtx 1[06]|gtx 9|rx [5-7]\d\d\d|radeon rx|radeon pro|apple m[1-9]/i.test(name)) return "high";
     return "medium";
   } catch (e) { return "medium"; }
@@ -9863,7 +10082,7 @@ function perfFrame(rawMs) {
   perf.acc = 0; perf.n = 0; perf.win = 0;
   perf.calm += 1;
   if (perf.calm % 15 === 0) perf.ceil = Math.min(1, perf.ceil * 1.06);   // the scene may have got easier
-  if (avg > 24) {                                         // under about 42 fps
+  if (avg > 36) {                                         // under about 28 fps
     perf.up = 0;
     if (perf.mult > PERF_FLOOR + 0.01) {
       perf.ceil = Math.min(perf.ceil, perf.mult * 1.04);
@@ -9911,7 +10130,7 @@ function sizeRenderer() {
   const stage = document.getElementById("stage");
   if (!stage || !renderer) return;
   const t = TIERS[gfx.tier] || TIERS.high;
-  const scale = Math.max(0.3, (gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult);
+  const scale = Math.max(0.3, (gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult * (flight.lowres ? 0.58 : 1));
   const w = Math.max(16, stage.clientWidth), h = Math.max(16, stage.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, t.maxPixelRatio));
   renderer.setSize(Math.round(w * scale), Math.round(h * scale), false);
@@ -10319,6 +10538,7 @@ function buildRoadSurfaces(w, city, root) {
               if (Math.abs(p0[0]) > 1e6) continue;
               const v0 = along, v1 = along + (t1 - t0); along = v1;
               strip(road, at(t0, -hw, yR), at(t0, hw, yR), at(t1, hw, yR), at(t1, -hw, yR), 0, hw * 2, v0, v1);
+              (city.streetSegs || (city.streetSegs = [])).push(p0[0], p0[1], p1[0], p1[1]);
               metres += t1 - t0; wardLaid[wd.name] += t1 - t0;
               if (junction) continue;
               if (st) {
@@ -14082,15 +14302,23 @@ function routeBuild() {
   world.cities.forEach(city => {
     city.roads.forEach(road => {
       if (road.cls === "expressway" || road.elevated || !road.pts) return;
-      let prev = -1;
+      let prev = -1, first = nodes.length;
       for (let i = 0; i < road.pts.length; i++) {
         const q = road.pts[i];
+        // a node at least every 12 m, so a street that ends beside the avenue finds a node of the avenue to join
+        if (prev >= 0) { const o = nodes[prev], L = Math.hypot(q[0] - o[0], q[2] - o[1]), n = Math.floor(L / 12); for (let k = 1; k <= n; k++) { const t = k / (n + 1), id2 = add(o[0] + (q[0] - o[0]) * t, o[1] + (q[2] - o[1]) * t); link(prev, id2); prev = id2; } }
         const id = add(q[0], q[2]);
         if (prev >= 0) link(prev, id);
         prev = id;
       }
-      if (road.loop && road.pts.length > 2) link(prev, nodes.length - road.pts.length);
+      if (road.loop && road.pts.length > 2) link(prev, first);
     });
+  });
+  // the local streets, as laid: so a route can run down the street a shop is on and not stop at the nearest avenue
+  world.cities.forEach(city => {
+    const segs = city.streetSegs; if (!segs) return;
+    const seen = new Map(), nodeAt = (x, z) => { const k = Math.round(x * 2) + "," + Math.round(z * 2); let id = seen.get(k); if (id === undefined) { id = add(x, z); seen.set(k, id); } return id; };
+    for (let i = 0; i < segs.length; i += 4) { const a = nodeAt(segs[i], segs[i + 1]), b = nodeAt(segs[i + 2], segs[i + 3]); if (a !== b) link(a, b); }
   });
   // the coastal expressway, and the slip roads that join it to the towns: any
   // town road within a few hundred metres, and the nearest one to each town
@@ -14128,6 +14356,26 @@ function routeBuild() {
       }
     }
   }
+  // A street stops short of the avenue it meets (its footway ends where the avenue's begins), so the street networks are islands until they are joined:
+  // every island is tied to the nearest node of another one, within a short reach first and then a longer one for what is left over.
+  {
+    const par = new Int32Array(nodes.length); for (let i = 0; i < par.length; i++) par[i] = i;
+    const find = i => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+    for (let a2 = 0; a2 < nodes.length; a2++) for (const e of adj[a2]) { const x = find(a2), y = find(e[0]); if (x !== y) par[x] = y; }
+    const size = new Int32Array(nodes.length); for (let i = 0; i < nodes.length; i++) size[find(i)]++;
+    for (const R of [60, 150]) {
+      const r2 = R * R, rc = Math.ceil(R / cell);
+      for (let a2 = 0; a2 < nodes.length; a2++) {
+        const ra = find(a2); if (size[ra] > 20000 && R > 60) continue;
+        const ci = Math.floor(nodes[a2][0] / cell), cj = Math.floor(nodes[a2][1] / cell); let best = -1, bd = r2;
+        for (let di = -rc; di <= rc; di++) for (let dj = -rc; dj <= rc; dj++) {
+          const l = grid.get(key(ci + di, cj + dj)); if (!l) continue;
+          for (const b2 of l) { if (find(b2) === ra) continue; const d = (nodes[a2][0] - nodes[b2][0]) ** 2 + (nodes[a2][1] - nodes[b2][1]) ** 2; if (d < bd) { bd = d; best = b2; } }
+        }
+        if (best >= 0) { link(a2, best); const rb = find(best), ra2 = find(a2); if (ra2 !== rb) { par[ra2] = rb; size[rb] += size[ra2]; } }
+      }
+    }
+  }
   routeNet.nodes = nodes; routeNet.adj = adj; routeNet.grid = grid; routeNet.cell = cell;
 }
 function routeNearest(x, z, maxR) {
@@ -14141,9 +14389,28 @@ function routeNearest(x, z, maxR) {
   }
   return best;
 }
+// the nearest node you can walk to in a straight line without going through a building
+function routeReach(x, z) {
+  routeBuild();
+  const n = routeNet.nodes, cell = routeNet.cell, ci = Math.floor(x / cell), cj = Math.floor(z / cell), cand = [];
+  for (let r = 1; r <= 4 && cand.length < 6; r++) for (let di = -r; di <= r; di++) for (let dj = -r; dj <= r; dj++) {
+    if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
+    const l = routeNet.grid.get((ci + di) + "," + (cj + dj)); if (!l) continue;
+    for (const id of l) cand.push([(n[id][0] - x) ** 2 + (n[id][1] - z) ** 2, id]);
+  }
+  cand.sort((p, q) => p[0] - q[0]);
+  for (let i = 0; i < Math.min(cand.length, 12); i++) {
+    const id = cand[i][1], d = Math.sqrt(cand[i][0]); let clear = true;
+    for (let t = 2; t < d && clear; t += 3) if (insideBuilding(x + (n[id][0] - x) * t / d, z + (n[id][1] - z) * t / d, 0.4)) clear = false;
+    if (clear) return id;
+  }
+  return -1;
+}
 function routeSolve(from, to) {
   routeBuild();
-  const a = routeNearest(from.x, from.z, 900), b = routeNearest(to.x, to.z, 900);
+  let a = routeReach(from.x, from.z), b = routeReach(to.x, to.z);
+  if (a < 0) a = routeNearest(from.x, from.z, 900);
+  if (b < 0) b = routeNearest(to.x, to.z, 900);
   if (a < 0 || b < 0) return [[from.x, from.z], [to.x, to.z]];
   const n = routeNet.nodes, adj = routeNet.adj;
   const dist = new Float64Array(n.length).fill(Infinity), prev = new Int32Array(n.length).fill(-1), done = new Uint8Array(n.length);
@@ -14153,7 +14420,7 @@ function routeSolve(from, to) {
   const push = (it) => { heap.push(it); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
   const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { let l = i * 2 + 1, r = l + 1, m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
   let guard = 0;
-  while (heap.length && guard++ < 60000) {
+  while (heap.length && guard++ < 400000) {
     const [, u] = pop();
     if (done[u]) continue; done[u] = 1;
     if (u === b) break;
@@ -14166,16 +14433,99 @@ function routeSolve(from, to) {
   return [[from.x, from.z]].concat(path, [[to.x, to.z]]);
 }
 function updateRoute() {
-  if (!nav.waypoint || !player.placed) { nav.route = null; return; }
-  const at = drive.car ? drive.car.pos : player.pos;
+  if (!nav.waypoint || !player.placed) { nav.route = null; navGuideUpdate(); return; }
+  const at = flight.active ? flight.pos : drive.car ? drive.car.pos : player.pos;
   // Arrived: the marker goes away when you get close to it, on foot or in a car.
   if (Math.hypot(at.x - nav.waypoint.x, at.z - nav.waypoint.z) < (drive.car ? 28 : 14)) {
-    clearWaypoint(); say("You have arrived.", 2.5); nav.route = null; return;
+    clearWaypoint(); say("You have arrived.", 2.5); nav.route = null; navGuideUpdate(); return;
   }
-  const r = nav.route;
-  const moved = !r || Math.hypot(r.fx - at.x, r.fz - at.z) > 70 || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
-  if (!moved) return;
-  nav.route = { pts: routeSolve({ x: at.x, z: at.z }, nav.waypoint), fx: at.x, fz: at.z, wx: nav.waypoint.x, wz: nav.waypoint.z };
+  const r = nav.route, now = performance.now();
+  let solve = !r || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
+  if (r && !solve) {
+    // where you are on the line, and how far off it: leaving the route (a wrong turn, a shortcut across a car park) finds a new one within a second
+    let bi = 0, bd = 1e12, P = r.pts;
+    for (let i = 0; i + 1 < P.length; i++) {
+      const dx = P[i + 1][0] - P[i][0], dz = P[i + 1][1] - P[i][1], L = dx * dx + dz * dz || 1;
+      const t = clamp(((at.x - P[i][0]) * dx + (at.z - P[i][1]) * dz) / L, 0, 1), d = Math.hypot(P[i][0] + dx * t - at.x, P[i][1] + dz * t - at.z);
+      if (d < bd) { bd = d; bi = i; }
+      if (i > bi + 40 && d > bd + 80) break;
+    }
+    r.off = bd;
+    if (bd > (drive.car ? 38 : 22) && now - (r.at || 0) > 1100) solve = true;
+    else { r.pts = [[at.x, at.z]].concat(P.slice(bi + 1)); }
+  }
+  if (solve) {
+    nav.route = { pts: routeSolve({ x: at.x, z: at.z }, nav.waypoint), fx: at.x, fz: at.z, wx: nav.waypoint.x, wz: nav.waypoint.z, at: now, off: 0 };
+    let len = 0; const P = nav.route.pts; for (let i = 1; i < P.length; i++) len += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    nav.route.len = len; navGuide.t = 0;
+  }
+  navGuideUpdate();
+}
+// ---- the route in the world: a green ribbon down the road ahead, a column of light over the destination, and a banner that says what to do next ----
+const navGuide = { group: null, ribbon: null, beam: null, ring: null, banner: null, t: 0, bx: 0, bz: 0 };
+function navGuideEnsure() {
+  if (navGuide.group) return;
+  const g = new THREE.Group(); g.frustumCulled = false;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 400, 20, 1, true), new THREE.MeshBasicMaterial({ color: 0x2fe08a, transparent: true, opacity: 0.2, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(3.4, 4.6, 40), new THREE.MeshBasicMaterial({ color: 0x2fe08a, transparent: true, opacity: 0.6, depthWrite: false, fog: false, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2;
+  const ribbon = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: 0x2fe08a, transparent: true, opacity: 0.7, depthWrite: false, fog: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 }));
+  ribbon.frustumCulled = false; beam.frustumCulled = false; ring.frustumCulled = false;
+  g.add(beam); g.add(ring); g.add(ribbon); scene.add(g);
+  Object.assign(navGuide, { group: g, beam: beam, ring: ring, ribbon: ribbon });
+  const b = document.createElement("div"); b.id = "navhud";
+  b.style.cssText = "position:fixed;left:50%;top:max(96px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;display:none;min-width:260px;padding:9px 18px 9px 14px;background:rgba(10,16,14,.8);border-left:4px solid #2fe08a;color:#fff;font:700 15px 'Segoe UI',sans-serif;align-items:center;gap:14px;pointer-events:none;border-radius:4px";
+  b.innerHTML = "<span class='nv-a' style='font-size:34px;line-height:1;width:34px;text-align:center;color:#2fe08a'></span><span><span class='nv-t' style='display:block;font-size:17px'></span><span class='nv-s' style='display:block;font-weight:600;font-size:13px;opacity:.75;margin-top:2px'></span></span>";
+  document.body.appendChild(b); navGuide.banner = b;
+}
+function navGuideUpdate() {
+  const g = navGuide, r = nav.route;
+  if (!nav.waypoint || !r || !player.placed || interior.active || (typeof ex !== "undefined" && ex.open)) { if (g.group) g.group.visible = false; if (g.banner) g.banner.style.display = "none"; return; }
+  navGuideEnsure();
+  const now = performance.now(); if (now - g.t < 220) { g.group.visible = true; return; } g.t = now;
+  g.group.visible = true;
+  const wx = nav.waypoint.x, wz = nav.waypoint.z, wy = world.surfaceY(wx, wz);
+  g.beam.position.set(wx, wy + 190, wz); g.ring.position.set(wx, wy + 0.5, wz);
+  const pulse = 0.5 + 0.5 * Math.sin(now / 420); g.beam.material.opacity = 0.14 + pulse * 0.1; g.ring.scale.setScalar(1 + pulse * 0.25);
+  const P = r.pts, at = flight.active ? flight.pos : drive.car ? drive.car.pos : player.pos;
+  // resample the route ahead of you at 6 m, for the ribbon and for finding the next turn
+  const S = []; let acc = 0, carry = 0; S.push([P[0][0], P[0][1]]);
+  for (let i = 1; i < P.length && acc < 700; i++) {
+    const ax = P[i - 1][0], az = P[i - 1][1], bx = P[i][0], bz = P[i][1], L = Math.hypot(bx - ax, bz - az); if (L < 0.01) continue;
+    let d = 6 - carry;
+    while (d <= L) { S.push([ax + (bx - ax) * d / L, az + (bz - az) * d / L]); acc += 6; d += 6; }
+    carry = L - (d - 6);
+  }
+  // the ribbon: only on foot or in a car, within sight
+  const show = !flight.active && S.length > 2;
+  g.ribbon.visible = show;
+  if (show) {
+    const n = Math.min(S.length, 64), pos = new Float32Array(n * 6), idx = [];
+    for (let i = 0; i < n; i++) {
+      const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l, w = i < 2 ? 0.2 : 1.0;
+      const x = S[i][0], z = S[i][1], y = world.surfaceY(x, z) + 0.5;
+      pos.set([x + nx * w, y, z + nz * w, x - nx * w, y, z - nz * w], i * 6);
+      if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    }
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setIndex(idx);
+    g.ribbon.geometry.dispose(); g.ribbon.geometry = geo;
+  }
+  // what to do next
+  let turn = null;
+  for (let k = 3; k + 3 < S.length && !turn; k++) {
+    const ax = S[k][0] - S[k - 3][0], az = S[k][1] - S[k - 3][1], bx = S[k + 3][0] - S[k][0], bz = S[k + 3][1] - S[k][1];
+    const ang = Math.atan2(ax * bz - az * bx, ax * bx + az * bz);        // positive: the line swings clockwise seen from above, which is a right turn here
+    if (Math.abs(ang) > 0.62) turn = { dist: k * 6, right: ang < 0 ? false : true, sharp: Math.abs(ang) > 1.9 };
+  }
+  let left = 0; for (let i = 1; i < P.length; i++) left += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+  const km = left >= 1000 ? (left / 1000).toFixed(1) + " km" : Math.round(left / 10) * 10 + " m", mins = Math.max(1, Math.round(left / (drive.car ? 13 : 1.9) / 60));
+  const arrow = g.banner.querySelector(".nv-a"), t1 = g.banner.querySelector(".nv-t"), t2 = g.banner.querySelector(".nv-s");
+  if (flight.active) { arrow.textContent = "✈"; t1.textContent = "Destination marked"; t2.textContent = km + " away"; }
+  else if (r.off > (drive.car ? 38 : 22)) { arrow.textContent = "↻"; t1.textContent = "Finding a new route…"; t2.textContent = ""; }
+  else if (left < 70) { arrow.textContent = "⚑"; t1.textContent = "Destination ahead"; t2.textContent = Math.round(left) + " m"; }
+  else if (turn) { const d = turn.dist < 20 ? "Now" : "In " + (turn.dist >= 1000 ? (turn.dist / 1000).toFixed(1) + " km" : Math.round(turn.dist / 10) * 10 + " m"); arrow.textContent = turn.right ? (turn.sharp ? "↩" : "↱") : (turn.sharp ? "↪" : "↰"); arrow.style.transform = turn.sharp ? "scaleX(-1)" : ""; t1.textContent = d + ", turn " + (turn.right ? "right" : "left"); t2.textContent = km + " to go · about " + mins + " min"; }
+  else { arrow.textContent = "↑"; arrow.style.transform = ""; t1.textContent = "Continue straight"; t2.textContent = km + " to go · about " + mins + " min"; }
+  if (turn && !(turn.sharp)) arrow.style.transform = "";
+  g.banner.style.display = "flex";
 }
 
 function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
@@ -14699,6 +15049,8 @@ function snapToRoad(x, z) {
       seg(P[i - 1][0], P[i - 1][2], P[i][0], P[i][2]);
     }
   }
+  // and the local streets, which are in the route graph
+  try { routeBuild(); const k = routeNearest(x, z, Math.min(bd, 400)); if (k >= 0) { const n = routeNet.nodes[k], d = Math.hypot(n[0] - x, n[1] - z); if (d < bd) { bd = d; best = [n[0], n[1]]; } } } catch (e) { /* the arterials will do */ }
   return best || [x, z];
 }
 
@@ -21233,6 +21585,7 @@ function placeShops(city) {
     const CYCLE = ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"];
     let brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
     if (brand === "sushi" && (placeShops.sushiN = (placeShops.sushiN || 0) + 1) % 2 === 0) brand = "sushiya";     // every second sushi bar is the old-fashioned, expensive kind
+    plotFaceRoad(city, p);
     const yaw = p.yaw * Math.PI / 180;
     // The door is on the long face, pushed out to the pavement.
     const half = p.size[1] * 0.5 + 1.6;
@@ -22134,6 +22487,7 @@ function placeSafehouses(w) {
       const p = pool[(rng() * pool.length) | 0];
       const tooNear = shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < (s.mall ? 60 : s.safe ? (ci === 0 ? 900 : 100) : 25));
       if (tooNear) continue;
+      plotFaceRoad(city, p);
       const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
       shops.list.push({ brand: "capsule", safe: true, name: "Capsule Hotel Kapuseru", city: city.name,
         at: [p.centre[0], p.centre[1]], door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half],
@@ -22212,6 +22566,7 @@ function placeTownShops(w) {
         const p = pool[(rng() * pool.length) | 0];
         if (shops.list.some(s => Math.hypot(s.at[0] - p.centre[0], s.at[1] - p.centre[1]) < 110)) continue;
         if (p.shop) continue;
+        plotFaceRoad(city, p);
         const yaw = p.yaw * Math.PI / 180, half = p.size[1] * 0.5 + 1.6;
         const so = { brand: brand, name: SHOP_BRANDS[brand].name, city: city.name, at: [p.centre[0], p.centre[1]],
           door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: p.groundY, size: p.size };
@@ -22697,6 +23052,7 @@ function placeHospitals(w) {
       // The biggest plot in the quadrant: a hospital is a large building.
       list.sort((a, c) => c.size[0] * c.size[1] - a.size[0] * a.size[1]);
       const p = list[0];
+      plotFaceRoad(city, p);
       const yaw = p.yaw * Math.PI / 180;
       const half = p.size[1] * 0.5 + 2.2;
       // Named for the ward it stands in, not the city, or every hospital in
@@ -23719,6 +24075,7 @@ function radioPlaying(st, t) {
   return { i: i, song: st.songs[i], pos: pos };
 }
 function radioInfo(st) {
+  if (st.files) { const f = st.files[(radio.fileIdx || 0) % st.files.length], au = radio.audio; return { title: f.t, artist: f.a || st.name, pos: au && !au.paused ? au.currentTime : 0, dur: au && isFinite(au.duration) ? au.duration : 240, idx: radio.fileIdx || 0 }; }
   if (ytRadio.on && ytRadio.st === st.id && ytRadio.title) return { title: ytRadio.title, artist: "Live", pos: 0, dur: 1, idx: 0 };
   const p = radioPlaying(st, radioNow());
   if (st.talk) {
@@ -23895,6 +24252,7 @@ function radioSchedule() {
 function radioBeginSong(next) {
   const ctx = sound.ctx; if (!ctx) return;
   const st = radioStation(radio.st);
+  if (st.files) { radioFilePlay(st, next); return; }
   let idx, pos;
   if (next) { idx = radio.songIdx; pos = 0; }
   else { const p = radioPlaying(st, radioNow()); idx = p.i; pos = p.pos; radio.songIdx = idx; }
@@ -23906,6 +24264,7 @@ function radioBeginSong(next) {
 }
 
 function radioSet(i, quiet) {
+  if (radio.audio) radio.audio.pause();
   radio.st = ((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length;
   radio.tuned = radio.st;
   if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ }
@@ -23931,6 +24290,35 @@ function radioSet(i, quiet) {
     radio.nextT = ctx.currentTime + 0.14;
   }
   if (!quiet) radioToast();
+}
+// Real songs: the player's own files, played through the same bus as the made-up ones, one after another, shuffled.
+function radioFilePlay(st, next) {
+  const ctx = sound.ctx; if (!ctx || !radio.bus) return;
+  if (!radio.audio) {
+    const a = new Audio(); a.preload = "auto"; a.crossOrigin = "anonymous"; radio.audio = a;
+    try { radio.audioSrc = ctx.createMediaElementSource(a); radio.audioSrc.connect(radio.bus); } catch (e) { console.warn("[Konto] the radio could not take a song:", e); }
+    a.addEventListener("ended", () => { const s = radioStation(radio.st); if (s.files && !radioIsOff()) { radio.fileIdx = (radio.fileIdx + 1) % s.files.length; radioFilePlay(s, true); } });
+    a.addEventListener("error", () => { const s = radioStation(radio.st); if (s.files && s.files.length > 1 && !radioIsOff()) { radio.fileIdx = (radio.fileIdx + 1) % s.files.length; setTimeout(() => radioFilePlay(s, true), 400); } });
+  }
+  radio.plan = null;
+  if (!next) radio.fileIdx = Math.floor(Math.random() * st.files.length);
+  const f = st.files[radio.fileIdx % st.files.length];
+  radio.audio.src = f.f; radio.audio.currentTime = 0; const pr = radio.audio.play(); if (pr && pr.catch) pr.catch(() => {});
+  radioToast();
+}
+async function radioLoadMusic() {
+  let idx = null;
+  try { const r = await fetch("music/index.json", { cache: "no-store" }); if (r.ok) idx = await r.json(); } catch (e) { return; }
+  if (!idx || !idx.stations) return;
+  const NAMES = { mymusic: ["My Music", "107.7", "Your own songs", "#7dffb0"] };
+  Object.keys(idx.stations).forEach(id => {
+    const list = idx.stations[id]; if (!list || !list.length) return;
+    let st = RADIO_STATIONS.find(x => x.id === id);
+    if (!st && NAMES[id]) { st = { id: id, name: NAMES[id][0], freq: NAMES[id][1], genre: NAMES[id][2], style: "files", colour: NAMES[id][3], logo: "none", songs: [["", "", 240]] }; RADIO_STATIONS.splice(Math.max(0, RADIO_STATIONS.findIndex(x => x.off)), 0, st); }
+    if (!st || st.talk) return;
+    st.files = list; st.songs = list.map(f => [f.t, f.a, 240]);
+  });
+  console.log("[Konto] the radio has real songs on: " + Object.keys(idx.stations).join(", "));
 }
 function radioNext(d) { radioSet(radio.st + (d || 1)); }
 
@@ -24196,6 +24584,7 @@ function updateRadio(dt) {
     radioTalk(dt);
     if (real) radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.08);       // the real performance has the speakers
   } else if (radio.bus && radio.bus.gain.value > 0) {
+    if (radio.audio) radio.audio.pause();
     radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.05);
     radio.started = false; radio.tuned = -1;
     if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ } talkVoice.queue.length = 0; talkVoice.busy = false;
@@ -30381,7 +30770,7 @@ function airLandside(s, key) {
   airPerson(root, sx + 3.4, sz - 1.6, -Math.PI / 2, "#14284c"); airPerson(root, sx + 3.4, sz + 1.6, -Math.PI / 2, "#14284c");
   const sec = inLabel("SECURITY  保安検査", 6, 0.8, "#14284c", "#fff"); sec.position.set(sx + 1.4, 3.3, sz - 6); sec.rotation.y = -Math.PI / 2; root.add(sec);
   for (let k = 0; k < 6; k++) inCyl(root, 0.05, 0.9, sx - 3 - k * 1.3, 0.45, sz - 4.2 + (k % 2) * 0.0, "#2a3039");
-  spots.push({ x: sx - 2.2, z: sz, label: "go through security", act: "security" });
+  spots.push({ x: sx - 2.2, z: sz, label: "go through security", act: "security", walk: true });
   // seating, columns, plants, signs: a hall that is lived in
   for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const x = -18 + c * 5.2, z = 8 + r * 2.4; box(3.6, 0.1, 0.7, x, z, "#2a3039", 0.5); box(3.6, 0.5, 0.1, x, z - 0.35, "#2a3039", 0.8); box(0.1, 0.5, 0.6, x - 1.7, z, "#8d939c", 0.25); box(0.1, 0.5, 0.6, x + 1.7, z, "#8d939c", 0.25); solid(x, z, 3.8, 0.9); if ((r + c) % 3 === 0) airPerson(root, x - 0.8, z, Math.PI, null); }
   for (const x of [-24, -10, 4, 18]) for (const z of [-8.3, 8.6]) { box(0.9, H, 0.9, x, z, "#dfe2e5"); solid(x, z, 1.0, 1.0); }
@@ -30409,7 +30798,7 @@ function airAirside(land) {
   for (let x = -W / 2 + 4; x < W / 2; x += 4) inAdd(root, 0.16, H, 0.2, x, H / 2, -D / 2, "#c9ced4");
   const apron = new THREE.Mesh(new THREE.PlaneGeometry(W * 3, 80), new THREE.MeshBasicMaterial({ color: new THREE.Color("#8a8f92").multiplyScalar(0.8) })); apron.rotation.x = -Math.PI / 2; apron.position.set(0, 0.0, -D / 2 - 40); root.add(apron);
   const sky = new THREE.Mesh(new THREE.PlaneGeometry(W * 3, 40), new THREE.MeshBasicMaterial({ color: 0x9cc4e8, fog: false })); sky.position.set(0, 20, -D / 2 - 79); root.add(sky);
-  [[-16, 0xc0172b, 63, 61], [14, 0x1d5fb0, 38, 34]].forEach(p => { const pl = airplaneMesh(p[2], p[3], p[1], false); pl.rotation.y = Math.PI / 2; pl.position.set(p[0], 5.0, -D / 2 - 22); root.add(pl); });
+  [[-16, 0xc0172b, 63, 61], [14, 0x1d5fb0, 38, 34]].forEach(p => { const pl = airplaneMesh(p[2], p[3], p[1], false); pl.rotation.y = Math.PI / 2; pl.position.set(p[0], pl.userData.gearH || 5.0, -D / 2 - 22); root.add(pl); });
   // gates, each with a desk and a sign; the numbered ones board
   const gates = ["A1", "A2", "A3", "A4", "A5", "A6"];
   gates.forEach((gname, i) => {
@@ -30417,7 +30806,7 @@ function airAirside(land) {
     box(2.4, 1.0, 0.9, x, -8.3, "#c9ced4"); box(2.5, 0.07, 1.0, x, -8.3, "#1d5fb0", 1.04); airPerson(root, x, -9.4, 0, "#1d5fb0"); solid(x, -8.3, 2.6, 1.0);
     const gs = inLabel("GATE " + gname, 2.4, 0.7, "#ffd21c", "#14171b"); gs.position.set(x, 4.2, -D / 2 + 0.3); root.add(gs);
     box(3.6, 2.6, 0.2, x + 3.2, -D / 2 + 0.3, "#3a4048"); inAdd(root, 3.2, 2.2, 0.06, x + 3.2, 1.4, -D / 2 + 0.4, "#14171b");
-    spots.push({ x: x + 3.2, z: -D / 2 + 2.2, label: "gate " + gname + ": jet bridge", act: "gate", gate: gname });
+    spots.push({ x: x + 3.2, z: -D / 2 + 2.2, label: "gate " + gname + ": jet bridge", act: "gate", gate: gname, walk: true });
     for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const bx = x - 1.5 + c * 1.8, bz = -4.4 + r * 1.5; box(1.4, 0.1, 0.55, bx, bz, "#2a3039", 0.5); box(1.4, 0.45, 0.1, bx, bz + 0.3, "#2a3039", 0.8); if ((i + r + c) % 4 === 0) airPerson(root, bx, bz, Math.PI, null); }
   });
   // shops along the south wall
@@ -30429,7 +30818,7 @@ function airAirside(land) {
   for (const x of [-24, -10, 4, 18]) { box(0.9, H, 0.9, x, 2, "#dfe2e5"); solid(x, 2, 1.0, 1.0); }
   for (let i = 0; i < 5; i++) { const x = [-26, -8, 8, 22, 12][i]; inCyl(root, 0.4, 0.7, x, 0.35, 6, "#8a5a3a"); for (let k = 0; k < 6; k++) inAdd(root, 0.1, 1.5, 0.05, x + (k - 2.5) * 0.12, 1.4, 6, "#3f8f4a"); }
   for (let i = 0; i < 12; i++) airPerson(root, -24 + rnd(i, 5, 8201) * 48, 0 + rnd(i, 6, 8203) * 9, rnd(i, 7, 8205) * 6.28, null);
-  spots.push({ x: -26.4, z: 4, label: "back out through arrivals", act: "landside" });
+  spots.push({ x: -26.4, z: 4, label: "back out through arrivals", act: "landside", walk: true });
   const bk = inLabel("← ARRIVALS · LANDSIDE", 4.2, 0.7, "#2e7d4f", "#fff"); bk.position.set(-W / 2 + 0.3, 3.2, 4); bk.rotation.y = Math.PI / 2; root.add(bk);
   room.entry = new THREE.Vector3(ox - 24, fy, oz + 4); room.entryZ = 4; room.doorZ = oz + D / 2;
   root.visible = false; scene.add(root);
@@ -30461,7 +30850,7 @@ function airCabin(land) {
   box(W - 0.6, 2.4, 0.2, 0, -D / 2 + 3.4, "#8a2a3a", 1.2);                                                       // the galley curtain
   const door = inLabel("EXIT", 0.8, 0.3, "#2e7d4f", "#fff"); door.position.set(0, 2.5, -D / 2 + 0.2); root.add(door);
   for (let k = 0; k < 2; k++) airPerson(root, -0.5 + k, -D / 2 + 2.2, 0, "#c0172b");                              // the crew at the door
-  spots.push({ x: 0, z: -D / 2 + 9.2, label: "sit down in your seat", act: "plane_seat" });
+  spots.push({ x: 0, z: -D / 2 + 9.2, label: "sit down in your seat", act: "plane_seat", walk: true });
   room.entry = new THREE.Vector3(ox, fy, oz - D / 2 + 3); room.entryZ = -D / 2 + 3; room.doorZ = oz + D / 2;
   root.visible = false; scene.add(root);
   land.cabin = room; return room;
@@ -30474,15 +30863,14 @@ function airGoto(room, at, face, msg) {
 function airModal(head, body, opts) { interior.modal = { kind: "custom", head: head, body: body, opts: opts, sel: 0 }; interiorModalDraw(); }
 function airSecurity(room) {
   const baton = bag.gear && bag.gear.baton || (bag.counts && bag.counts.baton);
-  if (!airTicketOk()) { airModal("Security", "The officer at the lane looks at your hands. “Boarding pass, please.” You do not have one for a flight from here. Buy a ticket at the office or on Expedio.", [["x", "Step back", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]); return; }
-  airModal("Security · " + AIR_DESTS[air.ticket.to].name + " (" + air.ticket.ref + ")", "Trays in the bin. Belt, keys, phone, anything in your pockets. " + (baton ? "<b>The X-ray picks out a baton in your bag. It is kept, and noted.</b>" : "The X-ray is clean. The officer waves you through, and a boarding gate sign flickers: " + air.ticket.gate + "."),
-    [["go", "Walk through the arch", () => { if (baton) { try { if (bag.gear) bag.gear.baton = 0; if (bag.counts) bag.counts.baton = 0; } catch (e) { /* none */ } } interior.modal = null; interior.cardEl.classList.remove("on"); airGoto(airAirside(room), { x: -24, z: 4 }, Math.PI / 2, "Airside. Your gate is " + air.ticket.gate + "."); }], ["x", "Step back", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]);
+  if (!airTicketOk()) { say("Security: “Boarding pass, please.” You need a ticket for a flight from here. Buy one at the office or on Expedio.", 5); return; }
+  if (baton) { try { if (bag.gear) bag.gear.baton = 0; if (bag.counts) bag.counts.baton = 0; } catch (e) { /* none */ } }
+  airGoto(airAirside(room), { x: -24, z: 4 }, Math.PI / 2, baton ? "The X-ray finds a baton in your bag. It is kept, and noted. Airside: your gate is " + air.ticket.gate + "." : "Through security. Airside: your gate is " + air.ticket.gate + ".");
 }
 function airGate(room, gate) {
   if (!airTicketOk()) { say("You need a boarding pass for a flight from here.", 3.5); return; }
   if (gate !== air.ticket.gate) { say("Your gate is " + air.ticket.gate + ". This is " + gate + ".", 3.5); return; }
-  const d = AIR_DESTS[air.ticket.to];
-  airModal("Gate " + gate + " · Konto Air KA " + (300 + ((air.ticket.ref.charCodeAt(0) * 7) % 400)), "Boarding to " + d.name + " (" + d.code + "), " + AIR_CLASSES[air.ticket.cls].name + ", seat " + air.ticket.seat + ". About " + d.hours.toFixed(1) + " hours.", [["go", "Board the aircraft", () => { interior.modal = null; interior.cardEl.classList.remove("on"); airGoto(airCabin(room.land), { x: 0, z: -22 + 3 }, 0, "Welcome aboard. Seat " + air.ticket.seat + ": down the aisle."); }], ["x", "Not yet", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]);
+  airGoto(airCabin(room.land), { x: 0, z: -22 + 3 }, 0, "Gate " + gate + ": boarding to " + AIR_DESTS[air.ticket.to].name + ". Welcome aboard, seat " + air.ticket.seat + " is down the aisle.");
 }
 
 
@@ -30955,7 +31343,6 @@ function destFrame(dt) {
 // ============================================================================
 // THE AIRFIELD GATE, STEALING A PLANE, FLYING IT, AND WHO COMES AFTER YOU
 // ============================================================================
-const flight = { active: false, mesh: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, air: false, len: 40, span: 36, crash: 0, hud: null, off: 0 };
 const AIR_CRIMES = { breach: { stars: 2, what: "Smashing through an airport gate" }, theft: { stars: 4, what: "Stealing an aircraft" } };
 function airportExtras(ap, G, ctx) {
   const L = ctx.L, big = ap.big, M = c => new THREE.MeshLambertMaterial({ color: c });
@@ -31040,6 +31427,12 @@ function buildAirportHighway(ap, G) {
   lamps.forEach(([i, sg], k) => { const p = E(i, sg * (hw + sh + 0.3)); m5.makeTranslation(p[0], p[1] + 4.5, p[2]); lp.setMatrixAt(k, m5); m5.makeTranslation(p[0] - sg * 0.2, p[1] + 9, p[2]); lh.setMatrixAt(k, m5); });
   lp.frustumCulled = lh.frustumCulled = false; scene.add(lp); scene.add(lh);
   [Math.floor(n * 0.08), Math.floor(n * 0.5), n - 12].forEach((i, k) => { const p = E(i, 0), d = dir(i), ang = Math.atan2(d[0], d[1]); const g = new THREE.Group(); g.position.set(p[0], p[1], p[2]); g.rotation.y = ang; scene.add(g); for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); post.position.set(sx * (hw + sh + 0.6), 3.7, 0); g.add(post); } const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + sh) * 2 + 1.4, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); beam.position.y = 7.2; g.add(beam); const sg = destSign(k === 0 ? "TŌKONTO INTERNATIONAL AIRPORT  ✈  空港" : k === 1 ? "✈  TKO  空港  ·  Airport Expressway" : "✈  TŌKONTO  ·  Airport  ✈", 14, 3, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); sg.position.set(0, 5.4, 0.3); g.add(sg); const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -0.3; g.add(sg2); });
+  // the deck is a surface you stand on: cars, people and the camera's ground follow it, not the soil under it
+  for (let i = 1; i < n; i++) {
+    const A = res[i - 1], B = res[i], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
+    const bw = hw + sh;
+    world.bridges.push({ ax: A[0], az: A[1], ux: (B[0] - A[0]) / len, uz: (B[1] - A[1]) / len, len: len, hw: bw, ya: d2[i - 1] + 0.02, yb: d2[i] + 0.02, x0: Math.min(A[0], B[0]) - bw, x1: Math.max(A[0], B[0]) + bw, z0: Math.min(A[1], B[1]) - bw, z1: Math.max(A[1], B[1]) + bw });
+  }
   // and on the map
   city.roads.push({ pts: res.map((p, i) => [p[0], d2[i], p[1]]), halfWidth: hw + sh, elevated: false, loop: false, name: "Airport Expressway" });
   ap.highway = { n: n, len: along[n - 1], hw: hw, pts: res, deck: d2 };
@@ -31063,11 +31456,29 @@ function updateAirportGates(dt) {
   aps.forEach(ap => { const g = ap.gate; if (g && g.fly) { g.t += dt; g.fly.position.y -= 3 * dt * (g.t < 0.6 ? 0 : 1); g.fly.position.x += 2 * dt; g.fly.rotation.z += dt * 3; if (g.t > 4) { scene.remove(g.fly); g.fly = null; } } });
 }
 // ---- the planes you can take --------------------------------------------------------------------------------------------------------------------
+// ============================================================================
+// FLYING: a flight model with lift, drag, thrust and a stall; instruments; three cameras; and jumping out with a parachute
+// ============================================================================
+const flight = { active: false, mesh: null, en: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, gamma: 0, air: false, len: 40, span: 36, off: 0, hud: null, pfd: null, cam: 0, P: null, parked: [], lowres: false, lastCrash: null, xWas: false, brake: false, stall: false };
+const FP_JET = { vs: 44, vr: 55, vmax: 150, thr: 6.5, c0: 3.6e-4, ci: 34, pitchRate: 0.42, rollRate: 0.95, rudRate: 0.3, crashV: 7 };
+const FP_PROP = { vs: 24, vr: 30, vmax: 80, thr: 4.6, c0: 7.5e-4, ci: 20, pitchRate: 0.85, rollRate: 1.6, rudRate: 0.55, crashV: 4.5 };
+const ghosts = [];
+function aircraftHitsSolid(x, y, z, rad) {
+  if (!solidGrid) return false;
+  const l = solidGrid.map.get(Math.floor(x / solidGrid.cell) + "," + Math.floor(z / solidGrid.cell)); if (!l) return false;
+  for (let k = 0; k < l.length; k++) {
+    const b = solids[l[k]]; if (b.deck) continue;
+    const q = toRectLocal(x, z, b.c[0], b.c[1], b.yaw);
+    if (Math.abs(q[0]) < b.size[0] * 0.5 + rad && Math.abs(q[1]) < b.size[1] * 0.5 + rad && y < (b.y || 0) + (b.h || 0) + 1 && y > (b.y || 0) - 6) return true;
+  }
+  return false;
+}
 function airNear() {
-  if (!player.placed || player.mode !== "walk" || drive.car || drive.train || flight.active) return null;
+  if (chute.active || flight.active) return null;
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return null;
   const aps = (world && world.airports) || [], p = player.pos;
   for (const ap of aps) for (const pl of (ap.planes || [])) { if (pl.taken) continue; if (Math.hypot(pl.wx - p.x, pl.wz - p.z) < pl.len * 0.5 + 6 && Math.abs(p.y - ap.y) < 6) return { kind: "plane", ap: ap, plane: pl, text: "Take the aircraft  (this is a crime)" }; }
-  for (const pl of (flight.parked || [])) if (Math.hypot(pl.mesh.position.x - p.x, pl.mesh.position.z - p.z) < pl.len * 0.5 + 6) return { kind: "parked", plane: pl, text: "Get back in the aircraft" };
+  for (const pl of flight.parked) if (Math.hypot(pl.mesh.position.x - p.x, pl.mesh.position.z - p.z) < pl.len * 0.5 + 6) return { kind: "parked", plane: pl, text: "Get back in the aircraft" };
   if (DEST.near) return { kind: "kiosk", text: "Departures · return flights" };
   return null;
 }
@@ -31081,74 +31492,261 @@ function stealPlane(ap, pl) {
   pl.taken = true; pl.mesh.visible = false;
   const m = airplaneMesh(pl.len, pl.span, pl.tail || 0xc0172b, gfx.high); scene.add(m);
   const q0 = fromRectLocal(pl.mesh.position.x, pl.mesh.position.z, ap.cx, ap.cz, ap.yaw), q1 = fromRectLocal(pl.mesh.position.x + 100, pl.mesh.position.z, ap.cx, ap.cz, ap.yaw);
-  const entry = { mesh: m, len: pl.len, span: pl.span, tail: pl.tail, ap: ap, h: Math.atan2(q1[0] - q0[0], q1[1] - q0[1]) };
-  m.position.set(pl.wx, ap.y + pl.len * 0.0825, pl.wz);
-  (flight.parked || (flight.parked = [])).push(entry);
+  const entry = { mesh: m, len: pl.len, span: pl.span, tail: pl.tail, ap: ap, h: Math.atan2(q1[0] - q0[0], q1[1] - q0[1]), off: m.userData.gearH };
+  m.position.set(pl.wx, ap.y + entry.off, pl.wz);
+  flight.parked.push(entry);
   wanted.lastCrime = AIR_CRIMES.theft.what; wanted.stars = Math.max(wanted.stars, 4); wanted.heat = 1; wanted.escape = 0; wanted.seen = true;
   say("Stealing an aircraft · 4 stars", 5); vitals.stress = clamp01(vitals.stress + 0.3); callPolice(player.pos);
   flightEnter(entry);
 }
 function flightEnter(en) {
-  flight.active = true; flight.mesh = en.mesh; flight.en = en; flight.ap = en.ap; flight.len = en.len; flight.span = en.span; flight.air = false; flight.v = 0; flight.thr = 0; flight.pitch = 0; flight.roll = 0; flight.h = en.h; flight.crash = 0;
-  flight.pos.copy(en.mesh.position); flight.off = en.len * 0.0825;
-  const i = flight.parked.indexOf(en); if (i >= 0) flight.parked.splice(i, 1);
+  const f = flight;
+  f.active = true; f.mesh = en.mesh; f.en = en; f.ap = en.ap; f.len = en.len; f.span = en.span; f.air = false; f.v = 0; f.thr = 0; f.pitch = 0; f.roll = 0; f.gamma = 0; f.h = en.h; f.lastCrash = null; f.cam = 0;
+  f.P = en.len >= 26 ? FP_JET : FP_PROP; f.off = en.mesh.userData.gearH || en.len * 0.0825; f.mesh.visible = true;
+  f.pos.copy(en.mesh.position); const i = f.parked.indexOf(en); if (i >= 0) f.parked.splice(i, 1);
   player.obj.visible = false; player.speed = 0;
-  if (!flight.hud) { const h = document.createElement("div"); h.id = "flighthud"; h.style.cssText = "position:fixed;left:50%;bottom:6%;transform:translateX(-50%);z-index:60;padding:10px 20px;background:rgba(8,12,18,.78);border-left:4px solid #ffd21c;color:#fff;font:700 15px 'Segoe UI',sans-serif;white-space:nowrap;display:none"; document.body.appendChild(h); flight.hud = h; }
-  flight.hud.style.display = "block";
-  say("W / S throttle · ↓ pull up, ↑ nose down · ← → bank · A D rudder on the ground · F / Y gets you out when stopped" + (pad.index >= 0 ? " · pad: left stick, RT/LT throttle, LB/RB rudder, " + padLabel("Y") + " gets out" : ""), 12);
+  if (!f.hud) {
+    const h = document.createElement("div"); h.id = "flighthud"; h.style.cssText = "position:fixed;left:50%;bottom:calc(1.5% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;pointer-events:none;display:none;text-align:center";
+    const c = document.createElement("canvas"); c.width = 420; c.height = 230; c.style.cssText = "width:min(420px,90vw);height:auto;display:block;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))"; h.appendChild(c); document.body.appendChild(h); f.hud = h; f.pfd = c;
+  }
+  f.hud.style.display = "block"; flightQuality(true);
+  say("W/S throttle · ↓ pull up, ↑ nose down · ← → roll · Q/E rudder · Space brakes · C camera · F/Y jump out and use the parachute" + (pad.index >= 0 ? " · pad: stick to fly, RT/LT throttle, LB/RB rudder, X camera, " + padLabel("Y") + " jump" : ""), 14);
+}
+function flightQuality(on) {
+  flight.lowres = on; if (typeof sizeRenderer === "function") sizeRenderer();
 }
 function flightLeave() {
-  const e = { mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h }; (flight.parked || (flight.parked = [])).push(e);
-  flight.active = false; flight.hud.style.display = "none";
-  const sx = flight.pos.x + Math.cos(flight.h) * 0 - Math.sin(flight.h + Math.PI / 2) * (flight.span * 0.2), sz = flight.pos.z - Math.cos(flight.h + Math.PI / 2) * (flight.span * 0.2);
+  const e = { mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h, off: flight.off, tail: flight.en && flight.en.tail }; flight.parked.push(e);
+  flight.active = false; flight.hud.style.display = "none"; flightQuality(false); flight.mesh.visible = true;
+  const sx = flight.pos.x - Math.cos(flight.h) * (flight.span * 0.22), sz = flight.pos.z + Math.sin(flight.h) * (flight.span * 0.22);
   player.obj.visible = true; placeSeiko(new THREE.Vector3(sx, 0, sz)); player.mode = "walk"; camPos.copy(camera.position);
+}
+function flightAbort() {
+  if (!flight.active) return;
+  flight.active = false; if (flight.hud) flight.hud.style.display = "none"; flightQuality(false);
+  flight.parked.push({ mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h, off: flight.off });
+  if (player.obj) player.obj.visible = true;
 }
 function flightCrash(why) {
   flight.lastCrash = why;
-  const m = flight.mesh; flight.active = false; flight.hud.style.display = "none"; scene.remove(m); flight.crash = 0;
+  const m = flight.mesh; flight.active = false; flight.hud.style.display = "none"; flightQuality(false); scene.remove(m);
   say(why, 6); vitals.health = clamp01(vitals.health - 0.45); vitals.stress = clamp01(vitals.stress + 0.3); drive.shake = 1; rumble(1, 1, 500);
   const ap = flight.ap || world.airports[0], p = fromRectLocal(0, ap.big ? 244 : 200, ap.cx, ap.cz, ap.yaw); player.obj.visible = true; placeSeiko(new THREE.Vector3(p[0], 0, p[1])); player.mode = "walk";
 }
 function updateFlight(dt) {
-  const f = flight, gp = pad.gp, K = keys;
-  let pitchIn = (K.ArrowDown ? 1 : 0) - (K.ArrowUp ? 1 : 0), rollIn = (K.ArrowRight ? 1 : 0) - (K.ArrowLeft ? 1 : 0), rud = (K.KeyD ? 1 : 0) - (K.KeyA ? 1 : 0), thr = (K.KeyW ? 1 : 0) - (K.KeyS ? 1 : 0);
-  if (gp && pad.index >= 0) { pitchIn += deadzone(gp.axes[1] || 0); rollIn += deadzone(gp.axes[0] || 0); thr += (pad.throttle || 0) - (pad.brake || 0); rud += (gp.buttons[PAD.RB] && gp.buttons[PAD.RB].pressed ? 1 : 0) - (gp.buttons[PAD.LB] && gp.buttons[PAD.LB].pressed ? 1 : 0); }
-  pitchIn = clamp(pitchIn, -1, 1); rollIn = clamp(rollIn, -1, 1);
-  f.thr = clamp(f.thr + thr * 0.5 * dt, 0, 1);
-  const g0 = world.surfaceY(f.pos.x, f.pos.z) + f.off, alt = f.pos.y - g0;
+  const f = flight, P = f.P, gp = pad.gp, K = keys, g = 9.8;
+  dt = Math.min(dt, 0.05);
+  let pitchIn = (K.ArrowDown ? 1 : 0) - (K.ArrowUp ? 1 : 0), rollIn = (K.ArrowRight ? 1 : 0) - (K.ArrowLeft ? 1 : 0), rud = (K.KeyE ? 1 : 0) - (K.KeyQ ? 1 : 0) + (K.KeyD ? 1 : 0) - (K.KeyA ? 1 : 0), thrIn = (K.KeyW ? 1 : 0) - (K.KeyS ? 1 : 0);
+  if (gp && pad.index >= 0) {
+    pitchIn += deadzone(gp.axes[1] || 0); rollIn += deadzone(gp.axes[0] || 0); thrIn += (pad.throttle || 0) - (pad.brake || 0);
+    rud += (gp.buttons[PAD.RB] && gp.buttons[PAD.RB].pressed ? 1 : 0) - (gp.buttons[PAD.LB] && gp.buttons[PAD.LB].pressed ? 1 : 0);
+    const x = !!(gp.buttons[PAD.X] && gp.buttons[PAD.X].pressed); if (x && !f.xWas) f.cam = (f.cam + 1) % 3; f.xWas = x;
+  }
+  pitchIn = clamp(pitchIn, -1, 1); rollIn = clamp(rollIn, -1, 1); rud = clamp(rud, -1, 1);
+  f.thr = clamp(f.thr + thrIn * 0.45 * dt, 0, 1);
+  const brake = !!K.Space;
+  const ground = world.surfaceY(f.pos.x, f.pos.z), alt = f.pos.y - f.off - ground;
+  const aoa = f.air ? f.pitch - f.gamma : f.pitch;
+  const stallK = aoa > 0.26 ? Math.max(0.12, 1 - (aoa - 0.26) / 0.08) : 1;
+  const cl = clamp((aoa + 0.03) / 0.20, -0.9, 1.15) * stallK;
+  const aL = g * (f.v / P.vs) * (f.v / P.vs) * cl;
+  f.stall = f.air && (aoa > 0.255 || (f.v < P.vs * 0.9 && alt > 5));
+  const thrust = f.thr * P.thr * clamp(1 - f.v / (P.vmax * 1.2), 0.1, 1);
   if (!f.air) {
-    // on the ground: thrust against a drag, brakes on S with the throttle closed, the rudder steers, and the nose comes up when you pull back past rotation speed
-    const brake = K.KeyS && f.thr < 0.05;
-    f.v += (f.thr * 6.5 - f.v * 0.012 - (brake ? 12 : 0)) * dt; f.v = Math.max(0, f.v);
-    f.h -= rud * clamp(f.v / 8, 0, 1) * 0.45 * dt;
-    f.pitch = f.v > 40 ? lerp(f.pitch, clamp(pitchIn, 0, 1) * 0.16, 1 - Math.pow(0.05, dt)) : 0; f.roll = 0;
-    if (f.v > 52 && pitchIn > 0.3) { f.air = true; f.vy = 4; say("Airborne.", 2); }
-    f.pos.x += Math.sin(f.h) * f.v * dt; f.pos.z += Math.cos(f.h) * f.v * dt; f.pos.y = world.surfaceY(f.pos.x, f.pos.z) + f.off;
-    if (insideBuilding(f.pos.x, f.pos.z, f.span * 0.12)) { if (f.v > 14) return flightCrash("You ploughed an aircraft into a building."); f.pos.x -= Math.sin(f.h) * f.v * dt; f.pos.z -= Math.cos(f.h) * f.v * dt; f.v = 0; }
+    // on the wheels: thrust against drag and rolling resistance; brakes; the rudder steers the nose wheel; the nose comes up past rotation speed
+    f.v = Math.max(0, f.v + (thrust - P.c0 * f.v * f.v - 0.25 - (brake ? 7 : 0)) * dt);
+    f.h -= rud * clamp(f.v / 9, 0, 1) * 0.5 * dt * (f.v > 0.2 ? 1 : 0);
+    const auth = clamp(f.v / P.vr, 0, 1.3);
+    f.pitch = f.v > P.vr * 0.8 ? clamp(f.pitch + pitchIn * P.pitchRate * auth * dt - (pitchIn ? 0 : f.pitch * 1.2 * dt), -0.02, 0.24) : lerp(f.pitch, 0, 1 - Math.pow(0.1, dt));
+    f.roll = lerp(f.roll, 0, 1 - Math.pow(0.05, dt)); f.gamma = 0;
+    f.pos.x += Math.sin(f.h) * f.v * dt; f.pos.z += Math.cos(f.h) * f.v * dt;
+    f.pos.y = world.surfaceY(f.pos.x, f.pos.z) + f.off;
+    if (aL * Math.cos(f.pitch) > g * 1.0 && f.pitch > 0.035) { f.air = true; f.gamma = 0.02; f.pos.y += 0.3; say("Airborne.", 2); }
+    if (aircraftHitsSolid(f.pos.x, f.pos.y + 1, f.pos.z, f.span * 0.1)) { if (f.v > 12) return flightCrash("You ploughed an aircraft into a building."); f.v = 0; f.pos.x -= Math.sin(f.h) * 2; f.pos.z -= Math.cos(f.h) * 2; }
   } else {
-    // in the air: thrust against drag, lift that grows with speed, a bank that turns, a nose that wants to settle level
-    f.pitch = clamp(f.pitch + pitchIn * 0.5 * dt - (pitchIn ? 0 : f.pitch * 0.35 * dt), -0.7, 0.62);
-    f.roll = lerp(f.roll, rollIn * 0.75, 1 - Math.pow(0.02, dt));
-    f.v += (f.thr * 12 - f.v * f.v * 0.001 - Math.sin(f.pitch) * 14) * dt; f.v = clamp(f.v, 14, 125);
-    f.h -= Math.sin(f.roll) * 0.5 * dt * clamp(f.v / 60, 0.3, 1.4);
-    const lift = clamp((f.v - 34) / 26, 0, 1), vy = Math.sin(f.pitch) * f.v * lift - (1 - lift) * 16 + (f.pitch < 0 ? Math.sin(f.pitch) * f.v * (1 - lift) : 0);
-    f.pos.y += vy * dt; f.pos.x += Math.sin(f.h) * Math.cos(f.pitch) * f.v * dt; f.pos.z += Math.cos(f.h) * Math.cos(f.pitch) * f.v * dt; f.vy = vy;
+    // in the air: the path bends with the lift, the bank turns it, drag and the climb cost speed, the nose is yours, and trim holds the path you leave it on
+    const auth = clamp(f.v / P.vs, 0.25, 1.4), cosG = Math.cos(f.gamma);
+    f.pitch += pitchIn * P.pitchRate * auth * dt;
+    if (!pitchIn) { const need = g * cosG / Math.max(Math.cos(f.roll), 0.35), covs = need / (g * (f.v / P.vs) * (f.v / P.vs)), trim = clamp(covs * 0.20 - 0.03, -0.03, 0.22); f.pitch += ((f.gamma + trim) - f.pitch) * 0.6 * dt; }
+    f.roll = clamp(f.roll + rollIn * P.rollRate * auth * dt - (rollIn ? 0 : f.roll * 0.3 * dt), -1.2, 1.2);
+    if (f.stall && aoa > 0.28) f.pitch -= 0.4 * dt;
+    f.pitch = clamp(f.pitch, -0.95, 0.75);
+    f.gamma += ((aL * Math.cos(f.roll) - g * cosG) / Math.max(f.v, 12)) * dt; f.gamma = clamp(f.gamma, -1.3, 1.1);
+    f.h -= ((aL * Math.sin(f.roll)) / (Math.max(f.v, 12) * Math.max(cosG, 0.3)) + rud * P.rudRate * 0.5) * dt;
+    const drag = P.c0 * f.v * f.v + P.ci * aL * aL / (f.v * f.v + 1);
+    f.v = clamp(f.v + (thrust - drag - g * Math.sin(f.gamma)) * dt, 12, P.vmax * 1.25);
+    f.pos.x += Math.sin(f.h) * cosG * f.v * dt; f.pos.z += Math.cos(f.h) * cosG * f.v * dt; f.pos.y += Math.sin(f.gamma) * f.v * dt;
     const gnow = world.surfaceY(f.pos.x, f.pos.z) + f.off;
-    if (f.pos.y < gnow) {
-      const hard = -vy;
-      if (hard > 9 || Math.abs(f.roll) > 0.35 || (f.v > 95 && hard > 5)) return flightCrash("You crashed the aircraft.");
-      f.air = false; f.pos.y = gnow; f.pitch = 0; say(hard < 3 ? "A smooth landing." : "Down, hard.", 2.5);
-    } else if (alt < 90 && insideBuilding(f.pos.x, f.pos.z, f.span * 0.2)) return flightCrash("You flew an aircraft into a building.");
+    if (f.pos.y <= gnow) {
+      const sink = -Math.sin(f.gamma) * f.v;
+      if (sink > P.crashV || Math.abs(f.roll) > 0.3 || f.pitch < -0.1 || world.sampleHeight(f.pos.x, f.pos.z) < 0.2) return flightCrash(world.sampleHeight(f.pos.x, f.pos.z) < 0.2 ? "You put an aircraft into the sea." : "You crashed the aircraft.");
+      f.air = false; f.pos.y = gnow; f.gamma = 0; f.roll = 0; say(sink < 2.5 ? "A smooth landing." : "Down, hard.", 2.5);
+    } else if (alt < 160 && aircraftHitsSolid(f.pos.x, f.pos.y, f.pos.z, f.span * 0.2)) return flightCrash("You flew an aircraft into a building.");
     if (f.pos.x < 0 || f.pos.z < 0 || f.pos.x > WORLD_X || f.pos.z > WORLD_Z) f.h += Math.PI * dt * 0.4;
   }
   player.speed = f.v;
-  const m = f.mesh; m.visible = true; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
-  player.pos.copy(f.pos); player.pos.y = f.pos.y; player.yaw = f.h;
-  // chase camera: well back and a little above, swinging with the heading
-  const back = f.len * 1.1 + 14, tx = f.pos.x - Math.sin(f.h) * back, tz = f.pos.z - Math.cos(f.h) * back, ty = f.pos.y + 6 + f.len * 0.12 - Math.sin(f.pitch) * 8;
-  camPos.lerp(new THREE.Vector3(tx, Math.max(ty, world.surfaceY(tx, tz) + 3), tz), 1 - Math.pow(0.002, dt)); camera.position.copy(camPos); camera.lookAt(f.pos.x + Math.sin(f.h) * 12, f.pos.y + 2, f.pos.z + Math.cos(f.h) * 12);
-  if (f.hud) f.hud.textContent = "✈  " + Math.round(f.v * 3.6) + " km/h   ·   " + Math.round(Math.max(0, f.pos.y - f.off - world.surfaceY(f.pos.x, f.pos.z))) + " m up   ·   throttle " + Math.round(f.thr * 100) + "%" + (f.air ? "" : "   ·   on the ground" + (f.v < 6 ? "  ·  F: get out" : ""));
+  const m = f.mesh; m.visible = f.cam !== 1; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
+  const ud = m.userData, down = !f.air || (alt < 45 && f.v < P.vs * 1.7); if (ud.gear) ud.gear.forEach(gr => { gr.visible = down; });
+  if (ud.prop) ud.prop.rotation.x += (20 + f.thr * 90) * dt;
+  player.pos.copy(f.pos); player.yaw = f.h;
+  // cameras: behind and above; far behind; or from the cockpit, which turns with the aircraft
+  if (f.cam === 1) {
+    const fx = Math.sin(f.h) * Math.cos(f.pitch), fz = Math.cos(f.h) * Math.cos(f.pitch);
+    camPos.set(f.pos.x + fx * f.len * 0.38, f.pos.y + (ud.r || 2) * 0.55, f.pos.z + fz * f.len * 0.38); camera.position.copy(camPos);
+    camera.quaternion.copy(m.quaternion); camera.rotateY(-Math.PI / 2);
+  } else {
+    const back = (f.len * 1.1 + 14) * (f.cam === 2 ? 2.1 : 1), px = f.pos.x - Math.sin(f.h) * back, pz = f.pos.z - Math.cos(f.h) * back, py = f.pos.y + (6 + f.len * 0.12) * (f.cam === 2 ? 1.6 : 1) - Math.sin(f.gamma) * back * 0.35;
+    camPos.lerp(new THREE.Vector3(px, Math.max(py, world.surfaceY(px, pz) + 3), pz), 1 - Math.pow(0.002, dt)); camera.position.copy(camPos);
+    camera.lookAt(f.pos.x + Math.sin(f.h) * 14, f.pos.y + 2 + Math.sin(f.gamma) * 14, f.pos.z + Math.cos(f.h) * 14);
+  }
+  flightPFD(alt);
 }
+// the instruments: an artificial horizon with the numbers round it
+function flightPFD(alt) {
+  const f = flight, c = f.pfd; if (!c) return; const g = c.getContext("2d"), W = c.width, H = c.height, cx = W / 2, cy = 112, R = 80;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(6,10,16,0.62)"; g.beginPath(); g.roundRect ? g.roundRect(4, 4, W - 8, H - 8, 14) : g.rect(4, 4, W - 8, H - 8); g.fill();
+  g.save(); g.beginPath(); g.arc(cx, cy, R, 0, 7); g.clip();
+  g.translate(cx, cy); g.rotate(-f.roll); const py = f.pitch * 150; g.translate(0, py);
+  g.fillStyle = "#3b7fc4"; g.fillRect(-200, -400, 400, 400); g.fillStyle = "#7a5a34"; g.fillRect(-200, 0, 400, 400);
+  g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(-200, 0); g.lineTo(200, 0); g.stroke();
+  g.font = "700 11px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.textAlign = "center";
+  for (let d = -30; d <= 30; d += 5) { if (!d) continue; const y = -d * Math.PI / 180 * 150, w = d % 10 ? 18 : 34; g.beginPath(); g.moveTo(-w, y); g.lineTo(w, y); g.stroke(); if (!(d % 10)) { g.fillText(String(Math.abs(d)), -w - 12, y + 4); g.fillText(String(Math.abs(d)), w + 12, y + 4); } }
+  g.restore();
+  g.strokeStyle = "#ffd21c"; g.lineWidth = 3.5; g.beginPath(); g.moveTo(cx - 44, cy); g.lineTo(cx - 14, cy); g.lineTo(cx - 14, cy + 8); g.moveTo(cx + 44, cy); g.lineTo(cx + 14, cy); g.lineTo(cx + 14, cy + 8); g.stroke(); g.fillStyle = "#ffd21c"; g.fillRect(cx - 2, cy - 2, 4, 4);
+  g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
+  g.font = "800 16px 'Segoe UI',sans-serif"; g.textAlign = "left"; g.fillStyle = "#7df0a8"; g.fillText("SPD", 18, 44); g.font = "800 26px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.round(f.v * 3.6)), 18, 74); g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("km/h", 18, 90);
+  g.textAlign = "right"; g.font = "800 16px 'Segoe UI',sans-serif"; g.fillStyle = "#7df0a8"; g.fillText("ALT", W - 18, 44); g.font = "800 26px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.max(0, Math.round(alt))), W - 18, 74); g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("m above ground", W - 18, 90);
+  const vs = f.air ? Math.sin(f.gamma) * f.v : 0; g.font = "700 15px 'Segoe UI',sans-serif"; g.fillStyle = vs < -6 && alt < 250 ? "#ff6b5a" : "#fff"; g.fillText("V/S " + (vs >= 0 ? "+" : "") + vs.toFixed(1), W - 18, 128);
+  g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText("THR", 18, 128); g.fillStyle = "rgba(255,255,255,.2)"; g.fillRect(18, 136, 8, 60); g.fillStyle = "#7df0a8"; g.fillRect(18, 196 - 60 * f.thr, 8, 60 * f.thr); g.fillStyle = "#fff"; g.font = "600 12px 'Segoe UI',sans-serif"; g.fillText(Math.round(f.thr * 100) + "%", 30, 196);
+  let hd = ((f.h * 180 / Math.PI) % 360 + 360) % 360; hd = (360 - hd) % 360; g.textAlign = "center"; g.font = "800 18px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText("HDG " + String(Math.round(hd)).padStart(3, "0") + "°", cx, 18);
+  g.font = "700 13px 'Segoe UI',sans-serif"; g.fillStyle = f.air && (f.mesh.userData.gear || []).length && (f.mesh.userData.gear[0].visible) ? "#7df0a8" : "#9db"; g.fillText(f.mesh.userData.gear && f.mesh.userData.gear[0] && f.mesh.userData.gear[0].visible ? "GEAR DOWN" : "GEAR UP", cx, H - 10);
+  const flash = Math.floor(performance.now() / 280) % 2 === 0;
+  if (f.stall && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Segoe UI',sans-serif"; g.fillText("STALL", cx, cy - R - 2); }
+  else if (f.air && vs < -8 && alt < 200 && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Segoe UI',sans-serif"; g.fillText("PULL UP", cx, cy - R - 2); }
+  g.textAlign = "center"; g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText(!f.air && f.v < 6 ? "F: get out" : f.air ? "F / Y: jump out" : "", cx, H - 26);
+}
+// ---- jumping out ------------------------------------------------------------------------------------------------------------------------------
+const chute = { active: false, state: "", pos: new THREE.Vector3(), vy: 0, vx: 0, vz: 0, hs: 0, h: 0, open: 0, canopy: null, t: 0, hud: null, bank: 0, warned: false };
+function chuteMesh() {
+  const g = new THREE.Group();
+  const c = document.createElement("canvas"); c.width = 512; c.height = 64; const x = c.getContext("2d");
+  for (let i = 0; i < 16; i++) { x.fillStyle = i % 2 ? "#f4f1ea" : (i % 4 === 0 ? "#c0172b" : "#e8861c"); x.fillRect(i * 32, 0, 32, 64); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.RepeatWrapping;
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(3.6, 32, 14, 0, Math.PI * 2, 0, Math.PI * 0.46), new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }));
+  dome.scale.set(1.0, 0.62, 1.25); dome.position.y = 6.2; g.add(dome);
+  const pts = [], rim = 12;
+  for (let i = 0; i < rim; i++) { const a = i / rim * Math.PI * 2, rx = Math.cos(a) * 3.6 * Math.cos(Math.PI * 0.46) * 1.0, rz = Math.sin(a) * 3.6 * Math.cos(Math.PI * 0.46) * 1.25; pts.push(rx, 6.2, rz, 0, 1.55, 0); }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
+  g.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x2b2f35 })));
+  g.userData.dome = dome; return g;
+}
+function chuteTop(x, z, y) {          // the highest roof under you, so a parachute can come down on a building
+  let top = world.surfaceY(x, z);
+  if (!solidGrid) return top;
+  const l = solidGrid.map.get(Math.floor(x / solidGrid.cell) + "," + Math.floor(z / solidGrid.cell)); if (!l) return top;
+  for (let k = 0; k < l.length; k++) { const b = solids[l[k]]; if (b.deck) continue; const q = toRectLocal(x, z, b.c[0], b.c[1], b.yaw); if (Math.abs(q[0]) < b.size[0] * 0.5 && Math.abs(q[1]) < b.size[1] * 0.5) { const t = (b.y || 0) + (b.h || 0); if (t > top && t <= y + 1) top = t; } }
+  return top;
+}
+function bailOut() {
+  const f = flight; if (!f.active || !f.air) return;
+  ghosts.push({ mesh: f.mesh, pos: f.pos.clone(), h: f.h, v: f.v, gamma: f.gamma, pitch: f.pitch, roll: f.roll, off: f.off, P: f.P, t: 0 });
+  f.active = false; f.hud.style.display = "none"; flightQuality(false); f.mesh.visible = true;
+  chute.active = true; chute.state = "fall"; chute.pos.copy(f.pos); chute.pos.y -= 2; chute.h = f.h; chute.hs = Math.min(f.v * 0.6, 40); chute.vy = -4; chute.open = 0; chute.t = 0; chute.bank = 0;
+  chute.vx = Math.sin(f.h) * chute.hs; chute.vz = Math.cos(f.h) * chute.hs;
+  player.obj.visible = true; player.speed = 0; player.mode = "walk"; placeSeiko(new THREE.Vector3(chute.pos.x, 0, chute.pos.z)); player.pos.y = chute.pos.y;
+  yaw = chute.h + Math.PI; pitch = -0.45;
+  if (!chute.hud) { const h = document.createElement("div"); h.id = "chutehud"; h.style.cssText = "position:fixed;left:50%;bottom:calc(8% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;pointer-events:none;color:#fff;font:800 17px 'Segoe UI',sans-serif;padding:10px 20px;background:rgba(8,12,18,.72);border-left:4px solid #ffd21c;white-space:nowrap;text-align:center"; document.body.appendChild(h); chute.hud = h; }
+  chute.hud.style.display = "block";
+  say("You jumped. " + (pad.index >= 0 ? padLabel("A") : "Space") + " opens the parachute. Do it with height to spare.", 6);
+}
+function chuteOpen() {
+  if (!chute.active || chute.state !== "fall") return;
+  chute.state = "open"; chute.t = 0;
+  if (!chute.canopy) { chute.canopy = chuteMesh(); scene.add(chute.canopy); }
+  chute.canopy.visible = true; rumble(0.6, 0.6, 220);
+  say("Chute open.", 2);
+}
+function chuteEnd(msg) {
+  chute.active = false; chute.state = ""; if (chute.canopy) chute.canopy.visible = false; if (chute.hud) chute.hud.style.display = "none";
+  player.obj.rotation.set(0, chute.h, 0); player.obj.visible = true; player.yaw = player.targetYaw = chute.h; yaw = chute.h + Math.PI; pitch = -0.18;
+  let x = chute.pos.x, z = chute.pos.z;
+  if (world.sampleHeight(x, z) < 0.5) {              // in the sea: wade ashore at the nearest land
+    let best = null; for (let r = 20; r < 900 && !best; r += 20) for (let a = 0; a < 16; a++) { const px = x + Math.cos(a / 16 * 6.283) * r, pz = z + Math.sin(a / 16 * 6.283) * r; if (world.sampleHeight(px, pz) > 1.2) { best = [px, pz]; break; } }
+    if (best) { x = best[0]; z = best[1]; msg = "You came down in the sea and swam in."; }
+  }
+  placeSeiko(new THREE.Vector3(x, 0, z)); player.pos.y = Math.max(chuteTop(x, z, chute.pos.y + 2), world.surfaceY(x, z)); player.obj.position.copy(player.pos);
+  camPos.set(player.pos.x - Math.sin(chute.h) * 4, player.pos.y + 2.4, player.pos.z - Math.cos(chute.h) * 4);
+  if (msg) say(msg, 5);
+}
+function updateChute(dt) {
+  const c = chute, k = keys, w = wish(); dt = Math.min(dt, 0.05); c.t += dt;
+  const steer = clamp(((k.KeyD || k.ArrowRight) ? 1 : 0) - ((k.KeyA || k.ArrowLeft) ? 1 : 0) + w.x, -1, 1), fwd = clamp(((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0) - w.y, -1, 1);
+  const gnd = chuteTop(c.pos.x, c.pos.z, c.pos.y), alt = c.pos.y - gnd;
+  const windX = 1.8 + 0.7 * Math.sin(c.t * 0.31), windZ = 0.9 + 0.5 * Math.sin(c.t * 0.23 + 1);
+  let tilt, hsT, vyT;
+  if (c.state === "fall") {
+    // belly to the earth: terminal speed about 190 km/h, more with the head down (W), less spread out (S); the arms steer
+    const term = -(52 + Math.max(fwd, 0) * 18 - Math.max(-fwd, 0) * 6);
+    c.vy += (-9.8 + 9.8 * (c.vy / term) * (c.vy / term)) * dt;
+    hsT = 7 + Math.max(fwd, 0) * 13 - Math.max(-fwd, 0) * 4; c.hs += (hsT - c.hs) * (1 - Math.exp(-0.9 * dt));
+    c.h -= steer * 1.5 * dt; tilt = 1.3 + Math.max(fwd, 0) * 0.2;
+    if (alt < 260 && Math.floor(c.t * 3) % 2 === 0) { c.hud.style.borderLeftColor = "#ff3b2f"; } else c.hud.style.borderLeftColor = "#ffd21c";
+    c.hud.textContent = Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(-c.vy * 3.6) + " km/h falling  ·  " + (pad.index >= 0 ? padLabel("A") : "Space") + ": open the parachute" + (alt < 260 ? "  ·  NOW" : "");
+    if (alt < 40 && !c.warned) { c.warned = true; say("Pull the chute!", 2); }
+  } else {
+    c.open = Math.min(1, c.open + dt / 1.5);
+    const flare = alt < 10 && fwd < -0.2;
+    hsT = 11 + Math.max(fwd, 0) * 4 - Math.max(-fwd, 0) * 5.5; vyT = -(5.0 + Math.max(fwd, 0) * 2.6 - Math.max(-fwd, 0) * 2.0) + (flare ? 3.4 : 0);
+    // the opening shock, then a steady glide: roughly three metres forward for every one down
+    c.vy += (vyT - c.vy) * (1 - Math.exp(-(c.open < 1 ? 2.8 : 1.3) * dt)); c.hs += (hsT - c.hs) * (1 - Math.exp(-1.1 * dt));
+    c.h -= steer * 0.75 * dt * clamp(c.hs / 9, 0.5, 1.2); c.bank += (steer * 0.4 - c.bank) * (1 - Math.exp(-1.6 * dt)); tilt = 0.0;
+    c.hud.style.borderLeftColor = "#7df0a8";
+    c.hud.textContent = Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(c.hs * 3.6) + " km/h forward  ·  " + Math.round(-c.vy * 3.6) + " km/h down  ·  A/D steer · W speed · S brake" + (alt < 12 ? "  ·  hold S to flare" : "");
+  }
+  // velocity: where you are heading, plus the wind that drifts you
+  const tx = Math.sin(c.h) * c.hs + windX * (c.state === "open" ? 1 : 0.4), tz = Math.cos(c.h) * c.hs + windZ * (c.state === "open" ? 1 : 0.4);
+  c.vx += (tx - c.vx) * (1 - Math.exp(-1.4 * dt)); c.vz += (tz - c.vz) * (1 - Math.exp(-1.4 * dt));
+  c.pos.x += c.vx * dt; c.pos.z += c.vz * dt; c.pos.y += c.vy * dt;
+  c.pos.x = clamp(c.pos.x, 20, WORLD_X - 20); c.pos.z = clamp(c.pos.z, 20, WORLD_Z - 20);
+  // landing
+  const g2 = chuteTop(c.pos.x, c.pos.z, c.pos.y + 1);
+  if (c.pos.y <= g2 + 0.05 || (world.sampleHeight(c.pos.x, c.pos.z) < 0.2 && c.pos.y <= 0.3)) {
+    c.pos.y = Math.max(g2, 0);
+    const sink = -c.vy;
+    if (c.state === "fall" && sink > 12) { vitals.health = 0.04; vitals.stress = clamp01(vitals.stress + 0.5); player.down = 6; chuteEnd("You hit the ground at " + Math.round(sink * 3.6) + " km/h without a parachute."); vitals.health = 0.04; return; }
+    if (sink > 6.5) { vitals.health = clamp01(vitals.health - 0.3); player.down = 3; chuteEnd("A hard landing. You are hurt."); return; }
+    chuteEnd(sink > 3.4 ? "You stumbled on landing." : "A good landing.");
+    return;
+  }
+  // the picture: Seiko, belly down or hanging from the lines; the canopy over him, swaying
+  const ob = player.obj; ob.visible = true; ob.position.set(c.pos.x, c.pos.y, c.pos.z);
+  if (c.state === "fall") ob.rotation.set(tilt, c.h, 0, "YXZ"); else ob.rotation.set(0.12 + Math.sin(c.t * 1.3) * 0.03, c.h, -c.bank * 0.5, "YXZ");
+  player.pos.copy(c.pos); player.speed = c.hs; player.yaw = c.h;
+  if (c.canopy && c.state === "open") { const o = c.open, e = 1 - Math.pow(1 - o, 3); c.canopy.position.set(c.pos.x, c.pos.y - (1 - e) * 1.2, c.pos.z); c.canopy.rotation.set(Math.sin(c.t * 1.1) * 0.03, c.h, -c.bank + Math.sin(c.t * 1.7) * 0.025, "YXZ"); c.canopy.scale.set(0.25 + 0.75 * e, 0.4 + 0.6 * e, 0.25 + 0.75 * e); }
+  // the camera is yours (mouse or right stick); left alone it drifts round behind you, so the island is in front
+  if (!look.x && !look.y) { let d = (c.h + Math.PI) - yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; if (!c.dragging) yaw += d * (1 - Math.exp(-0.5 * dt)); }
+  const dist = c.state === "open" ? 10 : 8, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const tgt = new THREE.Vector3(c.pos.x, c.pos.y + (c.state === "open" ? 3.5 : 0.5), c.pos.z);
+  camPos.copy(tgt).addScaledVector(dir, -dist); const gc = world.surfaceY(camPos.x, camPos.z) + 1.2; if (camPos.y < gc) camPos.y = gc;
+  camera.position.copy(camPos); camera.lookAt(tgt);
+}
+// an aircraft nobody is flying: it holds its course and drifts down until it reaches the ground
+function updateGhostPlanes(dt) {
+  for (let i = ghosts.length - 1; i >= 0; i--) {
+    const q = ghosts[i]; q.t += dt;
+    q.gamma += ((-0.12) - q.gamma) * 0.15 * dt; q.roll += (0.35 - q.roll) * 0.1 * dt; q.h -= Math.sin(q.roll) * 0.05 * dt;
+    q.pos.x += Math.sin(q.h) * Math.cos(q.gamma) * q.v * dt; q.pos.z += Math.cos(q.h) * Math.cos(q.gamma) * q.v * dt; q.pos.y += Math.sin(q.gamma) * q.v * dt;
+    const m = q.mesh; m.position.copy(q.pos); m.rotation.set(0, q.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(q.pitch * 0.5 + q.gamma * 0.5); m.rotateX(q.roll);
+    if (q.pos.y <= world.surfaceY(q.pos.x, q.pos.z) + q.off || q.t > 240) { scene.remove(m); ghosts.splice(i, 1); say("The aircraft you left came down somewhere.", 3); }
+  }
+}
+addEventListener("keydown", e => {
+  if (e.repeat) return;
+  if (chute.active && (e.code === "Space" || e.code === "Enter")) { chuteOpen(); e.preventDefault(); }
+  if (flight.active) { if (e.code === "KeyY") useRide(); if (e.code === "KeyC") flight.cam = (flight.cam + 1) % 3; }
+});
+
 // ---- the helicopters ---------------------------------------------------------------------------------------------------------------------------
 const heli = { list: [] };
 function heliMesh() {
@@ -31157,12 +31755,12 @@ function heliMesh() {
   add(new THREE.BoxGeometry(0.2, 0.2, 3.4), 0x333a44, 0, -1.7, 1.1); add(new THREE.BoxGeometry(0.2, 0.2, 3.4), 0x333a44, 0, -1.7, -1.1);
   const glass = add(new THREE.SphereGeometry(1.05, 10, 8), 0x7fb0d0, 1.5, 0.25, 0); glass.scale.set(1, 0.8, 1);
   const rot = new THREE.Group(); rot.position.y = 1.7; g.add(rot); for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(11, 0.06, 0.4), M(0x2a2d33)); b.rotation.y = k * Math.PI / 2; rot.add(b); } g.userData.rot = rot;
-  const beam = new THREE.Mesh(new THREE.ConeGeometry(8, 60, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false, fog: false })); beam.position.set(0, -30, 0); g.add(beam); g.userData.beam = beam;
+  const beam = new THREE.Mesh(new THREE.ConeGeometry(8, 60, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false, fog: false })); beam.position.set(0, -30, 0); g.add(beam); g.userData.beam = beam;
   const l1 = add(new THREE.SphereGeometry(0.2, 6, 4), 0xff2a2a, -0.2, 1.7, 1.2), l2 = add(new THREE.SphereGeometry(0.2, 6, 4), 0x2a6aff, -0.2, 1.7, -1.2); g.userData.l = [l1, l2];
   return g;
 }
 function updateHelis(dt) {
-  const want = wanted.stars >= 5 ? 3 : wanted.stars >= 4 ? 2 : 0, target = flight.active ? flight.pos : (drive.car ? drive.car.pos : player.pos);
+  const want = wanted.stars >= 5 ? 3 : wanted.stars >= 4 ? 2 : 0, target = flight.active ? flight.pos : chute.active ? chute.pos : (drive.car ? drive.car.pos : player.pos);
   while (heli.list.length < want && player.placed) {
     const a = Math.random() * 6.28, m = heliMesh(); scene.add(m); const h = { m: m, pos: new THREE.Vector3(target.x + Math.cos(a) * 320, target.y + 90, target.z + Math.sin(a) * 320), a: a, k: heli.list.length, yaw: 0 }; heli.list.push(h); m.position.copy(h.pos);
     say("Helicopter overhead.", 3);
@@ -31180,12 +31778,6 @@ function updateHelis(dt) {
   }
 }
 function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
-function flightAbort() {
-  if (!flight.active) return;
-  flight.active = false; if (flight.hud) flight.hud.style.display = "none";
-  (flight.parked || (flight.parked = [])).push({ mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h });
-  if (player.obj) player.obj.visible = true;
-}
 
 function frameLoop() {
   let last = performance.now();
@@ -31578,10 +32170,10 @@ function interiorSpotFocus() {
 function interiorSpotAct(sp) {
   if (sp.act === "ticketoffice") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("office", air.at); return; }
   if (sp.act === "kiosk") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("app", air.at); return; }
-  if (sp.act === "security") { player.speed = 0; interior.prompt.classList.remove("on"); airSecurity(interior.room); return; }
-  if (sp.act === "gate") { player.speed = 0; interior.prompt.classList.remove("on"); airGate(interior.room, sp.gate); return; }
-  if (sp.act === "landside") { airGoto(interior.room.land, { x: 19, z: 4 }, -Math.PI / 2, "Back in the hall. The security lanes are behind you."); return; }
-  if (sp.act === "plane_seat") { if (!air.ticket) { say("This is not your flight.", 3); return; } player.speed = 0; interior.prompt.classList.remove("on"); ifeStart(air.ticket.from, air.ticket.to); return; }
+  if (sp.act === "security") { sp.cool = clock + 4; player.speed = 0; interior.prompt.classList.remove("on"); airSecurity(interior.room); return; }
+  if (sp.act === "gate") { sp.cool = clock + 4; player.speed = 0; interior.prompt.classList.remove("on"); airGate(interior.room, sp.gate); return; }
+  if (sp.act === "landside") { sp.cool = clock + 4; airGoto(interior.room.land, { x: 19, z: 4 }, -Math.PI / 2, "Back in the hall. The security lanes are behind you."); return; }
+  if (sp.act === "plane_seat") { sp.cool = clock + 4; if (!air.ticket) { say("This is not your flight.", 3); return; } player.speed = 0; interior.prompt.classList.remove("on"); ifeStart(air.ticket.from, air.ticket.to); return; }
   if (sp.act === "sit") { interiorSit(sp); return; }
   if (sp.act === "police") { interior.modal = { kind: "desk", sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw(); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
@@ -32858,7 +33450,7 @@ function interiorTick(dt) {
   if (interior.pod || interior.lift) { player.speed = 0; return; }
   const sp = R.spots ? interiorSpotFocus() : null;
   interior.spot = sp;
-  if (sp && sp.walk && Math.hypot(R.ox + sp.x - player.pos.x, R.oz + sp.z - player.pos.z) < 0.9) { interiorSpotAct(sp); return; }
+  if (sp && sp.walk && !(sp.cool > clock) && Math.hypot(R.ox + sp.x - player.pos.x, R.oz + sp.z - player.pos.z) < 0.9) { interiorSpotAct(sp); return; }
   const hi = interiorFocus();
   if (hi !== interior.hi) {
     if (interior.hi) { interior.hi.mesh.getObjectByName("glow").visible = false; interior.hi.mesh.scale.setScalar(1); }
@@ -33170,6 +33762,7 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
 
 generate(19640101);
 offerSaveOnTitle();
+radioLoadMusic();
 </script>
 <script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window<br><b>F9</b> get the latest version of the game'; }</script>
 
