@@ -9820,12 +9820,12 @@ function tick(dt) {
 const TIERS = {
   low:    { renderScale: 0.60, maxPixelRatio: 1.0,  shadows: false, cars: 45,  far: 1100,
             antialias: false, tex: 1, normals: false, shadowMap: 1024, post: false },
-  medium: { renderScale: 0.82, maxPixelRatio: 1.25, shadows: true,  cars: 90,  far: 1800,
-            antialias: true,  tex: 1, normals: true,  shadowMap: 2048, post: false },
+  medium: { renderScale: 0.90, maxPixelRatio: 1.5,  shadows: true,  cars: 90,  far: 1800,
+            antialias: true,  tex: 2, normals: true,  shadowMap: 2048, post: false, normalMax: 512 },
   high:   { renderScale: 1.00, maxPixelRatio: 2.0,  shadows: true,  cars: 130, far: 2600,
-            antialias: true,  tex: 2, normals: true,  shadowMap: 2048, post: true },
+            antialias: true,  tex: 4, normals: true,  shadowMap: 4096, post: true, normalMax: 1024 },
   ultra:  { renderScale: 1.35, maxPixelRatio: 2.0,  shadows: true,  cars: 160, far: 3400,
-            antialias: true,  tex: 4, normals: true,  shadowMap: 4096, post: true }
+            antialias: true,  tex: 6, normals: true,  shadowMap: 4096, post: true, normalMax: 2048 }
 };
 const TIER_ORDER = ["low", "medium", "high", "ultra"];
 
@@ -9859,6 +9859,7 @@ function applyTier(name, opts) {
   // effect on the next world build. Everything else here is live.
   TEXQ.scale = t.tex;
   TEXQ.normals = t.normals;
+  TEXQ.maxNormal = t.normalMax || 512;
   if (sunLight && sunLight.shadow.mapSize.x !== t.shadowMap) {
     sunLight.shadow.mapSize.set(t.shadowMap, t.shadowMap);
     if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
@@ -10115,7 +10116,9 @@ function guessTier() {
     if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(name)) return "low";
     if (/iris.? xe|arc|radeon\(tm\) (vega|graphics)|apple gpu|vega \d/i.test(name)) return "medium";
     if (/intel|uhd|iris|hd graphics|mesa|adreno|mali|powervr/i.test(name)) return "low";
-    if (/rtx|gtx 1[06]|gtx 9|rx [5-7]\d\d\d|radeon rx|radeon pro|apple m[1-9]/i.test(name)) return "high";
+    // the newest cards get everything at full resolution
+    if (/rtx [2-5]0[5-9]0|rtx [3-5]0[6-9]0|rtx a[2-6]000|rx [6-9][7-9]\d\d|apple m[2-9] (pro|max|ultra)/i.test(name)) return "ultra";
+    if (/rtx|gtx 1[06]|gtx 9|rx [5-9]\d\d\d|radeon rx|radeon pro|apple m[1-9]/i.test(name)) return "high";
     return "medium";
   } catch (e) { return "medium"; }
 }
@@ -32185,6 +32188,7 @@ function pedsAdopt(gltf, inner) {
     tpl.traverse(o => { if (o.isMesh) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); o.frustumCulled = false; o.castShadow = gfx.tier !== "low"; } });
     peds.tpl = tpl; peds.anims = gltf.animations || []; peds.scale = inner.scale.x; peds.off = inner.position.clone();
     peds.poses = pedPoseClips(tpl);
+    pplLoad();
   } catch (e) { console.warn("[Konto] no people on the street:", e); peds.tpl = null; }
 }
 // Poses as clips, on the same bones and axes as Seiko's own (see addActionClips): hands up, crouched with the arms over the head, a phone at the ear.
@@ -32231,7 +32235,155 @@ function pedMaterial(k, base) {
   m.needsUpdate = true;
   return (peds.mats[key] = m);
 }
+// ---- real-looking people -------------------------------------------------------------------------------------------------------------------
+// The people in Web/people are Microsoft's Rocketbox avatars (MIT licence; Game/tools/build-people.py makes them): office workers and people
+// in their own clothes, men and women, each a scanned-looking body with its own face, hair and clothes. They come with a skeleton (3ds Max
+// Biped) but no animation, so Seiko's own Idle, Walk and Run, and the hands-up, cowering and phone poses, are retargeted onto them when they
+// load: each bone is given the turn Seiko's matching bone makes away from its rest pose, measured in the world, after lining the two rest
+// poses up bone by bone. Until they have loaded (or if the folder is missing) the street is walked by Seiko's own body in other shirts.
+const pplLib = { loading: false, ready: [] };
+const PPL_MAP = {
+  Bip01_Pelvis: "Hips", Bip01_Spine: "Spine", Bip01_Spine1: "Chest", Bip01_Neck: "Neck", Bip01_Head: "Head",
+  Bip01_L_Clavicle: "ShoulderL", Bip01_L_UpperArm: "UpperArmL", Bip01_L_Forearm: "ForearmL", Bip01_L_Hand: "HandL",
+  Bip01_R_Clavicle: "ShoulderR", Bip01_R_UpperArm: "UpperArmR", Bip01_R_Forearm: "ForearmR", Bip01_R_Hand: "HandR",
+  Bip01_L_Thigh: "ThighL", Bip01_L_Calf: "ShinL", Bip01_L_Foot: "FootL", Bip01_L_Toe0: "ToeL",
+  Bip01_R_Thigh: "ThighR", Bip01_R_Calf: "ShinR", Bip01_R_Foot: "FootR", Bip01_R_Toe0: "ToeR"
+};
+// used to line the rest poses up but not driven: Seiko's head sits further back on his neck than theirs, and copying it tips every face to the sky
+const PPL_SKIP = { Bip01_Neck: 1, Bip01_Head: 1 };
+// which mapped bone to aim each one at when the two rest poses are lined up
+const PPL_NEXT = {
+  Bip01_Pelvis: "Bip01_Spine", Bip01_Spine: "Bip01_Spine1", Bip01_Spine1: "Bip01_Neck", Bip01_Neck: "Bip01_Head",
+  Bip01_L_Clavicle: "Bip01_L_UpperArm", Bip01_L_UpperArm: "Bip01_L_Forearm", Bip01_L_Forearm: "Bip01_L_Hand",
+  Bip01_R_Clavicle: "Bip01_R_UpperArm", Bip01_R_UpperArm: "Bip01_R_Forearm", Bip01_R_Forearm: "Bip01_R_Hand",
+  Bip01_L_Thigh: "Bip01_L_Calf", Bip01_L_Calf: "Bip01_L_Foot", Bip01_L_Foot: "Bip01_L_Toe0",
+  Bip01_R_Thigh: "Bip01_R_Calf", Bip01_R_Calf: "Bip01_R_Foot", Bip01_R_Foot: "Bip01_R_Toe0"
+};
+function pplLoad() {
+  if (pplLib.loading || !peds.tpl || typeof THREE.GLTFLoader !== "function") return;
+  pplLib.loading = true;
+  fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
+    if (!ix || !ix.people) return;
+    const loader = new THREE.GLTFLoader();
+    ix.people.forEach((e, i) => setTimeout(() => loader.load("people/" + e.file, g => {
+      try { pplAdopt(e, g); } catch (err) { console.warn("[Konto] " + e.file + " could not be used:", err); }
+    }, undefined, () => {}), 300 + i * 250));
+  }).catch(() => {});
+}
+function pplAdopt(e, gltf) {
+  const root = new THREE.Group(), scene = gltf.scene;
+  root.add(scene);
+  const bones = {};
+  scene.traverse(o => {
+    if (o.isBone) bones[o.name] = o;
+    if (!o.isMesh) return;
+    o.frustumCulled = false; o.castShadow = gfx.tier !== "low"; o.receiveShadow = false;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
+  });
+  if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
+  // face +Z, the way everything that walks here faces
+  root.updateMatrixWorld(true);
+  const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
+  const nose = (bones.Bip01_MNose || bones.Bip01_REye || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
+  let fx = nose.x - head.x, fz = nose.z - head.z;
+  if (Math.hypot(fx, fz) < 1e-5) { const l = bones.Bip01_L_Thigh.getWorldPosition(new THREE.Vector3()), r = bones.Bip01_R_Thigh.getWorldPosition(new THREE.Vector3()); fx = -(l.z - r.z); fz = l.x - r.x; }
+  root.rotation.y = -Math.atan2(fx, fz);
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3());
+  e.root = root; e.fit = (e.female ? 1.63 : 1.73) / Math.max(0.2, size.y); e.minY = box.min.y;
+  e.clips = {};
+  const src = pplSource();
+  const tgt = pplTarget(root, bones);
+  peds.anims.forEach(c => { e.clips[c.name.replace(/[^A-Za-z]/g, "").toLowerCase()] = pplRetarget(src, tgt, c); });
+  Object.keys(peds.poses || {}).forEach(k => { e.clips[k] = pplRetarget(src, tgt, peds.poses[k]); });
+  pplLib.ready.push(e);
+  if (pplLib.ready.length === 1) console.log("[Konto] real people on the street");
+}
+// Seiko's body at rest, to play his clips on and measure
+function pplSource() {
+  if (pplLib.src) return pplLib.src;
+  const body = cloneSkinned(peds.tpl), root = new THREE.Group(); root.add(body); root.updateMatrixWorld(true);
+  const bones = {}; body.traverse(o => { if (o.isBone) bones[o.name] = o; });
+  const bindQ = {}, bindP = {};
+  Object.keys(bones).forEach(n => { bindQ[n] = bones[n].getWorldQuaternion(new THREE.Quaternion()); bindP[n] = bones[n].getWorldPosition(new THREE.Vector3()); });
+  const rest = {}; Object.keys(bones).forEach(n => { rest[n] = { q: bones[n].quaternion.clone(), p: bones[n].position.clone() }; });
+  return (pplLib.src = { root: root, bones: bones, bindQ: bindQ, bindP: bindP, rest: rest, mixer: new THREE.AnimationMixer(body) });
+}
+function pplTarget(root, bones) {
+  const order = []; root.traverse(o => { if (o.isBone) order.push(o); });
+  const src = pplSource();
+  const bindQ = new Map(), bindL = new Map(), align = new Map(), ancQ = new Map();
+  order.forEach(b => { bindQ.set(b, b.getWorldQuaternion(new THREE.Quaternion())); bindL.set(b, b.quaternion.clone()); if (!b.parent.isBone) ancQ.set(b, b.parent.getWorldQuaternion(new THREE.Quaternion())); });
+  // line each mapped bone's rest direction up with Seiko's: the turn that takes ours onto his
+  const turn = {};
+  Object.keys(PPL_MAP).forEach(n => {
+    const b = bones[n], nx = PPL_NEXT[n]; if (!b) return;
+    const sn = PPL_MAP[n], sx = nx ? PPL_MAP[nx] : null;
+    if (nx && bones[nx] && sx && src.bindP[sx] && src.bindP[sn]) {
+      const td = bones[nx].getWorldPosition(new THREE.Vector3()).sub(b.getWorldPosition(new THREE.Vector3())).normalize();
+      const sd = src.bindP[sx].clone().sub(src.bindP[sn]).normalize();
+      turn[n] = new THREE.Quaternion().setFromUnitVectors(td, sd);
+    }
+  });
+  Object.keys(PPL_MAP).forEach(n => {
+    const b = bones[n]; if (!b) return;
+    let t = turn[n], p = b.parent;
+    while (!t && p && p.isBone) { t = turn[p.name]; p = p.parent; }          // a hand turns as its forearm does, a head as its neck
+    align.set(b, (t || new THREE.Quaternion()).clone().multiply(bindQ.get(b)));
+  });
+  // the pelvis bob, scaled to the height of the hips
+  const pel = bones.Bip01_Pelvis, ph = pel.getWorldPosition(new THREE.Vector3()).y - new THREE.Box3().setFromObject(root).min.y;
+  const sh = src.bindP.Hips ? src.bindP.Hips.y - Math.min(src.bindP.FootL ? src.bindP.FootL.y : 0, src.bindP.ToeL ? src.bindP.ToeL.y : 0) : ph;
+  const pw = new THREE.Vector3(), pq = new THREE.Quaternion(), ps = new THREE.Vector3(); pel.parent.matrixWorld.decompose(pw, pq, ps);
+  return { root: root, bones: bones, order: order, bindQ: bindQ, bindL: bindL, align: align, ancQ: ancQ, pelvis: pel, pelRest: pel.position.clone(), pelParentQinv: pq.clone().invert(), pelParentS: ps.x || 1, hipRatio: ph / Math.max(0.05, sh) };
+}
+function pplRetarget(src, tgt, clip) {
+  const mixer = src.mixer;
+  mixer.stopAllAction();
+  Object.keys(src.bones).forEach(n => { src.bones[n].quaternion.copy(src.rest[n].q); src.bones[n].position.copy(src.rest[n].p); });
+  const act = mixer.clipAction(clip); act.reset(); act.setLoop(THREE.LoopRepeat); act.play();
+  const dur = Math.max(clip.duration, 0.034), n = Math.max(2, Math.round(dur * 30) + 1), times = [];
+  const vals = new Map(), pos = [], wq = new Map(), sq = new THREE.Quaternion(), tmp = new THREE.Quaternion();
+  const hips = src.bones.Hips, hipRestY = src.bindP.Hips ? src.bindP.Hips.y : 0;
+  for (let k = 0; k < n; k++) {
+    const t = Math.min(dur * 0.9999, k / 30); times.push(t);
+    mixer.setTime(t); src.root.updateMatrixWorld(true);
+    wq.clear();
+    for (const b of tgt.order) {
+      const pw = b.parent.isBone ? wq.get(b.parent) : tgt.ancQ.get(b);
+      const sn = PPL_SKIP[b.name] ? null : PPL_MAP[b.name];
+      let w;
+      if (sn && src.bones[sn]) {
+        src.bones[sn].getWorldQuaternion(sq);
+        w = sq.clone().multiply(tmp.copy(src.bindQ[sn]).invert()).multiply(tgt.align.get(b));
+        const local = pw.clone().invert().multiply(w);
+        (vals.get(b.name) || vals.set(b.name, []).get(b.name)).push(local.x, local.y, local.z, local.w);
+      } else w = pw.clone().multiply(tgt.bindL.get(b));
+      wq.set(b, w);
+    }
+    if (hips) {
+      const dy = (hips.getWorldPosition(new THREE.Vector3()).y - hipRestY) * tgt.hipRatio;
+      const d = new THREE.Vector3(0, dy, 0).applyQuaternion(tgt.pelParentQinv).divideScalar(tgt.pelParentS);
+      pos.push(tgt.pelRest.x + d.x, tgt.pelRest.y + d.y, tgt.pelRest.z + d.z);
+    }
+  }
+  act.stop();
+  const tracks = [];
+  vals.forEach((v, name) => tracks.push(new THREE.QuaternionKeyframeTrack(name + ".quaternion", times, v)));
+  if (pos.length) tracks.push(new THREE.VectorKeyframeTrack(tgt.pelvis.name + ".position", times, pos));
+  return new THREE.AnimationClip(clip.name, dur, tracks);
+}
+function pplFigure(e, height) {
+  const body = cloneSkinned(e.root), wrap = new THREE.Group(), holder = new THREE.Group();
+  const s = e.fit * (0.97 + (height - 0.97) * 0.5);       // real people vary less than a stretched Seiko wrap.scale.setScalar(s); wrap.position.y = -e.minY * s;
+  wrap.add(body); holder.add(wrap);
+  const mixer = new THREE.AnimationMixer(body), acts = {};
+  Object.keys(e.clips).forEach(k => { acts[k] = mixer.clipAction(e.clips[k]); });
+  let hand = null; body.traverse(o => { if (!hand && o.isBone && /R_Hand$/.test(o.name)) hand = o; });
+  return { holder: holder, body: body, mixer: mixer, acts: acts, hand: hand, clip: "", real: e.name, female: e.female };
+}
 function pedFigure(shirt, height) {
+  if (pplLib.ready.length) return pplFigure(pplLib.ready[(Math.random() * pplLib.ready.length) | 0], height);
   const body = cloneSkinned(peds.tpl), wrap = new THREE.Group(), holder = new THREE.Group();
   body.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(m => pedMaterial(shirt, m)) : pedMaterial(shirt, o.material); });
   wrap.scale.setScalar(peds.scale * height); wrap.position.copy(peds.off).multiplyScalar(height);
@@ -32289,7 +32441,7 @@ function pedSpawn() {
     if (peds.list.some(q => Math.hypot(q.x - tmp.x, q.z - tmp.z) < 3)) continue;
     const shirt = (Math.random() * PED_SHIRTS.length) | 0, h = 0.9 + Math.random() * 0.14, f = pedFigure(shirt, h);
     Object.assign(p, f, { x: tmp.x, z: tmp.z, y: world.surfaceY(tmp.x, tmp.z), yaw: tmp.yaw, sp: 1.15 + Math.random() * 0.5, state: "walk", t: 0, hp: 100, idleIn: 12 + Math.random() * 30, h: h, said: 0 });
-    if (Math.random() < 0.35 && p.hand) { const bc = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2a1e16 : 0x18191c, roughness: 0.6 })); bc.position.set(0, -0.2, 0); bc.scale.setScalar(1 / (peds.scale * h)); p.hand.add(bc); }
+    if (Math.random() < 0.35 && p.hand) { const bc = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2a1e16 : 0x18191c, roughness: 0.6 })); p.holder.updateMatrixWorld(true); bc.scale.setScalar(1 / (p.hand.getWorldScale(new THREE.Vector3()).x || 1)); p.hand.add(bc); }
     p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
     scene.add(p.holder); pedPlay(p, "walk", 0, p.sp / WALK_SPEED);
     peds.list.push(p);
@@ -32313,7 +32465,7 @@ function pedSay(p, kind, secs) {
 function pedScream(p) {
   const ctx = sound && sound.ctx; if (!ctx || !sound.master) return;
   const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z); if (d > 50) return;
-  const t = ctx.currentTime + Math.random() * 0.15, vol = 0.22 * (1 - d / 50), f0 = (p.h < 0.97 ? 760 : 520) + Math.random() * 260, dur = 0.8 + Math.random() * 0.6;
+  const t = ctx.currentTime + Math.random() * 0.15, vol = 0.22 * (1 - d / 50), f0 = (p.female || (!p.real && p.h < 0.95) ? 780 : 520) + Math.random() * 260, dur = 0.8 + Math.random() * 0.6;
   const o = ctx.createOscillator(); o.type = "sawtooth";
   o.frequency.setValueAtTime(f0 * 0.8, t); o.frequency.linearRampToValueAtTime(f0 * 1.3, t + 0.14); o.frequency.exponentialRampToValueAtTime(f0 * 0.72, t + dur);
   const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 6 + Math.random() * 2; lg.gain.value = f0 * 0.04; lfo.connect(lg); lg.connect(o.frequency);
@@ -32397,13 +32549,138 @@ function pedFree(p, dt, speed, ax, az) {
   const nx = p.x + Math.sin(p.yaw) * speed * dt, nz = p.z + Math.cos(p.yaw) * speed * dt;
   if (!insideBuilding(nx, nz, 0.3)) { p.x = nx; p.z = nz; }
 }
+// ---- the rush hour ----------------------------------------------------------------------------------------------------------------------
+// From a quarter to seven to half past nine, and again from a quarter past five to eight, the people near a station are commuters: office
+// workers in their suits, walking the real streets (the same street graph the waypoint uses) at a commuter's pace. In the morning the towns
+// empty towards their stations and the trains unload into the capital in waves, a crowd spilling out of the station and fanning out to the
+// offices; in the evening it runs the other way. The rest of the day the streets are quieter, and at night quieter still.
+const commute = { routes: new Map(), stations: null, stFor: null, waveT: 0, queue: [] };
+function rushNow() {
+  const m = gameMinutes(), k = (a, b, c, d) => m < a || m > d ? 0 : m < b ? (m - a) / (b - a) : m <= c ? 1 : (d - m) / (d - c);
+  const am = k(405, 450, 525, 570), pm = k(1035, 1080, 1140, 1200);
+  return { k: Math.max(am, pm), am: am >= pm, night: m > 1380 || m < 330 };
+}
+function commuteStations() {
+  if (commute.stations && commute.stFor === world) return commute.stations;
+  const out = [];
+  world.cities.forEach((c, ci) => (c.stations || []).forEach(st => {
+    const a = (st.yaw || 0) * Math.PI / 180, d = (st.size ? st.size[1] : 20) * 0.5 + 10;
+    let x = st.centre[0] + Math.sin(a) * d, z = st.centre[1] + Math.cos(a) * d;
+    if (insideBuilding(x, z, 0.5)) { x = st.centre[0] - Math.sin(a) * d; z = st.centre[1] - Math.cos(a) * d; }
+    out.push({ x: x, z: z, capital: ci === 0, name: st.name || c.name });
+  }));
+  commute.stations = out; commute.stFor = world;
+  return out;
+}
+function commuteNearStation(r) {
+  let best = null, bd = r;
+  for (const s of commuteStations()) { const d = Math.hypot(s.x - player.pos.x, s.z - player.pos.z); if (d < bd) { bd = d; best = s; } }
+  return best;
+}
+function commuteRoute(from, to, key) {
+  if (key && commute.routes.has(key)) return commute.routes.get(key);
+  let path = null;
+  try { path = routeSolve({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }); } catch (e) { path = null; }
+  if (!path || path.length < 2) path = [from, to];
+  path = [from].concat(path, [to]).map(q => [q[0], q[1]]);
+  // how wide the road is under each stretch, so they walk on its pavement and not down the middle of it
+  for (let i = 0; i < path.length - 1; i++) path[i][2] = commuteRoadHalf((path[i][0] + path[i + 1][0]) / 2, (path[i][1] + path[i + 1][1]) / 2);
+  if (key) { if (commute.routes.size > 300) commute.routes.clear(); commute.routes.set(key, path); }
+  return path;
+}
+function commuteRoadHalf(x, z) {
+  const G = pedGrid(), C = peds.gridC, cx = Math.floor(x / C), cz = Math.floor(z / C);
+  let best = 0, bd = 1e9;
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) {
+    const l = G.get((cx + i) + "," + (cz + j)); if (!l) continue;
+    for (const e of l) {
+      const a = e.r.pts[e.i], b = e.r.pts[e.i + 1], dx = b[0] - a[0], dz = b[2] - a[2], L = dx * dx + dz * dz || 1, t = clamp(((x - a[0]) * dx + (z - a[2]) * dz) / L, 0, 1);
+      const d = Math.hypot(a[0] + dx * t - x, a[2] + dz * t - z), hw = e.r.halfWidth || 8;
+      if (d < hw + 2 && d < bd) { bd = d; best = hw; }
+    }
+  }
+  return best;
+}
+function commuteFigure() {
+  const biz = pplLib.ready.filter(e => e.business), pool = biz.length ? biz : pplLib.ready;
+  if (!pool.length) return null;
+  const men = pool.filter(e => !e.female), women = pool.filter(e => e.female);
+  const pick = Math.random() < 0.72 ? men : women, L = pick.length ? pick : pool, e = L[(Math.random() * L.length) | 0];
+  return pplFigure(e, 0.94 + Math.random() * 0.08);
+}
+// a commuter on a route: path is [[x, z], ...] along the streets; they keep to one side of it
+function commuteSpawn(path, toStation) {
+  const f = commuteFigure(); if (!f) return null;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const p = Object.assign({ r: null }, f, { path: path, pi: 0, pu: 0, side: side, latX: Math.random(), x: path[0][0], z: path[0][1], y: 0, yaw: 0, sp: 1.5 + Math.random() * 0.45, state: "commute", t: 0, hp: 100, h: 1, idleIn: 1e9, toStation: toStation, commuter: true });
+  commutePlace(p);
+  p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
+  scene.add(p.holder); pedPlay(p, "walk", 0, p.sp / WALK_SPEED);
+  if (p.cur) p.cur.time = Math.random() * 2;          // not all in step
+  peds.list.push(p);
+  return p;
+}
+function commutePlace(p) {
+  const P = p.path, a = P[p.pi], b = P[Math.min(P.length - 1, p.pi + 1)];
+  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
+  let x = a[0] + dx * p.pu, z = a[1] + dz * p.pu;
+  // on the pavement of an arterial (its half width plus a step), or to the side of a narrow street; closer in where buildings come to the kerb
+  const hw = a[2] || 0, lat = p.side * (hw ? hw + 1.0 + p.latX * 2.6 : 2.4 + p.latX * 1.4);
+  for (const k of [1, 0.6, 0.25, 0]) { const ox = x - uz * lat * k, oz = z + ux * lat * k; if (!insideBuilding(ox, oz, 0.3)) { x = ox; z = oz; break; } }
+  p.x = x; p.z = z; p.y = world.surfaceY(x, z); p.segL = L;
+  const want = Math.atan2(ux, uz); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * 0.25;
+}
+function commuteStep(p, dt) {
+  p.pu += p.sp * dt / (p.segL || 1);
+  while (p.pu >= 1 && p.pi < p.path.length - 2) { p.pu -= 1; p.pi++; const a = p.path[p.pi], b = p.path[p.pi + 1]; p.segL = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; }
+  if (p.pu >= 1 && p.pi >= p.path.length - 2) return true;            // there
+  commutePlace(p);
+  return false;
+}
+// spawning: commuters walking in to the station from the streets around it, and waves of them coming out when a train comes in
+function commuteTick(dt) {
+  const R = rushNow(); if (R.k < 0.04 || !pplLib.ready.length) return;
+  const st = commuteNearStation(260); if (!st) return;
+  const stNear = Math.hypot(st.x - player.pos.x, st.z - player.pos.z) < 125;
+  const cap = Math.round((gfx.tier === "low" ? 20 : gfx.tier === "medium" ? 40 : gfx.tier === "high" ? 64 : 90) * R.k);
+  const n = peds.list.filter(p => p.commuter && p.state === "commute").length;
+  const inbound = R.am ? !st.capital : st.capital;
+  // a train in: a crowd out of the station, a few at a time
+  commute.waveT -= dt;
+  if (commute.waveT <= 0 && stNear) {
+    commute.waveT = 16 + Math.random() * 14;
+    const k = Math.round((inbound ? 6 : 22) * R.k + Math.random() * 6);
+    for (let i = 0; i < k; i++) commute.queue.push({ t: i * (0.35 + Math.random() * 0.4), st: st });
+  }
+  for (let i = commute.queue.length - 1; i >= 0; i--) {
+    const q = commute.queue[i]; q.t -= dt; if (q.t > 0) continue;
+    commute.queue.splice(i, 1); if (n + 1 > cap + 10) continue;
+    const a = Math.random() * Math.PI * 2, r = 160 + Math.random() * 260, dest = snapToRoad(q.st.x + Math.sin(a) * r, q.st.z + Math.cos(a) * r);
+    commuteSpawn(commuteRoute([q.st.x, q.st.z], dest, "o" + Math.round(q.st.x) + ":" + Math.round(dest[0] / 50) + ":" + Math.round(dest[1] / 50)), false);
+  }
+  // and people walking in to catch one
+  peds.commuteT = (peds.commuteT || 0) - dt;
+  if (peds.commuteT <= 0 && n < cap) {
+    peds.commuteT = (n < cap * 0.5 ? 0.12 : inbound ? 0.35 : 1.2) / Math.max(0.3, R.k);
+    for (let t = 0; t < 6; t++) {
+      const a = Math.random() * Math.PI * 2, r = 70 + Math.random() * 170, sp = snapToRoad(st.x + Math.sin(a) * r, st.z + Math.cos(a) * r);
+      const d = Math.hypot(sp[0] - player.pos.x, sp[1] - player.pos.z);
+      if (d < 30 || d > 125 || insideBuilding(sp[0], sp[1], 0.4)) continue;
+      const c = commuteSpawn(commuteRoute(sp, [st.x, st.z], "i" + Math.round(st.x) + ":" + Math.round(sp[0] / 40) + ":" + Math.round(sp[1] / 40)), true);
+      // arriving in the middle of the rush, the street is already full: some start part of the way along
+      if (c && n < cap * 0.5 && c.path.length > 3) { c.pi = (Math.random() * (c.path.length - 2)) | 0; c.pu = Math.random(); commutePlace(c); c.yaw = Math.atan2(c.path[c.pi + 1][0] - c.path[c.pi][0], c.path[c.pi + 1][1] - c.path[c.pi][1]); if (Math.hypot(c.x - player.pos.x, c.z - player.pos.z) < 20) { c.pi = 0; c.pu = 0; commutePlace(c); } }
+      break;
+    }
+  }
+}
 function pedsTick(dt) {
   if (!peds.tpl || !player.placed || interior.active || flight.active || chute.active || !world.cities) { pedLockMark(null); return; }
   const at = drive.car ? drive.car.pos : player.pos, fast = drive.car ? Math.abs(drive.car.speed || 0) : 0;
   // keep the street populated
-  const want = Math.round(pedWanted() * (fast > 20 ? 0.5 : 1));
+  const rush = rushNow(), want = Math.round(pedWanted() * (fast > 20 ? 0.5 : 1) * (rush.night ? 0.35 : 1));
   peds.spawnT -= dt;
-  if (peds.spawnT <= 0 && peds.list.filter(p => p.state !== "dead").length < want) { peds.spawnT = 0.25; pedSpawn(); }
+  if (peds.spawnT <= 0 && peds.list.filter(p => p.state !== "dead" && !p.commuter).length < want) { peds.spawnT = 0.25; pedSpawn(); }
+  if (!drive.car || fast < 20) commuteTick(dt);
   const tmp = {}, car = drive.car;
   for (let n = peds.list.length - 1; n >= 0; n--) {
     const p = peds.list[n], d = Math.hypot(p.x - at.x, p.z - at.z);
@@ -32421,6 +32698,9 @@ function pedsTick(dt) {
         else { p.x = tmp.x; p.z = tmp.z; let dy = tmp.yaw - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 6); }
       }
     } else if (p.state === "idle") { if (p.t > p.idleFor) pedSet(p, "walk"); }
+    else if (p.state === "commute") {
+      if (commuteStep(p, dt)) { if (p.toStation) { pedRemove(p); continue; } pedSet(p, "wander"); p.wh = p.yaw; }
+    }
     else if (p.state === "flee") {
       const ax = p.x - (p.fx !== undefined ? p.fx : player.pos.x), az = p.z - (p.fz !== undefined ? p.fz : player.pos.z);
       pedFree(p, dt, 4.4, ax || 1, az);
@@ -32538,7 +32818,7 @@ function gunLockFrame(dt, aimWant) {
   // whoever is in the sights puts their hands up; people close by take fright
   const t = gun.aim > 0.5 ? pedUnderAim() : null;
   gun.target = t;
-  if (t && (t.state === "walk" || t.state === "idle" || t.state === "wander" || t.state === "cower")) {
+  if (t && (t.state === "walk" || t.state === "idle" || t.state === "wander" || t.state === "cower" || t.state === "commute")) {
     pedSet(t, "hands");
     if (!t.menaced) { t.menaced = true; pedAlarm(t, 12, null, t); }
   }
