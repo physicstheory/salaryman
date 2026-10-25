@@ -73,9 +73,9 @@
    "business": true,
    "japanese": true,
    "body": "Business_Male_07",
-   "head": "Business_Male_02",
-   "tris": 6910,
-   "bytes": 1880544
+   "head": "Male_Adult_09",
+   "tris": 7312,
+   "bytes": 2013840
   },
   {
    "file": "salaryman_08.glb",
@@ -286,5 +286,6 @@
    "tris": 8092,
    "bytes": 2143352
   }
- ]
+ ],
+ "player": "seiko_player.glb"
 }

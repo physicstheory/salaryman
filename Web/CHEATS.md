@@ -23,7 +23,7 @@ the driving seat.
 | DIRTBIKE | 5550115 | dirt bike |
 | TRAILBIKE | 5550116 | mountain bike |
 | AIRPLANE | 5550120 | aircraft |
-| HELICOPTER | 5550121 | helicopter |
+| SKYDIVE | 5550122 | a light aircraft 1,200 m up, ready to jump |
 | MONEYBAGS | 5550130 | +¥1,000,000 |
 | HEALTHY | 5550131 | full health, calm nerves |
 | MIDDAY / MIDNIGHT / SUNRISE / SUNSET | 5550132-5550135 | set the time |

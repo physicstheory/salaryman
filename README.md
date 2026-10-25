@@ -28,6 +28,18 @@ This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. T
 
 **The rush hour:** from 6:45 to 9:30 and from 17:15 to 20:00 the streets near every station fill with commuters in suits, walking the real streets at a commuter's pace. In the morning the towns empty towards their stations and trains unload into Tōkonto in waves, a crowd spilling out of the station and fanning out to the offices; in the evening it runs the other way. The middle of the day is quieter, and the night quieter still. On high and ultra graphics the crowds are biggest.
 
+**Seiko** is now a high-detail model (same white shirt, dark trousers and short black hair), with all his moves carried over.
+
+**Parachuting** is physical: freefall is drag against gravity (about 195 km/h belly-down, 280 head-down with W, 165 spread with S; A/D turn). Space (A) opens a ram-air canopy that takes about two seconds to inflate, slowing you on its own. Under it: A/D pull the toggles (you swing out on the lines), W front risers for speed, S brakes. Pull both down near the ground to flare and step down; too fast and you tumble. Seiko arches in freefall, dives head-down, and hangs with his hands on the toggles under the canopy. SKYDIVE (5550122) puts you 1,200 m up in a light aircraft; AIRPLANE (5550120) gives you one on the ground.
+
+**Flying:** Q/E (LB/RB) now work as a proper rudder in the air and on the ground, and the weapon wheel never opens in a vehicle.
+
+**Helicopters** have flashing red/blue roof lights, navigation lights, a tail strobe and a working searchlight that lights you up at night. They only chase you near an airport or while you are in the air; get well away and they turn back.
+
+**Airports:** every airport now has a big glass terminal under an arched steel roof (420 m long at Tōkonto International, 200 m at the regional ones), jet bridges, airliners at the gates and a tall control tower.
+
+**Buildings:** offices, glass towers, flats and civic buildings use photographed facades (ambientCG, CC0), with relief maps and real lit windows at night. Cars have metallic-flake paint under a glossy clear coat.
+
 **Graphics:** Ultra is chosen automatically on recent graphics cards (RTX 30/40/50, Radeon RX 6000 and later, Apple M2 Pro/Max and later). Building textures are drawn at 1024 on High and 1536 on Ultra, with 1024/2048 relief maps and 4096 shadows.
 
 **Reactions:** point a gun at someone and their hands go up; fire, shoot someone, or run someone over and the people who saw it run screaming, duck with their arms over their heads, or stop with a phone to the ear (a red phone icon over them). When a call goes through the police come; aim at a caller and the call stops. If a patrol is close enough to see it, the stars come at once. If nobody sees it, nobody knows.

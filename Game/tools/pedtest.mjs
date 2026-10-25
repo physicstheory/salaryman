@@ -90,6 +90,7 @@ ok("aiming locks on and the hands go up", lk.anyLock && (lk.state === "hands" ||
 ok("aiming zooms in", lk.fov < 55, lk.fov);
 await snap("aim_lock_hands_up");
 // fire at them
+await ev(() => { const o = peds.list.find(p => p !== window.__p && p.state !== "dead"); if (o) { o.x = player.pos.x + 18; o.z = player.pos.z + 6; o.state = "idle"; o.idleFor = 60; o.t = 0; } });
 await ev(() => { gun.fireIn = true; }); await wait(2500); await ev(() => { gun.fireIn = false; }); await wait(1500);
 const sh = await ev(() => ({ hit: window.__p.state, hp: window.__p.hp, all: peds.list.map(p => p.state) }));
 ok("the target is hit", sh.hp < 100, sh);

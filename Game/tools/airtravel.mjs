@@ -127,10 +127,10 @@ await step("steal", async () => {
   await ev(() => { flight.cam = 1; }); await wait(3000); await snap("flight_cockpit"); await ev(() => { flight.cam = 2; }); await wait(3000); await snap("flight_far"); await ev(() => { flight.cam = 0; });
   // jump out, free fall, open the parachute, glide down
   await ev(() => { flight.pos.y = world.surfaceY(flight.pos.x, flight.pos.z) + flight.off + 900; });
-  await wait(1500); await ev(() => useRide()); await wait(3500);
+  await wait(1500); await ev(() => useRide()); for (let i = 0; i < 10; i++) { await wait(1500); if (await ev(() => chute.vy < -12)) break; }
   const fall = await ev(() => ({ chute: chute.active, state: chute.state, alt: Math.round(chute.pos.y - world.surfaceY(chute.pos.x, chute.pos.z)), vy: Math.round(chute.vy) }));
   ok("jumped, falling", fall.chute && fall.state === "fall" && fall.vy < -10, fall); await snap("freefall");
-  await ev(() => chuteOpen()); await wait(5000);
+  await ev(() => chuteOpen()); for (let i = 0; i < 25; i++) { await wait(1500); if (await ev(() => chute.flying)) break; } for (let i = 0; i < 12; i++) { await wait(1500); if (await ev(() => chute.hs > 7)) break; }
   const open = await ev(() => ({ state: chute.state, vy: Math.round(chute.vy * 10) / 10, hs: Math.round(chute.hs * 10) / 10, alt: Math.round(chute.pos.y - world.surfaceY(chute.pos.x, chute.pos.z)) }));
   ok("parachute open, gliding", open.state === "open" && open.vy > -8 && open.hs > 6, open); await snap("parachute_open");
   await ev(() => { keys.KeyD = true; }); await wait(4000); await ev(() => { keys.KeyD = false; }); await snap("parachute_turn");
@@ -163,7 +163,7 @@ await step("terminal", async () => {
   // security
   // walk into the security arch: no button
   await ev(() => { const R = interior.room, sp = R.spots.find(s => s.act === "security"); player.pos.set(R.ox + sp.x - 2.2, interior.floorY, R.oz + sp.z); player.yaw = player.targetYaw = Math.PI / 2; yaw = player.yaw + Math.PI; });
-  await wait(1200); await ev(() => { keys.KeyW = true; }); await wait(7000); await ev(() => { keys.KeyW = false; }); await snap("security_walked");
+  await wait(1200); await ev(() => { keys.KeyW = true; }); for (let i = 0; i < 16; i++) { await wait(1000); if (await ev(() => interior.room && interior.room.kind === "air")) break; } await ev(() => { keys.KeyW = false; }); await snap("security_walked");
   const air1 = await ev(() => interior.room.kind); ok("airside", air1 === "air", air1); await snap("airside");
   await ev(() => { const R = interior.room; const g = R.spots.find(s => s.act === "gate" && s.gate === air.ticket.gate); player.pos.set(R.ox + g.x, interior.floorY, R.oz + g.z + 2.5); player.yaw = player.targetYaw = Math.PI; yaw = 0; camPos.set(player.pos.x, interior.floorY + 2.3, player.pos.z + 3.2); interiorClampCam(camPos); camera.position.copy(camPos); }); await wait(2200); await snap("gate_desk");
   await view(-6, 3, 0, "airside_shops");

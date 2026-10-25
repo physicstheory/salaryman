@@ -2812,23 +2812,34 @@ function buildAirports(root) {
     // the terminal, with a glazed front toward the apron, a flat roof and a deep canopy
     const solids2 = [];
     const glassTex = apCanvas("tglass", 512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#3a5878"); gr.addColorStop(1, "#1b2b3c"); g.fillStyle = gr; g.fillRect(0, 0, w, h); g.fillStyle = "rgba(255,255,255,0.12)"; g.beginPath(); g.moveTo(40, h); g.lineTo(130, 0); g.lineTo(190, 0); g.lineTo(100, h); g.fill(); g.fillStyle = "#d8dcdf"; for (let x = 0; x < w; x += 64) g.fillRect(x, 0, 5, h); g.fillRect(0, h * 0.5, w, 4); for (let i = 0; i < 40; i++) { g.fillStyle = "rgba(255,220,150,0.5)"; g.fillRect(rnd(i, 3, 9011) * w, 20 + rnd(i, 4, 9013) * (h - 60), 24, 30); } });
-    const tz = big ? 290 : 205, tl_ = big ? 300 : 90, tw_ = big ? 46 : 22, th = big ? 22 : 9;
+    // terminals you can see from across the island: long glass halls under arched steel roofs
+    const tz = big ? 296 : 212, tl_ = big ? 420 : 200, tw_ = big ? 58 : 34, th = big ? 34 : 16, rise = big ? 13 : 7;
+    ap.termFront = tz - tw_ / 2;
     const glassT = glassTex.clone(); glassT.needsUpdate = true; glassT.repeat.set(tl_ / 32, 1);
     const glassMat = hi ? new THREE.MeshStandardMaterial({ map: glassT, roughness: 0.15, metalness: 0.5, envMap: gfx.env || null, envMapIntensity: 0.9, emissive: new THREE.Color(1, 0.85, 0.6), emissiveMap: glassT, emissiveIntensity: nightState.lit > 0 ? nightState.lit * 0.9 : 0 }) : new THREE.MeshLambertMaterial({ map: glassT });
     if (hi) nightMats.push({ m: glassMat, gain: 0.9 });
     const wall = S(0xdfe2e4);
     const TERMX = big ? [0, -560, 560] : [0];
     ap.terms = TERMX.map((x, i) => ({ ox: x, n: i + 1 }));
-    const nGate = big ? 6 : 1, jb = S(0xb9bec4, 0.5);
+    const nGate = big ? 6 : 3, jb = S(0xb9bec4, 0.5);
     const lines = [0xc0172b, 0x1d5fb0, 0x1e8f5a, 0x7a3fb5, 0xe08a1c, 0x14284c];
     TERMX.forEach((ox, ti) => {
       box(tl_, th, tw_, ox, th / 2, tz, wall);
       // the front face is a separate glass sheet on the apron side so the building keeps its plain walls elsewhere
       const frontSheet = new THREE.Mesh(new THREE.PlaneGeometry(tl_ - 4, th - 3), glassMat); frontSheet.rotation.y = Math.PI; frontSheet.position.set(ox, th / 2 - 0.2, tz - tw_ / 2 - 0.08); G.add(frontSheet);
-      box(tl_ + 10, 1.2, tw_ + 14, ox, th + 0.6, tz - 2, S(0x39414c, 0.6));                                // the roof slab
+      const backSheet = new THREE.Mesh(new THREE.PlaneGeometry(tl_ - 4, th - 3), glassMat); backSheet.position.set(ox, th / 2 - 0.2, tz + tw_ / 2 + 0.08); G.add(backSheet);
+      // the roof: a shallow steel barrel vault over the whole hall, overhanging both faces, on a band of fascia
+      { const chord = tw_ + 22, R = chord * chord / (8 * rise) + rise / 2, half = Math.asin(chord / 2 / R);
+        const vault = new THREE.Mesh(new THREE.CylinderGeometry(R, R, tl_ + 16, 40, 1, true, -half, half * 2), S(0xc9ced6, 0.35)); vault.material.side = THREE.DoubleSide; if (vault.material.metalness !== undefined) vault.material.metalness = 0.65;
+        vault.geometry.rotateX(-Math.PI / 2); vault.geometry.rotateY(Math.PI / 2); vault.position.set(ox, th + 1.2 - (R - rise), tz - 2);   // the arc's crown up, its length along the terminal vault.castShadow = true; G.add(vault);
+        box(tl_ + 16, 2.2, 1.0, ox, th + 0.4, tz - 2 - chord / 2, S(0x39414c, 0.6)); box(tl_ + 16, 2.2, 1.0, ox, th + 0.4, tz - 2 + chord / 2, S(0x39414c, 0.6));
+        for (let x = -tl_ / 2; x <= tl_ / 2; x += big ? 30 : 25) box(1.0, rise + 1, 0.8, ox + x, th + rise / 2, tz - 2, S(0x9aa3ad, 0.4)); }
+      // mullions down the glass, so it reads as a curtain wall at any distance
+      for (let x = -tl_ / 2 + 6; x < tl_ / 2 - 3; x += 6) { box(0.35, th - 3, 0.35, ox + x, (th - 3) / 2, tz - tw_ / 2 - 0.25, S(0x2b3138, 0.4)); box(0.35, th - 3, 0.35, ox + x, (th - 3) / 2, tz + tw_ / 2 + 0.25, S(0x2b3138, 0.4)); }
+      for (let y = 6; y < th - 3; y += 6) { box(tl_ - 4, 0.3, 0.4, ox, y, tz - tw_ / 2 - 0.3, S(0x2b3138, 0.4)); box(tl_ - 4, 0.3, 0.4, ox, y, tz + tw_ / 2 + 0.3, S(0x2b3138, 0.4)); }
       box(tl_ - 10, 0.8, 16, ox, th - 3, tz - tw_ / 2 - 8, S(0x4a5361, 0.5));                              // the canopy over the kerb
       for (let x = -tl_ / 2 + 20; x < tl_ / 2; x += 40) box(1.2, th - 3, 1.2, ox + x, (th - 3) / 2, tz - tw_ / 2 - 15, S(0xc9ced4, 0.4));
-      solids2.push({ x: ox, z: tz, w: tl_ + 10, d: tw_ + 14, h: th + 1.2 });
+      solids2.push({ x: ox, z: tz, w: tl_ + 10, d: tw_ + 4, h: th + rise });
       if (big) {
         // the name, over the entrance on the landside, and a garage for the cars
         const tt = apCanvas("term" + (ti + 1), 1024, 160, (g, w, h) => { g.fillStyle = "#14527a"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "900 96px 'Segoe UI',sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("TERMINAL " + (ti + 1) + "  ·  第" + (ti + 1) + "ターミナル", w / 2, h / 2 + 4); });
@@ -2838,16 +2849,16 @@ function buildAirports(root) {
       }
       // jet bridges and the aircraft on them
       for (let k = 0; k < nGate; k++) {
-        const gx = ox + (k - (nGate - 1) / 2) * (big ? 62 : 0), kk = k + ti * 2;
-        const pl = big ? (kk % 3 === 0 ? 63 : 38) : 20, ps = big ? (kk % 3 === 0 ? 61 : 34) : 11;
+        const gx = ox + (k - (nGate - 1) / 2) * (big ? 62 : 60), kk = k + ti * 2;
+        const pl = big ? (kk % 3 === 0 ? 63 : 38) : (k === 1 ? 20 : 30), ps = big ? (kk % 3 === 0 ? 61 : 34) : (k === 1 ? 11 : 27);
         const plane = airplaneMesh(pl, ps, lines[kk % lines.length], hi);
         plane.rotation.y = -Math.PI / 2; plane.position.set(gx, plane.userData.gearH || (big ? 5.2 : 2.2), txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
         (ap.planes || (ap.planes = [])).push({ mesh: plane, len: pl, span: ps, tail: lines[kk % lines.length] });
-        if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
+        if (big || k !== 1) { const jl = big ? 44 : 26; box(4, 3.4, jl, gx + 8, big ? 5.4 : 4.2, tz - tw_ / 2 - jl / 2 - 2, jb); box(3, big ? 5.4 : 4.2, 3, gx + 8, (big ? 5.4 : 4.2) / 2, tz - tw_ / 2 - jl - 1, jb); }
       }
     });
     // the tower: a shaft, a glazed cab with a flared roof, a mast
-    const tx = big ? -tl_ / 2 - 70 : tl_ / 2 + 25, tzz = tz - 10, th2 = big ? 58 : 20;
+    const tx = big ? -280 : tl_ / 2 + 30, tzz = tz - 10, th2 = big ? 92 : 38;
     const shaftMat = S(0xd0d4d8, 0.7);
     const shaft = new THREE.Mesh(new THREE.CylinderGeometry(big ? 4.2 : 2.6, big ? 5.6 : 3.2, th2, 16), shaftMat); shaft.position.set(tx, th2 / 2, tzz); shaft.castShadow = true; G.add(shaft);
     const cab = new THREE.Mesh(new THREE.CylinderGeometry(big ? 9 : 5, big ? 6.4 : 3.6, big ? 7.5 : 4, 16), glassMat); cab.position.set(tx, th2 + (big ? 3.7 : 2), tzz); G.add(cab);
@@ -5123,6 +5134,23 @@ function windowLightsTexture(src, key) {
 // One material set per style. The vertex shader multiplies the box UVs by a per
 // instance tile count, so one geometry and one draw call cover a whole ward.
 const facadeCache = {};
+// Photographed facades (ambientCG, CC0; Web/art/facades) for the city styles: a white-banded office block, a glass curtain wall, tiled
+// apartment blocks and a civic grid. Each photograph covers so many metres of real wall (size), and is scaled to the style's repeat. The
+// drawn texture stays until the photograph has loaded, and stays for good if it never does. The lit-window maps come from the same
+// photographs taken at night where there is one.
+const FACADE_PHOTOS = { office: { size: [18, 29] }, glass: { size: [24, 24] }, flats: { size: [14.4, 19.8], lights: true }, civic: { size: [16, 21], lights: true } };
+function facadePhoto(side, style, spec) {
+  const P = FACADE_PHOTOS[style]; if (!P || gameSet.drawnFacades) return;
+  const L = new THREE.TextureLoader(), base = "art/facades/" + style;
+  const prep = (t, srgb) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(spec.cell[0] / P.size[0], spec.cell[1] / P.size[1]); if (srgb) t.encoding = THREE.sRGBEncoding; sharpTex(t); return t; };
+  L.load(base + "_color.jpg", t => {
+    side.map = prep(t, true);
+    if (side.isMeshStandardMaterial) L.load(base + "_normal.jpg", n => { side.normalMap = prep(n, false); side.normalMap.repeat = side.map.repeat; side.normalScale = new THREE.Vector2(1, 1); side.needsUpdate = true; });
+    const lit = () => { try { const w = windowLightsTexture(t.image, style + ":photo"); if (w) { w.repeat = side.map.repeat; side.emissiveMap = w; side.emissive = new THREE.Color(1, 1, 1); side.needsUpdate = true; } } catch (e) { /* no lit windows */ } };
+    if (P.lights) L.load(base + "_lights.jpg", e => { side.emissiveMap = prep(e, true); side.emissiveMap.repeat = side.map.repeat; side.emissive = new THREE.Color(1, 1, 1); side.needsUpdate = true; }, undefined, lit); else lit();
+    side.needsUpdate = true;
+  }, undefined, () => {});
+}
 function facadeMaterials(style) {
   if (facadeCache[style]) return facadeCache[style];
   const spec = FACADE_STYLES[style] || FACADE_STYLES.office;
@@ -5140,7 +5168,7 @@ function facadeMaterials(style) {
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute vec3 aTile;")
       .replace("#include <uv_vertex>",
-        "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = vec2(uv.x * tileH, uv.y * aTile.z);\n#endif");
+        "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = (uvTransform * vec3(uv.x * tileH, uv.y * aTile.z, 1.0)).xy;\n#endif");
   };
   side.customProgramCacheKey = () => "konto-facade";
   // Windows that can light. Intensity stays at zero in daylight and is turned
@@ -5157,6 +5185,7 @@ function facadeMaterials(style) {
   // Window reveals and board laps get their depth back. Glass is the exception:
   // a curtain wall is flat, and relief on it reads as a dented building.
   if (!glassy) addRelief(side, style === "machiya" || style === "coast" ? 2.6 : 1.9);
+  facadePhoto(side, style, spec);
   const roof = gfx.high
     ? new THREE.MeshStandardMaterial({ map: roofTexture(spec.roof), roughness: 0.86, metalness: 0.06,
                                        envMap: gfx.env || null, envMapIntensity: 0.3 })
@@ -6397,7 +6426,7 @@ function pollPad(dt) {
 
   // LB held brings the wheel up and holds it there; letting go equips.
   const lbDown = held(PAD.LB);
-  if (lbDown && !phone.open && !nav.mapOpen) {
+  if (lbDown && !phone.open && !nav.mapOpen && wheelAllowed()) {
     if (!wheel.open) setWheel(true);
     wheelPoint(deadzone(gp.axes[2] || 0, 0.30), deadzone(gp.axes[3] || 0, 0.30));
     if (pressed(PAD.LEFT)) wheelItem(-1);
@@ -7631,6 +7660,18 @@ function addActionClips(root, mixer, clips) {
     { t: 0.8, pose: work(-0.05, 0.12), drop: 0.43, shift: 0.10 }, { t: 1.2, pose: work(0.10, -0.18), drop: 0.42, shift: 0.10 },
     { t: 1.6, pose: work(0, 0), drop: 0.42, shift: 0.10 }
   ], true);
+  // skydiving: the arch (belly to the earth, arms out and bent, knees bent, back arched), the head-down dive, and under a canopy: hands up on
+  // the toggles, one pulled down to turn, both pulled down to flare. A small flutter keyframed in so a body in 200 km/h of wind is not still.
+  const arch = (f) => ({ UpperArmR: [0, 0.5, 1.75 + f], ForearmR: [0, 0, 1.25], UpperArmL: [0, -0.5, -(1.75 + f)], ForearmL: [0, 0, -1.25], Spine: [0.28, 0, 0], Chest: [0.16, 0, 0], Neck: [0.35, 0, 0],
+    ThighR: [-0.25, 0, 0.18], ThighL: [-0.25, 0, -0.18], ShinR: [-1.05 - f, 0, 0], ShinL: [-1.05 + f, 0, 0] });
+  make("skydive", 0.8, [{ t: 0, pose: arch(0) }, { t: 0.4, pose: arch(0.06) }, { t: 0.8, pose: arch(0) }], true);
+  const dive = (f) => ({ UpperArmR: [0, 0.25, 0.25 + f], ForearmR: [0, 0, 0.15], UpperArmL: [0, -0.25, -(0.25 + f)], ForearmL: [0, 0, -0.15], Spine: [-0.1, 0, 0], Neck: [0.25, 0, 0], ThighR: [0.05, 0, 0], ThighL: [0.05, 0, 0], ShinR: [-0.15, 0, 0], ShinL: [-0.15, 0, 0] });
+  make("skydive_dive", 0.6, [{ t: 0, pose: dive(0) }, { t: 0.3, pose: dive(0.05) }, { t: 0.6, pose: dive(0) }], true);
+  const hang = (r, l, sw) => ({ UpperArmR: [0, 0, r], ForearmR: [0, 0, 0.55], UpperArmL: [0, 0, -l], ForearmL: [0, 0, -0.55], ThighR: [0.35 + sw, 0, 0], ThighL: [0.3 - sw, 0, 0], ShinR: [-0.45, 0, 0], ShinL: [-0.5, 0, 0], Spine: [0.05, 0, 0] });
+  make("canopy", 2.4, [{ t: 0, pose: hang(2.65, 2.65, 0) }, { t: 1.2, pose: hang(2.65, 2.65, 0.08) }, { t: 2.4, pose: hang(2.65, 2.65, 0) }], true);
+  make("canopy_r", 1, [{ t: 0, pose: hang(1.35, 2.65, 0.05) }, { t: 1, pose: hang(1.35, 2.65, 0.05) }], true);
+  make("canopy_l", 1, [{ t: 0, pose: hang(2.65, 1.35, 0.05) }, { t: 1, pose: hang(2.65, 1.35, 0.05) }], true);
+  make("flare", 1, [{ t: 0, pose: Object.assign(hang(0.75, 0.75, 0), { ThighR: [0.7, 0, 0], ThighL: [0.7, 0, 0], ShinR: [-0.25, 0, 0], ShinL: [-0.25, 0, 0] }) }, { t: 1, pose: Object.assign(hang(0.75, 0.75, 0), { ThighR: [0.7, 0, 0], ThighL: [0.7, 0, 0], ShinR: [-0.25, 0, 0], ShinL: [-0.25, 0, 0] }) }], true);
 }
 
 // Crossfade rather than cut: a hard switch between a walk and a run pops the
@@ -10228,17 +10269,27 @@ function pbrPerVertex(mat) {
 }
 
 // Body panels: pigment under lacquer, tinted per car by the instance colour.
+function carFlakeTexture() {
+  if (carFlakeTexture.t) return carFlakeTexture.t;
+  const c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d"), d = g.createImageData(256, 256);
+  for (let i = 0; i < d.data.length; i += 4) { d.data[i] = 128 + (Math.random() - 0.5) * 120; d.data[i + 1] = 128 + (Math.random() - 0.5) * 120; d.data[i + 2] = 255; d.data[i + 3] = 255; }
+  g.putImageData(d, 0, 0);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(24, 24);
+  return (carFlakeTexture.t = t);
+}
 function paintMaterial() {
   // Two-sided: the box bodies are instanced with a flip that leaves the near
   // flank facing away, and the bodywork then reads as an open box.
   if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true, side: THREE.DoubleSide });
   const m = new THREE.MeshPhysicalMaterial({
     color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
-    metalness: 0.25, roughness: 0.36,
-    clearcoat: 0.75, clearcoatRoughness: 0.12,
-    envMapIntensity: 0.75
+    metalness: 0.45, roughness: 0.32,
+    clearcoat: 1.0, clearcoatRoughness: 0.05,
+    envMapIntensity: 1.0
   });
   if (gfx.env) m.envMap = gfx.env;
+  // metallic flake: a fine sparkle under the clear coat, which is most of what makes paint look like paint up close
+  m.normalMap = carFlakeTexture(); m.normalScale = new THREE.Vector2(0.18, 0.18);
   return m;
 }
 
@@ -20674,6 +20725,7 @@ const CHEAT_VEHICLES = {
   DIRTBIKE:  { kind: "dirtbike",  dial: "5550115" },
   TRAILBIKE: { kind: "mtb",       dial: "5550116" },
   AIRPLANE:  { kind: "plane",     dial: "5550120" },
+  SKYDIVE:   { kind: "skydive",   dial: "5550122" },
   HELICOPTER:{ kind: "heli",      dial: "5550121" }
 };
 const CHEAT_ACTIONS = {
@@ -20747,7 +20799,7 @@ function cheatGoAirport() {
   let best = null, bd = 1e12;
   (world.airports || []).forEach(a => { const d = Math.hypot(a.cx - player.pos.x, a.cz - player.pos.z); if (d > 200 && d < bd) { bd = d; best = a; } });
   if (!best) { say("There is none.", 2); return; }
-  const p = fromRectLocal(0, best.big ? 244 : 200, best.cx, best.cz, best.yaw); cheatGo(p, best.yaw * Math.PI / 180);
+  const p = fromRectLocal(best.big ? 0 : -150, (best.termFront || (best.big ? 256 : 206)) - 40, best.cx, best.cz, best.yaw); cheatGo(p, best.yaw * Math.PI / 180);
 }
 function cheatGoStation() {
   let best = null, bd = 1e12;
@@ -20773,7 +20825,22 @@ function refreshGame() {
 }
 window.refreshGame = refreshGame;
 function cheatHour(h) { clock = (((h * 60 - TIME.startMin) % 1440 + 1440) % 1440) / TIME.rate; if (typeof updateWorldSky === "function") updateWorldSky(0, true); }
+// A light aircraft of your own, on the ground in front of you (or, for SKYDIVE, already 1,200 m up with the door open).
+function cheatAircraft(air) {
+  if (drive.car) leaveCar();
+  const yawP = player.yaw, len = 11, m = airplaneMesh(len, 12, 0x1d5fb0, gfx.high);
+  let d = 18, x = player.pos.x + Math.sin(yawP) * d, z = player.pos.z + Math.cos(yawP) * d;
+  for (let t = 0; t < 10 && insideBuilding(x, z, 7); t++) { d += 8; x = player.pos.x + Math.sin(yawP) * d; z = player.pos.z + Math.cos(yawP) * d; }
+  scene.add(m); m.position.set(x, world.surfaceY(x, z) + (m.userData.gearH || 1.5), z);
+  const en = { mesh: m, len: len, span: 12, tail: 0x1d5fb0, ap: null, h: yawP, off: m.userData.gearH || 1.5 };
+  flightEnter(en);
+  if (air) { flight.air = true; flight.v = 42; flight.thr = 0.6; flight.pos.y = Math.max(chuteTop(x, z, 0), world.surfaceY(x, z)) + 1200; say("1,200 metres up. F or Y to jump.", 5); }
+  return true;
+}
 function cheatSpawn(kindName) {
+  if (kindName === "plane") return cheatAircraft(false);
+  if (kindName === "skydive") return cheatAircraft(true);
+  if (kindName === "heli") { say("You can't fly helicopters yet. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
   if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
   const kind = CAR_KINDS[ki];
@@ -26767,7 +26834,7 @@ function drawTVProduct(g, cx, cy, w, tv, ch, t) {
 const wear = { audio: null, watch: null, groups: { audio: null, watch: null }, tryAudio: null, tryWatch: null };
 function wornAudio() { return wear.tryAudio || wheel.wearing; }
 function wornWatch() { return wear.tryWatch || bag.watchOn || null; }
-function findBone(re) { let hit = null; if (player.glb) player.glb.traverse(o => { if (!hit && o.isBone && re.test(o.name)) hit = o; }); return hit; }
+function findBone(re) { let hit = null; if (player.glb) player.glb.traverse(o => { if (!hit && o.isBone && (re.test(o.name) || (o.userData.alias && re.test(o.userData.alias)))) hit = o; }); return hit; }
 function clearWear(kind) { const g = wear.groups[kind]; if (g && g.parent) g.parent.remove(g); wear.groups[kind] = null; wear[kind] = null; }
 function seikoWear() {
   if (!player.glb) return;
@@ -26948,7 +27015,7 @@ function setSeikoShirt(hex) {
   const o = player.glb; if (!o) return;
   o.traverse(m => {
     if (!m.isMesh) return;
-    const mat = Array.isArray(m.material) ? m.material[0] : m.material;
+    const mats = Array.isArray(m.material) ? m.material : [m.material], mat = player.hq ? mats.find(x => x && /body/i.test(x.name)) : mats[0];
     if (!mat || !mat.map || !mat.map.image) return;
     try {
       if (!seikoSkin.base) {
@@ -27066,7 +27133,10 @@ function wheelCur() {
   return { cat: cat, list: list, i: i, item: list[i] || null };
 }
 
+// The weapon wheel is for walking about: in a car, on a train, in the air or under a parachute, Q and LB are controls (the rudder, the siren).
+function wheelAllowed() { return !drive.car && !drive.train && !flight.active && !chute.active && player.mode === "walk"; }
 function setWheel(on) {
+  if (on && !wheelAllowed()) return;
   if (on === wheel.open) return;
   wheel.open = on;
   const el = document.getElementById("wheel");
@@ -31697,7 +31767,7 @@ function flightCrash(why) {
   flight.lastCrash = why;
   const m = flight.mesh; flight.active = false; flight.hud.style.display = "none"; flightQuality(false); scene.remove(m);
   say(why, 6); vitals.health = clamp01(vitals.health - 0.45); vitals.stress = clamp01(vitals.stress + 0.3); drive.shake = 1; rumble(1, 1, 500);
-  const ap = flight.ap || world.airports[0], p = fromRectLocal(0, ap.big ? 244 : 200, ap.cx, ap.cz, ap.yaw); player.obj.visible = true; placeSeiko(new THREE.Vector3(p[0], 0, p[1])); player.mode = "walk";
+  const ap = flight.ap || world.airports[0], p = fromRectLocal(0, (ap.termFront || (ap.big ? 256 : 206)) - 12, ap.cx, ap.cz, ap.yaw); player.obj.visible = true; placeSeiko(new THREE.Vector3(p[0], 0, p[1])); player.mode = "walk";
 }
 function updateFlight(dt) {
   const f = flight, P = f.P, gp = pad.gp, K = keys, g = 9.8;
@@ -31738,7 +31808,12 @@ function updateFlight(dt) {
     if (f.stall && aoa > 0.28) f.pitch -= 0.4 * dt;
     f.pitch = clamp(f.pitch, -0.95, 0.75);
     f.gamma += ((aL * Math.cos(f.roll) - g * cosG) / Math.max(f.v, 12)) * dt; f.gamma = clamp(f.gamma, -1.3, 1.1);
-    f.h -= ((aL * Math.sin(f.roll)) / (Math.max(f.v, 12) * Math.max(cosG, 0.3)) + rud * P.rudRate * 0.5) * dt;
+    // the rudder yaws the nose (more authority the faster you go), drags a little bank in after it, and costs a little speed
+    const rAuth = clamp(f.v / P.vs, 0.3, 1.3);
+    f.slip = lerp(f.slip || 0, rud * 0.12 * rAuth, 1 - Math.pow(0.02, dt));
+    f.h -= ((aL * Math.sin(f.roll)) / (Math.max(f.v, 12) * Math.max(cosG, 0.3)) + rud * P.rudRate * 1.1 * rAuth) * dt;
+    f.roll = clamp(f.roll + rud * P.rollRate * 0.18 * rAuth * dt, -1.2, 1.2);
+    f.v -= Math.abs(rud) * 0.6 * dt;
     const drag = P.c0 * f.v * f.v + P.ci * aL * aL / (f.v * f.v + 1);
     f.v = clamp(f.v + (thrust - drag - g * Math.sin(f.gamma)) * dt, 12, P.vmax * 1.25);
     f.pos.x += Math.sin(f.h) * cosG * f.v * dt; f.pos.z += Math.cos(f.h) * cosG * f.v * dt; f.pos.y += Math.sin(f.gamma) * f.v * dt;
@@ -31751,7 +31826,8 @@ function updateFlight(dt) {
     if (f.pos.x < 0 || f.pos.z < 0 || f.pos.x > WORLD_X || f.pos.z > WORLD_Z) f.h += Math.PI * dt * 0.4;
   }
   player.speed = f.v;
-  const m = f.mesh; m.visible = f.cam !== 1; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
+  if (!f.air) f.slip = lerp(f.slip || 0, 0, 0.2);
+  const m = f.mesh; m.visible = f.cam !== 1; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2 - (f.slip || 0), 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
   const ud = m.userData, down = !f.air || (alt < 45 && f.v < P.vs * 1.7); if (ud.gear) ud.gear.forEach(gr => { gr.visible = down; });
   if (ud.prop) ud.prop.rotation.x += (20 + f.thr * 90) * dt;
   player.pos.copy(f.pos); player.yaw = f.h;
@@ -31794,18 +31870,37 @@ function flightPFD(alt) {
 }
 // ---- jumping out ------------------------------------------------------------------------------------------------------------------------------
 const chute = { active: false, state: "", pos: new THREE.Vector3(), vy: 0, vx: 0, vz: 0, hs: 0, h: 0, open: 0, canopy: null, t: 0, hud: null, bank: 0, warned: false };
+// A ram-air canopy, the rectangular kind every modern sport and military jumper flies: nine cells, an arched span, an aerofoil section,
+// suspension lines down to the two risers at the shoulders. It is built bundled (scale.x small) and spreads as it inflates.
 function chuteMesh() {
-  const g = new THREE.Group();
-  const c = document.createElement("canvas"); c.width = 512; c.height = 64; const x = c.getContext("2d");
-  for (let i = 0; i < 16; i++) { x.fillStyle = i % 2 ? "#f4f1ea" : (i % 4 === 0 ? "#c0172b" : "#e8861c"); x.fillRect(i * 32, 0, 32, 64); }
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.RepeatWrapping;
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(3.6, 32, 14, 0, Math.PI * 2, 0, Math.PI * 0.46), new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }));
-  dome.scale.set(1.0, 0.62, 1.25); dome.position.y = 6.2; g.add(dome);
-  const pts = [], rim = 12;
-  for (let i = 0; i < rim; i++) { const a = i / rim * Math.PI * 2, rx = Math.cos(a) * 3.6 * Math.cos(Math.PI * 0.46) * 1.0, rz = Math.sin(a) * 3.6 * Math.cos(Math.PI * 0.46) * 1.25; pts.push(rx, 6.2, rz, 0, 1.55, 0); }
-  const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
-  g.add(new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x2b2f35 })));
-  g.userData.dome = dome; return g;
+  const g = new THREE.Group(), cells = 9, span = 8.4, chord = 3.1, arc = 1.15, H = 6.4;
+  const c = document.createElement("canvas"); c.width = 512; c.height = 128; const x = c.getContext("2d");
+  const cols = ["#c0172b", "#f4f1ea", "#1d3f8f", "#f4f1ea", "#e8861c", "#f4f1ea", "#1d3f8f", "#f4f1ea", "#c0172b"];
+  for (let i = 0; i < cells; i++) { x.fillStyle = cols[i]; x.fillRect(i * 512 / cells, 0, 512 / cells + 1, 128); x.fillStyle = "rgba(0,0,0,0.18)"; x.fillRect(i * 512 / cells, 0, 2, 128); }
+  const tex = new THREE.CanvasTexture(c); tex.encoding = THREE.sRGBEncoding;
+  // top skin and bottom skin, each a grid across the span (u) and along the chord (v)
+  const NU = cells * 4, NV = 10, pos = [], uv = [], idx = [];
+  const at = (u, v, top) => {
+    const sx = (u - 0.5) * span, ang = (u - 0.5) * 1.05, ry = H - arc * (1 - Math.cos(ang)) * 1.8, rx = Math.sin(ang) * span * 0.5 * 0.96;
+    const z = (v - 0.35) * chord, t = 0.16 * chord * Math.sqrt(Math.max(0, v)) * (1 - v) * (top ? 1 : -0.35);
+    const bulge = top ? 0.05 * Math.sin((u * cells % 1) * Math.PI) : 0;
+    void sx; return [rx, ry + t + bulge, -z];
+  };
+  for (const top of [true, false]) {
+    const base = pos.length / 3;
+    for (let j = 0; j <= NV; j++) for (let i = 0; i <= NU; i++) { const p = at(i / NU, j / NV, top); pos.push(p[0], p[1], p[2]); uv.push(i / NU, j / NV); }
+    for (let j = 0; j < NV; j++) for (let i = 0; i < NU; i++) { const a = base + j * (NU + 1) + i, b = a + 1, d = a + NU + 1, e = d + 1; if (top) idx.push(a, d, b, b, d, e); else idx.push(a, b, d, b, e, d); }
+  }
+  const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); geo.setIndex(idx); geo.computeVertexNormals();
+  const wing = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, side: THREE.DoubleSide, roughness: 0.7, metalness: 0 }));
+  wing.castShadow = true; g.add(wing);
+  // the lines: from points under the leading and trailing edge of each rib to the two risers
+  const L = [];
+  for (let i = 0; i <= cells; i += 1) for (const v of [0.05, 0.4, 0.8]) { const p = at(i / cells, v, false), side = i < cells / 2 ? -1 : 1; L.push(p[0], p[1], p[2], side * 0.22, 1.6, 0); }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.Float32BufferAttribute(L, 3));
+  const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ color: 0x30343a, transparent: true, opacity: 0.85 })); g.add(lines);
+  g.userData.wing = wing; g.userData.lines = lines; g.userData.H = H;
+  return g;
 }
 function chuteTop(x, z, y) {          // the highest roof under you, so a parachute can come down on a building
   let top = world.surfaceY(x, z);
@@ -31828,13 +31923,13 @@ function bailOut() {
 }
 function chuteOpen() {
   if (!chute.active || chute.state !== "fall") return;
-  chute.state = "open"; chute.t = 0;
+  chute.state = "open"; chute.t = 0; chute.open = 0; chute.swing = 0; chute.swingV = 0; chute.pitchS = 0; chute.pitchV = 0; chute.flareE = 0; chute.brakeT = 0;
   if (!chute.canopy) { chute.canopy = chuteMesh(); scene.add(chute.canopy); }
-  chute.canopy.visible = true; rumble(0.6, 0.6, 220);
-  say("Chute open.", 2);
+  chute.canopy.visible = true; rumble(0.4, 0.3, 300);
+  say("Pilot chute out…", 1.5);
 }
 function chuteEnd(msg) {
-  chute.active = false; chute.state = ""; if (chute.canopy) chute.canopy.visible = false; if (chute.hud) chute.hud.style.display = "none";
+  chute.active = false; chute.state = ""; chute.flying = false; player.forceClip = null; if (chute.canopy) chute.canopy.visible = false; if (chute.hud) chute.hud.style.display = "none";
   player.obj.rotation.set(0, chute.h, 0); player.obj.visible = true; player.yaw = player.targetYaw = chute.h; yaw = chute.h + Math.PI; pitch = -0.18;
   let x = chute.pos.x, z = chute.pos.z;
   if (world.sampleHeight(x, z) < 0.5) {              // in the sea: wade ashore at the nearest land
@@ -31845,56 +31940,104 @@ function chuteEnd(msg) {
   camPos.set(player.pos.x - Math.sin(chute.h) * 4, player.pos.y + 2.4, player.pos.z - Math.cos(chute.h) * 4);
   if (msg) say(msg, 5);
 }
+function chuteClip(name) { if (player.clips && player.clips[name]) player.forceClip = name; }
 function updateChute(dt) {
-  const c = chute, k = keys, w = wish(); dt = Math.min(dt, 0.05); c.t += dt;
+  const c = chute, k = keys, w = wish(), g = 9.81; dt = Math.min(dt, 0.05); c.t += dt;
   const steer = clamp(((k.KeyD || k.ArrowRight) ? 1 : 0) - ((k.KeyA || k.ArrowLeft) ? 1 : 0) + w.x, -1, 1), fwd = clamp(((k.KeyW || k.ArrowUp) ? 1 : 0) - ((k.KeyS || k.ArrowDown) ? 1 : 0) - w.y, -1, 1);
   const gnd = chuteTop(c.pos.x, c.pos.z, c.pos.y), alt = c.pos.y - gnd;
-  const windX = 1.8 + 0.7 * Math.sin(c.t * 0.31), windZ = 0.9 + 0.5 * Math.sin(c.t * 0.23 + 1);
-  let tilt, hsT, vyT;
+  // wind: a steady breeze with gusts in it, stronger the higher you are
+  const wk = clamp01(alt / 600) * 0.6 + 0.4, gust = 0.6 * Math.sin(c.t * 0.9) + 0.4 * Math.sin(c.t * 2.3 + 1);
+  const windX = (2.2 + gust) * wk, windZ = (1.1 + 0.5 * gust) * wk;
+  let vxA = c.vx - windX, vzA = c.vz - windZ;                       // velocity through the air
   if (c.state === "fall") {
-    // belly to the earth: terminal speed about 190 km/h, more with the head down (W), less spread out (S); the arms steer
-    const term = -(52 + Math.max(fwd, 0) * 18 - Math.max(-fwd, 0) * 6);
-    c.vy += (-9.8 + 9.8 * (c.vy / term) * (c.vy / term)) * dt;
-    hsT = 7 + Math.max(fwd, 0) * 13 - Math.max(-fwd, 0) * 4; c.hs += (hsT - c.hs) * (1 - Math.exp(-0.9 * dt));
-    c.h -= steer * 1.5 * dt; tilt = 1.3 + Math.max(fwd, 0) * 0.2;
-    if (alt < 260 && Math.floor(c.t * 3) % 2 === 0) { c.hud.style.borderLeftColor = "#ff3b2f"; } else c.hud.style.borderLeftColor = "#ffd21c";
-    c.hud.textContent = Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(-c.vy * 3.6) + " km/h falling  ·  " + (pad.index >= 0 ? padLabel("A") : "Space") + ": open the parachute" + (alt < 260 ? "  ·  NOW" : "");
-    if (alt < 40 && !c.warned) { c.warned = true; say("Pull the chute!", 2); }
+    // Freefall is drag against gravity. Belly-down in a box position the terminal speed is about 195 km/h; head down (W) about 280 and
+    // the body tracks forward, turning height into distance; spread out (S) about 165. The arms and shoulders turn you (A/D).
+    const vt = 54 + Math.max(fwd, 0) * 24 - Math.max(-fwd, 0) * 8, kv = g / (vt * vt), kh = g / (34 * 34);
+    const sp = Math.hypot(vxA, c.vy, vzA) || 1;
+    c.vy += (-g - kv * sp * c.vy) * dt;
+    vxA += -kh * sp * vxA * dt; vzA += -kh * sp * vzA * dt;
+    const track = Math.max(fwd, 0) * 0.32 * Math.abs(c.vy);           // tracking: lift from the body, along the heading
+    vxA += Math.sin(c.h) * track * dt; vzA += Math.cos(c.h) * track * dt;
+    c.yawV = lerp(c.yawV || 0, -steer * 1.4, 1 - Math.pow(0.05, dt)); c.h += c.yawV * dt;
+    c.roll = lerp(c.roll || 0, steer * 0.35, 1 - Math.pow(0.05, dt));
+    chuteClip(fwd > 0.3 ? "skydive_dive" : "skydive");
+    c.hud.style.borderLeftColor = alt < 300 && Math.floor(c.t * 3) % 2 === 0 ? "#ff3b2f" : "#ffd21c";
+    c.hud.textContent = Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(-c.vy * 3.6) + " km/h falling  ·  W dive/track · S spread · A/D turn  ·  " + (pad.index >= 0 ? padLabel("A") : "Space") + ": open the parachute" + (alt < 300 ? "  ·  NOW" : "");
+    if (alt < 60 && !c.warned) { c.warned = true; say("Pull the chute!", 2); }
   } else {
-    c.open = Math.min(1, c.open + dt / 1.5);
-    const flare = alt < 10 && fwd < -0.2;
-    hsT = 11 + Math.max(fwd, 0) * 4 - Math.max(-fwd, 0) * 5.5; vyT = -(5.0 + Math.max(fwd, 0) * 2.6 - Math.max(-fwd, 0) * 2.0) + (flare ? 3.4 : 0);
-    // the opening shock, then a steady glide: roughly three metres forward for every one down
-    c.vy += (vyT - c.vy) * (1 - Math.exp(-(c.open < 1 ? 2.8 : 1.3) * dt)); c.hs += (hsT - c.hs) * (1 - Math.exp(-1.1 * dt));
-    c.h -= steer * 0.75 * dt * clamp(c.hs / 9, 0.5, 1.2); c.bank += (steer * 0.4 - c.bank) * (1 - Math.exp(-1.6 * dt)); tilt = 0.0;
-    c.hud.style.borderLeftColor = "#7df0a8";
-    c.hud.textContent = Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(c.hs * 3.6) + " km/h forward  ·  " + Math.round(-c.vy * 3.6) + " km/h down  ·  A/D steer · W speed · S brake" + (alt < 12 ? "  ·  hold S to flare" : "");
+    // Deployment: about half a second for the pilot chute and the lines to stretch, then the canopy inflates over a second and a half.
+    // The opening shock is not scripted: the drag of the growing canopy slows you from freefall to canopy flight on its own.
+    c.open = Math.min(1, c.open + dt / 2.1);
+    const inflate = clamp01((c.open - 0.24) / 0.76), e = inflate * inflate * (3 - 2 * inflate);
+    if (c.open >= 1 && !c.flying) { c.flying = true; say("Canopy open. A/D toggles, S brakes and flare, W front risers.", 4); rumble(0.7, 0.7, 260); }
+    // the canopy's own flight: airspeed and sink depend on the toggles; a turn costs height; deep brakes slow you and can stall it
+    const brake = Math.max(-fwd, 0), riser = Math.max(fwd, 0), turn = Math.abs(steer);
+    if (brake > 0.7) c.brakeT += dt; else c.brakeT = Math.max(0, c.brakeT - dt * 2);
+    const stall = c.brakeT > 2.5;
+    let va = 11.2 + riser * 3.2 - brake * 5.8 - turn * 0.5, sink = 4.9 + riser * 2.2 + turn * 2.4 - brake * 1.8 + (stall ? 6 : 0);
+    // the flare: speed stored in the canopy is turned into lift for a second or two when both toggles come down quickly
+    const hsA = Math.hypot(vxA, vzA);
+    if (brake > 0.6 && (c.prevBrake || 0) < 0.3) c.flareE = Math.max(0, hsA - 6);
+    c.prevBrake = brake;
+    if (c.flareE > 0) { sink -= Math.min(c.flareE, 4.2) * 0.95; c.flareE = Math.max(0, c.flareE - dt * 3.2); }
+    const kd = lerp(g / (54 * 54), g / (5 * 5), e);                 // the drag grows with the canopy: the opening shock
+    const sp = Math.hypot(vxA, c.vy, vzA) || 1;
+    if (!c.flying) { c.vy += (-g - kd * sp * c.vy) * dt; vxA += -kd * 0.6 * sp * vxA * dt; vzA += -kd * 0.6 * sp * vzA * dt; c.gload = Math.abs(kd * sp * c.vy) / g; }
+    else {
+      c.vy += ((-sink) - c.vy) * (1 - Math.exp(-1.6 * dt));
+      const tx = Math.sin(c.h) * va, tz = Math.cos(c.h) * va; vxA += (tx - vxA) * (1 - Math.exp(-1.2 * dt)); vzA += (tz - vzA) * (1 - Math.exp(-1.2 * dt));
+    }
+    // turning: the canopy yaws, and the jumper swings out under it like a pendulum (about five metres of line)
+    const omega = -steer * 0.62 * clamp(hsA / 10, 0.4, 1.3) * e; c.h += omega * dt;
+    const bankT = Math.atan2(hsA * -omega, g), Lp = 4.8;
+    c.swingV += ((g / Lp) * (bankT - c.swing) - 1.1 * c.swingV) * dt; c.swing += c.swingV * dt;
+    const dva = (hsA - (c.prevHs || hsA)) / Math.max(dt, 1e-3); c.prevHs = hsA;
+    c.pitchV += ((g / Lp) * (clamp(-dva * 0.05, -0.5, 0.5) - c.pitchS) - 1.3 * c.pitchV) * dt; c.pitchS += c.pitchV * dt;
+    if (!c.flying) { c.pitchS = lerp(c.pitchS, -0.5 * (1 - e), 0.2); }
+    chuteClip(!c.flying ? "canopy" : brake > 0.5 ? "flare" : steer > 0.3 ? "canopy_r" : steer < -0.3 ? "canopy_l" : "canopy");
+    c.hud.style.borderLeftColor = stall ? "#ff3b2f" : "#7df0a8";
+    c.hud.textContent = !c.flying ? "Opening…  " + Math.round(-c.vy * 3.6) + " km/h  ·  " + (c.gload ? c.gload.toFixed(1) + " g" : "")
+      : Math.round(Math.max(0, alt)) + " m  ·  " + Math.round(hsA * 3.6) + " km/h forward  ·  " + Math.round(-c.vy * 3.6) + " km/h down" + (stall ? "  ·  STALL: let the brakes up" : "  ·  A/D toggles · W risers · S brakes") + (alt < 15 ? "  ·  FLARE NOW (S)" : "");
   }
-  // velocity: where you are heading, plus the wind that drifts you
-  const tx = Math.sin(c.h) * c.hs + windX * (c.state === "open" ? 1 : 0.4), tz = Math.cos(c.h) * c.hs + windZ * (c.state === "open" ? 1 : 0.4);
-  c.vx += (tx - c.vx) * (1 - Math.exp(-1.4 * dt)); c.vz += (tz - c.vz) * (1 - Math.exp(-1.4 * dt));
+  c.vx = vxA + windX; c.vz = vzA + windZ;
   c.pos.x += c.vx * dt; c.pos.z += c.vz * dt; c.pos.y += c.vy * dt;
   c.pos.x = clamp(c.pos.x, 20, WORLD_X - 20); c.pos.z = clamp(c.pos.z, 20, WORLD_Z - 20);
-  // landing
+  c.hs = Math.hypot(c.vx, c.vz);
+  // landing: a flared landing is a step or two; too fast across the ground and you run it out or tumble; too fast down and you are hurt
   const g2 = chuteTop(c.pos.x, c.pos.z, c.pos.y + 1);
   if (c.pos.y <= g2 + 0.05 || (world.sampleHeight(c.pos.x, c.pos.z) < 0.2 && c.pos.y <= 0.3)) {
-    c.pos.y = Math.max(g2, 0);
-    const sink = -c.vy;
+    c.pos.y = Math.max(g2, 0); player.forceClip = null; c.flying = false;
+    const sink = -c.vy, across = Math.hypot(c.vx - windX, c.vz - windZ);
     if (c.state === "fall" && sink > 12) { vitals.health = 0.04; vitals.stress = clamp01(vitals.stress + 0.5); player.down = 6; chuteEnd("You hit the ground at " + Math.round(sink * 3.6) + " km/h without a parachute."); vitals.health = 0.04; return; }
-    if (sink > 6.5) { vitals.health = clamp01(vitals.health - 0.3); player.down = 3; chuteEnd("A hard landing. You are hurt."); return; }
-    chuteEnd(sink > 3.4 ? "You stumbled on landing." : "A good landing.");
+    if (sink > 7) { vitals.health = clamp01(vitals.health - 0.35); player.down = 3.5; chuteEnd("A hard landing, " + Math.round(sink * 3.6) + " km/h down. You are hurt."); return; }
+    if (across > 9 || sink > 5) { vitals.health = clamp01(vitals.health - 0.08); player.down = 1.5; chuteEnd("You came in fast and tumbled. Flare earlier."); return; }
+    chuteEnd(sink < 2.2 ? "A perfect flare. You stepped down onto the ground." : across > 5 ? "You ran it out." : "A good landing.");
     return;
   }
-  // the picture: Seiko, belly down or hanging from the lines; the canopy over him, swaying
-  const ob = player.obj; ob.visible = true; ob.position.set(c.pos.x, c.pos.y, c.pos.z);
-  if (c.state === "fall") ob.rotation.set(tilt, c.h, 0, "YXZ"); else ob.rotation.set(0.12 + Math.sin(c.t * 1.3) * 0.03, c.h, -c.bank * 0.5, "YXZ");
+  // the picture: the canopy above; Seiko hanging below it and swinging; in freefall, belly down and rolled into the turn
+  const ob = player.obj; ob.visible = true;
+  if (c.state === "fall") {
+    ob.position.set(c.pos.x, c.pos.y, c.pos.z);
+    ob.rotation.set(fwd > 0.3 ? 1.35 + 0.25 : 1.4, c.h, c.roll || 0, "YXZ");
+  } else {
+    const H = c.canopy ? c.canopy.userData.H : 6.4, R = H - 1.6, rx = Math.cos(c.h), rz = -Math.sin(c.h), fx = Math.sin(c.h), fz = Math.cos(c.h);
+    const lat = Math.sin(c.swing) * R, lon = Math.sin(c.pitchS) * R, up = R * (1 - Math.cos(c.swing)) + R * (1 - Math.cos(c.pitchS));
+    ob.position.set(c.pos.x + rx * lat + fx * lon, c.pos.y + up, c.pos.z + rz * lat + fz * lon);
+    ob.rotation.set(-c.pitchS, c.h, -c.swing, "YXZ");
+    const cn = c.canopy, o = c.open, e = clamp01((o - 0.24) / 0.76);
+    cn.position.set(c.pos.x, c.pos.y, c.pos.z);
+    cn.rotation.set(-c.pitchS * 0.25 + Math.sin(c.t * 1.1) * 0.02, c.h, -c.swing * 0.3 + Math.sin(c.t * 1.7) * 0.015, "YXZ");
+    const W = cn.userData.wing; W.scale.set(0.12 + 0.88 * e * e * (3 - 2 * e) + (e < 1 ? Math.sin(c.t * 40) * 0.03 * (1 - e) : 0), 0.4 + 0.6 * Math.min(1, o * 2.2), 0.5 + 0.5 * e);
+    W.position.y = (1 - Math.min(1, o * 2.2)) * 3.5; cn.userData.lines.scale.set(0.2 + 0.8 * e, Math.min(1, o * 2.2), 1);
+  }
+  if (player.mixer) updateSeikoClip(dt);
   player.pos.copy(c.pos); player.speed = c.hs; player.yaw = c.h;
-  if (c.canopy && c.state === "open") { const o = c.open, e = 1 - Math.pow(1 - o, 3); c.canopy.position.set(c.pos.x, c.pos.y - (1 - e) * 1.2, c.pos.z); c.canopy.rotation.set(Math.sin(c.t * 1.1) * 0.03, c.h, -c.bank + Math.sin(c.t * 1.7) * 0.025, "YXZ"); c.canopy.scale.set(0.25 + 0.75 * e, 0.4 + 0.6 * e, 0.25 + 0.75 * e); }
   // the camera is yours (mouse or right stick); left alone it drifts round behind you, so the island is in front
   if (!look.x && !look.y) { let d = (c.h + Math.PI) - yaw; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; if (!c.dragging) yaw += d * (1 - Math.exp(-0.5 * dt)); }
-  const dist = c.state === "open" ? 10 : 8, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-  const tgt = new THREE.Vector3(c.pos.x, c.pos.y + (c.state === "open" ? 3.5 : 0.5), c.pos.z);
+  const dist = c.state === "open" ? 11 : 7, dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const tgt = new THREE.Vector3(c.pos.x, c.pos.y + (c.state === "open" ? 3.2 : 0.4), c.pos.z);
   camPos.copy(tgt).addScaledVector(dir, -dist); const gc = world.surfaceY(camPos.x, camPos.z) + 1.2; if (camPos.y < gc) camPos.y = gc;
+  if (c.state === "fall") { const sh = clamp01(-c.vy / 70) * 0.06; camPos.x += (Math.random() - 0.5) * sh; camPos.y += (Math.random() - 0.5) * sh; }
   camera.position.copy(camPos); camera.lookAt(tgt);
 }
 // an aircraft nobody is flying: it holds its course and drifts down until it reaches the ground
@@ -31922,11 +32065,34 @@ function heliMesh() {
   const glass = add(new THREE.SphereGeometry(1.05, 10, 8), 0x7fb0d0, 1.5, 0.25, 0); glass.scale.set(1, 0.8, 1);
   const rot = new THREE.Group(); rot.position.y = 1.7; g.add(rot); for (let k = 0; k < 2; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(11, 0.06, 0.4), M(0x2a2d33)); b.rotation.y = k * Math.PI / 2; rot.add(b); } g.userData.rot = rot;
   const beam = new THREE.Mesh(new THREE.ConeGeometry(8, 60, 14, 1, true), new THREE.MeshBasicMaterial({ color: 0xfff2b0, transparent: true, opacity: 0.055, side: THREE.DoubleSide, depthWrite: false, fog: false })); beam.position.set(0, -30, 0); g.add(beam); g.userData.beam = beam;
-  const l1 = add(new THREE.SphereGeometry(0.2, 6, 4), 0xff2a2a, -0.2, 1.7, 1.2), l2 = add(new THREE.SphereGeometry(0.2, 6, 4), 0x2a6aff, -0.2, 1.7, -1.2); g.userData.l = [l1, l2];
+  // lights: police red and blue on the roof, red/green navigation lights, a white strobe on the tail, and a real searchlight under the nose
+  const glow = (c, x, y, z, s) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.18, 8, 6), new THREE.MeshBasicMaterial({ color: c, fog: false })); m.position.set(x, y, z); g.add(m);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: heliGlowTex(), color: c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })); sp.scale.set(s, s, s); m.add(sp); return m; };
+  const l1 = glow(0xff2020, -0.2, 1.75, 0.9, 3.2), l2 = glow(0x2a5aff, -0.2, 1.75, -0.9, 3.2);
+  g.userData.l = [l1, l2];
+  g.userData.nav = [glow(0xff1a1a, 0, -0.4, 1.9, 1.6), glow(0x18ff40, 0, -0.4, -1.9, 1.6)];
+  g.userData.strobe = glow(0xffffff, -6.9, 1.7, 0, 4);
+  const spot = new THREE.SpotLight(0xfff4d8, 0, 260, 0.16, 0.45, 1.2); spot.position.set(2.2, -1.2, 0); g.add(spot); g.add(spot.target); g.userData.spot = spot;
+  const flash = new THREE.PointLight(0xff2020, 0, 40, 2); flash.position.set(0, 2.2, 0); g.add(flash); g.userData.flash = flash;
   return g;
 }
+function heliGlowTex() {
+  if (heli.glow) return heli.glow;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.25, "rgba(255,255,255,0.5)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return (heli.glow = new THREE.CanvasTexture(c));
+}
+// The helicopters belong to the airports: they come after a stolen aircraft, and they give up once you are well away from every airport and out of the air.
+function heliInRange(t) {
+  if (flight.active || chute.active) return true;
+  return (world.airports || []).some(a => Math.hypot(a.cx - t.x, a.cz - t.z) < (a.big ? 1700 : 1100));
+}
 function updateHelis(dt) {
-  const want = wanted.stars >= 5 ? 3 : wanted.stars >= 4 ? 2 : 0, target = flight.active ? flight.pos : chute.active ? chute.pos : (drive.car ? drive.car.pos : player.pos);
+  const tgt0 = flight.active ? flight.pos : chute.active ? chute.pos : (drive.car ? drive.car.pos : player.pos);
+  const inRange = heliInRange(tgt0);
+  if (!inRange && heli.list.length && !heli.goneSaid) { heli.goneSaid = true; say("The helicopters are turning back.", 3); }
+  if (inRange) heli.goneSaid = false;
+  const want = !inRange ? 0 : wanted.stars >= 5 ? 3 : wanted.stars >= 4 ? 2 : 0, target = flight.active ? flight.pos : chute.active ? chute.pos : (drive.car ? drive.car.pos : player.pos);
   while (heli.list.length < want && player.placed) {
     const a = Math.random() * 6.28, m = heliMesh(); scene.add(m); const h = { m: m, pos: new THREE.Vector3(target.x + Math.cos(a) * 320, target.y + 90, target.z + Math.sin(a) * 320), a: a, k: heli.list.length, yaw: 0 }; heli.list.push(h); m.position.copy(h.pos);
     say("Helicopter overhead.", 3);
@@ -31940,7 +32106,11 @@ function updateHelis(dt) {
     h.pos.x += dx / d * sp * dt; h.pos.y += dy / d * sp * dt; h.pos.z += dz / d * sp * dt; h.m.position.copy(h.pos);
     const face = Math.atan2(target.x - h.pos.x, target.z - h.pos.z); h.yaw += (((face - h.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 2 * dt; h.m.rotation.set(0, h.yaw - Math.PI / 2, 0); h.m.userData.rot.rotation.y += dt * 36;
     const b = h.m.userData.beam; b.visible = true; b.lookAt(target.x, target.y, target.z); b.rotateX(Math.PI / 2); const dd = h.pos.distanceTo(target); b.scale.set(1, dd / 60, 1); b.position.copy(target).sub(h.pos).multiplyScalar(0.5).applyMatrix4(new THREE.Matrix4().makeRotationY(-(h.yaw - Math.PI / 2)));
-    const fl = Math.floor(clock * 5) % 2 === 0; h.m.userData.l[0].visible = fl; h.m.userData.l[1].visible = !fl;
+    const U = h.m.userData, fl = Math.floor(clock * 5) % 2 === 0; U.l[0].visible = fl; U.l[1].visible = !fl;
+    U.flash.color.setHex(fl ? 0xff2020 : 0x2a5aff); U.flash.intensity = 2.2;
+    U.strobe.visible = (clock * 1.3) % 1 < 0.08;
+    const dark = clamp01(1 - (sunLight ? sunLight.intensity : 1) / 1.2);
+    U.spot.intensity = 1.5 + dark * 9; h.m.updateMatrixWorld(true); U.spot.target.position.copy(h.m.worldToLocal(new THREE.Vector3(target.x, target.y, target.z)));
   }
 }
 function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
@@ -32265,6 +32435,7 @@ function pplLoad() {
   fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
     if (!ix || !ix.people) return;
     const loader = new THREE.GLTFLoader();
+    if (ix.player && !gameSet.classicSeiko) loader.load("people/" + ix.player, g => { try { pplPlayer(g); } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); } }, undefined, () => {});
     ix.people.forEach((e, i) => setTimeout(() => loader.load("people/" + e.file, g => {
       try { pplAdopt(e, g); } catch (err) { console.warn("[Konto] " + e.file + " could not be used:", err); }
     }, undefined, () => {}), 300 + i * 250));
@@ -32372,6 +32543,30 @@ function pplRetarget(src, tgt, clip) {
   vals.forEach((v, name) => tracks.push(new THREE.QuaternionKeyframeTrack(name + ".quaternion", times, v)));
   if (pos.length) tracks.push(new THREE.VectorKeyframeTrack(tgt.pelvis.name + ".position", times, pos));
   return new THREE.AnimationClip(clip.name, dur, tracks);
+}
+// Seiko's own new body: the same man (white shirt, dark trousers, short black hair) at the detail of the people around him. Every move he has
+// (idle, walk, run, the elbow into a car window, hotwiring, the skydiving and canopy poses) is retargeted onto it from his old skeleton, and his
+// bones are given his old names as aliases so the gun, the watch and the hats still find them.
+function pplPlayer(gltf) {
+  if (!player.clips) return;
+  const e = { name: "seiko", female: false };
+  const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
+  const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
+  if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
+  root.updateMatrixWorld(true);
+  const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
+  root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
+  Object.keys(PPL_MAP).forEach(n => { if (bones[n]) bones[n].userData.alias = PPL_MAP[n]; });
+  const src = pplSource(), tgt = pplTarget(root, bones), clips = {};
+  Object.keys(player.clips).forEach(k => { const a = player.clips[k]; clips[k] = { clip: pplRetarget(src, tgt, a.getClip()), loop: a.loop, clamp: a.clampWhenFinished }; });
+  const fitted = fitSeiko(root), mixer = new THREE.AnimationMixer(scene), acts = {};
+  Object.keys(clips).forEach(k => { const a = mixer.clipAction(clips[k].clip); a.loop = clips[k].loop; a.clampWhenFinished = clips[k].clamp; acts[k] = a; });
+  player.mixer = mixer; player.clips = acts; player.action = null; player.clipName = ""; player.hq = true;
+  seikoSkin.base = null;
+  adoptSeiko(fitted);
+  gun.bones = undefined;
+  playSeikoClip("idle", 0);
+  console.log("[Konto] Seiko in high detail");
 }
 function pplFigure(e, height) {
   const body = cloneSkinned(e.root), wrap = new THREE.Group(), holder = new THREE.Group();

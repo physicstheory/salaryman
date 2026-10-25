@@ -22,6 +22,8 @@ from PIL import Image
 
 BM, BF, MA, FA, SP = "Professions/Business_Male_", "Professions/Business_Female_", "Adults/Male_Adult_", "Adults/Female_Adult_", "Professions/Sports_"
 # (file name, body avatar, head avatar or None, business?, female?)
+# Seiko himself: the white shirt and dark trousers of one office worker, with the face and short black hair he has always had
+PLAYER = ("seiko_player", BM + "06", BM + "02", True, False)
 RECIPES = [
     ("salaryman_01", BM + "02", None, True, False),
     ("salaryman_02", BM + "01", MA + "09", True, False),
@@ -29,7 +31,7 @@ RECIPES = [
     ("salaryman_04", BM + "04", BM + "02", True, False),
     ("salaryman_05", BM + "05", MA + "09", True, False),
     ("salaryman_06", BM + "06", MA + "10", True, False),
-    ("salaryman_07", BM + "07", BM + "02", True, False),
+    ("salaryman_07", BM + "07", MA + "09", True, False),
     ("salaryman_08", BM + "03", BM + "02", True, False),
     ("salaryman_09", BM + "05", MA + "10", True, False),
     ("salaryman_10", BM + "06", MA + "09", True, False),
@@ -234,7 +236,8 @@ def main():
             e = build(root, conv, outdir, r); index.append(e); print("built", e["name"], e["body"], "+", e["head"], e["tris"], "tris", e["bytes"] // 1024, "KB")
         except Exception as ex:
             print("skipped", r[0], repr(ex))
-    json.dump({"people": index}, open(os.path.join(outdir, "index.json"), "w"), indent=1)
+    player = build(root, conv, outdir, PLAYER); print("built player", player["bytes"] // 1024, "KB")
+    json.dump({"people": index, "player": player["file"]}, open(os.path.join(outdir, "index.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":
