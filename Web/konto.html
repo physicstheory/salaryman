@@ -1098,6 +1098,8 @@
         <button class="menu-btn" id="mres" type="button">Resolution: 100%</button>
         <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
+        <button class="menu-btn" id="madapt" type="button">Adaptive graphics: on</button>
+        <button class="menu-btn" id="mundo" type="button">Undo automatic graphics changes</button>
         <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
         <button class="menu-btn" id="mlook" type="button">Look speed: 100%</button>
         <button class="menu-btn" id="minvert" type="button">Invert look: off</button>
@@ -6149,7 +6151,7 @@ const PAD = {
 };
 
 // ---- the player's own settings, kept between sessions --------------------------------------------------------------------------------------
-const gameSet = { rumble: true, invertY: false, lookSens: 1.0 };
+const gameSet = { rumble: true, invertY: false, lookSens: 1.0, adapt: true };
 try { Object.assign(gameSet, JSON.parse(localStorage.getItem("konto.settings.v1") || "{}")); } catch (e) { /* defaults */ }
 function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.stringify(gameSet)); } catch (e) { /* not kept */ } }
 
@@ -6699,10 +6701,14 @@ function initPause() {
   on("mupdate", () => { setPaused(false); refreshGame(); });
   const syncSet = () => {
     const g = id => document.getElementById(id);
+    if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (lowers quality if the game is slow)" : "off (never changes by itself)");
+    if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
+  on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
+  on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
   on("mrumble", () => { gameSet.rumble = !gameSet.rumble; saveSettings(); syncSet(); if (gameSet.rumble) rumble(0.6, 0.6, 200); });
   on("mlook", () => { gameSet.lookSens = gameSet.lookSens >= 1.6 ? 0.5 : Math.round((gameSet.lookSens + 0.1) * 10) / 10; saveSettings(); syncSet(); });
   on("minvert", () => { gameSet.invertY = !gameSet.invertY; saveSettings(); syncSet(); });
@@ -7740,7 +7746,7 @@ function tryStep(dx, dz, radius) {
   if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
   if (insideBuilding(nx, nz, radius)) return false;
   if (treeBlocks(nx, nz, radius, player.pos.x, player.pos.z)) return false;
-  if (traffic.ready && carBlocks(nx, nz, radius)) return false;
+  if (traffic.ready && carBlocks(nx, nz, radius) && !carBlocks(player.pos.x, player.pos.z, radius)) return false;     // (already overlapping a car: any way out is allowed)
   // The edge of a platform or a flight of steps is a drop, not a doorway.
   if (world.walk.length && player.onWalk) {
     const ny = world.walkY(nx, nz, player.pos.y);
@@ -10046,6 +10052,13 @@ function detailTick() {
 const perf = { mult: 1, ceil: 1, acc: 0, n: 0, win: 0, hold: 3, up: 0, floorHits: 0, potato: 0,
                fps: 60, shown: false, el: null, calm: 0 };
 const PERF_FLOOR = 0.72;
+// Put back what automatic lowering took away: the tier, the resolution, the simplified world.
+function perfRestore() {
+  if (perf.undo && perf.undo.tier && gfx.tier !== perf.undo.tier) applyTier(perf.undo.tier, { quiet: true });
+  perf.mult = 1; perf.ceil = 1; perf.potato = 0; perf.slow = 0; perf.floorHits = 0; perf.undo = null;
+  if (typeof perfPotato === "function") perfPotato(0);
+  sizeRenderer(); syncQualityLabels(); perfHold(3);
+}
 
 function guessTier() {
   try {
@@ -10072,7 +10085,8 @@ function perfPotato(level) {
 }
 
 function perfFrame(rawMs) {
-  if (rawMs > 400) { perfHold(1.5); return; }          // a stall, not a frame rate
+  if (!gameSet.adapt) return;
+  if (rawMs > 250) { perfHold(1.5); return; }          // a stall, not a frame rate
   const dt = rawMs / 1000;
   if (perf.hold > 0) { perf.hold -= dt; return; }
   perf.acc += rawMs; perf.n++; perf.win += dt;
@@ -10082,23 +10096,27 @@ function perfFrame(rawMs) {
   perf.acc = 0; perf.n = 0; perf.win = 0;
   perf.calm += 1;
   if (perf.calm % 15 === 0) perf.ceil = Math.min(1, perf.ceil * 1.06);   // the scene may have got easier
-  if (avg > 36) {                                         // under about 28 fps
+  // one slow second is a building being raised or a door being opened, not a slow computer: it takes four in a row to lower the resolution,
+  // and many more to touch the quality tier
+  if (avg > 36) perf.slow = (perf.slow || 0) + 1; else perf.slow = 0;
+  if (avg > 36 && perf.slow >= 4) {                       // under about 28 fps, for four seconds
     perf.up = 0;
     if (perf.mult > PERF_FLOOR + 0.01) {
       perf.ceil = Math.min(perf.ceil, perf.mult * 1.04);
+      if (!perf.undo) perf.undo = { tier: gfx.tier };
       perf.mult = Math.max(PERF_FLOOR, perf.mult * (avg > 40 ? 0.78 : 0.88));
       sizeRenderer(); perfHold(1.2);
-    } else if (++perf.floorHits >= 3) {
+    } else if (++perf.floorHits >= 8) {
       perf.floorHits = 0;
       const i = TIER_ORDER.indexOf(gfx.tier);
       if (i > 0) {
-        const was = gfx.tier;
+        const was = gfx.tier; if (!perf.undo) perf.undo = { tier: was };
         applyTier(TIER_ORDER[i - 1], { quiet: true });
         perf.mult = 1; perf.ceil = 1; sizeRenderer(); syncQualityLabels(); perfHold(3);
-        say("Graphics turned down to " + gfx.tier + " to keep the frame rate up (it was " + Math.round(1000 / avg) + " fps on " + was + ").", 6);
+        say("Graphics turned down to " + gfx.tier + " to keep the frame rate up (it was " + Math.round(1000 / avg) + " fps on " + was + "). If that was not needed: Pause > Settings > Undo automatic graphics changes.", 9);
       } else if (perf.potato < 2) {
         perfPotato(perf.potato + 1); perfHold(3);
-        say("Simplifying the world to keep it moving.", 5);
+        if (!perf.undo) perf.undo = { tier: gfx.tier }; say("Simplifying the world to keep it moving. Pause > Settings > Undo automatic graphics changes puts it back.", 8);
       }
     }
   } else {
@@ -28725,8 +28743,21 @@ function leaveCar() {
   // Step out on the near side, and not into a wall.
   const side = new THREE.Vector3(Math.cos(c.yaw), 0, -Math.sin(c.yaw));
   const kind = CAR_KINDS[c.kind];
-  let out = c.pos.clone().addScaledVector(side, kind.W * 0.5 + 0.7);
-  if (insideBuilding(out.x, out.z, 0.45)) out = c.pos.clone().addScaledVector(side, -(kind.W * 0.5 + 0.7));
+  // the first spot beside the car (either side, then further out, then ahead and behind) where he is not inside a wall, a tree or a car
+  let out = c.pos.clone().addScaledVector(side, kind.W * 0.5 + 0.7), found = false;
+  const fwdV = new THREE.Vector3(Math.sin(c.yaw), 0, Math.cos(c.yaw));
+  const tries = [];
+  for (const d of [0.7, 1.1, 1.6, 2.4]) { tries.push(side.clone().multiplyScalar(kind.W * 0.5 + d)); tries.push(side.clone().multiplyScalar(-(kind.W * 0.5 + d))); }
+  for (const d of [kind.L * 0.5 + 1.0, kind.L * 0.5 + 2.2]) { tries.push(fwdV.clone().multiplyScalar(d)); tries.push(fwdV.clone().multiplyScalar(-d)); }
+  for (const o of tries) {
+    const q = c.pos.clone().add(o);
+    if (insideBuilding(q.x, q.z, 0.45) || world.sampleHeight(q.x, q.z) < 0.35 || treeBlocks(q.x, q.z, 0.45, q.x, q.z)) continue;
+    // the car itself is not in the parked list until it has been pushed above, so it is tested too
+    if (boxHit(c.pos.x, c.pos.z, c.yaw, kind, q.x, q.z, 0.5)) continue;
+    if (traffic.ready && carBlocks(q.x, q.z, 0.45)) continue;
+    out = q; found = true; break;
+  }
+  if (!found && insideBuilding(out.x, out.z, 0.45)) out = c.pos.clone().addScaledVector(side, -(kind.W * 0.5 + 0.7));
   player.pos.set(out.x, world.surfaceY(out.x, out.z), out.z);
   player.yaw = player.targetYaw = c.yaw;
   player.speed = 0;
