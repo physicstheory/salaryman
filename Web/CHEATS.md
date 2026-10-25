@@ -45,6 +45,7 @@ the driving seat.
 | TICKET | 5550175 | a free boarding pass from wherever you are |
 | SEOUL / KOHANA / RYUJIMA | 5550176-5550178 | go straight there |
 | HEATSEEKER | 5550179 | four stars, helicopters included |
+| FIXCAR | 5550181 | repair the car you are in |
 | TOOLEDUP | 5550180 | every gun, full magazines and spare ammo |
 | GOPOLICE / GOAIRPORT | 5550173 / 5550174 | the nearest police station / airport |
 | CHEATLIST | 5550190 | show every code |

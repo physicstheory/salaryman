@@ -9771,7 +9771,8 @@ function tick(dt) {
   fovFrame(dt);
   streamFrame();
   updateAirports(dt);
-  destFrame(dt); updateAirportGates(dt); updateHelis(dt); updateGhostPlanes(dt);
+  destFrame(dt); updateAirportGates(dt); updateHelis(dt); updateGhostPlanes(dt); updateWrecks(dt);
+  carFxTick(dt);
   if (gun.model && !(player.mode === "walk" && !drive.car && !drive.train && !flight.active && !chute.active)) gunFrame(dt);
   updateWorldSky(dt);
   followSun();
@@ -13039,7 +13040,7 @@ function updateTraffic(dt, at) {
 
   // The car you are driving and the ones you parked are instances of the same
   // meshes, written first so a full pool can never crowd them out.
-  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV, rollV) {
+  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV, rollV, dmg) {
     const paint = traffic.paint[kindIdx];
     const i = counts[kindIdx];
     if (i >= paint.instanceMatrix.count) return;
@@ -13063,8 +13064,11 @@ function updateTraffic(dt, at) {
       // Pitch for the weight, roll for the slide, yaw for where it is going.
       o.rotation.set(pitchV || 0, yawV, rollA, "YXZ");
       if (o.userData.paint && colour) {
-        o.userData.paint.color.setRGB(colour[0], colour[1], colour[2]);
+        const dl = dmg ? 1 - 0.28 * dmg.total : 1;
+        o.userData.paint.color.setRGB(colour[0] * dl, colour[1] * dl, colour[2] * dl);
+        if (o.userData.paint.roughness !== undefined) { if (o.userData.baseRough === undefined) o.userData.baseRough = o.userData.paint.roughness; o.userData.paint.roughness = o.userData.baseRough + (dmg ? 0.45 * dmg.total : 0); }
       }
+      carDamageView(o, CAR_KINDS[kindIdx], dmg);
       const lamps = o.userData.lamps;
       if (lamps) {
         // A two-tone flash at about three a second, out of phase.
@@ -13080,14 +13084,15 @@ function updateTraffic(dt, at) {
     _carMat.compose(_carPos, _carQuat, _carScale);
     paint.setMatrixAt(i, _carMat);
     traffic.trim[kindIdx].setMatrixAt(i, _carMat);
-    _carCol.setRGB(colour[0], colour[1], colour[2]);
+    const dl2 = dmg ? 1 - 0.3 * dmg.total : 1;
+    _carCol.setRGB(colour[0] * dl2, colour[1] * dl2, colour[2] * dl2);
     paint.setColorAt(i, _carCol);
     const deco = traffic.deco[kindIdx];
     if (deco) { deco.setMatrixAt(i, _carMat); deco.geometry.attributes.aUvOff.setXY(i, uv[0], uv[1]); }
   }
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
-                          drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0);
-  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv));
+                          drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0, drive.car.dmg);
+  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg));
   dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
   police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
 
@@ -20814,6 +20819,7 @@ const CHEAT_ACTIONS = {
   KOHANA:    { dial: "5550177", note: "The Kohana Islands", fn: () => cheatDest("kohana") },
   RYUJIMA:   { dial: "5550178", note: "Ryūjima", fn: () => cheatDest("ryujima") },
   HEATSEEKER:{ dial: "5550179", note: "Four stars, helicopters and all", fn: () => { wanted.stars = 4; wanted.lastCrime = "Stealing an aircraft"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); } },
+  FIXCAR:    { dial: "5550181", note: "", fn: () => { const c = drive.car; if (!c) { say("Get in a car first.", 2); return; } c.dmg = null; c.deadSaid = false; say("Good as new.", 2); } },
   TOOLEDUP:  { dial: "5550180", note: "Every gun, full magazines and spare ammo", fn: () => { Object.keys(GUNS).forEach(id => { wheel[id + "Owned"] = true; gunGive(id, 2); gunAmmoOf(id).mag = GUNS[id].mag; }); if (!GUNS[wheel.equipped]) wheel.equipped = "pistol"; } },
   GOPOLICE:  { dial: "5550173", note: "The nearest police station", fn: () => cheatGoShop(s => s.police) },
   REFRESH:   { dial: "5550199", note: "Looking for a new version", fn: () => refreshGame() }
@@ -28882,7 +28888,7 @@ function enterParked(i) {
   const p = drive.parked.splice(i, 1)[0];
   drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
                 pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0, lights: nightState.lit > 0.3,
-                colour: p.colour.slice(), uv: p.uv.slice(),
+                colour: p.colour.slice(), uv: p.uv.slice(), dmg: p.dmg || null,
                 rec: p.owned ? p : null };
   document.body.classList.add("driving");
   if (player.obj) player.obj.visible = false;
@@ -28902,14 +28908,14 @@ function leaveCar() {
   if (c.rec) {
     // Your own car goes back into the list as the same record, wherever you
     // left it, and is never the one that gets forgotten.
-    c.rec.pos.copy(c.pos); c.rec.yaw = c.yaw;
+    c.rec.pos.copy(c.pos); c.rec.yaw = c.yaw; c.rec.dmg = c.dmg || null;
     c.rec.atGarage = garage.built && garage.bays.concat(garage.spill)
       .some(b => Math.hypot(b.x - c.pos.x, b.z - c.pos.z) < 3.2);
     drive.parked.push(c.rec);
     garageSave();
   } else {
     drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
-                        colour: c.colour.slice(), uv: c.uv.slice() });
+                        colour: c.colour.slice(), uv: c.uv.slice(), dmg: c.dmg || null });
   }
   // Only strangers' cars are forgotten, oldest first.
   let strangers = drive.parked.filter(q => !q.owned && !q.scenery && !q.rental).length;
@@ -29162,92 +29168,81 @@ function updateDrive(dt) {
     driveFeedback(c, kind, dt, throttle, brake, true);
   } else {
   const perf = PERF[kind.name] || { top: kind.top * 1.4, to100: 12 };
-    const top = perf.top;
-    // 27.8 m/s in the quoted time is the acceleration at the bottom of the rev
-    // range; it falls off towards the top the way a real one does, which is what
-    // stops a supercar reaching 94 m/s in four seconds.
+    // Damage takes the edge off: a smashed front end loses power, and a wrecked car will not go at all.
+    const D = c.dmg, hurt = D ? Math.max(D.front * 0.9, D.total) : 0;
+    if (D && D.total >= 1) { throttle = 0; if (!c.deadSaid) { c.deadSaid = true; say("The engine is dead. Get out and find another car.", 4); } }
+    if (D) steer = clamp(steer + (D.right - D.left) * 0.14, -1, 1);
+    const top = perf.top * (1 - 0.45 * hurt);
+    // The car has a velocity of its own, not just a speed along its nose: the tyres push it towards where it points, up to what they can
+    // grip, so it understeers when you ask too much of the front, slides when the back lets go, and the handbrake breaks the rear loose.
+    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
+    if (!c.vel) c.vel = new THREE.Vector2(fx * c.speed, fz * c.speed);
+    let vf = c.vel.x * fx + c.vel.y * fz, vl = c.vel.x * rx + c.vel.y * rz;
+    const mu = bikeGrip(kind, c.pos.x, c.pos.z) * (kind.body === "sports" || /super|sports|roadster/.test(kind.name) ? 1.08 : kind.body === "truck" || kind.body === "bus" ? 0.82 : 0.95);
+    const g = 9.81;
     const pull = 27.8 / perf.to100;
-    const fade = 1 - clamp01(Math.abs(c.speed) / top) * 0.72;
-    if (throttle > 0) c.speed += throttle * (c.speed < 0 ? pull * 2.4 : pull * fade) * dt;
-    if (brake > 0) {
-      if (c.speed > 0.4) c.speed -= brake * 13 * dt;
-      else c.speed -= brake * pull * 0.9 * dt;        // into reverse
-    }
-    // The handbrake locks the back: it scrubs speed and lets the tail come round,
-    // which is a handbrake turn rather than a simulation of one.
-    if (hand) c.speed *= Math.pow(0.22, dt);
-    if (throttle === 0 && brake === 0) c.speed *= Math.pow(0.68, dt);   // engine braking
-    c.speed = clamp(c.speed, -top * 0.35, top);
-  
-    // Steering falls off with speed, so it turns in a car park and tracks on a
-    // motorway, which is the whole of an arcade steering model worth having.
-    const grip = 1 / (1 + Math.abs(c.speed) * 0.16);
+    const fade = 1 - clamp01(Math.abs(vf) / top) * 0.72;
+    // drive: limited by grip (wheelspin), and by the engine
+    let ax = 0;
+    if (throttle > 0) ax += throttle * (vf < 0 ? pull * 2.4 : Math.min(pull * fade, mu * g * 0.85));
+    if (brake > 0) ax -= vf > 0.4 ? brake * Math.min(13, mu * g * 1.05) : brake * pull * 0.9;
+    if (throttle === 0 && brake === 0) ax -= vf * 0.38 + Math.sign(vf) * 0.25;     // engine braking and rolling resistance
+    ax -= 0.0009 * vf * Math.abs(vf);                                                 // air
+    vf += ax * dt;
+    if (hand) vf *= Math.pow(0.35, dt);
+    vf = clamp(vf, -top * 0.35, top);
+    // steering: a wheel angle that narrows with speed, and the yaw rate the angle asks for (a bicycle model), held to what the front can grip
     c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
-    const loose = hand ? 2.1 : 1.0;
-    const rate = c.steer * grip * 1.9 * loose * Math.min(1, Math.abs(c.speed) / 2.2);
-    // Which way steering right turns the car. The car's forward is
-    // (sin yaw, cos yaw), so its right-hand side - forward crossed with up - is
-    // (-cos yaw, sin yaw), and turning towards it means yaw goes DOWN. Adding
-    // the rate steered the car to the left whenever you asked for right, which
-    // is what made it feel like it was driving itself. The sign of the speed
-    // flips it again in reverse, which is correct: back the car up with the
-    // wheel to the right and the nose swings left, same as a real one.
-    c.yaw -= rate * dt * Math.sign(c.speed || 1);
-    // How far the tail is out, which is only used to lean the body into the
-    // slide: there is no separate velocity vector to chase.
-    c.slide = lerp(c.slide || 0, hand ? c.steer * clamp01(Math.abs(c.speed) / 14) : 0,
-                   1 - Math.pow(0.004, dt));
-  
-    // ---- weight. Push the stick forward and the weight goes over the nose;
-    // pull it back and it sits on the rear wheels. On a bike that is a stoppie
-    // and a wheelie; on a car it is dive and squat, which is the same thing with
-    // a suspension in the way.
-    // Forward on the stick is weight over the nose, back is weight on the rear
-    // wheel. On a keyboard the throttle is already on W, so shift is the lean:
-    // hold it with the throttle open and the front comes up.
+    const wheelbase = kind.L * 0.6, maxAng = 0.62 / (1 + Math.abs(vf) * 0.045);
+    let rate = vf * Math.tan(c.steer * maxAng) / wheelbase;
+    const cap = mu * g * 1.05 / Math.max(Math.abs(vf), 1.5);
+    c.under = Math.abs(rate) > cap ? clamp01((Math.abs(rate) - cap) / cap) : 0;          // understeer: how much more you asked for than you got
+    rate = clamp(rate, -cap, cap);
+    // the back end: the handbrake (or a big lift-off at speed) lets it step out, and the slide feeds into the yaw
+    const rearMu = hand ? 0.32 : 1;
+    rate += (hand ? c.steer * 1.4 * clamp01(Math.abs(vf) / 8) : 0) + vl * 0.06 * (hand ? 1 : 0.3);
+    c.yaw -= rate * dt;
+    // lateral velocity: the tyres scrub it away, up to their grip; on a locked rear it lingers, which is a drift
+    const scrub = mu * g * (1.6 * rearMu + 0.4) * dt;
+    vl = Math.abs(vl) <= scrub ? 0 : vl - Math.sign(vl) * scrub;
+    // turning the nose leaves the velocity behind for a moment: that is what makes the slide
+    const nfx = Math.sin(c.yaw), nfz = Math.cos(c.yaw), nrx = -Math.cos(c.yaw), nrz = Math.sin(c.yaw);
+    c.vel.set(fx * vf + rx * vl, fz * vf + rz * vl);
+    vf = c.vel.x * nfx + c.vel.y * nfz; vl = c.vel.x * nrx + c.vel.y * nrz;
+    c.speed = vf; c.vlat = vl;
+    c.slide = lerp(c.slide || 0, clamp(-vl / 7, -1, 1), 1 - Math.pow(0.004, dt));
+    // tyres: squeal when the slide or the understeer is big, and leave marks
+    const squeal = clamp01(Math.abs(vl) / 4 + c.under * 0.8 + (hand && Math.abs(vf) > 6 ? 0.5 : 0));
+    c.squeal = squeal;
+    if (squeal > 0.35 && Math.abs(vf) > 5) skidMark(c, kind);
+    // body roll in a corner, measured from the lateral acceleration
+    c.roll = lerp(c.roll || 0, clamp(rate * vf / g * 0.06, -0.08, 0.08), 1 - Math.pow(0.01, dt));
+
+    // ---- weight. Push the stick forward and the weight goes over the nose; pull it back and it sits on the rear wheels.
     const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
     c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
-    const twoWheels = !!TWO_WHEELERS[kind.body];
-    let wantPitch = -c.accelPitch * 0.045;
-    if (twoWheels) {
-      // Shifting your weight back. Back on the stick (or hold Shift) with the
-      // throttle open lifts the front wheel, and the further back the higher it
-      // goes; it needs a little speed, and a heavy cruiser lifts less than a
-      // sportsbike does. Forward under braking puts the nose down. Let go and the
-      // front drops.
-      const heavy = kind.body === "cruiser" ? 0.62 : kind.body === "tourer" ? 0.5 : kind.body === "scooter" ? 0.4 : 1;
-      if (c.lean < -0.22 && throttle > 0.4 && c.speed > 1.5) {
-        wantPitch -= (-c.lean - 0.22) / 0.78 * 0.70 * heavy * clamp01(c.speed / 6);
-        c.wheelie = true;
-      } else {
-        c.wheelie = false;
-        if (c.lean > 0.35 && brake > 0.45 && c.speed > 4.0) wantPitch += (c.lean - 0.35) / 0.65 * 0.34;
-      }
-    } else {
-      wantPitch += c.lean * 0.055;
-    }
+    let wantPitch = -c.accelPitch * 0.045 + c.lean * 0.055;
     c.pitch = lerp(c.pitch || 0, clamp(wantPitch, -0.72, 0.42), 1 - Math.pow(0.0009, dt));
-  
-    // Acceleration, for the dive and squat, measured rather than guessed at.
     const accel = (c.speed - (c.lastSpeed === undefined ? c.speed : c.lastSpeed)) / Math.max(1e-4, dt);
     c.lastSpeed = c.speed;
     c.accelPitch = lerp(c.accelPitch || 0, clamp(accel / 9, -1, 1), 1 - Math.pow(0.02, dt));
-  
-    const step = c.speed * dt;
-    const nx = c.pos.x + Math.sin(c.yaw) * step, nz = c.pos.z + Math.cos(c.yaw) * step;
+
+    const nx = c.pos.x + c.vel.x * dt, nz = c.pos.z + c.vel.y * dt;
+    const sgn = Math.sign(vf || 1);
     const onDeck = world.bridgeY(nx, nz) !== null;
     const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
       || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
       || insideBuilding(nx, nz, kind.W * 0.45)
       || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
-      || treeBlocks(nx + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), nz + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), kind.W * 0.38,
-                    c.pos.x + Math.sin(c.yaw) * kind.L * 0.4 * Math.sign(c.speed), c.pos.z + Math.cos(c.yaw) * kind.L * 0.4 * Math.sign(c.speed));
+      || treeBlocks(nx + nfx * kind.L * 0.4 * sgn, nz + nfz * kind.L * 0.4 * sgn, kind.W * 0.38, c.pos.x + nfx * kind.L * 0.4 * sgn, c.pos.z + nfz * kind.L * 0.4 * sgn);
     if (blocked) {
-      if (Math.abs(c.speed) > 2.5 && !(c.crashCool > 0)) { playCrash(Math.abs(c.speed)); c.crashCool = 0.8; }
-      c.speed *= -0.22;                               // a thump, not a bounce
+      const imp = Math.hypot(c.vel.x, c.vel.y);
+      if (imp > 2.5 && !(c.crashCool > 0)) { playCrash(imp); c.crashCool = 0.8; carDamage(c, -nfx * sgn, -nfz * sgn, imp); drive.shake = Math.max(drive.shake || 0, clamp(imp / 14, 0.2, 1)); vitals.health = clamp01(vitals.health - Math.max(0, imp - 14) * 0.012); }
+      c.vel.multiplyScalar(-0.2); c.speed = c.vel.x * nfx + c.vel.y * nfz;                // a thump, not a bounce
     } else {
       c.pos.x = nx; c.pos.z = nz;
     }
+    carSmoke(c, kind, dt);
     driveCollisions(c, kind, dt);
     c.pos.y = world.surfaceY(c.pos.x, c.pos.z) + 0.04;
   
@@ -29316,10 +29311,12 @@ function driveCollisions(c, kind, dt) {
   const share = worst.ref.car ? 0.75 : 1.0;
   const push = worst.pen + 0.03;
   c.pos.x += worst.nx * push * share; c.pos.z += worst.nz * push * share;
-  const vn = c.speed * (fx * worst.nx + fz * worst.nz);       // negative: you were driving into it
+  const vn = c.vel && !TWO_WHEELERS[kind.body] ? c.vel.x * worst.nx + c.vel.y * worst.nz : c.speed * (fx * worst.nx + fz * worst.nz);       // negative: you were driving into it
   if (vn < -0.4) {
     const impact = -vn;
     c.speed *= clamp(1 - impact / 15, 0.12, 0.82);
+    if (c.vel && !TWO_WHEELERS[kind.body]) { c.vel.x -= worst.nx * vn * 1.25; c.vel.y -= worst.nz * vn * 1.25; c.vel.multiplyScalar(clamp(1 - impact / 25, 0.3, 0.9)); }
+    if (impact > 2.2) carDamage(c, worst.nx, worst.nz, impact);
     drive.shake = Math.max(drive.shake || 0, clamp(impact / 12, 0.15, 1));
     vitals.stress = clamp01(vitals.stress + impact * 0.0018);
     if (!(c.crashCool > 0) && impact > 1.8) { playCrash(impact); c.crashCool = impact > 3.5 ? 1.2 : 0.6; if (impact > 3.5) say("Crash.", 2); }
@@ -31019,7 +31016,8 @@ function airLandside(s, key) {
   for (let k = 0; k < 6; k++) inCyl(root, 0.05, 0.9, sx - 3 - k * 1.3, 0.45, sz - 4.2 + (k % 2) * 0.0, "#2a3039");
   spots.push({ x: sx - 2.2, z: sz, label: "go through security", act: "security", walk: true });
   // seating, columns, plants, signs: a hall that is lived in
-  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const x = -18 + c * 5.2, z = 8 + r * 2.4; box(3.6, 0.1, 0.7, x, z, "#2a3039", 0.5); box(3.6, 0.5, 0.1, x, z - 0.35, "#2a3039", 0.8); box(0.1, 0.5, 0.6, x - 1.7, z, "#8d939c", 0.25); box(0.1, 0.5, 0.6, x + 1.7, z, "#8d939c", 0.25); solid(x, z, 3.8, 0.9); if ((r + c) % 3 === 0) airPerson(root, x - 0.8, z, Math.PI, null); }
+  room.seats = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) { const x = -18 + c * 5.2, z = 8 + r * 2.4; [-1.1, 0, 1.1].forEach(dx => room.seats.push({ x: x + dx, z: z + 0.08, yaw: 0 })); box(3.6, 0.1, 0.7, x, z, "#2a3039", 0.5); box(3.6, 0.5, 0.1, x, z - 0.35, "#2a3039", 0.8); box(0.1, 0.5, 0.6, x - 1.7, z, "#8d939c", 0.25); box(0.1, 0.5, 0.6, x + 1.7, z, "#8d939c", 0.25); solid(x, z, 3.8, 0.9); if ((r + c) % 3 === 0) airPerson(root, x - 0.8, z, Math.PI, null); }
   for (const x of [-24, -10, 4, 18]) for (const z of [-8.3, 8.6]) { box(0.9, H, 0.9, x, z, "#dfe2e5"); solid(x, z, 1.0, 1.0); }
   for (let i = 0; i < 4; i++) { const x = [-23, -5, 11, 23][i]; inCyl(root, 0.4, 0.7, x, 0.35, 11.6, "#8a5a3a"); for (let k = 0; k < 6; k++) inAdd(root, 0.1, 1.5, 0.05, x + (k - 2.5) * 0.12, 1.4, 11.6, "#3f8f4a"); }
   box(6, 1.0, 1.0, -6, 11.4, "#c9ced4"); box(6, 0.08, 1.1, -6, 11.4, "#14527a", 1.04); solid(-6, 11.4, 6, 1.0);
@@ -31057,7 +31055,8 @@ function airAirside(land) {
     const gs = inLabel("GATE " + gname, 2.4, 0.7, "#ffd21c", "#14171b"); gs.position.set(x, 4.2, -D / 2 + 0.3); root.add(gs);
     box(3.6, 2.6, 0.2, x + 3.2, -D / 2 + 0.3, "#3a4048"); inAdd(root, 3.2, 2.2, 0.06, x + 3.2, 1.4, -D / 2 + 0.4, "#14171b");
     spots.push({ x: x + 3.2, z: -D / 2 + 2.2, label: "gate " + gname + ": jet bridge", act: "gate", gate: gname, walk: true });
-    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const bx = x - 1.5 + c * 1.8, bz = -4.4 + r * 1.5; box(1.4, 0.1, 0.55, bx, bz, "#2a3039", 0.5); box(1.4, 0.45, 0.1, bx, bz + 0.3, "#2a3039", 0.8); if ((i + r + c) % 4 === 0) airPerson(root, bx, bz, Math.PI, null); }
+    room.seats = room.seats || [];
+    for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const bx = x - 1.5 + c * 1.8, bz = -4.4 + r * 1.5; [-0.4, 0.4].forEach(dx => room.seats.push({ x: bx + dx, z: bz - 0.06, yaw: Math.PI })); box(1.4, 0.1, 0.55, bx, bz, "#2a3039", 0.5); box(1.4, 0.45, 0.1, bx, bz + 0.3, "#2a3039", 0.8); if ((i + r + c) % 4 === 0) airPerson(root, bx, bz, Math.PI, null); }
   });
   // shops along the south wall
   [-21, -13.5, -6, 1.5].forEach((x, i) => airFront(root, room, spots, x, D / 2 - 0.45, 6.4, AIR_AIRSIDE_SHOPS[(land.term || 1) - 1][i], -1));
@@ -31824,11 +31823,48 @@ function flightAbort() {
   flight.parked.push({ mesh: flight.mesh, len: flight.len, span: flight.span, ap: flight.ap, h: flight.h, off: flight.off });
   if (player.obj) player.obj.visible = true;
 }
+// A crash leaves a wreck: the aircraft, blackened and broken-backed, where it came down, a fireball, debris across the ground, fire and smoke
+// that burn for a minute, and Seiko thrown clear and hurt beside it.
 function flightCrash(why) {
   flight.lastCrash = why;
-  const m = flight.mesh; flight.active = false; flight.hud.style.display = "none"; flightQuality(false); scene.remove(m);
-  say(why, 6); vitals.health = clamp01(vitals.health - 0.45); vitals.stress = clamp01(vitals.stress + 0.3); drive.shake = 1; rumble(1, 1, 500);
-  const ap = flight.ap || world.airports[0], p = fromRectLocal(0, (ap.termFront || (ap.big ? 256 : 206)) - 12, ap.cx, ap.cz, ap.yaw); player.obj.visible = true; placeSeiko(new THREE.Vector3(p[0], 0, p[1])); player.mode = "walk";
+  const f = flight, m = f.mesh; f.active = false; f.hud.style.display = "none"; flightQuality(false);
+  say(why, 6); vitals.health = clamp01(vitals.health - 0.45); vitals.stress = clamp01(vitals.stress + 0.3); drive.shake = 1; rumble(1, 1, 700); playCrash(40);
+  const sea = world.sampleHeight(f.pos.x, f.pos.z) < 0.2, gy = sea ? 0 : world.surfaceY(f.pos.x, f.pos.z);
+  m.position.set(f.pos.x, gy + (sea ? -1.5 : f.off * 0.35), f.pos.z);
+  m.rotation.set(0, f.h - Math.PI / 2, 0, "YXZ"); m.rotateZ(-0.12); m.rotateX((Math.random() - 0.5) * 0.7);
+  m.traverse(o => { if (o.isMesh && o.material) { o.material = o.material.clone(); if (o.material.color) o.material.color.multiplyScalar(0.28); if (o.material.emissive) o.material.emissive.setHex(0); } });
+  if (m.userData.gear) m.userData.gear.forEach(gr => { gr.visible = false; });
+  const w = { m: m, t: 0, life: 70, sea: sea, pos: m.position.clone(), puffT: 0 };
+  w.light = new THREE.PointLight(0xff7a2a, sea ? 0 : 6, 60, 2); w.light.position.copy(w.pos).add(new THREE.Vector3(0, 3, 0)); scene.add(w.light);
+  w.ball = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex(), color: 0xffa040, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })); w.ball.position.copy(w.light.position); scene.add(w.ball);
+  const n = 24, span = f.span || 20;
+  for (let i = 0; i < n; i++) { const pc = new THREE.Mesh(new THREE.BoxGeometry(0.3 + Math.random() * span * 0.05, 0.08, 0.2 + Math.random() * span * 0.04), new THREE.MeshStandardMaterial({ color: i % 3 ? 0x2a2c30 : 0xb8bcc2, roughness: 0.6, metalness: 0.4 }));
+    pc.position.copy(w.pos).add(new THREE.Vector3(0, 1.5, 0)); scene.add(pc); const a = Math.random() * 6.283, sp = 6 + Math.random() * 14;
+    carFx.debris.push({ m: pc, t: 0, w: (Math.random() - 0.5) * 14, v: new THREE.Vector3(Math.cos(a) * sp + Math.sin(f.h) * f.v * 0.25, 3 + Math.random() * 8, Math.sin(a) * sp + Math.cos(f.h) * f.v * 0.25) }); }
+  (flight.wrecks || (flight.wrecks = [])).push(w); while (flight.wrecks.length > 3) { const o = flight.wrecks.shift(); scene.remove(o.m); scene.remove(o.light); scene.remove(o.ball); }
+  // Seiko: thrown clear, on the ground, then up again
+  let px = f.pos.x - Math.sin(f.h) * 14, pz = f.pos.z - Math.cos(f.h) * 14;
+  if (world.sampleHeight(px, pz) < 0.5) { for (let r = 20; r < 900; r += 20) { let ok = false; for (let a = 0; a < 12; a++) { const x = f.pos.x + Math.cos(a / 12 * 6.283) * r, z = f.pos.z + Math.sin(a / 12 * 6.283) * r; if (world.sampleHeight(x, z) > 1.2) { px = x; pz = z; ok = true; break; } } if (ok) break; } }
+  player.obj.visible = true; placeSeiko(new THREE.Vector3(px, 0, pz)); player.mode = "walk"; player.yaw = player.targetYaw = Math.atan2(f.pos.x - px, f.pos.z - pz); yaw = player.yaw + Math.PI;
+  player.down = 3.5; player.knock.set(-Math.sin(f.h) * 3, 0, -Math.cos(f.h) * 3);
+}
+function updateWrecks(dt) {
+  (flight.wrecks || []).forEach(w => {
+    if (w.t > w.life) return;
+    w.t += dt;
+    const k = w.t / w.life;
+    w.ball.scale.setScalar(w.t < 1.2 ? 4 + w.t * 30 : Math.max(0, 40 - (w.t - 1.2) * 60)); w.ball.material.opacity = w.t < 1.2 ? 1 : Math.max(0, 1 - (w.t - 1.2) * 1.5);
+    w.light.intensity = w.sea ? 0 : (6 + Math.sin(w.t * 13) * 1.5 + Math.sin(w.t * 7.3)) * (1 - k);
+    w.puffT -= dt;
+    if (w.puffT <= 0 && k < 0.95) {
+      w.puffT = w.sea ? 0.3 : 0.08;
+      const fire = !w.sea && Math.random() < 0.45 && k < 0.7;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex(), color: fire ? 0xff7a20 : (w.sea ? 0xdddddd : 0x222222), transparent: true, depthWrite: false, blending: fire ? THREE.AdditiveBlending : THREE.NormalBlending, opacity: 0.7 }));
+      sp.position.copy(w.pos).add(new THREE.Vector3((Math.random() - 0.5) * 6, 1 + Math.random() * 2, (Math.random() - 0.5) * 6)); sp.scale.setScalar(fire ? 2 : 3);
+      scene.add(sp); carFx.puffs.push({ s: sp, t: 0, life: fire ? 1.0 : 6, vy: fire ? 4 : 3 + Math.random() * 2 });
+    }
+    if (w.t > w.life) { w.light.intensity = 0; scene.remove(w.ball); }
+  });
 }
 function updateFlight(dt) {
   const f = flight, P = f.P, gp = pad.gp, K = keys, g = 9.8;
@@ -31841,17 +31877,26 @@ function updateFlight(dt) {
   }
   pitchIn = clamp(pitchIn, -1, 1); rollIn = clamp(rollIn, -1, 1); rud = clamp(rud, -1, 1);
   f.thr = clamp(f.thr + thrIn * 0.45 * dt, 0, 1);
+  // engines spool: a jet takes several seconds to wind up, a propeller about one
+  f.eng = f.eng === undefined ? f.thr : f.eng + (f.thr - f.eng) * (1 - Math.exp(-dt / (P === FP_JET ? 2.4 : 0.7)));
   const brake = !!K.Space;
   const ground = world.surfaceY(f.pos.x, f.pos.z), alt = f.pos.y - f.off - ground;
   const aoa = f.air ? f.pitch - f.gamma : f.pitch;
   const stallK = aoa > 0.26 ? Math.max(0.12, 1 - (aoa - 0.26) / 0.08) : 1;
   const cl = clamp((aoa + 0.03) / 0.20, -0.9, 1.15) * stallK;
-  const aL = g * (f.v / P.vs) * (f.v / P.vs) * cl;
+  // near the ground the wing works better (ground effect): more lift, less induced drag, the float before touchdown
+  const ge = f.air ? clamp01(1 - alt / Math.max(4, (f.span || 30) * 0.6)) : 0;
+  const aL = g * (f.v / P.vs) * (f.v / P.vs) * cl * (1 + 0.12 * ge);
   f.stall = f.air && (aoa > 0.255 || (f.v < P.vs * 0.9 && alt > 5));
-  const thrust = f.thr * P.thr * clamp(1 - f.v / (P.vmax * 1.2), 0.1, 1);
+  const thrust = f.eng * P.thr * clamp(1 - f.v / (P.vmax * 1.2), 0.1, 1);
   if (!f.air) {
     // on the wheels: thrust against drag and rolling resistance; brakes; the rudder steers the nose wheel; the nose comes up past rotation speed
     f.v = Math.max(0, f.v + (thrust - P.c0 * f.v * f.v - 0.25 - (brake ? 7 : 0)) * dt);
+    // a tail strike: rotate too far on the runway and the tail scrapes
+    if (f.pitch > 0.2 && f.v > P.vr * 0.7 && !(f.strikeT > 0)) { f.strikeT = 3; playCrash(6); drive.shake = 0.6; say("Tail strike! Don't over-rotate.", 3); f.hurt = (f.hurt || 0) + 0.15; }
+    if (f.strikeT > 0) f.strikeT -= dt;
+    // a crosswind pushes you about on the roll
+    f.h += Math.sin(clock * 0.21) * 0.004 * clamp01(f.v / 30) * dt;
     f.h -= rud * clamp(f.v / 9, 0, 1) * 0.5 * dt * (f.v > 0.2 ? 1 : 0);
     const auth = clamp(f.v / P.vr, 0, 1.3);
     f.pitch = f.v > P.vr * 0.8 ? clamp(f.pitch + pitchIn * P.pitchRate * auth * dt - (pitchIn ? 0 : f.pitch * 1.2 * dt), -0.02, 0.24) : lerp(f.pitch, 0, 1 - Math.pow(0.1, dt));
@@ -31866,7 +31911,15 @@ function updateFlight(dt) {
     f.pitch += pitchIn * P.pitchRate * auth * dt;
     if (!pitchIn) { const need = g * cosG / Math.max(Math.cos(f.roll), 0.35), covs = need / (g * (f.v / P.vs) * (f.v / P.vs)), trim = clamp(covs * 0.20 - 0.03, -0.03, 0.22); f.pitch += ((f.gamma + trim) - f.pitch) * 0.6 * dt; }
     f.roll = clamp(f.roll + rollIn * P.rollRate * auth * dt - (rollIn ? 0 : f.roll * 0.3 * dt), -1.2, 1.2);
+    // the stall: the nose drops, and one wing goes first; hold the stick back and it becomes a spin
     if (f.stall && aoa > 0.28) f.pitch -= 0.4 * dt;
+    if (f.stall) { if (!f.dropDir) { f.dropDir = Math.random() < 0.5 ? -1 : 1; rumble(0.5, 0.8, 300); } f.roll += f.dropDir * (0.9 + (pitchIn > 0.3 ? 1.4 : 0)) * dt; if (pitchIn > 0.3) f.h += f.dropDir * 0.6 * dt; drive.shake = Math.max(drive.shake || 0, 0.25); }
+    else f.dropDir = 0;
+    // turbulence: rough air low down and over the hills, more in a light aircraft
+    const turb = (P === FP_JET ? 0.4 : 1) * (0.3 + clamp01(1 - alt / 600)) * 0.04;
+    f.pitch += (Math.sin(clock * 3.1 + f.pos.x * 0.01) * Math.sin(clock * 1.7)) * turb * dt * 6; f.roll += Math.sin(clock * 2.3 + f.pos.z * 0.01) * turb * dt * 8;
+    // too fast: the airframe buffets
+    if (f.v > P.vmax * 1.12) drive.shake = Math.max(drive.shake || 0, clamp01((f.v / P.vmax - 1.12) * 4));
     f.pitch = clamp(f.pitch, -0.95, 0.75);
     f.gamma += ((aL * Math.cos(f.roll) - g * cosG) / Math.max(f.v, 12)) * dt; f.gamma = clamp(f.gamma, -1.3, 1.1);
     // the rudder yaws the nose (more authority the faster you go), drags a little bank in after it, and costs a little speed
@@ -31875,21 +31928,23 @@ function updateFlight(dt) {
     f.h -= ((aL * Math.sin(f.roll)) / (Math.max(f.v, 12) * Math.max(cosG, 0.3)) + rud * P.rudRate * 1.1 * rAuth) * dt;
     f.roll = clamp(f.roll + rud * P.rollRate * 0.18 * rAuth * dt, -1.2, 1.2);
     f.v -= Math.abs(rud) * 0.6 * dt;
-    const drag = P.c0 * f.v * f.v + P.ci * aL * aL / (f.v * f.v + 1);
+    const drag = P.c0 * f.v * f.v + P.ci * aL * aL / (f.v * f.v + 1) * (1 - 0.4 * ge) + (f.gearDown ? P.c0 * 0.35 * f.v * f.v : 0);
     f.v = clamp(f.v + (thrust - drag - g * Math.sin(f.gamma)) * dt, 12, P.vmax * 1.25);
     f.pos.x += Math.sin(f.h) * cosG * f.v * dt; f.pos.z += Math.cos(f.h) * cosG * f.v * dt; f.pos.y += Math.sin(f.gamma) * f.v * dt;
     const gnow = world.surfaceY(f.pos.x, f.pos.z) + f.off;
     if (f.pos.y <= gnow) {
       const sink = -Math.sin(f.gamma) * f.v;
       if (sink > P.crashV || Math.abs(f.roll) > 0.3 || f.pitch < -0.1 || world.sampleHeight(f.pos.x, f.pos.z) < 0.2) return flightCrash(world.sampleHeight(f.pos.x, f.pos.z) < 0.2 ? "You put an aircraft into the sea." : "You crashed the aircraft.");
-      f.air = false; f.pos.y = gnow; f.gamma = 0; f.roll = 0; say(sink < 2.5 ? "A smooth landing." : "Down, hard.", 2.5);
+      // a firm arrival bounces you back up; a smooth one stays down
+      if (sink > 2.6 && !f.bounced) { f.bounced = true; f.pos.y = gnow + 0.2; f.gamma = clamp(sink * 0.012, 0.01, 0.05); f.v *= 0.95; playCrash(4); drive.shake = 0.5; say("Bounced!", 1.5); }
+      else { f.air = false; f.bounced = false; f.pos.y = gnow; f.gamma = 0; f.roll = 0; say(sink < 1.2 ? "A greaser. Perfect landing." : sink < 2.6 ? "A smooth landing." : "Down, hard.", 2.5); }
     } else if (alt < 160 && aircraftHitsSolid(f.pos.x, f.pos.y, f.pos.z, f.span * 0.2)) return flightCrash("You flew an aircraft into a building.");
     if (f.pos.x < 0 || f.pos.z < 0 || f.pos.x > WORLD_X || f.pos.z > WORLD_Z) f.h += Math.PI * dt * 0.4;
   }
   player.speed = f.v;
   if (!f.air) f.slip = lerp(f.slip || 0, 0, 0.2);
   const m = f.mesh; m.visible = f.cam !== 1; m.position.copy(f.pos); m.rotation.set(0, f.h - Math.PI / 2 - (f.slip || 0), 0, "YXZ"); m.rotateZ(f.pitch); m.rotateX(f.roll);
-  const ud = m.userData, down = !f.air || (alt < 45 && f.v < P.vs * 1.7); if (ud.gear) ud.gear.forEach(gr => { gr.visible = down; });
+  const ud = m.userData, down = !f.air || (alt < 45 && f.v < P.vs * 1.7); f.gearDown = down && f.air; if (ud.gear) ud.gear.forEach(gr => { gr.visible = down; });
   if (ud.prop) ud.prop.rotation.x += (20 + f.thr * 90) * dt;
   player.pos.copy(f.pos); player.yaw = f.h;
   // cameras: behind and above; far behind; or from the cockpit, which turns with the aircraft
@@ -32440,6 +32495,9 @@ function pedPoseClips(root) {
   make("cower", { UpperArmR: [0, 0, 1.9], ForearmR: [0, 0, 2.1], UpperArmL: [0, 0, -1.9], ForearmL: [0, 0, -2.1], Spine: [-0.55, 0, 0], Chest: [-0.25, 0, 0], Neck: [-0.35, 0, 0],
     ThighR: [1.3, 0, 0], ThighL: [1.3, 0, 0], ShinR: [-1.55, 0, 0], ShinL: [-1.55, 0, 0] }, 0.42);
   make("phone", { UpperArmR: [0, 0, 0.55], ForearmR: [0, 0, 2.45], Neck: [0, 0, 0.12] });
+  // sitting on a chair or a bench: thighs level, knees bent square, hands resting on the thighs, a slight slump
+  make("sit", { ThighR: [1.52, 0, 0.06], ThighL: [1.52, 0, -0.06], ShinR: [-1.5, 0, 0], ShinL: [-1.5, 0, 0], Spine: [0.08, 0, 0], Chest: [0.04, 0, 0],
+    UpperArmR: [0.25, 0, 0.42], ForearmR: [0, 0, 0.95], UpperArmL: [0.25, 0, -0.42], ForearmL: [0, 0, -0.95] }, 0.44);
   return out;
 }
 // A shirt colour per person, painted into a copy of the texture the way a shop shirt is painted onto Seiko.
@@ -33393,14 +33451,14 @@ function interiorHomeRoom() {
   // the family: Mum in the kitchen, Dad at the table with the paper
   room.family = [
     { key: "mum", look: ["woman_05", "officelady_01"], x: W / 2 - 1.05, z: -3.2, yaw: Math.PI / 2, lines: ["Okaeri. There's rice in the cooker.", "Are you eating properly in the city?", "Your father won't say it, but he's proud of you.", "Take an umbrella tomorrow. It'll rain."] },
-    { key: "dad", look: ["man_02", "salaryman_03"], x: 4.2, z: 3.35, yaw: Math.PI, lines: ["Hm. Working late again?", "The shop had a good week. Don't tell your mother I said so.", "When I was your age I walked to work. Uphill.", "Sit down a minute. The news is on."] }
+    { key: "dad", look: ["man_02", "salaryman_03"], x: 4.8, z: 3.05, yaw: Math.PI, sit: true, lines: ["Hm. Working late again?", "The shop had a good week. Don't tell your mother I said so.", "When I was your age I walked to work. Uphill.", "Sit down a minute. The news is on."] }
   ];
   room.family[0].sx = W / 2 - 2.1; room.family[0].sz = -3.2; room.family[1].sx = 5.4; room.family[1].sz = 3.6;
   room.family.forEach(f => { solid(f.x, f.z, 0.5, 0.5); spots.push({ x: f.sx, z: f.sz, label: "talk to " + (f.key === "mum" ? "Mum" : "Dad"), act: "family", who: f.key }); });
   spots.push({ x: -5.0, z: -1.6, label: "sleep on the futon (saves)", act: "homesleep" });
   room.tick = dt => {
     if (!room.figs && pplLib.ready.length) {
-      room.figs = room.family.map(f => { const e = pplLib.ready.find(x => f.look.indexOf(x.name) >= 0) || pplLib.ready[0], fig = pplFigure(e, 1.0); fig.holder.position.set(f.x, 0, f.z); fig.holder.rotation.y = f.yaw; root.add(fig.holder); pedPlay(fig, "idle", 0); return fig; });
+      room.figs = room.family.map(f => { const e = pplLib.ready.find(x => f.look.indexOf(x.name) >= 0) || pplLib.ready[0], fig = pplFigure(e, 1.0); fig.holder.position.set(f.x, 0, f.z); fig.holder.rotation.y = f.yaw; root.add(fig.holder); pedPlay(fig, f.sit ? "sit" : "idle", 0); return fig; });
     }
     if (room.figs) room.figs.forEach(f => f.mixer.update(dt));
   };
@@ -33442,9 +33500,13 @@ function inCrowdTick(R, dt) {
       R.crowd.push({ f: fig, staff: true });
     });
     const n = R.brand === "airport" ? (gfx.tier === "low" ? 8 : gfx.tier === "medium" ? 14 : 22) : (RESTAURANT[R.brand] || R.brand === "home" || R.brand === "police" ? 0 : 2);
+    (R.seats || []).forEach(st => { st.taken = null; });
     for (let i = 0; i < n; i++) {
       const fig = pplFigure(any[(Math.random() * any.length) | 0], 0.95 + Math.random() * 0.08);
       const w = { f: fig, x: 0, z: 0, tx: 0, tz: 0, wait: Math.random() * 3, sp: 1.1 + Math.random() * 0.4, yaw: 0 };
+      // a third of them start sitting down
+      const free = (R.seats || []).filter(st => !st.taken);
+      if (free.length && Math.random() < 0.35) { const st = free[(Math.random() * free.length) | 0]; st.taken = w; w.seat = st; w.x = st.x; w.z = st.z; w.yaw = st.yaw; w.sitT = 10 + Math.random() * 40; fig.holder.position.set(w.x, 0, w.z); fig.holder.rotation.y = w.yaw; root.add(fig.holder); pedPlay(fig, "sit", 0); R.crowd.push(w); continue; }
       for (let t = 0; t < 20; t++) { w.x = (Math.random() - 0.5) * (W - 3); w.z = (Math.random() - 0.5) * (D - 3); if (!inBlocked(R, w.x, w.z, 0.4)) break; }
       fig.holder.position.set(w.x, 0, w.z); root.add(fig.holder);
       pedPlay(fig, "idle", 0); R.crowd.push(w);
@@ -33453,13 +33515,23 @@ function inCrowdTick(R, dt) {
   const W = R.W || IN_W, D = R.D || IN_D, px = player.pos.x - R.ox, pz = player.pos.z - R.oz;
   for (const w of R.crowd) {
     if (w.staff) { w.f.mixer.update(dt); continue; }
-    if (w.wait > 0) { w.wait -= dt; if (w.wait <= 0) { for (let t = 0; t < 12; t++) { w.tx = (Math.random() - 0.5) * (W - 3); w.tz = (Math.random() - 0.5) * (D - 3.5); if (!inBlocked(R, w.tx, w.tz, 0.5)) break; } pedPlay(w.f, "walk", 0.25, w.sp / WALK_SPEED); } }
+    if (w.sitT > 0) {                                       // sitting: until they get up and go somewhere else
+      w.sitT -= dt; if (w.sitT <= 0) { if (w.seat) w.seat.taken = null; w.seat = null; w.going = null; w.wait = 1 + Math.random() * 2; pedPlay(w.f, "idle", 0.5); }
+      w.f.mixer.update(dt); continue;
+    }
+    if (w.wait > 0) { w.wait -= dt; if (w.wait <= 0) {
+      const free = (R.seats || []).filter(st => !st.taken);
+      if (free.length && Math.random() < 0.4) { const st = free[(Math.random() * free.length) | 0]; st.taken = w; w.going = st; w.tx = st.x; w.tz = st.z; }
+      else for (let t = 0; t < 12; t++) { w.tx = (Math.random() - 0.5) * (W - 3); w.tz = (Math.random() - 0.5) * (D - 3.5); if (!inBlocked(R, w.tx, w.tz, 0.5)) break; }
+      pedPlay(w.f, "walk", 0.25, w.sp / WALK_SPEED); } }
     else {
       const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
+      if (d < 0.4 && w.going) { const st = w.going; w.seat = st; w.going = null; w.x = st.x; w.z = st.z; w.yaw = st.yaw; w.sitT = 15 + Math.random() * 35; pedPlay(w.f, "sit", 0.45); w.f.holder.position.set(w.x, 0, w.z); w.f.holder.rotation.y = w.yaw; w.f.mixer.update(dt); continue; }
       if (d < 0.4) { w.wait = 2 + Math.random() * 7; pedPlay(w.f, "idle", 0.3); }
       else {
         const nx = w.x + dx / d * w.sp * dt, nz = w.z + dz / d * w.sp * dt;
-        if (inBlocked(R, nx, nz, 0.3) || Math.hypot(nx - px, nz - pz) < 0.7) { w.wait = 0.4 + Math.random(); pedPlay(w.f, "idle", 0.3); }
+        const nearSeat = w.going && d < 1.6;                  // the last step onto a bench goes between its frame
+        if ((!nearSeat && inBlocked(R, nx, nz, 0.3)) || Math.hypot(nx - px, nz - pz) < 0.7) { if (w.going) { w.going.taken = null; w.going = null; } w.wait = 0.4 + Math.random(); pedPlay(w.f, "idle", 0.3); }
         else { w.x = nx; w.z = nz; let a = Math.atan2(dx, dz) - w.yaw; a = Math.atan2(Math.sin(a), Math.cos(a)); w.yaw += a * Math.min(1, dt * 6); }
       }
       w.f.holder.position.set(w.x, 0, w.z); w.f.holder.rotation.y = w.yaw;
@@ -33472,6 +33544,129 @@ function inBlocked(R, x, z, r) {
   if (Math.abs(x) > W / 2 - r - 0.3 || Math.abs(z) > D / 2 - r - 0.3) return true;
   for (const c of R.colliders) if (x > c.x0 - r && x < c.x1 + r && z > c.z0 - r && z < c.z1 + r) return true;
   return false;
+}
+
+// ---- damage -------------------------------------------------------------------------------------------------------------------------------
+// A car keeps what happens to it. Each hit lands on one side (front, rear, left, right) by where it came from, and how hard. The paint dulls,
+// the body takes scratches and dents where it was hit, a hard front-end hit crumples the bonnet a little and cracks the windscreen, it starts
+// to steam and then smoke, it pulls to the damaged side and loses power, and enough of it and the engine dies. It stays with the car when you
+// get out and come back. FIXCAR (5550181) puts it right.
+function carDamage(c, nx, nz, impact) {
+  if (!c || impact < 2.2) return;
+  const D = c.dmg || (c.dmg = { front: 0, rear: 0, left: 0, right: 0, total: 0, hits: [], seed: Math.random() * 1000 });
+  // where on the car: the opposite of the push
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
+  const along = -(nx * fx + nz * fz), side = -(nx * rx + nz * rz);
+  const zone = Math.abs(along) >= Math.abs(side) ? (along > 0 ? "front" : "rear") : (side > 0 ? "right" : "left");
+  const amt = clamp((impact - 2) / 26, 0.02, 0.55);
+  D[zone] = Math.min(1, D[zone] + amt);
+  D.total = Math.min(1, (D.front + D.rear + D.left + D.right) * 0.42 + Math.max(D.front, D.rear, D.left, D.right) * 0.35);
+  D.hits.push({ zone: zone, u: (Math.random() - 0.5) * 0.7, v: (Math.random() - 0.5) * 0.4, a: amt }); if (D.hits.length > 14) D.hits.shift();
+  D.ver = (D.ver || 0) + 1;
+  if (impact > 9) carDebris(c, zone, impact);
+  if (D.total > 0.6 && !c.warnedDmg) { c.warnedDmg = true; say("The car is in a bad way.", 3); }
+}
+// the decal sheets: scratches and dents, and a crazed windscreen
+function dmgTex(kind) {
+  dmgTex.c = dmgTex.c || {}; if (dmgTex.c[kind]) return dmgTex.c[kind];
+  const c = document.createElement("canvas"); c.width = c.height = 512; const g = c.getContext("2d"), R = (a, b) => a + Math.random() * (b - a);
+  if (kind === "glass") {
+    g.strokeStyle = "rgba(235,245,255,0.9)"; g.lineWidth = 1.4;
+    const cx = R(180, 330), cy = R(180, 330);
+    for (let k = 0; k < 26; k++) { const a = k / 26 * 6.283 + R(-0.1, 0.1); let x = cx, y = cy; g.beginPath(); g.moveTo(x, y); for (let s = 0; s < 8; s++) { x += Math.cos(a + R(-0.3, 0.3)) * R(18, 40); y += Math.sin(a + R(-0.3, 0.3)) * R(18, 40); g.lineTo(x, y); } g.stroke(); }
+    for (let r = 20; r < 220; r += R(18, 34)) { g.beginPath(); for (let k = 0; k <= 26; k++) { const a = k / 26 * 6.283; g.lineTo(cx + Math.cos(a) * r * R(0.85, 1.1), cy + Math.sin(a) * r * R(0.85, 1.1)); } g.globalAlpha = 0.5; g.stroke(); g.globalAlpha = 1; }
+    g.fillStyle = "rgba(255,255,255,0.8)"; g.beginPath(); g.arc(cx, cy, 6, 0, 7); g.fill();
+  } else {
+    // dents: soft dark hollows with a bright rim where the light catches the fold
+    for (let k = 0; k < 7; k++) { const x = R(60, 450), y = R(80, 430), r = R(30, 90), gr = g.createRadialGradient(x - r * 0.2, y - r * 0.2, r * 0.1, x, y, r);
+      gr.addColorStop(0, "rgba(0,0,0,0.55)"); gr.addColorStop(0.7, "rgba(0,0,0,0.18)"); gr.addColorStop(0.92, "rgba(255,255,255,0.18)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.beginPath(); g.ellipse(x, y, r * 1.3, r, R(0, 3), 0, 7); g.fill(); }
+    // scratches: long, mostly horizontal, through to the primer and the metal
+    for (let k = 0; k < 90; k++) { const x = R(0, 512), y = R(40, 470), L = R(40, 260), a = R(-0.25, 0.25) + (kind === "front" ? R(-1, 1) : 0);
+      g.strokeStyle = Math.random() < 0.6 ? "rgba(225,225,220," + R(0.35, 0.8) + ")" : "rgba(150,150,145," + R(0.4, 0.8) + ")"; g.lineWidth = R(0.6, 2.4);
+      g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + Math.cos(a) * L * 0.5, y + Math.sin(a) * L * 0.5 + R(-6, 6), x + Math.cos(a) * L, y + Math.sin(a) * L); g.stroke(); }
+    // scuffs of the other thing's paint, and a little rust in the deep ones
+    for (let k = 0; k < 14; k++) { g.fillStyle = ["rgba(40,40,44,0.5)", "rgba(180,40,30,0.4)", "rgba(120,70,30,0.45)", "rgba(230,230,230,0.35)"][k % 4]; g.beginPath(); g.ellipse(R(40, 470), R(60, 450), R(10, 45), R(3, 10), R(-0.4, 0.4), 0, 7); g.fill(); }
+  }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; sharpTex(t);
+  return (dmgTex.c[kind] = t);
+}
+function carDamageView(o, kind, D) {
+  let G = o.userData.dmgG;
+  if (!D || D.total <= 0.001) { if (G) G.visible = false; o.scale.set(1, 1, 1); return; }
+  if (!G) {
+    G = new THREE.Group(); o.add(G); o.userData.dmgG = G;
+    const mk = (tex, w, h) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: dmgTex(tex), transparent: true, depthWrite: false, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })); G.add(m); return m; };
+    const L = kind.L, W = kind.W, H = kind.H || 1.45;
+    const z = mk("side", L * 0.8, H * 0.42), y = mk("side", L * 0.8, H * 0.42);
+    z.position.set(-W / 2 - 0.015, H * 0.42, 0); z.rotation.y = -Math.PI / 2; y.position.set(W / 2 + 0.015, H * 0.42, 0); y.rotation.y = Math.PI / 2;
+    const f = mk("front", W * 0.86, H * 0.36); f.position.set(0, H * 0.4, L / 2 + 0.02);
+    const b = mk("side", W * 0.86, H * 0.36); b.position.set(0, H * 0.42, -L / 2 - 0.02); b.rotation.y = Math.PI;
+    const gl = mk("glass", W * 0.7, H * 0.3); gl.position.set(0, H * 0.78, L * 0.2); gl.rotation.x = -0.95;
+    G.userData = { left: z, right: y, front: f, rear: b, glass: gl };
+  }
+  G.visible = true;
+  const U = G.userData, op = v => clamp01(v * 1.8);
+  U.left.material.opacity = op(D.left); U.right.material.opacity = op(D.right); U.front.material.opacity = op(D.front); U.rear.material.opacity = op(D.rear);
+  U.glass.visible = D.front > 0.45; U.glass.material.opacity = clamp01((D.front - 0.45) * 3);
+  // crumple: a hard hit shortens that end a little and squashes the body
+  o.scale.set(1 - 0.035 * Math.max(D.left, D.right), 1 - 0.03 * D.total, 1 - 0.07 * Math.max(D.front, D.rear));
+}
+// steam, then grey smoke, then black, from under the bonnet
+const carFx = { puffs: [], skids: null, skidI: 0, debris: [] };
+function puffTex() {
+  if (puffTex.t) return puffTex.t;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  gr.addColorStop(0, "rgba(255,255,255,0.9)"); gr.addColorStop(1, "rgba(255,255,255,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return (puffTex.t = new THREE.CanvasTexture(c));
+}
+function carSmoke(c, kind, dt) {
+  const D = c.dmg; c.smokeT = (c.smokeT || 0) - dt;
+  if (D && (D.front > 0.4 || D.total > 0.55) && c.smokeT <= 0) {
+    c.smokeT = D.total > 0.8 ? 0.05 : 0.11;
+    const col = D.total > 0.8 ? 0x2a2a2a : D.total > 0.6 ? 0x8a8a8a : 0xeeeeee;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex(), color: col, transparent: true, depthWrite: false, opacity: 0.6 }));
+    const f = kind.L * 0.38; sp.position.set(c.pos.x + Math.sin(c.yaw) * f, c.pos.y + (kind.H || 1.4) * 0.8, c.pos.z + Math.cos(c.yaw) * f); sp.scale.setScalar(0.6);
+    scene.add(sp); carFx.puffs.push({ s: sp, t: 0, life: 2.4, vy: 1.4 + Math.random() });
+  }
+}
+function carFxTick(dt) {
+  for (let i = carFx.puffs.length - 1; i >= 0; i--) {
+    const p = carFx.puffs[i]; p.t += dt; const k = p.t / p.life;
+    p.s.position.y += p.vy * dt; p.s.position.x += 0.6 * dt; p.s.scale.setScalar(0.6 + k * 3.2); p.s.material.opacity = 0.6 * (1 - k);
+    if (k >= 1) { scene.remove(p.s); p.s.material.dispose(); carFx.puffs.splice(i, 1); }
+  }
+  for (let i = carFx.debris.length - 1; i >= 0; i--) {
+    const d = carFx.debris[i]; d.t += dt; d.v.y -= 9.8 * dt; d.m.position.addScaledVector(d.v, dt); d.m.rotation.x += d.w * dt; d.m.rotation.z += d.w * 0.7 * dt;
+    const gy = world.surfaceY(d.m.position.x, d.m.position.z) + 0.03; if (d.m.position.y < gy) { d.m.position.y = gy; d.v.multiplyScalar(0.3); d.v.y = Math.abs(d.v.y) * 0.3; d.w *= 0.5; }
+    if (d.t > 40) { scene.remove(d.m); carFx.debris.splice(i, 1); }
+  }
+}
+// bits come off in a big hit: glass and plastic from that corner
+function carDebris(c, zone, impact) {
+  const n = Math.min(14, Math.round(impact * 0.8)), f = zone === "front" ? 1 : zone === "rear" ? -1 : 0, sd = zone === "right" ? 1 : zone === "left" ? -1 : 0;
+  const k = CAR_KINDS[c.kind], fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
+  for (let i = 0; i < n; i++) {
+    const glass = i % 3 === 0, m = new THREE.Mesh(new THREE.BoxGeometry(glass ? 0.06 : 0.14, 0.02, glass ? 0.05 : 0.09), new THREE.MeshStandardMaterial({ color: glass ? 0xcfe6f2 : (i % 2 ? 0x1b1b1d : new THREE.Color(c.colour[0], c.colour[1], c.colour[2])), roughness: glass ? 0.1 : 0.5, metalness: glass ? 0.3 : 0.1 }));
+    m.position.set(c.pos.x + fx * f * k.L * 0.5 + rx * sd * k.W * 0.5, c.pos.y + 0.6, c.pos.z + fz * f * k.L * 0.5 + rz * sd * k.W * 0.5); scene.add(m);
+    carFx.debris.push({ m: m, t: 0, w: (Math.random() - 0.5) * 20, v: new THREE.Vector3((fx * f + rx * sd) * 2 + (Math.random() - 0.5) * 4, 1.5 + Math.random() * 3, (fz * f + rz * sd) * 2 + (Math.random() - 0.5) * 4) });
+  }
+  while (carFx.debris.length > 80) { const d = carFx.debris.shift(); scene.remove(d.m); }
+}
+// tyre marks: dark streaks behind the rear wheels, left on the road for a while
+function skidMark(c, kind) {
+  if (!carFx.skids) {
+    const N = 600, m = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.24, 0.9), new THREE.MeshBasicMaterial({ color: 0x0a0a0a, transparent: true, opacity: 0.45, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }), N);
+    m.frustumCulled = false; m.count = N; const z = new THREE.Matrix4().makeScale(0, 0, 0); for (let i = 0; i < N; i++) m.setMatrixAt(i, z);
+    scene.add(m); carFx.skids = m;
+  }
+  c.skidT = (c.skidT || 0) + 1; if (c.skidT % 2) return;
+  const M = carFx.skids, fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw), q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-Math.PI / 2, 0, -c.yaw + Math.atan2(c.vlat || 0, c.speed || 1) * 0.7, "YXZ"));
+  for (const sd of [-1, 1]) {
+    const x = c.pos.x - fx * kind.L * 0.32 + rx * sd * kind.W * 0.4, z = c.pos.z - fz * kind.L * 0.32 + rz * sd * kind.W * 0.4;
+    M.setMatrixAt(carFx.skidI, new THREE.Matrix4().compose(new THREE.Vector3(x, world.surfaceY(x, z) + 0.06, z), q, new THREE.Vector3(1, 1, 1)));
+    carFx.skidI = (carFx.skidI + 1) % M.count;
+  }
+  M.instanceMatrix.needsUpdate = true;
 }
 
 function frameLoop() {

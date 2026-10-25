@@ -46,6 +46,14 @@ This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. T
 
 **Trees:** every tree has photographed leaves and bark (Poly Haven leaves, ambientCG bark, CC0; `Game/tools/build-trees.py`): leaf clusters round the crown, cherry blossom on the sakura, needled sprays on the pines and cedars.
 
+**Sitting:** people sit: travellers take the benches in the airport halls and at the gates for a while and then wander off again, and Dad sits at the dining table at home.
+
+**Driving:** cars have proper tyre grip. Ask too much of the front and it understeers; the handbrake breaks the back loose into a slide; tyres squeal and leave skid marks; the body rolls in corners; grip is lower off the road; acceleration is limited by wheelspin.
+
+**Crashes:** cars keep their damage. Each hit lands on the front, back or a side: scratches and dents appear there, the paint dulls, the bonnet crumples, a hard front-end hit cracks the windscreen, glass and plastic fly off, it steams and then smokes, pulls to the damaged side, loses power, and with enough damage the engine dies. The damage stays with the car when you get out. FIXCAR (5550181) repairs it.
+
+**Flying:** engines take time to spool up, the stall drops a wing (and holding the stick back turns it into a spin), the air is bumpy low down, the ground cushions you just before touchdown, a firm landing bounces, over-rotating on take-off strikes the tail, and an aircraft that crashes stays where it came down, blackened and burning, with debris across the ground and Seiko thrown clear.
+
 **Graphics:** Ultra is chosen automatically on recent graphics cards (RTX 30/40/50, Radeon RX 6000 and later, Apple M2 Pro/Max and later). Building textures are drawn at 1024 on High and 1536 on Ultra, with 1024/2048 relief maps and 4096 shadows.
 
 **Reactions:** point a gun at someone and their hands go up; fire, shoot someone, or run someone over and the people who saw it run screaming, duck with their arms over their heads, or stop with a phone to the ear (a red phone icon over them). When a call goes through the police come; aim at a caller and the call stops. If a patrol is close enough to see it, the stars come at once. If nobody sees it, nobody knows.
