@@ -91,7 +91,7 @@ await snap("skid_marks");
 // crash it into a building, three times
 const crashOnce = async () => ev(() => {
   const c = drive.car, k = CAR_KINDS[c.kind];
-  for (let a = 0; a < 64; a++) { const yawA = a / 64 * Math.PI * 2; for (let d = 8; d < 60; d += 2) { const x = c.pos.x + Math.sin(yawA) * d, z = c.pos.z + Math.cos(yawA) * d; if (insideBuilding(x, z, 0.5)) { const sx = c.pos.x + Math.sin(yawA) * (d - 9), sz = c.pos.z + Math.cos(yawA) * (d - 9); c.pos.set(sx, world.surfaceY(sx, sz), sz); c.yaw = yawA; c.vel = new THREE.Vector2(Math.sin(yawA) * 22, Math.cos(yawA) * 22); c.speed = 22; return d; } } }
+  for (let a = 0; a < 64; a++) { const yawA = a / 64 * Math.PI * 2; for (let d = 8; d < 220; d += 2) { const x = c.pos.x + Math.sin(yawA) * d, z = c.pos.z + Math.cos(yawA) * d; if (insideBuilding(x, z, 0.5)) { const sx = c.pos.x + Math.sin(yawA) * (d - 9), sz = c.pos.z + Math.cos(yawA) * (d - 9); c.pos.set(sx, world.surfaceY(sx, sz), sz); c.yaw = yawA; c.vel = new THREE.Vector2(Math.sin(yawA) * 22, Math.cos(yawA) * 22); c.speed = 22; return d; } } }
   return 0; });
 for (let i = 0; i < 3; i++) { console.log("WALL " + await crashOnce()); await ev(() => { keys.KeyW = true; }); await wait(2500); await ev(() => { keys.KeyW = false; }); await wait(1000); }
 const dm = await ev(() => drive.car.dmg && { f: +drive.car.dmg.front.toFixed(2), t: +drive.car.dmg.total.toFixed(2), r: +drive.car.dmg.rear.toFixed(2), l: +drive.car.dmg.left.toFixed(2), rr: +drive.car.dmg.right.toFixed(2) });

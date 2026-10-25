@@ -290,6 +290,16 @@
  "player": "seiko_player.glb",
  "outfits": [
   {
+   "id": "village",
+   "name": "Village work clothes",
+   "file": "seiko_village.glb"
+  },
+  {
+   "id": "village_denim",
+   "name": "Village shirt and jeans",
+   "file": "seiko_village_denim.glb"
+  },
+  {
    "id": "office",
    "name": "Office shirt",
    "file": "seiko_player.glb"

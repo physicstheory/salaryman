@@ -1098,6 +1098,7 @@
         <button class="menu-btn" id="mres" type="button">Resolution: 100%</button>
         <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
+        <button class="menu-btn" id="mpcmode" type="button">PC mode: off</button>
         <button class="menu-btn" id="madapt" type="button">Adaptive graphics: on</button>
         <button class="menu-btn" id="mundo" type="button">Undo automatic graphics changes</button>
         <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
@@ -1389,9 +1390,10 @@ const SITES = [
     reclaim: true
   },
   {
-    name: "Mizuho", code: "MZH", capital: false,
-    alongT: 0.485, lateral: -0.14,
-    alongRadius: 470, inlandRadius: 340,
+    // over the mountains from the capital, on the valley plain of the far side: a farming village in its rice
+    name: "Mizuho", code: "MZH", capital: false, village: true,
+    alongT: 0.15, lateral: -0.70,
+    alongRadius: 400, inlandRadius: 290,
     coreRadius: 95, coreOffset: [0, 20],
     outlineNoise: 110, wardCount: 4,
     maxBuildSlope: 0.38, maxBuildAltitude: 780, platformSlope: 0.17,
@@ -1423,12 +1425,12 @@ const SITES = [
     platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
     shinkansen: false, bay: null, reclaim: false, coastal: true },
-  { name: "Isobe",    code: "ISB", capital: false, alongT: 0.760, lateral: 0.20,
-    alongRadius: 400, inlandRadius: 260, coreRadius: 64, coreOffset: [0, 8],
+  { name: "Isobe",    code: "ISB", capital: false, village: true, alongT: 0.30, lateral: -0.80,
+    alongRadius: 340, inlandRadius: 230, coreRadius: 64, coreOffset: [0, 8],
     outlineNoise: 84, wardCount: 2, maxBuildSlope: 0.42, maxBuildAltitude: 620,
     platformSlope: 0.20, palace: false, palaceRadius: 0, moatWidth: 0,
     radials: 2, rings: 1, expressway: false, railLoop: false, railRadials: 0,
-    shinkansen: false, bay: null, reclaim: false, coastal: true },
+    shinkansen: false, bay: null, reclaim: false, coastal: false },
   { name: "Kaido",    code: "KDO", capital: false, alongT: 0.480, lateral: -0.70,
     alongRadius: 340, inlandRadius: 215, coreRadius: 72, coreOffset: [0, 12],
     outlineNoise: 92, wardCount: 3, maxBuildSlope: 0.40, maxBuildAltitude: 620,
@@ -3783,6 +3785,17 @@ function planCity(world, F, seed, report, progressBase) {
     }
   }
 
+  // A farming village has no offices, flats or car parks: its plots are two-storey houses and shops along the lanes, a kura storehouse or a
+  // barn here and there, and garden ground where the town would have parked cars.
+  if (site.village) L.plots.forEach(p => {
+    const r = rnd(Math.round(p.centre[0]), Math.round(p.centre[1]), 9401);
+    if (p.kind === "parking") p.kind = "park";
+    else if (p.kind === "factory" || p.kind === "shed" || p.kind === "wharf" || p.kind === "civic" || p.kind === "campus") p.kind = "shed";
+    else if (p.kind !== "park" && p.kind !== "shrine") p.kind = (p.kind === "shop" && r < 0.6) ? "shop" : "houses";
+    p.floors = Math.min(p.floors, p.kind === "shed" ? 1 : 2);
+    p.height = p.floors * floorHeight(p.kind);
+  });
+
   // ---- grading: flatten the plots, run the roads, dig the moat -----------
   report("grading " + site.name, progressBase + 0.10);
   (function grade() {
@@ -4258,6 +4271,8 @@ function paintCity(world, city, size) {
     ground: "#615d55", fill: "#726e64", lot: "#67635b", asphalt: "#3b3d41", footway: "#857f76",
     park: "#36452a", water: "#16323c", ballast: "#4a483f", plaza: "#837f76"
   };
+  // a village is beaten earth, gravel and grass, not paving
+  if (city.site && city.site.village) Object.assign(C, { ground: "#6c7444", fill: "#7d7458", lot: "#6f6a4c", footway: "#8c8264", plaza: "#8a8166", park: "#4a6a2e" });
 
   // The city footprint, as a soft mask. Everything inside it is made ground:
   // without this the blocks sit on raw hillside and the city reads as a model
@@ -6050,6 +6065,7 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
   sizeRenderer();
   applyTier(startTier, { quiet: true });
+  if (gameSet.pcMode && typeof PC_MODES !== "undefined" && PC_MODES[gameSet.pcMode]) { const M = PC_MODES[gameSet.pcMode]; applyTier(M.tier, { quiet: true }); if (gameSet.pcMode === "low") TEXQ.scale = 2; gfx.scale = M.scale; }
   window.addEventListener("resize", sizeRenderer);
 
   initTouch();
@@ -6764,6 +6780,7 @@ function initPause() {
   on("mupdate", () => { setPaused(false); refreshGame(); });
   const syncSet = () => {
     const g = id => document.getElementById(id);
+    if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
     if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (lowers quality if the game is slow)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
@@ -6771,6 +6788,7 @@ function initPause() {
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
   on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
+  on("mpcmode", () => { pcModeApply(gameSet.pcMode === "low" ? "high" : gameSet.pcMode === "high" ? null : "low"); syncSet(); });
   on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
   on("mrumble", () => { gameSet.rumble = !gameSet.rumble; saveSettings(); syncSet(); if (gameSet.rumble) rumble(0.6, 0.6, 200); });
   on("mlook", () => { gameSet.lookSens = gameSet.lookSens >= 1.6 ? 0.5 : Math.round((gameSet.lookSens + 0.1) * 10) / 10; saveSettings(); syncSet(); });
@@ -7112,7 +7130,7 @@ function buildScene(w) {
   w.cities.forEach(city => {
     // Mizuho is the Nara town; the six on the coast are its weathered
     // cousins; Tokonto is the modern city and keeps the glass and concrete.
-    const region = city.name === "Mizuho" ? "nara"
+    const region = city.name === "Mizuho" || (city.site && city.site.village) ? "nara"
                  : (city.site && city.site.coastal) ? "coast" : null;
     const paint = paintCity(w, city, city.plots.length > 200 ? 3072 : 1024);
     const tex = new THREE.CanvasTexture(paint.canvas);
@@ -7454,6 +7472,7 @@ function buildScene(w) {
     });
 
     if (trees.length) plantTrees(root, trees, city);
+    if (city.site.village) { try { buildVillage(root, city); } catch (e) { console.warn("[Konto] the village fields could not be laid:", e); } }
 
     // The roads themselves, as geometry rather than as paint.
     buildRoadSurfaces(w, city, root);
@@ -8578,7 +8597,7 @@ function updateTreeLod(dt, force) {
   if (!force && treeLodClock < 0.35) return;
   treeLodClock = 0;
   if (!treeCells.length || !camera) return;
-  const T = TREE_LOD[gfx.tier] || TREE_LOD.high;
+  const T = (gameSet.pcMode && PC_MODES[gameSet.pcMode] && PC_MODES[gameSet.pcMode].trees) || TREE_LOD[gfx.tier] || TREE_LOD.high;
   const px = camera.position.x, pz = camera.position.z;
   {
     const cull = LAMP_CULL[gfx.tier] || LAMP_CULL.high, dark = nightState.lit > 0.03;
@@ -8608,7 +8627,8 @@ const TREE_LOOK = {
   sugi:   { crown: 0x2f4a30, tall: [11, 21], narrow: true },
   matsu:  { crown: 0x3d5438, tall: [5.5, 9.5] },
   keyaki: { crown: 0x4e7036, tall: [8, 15] },
-  sakura: { crown: 0xc98aa3, tall: [5, 8] }
+  sakura: { crown: 0xc98aa3, tall: [5, 8] },
+  momiji: { crown: 0xb8402a, tall: [4, 7] }
 };
 
 // The photographed sheet for a species (leaves, a leaf-covered core, bark). Until it has loaded the tree wears a drawn one in the same layout,
@@ -9156,6 +9176,8 @@ function vegBuild(root) {
     const P = world.highway.pts;
     for (let i = 0; i < P.length; i++) vegDisc(P[i][0], P[i][2], world.highway.hw + 7);
   }
+  // the villages' fields, stream and gardens are farmland, not forest
+  world.cities.forEach(city => { const V = city.village; if (!V) return; V.paddies.forEach(p => vegDisc(p.x, p.z, Math.max(p.w, p.d) * 0.62)); V.stream.forEach(q => vegDisc(q[0], q[1], 7)); V.gardens.forEach(gd => vegDisc(gd.x, gd.z, 8)); });
   (world.ski ? world.ski.resorts : []).forEach(r => { vegDisc(r.base[0], r.base[1], 70); vegDisc(r.top[0], r.top[1], 60); });
   (world.airports || []).forEach(ap => { for (let x = -ap.sx / 2; x <= ap.sx / 2; x += 60) for (let z = -90; z <= ap.sz - 90; z += 60) { const p = fromRectLocal(x, z, ap.cx, ap.cz, ap.yaw); vegDisc(p[0], p[1], 75); } });
 
@@ -9985,7 +10007,8 @@ const STREAM_CH = 512;
 const STREAM = { low: 2400, tower: 9000, road: 2600, detail: 340, on: true, fog: { low: { n: { value: 1200 }, f: { value: 2300 } }, road: { n: { value: 1300 }, f: { value: 2500 } } }, reg: [], frustum: new THREE.Frustum(), pv: new THREE.Matrix4(), shown: 0, hidden: 0 };
 // Beyond the bubble the buildings and streets are not simply cut off: they sink into the haze first, with a fog of their own that closes in just inside
 // the distance they stop being drawn. The sea, the terrain and the glass towers keep the long fog, so the mountains and the skyline stay.
-const BUBBLE_FOG = "#ifdef USE_FOG\n  float fogFactor = smoothstep( fogNear, fogFar, vFogDepth );\n  fogFactor = max( fogFactor, smoothstep( bfN, bfF, vFogDepth ) );\n  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );\n#endif";
+// (three r128 calls the varying fogDepth; vFogDepth is the later name, and with it every building's wall and roof failed to compile)
+const BUBBLE_FOG = "#ifdef USE_FOG\n  float fogFactor = smoothstep( fogNear, fogFar, fogDepth );\n  fogFactor = max( fogFactor, smoothstep( bfN, bfF, fogDepth ) );\n  gl_FragColor.rgb = mix( gl_FragColor.rgb, fogColor, fogFactor );\n#endif";
 function bubbleFog(m, which) {
   if (m.userData.bubble) return; m.userData.bubble = true;
   const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
@@ -20812,7 +20835,7 @@ const CHEAT_ACTIONS = {
   CHEATLIST: { dial: "5550190", note: "", fn: () => say("Cheats: " + Object.keys(CHEAT_ACTIONS).concat(Object.keys(CHEAT_VEHICLES)).join("  "), 14) },
   WANTED:    { dial: "5550170", note: "Three stars", fn: () => { wanted.stars = 3; wanted.lastCrime = "Being a nuisance"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); } },
   ARRESTME:  { dial: "5550171", note: "", fn: () => { wanted.stars = Math.max(1, wanted.stars); arrest(); } },
-  CLEANSLATE:{ dial: "5550172", note: "Record wiped, stars gone", fn: () => { wanted.stars = 0; record.offences = record.arrests = record.owed = record.fines = 0; record.history.length = 0; policeStandDown(); } },
+  CLEANSLATE:{ dial: "5550172", note: "Record wiped, stars gone", fn: () => { wanted.stars = 0; record.offences = record.arrests = record.owed = record.fines = 0; record.history.length = 0; policeStandDown(); if (typeof peds !== "undefined" && peds.list) peds.list.forEach(p => { if (p.state === "call") { if (p.icon) p.icon.visible = false; pedSet(p, "flee"); } }); } },
   GOAIRPORT: { dial: "5550174", note: "The nearest airport terminal", fn: () => cheatGoAirport() },
   TICKET:    { dial: "5550175", note: "A ticket from here to Seoul, in the bag", fn: () => { air.ticket = { from: air.at, to: air.at === "konto" ? "seoul" : "konto", cls: 0, ref: airRef(), price: 0, gate: "A1", seat: "23A" }; } },
   SEOUL:     { dial: "5550176", note: "Seoul", fn: () => cheatDest("seoul") },
@@ -22084,7 +22107,7 @@ function placeMalls(w) {
   if (!w || !w.cities) return;
   const rng = (() => { let sd = 9137; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
   w.cities.forEach((city, ci) => {
-    if (!city.plots) return;
+    if (!city.plots || (city.site && city.site.village)) return;   // no electronics megastore in a farming village
     const byBlock = mallBlocks(city);
     for (let k = 0; k < (ci === 0 ? 3 : 1); k++) {
       const ap = ci === 0 ? 700 : 150;
@@ -22674,7 +22697,7 @@ function placeSafehouses(w) {
   if (!w || !w.cities) return;
   const rng = (() => { let sd = 5521; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
   w.cities.forEach((city, ci) => {
-    if (!city.plots || city.name === "Mizuho" || city.name === "Tomari") return;
+    if (!city.plots || city.name === "Mizuho" || city.name === "Tomari" || (city.site && city.site.village)) return;
     const want = ci === 0 ? 3 : 1;
     const pool = city.plots.filter(p => p.size[0] > 22 && p.size[0] < 52 && p.size[1] > 18 && p.size[1] < 52 && (p.kind === "midrise" || p.kind === "office" || p.kind === "shop"));
     let placed = 0;
@@ -22753,7 +22776,7 @@ function placeTownShops(w) {
   const rng = (() => { let sd = 3307; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
   w.cities.forEach((city, ci) => {
     if (ci === 0 || !city.plots) return;
-    const big = city.name === "Isobe" || city.name === "Nagisa" || city.name === "Shiokawa";
+    const big = city.name === "Nagisa" || city.name === "Shiokawa";
     const recipe = city.name === "Mizuho" ? ["eleven", "petmart", "ramen", "sushi"] : big ? ["eleven", "petmart", "ramen", "sushi", "pharmacy", "books", "clothes", "ramen", "sushiya"] : ["eleven", "ramen", "sushi", "pharmacy"];
     const pool = city.plots.filter(p => !p.shop && p.size[0] > 11 && p.size[0] < 46 && p.size[1] > 11 && p.size[1] < 46 && (p.kind === "midrise" || p.kind === "shop" || p.kind === "flats"));
     recipe.forEach(brand => {
@@ -22776,7 +22799,7 @@ function placePlazas(w) {
   const rng = (() => { let sd = 8123; return () => { sd = (sd * 1664525 + 1013904223) >>> 0; return sd / 4294967296; }; })();
   w.cities.forEach((city, ci) => {
     if (!city.plots) return;
-    const want = ci === 0 ? 2 : (city.name === "Isobe" || city.name === "Nagisa" ? 1 : 0);
+    const want = ci === 0 ? 2 : (city.name === "Nagisa" ? 1 : 0);
     const byBlock = mallBlocks(city);
     for (let k = 0; k < want; k++) {
       const apart = ci === 0 ? 700 : 100;
@@ -29657,7 +29680,7 @@ function titleChoose() {
     say("Welcome back. Your game was loaded.", 4);
     return;
   }
-  if (id === "tnew") newGameBackup();
+  if (id === "tnew") { newGameBackup(); player.outfitWant = "village"; if (player.hq && wardrobe.list) seikoOutfit("village", true); }
   placeSeiko(seikoSpawn(world));
   player.placed = true;
   updateWorldSky(0, true);          // the title's sky is a screensaver; the world's is the clock
@@ -32745,7 +32768,7 @@ function pedPathPos(p, out) {
   out.yaw = Math.atan2(ux * p.dir, uz * p.dir); out.len = len;
   return out;
 }
-function pedWanted() { return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
 function pedSpawn() {
   const G = pedGrid(), C = peds.gridC, px = player.pos.x, pz = player.pos.z, cx = Math.floor(px / C), cz = Math.floor(pz / C), cand = [];
   for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const l = G.get((cx + i) + "," + (cz + j)); if (l) cand.push.apply(cand, l); }
@@ -32962,7 +32985,7 @@ function commuteTick(dt) {
   const R = rushNow(); if (R.k < 0.04 || !pplLib.ready.length) return;
   const st = commuteNearStation(260); if (!st) return;
   const stNear = Math.hypot(st.x - player.pos.x, st.z - player.pos.z) < 125;
-  const cap = Math.round((gfx.tier === "low" ? 20 : gfx.tier === "medium" ? 40 : gfx.tier === "high" ? 64 : 90) * R.k);
+  const cap = Math.round(((pcMode() && pcMode().commute) || (gfx.tier === "low" ? 20 : gfx.tier === "medium" ? 40 : gfx.tier === "high" ? 64 : 90)) * R.k);
   const n = peds.list.filter(p => p.commuter && p.state === "commute").length;
   const inbound = R.am ? !st.capital : st.capital;
   // a train in: a crowd out of the station, a few at a time
@@ -33669,6 +33692,260 @@ function skidMark(c, kind) {
   M.instanceMatrix.needsUpdate = true;
 }
 
+// ---- PC modes -------------------------------------------------------------------------------------------------------------------------------
+// Two presets on top of the quality tiers, each built to look good and hold a frame rate rather than to max anything out. Both scale the
+// resolution continuously to stay on their target (a few percent at a time, twice a second, so it is never seen to jump); what they keep
+// and what they give up differs:
+//   Low-end PC  - aims for 40 fps. Drawn at about 85% resolution, falling to 50% if it must. Photographed textures, leaf cards on nearby
+//                 trees, people and props are all kept (they cost little); shadows, post-processing and far detail go.
+//   High-end PC - aims for 60 fps. Ultra quality and up to 135% resolution, falling to 100% before anything else is touched.
+const PC_MODES = {
+  low: { tier: "low", label: "Low-end PC", fps: 40, scale: 0.85, min: 0.58, max: 1.0, people: 7, commute: 18,
+         trees: { lod: [1, 2, 2], at: [85, 85], cull: 520, keep: 0.7, shadow: 0 } },
+  high: { tier: "ultra", label: "High-end PC", fps: 60, scale: 1.35, min: 0.74, max: 1.0, people: 24, commute: 90,
+          trees: { lod: [0, 1, 2], at: [220, 520], cull: 1700, keep: 1, shadow: 220 } }
+};
+const pcDrs = { acc: 0, n: 0, win: 0, hold: 0, fps: 0 };
+function pcMode() { return gameSet.pcMode ? PC_MODES[gameSet.pcMode] : null; }
+function pcModeApply(id, quiet) {
+  gameSet.pcMode = PC_MODES[id] ? id : null; saveSettings();
+  if (!gameSet.pcMode) { gfx.scale = null; perf.mult = 1; applyTier(savedTier() || guessTier(), { quiet: true }); sizeRenderer(); if (!quiet) say("PC mode off. The graphics setting is yours again.", 4); return; }
+  const M = PC_MODES[id];
+  gameSet.adapt = false;                          // the mode does its own adapting
+  applyTier(M.tier, { quiet: true });
+  if (id === "low") TEXQ.scale = 2;              // drawn textures at the medium size: they are made once and cost nothing to draw
+  gfx.scale = M.scale; perf.mult = 1; pcDrs.hold = 2; sizeRenderer();
+  try { syncQualityLabels(); } catch (e) {}
+  if (!quiet) say(M.label + " mode: aiming for " + M.fps + " fps. Building textures change the next time the game starts.", 6);
+}
+function pcModeFrame(rawMs) {
+  const M = pcMode(); if (!M) return;
+  if (rawMs > 250) { pcDrs.hold = 1; return; }
+  const dt = rawMs / 1000;
+  if (pcDrs.hold > 0) { pcDrs.hold -= dt; pcDrs.acc = pcDrs.n = pcDrs.win = 0; return; }
+  pcDrs.acc += rawMs; pcDrs.n++; pcDrs.win += dt;
+  if (pcDrs.win < 0.5) return;
+  const avg = pcDrs.acc / pcDrs.n, target = 1000 / M.fps; pcDrs.fps = 1000 / avg; pcDrs.acc = pcDrs.n = pcDrs.win = 0;
+  let m = perf.mult;
+  if (avg > target * 1.06) m *= avg > target * 1.4 ? 0.9 : 0.96;
+  else if (avg < target * 0.86) m *= 1.03;
+  m = clamp(m, M.min, M.max);
+  if (Math.abs(m - perf.mult) > 0.004) { perf.mult = m; sizeRenderer(); }
+}
+
+// ---- the villages beyond the mountains -------------------------------------------------------------------------------------------------
+// Mizuho and Isobe are farming villages on the far side of the range from the capital: old timber houses with tiled roofs, and around them the
+// valley floor in rice. The paddies are laid on a grid turned to the valley, each one a level terrace at its own height (so a slope becomes a
+// flight of terraces), some flooded and mirroring the sky, most deep green with rice, a few going gold, with grass ridges between. A stream
+// runs through each village with stone banks and a red bridge where a road crosses it, and the houses have gardens: a pond, rocks, a stone
+// lantern, a pine and a maple.
+const VILLAGE_LOOK = { paddyCell: [26, 17], gap: 1.6 };
+function paddyTex(kind) {
+  paddyTex.c = paddyTex.c || {}; if (paddyTex.c[kind]) return paddyTex.c[kind];
+  const c = document.createElement("canvas"); c.width = c.height = 512; const g = c.getContext("2d"), R = (a, b) => a + Math.random() * (b - a);
+  if (kind === "water") {
+    const gr = g.createLinearGradient(0, 0, 512, 512); gr.addColorStop(0, "#6f9fc6"); gr.addColorStop(0.5, "#9cc4e0"); gr.addColorStop(1, "#5d8fb8"); g.fillStyle = gr; g.fillRect(0, 0, 512, 512);
+    for (let k = 0; k < 900; k++) { g.fillStyle = "rgba(255,255,255," + R(0.02, 0.08) + ")"; g.fillRect(R(0, 512), R(0, 512), R(4, 30), 1); }
+    for (let y = 14; y < 512; y += 22) for (let x = 10; x < 512; x += 18) { g.strokeStyle = "rgba(96,150,60,0.95)"; g.lineWidth = 2; for (let k = 0; k < 4; k++) { g.beginPath(); g.moveTo(x, y); g.lineTo(x + R(-4, 4), y - R(6, 12)); g.stroke(); } }
+  } else if (kind === "earth") {
+    g.fillStyle = "#5a4a32"; g.fillRect(0, 0, 512, 512);
+    for (let k = 0; k < 4000; k++) { g.fillStyle = "rgba(" + (Math.random() < 0.5 ? "40,30,20" : "120,100,70") + ",0.25)"; g.fillRect(R(0, 512), R(0, 512), 2, 2); }
+    g.fillStyle = "#4f7a2e"; for (let k = 0; k < 900; k++) g.fillRect(R(0, 512), R(0, 512), 1.5, R(2, 6));
+  } else {
+    const gold = kind === "gold";
+    const base = gold ? ["#b99a3a", "#d4b450", "#a88a2e"] : ["#3f8f2a", "#5bb33a", "#2f7a22"];
+    g.fillStyle = gold ? "#b0902e" : "#4f9a2c"; g.fillRect(0, 0, 512, 512);
+    for (let y = 0; y < 512; y += 12) { g.fillStyle = gold ? "rgba(110,86,34,0.5)" : "rgba(70,120,130,0.35)"; g.fillRect(0, y + 6, 512, 2); }
+    // rows of rice: clumps of blades leaning a little with the wind, lighter at the tips
+    for (let y = 8; y < 512; y += 12) for (let x = 6; x < 512; x += 10) {
+      for (let k = 0; k < 7; k++) { g.strokeStyle = base[k % 2]; g.lineWidth = R(1, 2.2); g.beginPath(); g.moveTo(x + R(-2, 2), y + 4); g.quadraticCurveTo(x + R(-3, 3), y - 4, x + R(-6, 6) + 3, y - R(8, 14)); g.stroke(); }
+      if (gold && Math.random() < 0.7) { g.fillStyle = "#e8cf72"; g.beginPath(); g.ellipse(x + 3, y - 10, 2.2, 4, 0.5, 0, 7); g.fill(); }
+    }
+    for (let k = 0; k < 40; k++) { g.fillStyle = "rgba(255,255,220,0.07)"; g.beginPath(); g.ellipse(R(0, 512), R(0, 512), R(40, 120), R(10, 30), R(0, 3), 0, 7); g.fill(); }
+  }
+  // the ridge round every paddy: a raised grass bund with a worn path along it
+  g.strokeStyle = "#5f8f3a"; g.lineWidth = 16; g.strokeRect(8, 8, 496, 496);
+  g.strokeStyle = "#8a7a52"; g.lineWidth = 4; g.strokeRect(8, 8, 496, 496);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; sharpTex(t);
+  return (paddyTex.c[kind] = t);
+}
+function villagePlan(city) {
+  // where the paddies, the stream and the gardens go: worked out before the countryside is planted, so no forest grows in a rice field
+  if (city.village) return city.village;
+  const V = city.village = { paddies: [], stream: [], gardens: [] };
+  const site = city.site, A = world.arc, t = clamp01(site.alongT), tan = A.tangentAt(t), nrm = A.normalAt(t);
+  const ax = [tan[0], tan[1]], az = [nrm[0], nrm[1]];
+  const c0 = city.centre || A.anchor(t, site.lateral), R = Math.max(site.alongRadius, site.inlandRadius) * 2.3;
+  const cw = VILLAGE_LOOK.paddyCell[0], cd = VILLAGE_LOOK.paddyCell[1], gp = VILLAGE_LOOK.gap;
+  const clear = (x, z, r) => !(insideBuilding(x, z, r) || (city.footprint && city.footprint(x, z) > 0.12) || roadEdgeDist(city, x, z) < r || world.sampleHeight(x, z) < 1.4 || world.sampleRiver(x, z) > 0.2);
+  const hwyNear = (x, z) => { const H = world.highway; if (!H) return false; for (let i = 0; i < H.pts.length; i += 3) if (Math.abs(H.pts[i][0] - x) < 30 && Math.abs(H.pts[i][2] - z) < 30) return true; return false; };
+  for (let j = -Math.floor(R / (cd + gp)); j <= Math.floor(R / (cd + gp)); j++) for (let i = -Math.floor(R / (cw + gp)); i <= Math.floor(R / (cw + gp)); i++) {
+    const u = i * (cw + gp), v = j * (cd + gp); if (Math.hypot(u / R, v / R) > 1) continue;
+    const x = c0[0] + ax[0] * u + az[0] * v, z = c0[1] + ax[1] * u + az[1] * v;
+    if (world.slopeAt(x, z) > 0.12) continue;
+    let ok = true, lo = 1e9, hi = -1e9;
+    for (const [du, dv] of [[-cw / 2, -cd / 2], [cw / 2, -cd / 2], [-cw / 2, cd / 2], [cw / 2, cd / 2], [0, 0]]) {
+      const px = x + ax[0] * du + az[0] * dv, pz = z + ax[1] * du + az[1] * dv;
+      if (!clear(px, pz, 2)) { ok = false; break; }
+      const h = world.sampleHeight(px, pz); lo = Math.min(lo, h); hi = Math.max(hi, h);
+    }
+    if (!ok || hi - lo > 4 || hwyNear(x, z)) continue;
+    const r = rnd(i + 99, j + 37, 9301), kind = r < 0.22 ? "water" : r < 0.88 ? "green" : r < 0.95 ? "gold" : "earth";
+    V.paddies.push({ x: x, z: z, y: (lo + hi) / 2 + 0.05, lo: lo, w: cw, d: cd, yaw: Math.atan2(-ax[1], ax[0]), kind: kind });
+  }
+  // the stream: across the valley, through the village, a little to one side of its middle, winding
+  // (the line with the fewest houses in its way wins, across the valley or along it)
+  let best = null;
+  for (const along of [false, true]) for (const k of [1.3, -1.3, 2.4, -2.4, 3.5, -3.5, 4.6, -4.6]) {
+    const off = site.coreRadius * k, pts = []; let bad = 0;
+    for (let v = -R * 1.05; v <= R * 1.05; v += 8) {
+      const u = off + Math.sin(v / 70) * 14 + Math.sin(v / 23) * 4, uu = along ? v : u, vv = along ? u : v;
+      const x = c0[0] + ax[0] * uu + az[0] * vv, z = c0[1] + ax[1] * uu + az[1] * vv;
+      if (insideBuilding(x, z, 4)) bad++;
+      if (world.sampleHeight(x, z) > 1.2 && world.slopeAt(x, z) < 0.3) pts.push([x, z]); else if (pts.length) break;
+    }
+    const score = bad * 10 - pts.length * 0.1;
+    if (pts.length > 40 && (!best || score < best.score)) best = { pts: pts, score: score };
+  }
+  if (best) {
+    V.stream = best.pts;
+    // it flows from the high end of the valley to the low
+    if (world.sampleHeight(V.stream[0][0], V.stream[0][1]) < world.sampleHeight(V.stream[V.stream.length - 1][0], V.stream[V.stream.length - 1][1])) V.stream.reverse();
+  }
+  // keep the paddies off the stream
+  if (V.stream.length) V.paddies = V.paddies.filter(p => !V.stream.some(s => Math.hypot(s[0] - p.x, s[1] - p.z) < 18));
+  // gardens: in the clear ground just outside the houses, in a ring round the village core
+  // (beside a house - one within a few metres - but not on it, on a road, in the stream or in water)
+  const gClear = (x, z) => !insideBuilding(x, z, 5) && insideBuilding(x, z, 16) && roadEdgeDist(city, x, z) > 4 && world.sampleHeight(x, z) > 1.4 && world.sampleRiver(x, z) < 0.2 && !V.stream.some(s => Math.hypot(s[0] - x, s[1] - z) < 10);
+  for (let k = 0; k < 600 && V.gardens.length < 9; k++) {
+    const a = rnd(k, 3, 9311) * Math.PI * 2, r = site.coreRadius * (0.3 + rnd(k, 5, 9313) * 2.6), x = c0[0] + Math.cos(a) * r, z = c0[1] + Math.sin(a) * r;
+    if (!gClear(x, z) || world.slopeAt(x, z) > 0.15) continue;
+    if (V.paddies.some(p => Math.hypot(p.x - x, p.z - z) < 20) || V.gardens.some(gd => Math.hypot(gd.x - x, gd.z - z) < 24)) continue;
+    V.gardens.push({ x: x, z: z, yaw: a, y: world.sampleHeight(x, z) });
+  }
+  return V;
+}
+function buildVillage(root, city) {
+  const V = villagePlan(city), hi = gfx.high;
+  // paddies: one instanced slab per kind, the top in rice or water and the sides in earth (the slab reaches down to the lowest corner)
+  const kinds = ["green", "water", "gold", "earth"], earthM = new THREE.MeshLambertMaterial({ map: paddyTex("earth") });
+  kinds.forEach(k => {
+    const list = V.paddies.filter(p => p.kind === k); if (!list.length) return;
+    const top = k === "water" ? new THREE.MeshStandardMaterial({ map: paddyTex("water"), roughness: 0.08, metalness: 0.35, envMap: gfx.env || null, envMapIntensity: 1.1 })
+      : hi ? new THREE.MeshStandardMaterial({ map: paddyTex(k), roughness: 0.85 }) : new THREE.MeshLambertMaterial({ map: paddyTex(k) });
+    const mats = [earthM, earthM, top, earthM, earthM, earthM];
+    const geo = new THREE.BoxGeometry(1, 1, 1), M = new THREE.InstancedMesh(geo, mats, list.length), m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    list.forEach((p, i) => { const h = Math.max(0.4, p.y - p.lo + 0.5); q.setFromEuler(new THREE.Euler(0, p.yaw, 0)); m4.compose(new THREE.Vector3(p.x, p.y - h / 2, p.z), q, new THREE.Vector3(p.w, h, p.d)); M.setMatrixAt(i, m4); });
+    M.receiveShadow = true; M.frustumCulled = false; root.add(M);
+  });
+  // the rice itself: rows of standing plants, each row a strip of blades the length of the paddy (crossed, so it has body from any side).
+  // Green and gold paddies are planted thick, the flooded ones with young seedlings poking out of the water.
+  const rowTex = (gold, young) => {
+    const key = (gold ? "g" : "r") + (young ? "y" : ""); rowTex.c = rowTex.c || {}; if (rowTex.c[key]) return rowTex.c[key];
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 64; const g = c.getContext("2d"), Rr = (a, b) => a + Math.random() * (b - a);
+    const cols = gold ? ["#c9a640", "#e0c25a", "#a8862c", "#b8963a"] : ["#4fa82e", "#6cc23e", "#3a8f24", "#5bb83a"];
+    for (let x = 4; x < 1024; x += young ? 26 : 9) for (let k = 0; k < (young ? 5 : 9); k++) {
+      g.strokeStyle = cols[k % 4]; g.lineWidth = Rr(1.2, 2.4); const top = young ? Rr(30, 46) : Rr(4, 18);
+      g.beginPath(); g.moveTo(x + Rr(-2, 2), 64); g.quadraticCurveTo(x + Rr(-4, 4), 40, x + Rr(-10, 10), top); g.stroke();
+      if (gold && !young && Math.random() < 0.5) { g.fillStyle = "#ead27a"; g.beginPath(); g.ellipse(x + Rr(-8, 8), top + 4, 2.4, 6, Rr(-0.6, 0.6), 0, 7); g.fill(); }
+    }
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = THREE.RepeatWrapping; sharpTex(t);
+    return (rowTex.c[key] = t);
+  };
+  const lowEnd = gfx.tier === "low" || gameSet.pcMode === "low";
+  [["green", false, false, 0.62], ["gold", true, false, 0.78], ["water", false, true, 0.32]].forEach(([k, gold, young, ht]) => {
+    const list = V.paddies.filter(p => p.kind === k); if (!list.length) return;
+    const step = lowEnd ? 1.8 : 0.9, rowsPer = Math.floor((VILLAGE_LOOK.paddyCell[1] - 1.6) / step), cross = lowEnd ? 1 : 2;
+    const geo = new THREE.PlaneGeometry(1, 1); geo.translate(0, 0.5, 0);
+    const tex = rowTex(gold, young).clone(); tex.needsUpdate = true; tex.repeat.set((VILLAGE_LOOK.paddyCell[0] - 1.6) / 6, 1);
+    const mat = new THREE.MeshLambertMaterial({ map: tex, alphaTest: 0.45, side: THREE.DoubleSide });
+    const n = list.length * rowsPer * cross, M = new THREE.InstancedMesh(geo, mat, n), m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    let i = 0;
+    list.forEach(p => {
+      const ca = Math.cos(p.yaw), sa = Math.sin(p.yaw), L = p.w - 1.6;
+      for (let r = 0; r < rowsPer; r++) for (let c = 0; c < cross; c++) {
+        const off = -p.d / 2 + 0.8 + (r + 0.5) * step + (c ? step * 0.5 : 0);
+        // the paddy's local z is across the rows; its local x is along them
+        const x = p.x + sa * off, z = p.z + ca * off;
+        e.set(0, p.yaw + (c ? 0.06 : 0), 0); q.setFromEuler(e);
+        m4.compose(new THREE.Vector3(x, p.y - 0.02, z), q, new THREE.Vector3(L, ht * (0.9 + 0.2 * rnd(r, i, 9371)), 1)); M.setMatrixAt(i++, m4);
+      }
+    });
+    M.count = i; M.frustumCulled = false; M.castShadow = false; M.receiveShadow = true; root.add(M);
+  });
+  // the stream: a ribbon of water that only ever runs downhill, between banks of stones and long grass
+  if (V.stream.length > 4) {
+    // the water hugs the ground a hand's breadth above it, edge by edge, so it is never lost under a bank nor left hanging in the air
+    const S = V.stream, wy = (x, z) => world.sampleHeight(x, z) + 0.1;
+    const pos = [], uv = [], idx = [], W = 3.2;
+    let along = 0;
+    for (let i = 0; i < S.length; i++) {
+      const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+      if (i) along += Math.hypot(S[i][0] - S[i - 1][0], S[i][1] - S[i - 1][1]);
+      const w = W * (0.85 + 0.3 * Math.sin(i * 0.7));
+      const ax1 = S[i][0] + nx * w, az1 = S[i][1] + nz * w, ax2 = S[i][0] - nx * w, az2 = S[i][1] - nz * w, ym = Math.max(wy(ax1, az1), wy(ax2, az2), wy(S[i][0], S[i][1]));
+      pos.push(ax1, ym, az1, ax2, ym, az2); uv.push(0, along / 8, 1, along / 8);
+      if (i) { const k = i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+    // clear running water: deep in the middle, pale over the stones at the edges, with ripples that run downstream
+    const wc = document.createElement("canvas"); wc.width = 128; wc.height = 512; const wg = wc.getContext("2d");
+    const wgr = wg.createLinearGradient(0, 0, 128, 0); wgr.addColorStop(0, "#9fc2b8"); wgr.addColorStop(0.25, "#4f8fa6"); wgr.addColorStop(0.5, "#3a7a98"); wgr.addColorStop(0.75, "#4f8fa6"); wgr.addColorStop(1, "#9fc2b8");
+    wg.fillStyle = wgr; wg.fillRect(0, 0, 128, 512);
+    for (let k = 0; k < 260; k++) { wg.strokeStyle = "rgba(255,255,255," + (0.08 + Math.random() * 0.25) + ")"; wg.lineWidth = 1 + Math.random(); const x = Math.random() * 128, y = Math.random() * 512; wg.beginPath(); wg.moveTo(x, y); wg.quadraticCurveTo(x + 4, y + 6, x + (Math.random() - 0.5) * 6, y + 10 + Math.random() * 18); wg.stroke(); }
+    const wt = new THREE.CanvasTexture(wc); wt.encoding = THREE.sRGBEncoding; wt.wrapS = wt.wrapT = THREE.RepeatWrapping;
+    const water = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: wt, roughness: 0.08, metalness: 0.3, envMap: gfx.env || null, envMapIntensity: 1.0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+    water.onBeforeRender = () => { wt.offset.y -= 0.004; };
+    root.add(water);
+    // banks: stones, and clumps of reeds
+    const stone = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x6b675e, roughness: 0.95 }), S.length * 2);
+    // reeds: crossed cards of long blades, the rice-row drawing turned on end
+    const reedGeo = new THREE.PlaneGeometry(1.4, 1.6); reedGeo.translate(0, 0.8, 0); 
+    const reedTex = rowTex(false, false).clone(); reedTex.needsUpdate = true; reedTex.repeat.set(0.25, 1);
+    const reed = new THREE.InstancedMesh(reedGeo, new THREE.MeshLambertMaterial({ map: reedTex, alphaTest: 0.45, side: THREE.DoubleSide }), S.length * 2);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(); let ns = 0, nr = 0;
+    for (let i = 0; i < S.length; i++) {
+      const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, nx = -dz / L, nz = dx / L;
+      for (const sd of [-1, 1]) { const r = rnd(i, sd + 3, 9321), x = S[i][0] + nx * sd * (W + 0.4), z = S[i][1] + nz * sd * (W + 0.4), s = 0.35 + r * 0.5; q.setFromEuler(new THREE.Euler(r * 3, r * 7, r * 2)); m4.compose(new THREE.Vector3(x, world.sampleHeight(x, z) - 0.1, z), q, new THREE.Vector3(s * 1.3, s * 0.7, s)); stone.setMatrixAt(ns++, m4); }
+      if (rnd(i, 9, 9323) < 0.6) { const sd = rnd(i, 11, 9325) < 0.5 ? -1 : 1, x = S[i][0] + nx * sd * (W + 1.3), z = S[i][1] + nz * sd * (W + 1.3); m4.compose(new THREE.Vector3(x, world.sampleHeight(x, z) - 0.05, z), q.setFromEuler(new THREE.Euler(0, rnd(i, 15, 9329) * 3, 0)), new THREE.Vector3(1, 0.8 + rnd(i, 13, 9327) * 0.6, 1)); reed.setMatrixAt(nr++, m4); m4.multiply(new THREE.Matrix4().makeRotationY(Math.PI / 2)); reed.setMatrixAt(nr++, m4); }
+    }
+    stone.count = ns; reed.count = nr; stone.frustumCulled = reed.frustumCulled = false; root.add(stone); root.add(reed);
+    // a red arched bridge wherever a road crosses it
+    const red = new THREE.MeshStandardMaterial({ color: 0xc0302a, roughness: 0.55 }), deck = new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.8 });
+    let last = -99;
+    for (let i = 2; i < S.length - 2; i++) {
+      if (i - last < 6 || roadEdgeDist(city, S[i][0], S[i][1]) > -1) continue;
+      last = i;
+      const a = S[i - 1], b = S[i + 1], yawB = Math.atan2(b[0] - a[0], b[1] - a[1]) + Math.PI / 2, y = world.surfaceY(S[i][0], S[i][1]);
+      const br = new THREE.Group(); br.position.set(S[i][0], y, S[i][1]); br.rotation.y = yawB;
+      const arch = new THREE.Mesh(new THREE.CylinderGeometry(9, 9, 6, 20, 1, true, -0.36, 0.72), deck); arch.rotation.z = Math.PI / 2; arch.position.y = -8.4; br.add(arch);
+      for (const sd of [-1, 1]) { for (let k = -3; k <= 3; k++) { const p = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), red); p.position.set(sd * 2.9, 0.55 + Math.cos(k / 3 * 0.36) * 0.6 - 0.5, k * 1.1); br.add(p); } const rail = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 7.2), red); rail.position.set(sd * 2.9, 1.15, 0); br.add(rail); }
+      root.add(br);
+    }
+  }
+  // gardens
+  V.gardens.forEach((G, k) => {
+    const g = new THREE.Group(); g.position.set(G.x, G.y, G.z); g.rotation.y = G.yaw; root.add(g);
+    const pond = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.4, 0.1, 24), new THREE.MeshStandardMaterial({ color: 0x2f5f56, roughness: 0.05, metalness: 0.3, envMap: gfx.env || null })); pond.scale.set(1.3, 1, 0.8); pond.position.y = 0.05; g.add(pond);
+    const rim = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshStandardMaterial({ color: 0x67645c, roughness: 0.95 }), 16), m4 = new THREE.Matrix4();
+    // the bed: moss, with a fringe of raked pale gravel round it
+    const bed = (r, col, y) => { const m = new THREE.Mesh(new THREE.CircleGeometry(r, 32), new THREE.MeshLambertMaterial({ color: col, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 })); m.rotation.x = -Math.PI / 2; m.position.y = y; m.scale.set(1.25, 1, 1); m.receiveShadow = true; g.add(m); };
+    bed(7.4, 0xb8b2a2, 0.04); bed(6.4, 0x4d6e2c, 0.06);
+    for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; m4.compose(new THREE.Vector3(Math.cos(a) * 3.2, 0.1, Math.sin(a) * 2.0), new THREE.Quaternion().setFromEuler(new THREE.Euler(i, i * 2, 0)), new THREE.Vector3(0.45, 0.3, 0.4)); rim.setMatrixAt(i, m4); }
+    g.add(rim);
+    for (const [x, z, s] of [[4.6, -1.5, 0.9], [5.4, 0.4, 0.6], [-4.3, 1.8, 0.75]]) { const r = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), new THREE.MeshStandardMaterial({ color: 0x6d6a62, roughness: 0.9 })); r.position.set(x, s * 0.5, z); r.scale.y = 0.7; g.add(r); }
+    // a stone lantern
+    const st = new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.95 });
+    [[0.8, 0.3, 0.8, 0.15], [0.25, 0.7, 0.25, 0.65], [0.6, 0.45, 0.6, 1.22], [1.0, 0.2, 1.0, 1.55], [0.3, 0.25, 0.3, 1.78]].forEach(e => { const b = new THREE.Mesh(new THREE.BoxGeometry(e[0], e[1], e[2]), st); b.position.set(-3.6, e[3], -2.2); g.add(b); });
+    // a pine, a maple, clipped azaleas
+    const pine = new THREE.Mesh(treeGeometry("matsu", 1), treeMaterial("matsu")); pine.scale.setScalar(5.5); pine.position.set(-5.2, 0, 0.4); g.add(pine);
+    const maple = new THREE.Mesh(treeGeometry("keyaki", 1), treeMaterial("momiji")); maple.scale.setScalar(4.6); maple.position.set(3.8, 0, 2.6); g.add(maple);
+    const az = new THREE.MeshLambertMaterial({ color: 0x3f6e2c }), fl = new THREE.MeshLambertMaterial({ color: 0xe0508a });
+    for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), i % 2 ? az : fl); b.scale.y = 0.6; b.position.set(-1.5 + i * 0.9, 0.3, 3.2); g.add(b); }
+    trunkAdd("city", G.x + Math.cos(G.yaw) * -5.2, G.z - Math.sin(G.yaw) * -5.2, 0.3);
+  });
+}
+
 function frameLoop() {
   let last = performance.now();
   let slow = 1;
@@ -33681,7 +33958,7 @@ function frameLoop() {
     last = now;
     if (world && scene) {
       tick(dt);
-      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden) perfFrame(raw); else perfHold(1.5);
+      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
     }
     requestAnimationFrame(loop);
   }

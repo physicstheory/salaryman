@@ -105,6 +105,9 @@ def main():
     # keyaki: zelkova, a mid green; finer leaves than the source, so they are drawn small and many
     keyaki = [tint(s, (88, 128, 52), 0.25) for s in broad]
     sheet(keyaki, B("Bark012"), (34, 52, 24), 11, 0.12, 0.11, 460, 360).save(os.path.join(outdir, "keyaki.png"), optimize=True)
+    # momiji: Japanese maple for the gardens, in its autumn red
+    momiji = [tint(s, (196, 52, 34), 0.62) for s in broad]
+    sheet(momiji, B("Bark004"), (90, 24, 18), 51, 0.10, 0.09, 520, 400).save(os.path.join(outdir, "momiji.png"), optimize=True)
     # sakura: blossom over a few young leaves
     pinks = [blossom(r, c) for r in (18, 22, 26) for c in ((252, 214, 226, 255), (247, 196, 214, 255), (255, 236, 242, 255))]
     young = [tint(s, (120, 140, 70), 0.35) for s in broad]

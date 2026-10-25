@@ -129,6 +129,7 @@ const r2 = await ev(() => ({ stage: rob.stage, pending: rob.pending, alarm: rob.
 ok("botched robbery sets off the alarm", r2.pending === "robbery", r2);
 await snap("robbery_alarm");
 await ev(() => interiorLeave(true)); await wait(3000);
+for (let i = 0; i < 10 && !(await ev(() => wanted.stars >= 3)); i++) await wait(1000);
 ok("police waiting outside", await ev(() => wanted.stars >= 3), await ev(() => ({ s: wanted.stars, c: wanted.lastCrime })));
 // run somebody over
 await ev(() => { cheat("CLEANSLATE"); policeClear(); const c = world.cities[0]; placeSeiko(new THREE.Vector3(c.scramble.at[0] + 12, c.scramble.groundY, c.scramble.at[1] + 12)); });

@@ -25,7 +25,7 @@ BM, BF, MA, FA, SP = "Professions/Business_Male_", "Professions/Business_Female_
 # Seiko himself: the white shirt and dark trousers of one office worker, with the face and short black hair he has always had
 PLAYER = ("seiko_player", BM + "06", BM + "02", True, False)
 # his wardrobe at home: the same head on other clothes (id, name, body)
-OUTFITS = [("office", "Office shirt", BM + "06"), ("suit_black", "Black suit, red tie", BM + "01"), ("suit_charcoal", "Charcoal suit", BM + "03"),
+OUTFITS = [("village", "Village work clothes", "Professions/Gardener_Male_01"), ("village_denim", "Village shirt and jeans", "Professions/Wood_Male_01"), ("office", "Office shirt", BM + "06"), ("suit_black", "Black suit, red tie", BM + "01"), ("suit_charcoal", "Charcoal suit", BM + "03"),
            ("waistcoat", "Waistcoat", BM + "04"), ("suit_check", "Check suit", BM + "05"), ("polo", "Polo and shorts", MA + "01"),
            ("blue_shirt", "Blue shirt and jeans", MA + "08"), ("tshirt", "T-shirt and jeans", MA + "09"), ("track", "Track jacket", MA + "10")]
 RECIPES = [
