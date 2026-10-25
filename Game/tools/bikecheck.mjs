@@ -86,7 +86,12 @@ await ev(() => { keys.ShiftLeft = false; keys.KeyW = false; });
 rb = await ev(() => window.__rb);
 ok("Shift lifts the front wheel", th > 0.15 || wh, { th: th, wh: wh });
 ok("riding sends rumble", rb > 0, rb);
-// aerial view of the airport
-await ev(() => { const a = world.airports.find(x => x.big); if (drive.car) leaveCar && leaveCar(); const p = fromRectLocal(0, 200, a.cx, a.cz, a.yaw); cheat("FREECAM"); camPos.set(p[0] + 900, 520, p[1] + 900); camera.position.copy(camPos); camera.lookAt(a.cx, 0, a.cz); window.__aer = [a.cx, a.cz]; });
-await wait(15000); await ev(() => { const a = window.__aer; camera.lookAt(a[0], 0, a[1]); }); await snap("airport_aerial");
+// run somebody over
+for (let i = 0; i < 30; i++) { await wait(1500); if (await ev(() => peds.list.length >= 3)) break; }
+const hit = await ev(() => { const p = peds.list.find(q => q.state === "walk") || peds.list[0]; if (!p || !drive.car) return null; p.state = "idle"; p.idleFor = 99; p.t = 0;
+  const a = Math.random() * 6.28; drive.car.pos.set(p.x - Math.sin(a) * 9, world.surfaceY(p.x, p.z) + 0.3, p.z - Math.cos(a) * 9); drive.car.yaw = a; drive.car.speed = 15; window.__v = p; return { n: peds.list.length }; });
+for (let i = 0; i < 12; i++) { await wait(700); await ev(() => { if (drive.car && window.__v && window.__v.state !== "dead" && window.__v.state !== "down") { const p = window.__v; drive.car.yaw = Math.atan2(p.x - drive.car.pos.x, p.z - drive.car.pos.z); drive.car.speed = 15; } }); if (await ev(() => window.__v && (window.__v.state === "dead" || window.__v.state === "down"))) break; }
+await snap("knocked_down");
+const hv = await ev(() => ({ state: window.__v && window.__v.state, others: peds.list.map(p => p.state), stars: wanted.stars }));
+ok("a car knocks a person down", hv.state === "dead" || hv.state === "down", hv);
 await browser.close(); srv.close();

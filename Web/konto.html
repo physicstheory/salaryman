@@ -2555,6 +2555,23 @@ function streetPen(wd, x, z, noFoot) {
   const ext = k => { const odd = wd.alleys && (k & 1) !== 0; return (odd ? wd.alley : wd.street) / 2 + (noFoot ? 0.15 : (odd ? 0 : Math.min(2.6, wd.street * 0.25) + 0.12) + 0.3); };
   return Math.max(ext(k0) - Math.abs(l[0] - k0 * wd.sx), ext(k1) - Math.abs(l[1] - k1 * wd.sz));
 }
+// Is a street tree at (x, z), planted on the verge of `own`, actually standing in another road: a crossing arterial, or the scramble?
+function streetTreeOnRoad(city, own, x, z) {
+  // every town's roads, not just this one's: where two towns meet, one's verge can be the other's carriageway
+  for (const c of world.cities) { const sc = c.scramble; if (sc && Math.hypot(x - sc.at[0], z - sc.at[1]) < (sc.radius || 24) + 8) return true; }
+  const all = (world._allRoadsN === world.cities.length && world._allRoads) || (world._allRoadsN = world.cities.length, world._allRoads = world.cities.reduce((a, c) => a.concat(c.roads), []));
+  for (const r of all) {
+    if (r.elevated || !r.pts) continue;
+    const P = r.pts, hw = (r.halfWidth || 6) + (r === own ? 1.0 : 2.5);      // its own road too: on the inside of a bend the verge of one stretch is the road of the next
+    for (let i = 1; i < P.length; i++) {
+      const a = P[i - 1], b = P[i];
+      if (Math.min(a[0], b[0]) - hw > x || Math.max(a[0], b[0]) + hw < x || Math.min(a[2], b[2]) - hw > z || Math.max(a[2], b[2]) + hw < z) continue;
+      const dx = b[0] - a[0], dz = b[2] - a[2], L = dx * dx + dz * dz || 1, t = clamp(((x - a[0]) * dx + (z - a[2]) * dz) / L, 0, 1);
+      if (Math.hypot(a[0] + dx * t - x, a[2] + dz * t - z) < hw) return true;
+    }
+  }
+  return false;
+}
 // Distance from a point to the nearest road edge in a city: the arterials, and the local streets of the ward the point is in.
 function roadEdgeDist(city, x, z) {
   let best = 1e9;
@@ -6039,6 +6056,7 @@ function initThree() {
   window.addEventListener("keydown", e => {
     if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
+    if (e.code === "Tab" && gunArmed()) e.preventDefault();
     wakeAudio();
     if (onsens.active) { if (e.code === "Escape" || e.code === "Backspace") endSoak(true); e.preventDefault(); return; }
     if (heist.stage === "wire" || heist.stage === "start" || heist.stage === "smash") { if (!e.repeat) heistKey(e.code); e.preventDefault(); return; }
@@ -7122,6 +7140,7 @@ function buildScene(w) {
             const b = rnd(Math.round(p.centre[1]) + k, Math.round(p.centre[0]), 6133);
             const lx = (a - 0.5) * p.size[0] * 0.88, lz = (b - 0.5) * p.size[1] * 0.88;
             const wc = fromRectLocal(lx, lz, p.centre[0], p.centre[1], p.yaw);
+            if (streetTreeOnRoad(city, null, wc[0], wc[1])) continue;   // a park that runs up to a road keeps its trees off it
             trees.push({ c: wc, y: world.sampleHeight(wc[0], wc[1]), s: lerp(0.75, 1.5, rnd(k, 3, 6137)),
                          where: p.kind === "shrine" ? "shrine" : (region === "coast" ? "coast" : "park") });
           }
@@ -7397,14 +7416,15 @@ function buildScene(w) {
             const y = world.sampleHeight(px, pz);
             if (y < 1.0) continue;
             if (insideBuilding(px, pz, 1.2)) continue;
-            trees.push({ c: [px, pz], y: y, s: lerp(0.80, 1.25, r),
+            if (streetTreeOnRoad(city, road, px, pz)) continue;     // the verge of one road is the carriageway of the road crossing it
+            trees.push({ c: [px, pz], y: y, s: lerp(0.80, 1.25, r), road: road,
                          where: region === "coast" ? "coast" : "street" });
           }
         }
       }
     });
 
-    if (trees.length) plantTrees(root, trees);
+    if (trees.length) plantTrees(root, trees, city);
 
     // The roads themselves, as geometry rather than as paint.
     buildRoadSurfaces(w, city, root);
@@ -7557,7 +7577,9 @@ function seikoLoaded(gltf) {
     player.clipName = "";
     playSeikoClip("idle", 0);
   }
-  adoptSeiko(fitSeiko(inner));
+  const fitted = fitSeiko(inner);
+  pedsAdopt(gltf, inner);
+  adoptSeiko(fitted);
 }
 
 // Moves of his own. The file brings Idle, Walk and Run; the ones for breaking
@@ -7934,7 +7956,7 @@ function cameraFullOn() { return !!(phone.open && phone.app === "Camera" && came
 function fovFrame(dt) {
   if (camMode.on || !camera) return;
   const sp = drive.car ? Math.abs(drive.car.speed || 0) : 0;
-  const want = 58 + clamp01(sp / 42) * 13;
+  const want = 58 + clamp01(sp / 42) * 13 - (drive.car ? 0 : 18 * (gun.aim || 0));
   if (Math.abs(camera.fov - want) > 0.05) { camera.fov += (want - camera.fov) * (1 - Math.pow(0.02, dt)); camera.updateProjectionMatrix(); }
 }
 function applyCameraFull(dt) {
@@ -8541,8 +8563,9 @@ function treeSpecies(t, i) {
   return r < 0.58 ? "keyaki" : (r < 0.80 ? "sakura" : (r < 0.93 ? "matsu" : "sugi"));
 }
 
-function plantTrees(root, trees) {
+function plantTrees(root, trees, city) {
   trunkPurge(false);
+  if (city) { const n0 = trees.length; trees = trees.filter(t => !streetTreeOnRoad(city, t.road || null, t.c[0], t.c[1])); if (trees.length < n0) console.log("[Konto] " + city.name + ": " + (n0 - trees.length) + " trees kept off the roads"); }
   const byKind = {};
   trees.forEach((t, i) => {
     const sp = treeSpecies(t, i);
@@ -9686,6 +9709,7 @@ function tick(dt) {
     updateTolls(dt);
     updateDrive(dt);
     updateTraffic(dt, drive.car.pos);
+    pedsTick(dt);
     updateRail(dt, drive.car.pos);
     updateHud(dt);
     present();
@@ -9701,10 +9725,11 @@ function tick(dt) {
   }
   if (player.mode === "walk" && player.obj) {
     if (player.down > 0) updateKnockdown(dt);
-    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active || ex.open || ife.open) { /* the camera is on the thing you are looking at, or the menu is up */ }
+    else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active || ex.open || ife.open || rob.stage === "till") { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
     gunFrame(dt);
+    pedsTick(dt);
     updateTraffic(dt, player.pos);
     updateRail(dt, player.pos);
     updatePedestrianSafety(dt);
@@ -32014,7 +32039,7 @@ function gunSound(G) {
 }
 function gunTrace(o, d, range) {
   // march the ray: ground, buildings, cars, officers
-  const p = new THREE.Vector3(), step = 1.0;
+  const p = new THREE.Vector3(), step = 0.5;
   for (let t = 0.6; t <= range; t += step) {
     p.copy(o).addScaledVector(d, t);
     if (p.y < world.surfaceY(p.x, p.z)) return { p: p.clone(), kind: "ground", t: t };
@@ -32023,6 +32048,7 @@ function gunTrace(o, d, range) {
     carsNear(p.x, p.z, 4, c => { if (!hit && Math.abs((c.at ? c.at.y : 0) + 0.9 - p.y) < 1.4 && inCarBox(c, p.x, p.z, 0.15)) hit = c; });
     if (hit) return { p: p.clone(), kind: "car", t: t, car: hit };
     for (const of of police.officers) if (Math.hypot(of.x - p.x, of.z - p.z) < 0.6 && p.y < world.surfaceY(of.x, of.z) + 2.0) return { p: p.clone(), kind: "officer", t: t, officer: of };
+    for (const pd of peds.list) if (pd.state !== "dead" && Math.hypot(pd.x - p.x, pd.z - p.z) < 0.42 && p.y > pd.y + (pd.state === "down" ? 0 : 0.1) && p.y < pd.y + (pd.state === "down" ? 0.5 : 1.85 * pd.h)) return { p: p.clone(), kind: "ped", t: t, ped: pd };
   }
   return { p: p.clone(), kind: "air", t: range };
 }
@@ -32040,11 +32066,13 @@ function gunFire() {
     if (r.kind !== "air") gunSpark(r.p, r.kind === "car" ? 0xffffff : 0xffd27a);
     if (r.kind === "officer") { wanted.stars = Math.min(5, Math.max(wanted.stars, 3)); wanted.lastCrime = "Shooting at police"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); }
     if (r.kind === "car" && r.car) { r.car.v = 0; r.car.stopT = 3; }
+    if (r.kind === "ped" && r.ped) { const res = pedHurt(r.ped, id === "shotgun" ? 24 : id === "smg" ? 30 : 55, "gun"); if (res) { gun.lastCrime = clock; witnessCrime(res === "dead" ? "killing" : "shooting", player.pos, 55, r.ped); } }
   }
   if (!gun.light) { gun.light = new THREE.PointLight(0xffc870, 0, 9, 2); scene.add(gun.light); }
   gun.light.position.copy(mz); gun.light.intensity = 3.2; gun.lightT = 0.05;
   gunSound(G); rumble(0.9, 0.7, 90);
-  if (clock - gun.lastCrime > 8) { gun.lastCrime = clock; if (!interior.active) commitCrime("gun", player.pos); }
+  if (interior.active) robShots();
+  else if (clock - gun.lastCrime > 8) { gun.lastCrime = clock; witnessCrime("gun", player.pos, 55); }
   vitals.stress = clamp01(vitals.stress + 0.004);
 }
 function gunButtons(buttons) { gun.aimIn = !!(buttons & 2); gun.fireIn = !!(buttons & 1); }
@@ -32055,6 +32083,7 @@ function gunFrame(dt) {
   if (!armed || !gun.model) {
     if (gun.model) gun.model.visible = false;
     if (gun.hud) gun.hud.style.display = "none"; if (gun.xhair) gun.xhair.style.display = "none";
+    gun.lock = null; gun.target = null;
     gun.aim = lerp(gun.aim, 0, 0.3); gunFx(dt); return;
   }
   const G = GUNS[id], a = gunAmmoOf(id); gunHud();
@@ -32063,6 +32092,7 @@ function gunFrame(dt) {
   const fireWant = (gun.fireIn && aimWant) || keys.Enter || (gp && pad.index >= 0 && gp.buttons[PAD.RT] && gp.buttons[PAD.RT].value > 0.35);
   if (gp && pad.index >= 0) { const x = !!(gp.buttons[PAD.X] && gp.buttons[PAD.X].pressed); if (x && !gun.pw.x) gunReload(); gun.pw.x = x; }
   gun.aim = lerp(gun.aim, aimWant ? 1 : 0, 1 - Math.pow(0.0005, dt));
+  if (!interior.active) gunLockFrame(dt, aimWant); else { gun.lock = null; gun.target = null; }
   gun.cool = Math.max(0, gun.cool - dt); gun.recoil = Math.max(0, gun.recoil - dt * 7);
   if (gun.reload > 0) { gun.reload -= dt; if (gun.reload <= 0) { const need = G.mag - a.mag, take = Math.min(need, a.res); a.mag += take; a.res -= take; } }
   // face where you are aiming, and walk slower for it
@@ -32096,7 +32126,8 @@ function gunFrame(dt) {
   // the aim camera: over the right shoulder, close, and the crosshair on
   if (gun.aim > 0.02) {
     const head = player.pos.clone().add(new THREE.Vector3(0, 1.55, 0)), right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
-    const want = head.clone().addScaledVector(right, 0.5 * gun.aim).addScaledVector(fwd, -(lerp(5.0, 2.0, gun.aim)));
+    head.y += 0.06 * gun.aim;
+    const want = head.clone().addScaledVector(right, 0.62 * gun.aim).addScaledVector(fwd, -(lerp(5.0, 1.45, gun.aim)));
     const gc = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z)) + 1.0; if (want.y < gc) want.y = gc;
     if (interior.active) interiorClampCam(want);
     camPos.lerp(want, 1 - Math.pow(0.00005, dt)); camera.position.copy(camPos);
@@ -32119,6 +32150,556 @@ function gunFx(dt) {
   }
 }
 addEventListener("keydown", e => { if (e.repeat) return; if (e.code === "KeyR" && gunArmed()) gunReload(); });
+
+// ============================================================================
+// People on the street. Each one is Seiko's own rigged, animated body (cloned, with its own skeleton and its own shirt), walking the
+// pavements of the city around you: a few dozen metres out they appear, beyond a hundred they go. They react to you. Point a gun at one and
+// the hands go up; fire, run someone over, or shoot someone and the people who saw it scatter screaming, duck, or stand still with a phone to
+// the ear - and if nobody stops the call, the police are on their way. With no police and no witnesses, nobody knows.
+// ============================================================================
+const peds = { list: [], tpl: null, anims: null, poses: null, scale: 1, off: null, mats: [], grid: null, gridFor: null, spawnT: 0, sayT: 0, phoneTex: null, poolTex: null, lockEl: null };
+const PED_SHIRTS = ["#f7f7f5", "#bcd3ea", "#e9c9d2", "#9aa3ad", "#2f4a6b", "#c9b48a", "#3d6b4f", "#7a3b3b", "#e6e0cf", "#55606e"];
+const PED_LINES = { flee: ["Help!", "Run!", "He's got a gun!", "Somebody help!", "Tasukete!", "Get down!"], call: ["Police? There's a man with a gun…", "Hello, police? Come quickly!", "I'm calling the police!"], hands: ["Don't shoot!", "Please, take what you want!", "I didn't see anything!"] };
+CRIMES.shooting = { stars: 3, what: "Shooting somebody" };
+CRIMES.killing = { stars: 3, what: "Killing somebody" };
+CRIMES.menace = { stars: 1, what: "Threatening somebody with a gun" };
+CRIMES.robbery = { stars: 3, what: "Armed robbery" };
+CRIMES.robbed = { stars: 2, what: "Robbing a shop" };
+
+// A clone of a skinned model that has its own bones (Object3D.clone would leave every copy driven by the first one's skeleton).
+function cloneSkinned(src) {
+  const clone = src.clone(true), sl = [], cl = [];
+  src.traverse(o => sl.push(o)); clone.traverse(o => cl.push(o));
+  const map = new Map(); sl.forEach((o, i) => map.set(o, cl[i]));
+  sl.forEach((o, i) => {
+    if (!o.isSkinnedMesh) return;
+    const bones = o.skeleton.bones.map(b => map.get(b));
+    cl[i].bind(new THREE.Skeleton(bones, o.skeleton.boneInverses.map(m => m.clone())), o.bindMatrix);
+  });
+  return clone;
+}
+// Called when Seiko's model has loaded: keep a pristine copy of the body, the clips and how it was fitted.
+function pedsAdopt(gltf, inner) {
+  try {
+    const tpl = cloneSkinned(gltf.scene);
+    tpl.traverse(o => { if (o.isMesh) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); o.frustumCulled = false; o.castShadow = gfx.tier !== "low"; } });
+    peds.tpl = tpl; peds.anims = gltf.animations || []; peds.scale = inner.scale.x; peds.off = inner.position.clone();
+    peds.poses = pedPoseClips(tpl);
+  } catch (e) { console.warn("[Konto] no people on the street:", e); peds.tpl = null; }
+}
+// Poses as clips, on the same bones and axes as Seiko's own (see addActionClips): hands up, crouched with the arms over the head, a phone at the ear.
+function pedPoseClips(root) {
+  const bones = []; root.traverse(o => { if (o.isBone) bones.push(o); });
+  if (!bones.length) return {};
+  const hips = bones.find(b => /^hips$/i.test(b.name)), out = {};
+  const make = (name, pose, drop) => {
+    const tracks = [];
+    bones.forEach(b => {
+      const o = pose[b.name] || [0, 0, 0], q = b.quaternion.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(o[0], o[1], o[2])));
+      tracks.push(new THREE.QuaternionKeyframeTrack(b.name + ".quaternion", [0, 1], [q.x, q.y, q.z, q.w, q.x, q.y, q.z, q.w]));
+    });
+    if (hips) tracks.push(new THREE.VectorKeyframeTrack(hips.name + ".position", [0, 1], [hips.position.x, hips.position.y - (drop || 0), hips.position.z, hips.position.x, hips.position.y - (drop || 0), hips.position.z]));
+    out[name] = new THREE.AnimationClip(name, 1, tracks);
+  };
+  make("hands", { UpperArmR: [0, 0, 2.35], ForearmR: [0, 0, 0.85], UpperArmL: [0, 0, -2.35], ForearmL: [0, 0, -0.85], Neck: [0.05, 0, 0] });
+  make("cower", { UpperArmR: [0, 0, 1.9], ForearmR: [0, 0, 2.1], UpperArmL: [0, 0, -1.9], ForearmL: [0, 0, -2.1], Spine: [-0.55, 0, 0], Chest: [-0.25, 0, 0], Neck: [-0.35, 0, 0],
+    ThighR: [1.3, 0, 0], ThighL: [1.3, 0, 0], ShinR: [-1.55, 0, 0], ShinL: [-1.55, 0, 0] }, 0.42);
+  make("phone", { UpperArmR: [0, 0, 0.55], ForearmR: [0, 0, 2.45], Neck: [0, 0, 0.12] });
+  return out;
+}
+// A shirt colour per person, painted into a copy of the texture the way a shop shirt is painted onto Seiko.
+function pedMaterial(k, base) {
+  const key = k + ":" + base.uuid;
+  if (peds.mats[key]) return peds.mats[key];
+  const m = base.clone();
+  try {
+    const img = base.map && base.map.image;
+    if (img && img.width) {
+      const s = Math.min(1, 1024 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * s)); c.height = Math.max(1, Math.round(img.height * s));
+      const g = c.getContext("2d"); g.drawImage(img, 0, 0, c.width, c.height);
+      const id = g.getImageData(0, 0, c.width, c.height), d = id.data, t = hexRGB(typeof k === "string" ? k : PED_SHIRTS[k % PED_SHIRTS.length]);
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], gg = d[i + 1], b = d[i + 2], mx = Math.max(r, gg, b), mn = Math.min(r, gg, b), lum = (r + gg + b) / 3;
+        if (lum > 140 && (mx - mn) < 0.16 * mx) { const f = 0.55 + 0.45 * lum / 255; d[i] = t[0] * f; d[i + 1] = t[1] * f; d[i + 2] = t[2] * f; }
+      }
+      g.putImageData(id, 0, 0);
+      const tex = new THREE.CanvasTexture(c); tex.flipY = base.map.flipY; tex.encoding = base.map.encoding; tex.anisotropy = 4;
+      m.map = tex;
+    }
+  } catch (e) { /* a texture that cannot be read keeps its white shirt */ }
+  m.needsUpdate = true;
+  return (peds.mats[key] = m);
+}
+function pedFigure(shirt, height) {
+  const body = cloneSkinned(peds.tpl), wrap = new THREE.Group(), holder = new THREE.Group();
+  body.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(m => pedMaterial(shirt, m)) : pedMaterial(shirt, o.material); });
+  wrap.scale.setScalar(peds.scale * height); wrap.position.copy(peds.off).multiplyScalar(height);
+  wrap.add(body); holder.add(wrap);
+  const mixer = new THREE.AnimationMixer(body), acts = {};
+  peds.anims.forEach(c => { acts[c.name.replace(/[^A-Za-z]/g, "").toLowerCase()] = mixer.clipAction(c); });
+  Object.keys(peds.poses || {}).forEach(k => { acts[k] = mixer.clipAction(peds.poses[k]); });
+  let hand = null; body.traverse(o => { if (!hand && o.isBone && /^hand.?r$/i.test(o.name)) hand = o; });
+  return { holder: holder, body: body, mixer: mixer, acts: acts, hand: hand, clip: "" };
+}
+function pedPlay(f, name, fade, scale) {
+  const a = f.acts[name] || f.acts.idle; if (!a) return;
+  if (f.clip !== name) {
+    a.enabled = true; a.setEffectiveWeight(1); a.reset(); a.play();
+    if (f.cur && f.cur !== a) f.cur.crossFadeTo(a, fade || 0.25, true);
+    f.cur = a; f.clip = name;
+  }
+  if (scale !== undefined) a.setEffectiveTimeScale(scale);
+}
+// the pavements: every arterial road's footway, bucketed so the ones near you can be found quickly
+function pedGrid() {
+  if (peds.grid && peds.gridFor === world) return peds.grid;
+  const G = new Map(), C = 90;
+  (world.cities || []).forEach(city => city.roads.forEach(r => {
+    if (r.elevated || !r.pts || r.pts.length < 2 || (r.halfWidth || 0) < 4) return;
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 2) continue;
+      const k = Math.floor((a[0] + b[0]) / 2 / C) + "," + Math.floor((a[2] + b[2]) / 2 / C);
+      (G.get(k) || G.set(k, []).get(k)).push({ r: r, i: i });
+    }
+  }));
+  peds.grid = G; peds.gridFor = world; peds.gridC = C;
+  return G;
+}
+function pedPathPos(p, out) {
+  const P = p.r.pts, a = P[p.i], b = P[p.i + 1], dx = b[0] - a[0], dz = b[2] - a[2], len = Math.hypot(dx, dz) || 1, ux = dx / len, uz = dz / len;
+  const off = (p.r.halfWidth || 8) + 2.2;
+  out.x = a[0] + dx * p.u - uz * off * p.side; out.z = a[2] + dz * p.u + ux * off * p.side;
+  out.yaw = Math.atan2(ux * p.dir, uz * p.dir); out.len = len;
+  return out;
+}
+function pedWanted() { return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+function pedSpawn() {
+  const G = pedGrid(), C = peds.gridC, px = player.pos.x, pz = player.pos.z, cx = Math.floor(px / C), cz = Math.floor(pz / C), cand = [];
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const l = G.get((cx + i) + "," + (cz + j)); if (l) cand.push.apply(cand, l); }
+  if (!cand.length) return false;
+  const fx = -Math.sin(yaw), fz = -Math.cos(yaw), tmp = {};
+  for (let t = 0; t < 8; t++) {
+    const c = cand[(Math.random() * cand.length) | 0], p = { r: c.r, i: c.i, u: Math.random(), side: Math.random() < 0.5 ? -1 : 1, dir: Math.random() < 0.5 ? -1 : 1 };
+    pedPathPos(p, tmp);
+    const dx = tmp.x - px, dz = tmp.z - pz, d = Math.hypot(dx, dz);
+    if (d < 28 || d > 95) continue;
+    if ((dx * fx + dz * fz) / d > 0.55 && d < 60) continue;                       // not out of thin air in front of you
+    if (insideBuilding(tmp.x, tmp.z, 0.4) || world.sampleHeight(tmp.x, tmp.z) < 0.35) continue;
+    if (peds.list.some(q => Math.hypot(q.x - tmp.x, q.z - tmp.z) < 3)) continue;
+    const shirt = (Math.random() * PED_SHIRTS.length) | 0, h = 0.9 + Math.random() * 0.14, f = pedFigure(shirt, h);
+    Object.assign(p, f, { x: tmp.x, z: tmp.z, y: world.surfaceY(tmp.x, tmp.z), yaw: tmp.yaw, sp: 1.15 + Math.random() * 0.5, state: "walk", t: 0, hp: 100, idleIn: 12 + Math.random() * 30, h: h, said: 0 });
+    if (Math.random() < 0.35 && p.hand) { const bc = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2a1e16 : 0x18191c, roughness: 0.6 })); bc.position.set(0, -0.2, 0); bc.scale.setScalar(1 / (peds.scale * h)); p.hand.add(bc); }
+    p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
+    scene.add(p.holder); pedPlay(p, "walk", 0, p.sp / WALK_SPEED);
+    peds.list.push(p);
+    return true;
+  }
+  return false;
+}
+function pedRemove(p) {
+  scene.remove(p.holder); p.mixer.stopAllAction();
+  if (p.icon) p.icon.material.dispose();
+  p.holder.traverse(o => { if (o.isMesh && o.geometry && !o.isSkinnedMesh) o.geometry.dispose(); });
+  if (p.pool) { scene.remove(p.pool); p.pool.geometry.dispose(); }
+  const i = peds.list.indexOf(p); if (i >= 0) peds.list.splice(i, 1);
+  if (gun.lock === p) gun.lock = null;
+}
+function pedsClear() { while (peds.list.length) pedRemove(peds.list[0]); }
+function pedSay(p, kind, secs) {
+  if (clock - peds.sayT < 2.5 || Math.hypot(p.x - player.pos.x, p.z - player.pos.z) > 30) return;
+  const L = PED_LINES[kind]; peds.sayT = clock; say("“" + L[(Math.random() * L.length) | 0] + "”", secs || 2);
+}
+function pedScream(p) {
+  const ctx = sound && sound.ctx; if (!ctx || !sound.master) return;
+  const d = Math.hypot(p.x - player.pos.x, p.z - player.pos.z); if (d > 50) return;
+  const t = ctx.currentTime + Math.random() * 0.15, vol = 0.22 * (1 - d / 50), f0 = (p.h < 0.97 ? 760 : 520) + Math.random() * 260, dur = 0.8 + Math.random() * 0.6;
+  const o = ctx.createOscillator(); o.type = "sawtooth";
+  o.frequency.setValueAtTime(f0 * 0.8, t); o.frequency.linearRampToValueAtTime(f0 * 1.3, t + 0.14); o.frequency.exponentialRampToValueAtTime(f0 * 0.72, t + dur);
+  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 6 + Math.random() * 2; lg.gain.value = f0 * 0.04; lfo.connect(lg); lg.connect(o.frequency);
+  const out = ctx.createGain(); out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(vol, t + 0.05); out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  [[850, 5], [1350, 6], [2700, 8]].forEach(fq => { const b = ctx.createBiquadFilter(); b.type = "bandpass"; b.frequency.value = fq[0] * (f0 / 600); b.Q.value = fq[1]; o.connect(b); b.connect(out); });
+  out.connect(sound.master); o.start(t); lfo.start(t); o.stop(t + dur + 0.05); lfo.stop(t + dur + 0.05);
+}
+function pedPhoneIcon() {
+  if (peds.phoneTex) return peds.phoneTex;
+  const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d");
+  g.fillStyle = "#d8262c"; g.beginPath(); g.arc(32, 32, 29, 0, 7); g.fill(); g.strokeStyle = "#fff"; g.lineWidth = 4; g.stroke();
+  g.fillStyle = "#fff"; roundRect(g, 23, 14, 18, 34, 4); g.fill(); g.fillStyle = "#d8262c"; g.fillRect(26, 19, 12, 20);
+  return (peds.phoneTex = new THREE.CanvasTexture(c));
+}
+// Something happened at `at`. Everyone who could have seen it within R reacts; a few of them ring it in as `crime`.
+function pedAlarm(at, R, crime, except) {
+  let callers = peds.list.filter(p => p.state === "call").length, far = null;
+  for (const p of peds.list) {
+    if (p === except || p.state === "dead" || p.state === "down") continue;
+    const d = Math.hypot(p.x - at.x, p.z - at.z); if (d > R) continue;
+    if (p.state === "flee" || p.state === "call") continue;
+    const r = Math.random();
+    if (d < 9 && r < 0.3) pedSet(p, "cower");
+    else if (crime && callers < 2 && d > 10 && r < 0.6) { pedSet(p, "call"); p.crime = crime; callers++; }
+    else { pedSet(p, "flee", at); if (d > 5 && (!far || d > far.d)) far = { p: p, d: d }; }
+  }
+  // somebody always rings it in: if nobody stopped to, the one furthest away (and safest) does it from where they are
+  if (crime && !callers && far) { pedSet(far.p, "call"); far.p.crime = crime; }
+}
+function pedSet(p, state, from) {
+  if (p.state === "dead") return;
+  p.state = state; p.t = 0;
+  if (p.icon && state !== "call") p.icon.visible = false;
+  if (state === "flee") { if (from) { p.fx = from.x; p.fz = from.z; } else { p.fx = player.pos.x; p.fz = player.pos.z; } p.runFor = 9 + Math.random() * 6; pedPlay(p, "run", 0.2, 1.05); if (Math.random() < 0.7) pedScream(p); if (Math.random() < 0.3) pedSay(p, "flee"); }
+  else if (state === "cower") pedPlay(p, "cower", 0.3);
+  else if (state === "hands") { pedPlay(p, "hands", 0.25); pedSay(p, "hands"); }
+  else if (state === "call") {
+    pedPlay(p, "phone", 0.3); p.callFor = 6 + Math.random() * 3;
+    if (!p.icon) { p.icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: pedPhoneIcon(), depthTest: false, fog: false })); p.icon.scale.set(0.5, 0.5, 0.5); p.icon.position.y = 2.25; p.holder.add(p.icon); }
+    p.icon.visible = true; pedSay(p, "call", 2.5);
+  }
+  else if (state === "walk" || state === "wander") pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED);
+  else if (state === "idle") pedPlay(p, "idle", 0.3);
+}
+// shot or hit by a car: hurt, knocked down, or dead
+function pedHurt(p, dmg, kind) {
+  if (p.state === "dead") return;
+  p.hp -= dmg;
+  if (p.hp <= 0) {
+    p.state = "dead"; p.t = 0; if (p.icon) p.icon.visible = false;
+    p.mixer.stopAllAction(); p.clip = "";
+    p.holder.rotation.x = -Math.PI / 2; p.holder.position.y = p.y + 0.12;
+    if (kind !== "car" && !peds.poolTex) { const c = document.createElement("canvas"); c.width = c.height = 64; const g = c.getContext("2d"), gr = g.createRadialGradient(32, 32, 4, 32, 32, 31); gr.addColorStop(0, "rgba(90,8,10,0.85)"); gr.addColorStop(1, "rgba(90,8,10,0)"); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); peds.poolTex = new THREE.CanvasTexture(c); }
+    if (kind !== "car") { const fwd = new THREE.Vector3(Math.sin(p.yaw), 0, Math.cos(p.yaw)); p.pool = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 1.4), new THREE.MeshBasicMaterial({ map: peds.poolTex, transparent: true, depthWrite: false })); p.pool.rotation.x = -Math.PI / 2; p.pool.position.set(p.x - fwd.x * 0.8, p.y + 0.03, p.z - fwd.z * 0.8); scene.add(p.pool); }
+    if (gun.lock === p) gun.lock = null;
+    return "dead";
+  }
+  if (kind === "car") { p.state = "down"; p.t = 0; p.mixer.stopAllAction(); p.clip = ""; p.holder.rotation.x = -Math.PI / 2; p.holder.position.y = p.y + 0.12; return "down"; }
+  pedSet(p, "flee"); pedScream(p);
+  return "hurt";
+}
+// who sees a crime: a patrol close by acts on it at once; otherwise it is down to the people around to call it in
+function policeNear(at, R) {
+  if (wanted.stars > 0) return true;
+  if (police.units.some(u => u.live && u.pos && Math.hypot(u.pos.x - at.x, u.pos.z - at.z) < R)) return true;
+  return police.officers.some(o => Math.hypot(o.x - at.x, o.z - at.z) < R);
+}
+function witnessCrime(id, at, R, except) {
+  if (policeNear(at, 70)) { commitCrime(id, at); pedAlarm(at, R || 45, null, except); return true; }
+  pedAlarm(at, R || 45, id, except);
+  return false;
+}
+function pedFree(p, dt, speed, ax, az) {
+  // head along (ax, az), round buildings and away from the water
+  let h = Math.atan2(ax, az);
+  for (const k of [0, 0.6, -0.6, 1.2, -1.2, 2.0, -2.0, Math.PI]) {
+    const a = h + k, nx = p.x + Math.sin(a) * speed * dt * 4, nz = p.z + Math.cos(a) * speed * dt * 4;
+    if (!insideBuilding(nx, nz, 0.35) && world.sampleHeight(nx, nz) > 0.4) { h = a; break; }
+  }
+  let dy = h - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 8);
+  const nx = p.x + Math.sin(p.yaw) * speed * dt, nz = p.z + Math.cos(p.yaw) * speed * dt;
+  if (!insideBuilding(nx, nz, 0.3)) { p.x = nx; p.z = nz; }
+}
+function pedsTick(dt) {
+  if (!peds.tpl || !player.placed || interior.active || flight.active || chute.active || !world.cities) { pedLockMark(null); return; }
+  const at = drive.car ? drive.car.pos : player.pos, fast = drive.car ? Math.abs(drive.car.speed || 0) : 0;
+  // keep the street populated
+  const want = Math.round(pedWanted() * (fast > 20 ? 0.5 : 1));
+  peds.spawnT -= dt;
+  if (peds.spawnT <= 0 && peds.list.filter(p => p.state !== "dead").length < want) { peds.spawnT = 0.25; pedSpawn(); }
+  const tmp = {}, car = drive.car;
+  for (let n = peds.list.length - 1; n >= 0; n--) {
+    const p = peds.list[n], d = Math.hypot(p.x - at.x, p.z - at.z);
+    if (d > 130 || (p.state === "dead" && p.t > 60 && d > 40)) { pedRemove(p); continue; }
+    p.t += dt;
+    if (p.state === "walk") {
+      p.idleIn -= dt;
+      if (p.idleIn <= 0) { pedSet(p, "idle"); p.idleFor = 2 + Math.random() * 5; p.idleIn = 15 + Math.random() * 35; }
+      else {
+        p.u += p.dir * p.sp * dt / (pedPathPos(p, tmp).len);
+        if (p.u > 1) { if (p.i < p.r.pts.length - 2) { p.i++; p.u -= 1; } else { p.u = 1; p.dir = -1; } }
+        if (p.u < 0) { if (p.i > 0) { p.i--; p.u += 1; } else { p.u = 0; p.dir = 1; } }
+        pedPathPos(p, tmp);
+        if (insideBuilding(tmp.x, tmp.z, 0.3)) { p.dir *= -1; }
+        else { p.x = tmp.x; p.z = tmp.z; let dy = tmp.yaw - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 6); }
+      }
+    } else if (p.state === "idle") { if (p.t > p.idleFor) pedSet(p, "walk"); }
+    else if (p.state === "flee") {
+      const ax = p.x - (p.fx !== undefined ? p.fx : player.pos.x), az = p.z - (p.fz !== undefined ? p.fz : player.pos.z);
+      pedFree(p, dt, 4.4, ax || 1, az);
+      if (p.t > p.runFor && d > 35) { pedSet(p, "wander"); p.wh = p.yaw; }
+    } else if (p.state === "wander") {
+      if (Math.random() < dt * 0.3) p.wh = p.yaw + (Math.random() - 0.5) * 1.4;
+      pedFree(p, dt, p.sp, Math.sin(p.wh), Math.cos(p.wh));
+    } else if (p.state === "cower" || p.state === "hands") {
+      const aimed = gun.target === p;
+      if (aimed) p.t = 0;
+      if (p.t > (p.state === "hands" ? 2.5 : 4.5)) { if (p.state === "hands" && Math.random() < 0.45) { pedSet(p, "call"); p.crime = "menace"; } else pedSet(p, "flee"); }
+      const dx = player.pos.x - p.x, dz = player.pos.z - p.z; if (p.state === "hands" && Math.hypot(dx, dz) < 25) { let dy = Math.atan2(dx, dz) - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 5); }
+    } else if (p.state === "call") {
+      if (gun.target === p) { pedSet(p, "hands"); }                                // a gun on the caller stops the call
+      else if (p.t > p.callFor) {
+        if (p.icon) p.icon.visible = false;
+        const c = CRIMES[p.crime] ? p.crime : "gun";
+        // the first call puts the stars up; more calls about the same thing only keep the police coming
+        if (wanted.stars < CRIMES[c].stars) commitCrime(c, { x: p.x, y: p.y, z: p.z }); else { wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); }
+        say("A witness called the police.", 3);
+        pedSet(p, "flee");
+      }
+    } else if (p.state === "down") { if (p.t > 3) { p.holder.rotation.x = 0; pedSet(p, "flee"); } }
+    // cars: yours, and anything in traffic, knock people down
+    if (p.state !== "dead" && p.state !== "down") {
+      if (car && Math.abs(car.speed || 0) > 3.5) {
+        const dx = p.x - car.pos.x, dz = p.z - car.pos.z, c = Math.cos(car.yaw || 0), s = Math.sin(car.yaw || 0), lx = dx * c - dz * s, lz = dx * s + dz * c;
+        if (Math.abs(lx) < 1.2 && Math.abs(lz) < 2.6 && Math.abs(p.y - car.pos.y) < 2) {
+          const v = Math.abs(car.speed), r = pedHurt(p, v > 13 ? 200 : 60, "car"); rumble(0.8, 0.5, 160);
+          witnessCrime(r === "dead" ? "killing" : "knockdown", p, 40, p);
+        }
+      }
+      if (p.state === "flee" || p.state === "wander") carsNear(p.x, p.z, 4, c => { if (p.state !== "down" && p.state !== "dead" && c.v > 3 && inCarBox(c, p.x, p.z, 0.2)) pedHurt(p, c.v > 13 ? 200 : 60, "car"); });
+    }
+    // place and animate (far away people are animated less often)
+    if (p.state !== "dead" && p.state !== "down") {
+      p.y = world.surfaceY(p.x, p.z);
+      p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
+      p.skip = ((p.skip || 0) + 1) % (d < 45 ? 1 : d < 80 ? 2 : 4);
+      if (!p.skip) p.mixer.update(dt * (d < 45 ? 1 : d < 80 ? 2 : 4));
+    }
+  }
+  pedLockMark(gun.lock);
+}
+// ---- aiming at people: the soft lock --------------------------------------------------------------------------------------------------------
+function pedTargets() {
+  const out = [];
+  peds.list.forEach(p => { if (p.state !== "dead" && p.state !== "down") out.push({ o: p, x: p.x, y: p.y + 1.35 * p.h, z: p.z }); });
+  police.officers.forEach(o => out.push({ o: o, x: o.x, y: world.surfaceY(o.x, o.z) + 1.35, z: o.z }));
+  return out;
+}
+function pedTargetPos(o) { return peds.list.indexOf(o) >= 0 ? new THREE.Vector3(o.x, o.y + 1.3 * o.h, o.z) : new THREE.Vector3(o.x, world.surfaceY(o.x, o.z) + 1.3, o.z); }
+function pedLineClear(a, b) {
+  const d = Math.hypot(b.x - a.x, b.z - a.z), n = Math.ceil(d / 1.5);
+  for (let i = 1; i < n; i++) { const t = i / n; if (insideBuilding(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, 0)) return false; }
+  return true;
+}
+// the best target near the middle of the screen, or the next one round from `after` (side: +1 to the right)
+function pedPickTarget(after, side) {
+  const eye = camera.position, fwd = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  let best = null, bs = 1e9, list = [];
+  for (const t of pedTargets()) {
+    const v = new THREE.Vector3(t.x - eye.x, t.y - eye.y, t.z - eye.z), d = v.length(); if (d > 55 || d < 0.8) continue;
+    v.divideScalar(d); const ang = Math.acos(clamp(v.dot(fwd), -1, 1));
+    if (ang > (after ? 0.9 : 0.42)) continue;
+    if (!interior.active && !pedLineClear(eye, t)) continue;
+    list.push({ t: t, ang: ang, side: v.dot(right), d: d });
+  }
+  if (after) {
+    const cur = list.find(e => e.t.o === after), cs = cur ? cur.side : 0;
+    const next = list.filter(e => e.t.o !== after && (e.side - cs) * side > 0).sort((a, b) => (a.side - b.side) * side)[0];
+    return next ? next.t.o : after;
+  }
+  list.forEach(e => { const s = e.ang + e.d * 0.004; if (s < bs) { bs = s; best = e.t.o; } });
+  return best;
+}
+function pedLockMark(o) {
+  if (!peds.lockEl) { const m = document.createElement("div"); m.id = "lockmark"; m.style.cssText = "position:fixed;z-index:44;pointer-events:none;width:16px;height:16px;margin:-8px 0 0 -8px;transform:rotate(45deg);border:3px solid #ff3b3b;box-shadow:0 0 4px #000;display:none"; document.body.appendChild(m); peds.lockEl = m; }
+  if (!o || !gun.xhair || gun.xhair.style.display === "none") { peds.lockEl.style.display = "none"; return; }
+  camera.updateMatrixWorld(); const v = pedTargetPos(o).add(new THREE.Vector3(0, 0.62, 0)).project(camera);
+  if (v.z > 1) { peds.lockEl.style.display = "none"; return; }
+  peds.lockEl.style.display = "block"; peds.lockEl.style.left = ((v.x + 1) / 2 * innerWidth) + "px"; peds.lockEl.style.top = ((1 - v.y) / 2 * innerHeight) + "px";
+}
+// the person the crosshair is on (locked or not), for the hands-up reaction
+function pedUnderAim() {
+  if (gun.lock) return gun.lock;
+  const eye = camera.position, fwd = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  let best = null, bd = 1e9;
+  for (const p of peds.list) {
+    if (p.state === "dead" || p.state === "down") continue;
+    const v = new THREE.Vector3(p.x - eye.x, p.y + 1.2 - eye.y, p.z - eye.z), along = v.dot(fwd); if (along < 0 || along > 40) continue;
+    const off = v.addScaledVector(fwd, -along).length(); if (off < 1.1 && along < bd) { bd = along; best = p; }
+  }
+  return best;
+}
+// called from gunFrame every frame while armed
+function gunLockFrame(dt, aimWant) {
+  const gp = pad.gp, sw = !!keys.Tab || !!(gp && pad.index >= 0 && gp.buttons[PAD.RB] && gp.buttons[PAD.RB].pressed);
+  if (!aimWant) { gun.lock = null; gun.lockFree = false; gun.target = null; gun.swWas = sw; return; }
+  if (gun.lock && peds.list.indexOf(gun.lock) < 0 && police.officers.indexOf(gun.lock) < 0) gun.lock = null;
+  if (gun.lock && peds.list.indexOf(gun.lock) >= 0 && (gun.lock.state === "dead" || gun.lock.state === "down")) gun.lock = null;
+  // moving the aim yourself breaks the lock, as in the big game: free aim until you let go and aim again
+  if (gun.lock && gun.lockYaw !== undefined && (Math.abs(Math.atan2(Math.sin(yaw - gun.lockYaw), Math.cos(yaw - gun.lockYaw))) > 0.06 || Math.abs(pitch - gun.lockPitch) > 0.06)) { gun.lock = null; gun.lockFree = true; }
+  if (!gun.lock && !gun.lockFree && gun.aim > 0.3) gun.lock = pedPickTarget(null);
+  if (gun.lock && sw && !gun.swWas) gun.lock = pedPickTarget(gun.lock, keys.ShiftLeft ? -1 : 1);
+  if (!gun.lock && gun.lockFree && sw && !gun.swWas) { gun.lockFree = false; gun.lock = pedPickTarget(null); }
+  gun.swWas = sw;
+  if (gun.lock) {
+    const tp = pedTargetPos(gun.lock), eye = camera.position, dx = tp.x - eye.x, dy = tp.y - eye.y, dz = tp.z - eye.z;
+    const wy = Math.atan2(-dx, -dz), wp = Math.atan2(dy, Math.hypot(dx, dz)), k = Math.min(1, dt * 14);
+    yaw += Math.atan2(Math.sin(wy - yaw), Math.cos(wy - yaw)) * k; pitch += (wp - pitch) * k;
+    gun.lockYaw = yaw; gun.lockPitch = pitch;
+  } else { gun.lockYaw = undefined; }
+  // whoever is in the sights puts their hands up; people close by take fright
+  const t = gun.aim > 0.5 ? pedUnderAim() : null;
+  gun.target = t;
+  if (t && (t.state === "walk" || t.state === "idle" || t.state === "wander" || t.state === "cower")) {
+    pedSet(t, "hands");
+    if (!t.menaced) { t.menaced = true; pedAlarm(t, 12, null, t); }
+  }
+  if (gun.xhair) gun.xhair.style.filter = gun.lock ? "drop-shadow(0 0 0 #f33) hue-rotate(0deg)" : "";
+  if (gun.xhair) gun.xhair.querySelectorAll("div").forEach(e => { e.style.background = gun.lock ? "#ff4040" : "#fff"; });
+}
+
+// ---- robbing a shop -----------------------------------------------------------------------------------------------------------------------------
+// Walk in with a gun out and point it at the clerk. Keep it on them and the hands go up and the till comes open; then it is a matter of nerve:
+// a cursor runs along the drawer and you grab a bundle each time it is over notes. A miss is a fumble, and every second and every fumble moves
+// the clerk's foot nearer the silent alarm under the counter. Get out with the cash before it goes, without fumbling, and nobody ever rings it in.
+// Fumble a few times and the clerk calls the police the moment you are gone; let the alarm go and they are waiting for you outside.
+const rob = { on: false, stage: null, shop: null, t: 0, threat: 0, alarm: 0, fumbles: 0, cash: 0, slots: null, cur: 0, dir: 1, speed: 1.5, el: null, cv: null, done: new Map(), tipT: 0, pending: null, flash: 0, msg: "" };
+const ROB_SLOTS = [["¥10,000", 20000, "#cbbd94"], ["¥5,000", 10000, "#bba8cc"], ["¥2,000", 6000, "#a3c6aa"], ["¥1,000", 4000, "#a3bbd3"], ["Coins", 1500, "#d0ae55"]];
+const ROB_TAKE = { eleven: 1, petmart: 1, dokoto: 1.7, clothes: 1.3, books: 0.8, pharmacy: 1.1, ramen: 0.7, sushi: 0.8, sushiya: 1.4, arms: 1.5 };
+function robClerkHead() { const R = interior.room, v = new THREE.Vector3(); R.clerk.getWorldPosition(v); v.y += 1.45; return v; }
+function robAimedAtClerk(snap, dt) {
+  const head = robClerkHead(), eye = camera.position, dx = head.x - eye.x, dy = head.y - eye.y, dz = head.z - eye.z;
+  const wy = Math.atan2(-dx, -dz), wp = Math.atan2(dy, Math.hypot(dx, dz)), ey = Math.atan2(Math.sin(wy - yaw), Math.cos(wy - yaw)), ep = wp - pitch;
+  const ang = Math.hypot(ey, ep);
+  if (snap && ang < 0.6) { const k = Math.min(1, dt * 10); yaw += ey * k; pitch += ep * k; }     // the same soft lock as on the street
+  return ang < 0.3;
+}
+function robUi(on) {
+  if (!rob.el) {
+    const d = document.createElement("div"); d.id = "robui";
+    d.style.cssText = "position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;display:none;border-radius:14px;overflow:hidden;box-shadow:0 10px 40px rgba(0,0,0,.6)";
+    const c = document.createElement("canvas"); c.width = 600; c.height = 300; c.style.cssText = "display:block;width:min(600px,92vw);height:auto";
+    d.appendChild(c); document.body.appendChild(d); rob.el = d; rob.cv = c;
+    c.addEventListener("pointerdown", e => { e.preventDefault(); if (rob.stage === "till") robGrab(); });
+  }
+  rob.el.style.display = on ? "block" : "none";
+}
+function robSound(kind) {
+  const ctx = sound && sound.ctx; if (!ctx || !sound.master) return;
+  const t = ctx.currentTime;
+  if (kind === "grab") {
+    const n = ctx.createBufferSource(), len = Math.floor(ctx.sampleRate * 0.18), b = ctx.createBuffer(1, len, ctx.sampleRate), d = b.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.sin(Math.PI * i / len) * (0.5 + 0.5 * Math.sin(i / 37));
+    n.buffer = b; const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 2500; const g = ctx.createGain(); g.gain.value = 0.35; n.connect(f); f.connect(g); g.connect(sound.master); n.start(t);
+  } else {
+    const o = ctx.createOscillator(), g = ctx.createGain(); o.type = kind === "fumble" ? "square" : "sine"; o.frequency.setValueAtTime(kind === "fumble" ? 140 : 880, t); o.frequency.exponentialRampToValueAtTime(kind === "fumble" ? 70 : 660, t + 0.2);
+    g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.25); o.connect(g); g.connect(sound.master); o.start(t); o.stop(t + 0.3);
+  }
+}
+function robStart() {
+  const take = ROB_TAKE[interior.shop.brand] || 1, r = (a, b) => a + ((Math.random() * (b - a + 1)) | 0);
+  Object.assign(rob, { on: true, stage: "threat", shop: interior.shop, t: 0, threat: 0, alarm: 0, fumbles: 0, cash: 0, cur: 0, dir: 1, speed: 1.5, flash: 0, take: take, msg: "" });
+  rob.slots = [r(2, 3), r(2, 4), r(1, 3), r(3, 5), r(1, 2)].map(n => Math.max(1, Math.round(n * Math.min(1.4, take))));
+  const f = interior.room.clerkFig; if (f) pedPlay(f, "hands", 0.2);
+  say("“Please! Don't shoot! I'll open it!”", 2.5);
+  robUi(true);
+}
+function robGrab() {
+  if (rob.stage !== "till") return;
+  const s = Math.min(4, Math.floor(rob.cur)), centred = Math.abs(rob.cur - (s + 0.5)) < 0.34;
+  if (rob.slots[s] > 0 && centred) {
+    rob.slots[s]--; rob.cash += Math.round(ROB_SLOTS[s][1] * rob.take / 100) * 100; rob.speed *= 1.07; rob.flash = 0.18; robSound("grab");
+    if (rob.slots.every(n => n === 0)) robFinish();
+  } else { rob.fumbles++; rob.alarm = Math.min(100, rob.alarm + 18); rob.flash = -0.3; robSound("fumble"); rob.msg = rob.slots[s] > 0 ? "Fumbled it!" : "Nothing there!"; rob.msgT = 1.2; }
+}
+function robFinish() {
+  if (!rob.on || rob.stage === "done") return;
+  rob.stage = "done"; robUi(false);
+  rob.done.set(rob.shop, clock + 900);
+  if (rob.cash) { purse.yen += rob.cash; }
+  rob.on = false;
+  if (rob.alarm >= 100) return;
+  if (rob.fumbles <= 1) { say("Clean job · " + yenText(rob.cash) + ". Nobody is going to call this in.", 5); rob.pending = null; }
+  else { say(yenText(rob.cash) + ". The clerk is already reaching for the phone – get out.", 5); rob.pending = "robbed"; }
+  const f = interior.room && interior.room.clerkFig; if (f) pedPlay(f, "cower", 0.3);
+  rob.on = false;
+}
+function robAlarm(why) {
+  if (rob.stage === "done" && rob.alarm >= 100) return;
+  rob.alarm = 100; rob.pending = "robbery";
+  const f = interior.room && interior.room.clerkFig; if (f) pedPlay(f, "cower", 0.2);
+  say((why || "The clerk hit the silent alarm!") + " The police are on their way.", 5);
+  robSound("alarm");
+  if (rob.on) { rob.stage = "done"; robUi(false); if (rob.cash) purse.yen += rob.cash; rob.done.set(rob.shop || interior.shop, clock + 900); rob.on = false; }
+}
+// leaving the shop: whatever was rung in is waiting outside
+function robLeave() {
+  if (rob.on && rob.stage !== "done") { if (rob.stage === "till") robFinish(); else { robUi(false); rob.on = false; rob.stage = null; if (rob.threat > 0.2) rob.pending = rob.pending || "menace"; } }
+  rob.on = false; rob.stage = null; robUi(false);
+  if (rob.pending) { const c = rob.pending; rob.pending = null; setTimeout(() => commitCrime(c, player.pos), 400); }
+}
+// shots fired in a shop: the clerk goes for the alarm whatever else is going on
+function robShots() {
+  const R = interior.room; if (!R || !R.clerk || !ROB_TAKE[interior.shop.brand]) return;
+  robAlarm("Shots fired in the shop!");
+}
+function robTick(dt) {
+  const R = interior.room;
+  if (R && R.clerkFig) R.clerkFig.mixer.update(dt);
+  if (!R || !R.clerk || !interior.shop || !ROB_TAKE[interior.shop.brand]) return false;
+  if (!rob.on) {
+    if (!gunArmed() || gun.aim < 0.4) return false;
+    const aimed = robAimedAtClerk(true, dt);
+    if (!aimed || gun.aim < 0.7) return false;
+    if ((rob.done.get(interior.shop) || 0) > clock) { if (clock > rob.tipT) { rob.tipT = clock + 6; say("“There's nothing left! You took it all!”", 3); } return false; }
+    robStart();
+  }
+  rob.t += dt; rob.msgT = Math.max(0, (rob.msgT || 0) - dt); rob.flash = rob.flash > 0 ? Math.max(0, rob.flash - dt) : Math.min(0, rob.flash + dt);
+  if (rob.stage === "threat") {
+    const aimed = gunArmed() && gun.aim > 0.5 && robAimedAtClerk(true, dt);
+    if (aimed) rob.threat = Math.min(1, rob.threat + dt / 1.6); else { rob.threat = Math.max(0, rob.threat - dt * 0.4); rob.alarm += dt * 30; }
+    if (rob.threat >= 1) { rob.stage = "till"; rob.t = 0; say("The till is open. Grab the notes as the marker passes them – Space or E.", 4); }
+  } else if (rob.stage === "till") {
+    player.speed = 0;
+    rob.cur += rob.dir * rob.speed * dt;
+    if (rob.cur >= 4.999) { rob.cur = 4.999; rob.dir = -1; } else if (rob.cur <= 0) { rob.cur = 0; rob.dir = 1; }
+    rob.alarm += dt * 6.5;
+  }
+  if (rob.alarm >= 100 && rob.on) { robAlarm(); return true; }
+  robDraw();
+  return rob.stage === "till";
+}
+function robDraw() {
+  const c = rob.cv; if (!c || !rob.on) return;
+  const g = c.getContext("2d"), W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = "rgba(16,18,22,0.94)"; g.fillRect(0, 0, W, H);
+  g.fillStyle = "#fff"; g.font = "800 15px 'Segoe UI',sans-serif"; g.textAlign = "left";
+  g.fillText(rob.stage === "threat" ? "KEEP YOUR GUN ON THE CLERK" : "THE TILL", 22, 32);
+  g.textAlign = "right"; g.fillStyle = "#7ee09a"; g.font = "800 22px 'Segoe UI',sans-serif"; g.fillText(yenText(rob.cash), W - 22, 34);
+  g.textAlign = "left";
+  if (rob.stage === "threat") {
+    g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, 22, 70, W - 44, 26, 13); g.fill();
+    g.fillStyle = "#f2c94c"; roundRect(g, 22, 70, Math.max(26, (W - 44) * rob.threat), 26, 13); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "600 13px 'Segoe UI',sans-serif"; g.fillText("Aim at the clerk (right mouse) until they open the till. Look away and they go for the alarm.", 22, 124);
+  } else {
+    // the drawer: five compartments, a stack of notes in each, the marker running along them
+    const x0 = 22, y0 = 52, cw = (W - 44) / 5, ch = 150;
+    g.fillStyle = "#2b2f36"; roundRect(g, x0 - 6, y0 - 6, W - 32, ch + 12, 10); g.fill();
+    for (let s = 0; s < 5; s++) {
+      const x = x0 + s * cw;
+      g.fillStyle = "#1b1e23"; roundRect(g, x + 4, y0, cw - 8, ch, 6); g.fill();
+      for (let k = 0; k < rob.slots[s]; k++) { g.fillStyle = ROB_SLOTS[s][2]; const yy = y0 + ch - 18 - k * 13; if (s === 4) { g.beginPath(); g.ellipse(x + cw / 2, yy + 6, cw * 0.3, 7, 0, 0, 7); g.fill(); g.strokeStyle = "rgba(0,0,0,.3)"; g.stroke(); } else { g.fillRect(x + 14, yy, cw - 28, 10); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(x + 14, yy + 8, cw - 28, 2); } }
+      g.fillStyle = "rgba(255,255,255,.7)"; g.font = "700 12px 'Segoe UI',sans-serif"; g.textAlign = "center"; g.fillText(ROB_SLOTS[s][0], x + cw / 2, y0 + 18); g.textAlign = "left";
+    }
+    // the sweet spot of the compartment under the marker, and the marker
+    const s = Math.min(4, Math.floor(rob.cur)), mx = x0 + rob.cur * cw;
+    g.fillStyle = "rgba(126,224,154,0.16)"; g.fillRect(x0 + (s + 0.5 - 0.34) * cw, y0, cw * 0.68, ch);
+    g.fillStyle = rob.flash > 0 ? "#7ee09a" : rob.flash < 0 ? "#ff5252" : "#ffffff"; g.fillRect(mx - 2, y0 - 8, 4, ch + 16);
+    g.beginPath(); g.moveTo(mx - 9, y0 - 14); g.lineTo(mx + 9, y0 - 14); g.lineTo(mx, y0 - 4); g.fill();
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.font = "600 13px 'Segoe UI',sans-serif"; g.fillText("Space / E / click to grab   ·   Esc to stop and go   ·   fumbles " + rob.fumbles, 22, y0 + ch + 30);
+    if (rob.msgT > 0) { g.fillStyle = "#ff6b6b"; g.font = "800 18px 'Segoe UI',sans-serif"; g.textAlign = "right"; g.fillText(rob.msg, W - 22, y0 + ch + 30); g.textAlign = "left"; }
+  }
+  // the silent alarm
+  const ay = H - 40;
+  g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "700 11px 'Segoe UI',sans-serif"; g.fillText("SILENT ALARM", 22, ay - 6);
+  g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, 22, ay, W - 44, 16, 8); g.fill();
+  const a = clamp01(rob.alarm / 100); g.fillStyle = a > 0.75 ? "#ff3b3b" : a > 0.45 ? "#ff9f43" : "#e0565b"; roundRect(g, 22, ay, Math.max(16, (W - 44) * a), 16, 8); g.fill();
+}
+function robKeyDown(e) {
+  const k = e.code;
+  if (k === "Space" || k === "KeyE" || k === "Enter") { if (!e.repeat) robGrab(); return true; }
+  if (k === "Escape" || k === "Backspace" || k === "KeyF") { robFinish(); return true; }
+  return k !== "KeyP";
+}
 
 function frameLoop() {
   let last = performance.now();
@@ -33192,6 +33773,8 @@ function interiorRoom(s, opts) {
   inAdd(clerk, 0.34, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(clerk, 0.44, 0.62, 0.26, 0, 1.1, 0, th.trim);
   inAdd(clerk, 0.26, 0.26, 0.26, 0, 1.62, 0, "#e8c4a0"); inAdd(clerk, 0.3, 0.1, 0.3, 0, 1.8, 0, th.cap); inAdd(clerk, 0.1, 0.06, 0.02, 0, 1.64, 0.14, "#3a2a20");
   room.clerk = clerk;
+  // a real person behind the counter when the body is to hand, in the shop's colour
+  if (peds.tpl) { try { const f = pedFigure(th.trim, 0.97); clerk.children.forEach(c => { c.visible = false; }); clerk.add(f.holder); pedPlay(f, "idle", 0); room.clerkFig = f; } catch (e) { console.warn("[Konto] the clerk stays a cut-out:", e); } }
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
   }
   // a door mat
@@ -33709,6 +34292,7 @@ function interiorEnter(s) {
 
 function interiorLeave(quiet) {
   if (!interior.active) return;
+  robLeave();
   if (interior.sit) interiorStand(true);
   if (interior.stack) { interiorReturnToConcourse(); return; }
   if (interior.card) interiorCardClose(true);
@@ -33790,6 +34374,7 @@ function interiorTick(dt) {
   const R = interior.room;
   interior.said = Math.max(0, interior.said - dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
+  if (robTick(dt)) { interior.prompt.classList.remove("on"); return; }
   if (R.tick) R.tick(dt);
   if (interior.modal || service.active) { player.speed = 0; interior.prompt.classList.remove('on'); return; }
   if (interior.sit) { interiorSitTick(dt); return; }
@@ -33970,6 +34555,7 @@ function interiorAction(a) {
 function interiorKey(e) {
   if (!interior.active || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
+  if (rob.on && rob.stage === "till") return robKeyDown(e);
   if (interior.modal) return interiorModalKey(e);
   if (interior.sit) return interiorSitKey(e);
   if (interior.lift) {
@@ -34009,6 +34595,7 @@ function interiorKey(e) {
 }
 function interiorPad(pressed) {
   if (!interior.active || shops.inside) return false;
+  if (rob.on && rob.stage === "till") { if (pressed(PAD.A)) robGrab(); if (pressed(PAD.B)) robFinish(); return true; }
   if (interior.lift) { const L = interior.lift, n = interior.bld.floors.length; if (pressed(PAD.UP)) { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); } if (pressed(PAD.DOWN)) { L.sel = (L.sel + 1) % n; interiorLiftDraw(); } if (pressed(PAD.A)) interiorGoLevel(L.sel); if (pressed(PAD.B)) interiorLiftClose(); return true; }
   if (interior.modal) { interiorModalPad(pressed); return true; }
   if (interior.sit) { interiorSitPad(pressed); return true; }

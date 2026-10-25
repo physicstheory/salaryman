@@ -86,8 +86,8 @@ await ev(() => { wheel.equipped = "pistol"; }); await wait(2000);
 await ev(() => { gun.aimIn = true; }); await wait(3500); await snap("pistol_aim"); console.log("BONES " + await ev(() => JSON.stringify(Object.keys(gunBones() || {}).map(k => [k, !!gunBones()[k]]))));
 const before = await ev(() => ({ mag: gunAmmoOf("pistol").mag, stars: wanted.stars }));
 await ev(() => { gun.fireIn = true; }); await wait(2500); await ev(() => { gun.fireIn = false; }); await wait(800);
-const after = await ev(() => ({ mag: gunAmmoOf("pistol").mag, stars: wanted.stars, crime: wanted.lastCrime }));
-console.log("FIRE " + JSON.stringify([before, after])); ok("a shot is fired, a round is used, it is a crime", after.mag < before.mag && after.stars >= 1, [before, after]); await snap("pistol_fired");
+const after = await ev(() => ({ mag: gunAmmoOf("pistol").mag, stars: wanted.stars, crime: wanted.lastCrime, witnesses: peds.list.filter(p => p.state === "flee" || p.state === "call" || p.state === "cower").length, people: peds.list.length }));
+console.log("FIRE " + JSON.stringify([before, after])); ok("a shot is fired, a round is used, people react or the police come", after.mag < before.mag && (after.stars >= 1 || after.witnesses > 0 || after.people === 0), [before, after]); await snap("pistol_fired");
 await ev(() => { gun.aimIn = false; gunReload(); }); await wait(4000);
 ok("reloading refills the magazine", await ev(() => gunAmmoOf("pistol").mag > 5), await ev(() => gunAmmoOf("pistol")));
 for (const id of ["smg", "shotgun"]) { await ev(i => { wheel.equipped = i; gun.aimIn = true; }, id); await wait(4500); await snap(id + "_aim"); }

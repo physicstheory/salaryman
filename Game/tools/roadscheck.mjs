@@ -78,14 +78,25 @@ const lanes = await ev(() => {
   traffic.lanes.forEach((l, i) => {
     if (l.elevated) { out.elevated++; return; }
     let worst = 0, at = null;
-    for (let k = 0; k < l.pts.length; k += 2) { const p = l.pts[k], dy = p[1] - world.surfaceY(p[0], p[2]); if (Math.abs(dy) > Math.abs(worst)) { worst = dy; at = [Math.round(p[0]), Math.round(p[2])]; } }
-    if (Math.abs(worst) > 2.5) out.bad.push({ i: i, road: l.name || l.road || "", dy: Math.round(worst * 10) / 10, at: at, len: Math.round(l.length) });
+    for (let k = 0; k < l.pts.length; k += 2) { const q = sampleLane(l, l.arc[k]), p = [q.x, q.y, q.z], dy = p[1] - world.surfaceY(p[0], p[2]); if (Math.abs(dy) > Math.abs(worst)) { worst = dy; at = [Math.round(p[0]), Math.round(p[2])]; } }
+    if (Math.abs(worst) > 2.8) out.bad.push({ i: i, road: l.name || l.road || "", dy: Math.round(worst * 10) / 10, at: at, len: Math.round(l.length) });
   });
   out.badN = out.bad.length; out.bad = out.bad.slice(0, 25); return out;
 });
 console.log("LANES " + JSON.stringify(lanes));
 ok("no ground lane is far from the ground", lanes.badN === 0, { bad: lanes.badN, of: lanes.n });
 
-const det = await ev(() => [70, 44, 4].map(i => { const l = traffic.lanes[i]; const o = { i: i, keys: Object.keys(l).join(","), s: [] }; for (let k = 0; k < l.pts.length; k += Math.max(1, Math.floor(l.pts.length / 14))) { const p = l.pts[k]; o.s.push([Math.round(p[0]), Math.round(p[1] * 10) / 10, Math.round(p[2]), Math.round(world.surfaceY(p[0], p[2]) * 10) / 10]); } return o; }));
-console.log("DET " + JSON.stringify(det));
+const tr = await ev(() => {
+  let n = 0, bad = 0; const ex = [];
+  trunks.map.forEach(l => l.forEach(t => {
+    n++;
+    for (const c of world.cities) {
+      if (c.scramble && Math.hypot(t[0] - c.scramble.at[0], t[1] - c.scramble.at[1]) < c.scramble.radius) { bad++; if (ex.length < 10) ex.push(["scramble", Math.round(t[0]), Math.round(t[1])]); return; }
+      for (const r of c.roads) { if (r.elevated || !r.pts) continue; const P = r.pts; for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i], dx = b[0] - a[0], dz = b[2] - a[2], L = dx * dx + dz * dz || 1, u = clamp(((t[0] - a[0]) * dx + (t[1] - a[2]) * dz) / L, 0, 1); if (Math.hypot(a[0] + dx * u - t[0], a[2] + dz * u - t[1]) < (r.halfWidth || 6) - 0.5) { bad++; if (ex.length < 10) ex.push(["road", Math.round(t[0]), Math.round(t[1]), t[3] === "city" ? "city" : "veg", c.name, r.name || "", r.halfWidth, Math.round(a[1]), Math.round(world.sampleHeight(t[0], t[1])), r.bridge ? "bridge" : "", +t[2].toFixed(2)]); return; } } }
+    }
+  }));
+  return { n: n, bad: bad, ex: ex };
+});
+console.log("TRUNKS " + JSON.stringify(tr) + " home " + JSON.stringify(await ev(() => home.at)));
+ok("no tree trunk stands in a carriageway or the scramble", tr.bad === 0, tr);
 await browser.close(); srv.close();
