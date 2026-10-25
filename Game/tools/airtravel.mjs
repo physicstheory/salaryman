@@ -75,6 +75,8 @@ const ok = (name, v, extra) => console.log(v ? "PASS" : "FAIL", name, extra === 
 const big = await ev(() => { const a = world.airports.find(x => x.big); return a ? { name: a.name, planes: (a.planes || []).length, gate: !!a.gate, shop: !!a.shop, hwy: a.highway ? { km: Math.round(a.highway.len / 100) / 10, n: a.highway.n } : null, door: a.tzDoor } : null; });
 console.log("BIG", JSON.stringify(big));
 ok("big airport has planes, gate, terminal door", big && big.planes >= 6 && big.gate && big.shop, big);
+const terms = await ev(() => { const a = world.airports.find(x => x.big); return { n: (a.terms || []).length, doors: shops.list.filter(s => s.brand === "airport" && s.ap === a).map(s => s.term || 1) }; });
+ok("the big airport has three terminals, each with a way in", terms.n === 3 && [1, 2, 3].every(t => terms.doors.includes(t)), terms);
 ok("expressway built", big && big.hwy && big.hwy.km > 1, big && big.hwy);
 const dests = await ev(() => DEST.sites.map(s => ({ id: s.id, cx: Math.round(s.cx), cz: Math.round(s.cz) })));
 console.log("DEST", JSON.stringify(dests));
@@ -156,7 +158,7 @@ await step("terminal", async () => {
   // ticket: office screen
   await ev(() => interiorSpotAct(interior.room.spots.find(s => s.act === "ticketoffice"))); await wait(2500); await snap("expedio_office");
   await ev(() => { ex.sel = 0; expedioKey({ code: "Enter", preventDefault() { }, stopImmediatePropagation() { } }); }); await wait(1500); await snap("expedio_after_pick");
-  const bought = await ev(() => { if (!air.ticket) airBuy("konto", "seoul", 0, "office"); expedioClose(); return !!air.ticket && air.ticket.to; });
+  const bought = await ev(() => { if (!air.ticket) airBuy("konto", "seoul", 0, "office"); expedioClose(); if (air.ticket) air.ticket.gate = "ABC"[(interior.room.term || 1) - 1] + air.ticket.gate.slice(1); return !!air.ticket && air.ticket.to; });
   ok("ticket in hand", !!bought, bought);
   // security
   // walk into the security arch: no button

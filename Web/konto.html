@@ -2766,7 +2766,7 @@ function buildAirports(root) {
     const taxi = flat(L * 0.94, tw, 0, txz, taxiMat, 0.08);
     const links = big ? 5 : 3;
     for (let k = 0; k < links; k++) { const lx = -L * 0.45 + k * (L * 0.9 / (links - 1)); flat(tw, txz - W / 2 + 4, lx, (txz + W / 2) / 2, taxiMat, 0.081); }
-    const apronD = big ? 125 : 70, apronW = big ? 520 : 240, apronZ = txz + tw / 2 + apronD / 2 - 4;
+    const apronD = big ? 125 : 70, apronW = big ? 1560 : 240, apronZ = txz + tw / 2 + apronD / 2 - 4;
     flat(apronW, apronD, 0, apronZ, apronMat, 0.085);
     // markings: white, as geometry so they are sharp at any distance
     const white = new THREE.MeshBasicMaterial({ color: 0xf0f0e8, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 }), yellow = new THREE.MeshBasicMaterial({ color: 0xf2c230, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -5 });
@@ -2800,23 +2800,35 @@ function buildAirports(root) {
     const glassMat = hi ? new THREE.MeshStandardMaterial({ map: glassT, roughness: 0.15, metalness: 0.5, envMap: gfx.env || null, envMapIntensity: 0.9, emissive: new THREE.Color(1, 0.85, 0.6), emissiveMap: glassT, emissiveIntensity: nightState.lit > 0 ? nightState.lit * 0.9 : 0 }) : new THREE.MeshLambertMaterial({ map: glassT });
     if (hi) nightMats.push({ m: glassMat, gain: 0.9 });
     const wall = S(0xdfe2e4);
-    const term = box(tl_, th, tw_, 0, th / 2, tz, [wall, wall, wall, wall, glassMat, wall].length ? wall : wall);
-    // the front face is a separate glass sheet on the apron side so the building keeps its plain walls elsewhere
-    const frontSheet = new THREE.Mesh(new THREE.PlaneGeometry(tl_ - 4, th - 3), glassMat); frontSheet.rotation.y = Math.PI; frontSheet.position.set(0, th / 2 - 0.2, tz - tw_ / 2 - 0.08); G.add(frontSheet);
-    box(tl_ + 10, 1.2, tw_ + 14, 0, th + 0.6, tz - 2, S(0x39414c, 0.6));                                // the roof slab
-    box(tl_ - 10, 0.8, 16, 0, th - 3, tz - tw_ / 2 - 8, S(0x4a5361, 0.5));                              // the canopy over the kerb
-    for (let x = -tl_ / 2 + 20; x < tl_ / 2; x += 40) box(1.2, th - 3, 1.2, x, (th - 3) / 2, tz - tw_ / 2 - 15, S(0xc9ced4, 0.4));
-    solids2.push({ x: 0, z: tz, w: tl_ + 10, d: tw_ + 14, h: th + 1.2 });
-    // jet bridges and the aircraft on them
+    const TERMX = big ? [0, -560, 560] : [0];
+    ap.terms = TERMX.map((x, i) => ({ ox: x, n: i + 1 }));
     const nGate = big ? 6 : 1, jb = S(0xb9bec4, 0.5);
     const lines = [0xc0172b, 0x1d5fb0, 0x1e8f5a, 0x7a3fb5, 0xe08a1c, 0x14284c];
-    for (let k = 0; k < nGate; k++) {
-      const gx = (k - (nGate - 1) / 2) * (big ? 62 : 0);
-      const plane = airplaneMesh(big ? (k % 3 === 0 ? 63 : 38) : 20, big ? (k % 3 === 0 ? 61 : 34) : 11, lines[k % lines.length], hi);
-      plane.rotation.y = -Math.PI / 2; plane.position.set(gx, plane.userData.gearH || (big ? 5.2 : 2.2), txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
-      (ap.planes || (ap.planes = [])).push({ mesh: plane, len: big ? (k % 3 === 0 ? 63 : 38) : 20, span: big ? (k % 3 === 0 ? 61 : 34) : 11, tail: lines[k % lines.length] });
-      if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
-    }
+    TERMX.forEach((ox, ti) => {
+      box(tl_, th, tw_, ox, th / 2, tz, wall);
+      // the front face is a separate glass sheet on the apron side so the building keeps its plain walls elsewhere
+      const frontSheet = new THREE.Mesh(new THREE.PlaneGeometry(tl_ - 4, th - 3), glassMat); frontSheet.rotation.y = Math.PI; frontSheet.position.set(ox, th / 2 - 0.2, tz - tw_ / 2 - 0.08); G.add(frontSheet);
+      box(tl_ + 10, 1.2, tw_ + 14, ox, th + 0.6, tz - 2, S(0x39414c, 0.6));                                // the roof slab
+      box(tl_ - 10, 0.8, 16, ox, th - 3, tz - tw_ / 2 - 8, S(0x4a5361, 0.5));                              // the canopy over the kerb
+      for (let x = -tl_ / 2 + 20; x < tl_ / 2; x += 40) box(1.2, th - 3, 1.2, ox + x, (th - 3) / 2, tz - tw_ / 2 - 15, S(0xc9ced4, 0.4));
+      solids2.push({ x: ox, z: tz, w: tl_ + 10, d: tw_ + 14, h: th + 1.2 });
+      if (big) {
+        // the name, over the entrance on the landside, and a garage for the cars
+        const tt = apCanvas("term" + (ti + 1), 1024, 160, (g, w, h) => { g.fillStyle = "#14527a"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "900 96px 'Segoe UI',sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("TERMINAL " + (ti + 1) + "  ·  第" + (ti + 1) + "ターミナル", w / 2, h / 2 + 4); });
+        const sg = new THREE.Mesh(new THREE.PlaneGeometry(40, 6.25), new THREE.MeshBasicMaterial({ map: tt, fog: false })); sg.position.set(ox, th - 2.2, tz + tw_ / 2 + 0.2); G.add(sg);
+        box(190, 16, 36, ox + 130, 8, tz + tw_ / 2 + 120, S(0xb9bdc2, 0.7)); for (let f = 1; f < 5; f++) box(190.4, 0.8, 36.4, ox + 130, f * 3.2, tz + tw_ / 2 + 120, S(0x3a4048, 0.8));
+        solids2.push({ x: ox + 130, z: tz + tw_ / 2 + 120, w: 190, d: 36, h: 16 });
+      }
+      // jet bridges and the aircraft on them
+      for (let k = 0; k < nGate; k++) {
+        const gx = ox + (k - (nGate - 1) / 2) * (big ? 62 : 0), kk = k + ti * 2;
+        const pl = big ? (kk % 3 === 0 ? 63 : 38) : 20, ps = big ? (kk % 3 === 0 ? 61 : 34) : 11;
+        const plane = airplaneMesh(pl, ps, lines[kk % lines.length], hi);
+        plane.rotation.y = -Math.PI / 2; plane.position.set(gx, plane.userData.gearH || (big ? 5.2 : 2.2), txz + tw / 2 + 16 + (big ? 36 : 10)); G.add(plane);
+        (ap.planes || (ap.planes = [])).push({ mesh: plane, len: pl, span: ps, tail: lines[kk % lines.length] });
+        if (big) box(4, 3.4, 44, gx + 8, 5.4, tz - tw_ / 2 - 24, jb);
+      }
+    });
     // the tower: a shaft, a glazed cab with a flared roof, a mast
     const tx = big ? -tl_ / 2 - 70 : tl_ / 2 + 25, tzz = tz - 10, th2 = big ? 58 : 20;
     const shaftMat = S(0xd0d4d8, 0.7);
@@ -2828,7 +2840,7 @@ function buildAirports(root) {
     // hangars: a barrel roof on straight walls
     const nH = big ? 3 : 1;
     for (let k = 0; k < nH; k++) {
-      const hx = (big ? 380 : 120) + k * (big ? 70 : 0) * (k ? 1 : 0) + (big ? 0 : 0), hw = big ? 50 : 22, hl = big ? 60 : 26, hz = big ? 425 : 268;
+      const hx = (big ? 1000 : 120) + k * (big ? 70 : 0) * (k ? 1 : 0) + (big ? 0 : 0), hw = big ? 50 : 22, hl = big ? 60 : 26, hz = big ? 425 : 268;
       const ox = hx + k * 60 * (big ? 1 : 0);
       box(hw, 8, hl, ox, 4, hz, S(0xc4c8cb, 0.6));
       const barrel = new THREE.Mesh(new THREE.CylinderGeometry(hw / 2, hw / 2, hl, 20, 1, false, 0, Math.PI), S(0x8b929a, 0.5)); barrel.rotation.z = Math.PI / 2; barrel.rotation.y = Math.PI / 2; barrel.rotation.x = 0; barrel.position.set(ox, 8, hz); barrel.scale.set(1, 1, 0.5); barrel.castShadow = true; G.add(barrel);
@@ -2841,9 +2853,10 @@ function buildAirports(root) {
     const sock = new THREE.Mesh(new THREE.ConeGeometry(1.0, 4.5, 10, 1, true), new THREE.MeshLambertMaterial({ color: 0xff7a1c, side: THREE.DoubleSide })); sock.rotation.z = -Math.PI / 2; sock.position.set(-L / 2 + 162.2, 8.6, -W / 2 - 25); G.add(sock);
     // the car park and the road in, with the cars in it
     const cpz = tz + tw_ / 2 + (big ? 48 : 24), cpw = big ? 260 : 70, cpd = big ? 70 : 24;
-    flat(cpw, cpd, 0, cpz, apronMat, 0.07);
-    const nCars = big ? 140 : 14, carG = new THREE.BoxGeometry(2.0, 1.4, 4.4), cars = new THREE.InstancedMesh(carG, new THREE.MeshLambertMaterial({ color: 0xffffff }), nCars), col = new THREE.Color();
-    for (let k = 0; k < nCars; k++) { const cx = -cpw / 2 + 6 + (k % Math.floor(cpw / 5)) * 5, cz = cpz - cpd / 2 + 8 + Math.floor(k / Math.floor(cpw / 5)) * 12; m4.makeTranslation(cx, 0.8, cz); cars.setMatrixAt(k, m4); col.setHSL(rnd(k, 5, 9021), 0.15 + rnd(k, 6, 9023) * 0.5, 0.25 + rnd(k, 7, 9025) * 0.45); cars.setColorAt(k, col); }
+    TERMX.forEach(ox => flat(cpw, cpd, ox, cpz, apronMat, 0.07));
+    flat(TERMX.length > 1 ? 1500 : 10, 14, 0, cpz + cpd / 2 + 8, apronMat, 0.072);                                   // the road along the front, joining the terminals
+    const nCars = (big ? 140 : 14) * TERMX.length, carG = new THREE.BoxGeometry(2.0, 1.4, 4.4), cars = new THREE.InstancedMesh(carG, new THREE.MeshLambertMaterial({ color: 0xffffff }), nCars), col = new THREE.Color();
+    for (let k = 0; k < nCars; k++) { const per = nCars / TERMX.length, kt = Math.floor(k / per), kl = k - kt * per, cx = TERMX[kt] - cpw / 2 + 6 + (kl % Math.floor(cpw / 5)) * 5, cz = cpz - cpd / 2 + 8 + Math.floor(kl / Math.floor(cpw / 5)) * 12; m4.makeTranslation(cx, 0.8, cz); cars.setMatrixAt(k, m4); col.setHSL(rnd(k, 5, 9021), 0.15 + rnd(k, 6, 9023) * 0.5, 0.25 + rnd(k, 7, 9025) * 0.45); cars.setColorAt(k, col); }
     cars.frustumCulled = false; G.add(cars);
     // the fence, the gate, the terminal's door and (for the big one) the expressway
     const fx0 = -ap.sx / 2 + 30, fx1 = ap.sx / 2 - 30, fz0 = -70, fz1 = ap.sz - 100;
@@ -6003,18 +6016,21 @@ function initThree() {
   let dragging = false, lastX = 0, lastY = 0;
   const dom = renderer.domElement;
   dom.style.touchAction = "none";
+  dom.addEventListener("contextmenu", e => e.preventDefault());
   dom.addEventListener("pointerdown", e => {
+    gunButtons(e.buttons);
     wakeAudio();
     dragging = true; tour = false; lastX = e.clientX; lastY = e.clientY;
     dom.setPointerCapture(e.pointerId);
   });
   dom.addEventListener("pointermove", e => {
+    gunButtons(e.buttons);
     if (!dragging) return;
     yaw -= (e.clientX - lastX) * 0.0032;
     pitch = clamp(pitch - (e.clientY - lastY) * 0.0028, -1.45, 1.1);
     lastX = e.clientX; lastY = e.clientY;
   });
-  dom.addEventListener("pointerup", e => { dragging = false; });
+  dom.addEventListener("pointerup", e => { gunButtons(e.buttons); if (!e.buttons) dragging = false; });
   dom.addEventListener("wheel", e => {
     if (wheel.open) { wheelItem(e.deltaY > 0 ? 1 : -1); e.preventDefault(); return; }
     speed = clamp(speed * (e.deltaY > 0 ? 1.15 : 0.87), 20, 4000);
@@ -9025,6 +9041,7 @@ function vegBuild(root) {
       for (let i = 1; i < pts.length; i++) vegSeg([pts[i - 1][0], pts[i - 1][2]], [pts[i][0], pts[i][2]], r);
     });
     city.plots.forEach(p => vegDisc(p.centre[0], p.centre[1], Math.max(p.size[0], p.size[1]) * 0.6 + 3));
+    if (city.streetSegs) { const S = city.streetSegs; for (let i = 0; i < S.length; i += 4) vegSeg([S[i], S[i + 1]], [S[i + 2], S[i + 3]], 8); }
   });
   if (world.highway) {
     const P = world.highway.pts;
@@ -9644,6 +9661,7 @@ function tick(dt) {
   streamFrame();
   updateAirports(dt);
   destFrame(dt); updateAirportGates(dt); updateHelis(dt); updateGhostPlanes(dt);
+  if (gun.model && !(player.mode === "walk" && !drive.car && !drive.train && !flight.active && !chute.active)) gunFrame(dt);
   updateWorldSky(dt);
   followSun();
 
@@ -9686,6 +9704,7 @@ function tick(dt) {
     else if (interior.card || interior.pod || interior.lift || interior.bridge || interior.sit || interior.modal || service.active || ex.open || ife.open) { /* the camera is on the thing you are looking at, or the menu is up */ }
     else updateWalk(dt);
     if (interior.active) interiorTick(dt);
+    gunFrame(dt);
     updateTraffic(dt, player.pos);
     updateRail(dt, player.pos);
     updatePedestrianSafety(dt);
@@ -12522,8 +12541,13 @@ function sampleLane(lane, s) {
   const t = seg > 1e-4 ? (s - lane.arc[lo]) / seg : 0;
   const a = lane.pts[lo], b = lane.pts[lo + 1];
   const flat = Math.hypot(b[0] - a[0], b[2] - a[2]) || 1;
+  const px = a[0] + (b[0] - a[0]) * t, pz = a[2] + (b[2] - a[2]) * t;
+  let py = a[1] + (b[1] - a[1]) * t;
+  // A road lane that ends on a steep cut can sit well above the ground it
+  // meets; a car there would drive along in mid air. Never let one float.
+  if (lane.road !== undefined) py = Math.min(py, world.surfaceY(px, pz) + 2.5);
   return {
-    x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, z: a[2] + (b[2] - a[2]) * t,
+    x: px, y: py, z: pz,
     yaw: Math.atan2(b[0] - a[0], b[2] - a[2]),
     // Nose up the hill. Without this a car on a gradient hovers at one end
     // and is buried at the other, and a train does it eight carriages over.
@@ -20663,6 +20687,7 @@ const CHEAT_ACTIONS = {
   KOHANA:    { dial: "5550177", note: "The Kohana Islands", fn: () => cheatDest("kohana") },
   RYUJIMA:   { dial: "5550178", note: "Ryūjima", fn: () => cheatDest("ryujima") },
   HEATSEEKER:{ dial: "5550179", note: "Four stars, helicopters and all", fn: () => { wanted.stars = 4; wanted.lastCrime = "Stealing an aircraft"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); } },
+  TOOLEDUP:  { dial: "5550180", note: "Every gun, full magazines and spare ammo", fn: () => { Object.keys(GUNS).forEach(id => { wheel[id + "Owned"] = true; gunGive(id, 2); gunAmmoOf(id).mag = GUNS[id].mag; }); if (!GUNS[wheel.equipped]) wheel.equipped = "pistol"; } },
   GOPOLICE:  { dial: "5550173", note: "The nearest police station", fn: () => cheatGoShop(s => s.police) },
   REFRESH:   { dial: "5550199", note: "Looking for a new version", fn: () => refreshGame() }
 };
@@ -22784,8 +22809,8 @@ function takeFromShelf() {
     say(it.name + " \u00b7 " + yenText(it.price), 3);
   } else if (ARMS_STOCK.some(a => a.id === it.id)) {
     // It goes on the wheel rather than in your bag.
-    wheel[it.id + "Owned"] = true;
-    say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold LB for it.", 5);
+    if (it.id === "ammo") { ["pistol", "smg", "shotgun"].forEach(k => { if (wheel[k + "Owned"]) gunGive(k, 1); }); say("Ammunition for every gun you own \u00b7 " + yenText(it.price) + ".", 4); }
+    else { wheel[it.id + "Owned"] = true; if (GUNS[it.id]) { const a = gunAmmoOf(it.id); a.mag = GUNS[it.id].mag; gunGive(it.id, 1); } say(it.name + " \u00b7 " + yenText(it.price) + " \u00b7 hold " + (pad.index >= 0 ? padLabel("LB") : "Q") + " for it" + (GUNS[it.id] ? ", right mouse to aim, left to fire, R to reload." : "."), 7); }
   } else if (it.carry) {
     // The big things are carried out, not delivered, if you buy them in person.
     phone.owns[it.id] = true;
@@ -27538,7 +27563,8 @@ const ARMS_STOCK = [
   { id: "baton",   name: "Telescopic baton", price: 18000 },
   { id: "pistol",  name: "Compact pistol",   price: 240000 },
   { id: "smg",     name: "Machine pistol",   price: 620000 },
-  { id: "shotgun", name: "Short shotgun",    price: 480000 }
+  { id: "shotgun", name: "Short shotgun",    price: 480000 },
+  { id: "ammo",    name: "Box of ammunition (all your guns)", price: 9000 }
 ];
 
 // ---- the emergency services -------------------------------------------------
@@ -28802,6 +28828,27 @@ function bikeCrash(c, why) {
   vitals.stress = clamp01(vitals.stress + 0.1);
   say(why, 3);
 }
+// What the road tells your hands: the engine, the surface, a front wheel getting light, tyres letting go, hard braking. Through the pad's motors,
+// and (more gently) through the picture.
+function driveFeedback(c, kind, dt, thr, brk, two) {
+  drive.fbT = (drive.fbT || 0) - dt; if (drive.fbT > 0) return; drive.fbT = 0.09;
+  const v = Math.abs(c.speed || 0);
+  let strong = 0, weak = 0;
+  if (!(two && c.air)) {
+    strong += 0.03 + thr * clamp01(v / 25) * 0.22; weak += clamp01(v / 40) * 0.08;
+    const mu = two ? bikeGrip(kind, c.pos.x, c.pos.z) : 1;
+    if (mu < 0.97 && v > 2) { weak += 0.22; strong += 0.08; }
+    if (two) {
+      if (c.wheelie) { const k = clamp01((c.theta || 0) / 1.08); strong += 0.12 + k * k * 0.7; weak += k * 0.6; drive.shake = Math.max(drive.shake || 0, k * k * 0.12); }
+      if ((c.slip || 0) > 0.1) { weak += 0.5 + c.slip; drive.shake = Math.max(drive.shake || 0, 0.08); }
+      if (brk > 0.6 && v > 6) strong += 0.3;
+    } else {
+      if (brk > 0.8 && v > 12) strong += 0.35;
+      if (Math.abs(c.slide || 0) > 0.4) { weak += 0.4; drive.shake = Math.max(drive.shake || 0, 0.05); }
+    }
+  }
+  if (strong + weak > 0.06) rumble(clamp01(strong), clamp01(weak), 130);
+}
 function updateBike(dt, c, kind, inp) {
   const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = PERF[kind.name] || { top: 30, to100: 6 };
   const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
@@ -28957,8 +29004,10 @@ function updateDrive(dt) {
 
   if (TWO_WHEELERS[kind.body]) {
     updateBike(dt, c, kind, { throttle: throttle, brake: brake, steer: steer, hand: !!hand,
-      leanIn: clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1) });
+      // back on the stick (or Shift) is weight over the rear wheel: negative here, which lifts the front
+      leanIn: clamp(-w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1) });
     if (c.downT > 0 || !c.air) driveCollisions(c, kind, dt);
+    driveFeedback(c, kind, dt, throttle, brake, true);
   } else {
   const perf = PERF[kind.name] || { top: kind.top * 1.4, to100: 12 };
     const top = perf.top;
@@ -29052,6 +29101,7 @@ function updateDrive(dt) {
   
 }
 
+  if (!TWO_WHEELERS[kind.body]) driveFeedback(c, kind, dt, throttle, brake, false);
   // Camera: behind and a little above, swinging round to the heading unless
   // you are turning it yourself.
   if (!look.x && !look.y && Math.abs(c.speed) > 2.5) {
@@ -29075,6 +29125,8 @@ function updateDrive(dt) {
     drive.shake *= Math.pow(0.02, dt);
   }
   camera.lookAt(head);
+  // a bike's lean is felt in the picture: the horizon tips a little into the corner, and a wheelie lifts the view
+  if (TWO_WHEELERS[kind.body] && c.roll) { camera.rotateZ(-c.roll * 0.22); }
   // Keep the character with the car so the map and the street name follow it.
   player.pos.copy(c.pos);
   player.yaw = c.yaw;
@@ -30723,7 +30775,7 @@ function airBuy(from, to, cls, via) {
   const cost = from === "konto" ? price : Math.round(AIR_DESTS[from].fare * c.mult / 100) * 100;
   if (purse.yen < cost) { say("Not enough. The fare is " + yenText(cost) + ".", 4); return false; }
   purse.yen -= cost; noteBuy("airport", cost);
-  air.ticket = { from: from, to: to, cls: cls, ref: airRef(), price: cost, gate: "A" + (1 + ((Math.random() * 6) | 0)), seat: c.seat };
+  air.ticket = { from: from, to: to, cls: cls, ref: airRef(), price: cost, gate: "ABC"[(Math.random() * Math.max(1, ((world.airports || []).find(a => a.big) || { terms: [1] }).terms.length)) | 0] + (1 + ((Math.random() * 6) | 0)), seat: c.seat };
   say("Booked " + AIR_DESTS[from].name + " to " + d.name + ", " + c.name + ". Reference " + air.ticket.ref + ".", 7);
   return true;
 }
@@ -30768,11 +30820,18 @@ function airPerson(root, x, z, ry, hex) {
   inAdd(g, 0.38, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(g, 0.44, 0.62, 0.26, 0, 1.1, 0, sh); inAdd(g, 0.26, 0.26, 0.26, 0, 1.6, 0, "#e8c4a0"); inAdd(g, 0.28, 0.1, 0.28, 0, 1.78, 0, ["#2a2d33", "#4a3220", "#8a6a3a", "#14171b"][((Math.abs(x + z)) | 0) % 4]);
   return g;
 }
+const AIR_SHOPS = [["eleven", "ramen", "books"], ["petmart", "sushi", "pharmacy"], ["clothes", "sushiya", "eleven"]];
+const AIR_AIRSIDE_SHOPS = [["sushi", "pharmacy", "clothes", "sushiya"], ["ramen", "books", "eleven", "petmart"], ["sushiya", "clothes", "pharmacy", "sushi"]];
+function airBoardLines(L) {
+  const to = ["Seoul", "Kohana Islands", "Ryūjima", "Seoul", "Kohana Islands"], st = ["#9be39b", "#9be39b", "#ffd21c", null, "#ff8a7a"], base = L === "A" ? 301 : L === "B" ? 410 : 520;
+  return [["FLIGHT", "TO", "GATE"]].concat(to.map((t, i) => st[i] ? ["KA " + (base + i * 37), t, L + (i + 1), st[i]] : ["KA " + (base + i * 37), t, L + (i + 1)]));
+}
 function airLandside(s, key) {
   const W = 52, D = 26, H = 7, ox = -3000 - interior.count++ * 60, oz = -3000, fy = interior.floorY;
   const root = new THREE.Group(); root.position.set(ox, fy, oz);
   const big = !!(s.ap && s.ap.big), spots = [], cols = [];
-  const room = { brand: "airport", key: key, group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: false, W: W, D: D, H: H, doorW: 3.2, restaurant: true, spots: spots, kind: "land", ap: s.ap };
+  const termN = s.term || 1, LET = "ABC"[termN - 1] || "A";
+  const room = { brand: "airport", key: key, group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: false, W: W, D: D, H: H, doorW: 3.2, restaurant: true, spots: spots, kind: "land", ap: s.ap, term: termN, letter: LET, name: s.name };
   airShell(root, W, D, H, { door: 6.4 });
   const box = (w, h, d, x, z, hex, y) => { inAdd(root, w, h, d, x, y === undefined ? h / 2 : y, z, hex); };
   const solid = (x, z, w, d) => cols.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
@@ -30780,8 +30839,8 @@ function airLandside(s, key) {
   for (const sg of [-1, 1]) inAdd(root, 14, 3.2, 0.1, sg * 14, 2.6, D / 2 - 0.05, "#a9d0e6");
   const nm = inLabel(s.name, 12, 1.1, AIR_C.trim, "#ffffff"); nm.position.set(0, 5.6, D / 2 - 0.2); nm.rotation.y = Math.PI; root.add(nm);
   // the north wall: pop-up shops, and between them the departures boards
-  [-20, -13.6, -7.2].forEach((x, i) => airFront(root, room, spots, x, -D / 2 + 0.45, 6, ["eleven", "ramen", "books"][i], 1));
-  airBoard(root, 6.5, 4.4, -D / 2 + 0.35, 0, 9, 3, [["FLIGHT", "TO", "GATE"], ["KA 301", "Seoul", "A1", "#9be39b"], ["KA 412", "Kohana Islands", "A2", "#9be39b"], ["KA 517", "Ryūjima", "A3", "#ffd21c"], ["KA 118", "Seoul", "A4"], ["KA 640", "Kohana Islands", "A5", "#ff8a7a"]], "DEPARTURES  出発");
+  [-20, -13.6, -7.2].forEach((x, i) => airFront(root, room, spots, x, -D / 2 + 0.45, 6, AIR_SHOPS[termN - 1][i], 1));
+  airBoard(root, 6.5, 4.4, -D / 2 + 0.35, 0, 9, 3, airBoardLines(LET), "DEPARTURES 出発 · T" + termN);
   // check-in: eight desks in a row with an agent behind each and a sign overhead
   for (let i = 0; i < 8; i++) {
     const x = -22 + i * 3.1;
@@ -30823,7 +30882,7 @@ function airAirside(land) {
   if (land.airside) return land.airside;
   const W = 56, D = 24, H = 7, ox = -3000 - interior.count++ * 60, oz = -3000, fy = interior.floorY;
   const root = new THREE.Group(); root.position.set(ox, fy, oz);
-  const spots = [], cols = [], room = { brand: "airport", key: land.key + ":air", group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: true, W: W, D: D, H: H, restaurant: true, spots: spots, kind: "air", land: land };
+  const LET = land.letter || "A", spots = [], cols = [], room = { brand: "airport", key: land.key + ":air", group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], noExit: true, W: W, D: D, H: H, restaurant: true, spots: spots, kind: "air", land: land, letter: LET };
   airShell(root, W, D, H, { trim: "#1d5fb0" });
   const box = (w, h, d, x, z, hex, y) => inAdd(root, w, h, d, x, y === undefined ? h / 2 : y, z, hex);
   const solid = (x, z, w, d) => cols.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
@@ -30835,7 +30894,7 @@ function airAirside(land) {
   const sky = new THREE.Mesh(new THREE.PlaneGeometry(W * 3, 40), new THREE.MeshBasicMaterial({ color: 0x9cc4e8, fog: false })); sky.position.set(0, 20, -D / 2 - 79); root.add(sky);
   [[-16, 0xc0172b, 63, 61], [14, 0x1d5fb0, 38, 34]].forEach(p => { const pl = airplaneMesh(p[2], p[3], p[1], false); pl.rotation.y = Math.PI / 2; pl.position.set(p[0], pl.userData.gearH || 5.0, -D / 2 - 22); root.add(pl); });
   // gates, each with a desk and a sign; the numbered ones board
-  const gates = ["A1", "A2", "A3", "A4", "A5", "A6"];
+  const gates = [1, 2, 3, 4, 5, 6].map(n => LET + n);
   gates.forEach((gname, i) => {
     const x = -22 + i * 8.8;
     box(2.4, 1.0, 0.9, x, -8.3, "#c9ced4"); box(2.5, 0.07, 1.0, x, -8.3, "#1d5fb0", 1.04); airPerson(root, x, -9.4, 0, "#1d5fb0"); solid(x, -8.3, 2.6, 1.0);
@@ -30845,8 +30904,8 @@ function airAirside(land) {
     for (let r = 0; r < 2; r++) for (let c = 0; c < 3; c++) { const bx = x - 1.5 + c * 1.8, bz = -4.4 + r * 1.5; box(1.4, 0.1, 0.55, bx, bz, "#2a3039", 0.5); box(1.4, 0.45, 0.1, bx, bz + 0.3, "#2a3039", 0.8); if ((i + r + c) % 4 === 0) airPerson(root, bx, bz, Math.PI, null); }
   });
   // shops along the south wall
-  [-21, -13.5, -6, 1.5].forEach((x, i) => airFront(root, room, spots, x, D / 2 - 0.45, 6.4, ["sushi", "pharmacy", "clothes", "sushiya"][i], -1));
-  airBoard(root, 14, 4.4, D / 2 - 0.35, Math.PI, 9, 3, [["FLIGHT", "TO", "GATE"], ["KA 301", "Seoul", "A1", "#9be39b"], ["KA 412", "Kohana Islands", "A2", "#9be39b"], ["KA 517", "Ryūjima", "A3", "#ffd21c"], ["KA 118", "Seoul", "A4"], ["KA 640", "Kohana Islands", "A5", "#ff8a7a"]], "DEPARTURES  出発");
+  [-21, -13.5, -6, 1.5].forEach((x, i) => airFront(root, room, spots, x, D / 2 - 0.45, 6.4, AIR_AIRSIDE_SHOPS[(land.term || 1) - 1][i], -1));
+  airBoard(root, 14, 4.4, D / 2 - 0.35, Math.PI, 9, 3, airBoardLines(LET), "DEPARTURES 出発 · T" + (land.term || 1));
   const dfs = inLabel("DUTY FREE 免税", 5, 0.8, "#14527a", "#ffd21c"); dfs.position.set(20, 3.3, D / 2 - 0.34); dfs.rotation.y = Math.PI; root.add(dfs);
   for (let i = 0; i < 4; i++) { box(1.6, 1.2, 1.6, 17 + (i % 2) * 2.2, 8.6 + Math.floor(i / 2) * 0, "#e8eaed"); }
   solid(18, 8.6, 5, 1.8); for (let k = 0; k < 8; k++) box(0.3, 0.8, 0.3, 16.5 + k * 0.6, 8.6, ["#7a1f1a", "#2a5a8a", "#c8a84a", "#f2efe6"][k % 4], 1.6);
@@ -30899,6 +30958,7 @@ function airModal(head, body, opts) { interior.modal = { kind: "custom", head: h
 function airSecurity(room) {
   const baton = bag.gear && bag.gear.baton || (bag.counts && bag.counts.baton);
   if (!airTicketOk()) { say("Security: “Boarding pass, please.” You need a ticket for a flight from here. Buy one at the office or on Expedio.", 5); return; }
+  if (room.letter && air.ticket.gate && air.ticket.gate[0] !== room.letter) { const tn = "ABC".indexOf(air.ticket.gate[0]) + 1; say("Security: “Your gate is " + air.ticket.gate + ", in Terminal " + tn + ". This is Terminal " + (room.term || 1) + ".”", 6); return; }
   if (baton) { try { if (bag.gear) bag.gear.baton = 0; if (bag.counts) bag.counts.baton = 0; } catch (e) { /* none */ } }
   airGoto(airAirside(room), { x: -24, z: 4 }, Math.PI / 2, baton ? "The X-ray finds a baton in your bag. It is kept, and noted. Airside: your gate is " + air.ticket.gate + "." : "Through security. Airside: your gate is " + air.ticket.gate + ".");
 }
@@ -31412,7 +31472,7 @@ function airportExtras(ap, G, ctx) {
   const wp = (x, z) => fromRectLocal(x, z, ap.cx, ap.cz, ap.yaw);
   ap.tzDoor = ctx.tz + ctx.tw_ / 2 + 8.4;
   // the fence round the airfield, solid, with one vehicle gate on the road side
-  const fx0 = ctx.fx0, fx1 = ctx.fx1, fz0 = ctx.fz0, fz1 = ctx.fz1, fm = M(0x6d7378), gap = 12;
+  const fx0 = ctx.fx0, fx1 = ctx.fx1, fz0 = ctx.fz0, fz1 = ctx.fz1, fm = M(0x6d7378), gap = big ? 30 : 12;
   const run = (w, d, x, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, 2.4, d), fm); m.position.set(x, 1.2, z); G.add(m); const p = wp(x, z); solids.push({ c: [p[0], p[1]], size: [w, d], yaw: ap.yaw, y: ap.y, h: 2.4 }); };
   run(fx1 - fx0, 0.3, (fx0 + fx1) / 2, fz0); run(0.3, fz1 - fz0, fx0, (fz0 + fz1) / 2); run(0.3, fz1 - fz0, fx1, (fz0 + fz1) / 2);
   run((fx1 - fx0) / 2 - gap / 2, 0.3, fx0 + ((fx1 - fx0) / 2 - gap / 2) / 2, fz1); run((fx1 - fx0) / 2 - gap / 2, 0.3, fx1 - ((fx1 - fx0) / 2 - gap / 2) / 2, fz1);
@@ -31426,19 +31486,26 @@ function airportExtras(ap, G, ctx) {
   const gp = wp(0, gz), armSolid = { c: [gp[0], gp[1]], size: [gap, 0.9], yaw: ap.yaw, y: ap.y, h: 1.4 };
   solids.push(armSolid); ap.gate = { arm: arm, solid: armSolid, x: gp[0], z: gp[1], broken: false, group: G };
   // the shop record that makes the terminal a place you can walk into
-  const dp = wp(0, ap.tzDoor), shop = { brand: "airport", airport: true, ap: ap, name: ap.name, city: "Tōkonto", at: wp(0, ctx.tz), door: [dp[0], dp[1]], yaw: ap.yaw * Math.PI / 180, groundY: ap.y, size: [ctx.tl_, ctx.tw_], built: true };
-  ap.shop = shop; shops.list.push(shop);
   // the parked airliners can be taken
   (ap.planes || []).forEach(p => { const w = wp(p.mesh.position.x, p.mesh.position.z); p.wx = w[0]; p.wz = w[1]; });
-  const door = destSign("✈  DEPARTURES  出発  ·  TERMINAL ENTRANCE", 14, 1.6, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); door.position.set(0, 5.2, ap.tzDoor + 1.2); G.add(door);
-  for (const sx of [-3.2, 3.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), M(0xc9ced4)); post.position.set(sx, 2.5, ap.tzDoor); G.add(post); }
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.5, 0.6), M(0x30363e)); lintel.position.set(0, 4.9, ap.tzDoor); G.add(lintel);
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.4), new THREE.MeshBasicMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); glow.position.set(0, 2.4, ap.tzDoor); G.add(glow);
+  const terms = ap.terms || [{ ox: 0, n: 1 }];
+  ap.shops = [];
+  terms.forEach(T => {
+    const label = terms.length > 1 ? "✈  TERMINAL " + T.n + "  ·  DEPARTURES  出発" : "✈  DEPARTURES  出発  ·  TERMINAL ENTRANCE";
+    const door = destSign(label, 14, 1.6, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); door.position.set(T.ox, 5.2, ap.tzDoor + 1.2); G.add(door);
+    for (const sx of [-3.2, 3.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), M(0xc9ced4)); post.position.set(T.ox + sx, 2.5, ap.tzDoor); G.add(post); }
+    const lintel = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.5, 0.6), M(0x30363e)); lintel.position.set(T.ox, 4.9, ap.tzDoor); G.add(lintel);
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.4), new THREE.MeshBasicMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); glow.position.set(T.ox, 2.4, ap.tzDoor); G.add(glow);
+    const dpT = wp(T.ox, ap.tzDoor), shopT = { brand: "airport", airport: true, ap: ap, term: T.n, name: ap.name + (terms.length > 1 ? " · Terminal " + T.n : ""), city: "Tōkonto", at: wp(T.ox, ctx.tz), door: [dpT[0], dpT[1]], yaw: ap.yaw * Math.PI / 180, groundY: ap.y, size: [ctx.tl_, ctx.tw_], built: true };
+    ap.shops.push(shopT); shops.list.push(shopT); if (T.n === 1) ap.shop = shopT;
+  });
   if (big) buildAirportHighway(ap, G);
 }
 // ---- the expressway from the capital ------------------------------------------------------------------------------------------------------------
 function buildAirportHighway(ap, G) {
-  const city = world.cities[0], start = fromRectLocal(0, ap.sz - 100 + 40, ap.cx, ap.cz, ap.yaw);
+  const hw = 12;
+  const sh = 2.6;
+  const city = world.cities[0], start = fromRectLocal(0, ap.sz - 100 + 130, ap.cx, ap.cz, ap.yaw), inner = fromRectLocal(0, ap.sz - 100 - 70, ap.cx, ap.cz, ap.yaw);
   let goal = null, gd = 1e12; city.roads.forEach(r => { if (r.elevated || r.halfWidth < 9 || !r.pts) return; r.pts.forEach(p => { const d = Math.hypot(p[0] - start[0], p[2] - start[1]); if (d < gd) { gd = d; goal = [p[0], p[2]]; } }); });
   if (!goal) return;
   // a route that keeps off the steep ground and the deep water: A* on a 70 m grid
@@ -31459,14 +31526,21 @@ function buildAirportHighway(ap, G) {
   }
   if (!found) { console.warn("[Konto] no route for the airport expressway"); return; }
   let cell = key(g0[0], g0[1]); const route = []; while (cell >= 0) { route.push([(cell % nx) * C + C / 2, Math.floor(cell / nx) * C + C / 2]); cell = from[cell]; }
-  route.reverse(); route[0] = [start[0], start[1]]; route.push(goal);
+  route.reverse(); route[0] = [start[0], start[1]]; route.unshift([inner[0], inner[1]]); route.push(goal);
   let pts = route; for (let it = 0; it < 3; it++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; o.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } o.push(pts[pts.length - 1]); pts = o; }
   const res = [pts[0]]; let acc = 0; for (let i = 1; i < pts.length; i++) { const a = res[res.length - 1], d = Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); if (d >= 14 || i === pts.length - 1) res.push(pts[i]); }
   const n = res.length, hh = res.map(p => world.sampleHeight(p[0], p[1])), dk = new Array(n);
   for (let i = 0; i < n; i++) { let m = -1e9; for (let k = -3; k <= 3; k++) m = Math.max(m, hh[clamp(i + k, 0, n - 1)]); dk[i] = Math.max(m + 0.3, 3.4); }
+  // where it crosses a road or a railway it goes over it, with a long ramp either side, instead of through its traffic
+  const CR = world._corridors;
+  if (CR) for (let i = 8; i < n - 14; i++) {
+    const x = res[i][0], z = res[i][1], gx = Math.floor(x / CR.cell), gz = Math.floor(z / CR.cell); let cross = false;
+    for (let j = gz - 1; j <= gz + 1 && !cross; j++) for (let k = gx - 1; k <= gx + 1 && !cross; k++) { const l = CR.grid.get(k + "," + j); if (!l) continue; for (const e of l) if (e[3] === null && Math.hypot(e[0] - x, e[1] - z) < e[2] + hw + sh + 2) { cross = true; break; } }
+    if (cross) for (let q = Math.max(0, i - 8); q <= Math.min(n - 1, i + 8); q++) dk[q] = Math.max(dk[q], hh[q] + 6.8 * (1 - Math.abs(q - i) / 9));
+  }
   const blur = (a, r) => a.map((_, i) => { let s = 0, c = 0; for (let k = -r; k <= r; k++) { s += a[clamp(i + k, 0, n - 1)]; c++; } return s / c; });
   let d2 = dk; for (let it = 0; it < 5; it++) d2 = blur(d2, 4); for (let i = 0; i < n; i++) d2[i] = Math.max(d2[i], hh[i] + 0.3, 3.4); d2 = blur(d2, 2); for (let i = 0; i < n; i++) d2[i] = Math.max(d2[i], hh[i] + 0.15); d2[0] = ap.y + 0.1;
-  const hw = 12, sh = 2.6, road = { pos: [], nrm: [], uv: [] }, paint = { pos: [] }, bar = { pos: [], nrm: [], uv: [] }, along = [0];
+  const road = { pos: [], nrm: [], uv: [] }, paint = { pos: [] }, bar = { pos: [], nrm: [], uv: [] }, along = [0];
   for (let i = 1; i < n; i++) along.push(along[i - 1] + Math.hypot(res[i][0] - res[i - 1][0], res[i][1] - res[i - 1][1]));
   const dir = i => { const a = res[Math.max(0, i - 1)], b = res[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
   const E = (i, t, up) => { const d = dir(i), x = res[i][0] - d[1] * t, z = res[i][1] + d[0] * t; return [x, d2[i] + (up || 0), z]; };
@@ -31490,6 +31564,7 @@ function buildAirportHighway(ap, G) {
   lamps.forEach(([i, sg], k) => { const p = E(i, sg * (hw + sh + 0.3)); m5.makeTranslation(p[0], p[1] + 4.5, p[2]); lp.setMatrixAt(k, m5); m5.makeTranslation(p[0] - sg * 0.2, p[1] + 9, p[2]); lh.setMatrixAt(k, m5); });
   lp.frustumCulled = lh.frustumCulled = false; scene.add(lp); scene.add(lh);
   [Math.floor(n * 0.08), Math.floor(n * 0.5), n - 12].forEach((i, k) => { const p = E(i, 0), d = dir(i), ang = Math.atan2(d[0], d[1]); const g = new THREE.Group(); g.position.set(p[0], p[1], p[2]); g.rotation.y = ang; scene.add(g); for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); post.position.set(sx * (hw + sh + 0.6), 3.7, 0); g.add(post); } const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + sh) * 2 + 1.4, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); beam.position.y = 7.2; g.add(beam); const sg = destSign(k === 0 ? "TŌKONTO INTERNATIONAL AIRPORT  ✈  空港" : k === 1 ? "✈  TKO  空港  ·  Airport Expressway" : "✈  TŌKONTO  ·  Airport  ✈", 14, 3, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); sg.position.set(0, 5.4, 0.3); g.add(sg); const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -0.3; g.add(sg2); });
+  if (veg.mask) for (let i = 1; i < n; i++) vegSeg([res[i - 1][0], res[i - 1][1]], [res[i][0], res[i][1]], hw + sh + 6);
   // the deck is a surface you stand on: cars, people and the camera's ground follow it, not the soil under it
   for (let i = 1; i < n; i++) {
     const A = res[i - 1], B = res[i], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
@@ -31842,6 +31917,209 @@ function updateHelis(dt) {
 }
 function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
 
+// ============================================================================
+// FIREARMS
+// ----------------------------------------------------------------------------
+// Bought behind the shutter at Kanamono, picked from the equipment wheel (hold Q or LB), carried in the right hand with the arm brought up, aimed over
+// the shoulder, fired, reloaded. The gun is a real model: the same one is on the shelf in the shop. Every shot in the street is a crime.
+//   aim: right mouse button, V, or LT      fire: left mouse button (while aiming), Enter, or RT      reload: R, or X on a pad
+// ============================================================================
+const GUNS = {
+  pistol:  { name: "Compact pistol", mag: 15, rate: 0.26, auto: false, spread: 0.010, pellets: 1, reload: 1.3, range: 95, kick: 0.022, vol: 0.9, tone: 1700 },
+  smg:     { name: "Machine pistol", mag: 30, rate: 0.075, auto: true, spread: 0.032, pellets: 1, reload: 1.7, range: 75, kick: 0.011, vol: 0.75, tone: 2400 },
+  shotgun: { name: "Short shotgun", mag: 6, rate: 0.85, auto: false, spread: 0.075, pellets: 8, reload: 2.4, range: 45, kick: 0.07, vol: 1.0, tone: 900 }
+};
+const gun = { id: null, model: null, aim: 0, aimIn: false, fireIn: false, latch: false, cool: 0, reload: 0, ammo: {}, hud: null, xhair: null, fx: [], lastCrime: -99, kick: 0, recoil: 0, light: null, pw: { r: false, x: false } };
+function gunModel(id, shop) {
+  const g = new THREE.Group(), steel = new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.38, metalness: 0.75 }), black = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.2 }), grey = new THREE.MeshStandardMaterial({ color: 0x80858d, roughness: 0.4, metalness: 0.7 });
+  const B = (w, h, d, x, y, z, m, rx) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m || steel); o.position.set(x, y, z); if (rx) o.rotation.x = rx; g.add(o); return o; };
+  const C = (r, l, x, y, z, m) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, 10), m || steel); o.rotation.x = Math.PI / 2; o.position.set(x, y, z); g.add(o); return o; };
+  let muzzle;
+  if (id === "pistol") {
+    B(0.030, 0.036, 0.19, 0, 0.040, 0.070); B(0.028, 0.026, 0.15, 0, 0.012, 0.055, black);              // slide, frame
+    B(0.034, 0.105, 0.048, 0, -0.050, -0.012, black, 0.22);                                                 // the raked grip
+    B(0.006, 0.030, 0.04, 0, -0.010, 0.042, steel); B(0.026, 0.006, 0.060, 0, -0.026, 0.050, steel);       // trigger guard
+    B(0.004, 0.010, 0.012, 0, 0.062, 0.150, grey); B(0.005, 0.012, 0.010, 0, 0.062, -0.020, grey);         // sights
+    C(0.007, 0.03, 0, 0.040, 0.172); muzzle = new THREE.Vector3(0, 0.040, 0.19);
+  } else if (id === "smg") {
+    B(0.044, 0.062, 0.27, 0, 0.030, 0.085); B(0.036, 0.016, 0.20, 0, 0.068, 0.07, black);
+    C(0.009, 0.12, 0, 0.034, 0.30); C(0.016, 0.05, 0, 0.034, 0.34, black);
+    B(0.026, 0.150, 0.040, 0, -0.085, 0.060, black, 0.12);                                                  // the magazine
+    B(0.034, 0.100, 0.046, 0, -0.045, -0.030, black, 0.2); B(0.030, 0.050, 0.100, 0, 0.040, -0.090, black); // grip, folded stock
+    B(0.005, 0.014, 0.014, 0, 0.082, 0.20, grey);
+    muzzle = new THREE.Vector3(0, 0.034, 0.365);
+  } else {
+    B(0.046, 0.066, 0.20, 0, 0.030, -0.010); C(0.014, 0.52, 0, 0.040, 0.31); C(0.012, 0.50, 0, 0.004, 0.30, black);   // receiver, barrel, magazine tube
+    B(0.046, 0.046, 0.15, 0, -0.004, 0.22, black);                                                          // the pump
+    B(0.040, 0.075, 0.30, 0, 0.000, -0.22, black, -0.10);                                                   // stock
+    B(0.034, 0.090, 0.046, 0, -0.050, -0.045, black, 0.25);
+    B(0.004, 0.012, 0.012, 0, 0.066, 0.56, grey);
+    muzzle = new THREE.Vector3(0, 0.040, 0.58);
+  }
+  g.userData.muzzle = muzzle; g.userData.id = id;
+  g.traverse(o => { if (o.isMesh) o.castShadow = !shop; });
+  return g;
+}
+function gunAmmoOf(id) { return gun.ammo[id] || (gun.ammo[id] = { mag: GUNS[id] ? GUNS[id].mag : 0, res: 0 }); }
+function gunGive(id, boxes) { const a = gunAmmoOf(id), g = GUNS[id]; a.res += (boxes || 1) * g.mag * 3; }
+function gunHud() {
+  if (gun.hud) return gun.hud;
+  const h = document.createElement("div"); h.id = "gunhud";
+  h.style.cssText = "position:fixed;right:max(22px,env(safe-area-inset-right,0px));bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:45;pointer-events:none;display:none;text-align:right;color:#fff;font:800 13px 'Segoe UI',sans-serif;letter-spacing:.1em;text-shadow:0 2px 6px rgba(0,0,0,.8)";
+  h.innerHTML = "<div class='gn'></div><div class='ga' style='font-size:34px;letter-spacing:0'></div><div class='gh' style='font-weight:600;font-size:11px;opacity:.7;letter-spacing:.03em'></div>";
+  document.body.appendChild(h); gun.hud = h;
+  const x = document.createElement("div"); x.id = "xhair"; x.style.cssText = "position:fixed;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;z-index:44;pointer-events:none;display:none";
+  x.innerHTML = "<div style='position:absolute;left:12px;top:0;width:2px;height:8px;background:#fff;box-shadow:0 0 3px #000'></div><div style='position:absolute;left:12px;bottom:0;width:2px;height:8px;background:#fff;box-shadow:0 0 3px #000'></div><div style='position:absolute;top:12px;left:0;width:8px;height:2px;background:#fff;box-shadow:0 0 3px #000'></div><div style='position:absolute;top:12px;right:0;width:8px;height:2px;background:#fff;box-shadow:0 0 3px #000'></div><div style='position:absolute;left:12px;top:12px;width:2px;height:2px;background:#ff4d3a'></div>";
+  document.body.appendChild(x); gun.xhair = x;
+  return h;
+}
+function gunArmed() { return !!(GUNS[wheel.equipped] && player.placed && player.mode === "walk" && !drive.car && !drive.train && !flight.active && !chute.active && !heist.stage && !onsens.active && !service.active && !paused && !shops.inside && !interior.card && !interior.modal && !interior.sit && !interior.pod && !interior.lift && !ex.open && !ife.open); }
+function gunReload() {
+  if (!gunArmed() || gun.reload > 0) return;
+  const id = wheel.equipped, a = gunAmmoOf(id), G = GUNS[id];
+  if (a.mag >= G.mag) { say("Already full.", 1.5); return; }
+  if (a.res <= 0) { say("No spare ammunition. Kanamono sells boxes.", 3); return; }
+  gun.reload = G.reload; say("Reloading…", G.reload);
+}
+// move a limb's bone so that it points along dir (world), by blend w: the rest of the animation is left alone
+const _gq1 = new THREE.Quaternion(), _gq2 = new THREE.Quaternion(), _gv1 = new THREE.Vector3(), _gv2 = new THREE.Vector3(), _gv3 = new THREE.Vector3();
+let gunPose = true;
+function boneToward(bone, child, dir, w) {
+  if (!bone || !child || !bone.parent) return;
+  bone.updateWorldMatrix(true, false); child.updateWorldMatrix(true, false);
+  bone.getWorldPosition(_gv1); child.getWorldPosition(_gv2); _gv2.sub(_gv1); if (_gv2.lengthSq() < 1e-8) return; _gv2.normalize();
+  _gq1.setFromUnitVectors(_gv2, dir); _gq2.identity().slerp(_gq1, w);
+  bone.getWorldQuaternion(_gq1); _gq1.premultiply(_gq2);
+  bone.parent.getWorldQuaternion(_gq2).invert(); bone.quaternion.copy(_gq2.multiply(_gq1)); bone.updateMatrixWorld(true);
+}
+function gunBones() {
+  if (gun.bones !== undefined && gun.bonesFor === player.glb) return gun.bones;
+  gun.bonesFor = player.glb;
+  gun.bones = player.glb ? { ua: findBone(/^upperarm.?r$/i), fa: findBone(/^forearm.?r$/i), hd: findBone(/^hand.?r$/i), ul: findBone(/^upperarm.?l$/i), fl: findBone(/^forearm.?l$/i), hl: findBone(/^hand.?l$/i) } : null;
+  return gun.bones;
+}
+function gunSpark(p, col) {
+  for (let i = 0; i < 6; i++) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.04), new THREE.MeshBasicMaterial({ color: col || 0xffd27a, fog: false }));
+    m.position.copy(p); scene.add(m); gun.fx.push({ m: m, v: new THREE.Vector3((Math.random() - 0.5) * 3, Math.random() * 3, (Math.random() - 0.5) * 3), t: 0.35 });
+  }
+}
+function gunSound(G) {
+  const ctx = sound && sound.ctx; if (!ctx || !sound.master) return;
+  const t = ctx.currentTime, n = ctx.createBufferSource(), len = Math.floor(ctx.sampleRate * 0.35), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  n.buffer = buf; const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = G.tone; f.Q.value = 0.6; const gn = ctx.createGain(); gn.gain.setValueAtTime(G.vol * 0.9, t); gn.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  n.connect(f); f.connect(gn); gn.connect(sound.master); n.start(t);
+  const o = ctx.createOscillator(), og = ctx.createGain(); o.type = "sine"; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(40, t + 0.12); og.gain.setValueAtTime(G.vol * 0.8, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.16); o.connect(og); og.connect(sound.master); o.start(t); o.stop(t + 0.2);
+}
+function gunTrace(o, d, range) {
+  // march the ray: ground, buildings, cars, officers
+  const p = new THREE.Vector3(), step = 1.0;
+  for (let t = 0.6; t <= range; t += step) {
+    p.copy(o).addScaledVector(d, t);
+    if (p.y < world.surfaceY(p.x, p.z)) return { p: p.clone(), kind: "ground", t: t };
+    if (aircraftHitsSolid(p.x, p.y, p.z, 0.05)) return { p: p.clone(), kind: "wall", t: t };
+    let hit = null;
+    carsNear(p.x, p.z, 4, c => { if (!hit && Math.abs((c.at ? c.at.y : 0) + 0.9 - p.y) < 1.4 && inCarBox(c, p.x, p.z, 0.15)) hit = c; });
+    if (hit) return { p: p.clone(), kind: "car", t: t, car: hit };
+    for (const of of police.officers) if (Math.hypot(of.x - p.x, of.z - p.z) < 0.6 && p.y < world.surfaceY(of.x, of.z) + 2.0) return { p: p.clone(), kind: "officer", t: t, officer: of };
+  }
+  return { p: p.clone(), kind: "air", t: range };
+}
+function gunFire() {
+  const id = wheel.equipped, G = GUNS[id], a = gunAmmoOf(id);
+  if (a.mag <= 0) { if (gun.cool <= 0) { say(a.res > 0 ? "Empty. Reload." : "Click.", 1.2); gun.cool = 0.3; if (a.res > 0) gunReload(); } return; }
+  a.mag--; gun.cool = G.rate; gun.recoil = 1; gun.kick += G.kick;
+  const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch)); const org = camera.position.clone();
+  const mz = new THREE.Vector3(); if (gun.model) { gun.model.updateMatrixWorld(true); mz.copy(gun.model.userData.muzzle).applyMatrix4(gun.model.matrixWorld); } else mz.copy(org);
+  for (let k = 0; k < G.pellets; k++) {
+    const d = dir.clone(); d.x += (Math.random() - 0.5) * G.spread * 2; d.y += (Math.random() - 0.5) * G.spread * 2; d.z += (Math.random() - 0.5) * G.spread * 2; d.normalize();
+    const r = gunTrace(org, d, G.range);
+    const len = mz.distanceTo(r.p), tr = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.015, Math.max(0.5, len)), new THREE.MeshBasicMaterial({ color: 0xffe9a8, transparent: true, opacity: 0.8, fog: false }));
+    tr.position.copy(mz).lerp(r.p, 0.5); tr.lookAt(r.p); scene.add(tr); gun.fx.push({ m: tr, v: null, t: 0.07 });
+    if (r.kind !== "air") gunSpark(r.p, r.kind === "car" ? 0xffffff : 0xffd27a);
+    if (r.kind === "officer") { wanted.stars = Math.min(5, Math.max(wanted.stars, 3)); wanted.lastCrime = "Shooting at police"; wanted.heat = 1; wanted.escape = 0; callPolice(player.pos); }
+    if (r.kind === "car" && r.car) { r.car.v = 0; r.car.stopT = 3; }
+  }
+  if (!gun.light) { gun.light = new THREE.PointLight(0xffc870, 0, 9, 2); scene.add(gun.light); }
+  gun.light.position.copy(mz); gun.light.intensity = 3.2; gun.lightT = 0.05;
+  gunSound(G); rumble(0.9, 0.7, 90);
+  if (clock - gun.lastCrime > 8) { gun.lastCrime = clock; if (!interior.active) commitCrime("gun", player.pos); }
+  vitals.stress = clamp01(vitals.stress + 0.004);
+}
+function gunButtons(buttons) { gun.aimIn = !!(buttons & 2); gun.fireIn = !!(buttons & 1); }
+function gunFrame(dt) {
+  // the held model, the arm, the aim camera, the controls
+  const armed = gunArmed(), id = wheel.equipped;
+  if (armed && (!gun.model || gun.id !== id)) { if (gun.model) scene.remove(gun.model); gun.model = gunModel(id); gun.id = id; scene.add(gun.model); const a = gunAmmoOf(id); void a; }
+  if (!armed || !gun.model) {
+    if (gun.model) gun.model.visible = false;
+    if (gun.hud) gun.hud.style.display = "none"; if (gun.xhair) gun.xhair.style.display = "none";
+    gun.aim = lerp(gun.aim, 0, 0.3); gunFx(dt); return;
+  }
+  const G = GUNS[id], a = gunAmmoOf(id); gunHud();
+  const gp = pad.gp;
+  const aimWant = gun.aimIn || keys.KeyV || (gp && pad.index >= 0 && gp.buttons[PAD.LT] && gp.buttons[PAD.LT].value > 0.3);
+  const fireWant = (gun.fireIn && aimWant) || keys.Enter || (gp && pad.index >= 0 && gp.buttons[PAD.RT] && gp.buttons[PAD.RT].value > 0.35);
+  if (gp && pad.index >= 0) { const x = !!(gp.buttons[PAD.X] && gp.buttons[PAD.X].pressed); if (x && !gun.pw.x) gunReload(); gun.pw.x = x; }
+  gun.aim = lerp(gun.aim, aimWant ? 1 : 0, 1 - Math.pow(0.0005, dt));
+  gun.cool = Math.max(0, gun.cool - dt); gun.recoil = Math.max(0, gun.recoil - dt * 7);
+  if (gun.reload > 0) { gun.reload -= dt; if (gun.reload <= 0) { const need = G.mag - a.mag, take = Math.min(need, a.res); a.mag += take; a.res -= take; } }
+  // face where you are aiming, and walk slower for it
+  const fwd = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+  if (gun.aim > 0.5) { player.yaw = player.targetYaw = Math.atan2(fwd.x, fwd.z); player.obj.rotation.y = player.yaw; player.speed *= 0.7; }
+  // fire
+  if (gun.aim > 0.85 && fireWant && gun.cool <= 0 && gun.reload <= 0 && (G.auto || !gun.latch)) { gunFire(); gun.latch = true; }
+  if (!fireWant) gun.latch = false;
+  // the arm: up and out when aiming, down and forward at the hip when not; the left hand comes across to steady it
+  const B = gunBones();
+  const body = new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw));
+  const low = body.clone().multiplyScalar(0.82).add(new THREE.Vector3(0, -0.55, 0)).normalize();
+  const aimDir = fwd.clone().normalize();
+  const dir = low.clone().lerp(aimDir, gun.aim).normalize();
+  // The right arm is turned toward the aim (the left comes across to steady it); without bones the gun is carried at the hand and comes up in front of the shoulder
+  const rightSide = new THREE.Vector3(-body.z, 0, body.x);
+  const chest = new THREE.Vector3(player.pos.x, player.pos.y + 1.38, player.pos.z).addScaledVector(body, 0.62).addScaledVector(rightSide, 0.3);
+  if (B && B.hd && gunPose) {
+    player.obj.updateMatrixWorld(true);
+    boneToward(B.ua, B.fa, dir, 0.92); boneToward(B.fa, B.hd, dir, 0.97);
+    if (id !== "pistol" || gun.aim > 0.5) { const d2 = dir.clone().addScaledVector(rightSide, 0.12 * gun.aim).normalize(); boneToward(B.ul, B.fl, d2, 0.7 * (0.35 + 0.65 * gun.aim)); boneToward(B.fl, B.hl, d2, 0.8 * (0.35 + 0.65 * gun.aim)); }
+    B.hd.getWorldPosition(_gv3);
+  } else {
+    if (B && B.hd) B.hd.getWorldPosition(_gv3); else _gv3.set(player.pos.x + body.x * 0.3 + rightSide.x * 0.25, player.pos.y + 0.95, player.pos.z + body.z * 0.3 + rightSide.z * 0.25);
+    _gv3.lerp(chest, gun.aim);
+  }
+  gun.model.visible = true;
+  gun.model.position.copy(_gv3).addScaledVector(dir, 0.04 - gun.recoil * 0.05);
+  gun.model.lookAt(_gv3.clone().add(dir)); gun.model.rotateZ(0);
+  gun.model.rotateX(-gun.recoil * 0.25);
+  // the aim camera: over the right shoulder, close, and the crosshair on
+  if (gun.aim > 0.02) {
+    const head = player.pos.clone().add(new THREE.Vector3(0, 1.55, 0)), right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+    const want = head.clone().addScaledVector(right, 0.5 * gun.aim).addScaledVector(fwd, -(lerp(5.0, 2.0, gun.aim)));
+    const gc = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z)) + 1.0; if (want.y < gc) want.y = gc;
+    if (interior.active) interiorClampCam(want);
+    camPos.lerp(want, 1 - Math.pow(0.00005, dt)); camera.position.copy(camPos);
+    camera.lookAt(camPos.clone().add(fwd));
+  }
+  pitch = clamp(pitch + gun.kick * dt * 18, -1.45, 1.1); gun.kick *= Math.pow(0.0004, dt);
+  gun.xhair.style.display = gun.aim > 0.5 ? "block" : "none";
+  gun.hud.style.display = "block";
+  gun.hud.querySelector(".gn").textContent = G.name.toUpperCase();
+  gun.hud.querySelector(".ga").textContent = gun.reload > 0 ? "···" : a.mag + " / " + a.res;
+  gun.hud.querySelector(".gh").textContent = gun.aim < 0.5 ? "hold " + (pad.index >= 0 ? padLabel("LT") : "right mouse") + " to aim" : "fire " + (pad.index >= 0 ? padLabel("RT") : "left mouse / Enter") + " · reload " + (pad.index >= 0 ? padLabel("X") : "R");
+  gunFx(dt);
+}
+function gunFx(dt) {
+  if (gun.light && gun.lightT > 0) { gun.lightT -= dt; if (gun.lightT <= 0) gun.light.intensity = 0; }
+  for (let i = gun.fx.length - 1; i >= 0; i--) {
+    const e = gun.fx[i]; e.t -= dt;
+    if (e.v) { e.v.y -= 9 * dt; e.m.position.addScaledVector(e.v, dt); }
+    if (e.t <= 0) { scene.remove(e.m); if (e.m.geometry) e.m.geometry.dispose(); gun.fx.splice(i, 1); }
+  }
+}
+addEventListener("keydown", e => { if (e.repeat) return; if (e.code === "KeyR" && gunArmed()) gunReload(); });
+
 function frameLoop() {
   let last = performance.now();
   let slow = 1;
@@ -31957,6 +32235,9 @@ const IN_PALETTE = ["#d9534f", "#e8a33d", "#4a90d9", "#5fb36b", "#9b6bd3", "#e8d
 
 // What a thing looks like as a block, from what it is.
 function inKind(it) {
+  if (GUNS[it.id]) return "gun";
+  if (it.id === "ammo") return "ammo";
+  if (it.id === "baton") return "baton";
   if (it.kind === "phone" || it.phone) return "phone";
   if (it.kind === "tv") return "tv";
   if (it.kind === "gear") return /watch/.test(it.id) ? "audio" : "console";
@@ -31984,6 +32265,9 @@ function inItemMesh(it, noGlow) {
   else if (kind === "game") { inAdd(g, 0.2, 0.28, 0.03, 0, 0.14, 0, col); inAdd(g, 0.16, 0.06, 0.035, 0, 0.1, 0.004, "#f2f2f2"); top = 0.28; }
   else if (kind === "shirt") { inAdd(g, 0.34, 0.4, 0.06, 0, 0.2, 0, col); inAdd(g, 0.56, 0.12, 0.06, 0, 0.34, 0, col); inAdd(g, 0.12, 0.03, 0.065, 0, 0.395, 0.002, inShade(col, 0.6)); top = 0.42; }
   else if (kind === "book") { inAdd(g, 0.18, 0.26, 0.04, 0, 0.13, 0, col); inAdd(g, 0.02, 0.26, 0.042, -0.08, 0.13, 0, "#f2efe6"); top = 0.26; }
+  else if (kind === "gun") { const gm = gunModel(it.id, true); gm.rotation.y = Math.PI / 2; gm.position.y = 0.09; gm.scale.setScalar(it.id === "shotgun" ? 0.62 : 0.95); g.add(gm); top = 0.2; }
+  else if (kind === "ammo") { inAdd(g, 0.2, 0.09, 0.12, 0, 0.045, 0, "#7a6a3a"); inAdd(g, 0.2, 0.02, 0.121, 0, 0.09, 0, "#c9a04a"); for (let k = 0; k < 4; k++) inAdd(g, 0.02, 0.07, 0.02, -0.06 + k * 0.04, 0.12, 0, "#d9b44a"); top = 0.15; }
+  else if (kind === "baton") { inAdd(g, 0.34, 0.03, 0.03, 0, 0.03, 0, "#1d1f23"); inAdd(g, 0.12, 0.035, 0.035, -0.11, 0.03, 0, "#3a3d44"); top = 0.08; }
   else if (kind === "bowl") { const b = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.11, 0.12, 8), inMat("#f2efe6")); b.position.y = 0.06; g.add(b); const f = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.03, 8), inMat(col)); f.position.y = 0.13; g.add(f); top = 0.16; }
   else if (kind === "can") { const c = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.17, 8), inMat(col)); c.position.y = 0.085; g.add(c); const l = new THREE.Mesh(new THREE.CylinderGeometry(0.057, 0.057, 0.06, 8), inMat("#f2f2f2")); l.position.y = 0.09; g.add(l); top = 0.18; }
   else if (kind === "pill") { inAdd(g, 0.14, 0.2, 0.08, 0, 0.1, 0, "#f4f4f2"); inAdd(g, 0.14, 0.05, 0.085, 0, 0.1, 0, col); top = 0.2; }
@@ -32828,7 +33112,7 @@ function interiorRoom(s, opts) {
   const brand = s.brand, key = opts.key || brand;
   if (interior.rooms[key]) return interior.rooms[key];
   if (brand === "capsule") return (interior.rooms[key] = interiorCapsuleRoom());
-  if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x"); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
+  if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x") + ":" + (s.term || 1); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
   const th = IN_THEME[brand] || IN_THEME.eleven;
@@ -33761,7 +34045,8 @@ function snapshotSave() {
     wallet: { ic: wallet.ic, toll: wallet.toll, loyal: wallet.loyal, buys: wallet.buys, pts: wallet.pts },
     pos: { x: at.x, z: at.z, yaw: player.yaw },
     record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) },
-    air: { ticket: air.ticket, flights: air.flights, at: air.at }
+    air: { ticket: air.ticket, flights: air.flights, at: air.at },
+    arms: { ammo: gun.ammo, owned: { baton: !!wheel.batonOwned, pistol: !!wheel.pistolOwned, smg: !!wheel.smgOwned, shotgun: !!wheel.shotgunOwned, umbrella: !!wheel.umbrellaOwned }, equipped: wheel.equipped }
   };
 }
 function saveSig() {
@@ -33799,6 +34084,7 @@ function applySave(s) {
     Object.assign(wallet, s.wallet);
     if (typeof s.clock === "number") clock = s.clock;
     if (s.record) Object.assign(record, s.record);
+    if (s.arms) { Object.assign(gun.ammo, s.arms.ammo || {}); Object.keys(s.arms.owned || {}).forEach(k => { if (s.arms.owned[k]) wheel[k + "Owned"] = true; }); if (s.arms.equipped) wheel.equipped = s.arms.equipped; }
     if (s.air) { air.ticket = s.air.ticket || null; air.flights = s.air.flights || 0; air.at = AIR_DESTS[s.air.at] ? s.air.at : "konto"; }
     saveLast.sig = saveSig();
   } catch (e) { console.warn("[Konto] the save could not be applied:", e); }

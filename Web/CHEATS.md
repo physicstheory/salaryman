@@ -22,8 +22,8 @@ the driving seat.
 | SCOOTER | 5550114 | delivery scooter |
 | DIRTBIKE | 5550115 | dirt bike |
 | TRAILBIKE | 5550116 | mountain bike |
-| AIRPLANE | 5550120 | aircraft (when added) |
-| HELICOPTER | 5550121 | helicopter (when added) |
+| AIRPLANE | 5550120 | aircraft |
+| HELICOPTER | 5550121 | helicopter |
 | MONEYBAGS | 5550130 | +¥1,000,000 |
 | HEALTHY | 5550131 | full health, calm nerves |
 | MIDDAY / MIDNIGHT / SUNRISE / SUNSET | 5550132-5550135 | set the time |
@@ -45,11 +45,9 @@ the driving seat.
 | TICKET | 5550175 | a free boarding pass from wherever you are |
 | SEOUL / KOHANA / RYUJIMA | 5550176-5550178 | go straight there |
 | HEATSEEKER | 5550179 | four stars, helicopters included |
+| TOOLEDUP | 5550180 | every gun, full magazines and spare ammo |
 | GOPOLICE / GOAIRPORT | 5550173 / 5550174 | the nearest police station / airport |
 | CHEATLIST | 5550190 | show every code |
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |
 
 From the browser console, `cheat("roadster")` does the same.
-
-To add an aircraft later, give it a vehicle kind (`name: "plane"`) and its code
-starts working; until then those codes say there are none yet.
