@@ -24,6 +24,10 @@ BM, BF, MA, FA, SP = "Professions/Business_Male_", "Professions/Business_Female_
 # (file name, body avatar, head avatar or None, business?, female?)
 # Seiko himself: the white shirt and dark trousers of one office worker, with the face and short black hair he has always had
 PLAYER = ("seiko_player", BM + "06", BM + "02", True, False)
+# his wardrobe at home: the same head on other clothes (id, name, body)
+OUTFITS = [("office", "Office shirt", BM + "06"), ("suit_black", "Black suit, red tie", BM + "01"), ("suit_charcoal", "Charcoal suit", BM + "03"),
+           ("waistcoat", "Waistcoat", BM + "04"), ("suit_check", "Check suit", BM + "05"), ("polo", "Polo and shorts", MA + "01"),
+           ("blue_shirt", "Blue shirt and jeans", MA + "08"), ("tshirt", "T-shirt and jeans", MA + "09"), ("track", "Track jacket", MA + "10")]
 RECIPES = [
     ("salaryman_01", BM + "02", None, True, False),
     ("salaryman_02", BM + "01", MA + "09", True, False),
@@ -237,7 +241,11 @@ def main():
         except Exception as ex:
             print("skipped", r[0], repr(ex))
     player = build(root, conv, outdir, PLAYER); print("built player", player["bytes"] // 1024, "KB")
-    json.dump({"people": index, "player": player["file"]}, open(os.path.join(outdir, "index.json"), "w"), indent=1)
+    outfits = []
+    for oid, oname, body in OUTFITS:
+        if oid == "office": outfits.append({"id": oid, "name": oname, "file": player["file"]}); continue
+        e = build(root, conv, outdir, ("seiko_" + oid, body, PLAYER[2], True, False)); outfits.append({"id": oid, "name": oname, "file": e["file"]}); print("built outfit", oid, e["bytes"] // 1024, "KB")
+    json.dump({"people": index, "player": player["file"], "outfits": outfits}, open(os.path.join(outdir, "index.json"), "w"), indent=1)
 
 
 if __name__ == "__main__":

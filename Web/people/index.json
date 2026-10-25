@@ -287,5 +287,52 @@
    "bytes": 2143352
   }
  ],
- "player": "seiko_player.glb"
+ "player": "seiko_player.glb",
+ "outfits": [
+  {
+   "id": "office",
+   "name": "Office shirt",
+   "file": "seiko_player.glb"
+  },
+  {
+   "id": "suit_black",
+   "name": "Black suit, red tie",
+   "file": "seiko_suit_black.glb"
+  },
+  {
+   "id": "suit_charcoal",
+   "name": "Charcoal suit",
+   "file": "seiko_suit_charcoal.glb"
+  },
+  {
+   "id": "waistcoat",
+   "name": "Waistcoat",
+   "file": "seiko_waistcoat.glb"
+  },
+  {
+   "id": "suit_check",
+   "name": "Check suit",
+   "file": "seiko_suit_check.glb"
+  },
+  {
+   "id": "polo",
+   "name": "Polo and shorts",
+   "file": "seiko_polo.glb"
+  },
+  {
+   "id": "blue_shirt",
+   "name": "Blue shirt and jeans",
+   "file": "seiko_blue_shirt.glb"
+  },
+  {
+   "id": "tshirt",
+   "name": "T-shirt and jeans",
+   "file": "seiko_tshirt.glb"
+  },
+  {
+   "id": "track",
+   "name": "Track jacket",
+   "file": "seiko_track.glb"
+  }
+ ]
 }

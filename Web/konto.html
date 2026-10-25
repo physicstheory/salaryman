@@ -8423,21 +8423,43 @@ function grabFrame() {
 
 // Concatenate a list of {geo, m} into one buffer. applyMatrix4 carries the
 // normals through, so the parts keep their shading.
+// A part may carry reg: [u0, v0, u1, v1], the rectangle of a texture sheet its own 0-1 UVs are fitted into (the trees use it to put bark, a
+// leaf-covered core and leaf cards on one sheet), and out: [x, y, z], a point its normals should point away from (a leaf card is lit as
+// part of the round crown it belongs to, not as the flat card it is).
 function mergeParts(parts) {
-  const pos = [], nor = [];
+  const pos = [], nor = [], uv = [], withUv = parts.some(p => p.reg);
   parts.forEach(part => {
     const g = part.geo.clone().applyMatrix4(part.m).toNonIndexed();
-    const p = g.getAttribute("position"), n = g.getAttribute("normal");
+    const p = g.getAttribute("position"), n = g.getAttribute("normal"), t = g.getAttribute("uv"), R = part.reg, O = part.out;
     for (let i = 0; i < p.count; i++) {
       pos.push(p.getX(i), p.getY(i), p.getZ(i));
-      nor.push(n.getX(i), n.getY(i), n.getZ(i));
+      if (O) { const dx = p.getX(i) - O[0], dy = p.getY(i) - O[1] + 0.02, dz = p.getZ(i) - O[2], L = Math.hypot(dx, dy, dz) || 1; nor.push(dx / L, dy / L, dz / L); }
+      else nor.push(n.getX(i), n.getY(i), n.getZ(i));
+      if (withUv) { const u = t ? t.getX(i) : 0.5, v = t ? t.getY(i) : 0.5; if (R) uv.push(R[0] + (R[2] - R[0]) * (u - Math.floor(u * 0.9999)), R[1] + (R[3] - R[1]) * (v - Math.floor(v * 0.9999))); else uv.push(0.75, 0.75); }
     }
     g.dispose();
   });
   const out = new THREE.BufferGeometry();
   out.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   out.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  if (withUv) out.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   return out;
+}
+// the three parts of a tree sheet (Web/art/trees, built by Game/tools/build-trees.py)
+const TREE_REG = { card: [0.004, 0.004, 0.496, 0.996], fill: [0.504, 0.504, 0.996, 0.996], bark: [0.504, 0.004, 0.996, 0.496] };
+// n leaf cards round an ellipsoid crown centred at (x, y, z), radii r and r*flat: each a pair of crossed quads facing every which way
+function treeCards(parts, n, r, flat, x, y, z, seed) {
+  for (let k = 0; k < n; k++) {
+    const h = (a) => { const v = Math.sin((seed + k * 7.13 + a * 3.7) * 12.9898) * 43758.5453; return v - Math.floor(v); };
+    const th = h(1) * Math.PI * 2, ph = Math.acos(1 - 2 * (0.15 + h(2) * 0.8)), rr = 0.62 + h(3) * 0.38;
+    const cx = x + Math.sin(ph) * Math.cos(th) * r * rr, cy = y + Math.cos(ph) * r * flat * rr, cz = z + Math.sin(ph) * Math.sin(th) * r * rr;
+    const sz = r * (0.55 + h(4) * 0.35);
+    for (const turn of [0, Math.PI / 2]) {
+      const g = new THREE.PlaneGeometry(1, 2);
+      const m = new THREE.Matrix4().compose(new THREE.Vector3(cx, cy, cz), new THREE.Quaternion().setFromEuler(new THREE.Euler((h(5) - 0.5) * 1.2, th + turn + h(6), (h(7) - 0.5) * 0.8)), new THREE.Vector3(sz, sz, sz));
+      parts.push({ geo: g, m: m, reg: TREE_REG.card, out: [x, y - r * flat * 0.4, z] });
+    }
+  }
 }
 
 function placed(geo, x, y, z, sx, sy, sz, tilt) {
@@ -8462,12 +8484,17 @@ function treeGeometry(species, lod) {
   const trunk = (topR, botR, h, y, tilt) => {
     const g = new THREE.CylinderGeometry(topR, botR, 1, lod === 2 ? 4 : 6, 1, false);
     g.translate(0, 0.5, 0);
-    parts.push(placed(g, 0, y, 0, 1, h, 1, tilt));
+    parts.push(Object.assign(placed(g, 0, y, 0, 1, h, 1, tilt), { reg: TREE_REG.bark }));
   };
+  const cards = lod === 0 ? 1 : lod === 1 ? 0.55 : 0.3, seed0 = species.length * 13;
   const cone = (r, h, y, seg) => {
     const g = new THREE.ConeGeometry(1, 1, lod === 2 ? 5 : (seg || 8));
     g.translate(0, 0.5, 0);
-    parts.push(placed(g, 0, y, 0, r, h, r));
+    parts.push(Object.assign(placed(g, 0, y, 0, r * 0.82, h, r * 0.82), { reg: TREE_REG.fill }));
+    // the skirt of a cedar: sprays hanging round the cone's rim and up its face
+    const n = Math.round(10 * cards);
+    for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2 + y * 9, sz = r * 0.75, cx = Math.cos(a) * r * 0.62, cz = Math.sin(a) * r * 0.62, cy = y + h * (0.12 + (k % 3) * 0.22);
+      const gq = new THREE.PlaneGeometry(1, 1.4); parts.push({ geo: gq, m: new THREE.Matrix4().compose(new THREE.Vector3(cx, cy, cz), new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, -a + Math.PI / 2, 0)), new THREE.Vector3(sz, sz, sz)), reg: TREE_REG.card, out: [0, y + h * 0.3, 0] }); }
   };
   // A canopy lobe: a finer sphere with every vertex pushed in or out by a
   // deterministic hash of where it is, so the outline is a cloud and not a
@@ -8484,7 +8511,8 @@ function treeGeometry(species, lod) {
       pos.setXYZ(i, vx * k, vy * k, vz * k);
     }
     g.computeVertexNormals();
-    parts.push(placed(g, x, y, z, r, r * flat, r));
+    parts.push(Object.assign(placed(g, x, y, z, r * 0.84, r * flat * 0.84, r * 0.84), { reg: TREE_REG.fill }));
+    if (cards) treeCards(parts, Math.round(14 * cards), r, flat, x, y, z, seed0 + x * 100 + z * 50);
   };
 
   if (species === "sugi") {
@@ -8583,15 +8611,32 @@ const TREE_LOOK = {
   sakura: { crown: 0xc98aa3, tall: [5, 8] }
 };
 
+// The photographed sheet for a species (leaves, a leaf-covered core, bark). Until it has loaded the tree wears a drawn one in the same layout,
+// so a card is never a solid square.
+const treeSheets = {};
+function treeSheet(species) {
+  if (treeSheets[species]) return treeSheets[species];
+  const look = TREE_LOOK[species] || TREE_LOOK.keyaki, c = document.createElement("canvas"); c.width = c.height = 256; const g = c.getContext("2d");
+  const col = "#" + new THREE.Color(look.crown).getHexString();
+  g.fillStyle = col; g.fillRect(128, 0, 128, 128); g.fillStyle = "#5a4430"; g.fillRect(128, 128, 128, 128);
+  for (let i = 0; i < 160; i++) { const x = 20 + Math.random() * 88, y = 16 + Math.random() * 224; g.fillStyle = col; g.globalAlpha = 0.9; g.beginPath(); g.ellipse(x, y, 7, 4, Math.random() * 3, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  treeSheets[species] = t;
+  new THREE.TextureLoader().load("art/trees/" + (species in TREE_LOOK ? species : "keyaki") + ".png", ph => {
+    ph.encoding = THREE.sRGBEncoding; sharpTex(ph);
+    (treeSheets["mats:" + species] || []).forEach(m => { m.map = ph; m.color.setHex(0xffffff); m.needsUpdate = true; });
+    treeSheets[species] = ph;
+  }, undefined, () => {});
+  return t;
+}
 function treeMaterial(species) {
   const look = TREE_LOOK[species] || TREE_LOOK.keyaki;
-  // Smooth shaded for the broadleaves, which are clouds. The sugi keeps flat
-  // shading: a cedar is a stack of hard-edged skirts and wants to look it.
-  const flat = species === "sugi";
-  return gfx.high
-    ? new THREE.MeshStandardMaterial({ color: look.crown, roughness: 0.94, metalness: 0.0,
-        flatShading: flat })
-    : new THREE.MeshLambertMaterial({ color: look.crown, flatShading: flat });
+  const map = treeSheet(species), photo = !(map instanceof THREE.CanvasTexture);
+  const opts = { map: map, alphaTest: 0.42, side: THREE.DoubleSide, color: photo ? 0xffffff : 0xffffff };
+  const m = gfx.high ? new THREE.MeshStandardMaterial(Object.assign(opts, { roughness: 0.9, metalness: 0.0 })) : new THREE.MeshLambertMaterial(opts);
+  m.userData.crown = look.crown;
+  (treeSheets["mats:" + species] || (treeSheets["mats:" + species] = [])).push(m);
+  return m;
 }
 
 // Which tree goes where. A shrine precinct is sugi and sakura and nothing
@@ -9119,22 +9164,24 @@ function vegBuild(root) {
   const mk = (color, flat) => gfx.high
     ? new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: 0.95, metalness: 0, flatShading: !!flat })
     : new THREE.MeshLambertMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), flatShading: !!flat });
-  veg.mats = { sugi: mk(0x2b4c2b, true), keyaki: mk(0x4d7d34), matsu: mk(0x3a5836) };
+  veg.mats = { sugi: treeMaterial("sugi"), keyaki: treeMaterial("keyaki"), matsu: treeMaterial("matsu") }; void mk;
   veg.mats.grass = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   veg.geo = veg.geo || {};
   if (!veg.geo.sugi) {
     // cheaper than the town's trees, because there are very many more of them
-    const cone = (r, h, y) => { const g = new THREE.ConeGeometry(1, 1, 6); g.translate(0, 0.5, 0); return placed(g, 0, y, 0, r, h, r); };
-    const trunk = (g0) => { const g = new THREE.CylinderGeometry(0.02, 0.03, 1, 5); g.translate(0, 0.5, 0); return placed(g, 0, 0, 0, 1, g0, 1); };
-    veg.geo.sugi = mergeParts([trunk(0.5), cone(0.16, 0.42, 0.14), cone(0.12, 0.38, 0.40), cone(0.08, 0.32, 0.66)]);
-    const blob = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 1); return placed(g, x, y, z, r, r * f, r); };
-    veg.geo.keyaki = mergeParts([trunk(0.45), blob(0.30, 0.85, 0, 0.62, 0), blob(0.22, 0.8, 0.14, 0.78, 0.07), blob(0.2, 0.8, -0.13, 0.74, -0.08)]);
-    veg.geo.matsu = mergeParts([trunk(0.6), blob(0.30, 0.34, 0.03, 0.62, 0), blob(0.22, 0.3, -0.08, 0.80, 0.04)]);
+    const F = TREE_REG.fill, Bk = TREE_REG.bark;
+    const cone = (r, h, y) => { const g = new THREE.ConeGeometry(1, 1, 6); g.translate(0, 0.5, 0); return Object.assign(placed(g, 0, y, 0, r, h, r), { reg: F }); };
+    const trunk = (g0) => { const g = new THREE.CylinderGeometry(0.02, 0.03, 1, 5); g.translate(0, 0.5, 0); return Object.assign(placed(g, 0, 0, 0, 1, g0, 1), { reg: Bk }); };
+    const withCards = (list, crowns, n) => { crowns.forEach((c, i) => treeCards(list, n, c[0], c[1], c[2], c[3], c[4], i * 31 + n)); return list; };
+    veg.geo.sugi = mergeParts(withCards([trunk(0.5), cone(0.16, 0.42, 0.14), cone(0.12, 0.38, 0.40), cone(0.08, 0.32, 0.66)], [[0.14, 1.4, 0, 0.32, 0], [0.1, 1.6, 0, 0.6, 0]], 4));
+    const blob = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 1); return Object.assign(placed(g, x, y, z, r * 0.85, r * f * 0.85, r * 0.85), { reg: F }); };
+    veg.geo.keyaki = mergeParts(withCards([trunk(0.45), blob(0.30, 0.85, 0, 0.62, 0), blob(0.22, 0.8, 0.14, 0.78, 0.07), blob(0.2, 0.8, -0.13, 0.74, -0.08)], [[0.30, 0.85, 0, 0.62, 0], [0.22, 0.8, 0.14, 0.78, 0.07]], 6));
+    veg.geo.matsu = mergeParts(withCards([trunk(0.6), blob(0.30, 0.34, 0.03, 0.62, 0), blob(0.22, 0.3, -0.08, 0.80, 0.04)], [[0.30, 0.34, 0.03, 0.62, 0], [0.22, 0.3, -0.08, 0.8, 0.04]], 5));
     // the same trees at a tenth of the cost, for low and for the furthest tiles
     veg.geoLow = {};
-    const cone4 = (r, h, y) => { const g = new THREE.ConeGeometry(1, 1, 4); g.translate(0, 0.5, 0); return placed(g, 0, y, 0, r, h, r); };
-    const trunk4 = (g0) => { const g = new THREE.CylinderGeometry(0.02, 0.03, 1, 3); g.translate(0, 0.5, 0); return placed(g, 0, 0, 0, 1, g0, 1); };
-    const blob0 = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 0); return placed(g, x, y, z, r, r * f, r); };
+    const cone4 = (r, h, y) => { const g = new THREE.ConeGeometry(1, 1, 4); g.translate(0, 0.5, 0); return Object.assign(placed(g, 0, y, 0, r, h, r), { reg: F }); };
+    const trunk4 = (g0) => { const g = new THREE.CylinderGeometry(0.02, 0.03, 1, 3); g.translate(0, 0.5, 0); return Object.assign(placed(g, 0, 0, 0, 1, g0, 1), { reg: Bk }); };
+    const blob0 = (r, f, x, y, z) => { const g = new THREE.IcosahedronGeometry(1, 0); return Object.assign(placed(g, x, y, z, r, r * f, r), { reg: F }); };
     veg.geoLow.sugi = mergeParts([trunk4(0.5), cone4(0.16, 0.50, 0.14), cone4(0.11, 0.45, 0.50)]);
     veg.geoLow.keyaki = mergeParts([trunk4(0.45), blob0(0.32, 0.85, 0, 0.64, 0), blob0(0.22, 0.8, 0.13, 0.78, 0.05)]);
     veg.geoLow.matsu = mergeParts([trunk4(0.6), blob0(0.32, 0.36, 0.02, 0.64, 0)]);
@@ -23958,6 +24005,9 @@ function homeNear(x, z) {
 }
 
 function enterHome() {
+  // the family flat is a room you walk into; a capsule hotel or safehouse keeps its menu
+  if (interior.active) return;
+  if (!home.cur && home.door && gameSet.homeRoom !== false) { try { if (interiorEnter(homeShop())) return; } catch (e) { console.warn("[Konto] the flat could not be built:", e); } }
   home.inside = true;
   home.sel = 0;
   const el = document.getElementById("homeview");
@@ -23967,6 +24017,10 @@ function enterHome() {
 }
 function leaveHome() {
   if (!home.inside) return;
+  if (home.in3d) {                              // the television in the flat: back to the room, not out of the door
+    tvui.mode = "menu"; arcadeStop(); home.inside = false; home.in3d = false;
+    document.body.classList.remove("inhome"); const el = document.getElementById("homeview"); if (el) el.hidden = true; return;
+  }
   tvui.mode = "menu"; arcadeStop();
   home.inside = false;
   const hh = home.cur || home;
@@ -30914,6 +30968,7 @@ function airFront(root, room, spots, x, z, w, brand, face) {      // a pop-up sh
 }
 function airPerson(root, x, z, ry, hex) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry; root.add(g);
+  (root.userData.ppl || (root.userData.ppl = [])).push({ g: g, x: x, z: z, ry: ry, staff: !!hex });
   const sh = hex || IN_PALETTE[((Math.abs(x * 7 + z * 3)) | 0) % 8];
   inAdd(g, 0.38, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(g, 0.44, 0.62, 0.26, 0, 1.1, 0, sh); inAdd(g, 0.26, 0.26, 0.26, 0, 1.6, 0, "#e8c4a0"); inAdd(g, 0.28, 0.1, 0.28, 0, 1.78, 0, ["#2a2d33", "#4a3220", "#8a6a3a", "#14171b"][((Math.abs(x + z)) | 0) % 4]);
   return g;
@@ -30971,6 +31026,9 @@ function airLandside(s, key) {
   const info = inLabel("案内  INFORMATION", 5.5, 0.8, "#2e7d4f", "#fff"); info.position.set(-6, 2.4, 11.9); info.rotation.y = Math.PI; root.add(info);
   const wl = inLabel("Welcome to Konto's gateway", 8, 0.9, "#f2f4f6", "#14527a"); wl.position.set(0, 5.6, -D / 2 + 0.34); root.add(wl);
   for (let i = 0; i < 14; i++) airPerson(root, -20 + rnd(i, 1, 8101) * 40, -8 + rnd(i, 2, 8103) * 16, rnd(i, 3, 8105) * 6.28, null).traverse(m => { if (m.isMesh) m.userData.pax = true; });
+  propLight(root);
+  for (const x of [-24, -10, 4, 18]) propPut(root, "potted_plant_01", x + 1.3, 0, 8.6, 0, { h: 1.6 });
+  propPut(root, "wetfloorsign_01", 8, 0, 6, 0.4, { h: 0.6 });
   room.entry = new THREE.Vector3(ox, fy, oz + D / 2 - 2.4); room.entryZ = D / 2 - 2.4; room.doorZ = oz + D / 2;
   root.visible = false; scene.add(root);
   room.tick = (dt) => { };
@@ -31012,6 +31070,9 @@ function airAirside(land) {
   for (let i = 0; i < 12; i++) airPerson(root, -24 + rnd(i, 5, 8201) * 48, 0 + rnd(i, 6, 8203) * 9, rnd(i, 7, 8205) * 6.28, null);
   spots.push({ x: -26.4, z: 4, label: "back out through arrivals", act: "landside", walk: true });
   const bk = inLabel("← ARRIVALS · LANDSIDE", 4.2, 0.7, "#2e7d4f", "#fff"); bk.position.set(-W / 2 + 0.3, 3.2, 4); bk.rotation.y = Math.PI / 2; root.add(bk);
+  propLight(root);
+  [-17, -1, 15].forEach(x => { propPut(root, "modular_street_seating", x, 0, 1.0, 0, { w: 4.2 }); solid(x, 1.0, 4.3, 0.9); });
+  for (const x of [-24, -10, 4, 18]) propPut(root, "potted_plant_02", x + 1.2, 0, 3.4, 0, { h: 1.0 });
   room.entry = new THREE.Vector3(ox - 24, fy, oz + 4); room.entryZ = 4; room.doorZ = oz + D / 2;
   root.visible = false; scene.add(root);
   land.airside = room; return room;
@@ -32435,7 +32496,10 @@ function pplLoad() {
   fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
     if (!ix || !ix.people) return;
     const loader = new THREE.GLTFLoader();
-    if (ix.player && !gameSet.classicSeiko) loader.load("people/" + ix.player, g => { try { pplPlayer(g); } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); } }, undefined, () => {});
+    wardrobe.list = ix.outfits || null;
+    const wantO = player.outfitWant && ix.outfits && ix.outfits.find(o => o.id === player.outfitWant);
+    if (wantO) player.outfit = wantO.id;
+    if (ix.player && !gameSet.classicSeiko) loader.load("people/" + (wantO ? wantO.file : ix.player), g => { try { pplPlayer(g); } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); } }, undefined, () => {});
     ix.people.forEach((e, i) => setTimeout(() => loader.load("people/" + e.file, g => {
       try { pplAdopt(e, g); } catch (err) { console.warn("[Konto] " + e.file + " could not be used:", err); }
     }, undefined, () => {}), 300 + i * 250));
@@ -32557,10 +32621,13 @@ function pplPlayer(gltf) {
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
   Object.keys(PPL_MAP).forEach(n => { if (bones[n]) bones[n].userData.alias = PPL_MAP[n]; });
+  // his original moves are kept the first time, so a change of clothes retargets from them and not from the last body
+  if (!player.srcClips) { player.srcClips = {}; Object.keys(player.clips).forEach(k => { const a = player.clips[k]; player.srcClips[k] = { clip: a.getClip(), loop: a.loop, clamp: a.clampWhenFinished }; }); }
   const src = pplSource(), tgt = pplTarget(root, bones), clips = {};
-  Object.keys(player.clips).forEach(k => { const a = player.clips[k]; clips[k] = { clip: pplRetarget(src, tgt, a.getClip()), loop: a.loop, clamp: a.clampWhenFinished }; });
+  Object.keys(player.srcClips).forEach(k => { const a = player.srcClips[k]; clips[k] = { clip: pplRetarget(src, tgt, a.clip), loop: a.loop, clamp: a.clamp }; });
   const fitted = fitSeiko(root), mixer = new THREE.AnimationMixer(scene), acts = {};
   Object.keys(clips).forEach(k => { const a = mixer.clipAction(clips[k].clip); a.loop = clips[k].loop; a.clampWhenFinished = clips[k].clamp; acts[k] = a; });
+  if (player.mixer && player.mixer !== mixer) player.mixer.stopAllAction();
   player.mixer = mixer; player.clips = acts; player.action = null; player.clipName = ""; player.hq = true;
   seikoSkin.base = null;
   adoptSeiko(fitted);
@@ -33176,6 +33243,237 @@ function robKeyDown(e) {
   return k !== "KeyP";
 }
 
+// ============================================================================
+// Props (Web/props: Poly Haven furniture, CC0, built by Game/tools/build-props.mjs). A prop is placed at once as an empty holder and filled
+// when its model arrives; every copy after the first is a clone of the one loaded. Each is stood on the floor (its lowest point at the
+// holder) and centred over it, and can be scaled to a height or a width.
+// ============================================================================
+const propLib = { cache: {}, wait: {}, loader: null };
+function propLoad(id, cb) {
+  if (propLib.cache[id]) { cb(propLib.cache[id]); return; }
+  if (propLib.wait[id]) { propLib.wait[id].push(cb); return; }
+  propLib.wait[id] = [cb];
+  if (!propLib.loader) { if (typeof THREE.GLTFLoader !== "function") return; propLib.loader = new THREE.GLTFLoader(); }
+  propLib.loader.load("props/" + id + ".glb", g => {
+    const sc = g.scene, box = new THREE.Box3().setFromObject(sc), c = box.getCenter(new THREE.Vector3()), wrap = new THREE.Group();
+    sc.position.set(-c.x, -box.min.y, -c.z); wrap.add(sc);
+    sc.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = true; (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m) { m.envMapIntensity = 0.5; if (m.map) sharpTex(m.map); } }); } });
+    wrap.userData.size = box.getSize(new THREE.Vector3());
+    propLib.cache[id] = wrap;
+    (propLib.wait[id] || []).forEach(f => f(wrap)); propLib.wait[id] = null;
+  }, undefined, () => { propLib.wait[id] = null; });
+}
+// opts: h (scale to this height), w (scale to this width), s (plain scale)
+function propPut(parent, id, x, y, z, ry, opts) {
+  const holder = new THREE.Group(); holder.position.set(x, y, z); holder.rotation.y = ry || 0; parent.add(holder);
+  propLoad(id, tpl => {
+    const c = tpl.clone(true), sz = tpl.userData.size, o = opts || {};
+    const k = o.h ? o.h / Math.max(0.01, sz.y) : o.w ? o.w / Math.max(0.01, sz.x) : (o.s || 1);
+    c.scale.setScalar(k); holder.add(c);
+  });
+  return holder;
+}
+// rooms are drawn unlit; the props in them are lit, by a sky light that only exists while the room is on screen
+function propLight(root) {
+  if (root.userData.propLight) return;
+  const h = new THREE.HemisphereLight(0xfffaf0, 0x8a7a66, 0.55); root.add(h);
+  const d = new THREE.DirectionalLight(0xfff2dd, 0.4); d.position.set(3, 6, 4); root.add(d); root.add(d.target);
+  root.userData.propLight = true;
+}
+
+// ---- Seiko's wardrobe ---------------------------------------------------------------------------------------------------------------------
+// The same Seiko in other clothes: each outfit is his head on another body (Game/tools/build-people.py), with every one of his moves
+// retargeted to it the first time it is worn.
+const wardrobe = { list: null, loading: false, cache: {} };
+function seikoOutfit(id, quiet) {
+  const L = wardrobe.list || [], o = L.find(x => x.id === id); if (!o || wardrobe.loading) return;
+  if (player.outfit === id && player.hq) { if (!quiet) say("You are already wearing that.", 2); return; }
+  wardrobe.loading = true; if (!quiet) say("Changing…", 2);
+  new THREE.GLTFLoader().load("people/" + o.file, g => {
+    wardrobe.loading = false;
+    try { pplPlayer(g); player.outfit = id; if (!quiet) say(o.name + ".", 2.5); } catch (e) { console.warn("[Konto] could not change:", e); }
+  }, undefined, () => { wardrobe.loading = false; if (!quiet) say("That outfit is not here.", 2); });
+}
+function wardrobeOpen() {
+  const L = wardrobe.list || [];
+  if (!L.length) { say("The wardrobe is empty.", 2); return; }
+  const close = () => { interior.modal = null; interior.cardEl.classList.remove("on"); };
+  interior.modal = { kind: "custom", head: "Wardrobe", body: "What to wear today. " + (player.outfit ? "Now: " + ((L.find(o => o.id === player.outfit) || {}).name || "") + "." : ""), sel: Math.max(0, L.findIndex(o => o.id === (player.outfit || "office"))),
+    opts: L.map(o => [o.id, o.name + (o.id === (player.outfit || "office") ? "  ✓" : ""), () => { close(); seikoOutfit(o.id); }]).concat([["close", "Close", close]]) };
+  player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw();
+}
+
+// ---- the family home ---------------------------------------------------------------------------------------------------------------------
+// The flat in Mizuho as a room you walk round: the genkan with the shoes, a wooden floor, a tatami corner with the futon out and a low
+// table, the living room (sofa, television, the console), a kitchen along one wall with the family at it, a dining table, the wardrobe.
+// The futon sleeps and saves, the kitchen feeds you, the wardrobe changes your clothes, the television is the one you know.
+function homeShop() { return { brand: "home", home: true, name: "Home", door: home.door, yaw: home.yaw, city: home.city }; }
+function homeTex(key, w, h, draw) {
+  homeTex.c = homeTex.c || {}; if (homeTex.c[key]) return homeTex.c[key];
+  const c = document.createElement("canvas"); c.width = w; c.height = h; draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; sharpTex(t);
+  return (homeTex.c[key] = t);
+}
+function interiorHomeRoom() {
+  const W = 14, D = 10, H = 2.6, slot = interior.count++, ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz);
+  const cols = [], spots = [], room = { brand: "home", key: "home", group: root, ox: ox, oz: oz, colliders: cols, items: [], stock: [], units: [], W: W, D: D, H: H, doorW: 1.6, spots: spots, noExit: false };
+  const solid = (x, z, w, d) => cols.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
+  const lit = (map, rough, rep) => { const m = new THREE.MeshStandardMaterial({ map: map, roughness: rough, metalness: 0 }); if (rep) { m.map = map.clone(); m.map.needsUpdate = true; m.map.repeat.set(rep[0], rep[1]); } return m; };
+  const slab = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.receiveShadow = true; root.add(m); return m; };
+  propLight(root);
+  // surfaces
+  const planks = homeTex("planks", 512, 512, (g, w, h) => { for (let i = 0; i < 8; i++) { const b = 150 + ((i * 37) % 30); g.fillStyle = "rgb(" + b + "," + (b * 0.72 | 0) + "," + (b * 0.48 | 0) + ")"; g.fillRect(0, i * 64, w, 64);
+    for (let k = 0; k < 140; k++) { g.fillStyle = "rgba(60,36,18," + (0.04 + Math.random() * 0.08) + ")"; g.fillRect(Math.random() * w, i * 64 + Math.random() * 64, 30 + Math.random() * 120, 1 + Math.random() * 2); }
+    g.fillStyle = "rgba(40,24,12,0.55)"; g.fillRect(0, i * 64, w, 2); g.fillRect(((i * 211) % w), i * 64, 2, 64); } });
+  const plaster = homeTex("plaster", 256, 256, (g, w, h) => { g.fillStyle = "#ece6da"; g.fillRect(0, 0, w, h); for (let k = 0; k < 3000; k++) { g.fillStyle = "rgba(" + (Math.random() < 0.5 ? "255,255,255" : "120,100,80") + ",0.05)"; g.fillRect(Math.random() * w, Math.random() * h, 2, 2); } });
+  const tatami = homeTex("tatami", 512, 512, (g, w, h) => { g.fillStyle = "#b9b27a"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 3) { g.fillStyle = "rgba(90,96,40," + (0.08 + (y % 6 ? 0.04 : 0.1)) + ")"; g.fillRect(0, y, w, 1); }
+    g.fillStyle = "#2e3a2a"; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14); g.fillRect(0, h / 2 - 7, w, 14); });
+  const tile = homeTex("genkan", 256, 256, (g, w, h) => { g.fillStyle = "#6d6a64"; g.fillRect(0, 0, w, h); g.strokeStyle = "#4a4844"; g.lineWidth = 3; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, h); g.moveTo(0, i * 64); g.lineTo(w, i * 64); g.stroke(); } });
+  slab(W, 0.1, D, 0, -0.05, 0, lit(planks, 0.55, [W / 1.1, D / 1.6]));
+  slab(W, 0.08, D, 0, H + 0.04, 0, lit(plaster, 0.95, [4, 3]));
+  const wallM = lit(plaster, 0.95, [5, 1.2]); wallM.color.setHex(0xd8d0c2);
+  slab(W, H, 0.16, 0, H / 2, -D / 2, wallM); slab(0.16, H, D, -W / 2, H / 2, 0, wallM); slab(0.16, H, D, W / 2, H / 2, 0, wallM);
+  const side = (W - 1.6) / 2;
+  slab(side, H, 0.16, -(0.8 + side / 2), H / 2, D / 2, wallM); slab(side, H, 0.16, 0.8 + side / 2, H / 2, D / 2, wallM); slab(1.6, H - 2.1, 0.16, 0, 2.1 + (H - 2.1) / 2, D / 2, wallM);
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5a3c26, roughness: 0.6 });
+  slab(W, 0.1, 0.03, 0, 0.05, -D / 2 + 0.09, wood); slab(0.03, 0.1, D, -W / 2 + 0.09, 0.05, 0, wood); slab(0.03, 0.1, D, W / 2 - 0.09, 0.05, 0, wood);      // skirting
+  // the genkan: a sunken tiled square inside the door, shoes, a rack
+  slab(2.4, 0.04, 1.3, 0, 0.005, D / 2 - 0.65, lit(tile, 0.8, [2, 1]));
+  slab(2.4, 0.12, 0.06, 0, 0.06, D / 2 - 1.32, wood);
+  [[-0.6, 0x1b1b1d], [-0.3, 0x1b1b1d], [0.4, 0xd8d4cc], [0.7, 0x7a2a2a]].forEach(s => { const sh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.27), new THREE.MeshStandardMaterial({ color: s[1], roughness: 0.5 })); sh.position.set(s[0], 0.05, D / 2 - 0.5); root.add(sh); });
+  slab(0.9, 0.9, 0.34, 1.75, 0.45, D / 2 - 0.3, wood); solid(1.75, D / 2 - 0.3, 0.9, 0.4);
+  // the tatami corner: platform, futon, low table, the screens
+  slab(5.2, 0.08, 4.0, -4.4, 0.04, -3.0, lit(tatami, 0.9, [2, 2]));
+  const futon = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.14, 2.05), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.9 })); futon.position.set(-6.0, 0.15, -3.3); root.add(futon);
+  const quilt = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.3), new THREE.MeshStandardMaterial({ color: 0x3a5a8a, roughness: 0.9 })); quilt.position.set(-6.0, 0.25, -2.9); root.add(quilt);
+  const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 0.32), new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 })); pillow.position.set(-6.0, 0.27, -4.1); root.add(pillow);
+  solid(-6.0, -3.3, 1.1, 2.1);
+  propPut(root, "chinese_tea_table", -3.8, 0.08, -2.6, 0, { h: 0.36 }); solid(-3.8, -2.6, 0.9, 0.9);
+  propPut(root, "tea_set_01", -3.8, 0.44, -2.6, 0.4, { w: 0.6 });
+  [[-3.8, -3.4], [-3.8, -1.8], [-4.65, -2.6]].forEach(p => { const z = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.08, 0.55), new THREE.MeshStandardMaterial({ color: 0x8a2a2a, roughness: 0.9 })); z.position.set(p[0], 0.12, p[1]); root.add(z); });
+  propPut(root, "chinese_screen_panels", -1.55, 0, -3.6, Math.PI / 2, { h: 1.8 }); solid(-1.55, -3.6, 0.4, 1.4);
+  // the wardrobe, against the left wall
+  propPut(root, "drawer_cabinet", -W / 2 + 0.32, 0, 0.6, Math.PI / 2, { h: 1.9 }); solid(-W / 2 + 0.3, 0.6, 0.6, 1.2);
+  spots.push({ x: -W / 2 + 1.3, z: 0.6, label: "open the wardrobe", act: "wardrobe" });
+  // the living room
+  propPut(root, "modern_wooden_cabinet", 1.6, 0, -D / 2 + 0.45, 0, { w: 2.6 }); solid(1.6, -D / 2 + 0.45, 2.7, 0.7);
+  propPut(root, "television_02", 1.6, 0.5, -D / 2 + 0.42, 0, { h: 0.82 });
+  propPut(root, "gaming_console", 2.6, 0.5, -D / 2 + 0.4, 0, { w: 0.32 });
+  propPut(root, "standing_picture_frame_01", 0.6, 0.5, -D / 2 + 0.4, 0.3, { h: 0.25 });
+  propPut(root, "sofa_03", 1.6, 0, -1.3, Math.PI, { w: 2.3 }); solid(1.6, -1.3, 2.3, 0.95);
+  propPut(root, "throw_pillows_01", 1.6, 0.42, -1.25, Math.PI, { w: 0.9 });
+  propPut(root, "modern_coffee_table_01", 1.6, 0, -2.85, Math.PI / 2, { h: 0.4 }); solid(1.6, -2.85, 1.2, 0.6);
+  propPut(root, "wall_clock", -0.6, 1.95, -D / 2 + 0.1, 0, { w: 0.34 });
+  spots.push({ x: 1.6, z: -2.0, label: "watch television", act: "hometv" });
+  // the kitchen along the right wall
+  const counter = new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.4 }), top = new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.3, metalness: 0.2 });
+  slab(0.65, 0.88, 4.2, W / 2 - 0.33, 0.44, -2.6, counter); slab(0.7, 0.04, 4.25, W / 2 - 0.35, 0.9, -2.6, top); solid(W / 2 - 0.33, -2.6, 0.7, 4.3);
+  slab(0.4, 0.6, 3.0, W / 2 - 0.2, 1.75, -2.6, counter);                                           // wall cupboards
+  propPut(root, "electric_stove", W / 2 - 0.35, 0, -4.2, -Math.PI / 2, { h: 0.88 });
+  propPut(root, "vintage_microwave", W / 2 - 0.35, 0.92, -1.2, -Math.PI / 2, { w: 0.5 });
+  propPut(root, "vintage_electric_kettle", W / 2 - 0.35, 0.92, -2.4, -Math.PI / 2, { h: 0.26 });
+  spots.push({ x: W / 2 - 1.3, z: -2.6, label: "eat something", act: "homeeat" });
+  // the dining table and the front of the room
+  propPut(root, "dining_table", 4.2, 0, 2.2, 0, { h: 0.74 }); solid(4.2, 2.2, 1.9, 1.15);
+  [[3.6, 1.35, 0], [4.8, 1.35, 0], [3.6, 3.05, Math.PI], [4.8, 3.05, Math.PI]].forEach(c => propPut(root, "dining_chair_02", c[0], 0, c[1], c[2], { h: 0.92 }));
+  propPut(root, "wooden_bookshelf_worn", -W / 2 + 0.32, 0, 3.0, Math.PI / 2, { h: 1.9 }); solid(-W / 2 + 0.3, 3.0, 0.6, 1.3);
+  propPut(root, "book_encyclopedia_set_01", -W / 2 + 0.35, 1.02, 3.0, Math.PI / 2, { w: 0.5 });
+  propPut(root, "potted_plant_01", -2.4, 0, D / 2 - 0.6, 0, { h: 1.2 }); propPut(root, "potted_plant_02", W / 2 - 0.6, 0, D / 2 - 0.6, 0, { h: 0.8 });
+  propPut(root, "side_table_01", -1.2, 0, -1.0, 0, { h: 0.5 }); propPut(root, "potted_plant_04", -1.2, 0.5, -1.0, 0, { h: 0.27 });
+  [[1.6, -2.4], [4.2, 2.2], [-4.0, -2.8]].forEach(p => propPut(root, "modern_ceiling_lamp_01", p[0], H - 0.8, p[1], 0, { h: 0.8 }));
+  const warm = new THREE.PointLight(0xffe2b8, 0.6, 9, 1.6); warm.position.set(1.6, H - 0.4, -2.4); root.add(warm);
+  const warm2 = new THREE.PointLight(0xffe2b8, 0.45, 8, 1.6); warm2.position.set(-4, H - 0.4, -2.8); root.add(warm2);
+  // a window on the back wall, with Mizuho's hills in it
+  const view = homeTex("homeview", 512, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "#9cc4e8"); gr.addColorStop(1, "#d8e6f0"); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = "#4f7a46"; g.beginPath(); g.moveTo(0, h * 0.7); for (let x = 0; x <= w; x += 16) g.lineTo(x, h * (0.45 + 0.12 * Math.sin(x * 0.02) + 0.05 * Math.sin(x * 0.07))); g.lineTo(w, h); g.lineTo(0, h); g.fill();
+    g.fillStyle = "#3a5a36"; g.fillRect(0, h * 0.85, w, h * 0.15); });
+  const win = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshBasicMaterial({ map: view, fog: false })); win.position.set(-4.4, 1.55, -D / 2 + 0.09); root.add(win);
+  slab(2.5, 0.06, 0.1, -4.4, 0.92, -D / 2 + 0.1, wood); slab(2.5, 0.06, 0.1, -4.4, 2.18, -D / 2 + 0.1, wood); slab(0.05, 1.3, 0.1, -4.4, 1.55, -D / 2 + 0.1, wood);
+  // the family: Mum in the kitchen, Dad at the table with the paper
+  room.family = [
+    { key: "mum", look: ["woman_05", "officelady_01"], x: W / 2 - 1.05, z: -3.2, yaw: Math.PI / 2, lines: ["Okaeri. There's rice in the cooker.", "Are you eating properly in the city?", "Your father won't say it, but he's proud of you.", "Take an umbrella tomorrow. It'll rain."] },
+    { key: "dad", look: ["man_02", "salaryman_03"], x: 4.2, z: 3.35, yaw: Math.PI, lines: ["Hm. Working late again?", "The shop had a good week. Don't tell your mother I said so.", "When I was your age I walked to work. Uphill.", "Sit down a minute. The news is on."] }
+  ];
+  room.family[0].sx = W / 2 - 2.1; room.family[0].sz = -3.2; room.family[1].sx = 5.4; room.family[1].sz = 3.6;
+  room.family.forEach(f => { solid(f.x, f.z, 0.5, 0.5); spots.push({ x: f.sx, z: f.sz, label: "talk to " + (f.key === "mum" ? "Mum" : "Dad"), act: "family", who: f.key }); });
+  spots.push({ x: -5.0, z: -1.6, label: "sleep on the futon (saves)", act: "homesleep" });
+  room.tick = dt => {
+    if (!room.figs && pplLib.ready.length) {
+      room.figs = room.family.map(f => { const e = pplLib.ready.find(x => f.look.indexOf(x.name) >= 0) || pplLib.ready[0], fig = pplFigure(e, 1.0); fig.holder.position.set(f.x, 0, f.z); fig.holder.rotation.y = f.yaw; root.add(fig.holder); pedPlay(fig, "idle", 0); return fig; });
+    }
+    if (room.figs) room.figs.forEach(f => f.mixer.update(dt));
+  };
+  root.visible = false; scene.add(root);
+  room.entry = new THREE.Vector3(ox, fy, oz + D / 2 - 1.8); room.entryZ = D / 2 - 1.8; room.doorZ = oz + D / 2;
+  return room;
+}
+function homeSleepNow() {
+  vitals.stress = 0; vitals.health = 1; vitals.slept = 60 * 8; vitals.awake = 0;
+  advanceGameMinutes(60 * 8);
+  say("Slept until morning on the futon. You feel human.", 5);
+  saveGame("Saved at home.");
+}
+function homeEatNow() {
+  vitals.stress = clamp01(vitals.stress - 0.25); vitals.health = clamp01(vitals.health + 0.35);
+  say("Mum's cooking. Rice, miso, grilled fish. Better than any konbini.", 4);
+  retailRelief(0);
+}
+function homeTvNow() {
+  home.in3d = true; home.inside = true; home.sel = 0; home.cur = null;
+  const el = document.getElementById("homeview"); if (el) el.hidden = false;
+  document.body.classList.add("inhome"); enterTV();
+}
+
+// ---- people indoors -----------------------------------------------------------------------------------------------------------------------
+// The stand-in figures a room was built with (the airports' check-in agents, guards and passengers) are swapped for real people once they
+// have loaded: staff stay at their posts, and the travellers walk the hall between the desks, the shops, the seats and the boards, some
+// pulling a case. A shop gets a couple of customers browsing the shelves.
+function inCrowdTick(R, dt) {
+  if (!pplLib.ready.length) return;
+  const root = R.group, ppl = root.userData.ppl;
+  if (!R.crowd) {
+    R.crowd = [];
+    const W = R.W || IN_W, D = R.D || IN_D, biz = pplLib.ready.filter(e => e.business), any = pplLib.ready;
+    if (ppl) ppl.forEach(p => {
+      p.g.visible = false;
+      if (!p.staff) return;
+      const fig = pplFigure(biz[(Math.random() * biz.length) | 0] || any[0], 1.0); fig.holder.position.set(p.x, 0, p.z); fig.holder.rotation.y = p.ry; root.add(fig.holder); pedPlay(fig, "idle", 0);
+      R.crowd.push({ f: fig, staff: true });
+    });
+    const n = R.brand === "airport" ? (gfx.tier === "low" ? 8 : gfx.tier === "medium" ? 14 : 22) : (RESTAURANT[R.brand] || R.brand === "home" || R.brand === "police" ? 0 : 2);
+    for (let i = 0; i < n; i++) {
+      const fig = pplFigure(any[(Math.random() * any.length) | 0], 0.95 + Math.random() * 0.08);
+      const w = { f: fig, x: 0, z: 0, tx: 0, tz: 0, wait: Math.random() * 3, sp: 1.1 + Math.random() * 0.4, yaw: 0 };
+      for (let t = 0; t < 20; t++) { w.x = (Math.random() - 0.5) * (W - 3); w.z = (Math.random() - 0.5) * (D - 3); if (!inBlocked(R, w.x, w.z, 0.4)) break; }
+      fig.holder.position.set(w.x, 0, w.z); root.add(fig.holder);
+      pedPlay(fig, "idle", 0); R.crowd.push(w);
+    }
+  }
+  const W = R.W || IN_W, D = R.D || IN_D, px = player.pos.x - R.ox, pz = player.pos.z - R.oz;
+  for (const w of R.crowd) {
+    if (w.staff) { w.f.mixer.update(dt); continue; }
+    if (w.wait > 0) { w.wait -= dt; if (w.wait <= 0) { for (let t = 0; t < 12; t++) { w.tx = (Math.random() - 0.5) * (W - 3); w.tz = (Math.random() - 0.5) * (D - 3.5); if (!inBlocked(R, w.tx, w.tz, 0.5)) break; } pedPlay(w.f, "walk", 0.25, w.sp / WALK_SPEED); } }
+    else {
+      const dx = w.tx - w.x, dz = w.tz - w.z, d = Math.hypot(dx, dz);
+      if (d < 0.4) { w.wait = 2 + Math.random() * 7; pedPlay(w.f, "idle", 0.3); }
+      else {
+        const nx = w.x + dx / d * w.sp * dt, nz = w.z + dz / d * w.sp * dt;
+        if (inBlocked(R, nx, nz, 0.3) || Math.hypot(nx - px, nz - pz) < 0.7) { w.wait = 0.4 + Math.random(); pedPlay(w.f, "idle", 0.3); }
+        else { w.x = nx; w.z = nz; let a = Math.atan2(dx, dz) - w.yaw; a = Math.atan2(Math.sin(a), Math.cos(a)); w.yaw += a * Math.min(1, dt * 6); }
+      }
+      w.f.holder.position.set(w.x, 0, w.z); w.f.holder.rotation.y = w.yaw;
+    }
+    w.f.mixer.update(dt);
+  }
+}
+function inBlocked(R, x, z, r) {
+  const W = R.W || IN_W, D = R.D || IN_D;
+  if (Math.abs(x) > W / 2 - r - 0.3 || Math.abs(z) > D / 2 - r - 0.3) return true;
+  for (const c of R.colliders) if (x > c.x0 - r && x < c.x1 + r && z > c.z0 - r && z < c.z1 + r) return true;
+  return false;
+}
+
 function frameLoop() {
   let last = performance.now();
   let slow = 1;
@@ -33248,7 +33546,7 @@ document.getElementById("regen").addEventListener("click", () => {
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
 // The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
-const INTERIOR_BRANDS = ["eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule", "airport"];
+const INTERIOR_BRANDS = ["home", "eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule", "airport"];
 const interior = { active: false, modal: null, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
 const IN_W = 16, IN_D = 11, IN_H = 3.7;
 const IN_THEME = {
@@ -33571,6 +33869,11 @@ function interiorSpotFocus() {
   return best;
 }
 function interiorSpotAct(sp) {
+  if (sp.act === "wardrobe") { wardrobeOpen(); return; }
+  if (sp.act === "hometv") { player.speed = 0; interior.prompt.classList.remove("on"); homeTvNow(); return; }
+  if (sp.act === "homeeat") { homeEatNow(); return; }
+  if (sp.act === "homesleep") { homeSleepNow(); return; }
+  if (sp.act === "family") { const f = (interior.room.family || []).find(x => x.key === sp.who); if (f) { f.n = ((f.n || 0) + 1) % f.lines.length; say((f.key === "mum" ? "Mum" : "Dad") + ": \u201c" + f.lines[f.n] + "\u201d", 4); } return; }
   if (sp.act === "ticketoffice") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("office", air.at); return; }
   if (sp.act === "kiosk") { player.speed = 0; interior.prompt.classList.remove("on"); expedioOpen("app", air.at); return; }
   if (sp.act === "security") { sp.cool = clock + 4; player.speed = 0; interior.prompt.classList.remove("on"); airSecurity(interior.room); return; }
@@ -34168,6 +34471,7 @@ function interiorRoom(s, opts) {
   const brand = s.brand, key = opts.key || brand;
   if (interior.rooms[key]) return interior.rooms[key];
   if (brand === "capsule") return (interior.rooms[key] = interiorCapsuleRoom());
+  if (brand === "home") return (interior.rooms[key] = interiorHomeRoom());
   if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x") + ":" + (s.term || 1); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
@@ -34248,6 +34552,12 @@ function interiorRoom(s, opts) {
   inAdd(clerk, 0.34, 0.8, 0.22, 0, 0.4, 0, "#2a2d33"); inAdd(clerk, 0.44, 0.62, 0.26, 0, 1.1, 0, th.trim);
   inAdd(clerk, 0.26, 0.26, 0.26, 0, 1.62, 0, "#e8c4a0"); inAdd(clerk, 0.3, 0.1, 0.3, 0, 1.8, 0, th.cap); inAdd(clerk, 0.1, 0.06, 0.02, 0, 1.64, 0.14, "#3a2a20");
   room.clerk = clerk;
+  // the till, a camera in the corner, plants at the door
+  propLight(root);
+  propPut(root, "cashregister_01", cx, 1.11, cz - 1.0, -Math.PI / 2, { h: 0.36 });
+  propPut(root, "security_camera_01", IN_W / 2 - 0.35, IN_H - 0.32, -IN_D / 2 + 0.35, -Math.PI * 0.75, { h: 0.25 });
+  propPut(root, "potted_plant_02", -IN_W / 2 + 0.6, 0, IN_D / 2 - 0.7, 0, { h: 0.9 }); room.colliders.push({ x0: -IN_W / 2, x1: -IN_W / 2 + 1.1, z0: IN_D / 2 - 1.2, z1: IN_D / 2 });
+  if (rnd(slot, 3, 9011) < 0.4) propPut(root, "wetfloorsign_01", -1.9, 0, IN_D / 2 - 1.6, 0.5, { h: 0.6 });
   // a real person behind the counter when the body is to hand, in the shop's colour
   if (peds.tpl) { try { const f = pedFigure(th.trim, 0.97); clerk.children.forEach(c => { c.visible = false; }); clerk.add(f.holder); pedPlay(f, "idle", 0); room.clerkFig = f; } catch (e) { console.warn("[Konto] the clerk stays a cut-out:", e); } }
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
@@ -34760,7 +35070,7 @@ function interiorEnter(s) {
   camPos.set(room.ox, interior.floorY + 2.4, room.oz + (room.D || IN_D) / 2 - 0.9);
   camera.position.copy(camPos);
   doorway.cool = 1.0;
-  say("Irasshaimase!  Walk up to something and press E.", 4);
+  say(s.brand === "home" ? "Tadaima! Mum is in the kitchen. The wardrobe, the futon and the television are all here." : "Irasshaimase!  Walk up to something and press E.", 4);
   interiorUi();
   return true;
 }
@@ -34782,7 +35092,7 @@ function interiorLeave(quiet) {
   stepOutFrom(s.door, s.yaw);
   yaw = s.yaw + Math.PI; pitch = -0.18;
   camPos.copy(player.pos).add(new THREE.Vector3(0, 2, 4));
-  if (!quiet) say("Arigato gozaimashita.", 2.5);
+  if (!quiet) say(s.brand === "home" ? "Ittekimasu!" : "Arigato gozaimashita.", 2.5);
 }
 
 // Walking inside: stay in the room, go round the shelves and the counter, and out through the doorway.
@@ -34851,6 +35161,8 @@ function interiorTick(dt) {
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (robTick(dt)) { interior.prompt.classList.remove("on"); return; }
   if (R.tick) R.tick(dt);
+  try { inCrowdTick(R, dt); } catch (e) { /* the room stays as built */ }
+  if (home.inside) { player.speed = 0; interior.prompt.classList.remove("on"); return; }
   if (interior.modal || service.active) { player.speed = 0; interior.prompt.classList.remove('on'); return; }
   if (interior.sit) { interiorSitTick(dt); return; }
   if (interior.card) { interiorCardTick(dt); return; }
@@ -35028,7 +35340,7 @@ function interiorAction(a) {
 
 // Keys: returns true when it took the key.
 function interiorKey(e) {
-  if (!interior.active || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
+  if (!interior.active || home.inside || shops.inside || phone.open || paused || nav.mapOpen || wheel.open) return false;
   const c = interior.card, k = e.code;
   if (rob.on && rob.stage === "till") return robKeyDown(e);
   if (interior.modal) return interiorModalKey(e);
@@ -35069,7 +35381,7 @@ function interiorKey(e) {
   return false;
 }
 function interiorPad(pressed) {
-  if (!interior.active || shops.inside) return false;
+  if (!interior.active || home.inside || shops.inside) return false;
   if (rob.on && rob.stage === "till") { if (pressed(PAD.A)) robGrab(); if (pressed(PAD.B)) robFinish(); return true; }
   if (interior.lift) { const L = interior.lift, n = interior.bld.floors.length; if (pressed(PAD.UP)) { L.sel = (L.sel + n - 1) % n; interiorLiftDraw(); } if (pressed(PAD.DOWN)) { L.sel = (L.sel + 1) % n; interiorLiftDraw(); } if (pressed(PAD.A)) interiorGoLevel(L.sel); if (pressed(PAD.B)) interiorLiftClose(); return true; }
   if (interior.modal) { interiorModalPad(pressed); return true; }
@@ -35108,11 +35420,12 @@ function snapshotSave() {
     pos: { x: at.x, z: at.z, yaw: player.yaw },
     record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) },
     air: { ticket: air.ticket, flights: air.flights, at: air.at },
+    outfit: player.outfit || null,
     arms: { ammo: gun.ammo, owned: { baton: !!wheel.batonOwned, pistol: !!wheel.pistolOwned, smg: !!wheel.smgOwned, shotgun: !!wheel.shotgunOwned, umbrella: !!wheel.umbrellaOwned }, equipped: wheel.equipped }
   };
 }
 function saveSig() {
-  return [record.arrests, record.owed, purse.yen, JSON.stringify(bag), phone.device, phone.colourIdx, JSON.stringify(wallet.buys), JSON.stringify(wallet.ic), JSON.stringify(wallet.toll), phone.owns && JSON.stringify(phone.owns), (phone.gallery || []).length].join("|");
+  return [player.outfit, record.arrests, record.owed, purse.yen, JSON.stringify(bag), phone.device, phone.colourIdx, JSON.stringify(wallet.buys), JSON.stringify(wallet.ic), JSON.stringify(wallet.toll), phone.owns && JSON.stringify(phone.owns), (phone.gallery || []).length].join("|");
 }
 let saveLast = { sig: "", at: 0 };
 function saveMark(text) {
@@ -35147,6 +35460,7 @@ function applySave(s) {
     if (typeof s.clock === "number") clock = s.clock;
     if (s.record) Object.assign(record, s.record);
     if (s.arms) { Object.assign(gun.ammo, s.arms.ammo || {}); Object.keys(s.arms.owned || {}).forEach(k => { if (s.arms.owned[k]) wheel[k + "Owned"] = true; }); if (s.arms.equipped) wheel.equipped = s.arms.equipped; }
+    if (s.outfit) { if (player.hq && wardrobe.list && s.outfit !== player.outfit) seikoOutfit(s.outfit, true); else player.outfitWant = s.outfit; }
     if (s.air) { air.ticket = s.air.ticket || null; air.flights = s.air.flights || 0; air.at = AIR_DESTS[s.air.at] ? s.air.at : "konto"; }
     saveLast.sig = saveSig();
   } catch (e) { console.warn("[Konto] the save could not be applied:", e); }

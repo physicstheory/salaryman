@@ -40,6 +40,12 @@ This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. T
 
 **Buildings:** offices, glass towers, flats and civic buildings use photographed facades (ambientCG, CC0), with relief maps and real lit windows at night. Cars have metallic-flake paint under a glossy clear coat.
 
+**Home:** the family flat in Mizuho is now a room you walk into (Y at the door, or just walk in): a genkan with the shoes, wooden floors, a tatami corner with the futon out and a low tea table, a living room with a sofa, the television and the console, a kitchen with Mum at it, Dad at the dining table, a bookshelf and plants. Walk up to things and press E: the **futon** sleeps until morning and saves, the **kitchen** feeds you, the **television** is the one you know, and the **wardrobe** changes Seiko's clothes: office shirt, black suit with red tie, charcoal suit, waistcoat, check suit, polo and shorts, blue shirt and jeans, T-shirt and jeans, or a track jacket. What you wear is saved.
+
+**Interiors:** shops and the airport are fitted with photographed furniture and props (Poly Haven, CC0; `Game/tools/build-props.mjs`): tills, plants, cameras, benches, wet-floor signs. The airport halls are full of real people: check-in agents, guards and gate staff at their posts, and travellers walking the hall. Shops have a customer or two browsing.
+
+**Trees:** every tree has photographed leaves and bark (Poly Haven leaves, ambientCG bark, CC0; `Game/tools/build-trees.py`): leaf clusters round the crown, cherry blossom on the sakura, needled sprays on the pines and cedars.
+
 **Graphics:** Ultra is chosen automatically on recent graphics cards (RTX 30/40/50, Radeon RX 6000 and later, Apple M2 Pro/Max and later). Building textures are drawn at 1024 on High and 1536 on Ultra, with 1024/2048 relief maps and 4096 shadows.
 
 **Reactions:** point a gun at someone and their hands go up; fire, shoot someone, or run someone over and the people who saw it run screaming, duck with their arms over their heads, or stop with a phone to the ear (a red phone icon over them). When a call goes through the police come; aim at a caller and the call stops. If a patrol is close enough to see it, the stars come at once. If nobody sees it, nobody knows.
