@@ -280,8 +280,11 @@
     z-index: 90;
     display: flex;
     flex-direction: column;
-    background: rgba(10, 11, 14, 0.62);
-    backdrop-filter: blur(7px);
+    /* Monotone: the menu, and the world seen through it, in greys only (and drawn at full resolution, the canvases at twice it). */
+    background: rgba(8, 8, 8, 0.66);
+    backdrop-filter: blur(8px) grayscale(1) brightness(0.85);
+    -webkit-backdrop-filter: blur(8px) grayscale(1) brightness(0.85);
+    filter: grayscale(1);
     padding: 0;
     /* It is hidden outright when closed and fades on the way in.
        The fade is driven by a class added on the next animation frame rather
@@ -435,29 +438,36 @@
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 30; display: none; }
   body.walking #hud, body.driving #hud { display: block; }
 
+  /* The radar, the way GTA V draws it: a dark grey rectangle with light roads, sitting in the bottom left corner over two thin bars,
+     health in green and stress in blue. The canvas is drawn at twice the screen's pixel density (at least), so it is sharp. */
   #minimapwrap {
     position: absolute;
-    left: calc(18px + env(safe-area-inset-left, 0px));
-    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
-    width: 220px;
-    display: flex;
-    flex-direction: column-reverse;
+    left: calc(22px + env(safe-area-inset-left, 0px));
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    width: 340px;
   }
   #minimap {
     display: block;
-    width: 220px;
-    height: 220px;
-    border-radius: 50%;
-    background: #1b2a33;
-    box-shadow: 0 0 0 3px rgba(12, 14, 18, 0.72), 0 6px 22px rgba(0, 0, 0, 0.5);
+    width: 340px;
+    height: 200px;
+    border-radius: 3px;
+    background: #3b3f42;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.62), 0 4px 18px rgba(0, 0, 0, 0.45);
   }
+  #radarbars { display: flex; gap: 3px; margin-top: 5px; height: 9px; }
+  #radarbars i { position: relative; display: block; flex: 1; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); overflow: hidden; }
+  #radarbars i b { position: absolute; inset: 0 auto 0 0; width: 100%; transition: width 0.25s; }
+  #rbHealth b { background: linear-gradient(#6fcf6a, #3f9a3b); }
+  #rbHealth.low b { background: linear-gradient(#e0574b, #a8322a); }
+  #rbStress b { background: linear-gradient(#5ea9ec, #2f74c0); }
+  @media (max-width: 640px) { #minimapwrap, #minimap { width: 240px; } #minimap { height: 150px; } }
   /* Phone notifications, as the phone would raise them, but over the picture and not on the handset. */
   #strainveil { position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0; transition: opacity 1.2s;
     background: radial-gradient(ellipse at center, rgba(20,10,10,0) 38%, rgba(35,12,16,0.55) 78%, rgba(12,4,8,0.88) 100%); }
   #notifs {
     position: absolute;
     left: calc(18px + env(safe-area-inset-left, 0px));
-    bottom: calc(18px + 220px + 14px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(20px + 214px + 14px + env(safe-area-inset-bottom, 0px));
     width: 304px;
     display: flex; flex-direction: column-reverse; gap: 8px;
   }
@@ -908,7 +918,7 @@
   /* ---- the pause menu, GTA-style: it opens on the map, and LB / RB slide across
      to the next page. The pages sit side by side in one strip. */
   body.mapopen #pause { display: flex !important; }
-  #mapscreen { position: absolute; inset: 0; z-index: 1; display: block; background: rgba(9, 11, 14, 0.96); }
+  #mapscreen { position: absolute; inset: 0; z-index: 1; display: block; background: rgba(9, 9, 9, 0.96); filter: grayscale(1); }
   #pausetabs { gap: 10px; align-items: flex-end; padding-top: 18px; position: relative; }
   #pausetablist { display: flex; position: relative; align-items: flex-end; }
   .pkey { font: 800 11px/1 var(--data); letter-spacing: 0.08em; color: #cfd5da; border: 1.5px solid #5d646c; border-radius: 6px; padding: 5px 8px; margin: 0 4px 12px; background: rgba(255,255,255,0.06); }
@@ -985,7 +995,8 @@
 
 <div id="hud">
   <div id="minimapwrap">
-    <canvas id="minimap" width="220" height="220"></canvas>
+    <canvas id="minimap" width="680" height="400"></canvas>
+    <div id="radarbars"><i id="rbHealth"><b></b></i><i id="rbStress"><b></b></i></div>
   </div>
   <div id="notifs"></div>
   <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
@@ -1060,7 +1071,7 @@
      the world still visible behind the whole thing. -->
 <div id="pause" hidden>
   <div id="pausetabs">
-    <canvas id="pausesign" width="380" height="165"></canvas>
+    <canvas id="pausesign" width="760" height="330"></canvas>
     <span class="pkey">LB</span>
     <div id="pausetablist">
       <button class="ptab sel" data-tab="map" type="button">Map</button>
@@ -8421,9 +8432,8 @@ function updateHud(dt, force) {
   }
 }
 
-// ---- the two rings round the minimap --------------------------------------
-// Health outside in red, stress inside in blue. They are arcs rather than bars
-// because the minimap is already a circle and two more circles cost nothing.
+// ---- the two bars under the radar ------------------------------------------
+// Health in green (red and flashing when it is nearly gone), stress in blue, side by side as GTA V draws them.
 // Stress is the one that matters: it climbs while he scrolls MyGram and while
 // he is being chased, it is worn down by coffee and food, and when it fills he
 // has to sleep it off.
@@ -8435,7 +8445,7 @@ function drawCopBlips(g, cv, cx, cz, rot, scale) {
   const flashOn = Math.floor(wanted.flash * 3.2) % 2 === 0;
   g.save();
   g.beginPath();
-  g.arc(W / 2, H / 2, W * 0.405, 0, Math.PI * 2);
+  g.rect(0, 0, W, H);
   g.clip();
   g.translate(W / 2, H / 2);
   g.rotate(rot);
@@ -8468,26 +8478,13 @@ function drawCopBlips(g, cv, cx, cz, rot, scale) {
 }
 
 function drawVitals() {
-  const cv = document.getElementById("minimap");
-  if (!cv || !miniCtx) return;
-  const g = miniCtx, W = cv.width, H = cv.height;
-  const cx = W / 2, cy = H / 2;
-  const ring = (r, v, colour, width) => {
-    g.save();
-    g.lineWidth = width;
-    g.lineCap = "round";
-    g.strokeStyle = "rgba(0,0,0,0.45)";
-    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
-    if (v > 0.001) {
-      g.strokeStyle = colour;
-      g.beginPath();
-      g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp01(v));
-      g.stroke();
-    }
-    g.restore();
-  };
-  ring(W * 0.465, vitals.health, "#d8483c", W * 0.030);
-  ring(W * 0.425, vitals.stress, "#3f8fe0", W * 0.026);
+  const h = document.getElementById("rbHealth"), st = document.getElementById("rbStress");
+  if (!h || !st) return;
+  const hw = Math.round(clamp01(vitals.health) * 1000) / 10 + "%", sw = Math.round(clamp01(vitals.stress) * 1000) / 10 + "%";
+  if (h.firstChild.style.width !== hw) h.firstChild.style.width = hw;
+  if (st.firstChild.style.width !== sw) st.firstChild.style.width = sw;
+  const low = vitals.health < 0.25 && Math.floor(clock * 2.5) % 2 === 0;
+  if (h.classList.contains("low") !== low) h.classList.toggle("low", low);
 }
 
 // Stress climbs slowly through the day and faster when he is being hunted;
@@ -12650,6 +12647,14 @@ function loadCarModels(root) {
         if (CAR_MODELS[n].url === "cars/" + k + ".glb") { CAR_MODELS[n].user = true; CAR_MODELS[n].yaw = (user[k] && user[k].yaw) || 0; }
       });
     });
+    // a kind named in the list gets its own file (cars/<kind>.glb), which is how the imported Japanese cars arrive
+    // (Game/tools/cars/fetch-cars.mjs): a taxi, a patrol car and a family saloon no longer have to share one body
+    Object.keys(user || {}).forEach(k => {
+      if (!CAR_KINDS.some(kd => kd.name === k)) return;
+      const was = CAR_MODELS[k] || {};
+      CAR_MODELS[k] = Object.assign({}, was, { url: "cars/" + k + ".glb", user: true, yaw: (user[k] && user[k].yaw) || 0 });
+      if (user[k] && user[k].livery === false) delete CAR_MODELS[k].livery;
+    });
     loadCarModelsNow(root);
   };
   fetch("cars/user.json").then(r => (r.ok ? r.json() : {})).catch(() => ({})).then(go);
@@ -14884,8 +14889,19 @@ const MAPC = {
   player: "#55b9ff"
 };
 
+// The radar's own colours, after GTA V's: grey land, light grey roads (the bigger the road the lighter), a muted blue sea, dark green
+// parks, a white arrow, and a purple route.
+const MAPC_GTA = {
+  sea: "#3f5b6e", land: "#3b3f42", block: "#44484b",
+  street: "#8e9295", alley: "#73777a",
+  arterial: "#adb1b4", express: "#c6c9cb", rail: "#5d6266", bus: "#f08a2c",
+  plot: "#474b4e", park: "#47643a",
+  ink: "#ffffff", shadow: "rgba(0,0,0,0.8)", waypoint: "#a35bd6",
+  player: "#f4f4f4"
+};
+
 const nav = {
-  base: null, wash: [], idx: null, ready: false,
+  base: null, baseGta: null, wash: [], idx: null, ready: false,
   waypoint: null,                      // {x, z}
   route: null, overlay: 0,             // the line along the roads; 0 off, 1 rail, 2 bus, 3 both
   mapOpen: false, mapZoom: 1, mapCx: 0, mapCz: 0, mapSel: 0,
@@ -14947,6 +14963,28 @@ function bakeTerrainMap(w) {
   return cv;
 }
 
+// The radar's ground: land and water at twice the heightfield's resolution (sampled between its points, so the coast is a line and not a
+// staircase), grey, a shade greener where things grow and a shade lighter on the high ground, the way GTA V's radar shows the hills.
+function bakeRadarBase(w) {
+  const k = 2, cv = document.createElement("canvas");
+  cv.width = GRID_X * k; cv.height = GRID_Z * k;
+  const g = cv.getContext("2d"), img = g.createImageData(cv.width, cv.height), rgb = [0, 0, 0];
+  const land = [0x3b, 0x3f, 0x42], sea = [0x3f, 0x5b, 0x6e];
+  for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) {
+    const x = (i + 0.5) / cv.width * WORLD_X, z = (j + 0.5) / cv.height * WORLD_Z, h = w.sampleHeight(x, z), o = (j * cv.width + i) * 4;
+    let c;
+    if (h <= 0.15 || w.sampleRiver(x, z) > 0.45) c = sea;
+    else {
+      terrainColour(w, clamp(Math.round(x / CELL), 0, GRID_X - 1), clamp(Math.round(z / CELL), 0, GRID_Z - 1), rgb);
+      const green = clamp01((Math.sqrt(rgb[1]) - Math.max(Math.sqrt(rgb[0]), Math.sqrt(rgb[2]))) * 3), hi = clamp01((h - 250) / 900);
+      c = [land[0] - green * 4 + hi * 22, land[1] + green * 5 + hi * 22, land[2] - green * 3 + hi * 22];
+    }
+    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  return cv;
+}
+
 function bakeCityWash(city) {
   const b = city.bounds, pad = 240;
   const x0 = b.x0 - pad, z0 = b.z0 - pad;
@@ -14984,6 +15022,7 @@ function buildNav(w) {
   nav.ready = false;
   nav.waypoint = null;
   nav.base = bakeTerrainMap(w);
+  nav.baseGta = bakeRadarBase(w);
   nav.wash = w.cities.map(bakeCityWash);
   const blocks = makeIndex(300), plots = makeIndex(140), roads = makeIndex(220);
   w.cities.forEach((c, ci) => {
@@ -15418,10 +15457,11 @@ function navGuideUpdate() {
 
 function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   opts = opts || {};
+  const P = opts.gta ? MAPC_GTA : MAPC;
   const S = pw / across;
   const mPerPx = 1 / S;
   ctx.save();
-  ctx.fillStyle = MAPC.sea;
+  ctx.fillStyle = P.sea;
   ctx.fillRect(0, 0, pw, ph);
   ctx.translate(pw / 2, ph / 2);
   ctx.rotate(rot);
@@ -15434,12 +15474,15 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   const vx0 = cx - half, vx1 = cx + half, vz0 = cz - half, vz1 = cz + half;
 
   ctx.imageSmoothingEnabled = true;
-  if (nav.base) ctx.drawImage(nav.base, 0, 0, WORLD_X, WORLD_Z);
-  nav.wash.forEach(wash => ctx.drawImage(wash.canvas, wash.x0, wash.z0, wash.w, wash.h));
+  if (opts.gta && nav.baseGta) ctx.drawImage(nav.baseGta, 0, 0, WORLD_X, WORLD_Z);
+  else {
+    if (nav.base) ctx.drawImage(nav.base, 0, 0, WORLD_X, WORLD_Z);
+    nav.wash.forEach(wash => ctx.drawImage(wash.canvas, wash.x0, wash.z0, wash.w, wash.h));
+  }
   if (DEST.sites.length) destMapsDraw(ctx, vx0, vx1, vz0, vz1);
 
   // Blocks, for the grain of the built-up area.
-  ctx.fillStyle = MAPC.block;
+  ctx.fillStyle = P.block;
   indexNear(nav.idx.blocks, vx0, vz0, vx1, vz1, e => {
     const b = e.b;
     ctx.save();
@@ -15456,7 +15499,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   if (across < 1500) {
     indexNear(nav.idx.plots, vx0, vz0, vx1, vz1, e => {
       const p = e.p;
-      ctx.fillStyle = (p.kind === "park" || p.kind === "shrine") ? MAPC.park : MAPC.plot;
+      ctx.fillStyle = (p.kind === "park" || p.kind === "shrine") ? P.park : P.plot;
       ctx.save();
       ctx.translate(p.centre[0], p.centre[1]);
       ctx.rotate(-p.yaw * Math.PI / 180);
@@ -15481,25 +15524,38 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     if (dash) ctx.setLineDash([]);
   }
 
+  // On the radar the local streets are drawn as streets, in light grey, as GTA V draws them (the big map leaves them as the gaps)
+  if (opts.gta && across < 1600) {
+    ctx.lineCap = "butt";
+    world.cities.forEach(city => (city.streetPlan || []).forEach(L => {
+      ctx.strokeStyle = L.hw < 2.6 ? P.alley : P.street;
+      ctx.lineWidth = Math.max(L.hw * 2, mPerPx * 1.4);
+      L.runs.forEach(r => {
+        const a = L.pt(r[0]), b = L.pt(r[1]);
+        if (Math.max(a[0], b[0]) < vx0 || Math.min(a[0], b[0]) > vx1 || Math.max(a[1], b[1]) < vz0 || Math.min(a[1], b[1]) > vz1) return;
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      });
+    }));
+  }
   const isHighway = road => road.cls === "expressway";
-  if (world.highway) stroke(world.highway.pts, true, Math.max(world.highway.hw * 1.1, 6 * mPerPx), MAPC.express);
+  if (world.highway) stroke(world.highway.pts, true, Math.max(world.highway.hw * 1.1, 6 * mPerPx), P.express);
   world.cities.forEach(city => {
     // arterials are cut through the blocks in the ground colour, so they read as
     // spaces; the highways, and only the highways, are yellow
     city.roads.forEach(road => {
       if (road.cls === "expressway" || isHighway(road)) return;
-      stroke(road.pts, road.loop, road.halfWidth * 2, MAPC.arterial);
+      stroke(road.pts, road.loop, road.halfWidth * 2, P.arterial);
     });
     city.roads.forEach(road => {
       if (!isHighway(road)) return;
-      stroke(road.pts, road.loop, Math.max(road.halfWidth * 1.35, 6 * mPerPx), MAPC.express);
+      stroke(road.pts, road.loop, Math.max(road.halfWidth * 1.35, 6 * mPerPx), P.express);
     });
     // the transport overlay: rail, and the buses that run along the arterials
-    if (nav.overlay & 1) city.rails.forEach(line => stroke(line.pts, line.loop, Math.max(line.halfWidth * 0.75, 3.5 * mPerPx), MAPC.rail,
+    if (nav.overlay & 1) city.rails.forEach(line => stroke(line.pts, line.loop, Math.max(line.halfWidth * 0.75, 3.5 * mPerPx), P.rail,
       line.cls === "shinkansen" ? null : [3, 2]));
     if (nav.overlay & 2) city.roads.forEach(road => {
       if (isHighway(road) || road.halfWidth < 8) return;
-      stroke(road.pts, road.loop, Math.max(4 * mPerPx, 5), MAPC.bus, [2, 2]);
+      stroke(road.pts, road.loop, Math.max(4 * mPerPx, 5), P.bus, [2, 2]);
     });
   });
 
@@ -15662,10 +15718,10 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.lineWidth = Math.max(2, size * 0.22);
-    ctx.strokeStyle = MAPC.shadow;
+    ctx.strokeStyle = P.shadow;
     ctx.lineJoin = "round";
     ctx.strokeText(text, p[0], p[1]);
-    ctx.fillStyle = colour || MAPC.ink;
+    ctx.fillStyle = colour || P.ink;
     ctx.fillText(text, p[0], p[1]);
   }
 
@@ -15711,10 +15767,10 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
       const pts = nav.route.pts.map(q => toScreen(q[0], q[1]));
       const draw = () => { ctx.beginPath(); pts.forEach((q, i) => { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
       ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.lineWidth = opts.labels === false ? 6 : 8; draw();
-      ctx.strokeStyle = MAPC.waypoint; ctx.lineWidth = opts.labels === false ? 3.6 : 5; draw();
+      ctx.strokeStyle = P.waypoint; ctx.lineWidth = opts.labels === false ? 3.6 : 5; draw();
       ctx.restore();
     }
-    ctx.fillStyle = MAPC.waypoint;
+    ctx.fillStyle = P.waypoint;
     ctx.strokeStyle = "rgba(0,0,0,0.65)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -15737,7 +15793,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     ctx.save();
     ctx.translate(p[0], p[1]);
     ctx.rotate(-facing + Math.PI);
-    ctx.fillStyle = MAPC.player;
+    ctx.fillStyle = P.player;
     ctx.strokeStyle = "rgba(6,10,14,0.9)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -15759,29 +15815,32 @@ function drawMinimap() {
   const cv = document.getElementById("minimap");
   if (!cv) return;
   if (!miniCtx) miniCtx = cv.getContext("2d");
+  // drawn at the screen's pixel density and never less than twice it, so the lines are crisp on any display
+  const MW = cv.clientWidth || 340, MH = cv.clientHeight || 200, dpr = clamp(window.devicePixelRatio || 1, 2, 3);
+  if (cv.width !== Math.round(MW * dpr) || cv.height !== Math.round(MH * dpr)) { cv.width = Math.round(MW * dpr); cv.height = Math.round(MH * dpr); }
+  const g = miniCtx, box = { width: MW, height: MH };
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const at = player.placed ? player.pos : camPos;
-  // Looking ahead rather than standing on the centre, which is what makes a
-  // minimap useful when you are moving.
-  const ahead = drive.car ? 58 : 26;
+  // The view runs ahead of you, so you sit low in the frame and see where you are going; it pulls out as the car goes faster.
+  const spd = drive.car ? Math.abs(drive.car.speed || 0) : 0;
+  const across = drive.car ? lerp(480, 900, clamp01((spd - 8) / 30)) : 320;
+  const ahead = across * 0.16;
   const fx = at.x - Math.sin(yaw) * ahead, fz = at.z - Math.cos(yaw) * ahead;
-  const across = drive.car ? 420 : 230;
-  drawMapView(miniCtx, cv.width, cv.height, fx, fz,
-    across, yaw, { labels: false, markers: true, route: true });
-  drawCopBlips(miniCtx, cv, fx, fz, yaw, cv.width / across);
-  drawDispatchBlips(miniCtx, cv, fx, fz, yaw, cv.width / across);
-  // The compass tick, so north is findable.
-  const g = miniCtx;
-  g.save();
-  g.translate(cv.width / 2, cv.height / 2);
-  g.rotate(yaw);
-  g.fillStyle = "#e8554a";
-  g.beginPath();
-  g.moveTo(0, -cv.height / 2 + 4);
-  g.lineTo(-6, -cv.height / 2 + 16);
-  g.lineTo(6, -cv.height / 2 + 16);
-  g.closePath();
-  g.fill();
-  g.restore();
+  drawMapView(g, MW, MH, fx, fz, across, yaw, { labels: false, markers: true, route: true, gta: true });
+  drawCopBlips(g, box, fx, fz, yaw, MW / across);
+  drawDispatchBlips(g, box, fx, fz, yaw, MW / across);
+  // north: an N on the edge of the frame, where north is
+  const nx = Math.sin(-yaw) * -1, ny = -Math.cos(-yaw);
+  const tEdge = Math.min((MW / 2 - 13) / Math.max(Math.abs(nx), 1e-4), (MH / 2 - 13) / Math.max(Math.abs(ny), 1e-4));
+  const qx = MW / 2 + nx * tEdge, qy = MH / 2 + ny * tEdge;
+  g.fillStyle = "rgba(20,22,24,0.88)"; g.beginPath(); g.arc(qx, qy, 9, 0, Math.PI * 2); g.fill();
+  g.fillStyle = "#ffffff"; g.font = "800 11px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("N", qx, qy + 0.5);
+  // wanted: the frame flashes red and blue
+  if (wanted.stars) {
+    const on = Math.floor(clock * 3.2) % 2 === 0;
+    g.strokeStyle = on ? "rgba(214,58,48,0.95)" : "rgba(52,110,224,0.95)"; g.lineWidth = 4; g.strokeRect(2, 2, MW - 4, MH - 4);
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 // ---- the island map ----------------------------------------------------
@@ -15866,7 +15925,7 @@ function drawBigMap() {
   const cv = document.getElementById("mapcanvas");
   if (!cv) return;
   const w = cv.clientWidth || window.innerWidth, h = cv.clientHeight || window.innerHeight;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const dpr = clamp(window.devicePixelRatio || 1, 2, 3);       // never under twice the screen's density: the lines stay sharp at any zoom
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
   }
@@ -15874,7 +15933,7 @@ function drawBigMap() {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const across = mapAcross();
   drawMapView(g, w, h, nav.mapCx, nav.mapCz, across, 0,
-    { labels: true, markers: true, route: true, alwaysPlayer: player.placed });
+    { labels: true, markers: true, route: true, alwaysPlayer: player.placed, gta: true });
 
   // The crosshair you drop a waypoint under.
   g.strokeStyle = "rgba(255,255,255,0.85)";
@@ -28721,7 +28780,7 @@ function drawDispatchBlips(g, cv, cx, cz, rot, scale) {
   const flashOn = Math.floor(clock * 3.2) % 2 === 0;
   g.save();
   g.beginPath();
-  g.arc(W / 2, H / 2, W * 0.405, 0, Math.PI * 2);
+  g.rect(0, 0, W, H);
   g.clip();
   g.translate(W / 2, H / 2);
   g.rotate(rot);
