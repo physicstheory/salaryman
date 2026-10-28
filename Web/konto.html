@@ -1817,6 +1817,24 @@ function makeWorld(seed, report) {
     }
   });
 
+  // ---- weathering --------------------------------------------------------
+  // The foothills were blurred smooth so they can be driven, and that blur reached up most of the ranges too: the mountains came out as
+  // rounded cones. Real ones are cut by water: sharp crests between gullies, spurs running down off the ridges. So the high ground (and
+  // only the high ground: nothing below 150 m changes, where the towns, roads and fields are) gets that back - ridged noise, bent by a slow
+  // warp so the gullies wander, at two sizes, growing with altitude.
+  report("weathering the high ground", 0.35);
+  (function weather() {
+    for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
+      const i = idx(x, z), h = height[i];
+      if (landMask[i] < 0.5 || h < 150) continue;
+      const px = wx(x), pz = wz(z), k = sstep(150, 700, h);
+      const wq = fbm(px / 900, pz / 900, seed + 4401, 2) * 420;
+      const spur = ridged((px + wq) / 640, (pz - wq) / 640, seed + 4411, 4, 1.15);
+      const gully = ridged((px - wq * 0.6) / 210, (pz + wq * 0.6) / 210, seed + 4421, 3, 1.3);
+      height[i] = Math.max(150, h + ((spur - 0.52) * 95 + (gully - 0.5) * 30) * k);
+    }
+  })();
+
   // Every settlement gets a buildable terrace cut under it, tilted so it drains.
   report("cutting the town terraces", 0.36);
   frames.forEach(F => {
@@ -2175,10 +2193,199 @@ function makeWorld(seed, report) {
   }
   report("laying the coastal expressway", 0.985);
   planHighway(world);
+  report("joining the towns to the expressway", 0.988);
+  planLinks(world);
   planSki(world);
   planAirports(world);
   planDestinations(world);
   return world;
+}
+
+// ---- the roads out of town ------------------------------------------------------------------------------------------------------------------
+// Every town's main roads used to stop where its built-up ground did, in a grey smear on the grass, and the expressway passed a few hundred
+// metres off without a single slip road: the only way between them was across the fields. So each road that ends in the open is now carried on
+// to the expressway as a two-lane country road. The route is found on the heightfield the way the expressway's was (gentle grades, round the
+// water and the other towns), smoothed, given a profile that never climbs more than one in eleven, and cut into the ground like the expressway's
+// bed. A road that stops a stone's throw short of another inside a town is simply joined on to it. What is left of a radial past the town's
+// edge is dropped, so the country road starts where the tarmac does.
+const LINK = { hw: 5.5, maxGrade: 0.09, step: 10 };
+function planLinks(world) {
+  const H = world.height, GX = GRID_X, GZ = GRID_Z, at = (x, z) => z * GX + x, hwy = world.highway;
+  world.links = [];
+  const segs = [];
+  world.cities.forEach(c => c.roads.forEach(r => { if (!r.pts || r.pts.length < 2) return; const P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts; for (let i = 1; i < P.length; i++) segs.push([P[i - 1][0], P[i - 1][2], P[i][0], P[i][2], r.halfWidth, r]); }));
+  if (hwy) { const P = hwy.pts; for (let i = 0; i < P.length; i++) { const b = P[(i + 1) % P.length]; segs.push([P[i][0], P[i][2], b[0], b[2], hwy.hw, hwy]); } }
+  const nearest = (x, z, self) => {
+    let best = null;
+    for (const s of segs) {
+      if (s[5] === self) continue;
+      const dx = s[2] - s[0], dz = s[3] - s[1], L = dx * dx + dz * dz || 1, t = clamp(((x - s[0]) * dx + (z - s[1]) * dz) / L, 0, 1);
+      const qx = s[0] + dx * t, qz = s[1] + dz * t, d = Math.hypot(qx - x, qz - z) - s[4];
+      if (!best || d < best.d) best = { d: d, x: qx, z: qz, road: s[5] };
+    }
+    return best;
+  };
+  const inTown = (c, x, z) => { const b = c.bounds; return !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && c.footprint(x, z) > 0.25; };
+  const onPlot = (c, x, z) => c.plots.some(p => { const l = toRectLocal(x, z, p.centre[0], p.centre[1], p.yaw); return Math.abs(l[0]) < p.size[0] * 0.5 && Math.abs(l[1]) < p.size[1] * 0.5; });
+  // where the expressway is at grade, which is where a road can join it
+  const joins = [];
+  if (hwy) hwy.pts.forEach((p, i) => { if (!hwy.bridge[i] && Math.abs(p[1] - world.sampleHeight(p[0], p[2])) < 2.5) joins.push(i); });
+  hwy && (hwy.junctions = []);
+  // A* on the heightfield's own cells, in a box round the two ends
+  const route = (sx, sz, gx, gz) => {
+    const s0 = [clamp(Math.round(sx / CELL), 1, GX - 2), clamp(Math.round(sz / CELL), 1, GZ - 2)], g0 = [clamp(Math.round(gx / CELL), 1, GX - 2), clamp(Math.round(gz / CELL), 1, GZ - 2)];
+    const pad = 40, x0 = Math.max(1, Math.min(s0[0], g0[0]) - pad), x1 = Math.min(GX - 2, Math.max(s0[0], g0[0]) + pad), z0 = Math.max(1, Math.min(s0[1], g0[1]) - pad), z1 = Math.min(GZ - 2, Math.max(s0[1], g0[1]) + pad);
+    const W = x1 - x0 + 1, N = W * (z1 - z0 + 1), li = (x, z) => (z - z0) * W + (x - x0);
+    const g = new Float32Array(N).fill(1e30), from = new Int32Array(N).fill(-1), hp = [];
+    const push = it => { hp.push(it); let i = hp.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (hp[p][0] <= hp[i][0]) break; const t = hp[p]; hp[p] = hp[i]; hp[i] = t; i = p; } };
+    const pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r < hp.length && hp[r][0] < hp[m][0]) m = r; if (m === i) break; const t = hp[m]; hp[m] = hp[i]; hp[i] = t; i = m; } } return top; };
+    const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.4142], [-1, 1, 1.4142], [1, -1, 1.4142], [-1, -1, 1.4142]];
+    g[li(s0[0], s0[1])] = 0; push([0, s0[0], s0[1]]);
+    let found = false;
+    while (hp.length) {
+      const [, x, z] = pop(); if (x === g0[0] && z === g0[1]) { found = true; break; }
+      const gi = g[li(x, z)], hi = Math.max(H[at(x, z)], 0);
+      for (const [dx, dz, st] of NB) {
+        const xx = x + dx, zz = z + dz; if (xx < x0 || xx > x1 || zz < z0 || zz > z1) continue;
+        const j = at(xx, zz), hj = H[j], grade = Math.abs(Math.max(hj, 0) - hi) / (st * CELL);
+        let c = st * (1 + grade * grade * 320);
+        if (hj < 0.8) c += st * 60;                                                      // water: only if there is no way round
+        if (world.river[j] > 0.25) c += 14;
+        const u = world.urban[j]; if (u > 0.05 && Math.hypot(xx - s0[0], zz - s0[1]) > 5) c += 12 + u * 40;   // round the other towns, not through them
+        const ng = gi + c, k = li(xx, zz);
+        if (ng < g[k]) { g[k] = ng; from[k] = li(x, z); push([ng + Math.hypot(xx - g0[0], zz - g0[1]), xx, zz]); }
+      }
+    }
+    if (!found) return null;
+    const out = []; for (let v = li(g0[0], g0[1]); v >= 0; v = from[v]) { out.push([(v % W + x0) * CELL, (Math.floor(v / W) + z0) * CELL]); if (v === li(s0[0], s0[1])) break; }
+    return out.reverse();
+  };
+  let joined = 0, linked = 0;
+  world.cities.forEach(c => {
+    if (!c.bounds || !c.footprint) return;
+    c.roads.slice().forEach(r => {
+      if (r.loop || r.elevated || r.link || !r.pts || r.pts.length < 2 || r.halfWidth < 4) return;
+      for (const end of [0, 1]) {
+        const P = r.pts, p = end ? P[P.length - 1] : P[0], nb = nearest(p[0], p[2], r);
+        if (nb && nb.d < 2) continue;
+        if (inTown(c, p[0], p[2])) {
+          // inside the town: join it to the road it stops short of, if nothing stands between
+          if (!nb || nb.d > 170) continue;
+          let clear = true;
+          for (let t = 0.1; t < 1; t += 0.1) { const x = p[0] + (nb.x - p[0]) * t, z = p[2] + (nb.z - p[2]) * t; if (world.sampleHeight(x, z) < 0.6 || onPlot(c, x, z)) { clear = false; break; } }
+          if (!clear) continue;
+          const q = [nb.x, world.sampleHeight(nb.x, nb.z), nb.z];
+          // (a road's height profile runs alongside its points, and has to grow with them)
+          if (end) { P.push(q); if (r.profile) r.profile.push(r.profile[r.profile.length - 1]); } else { P.unshift(q); if (r.profile) r.profile.unshift(r.profile[0]); }
+          joined++;
+          continue;
+        }
+        if (!hwy || !joins.length) continue;
+        // out of town: cut the radial back to where the town ends...
+        const idx = P.map((q, i) => i), order = end ? idx.slice().reverse() : idx;
+        let k = -1; for (const i of order) if (inTown(c, P[i][0], P[i][2])) { k = i; break; }
+        if (k < 0) continue;
+        if (end) { if (k < 1) continue; r.pts = P.slice(0, k + 1); if (r.profile) r.profile = r.profile.slice(0, k + 1); } else { if (k > P.length - 2) continue; r.pts = P.slice(k); if (r.profile) r.profile = r.profile.slice(k); }
+        const start = end ? r.pts[r.pts.length - 1] : r.pts[0];
+        // ...and on to the nearest place the expressway is at grade, leaning the way the road was going
+        let bi = -1, bd = 1e30;
+        for (const i of joins) { const q = hwy.pts[i], d = Math.hypot(q[0] - p[0], q[2] - p[2]) + Math.hypot(q[0] - start[0], q[2] - start[2]) * 0.5; if (d < bd) { bd = d; bi = i; } }
+        if (bi < 0 || bd > 6000) continue;
+        const goal = hwy.pts[bi];
+        // come in square to the expressway: the last stretch runs straight out from its edge
+        const ta = hwy.pts[(bi - 1 + hwy.pts.length) % hwy.pts.length], tb = hwy.pts[(bi + 1) % hwy.pts.length];
+        let tx = tb[0] - ta[0], tz = tb[2] - ta[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+        let side = Math.sign((start[0] - goal[0]) * -tz + (start[2] - goal[2]) * tx) || 1;
+        const nx = -tz * side, nz = tx * side, edge = [goal[0] + nx * (hwy.hw + 0.3), goal[2] + nz * (hwy.hw + 0.3)], lead = [goal[0] + nx * (hwy.hw + 40), goal[2] + nz * (hwy.hw + 40)];
+        const path = route(start[0], start[2], lead[0], lead[1]);
+        if (!path || path.length < 2) continue;
+        let pts = [[start[0], start[2]]].concat(path.slice(1, -1)).concat([lead, edge]);
+        // round the corners off, keeping both ends where they are
+        for (let it = 0; it < 3; it++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (i > 0) o.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]); if (i < pts.length - 2) o.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } o.push(pts[pts.length - 1]); pts = o; }
+        const res = [pts[0]];
+        for (let i = 1; i < pts.length; i++) { const a = res[res.length - 1], d = Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); if (d >= LINK.step || i === pts.length - 1) res.push(pts[i]); }
+        // the profile: the ground, smoothed, held to a grade, pinned to the town at one end and the expressway at the other
+        const n = res.length, gnd = res.map(q => world.sampleHeight(q[0], q[1]));
+        let prof = gnd.map(h => Math.max(h, 1.8));
+        for (let pass = 0; pass < 4; pass++) prof = prof.map((_, i) => { let s = 0, m = 0; for (let q = -4; q <= 4; q++) { const j = clamp(i + q, 0, n - 1); s += prof[j]; m++; } return s / m; });
+        prof[0] = start[1]; prof[n - 1] = goal[1] + 0.02;
+        for (let pass = 0; pass < 4; pass++) {
+          for (let i = 1; i < n; i++) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i - 1][0], res[i][1] - res[i - 1][1]); prof[i] = clamp(prof[i], prof[i - 1] - gm, prof[i - 1] + gm); }
+          for (let i = n - 2; i >= 0; i--) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i + 1][0], res[i][1] - res[i + 1][1]); prof[i] = clamp(prof[i], prof[i + 1] - gm, prof[i + 1] + gm); }
+          prof[0] = start[1]; prof[n - 1] = goal[1] + 0.02;
+        }
+        // cut it into the ground, as the expressway was: the bed level with the road, the verges blended out to the hillside
+        const bedR = LINK.hw + 2.5, edgeR = LINK.hw + 22, bestD = new Map();
+        for (let s = 0; s < n; s++) {
+          const px = res[s][0], pz = res[s][1];
+          for (let z = Math.max(0, Math.floor((pz - edgeR) / CELL)); z <= Math.min(GZ - 1, Math.ceil((pz + edgeR) / CELL)); z++)
+            for (let x = Math.max(0, Math.floor((px - edgeR) / CELL)); x <= Math.min(GX - 1, Math.ceil((px + edgeR) / CELL)); x++) {
+              const d = Math.hypot(x * CELL - px, z * CELL - pz), i = at(x, z), cur = bestD.get(i);
+              if (!cur || d < cur[0]) bestD.set(i, [d, prof[s]]);
+            }
+        }
+        const inAnyTown = (x, z) => world.cities.some(cc => cc.bounds && cc.footprint && x > cc.bounds.x0 && x < cc.bounds.x1 && z > cc.bounds.z0 && z < cc.bounds.z1 && cc.footprint(x, z) > 0.12);
+        // (the expressway cut its own bed: within reach of it the ground is only ever taken down, never built up through its deck)
+        const hwyD = (x, z) => { let m = 1e9; for (let q = Math.max(0, bi - 40); q < Math.min(hwy.pts.length, bi + 40); q++) { const a = hwy.pts[q], b = hwy.pts[(q + 1) % hwy.pts.length]; m = Math.min(m, distToSeg(x, z, a[0], a[2], b[0], b[2])); } return m; };
+        bestD.forEach(([d, y], i) => {
+          if (d >= edgeR || H[i] < 0.6) return;
+          const x = (i % GX) * CELL, z = Math.floor(i / GX) * CELL; if (inAnyTown(x, z)) return;
+          if (hwyD(x, z) < hwy.hw + 30) { H[i] = Math.min(H[i], lerp(H[i], y - 0.12, 1 - sstep(bedR, edgeR, d))); return; }
+          const wgt = 1 - sstep(bedR, edgeR, d);
+          H[i] = lerp(H[i], y - 0.12, wgt);
+          if (world.river[i] > 0 && wgt > 0.5) world.river[i] *= 1 - wgt;
+        });
+        const road = { pts: res.map((q, i) => [q[0], prof[i], q[1]]), halfWidth: LINK.hw, elevated: false, loop: false, link: true, name: c.name + " Kaidō" };
+        c.roads.push(road); world.links.push({ city: c, road: road, hwyAt: bi, side: side });
+        hwy.junctions.push({ i: bi, side: side });
+        // the end the road was cut from now starts the link, so it is joined
+        segs.push([start[0], start[2], res[1][0], res[1][1], LINK.hw, road]);
+        linked++;
+      }
+    });
+  });
+  console.log("[Konto] roads out of town: " + linked + " country roads to the expressway, " + joined + " short ends joined in town");
+}
+
+// The country roads, as geometry: tarmac between white edge lines, a dashed centre line, a gravel shoulder, and a deck where one crosses water.
+function buildLinkRoads(root) {
+  if (!world.links || !world.links.length) return;
+  const road = { pos: [], nrm: [], uv: [] }, verge = { pos: [], nrm: [], uv: [] }, paint = { pos: [] };
+  const quad = (B, a, b, c, d, u0, u1, v0, v1) => { const q = [[a, u0, v0], [b, u1, v0], [c, u1, v1], [d, u0, v1]]; [0, 1, 2, 0, 2, 3].forEach(i => { B.pos.push(q[i][0][0], q[i][0][1], q[i][0][2]); if (B.nrm) B.nrm.push(0, 1, 0); if (B.uv) B.uv.push(q[i][1], q[i][2]); }); };
+  world.links.forEach(L => {
+    const P = L.road.pts, n = P.length, hw = L.road.halfWidth, along = [0];
+    for (let i = 1; i < n; i++) along.push(along[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][2] - P[i - 1][2]));
+    const dir = i => { const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+    // the surface follows the ground it was cut into, a hand's breadth above it; over water it is the deck the profile gives
+    const E = (i, t, up) => { const d = dir(i), x = P[i][0] - d[1] * t, z = P[i][2] + d[0] * t, g = world.sampleHeight(x, z); return [x, (g < 0.8 ? P[i][1] : Math.max(g + 0.07, Math.min(P[i][1], g + 0.07))) + (up || 0), z]; };
+    for (let i = 1; i < n; i++) {
+      const v0 = along[i - 1], v1 = along[i];
+      quad(road, E(i - 1, -hw), E(i - 1, hw), E(i, hw), E(i, -hw), 0, hw * 2, v0, v1);
+      quad(verge, E(i - 1, -hw - 1.6, -0.03), E(i - 1, -hw), E(i, -hw), E(i, -hw - 1.6, -0.03), 0, 1.6, v0, v1);
+      quad(verge, E(i - 1, hw), E(i - 1, hw + 1.6, -0.03), E(i, hw + 1.6, -0.03), E(i, hw), 0, 1.6, v0, v1);
+      if (i < 2 || i > n - 3) continue;
+      for (const sg of [-1, 1]) quad(paint, E(i - 1, sg * (hw - 0.35) - 0.07, 0.02), E(i - 1, sg * (hw - 0.35) + 0.07, 0.02), E(i, sg * (hw - 0.35) + 0.07, 0.02), E(i, sg * (hw - 0.35) - 0.07, 0.02));
+      if (i % 2 === 0) quad(paint, E(i - 1, -0.07, 0.02), E(i - 1, 0.07, 0.02), E(i, 0.07, 0.02), E(i, -0.07, 0.02));
+    }
+    // where it crosses water it is a bridge to stand on
+    for (let i = 1; i < n; i++) {
+      const A = P[i - 1], B = P[i], len = Math.hypot(B[0] - A[0], B[2] - A[2]); if (len < 0.5) continue;
+      if (Math.min(world.sampleHeight(A[0], A[2]), world.sampleHeight(B[0], B[2])) > 0.8) continue;
+      world.bridges.push({ ax: A[0], az: A[2], ux: (B[0] - A[0]) / len, uz: (B[2] - A[2]) / len, len: len, hw: hw + 0.5, ya: A[1] + 0.07, yb: B[1] + 0.07, x0: Math.min(A[0], B[0]) - hw, x1: Math.max(A[0], B[0]) + hw, z0: Math.min(A[2], B[2]) - hw, z1: Math.max(A[2], B[2]) + hw });
+    }
+  });
+  const emit = (data, widths, m) => bucketQuads(data, widths).forEach(bk => {
+    const g = new THREE.BufferGeometry();
+    Object.keys(widths).forEach(nm => g.setAttribute(nm === "pos" ? "position" : nm === "nrm" ? "normal" : "uv", new THREE.Float32BufferAttribute(bk.d[nm], widths[nm])));
+    if (!widths.nrm) g.computeVertexNormals();
+    const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.frustumCulled = false; root.add(o); streamAdd(o, bk, STREAM.road);
+  });
+  const gravelTex = surfTex("gravel").clone(); gravelTex.needsUpdate = true; gravelTex.encoding = THREE.sRGBEncoding; gravelTex.repeat.set(0.4, 0.25);
+  const gravel = gfx.high ? new THREE.MeshStandardMaterial({ color: 0xc8c2b4, roughness: 1, map: gravelTex }) : new THREE.MeshLambertMaterial({ color: 0xc8c2b4, map: gravelTex });
+  gravel.polygonOffset = true; gravel.polygonOffsetFactor = -1; gravel.polygonOffsetUnits = -1;
+  const white = new THREE.MeshLambertMaterial({ color: 0xe8e8e0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const asphalt = destAsphalt(13); bubbleFog(asphalt, "road");
+  emit(road, { pos: 3, nrm: 3, uv: 2 }, asphalt); emit(verge, { pos: 3, nrm: 3, uv: 2 }, gravel); emit(paint, { pos: 3 }, white);
 }
 
 // ============================================================================
@@ -2610,6 +2817,7 @@ function planAirports(world) {
   const inCity = (x, z, m) => world.cities.some(c => c.bounds && x > c.bounds.x0 - m && x < c.bounds.x1 + m && z > c.bounds.z0 - m && z < c.bounds.z1 + m && (!c.footprint || c.footprint(x, z) > 0.12));
   const hwy = new Set();
   if (world.highway) world.highway.pts.forEach(q => { const cx = Math.floor(q[0] / 200), cz = Math.floor(q[2] / 200); hwy.add(cx + "," + cz); });
+  (world.links || []).forEach(L => L.road.pts.forEach(q => hwy.add(Math.floor(q[0] / 200) + "," + Math.floor(q[2] / 200))));
   const nearHwy = (x, z) => hwy.has(Math.floor(x / 200) + "," + Math.floor(z / 200));
   AIRPORT_SPECS.forEach(sp => {
     const city = world.cities.find(c => c.name === sp.near) || world.cities[0], cc = city.centre;
@@ -4176,7 +4384,7 @@ const SURFACE = {
   rock: [0.40, 0.39, 0.37], scree: [0.50, 0.49, 0.47], snow: [0.91, 0.93, 0.96]
 };
 
-function terrainColour(world, x, z, out) {
+function terrainColour(world, x, z, out, splat) {
   const i = world.idx(x, z);
   const h = world.height[i];
   const land = world.landMask[i];
@@ -4202,19 +4410,19 @@ function terrainColour(world, x, z, out) {
   const patch = fbm(x * 0.05, z * 0.05, 4201, 3);
   const mottle = fbm(x * 0.31, z * 0.31, 4217, 2);
 
-  let c;
+  let c, sp = [0, 0, 0, 0];         // how much of it is sand, snow, scree and bare rock, for the textures laid over the colour
   if (h < 0) {
-    c = h < -22 ? SURFACE.sea : SURFACE.shallow;
-  } else if (land < 0.6) {
-    c = SURFACE.sand;
+    c = h < -22 ? SURFACE.sea : SURFACE.shallow; sp[0] = 1;
+  } else if (land < 0.6 && h < 12) {      // (shore only: a weak land mask high on a volcano is not a beach)
+    c = SURFACE.sand; sp[0] = 1;
   } else if (slopeDeg > 48) {
-    c = SURFACE.rock;
+    c = SURFACE.rock; sp[3] = 1;
   } else if (h > treeLine + 120) {
-    c = SURFACE.scree;
+    c = SURFACE.scree; sp[2] = 1; sp[3] = 0.4;
   } else if (h < 1.8 && slopeDeg < 20) {
-    c = SURFACE.sand;
+    c = SURFACE.sand; sp[0] = 1;
   } else if (world.river[i] > 0.4) {
-    c = SURFACE.gravel;
+    c = SURFACE.gravel; sp[2] = 0.8;
   } else if (slopeDeg < 6 && h < 320) {
     // lowland: rice paddy, with a field here and there
     c = patch > 0.16 ? SURFACE.field : (patch < -0.12 ? SURFACE.grassBright : SURFACE.paddy);
@@ -4226,7 +4434,7 @@ function terrainColour(world, x, z, out) {
     c = SURFACE.meadow;
   }
   if (snowAmt > 0.01 && h > 0) {
-    const m = snowAmt;
+    const m = snowAmt; sp[1] = m;
     c = [lerp(c[0], SURFACE.snow[0], m), lerp(c[1], SURFACE.snow[1], m), lerp(c[2], SURFACE.snow[2], m)];
   }
   // no two vertices the same green
@@ -4235,6 +4443,7 @@ function terrainColour(world, x, z, out) {
     c = [c[0] * k, c[1] * (1 + mottle * 0.22), c[2] * k];
   }
 
+  if (splat) { splat[0] = sp[0]; splat[1] = sp[1]; splat[2] = sp[2]; splat[3] = sp[3]; }
   // Ground under the city is engineered: concrete, not soil.
   const u = world.urban[i];
   const tint = 0.42 + fbm(x * 0.7, z * 0.7, 4001, 2) * 0.05;
@@ -4962,6 +5171,113 @@ float gdLuma(vec2 p, vec3 base, float slope, float city) {
   return l * 1.55;
 }`;
 
+// ---- the ground: photographs laid over the colour --------------------------------------------------------------------------------------
+// The island's colour is worked out every nineteen metres, which is right for the lie of the land and a smear for anything closer. So it is
+// used as the tint, and real ground is laid over it from CC0 photographs (Poly Haven; Web/art/terrain): meadow grass, which takes the colour
+// of whatever the vertex says grows there; mossy rock on the slopes and bare grey rock on the crags, projected from the side as well as from
+// above so a cliff is not a smear of stretched pixels; snow on the peaks; sand on the shore; scree and river gravel. Each is read at two
+// sizes so it does not tile, and a slow variation across the whole island breaks it up further. Until the photographs arrive the old
+// procedural grain stands in. High and ultra light it per pixel, so a ridge catches the sun along its length and not in nineteen-metre steps.
+const TERRAIN_TEX = { list: ["grass", "grass2", "rock", "rock_moss", "snow", "sand", "scree"], tex: null, ready: { value: 0 }, avg: { value: new THREE.Vector3(0.12, 0.16, 0.06) } };
+function terrainTextures() {
+  if (TERRAIN_TEX.tex) return TERRAIN_TEX.tex;
+  const L = new THREE.TextureLoader(), T = TERRAIN_TEX.tex = {};
+  let left = TERRAIN_TEX.list.length;
+  TERRAIN_TEX.list.forEach(n => {
+    T[n] = L.load("art/terrain/" + n + ".jpg", t => {
+      if (n === "grass") {
+        // the grass photograph's own average colour, so it can be used as detail over the island's tint without changing the tint
+        try { const c = document.createElement("canvas"); c.width = c.height = 8; const g = c.getContext("2d"); g.drawImage(t.image, 0, 0, 8, 8); const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0; for (let i = 0; i < d.length; i += 4) { r += d[i]; gg += d[i + 1]; b += d[i + 2]; } const lin = v => Math.pow(v / 16 / 255, 2.2); TERRAIN_TEX.avg.value.set(lin(r / 4), lin(gg / 4), lin(b / 4)); } catch (e) { /* keep the guess */ }
+      }
+      if (--left === 0) TERRAIN_TEX.ready.value = 1;
+    }, undefined, () => { /* the procedural grain stays */ });
+    T[n].encoding = THREE.sRGBEncoding; T[n].wrapS = T[n].wrapT = THREE.RepeatWrapping; sharpTex(T[n]);
+  });
+  return T;
+}
+const TERRAIN_GLSL = `
+uniform sampler2D tGrass, tGrass2, tRock, tMoss, tSnow, tSand, tScree;
+uniform float tReady;
+uniform vec3 tAvg;
+varying vec3 vTW, vTN;
+varying vec4 vSplat;
+varying float vTDist;
+// (a texture read by hand comes back as it is stored, in sRGB, so it is taken to linear light here)
+vec3 tx(sampler2D t, vec2 uv) { return pow(texture2D(t, uv).rgb, vec3(2.2)); }
+#ifdef TERRAIN_LEAN
+vec3 tri(sampler2D t, vec3 p, vec3 bw, float s) { return tx(t, p.xz / s); }                 // low: from above only
+#define TWO(t, a, b, k) tx(t, a)
+#else
+vec3 tri(sampler2D t, vec3 p, vec3 bw, float s) { return tx(t, p.zy / s) * bw.x + tx(t, p.xz / s) * bw.y + tx(t, p.xy / s) * bw.z; }
+#define TWO(t, a, b, k) mix(tx(t, a), tx(t, b), k)
+#endif
+float lum(vec3 c) { return dot(c, vec3(0.30, 0.59, 0.11)); }
+vec3 terrainGround(vec3 tint) {
+  vec2 p = vTW.xz;
+  vec3 n = normalize(vTN);
+  float slope = 1.0 - clamp(n.y, 0.0, 1.0);
+  float far = smoothstep(220.0, 1400.0, vTDist);
+  // the grass photographs give the colour, at the brightness the island's tint asks for; the tint itself comes back at forty per cent, so
+  // a field still reads yellower than a meadow and a wood darker than both
+#ifdef TERRAIN_LEAN
+  vec3 photo = tx(tGrass, p / 12.0);
+  float breakup = 0.0;
+#else
+  float macro = texture2D(tGrass2, p / 1400.0 + 0.21).g * 1.6;                 // a slow variation over the whole island
+  vec3 g = TWO(tGrass, p / 9.0, p / 41.0 + 0.37, 0.45);
+  vec3 g2 = TWO(tGrass2, p / 7.0, p / 33.0 + 0.61, 0.5);
+  vec3 photo = mix(g, g2 * (lum(tAvg) / 0.045), smoothstep(0.45, 0.85, macro));
+  float breakup = texture2D(tGrass2, p / 160.0).r - 0.5;
+#endif
+  float pl = lum(photo) / max(lum(tAvg), 0.004);
+  vec3 col = mix(photo * (lum(tint) / max(lum(tAvg), 0.004)), tint * pl, 0.4) * 0.9;
+  col = mix(col, tint * 0.95, far * 0.45);
+  // each layer is read only where it lies (a branch costs less than a texture nobody sees)
+  if (vSplat.x > 0.01) col = mix(col, TWO(tSand, p / 6.0, p / 29.0, 0.4) * 0.95, clamp(vSplat.x, 0.0, 1.0));
+  float rockW = clamp(smoothstep(0.30, 0.52, slope + breakup * 0.18) + vSplat.w * 0.8, 0.0, 1.0);
+  float cragW = clamp(smoothstep(0.46, 0.70, slope + breakup * 0.2) + vSplat.w * 0.5, 0.0, 1.0);
+  vec3 crag = vec3(0.0);
+  if (rockW > 0.01 || vSplat.z > 0.01) {
+    // rock: mossy on the middle slopes, bare and grey on the crags, from the side as well as from above
+    vec3 bw = pow(abs(n), vec3(4.0)); bw /= (bw.x + bw.y + bw.z);
+#ifdef TERRAIN_LEAN
+    crag = tri(tRock, vTW, bw, 34.0);
+    vec3 moss = cragW < 0.99 ? tri(tMoss, vTW, bw, 40.0) : crag;
+#else
+    crag = mix(tri(tRock, vTW, bw, 21.0), tri(tRock, vTW, bw, 83.0), 0.45 + far * 0.4);
+    vec3 moss = cragW < 0.99 ? mix(tri(tMoss, vTW, bw, 26.0), tri(tMoss, vTW, bw, 97.0), 0.4) : crag;
+#endif
+    crag = mix(crag, vec3(lum(crag)) * vec3(0.96, 0.97, 1.0), 0.5);          // volcanic: grey, not sandstone
+    if (vSplat.z > 0.01) {
+      // scree high up is grey volcanic rubble, the crag broken small; river gravel lower down keeps its colour
+      vec3 scree = TWO(tScree, p / 5.0, p / 31.0, 0.5);
+      vec3 rubble = mix(vec3(lum(crag)), vec3(lum(scree)), 0.4) * vec3(0.97, 0.98, 1.02) * 1.1;
+      col = mix(col, mix(scree, rubble, smoothstep(200.0, 450.0, vTW.y)), clamp(vSplat.z, 0.0, 1.0));
+    }
+    col = mix(col, mix(moss * 0.95, crag * 0.9, cragW), rockW);
+  }
+  // snow lies where the colour map says, thinning on the steepest faces, with rock showing through
+  float snowW = clamp(vSplat.y, 0.0, 1.0) * (1.0 - smoothstep(0.62, 0.86, slope + breakup * 0.25));
+  if (snowW > 0.01) col = mix(col, TWO(tSnow, p / 11.0, p / 57.0, 0.5) * 0.98, smoothstep(0.15, 0.75, snowW));
+  return col;
+}`;
+function terrainMaterial() {
+  const T = terrainTextures(), grain = groundGrain();
+  const m = gfx.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
+  m.onBeforeCompile = shader => {
+    Object.assign(shader.uniforms, { tGrass: { value: T.grass }, tGrass2: { value: T.grass2 }, tRock: { value: T.rock }, tMoss: { value: T.rock_moss }, tSnow: { value: T.snow }, tSand: { value: T.sand }, tScree: { value: T.scree }, tReady: TERRAIN_TEX.ready, tAvg: TERRAIN_TEX.avg, gdetail: { value: groundDetail() }, detailMap: { value: grain } });
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nattribute vec4 splat;\nvarying vec3 vTW, vTN;\nvarying vec4 vSplat;\nvarying float vTDist;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTW = position; vTN = normal; vSplat = splat;")
+      .replace("#include <project_vertex>", "#include <project_vertex>\n  vTDist = -mvPosition.z;");
+    shader.fragmentShader = (gfx.tier === "low" || perf.potato ? "#define TERRAIN_LEAN\n" : "") + shader.fragmentShader
+      .replace("#include <common>", "#include <common>\n" + GDETAIL_GLSL + TERRAIN_GLSL)
+      .replace("#include <color_fragment>", "#include <color_fragment>\n  {\n    vec3 tint = diffuseColor.rgb;\n    if (tReady > 0.5) diffuseColor.rgb = terrainGround(tint);\n    else diffuseColor.rgb = tint * gdLuma(vTW.xz, tint, (1.0 - clamp(normalize(vTN).y, 0.0, 1.0)) * 1.6, 0.0);\n  }");
+  };
+  m.customProgramCacheKey = () => "konto-terrain-photo" + (gfx.tier === "low" || perf.potato ? "-lean" : "");
+  return m;
+}
+
 function groundGrain() {
   if (grainTex) return grainTex;
   const S = 128;
@@ -5382,6 +5698,8 @@ function clearRoadCorridors(w, city, boxes) {
       }
     }
   }));
+  // and the expressway, which runs past the edge of more than one town
+  if (w.highway) { const P = w.highway.pts; for (let i = 0; i < P.length; i++) { const a = P[i], b = P[(i + 1) % P.length], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / 3)); for (let k = 0; k < n; k++) { const t = k / n, y = a[1] + (b[1] - a[1]) * t, x = a[0] + (b[0] - a[0]) * t, z = a[2] + (b[2] - a[2]) * t; add(x, z, w.highway.hw + 2, w.highway.bridge[i] ? y : null, w.highway); } } }
   w._corridors = { cell: cell, grid: grid, maxR: maxR };
   }
   const cell = w._corridors.cell, grid = w._corridors.grid, maxR = w._corridors.maxR;
@@ -7040,36 +7358,23 @@ function buildScene(w) {
   const geo = new THREE.PlaneGeometry(WORLD_X, WORLD_Z, GRID_X - 1, GRID_Z - 1);
   geo.rotateX(-Math.PI / 2);
   const pos = geo.attributes.position;
-  const colours = new Float32Array(pos.count * 3);
-  const rgb = [0, 0, 0];
+  const colours = new Float32Array(pos.count * 3), splats = new Float32Array(pos.count * 4);
+  const rgb = [0, 0, 0], sp = [0, 0, 0, 0];
   for (let z = 0; z < GRID_Z; z++) {
     for (let x = 0; x < GRID_X; x++) {
       const vi = z * GRID_X + x;
       pos.setY(vi, w.height[w.idx(x, z)]);
-      terrainColour(w, x, z, rgb);
+      terrainColour(w, x, z, rgb, sp);
       colours[vi * 3] = rgb[0];
       colours[vi * 3 + 1] = rgb[1];
       colours[vi * 3 + 2] = rgb[2];
+      splats.set(sp, vi * 4);
     }
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colours, 3));
+  geo.setAttribute("splat", new THREE.BufferAttribute(splats, 4));
   geo.computeVertexNormals();
-  // Vertex colours every nineteen metres are a smear up close, so a grain at
-  // nine metres and another at sixty is laid over them: soil and turf instead
-  // of paint.
-  const terrainMat = new THREE.MeshLambertMaterial({ vertexColors: true });
-  const terrainGrain = groundGrain();
-  terrainMat.onBeforeCompile = shader => {
-    shader.uniforms.detailMap = { value: terrainGrain };
-    shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTPos = position.xz;\n  vTSlope = 1.0 - clamp(normal.y, 0.0, 1.0);");
-    shader.uniforms.gdetail = { value: groundDetail() };
-    shader.fragmentShader = shader.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;\n" + GDETAIL_GLSL)
-      .replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.rgb *= gdLuma(vTPos, diffuseColor.rgb, vTSlope * 1.6, 0.0);");
-  };
-  terrainMat.customProgramCacheKey = () => "konto-terrain";
+  const terrainMat = terrainMaterial();
   // The island is 680 thousand triangles in one piece, and a mesh in one piece
   // is drawn whole whichever way you are looking. Cut into 64-cell squares that
   // share the same vertices, only the squares in front of the camera are drawn,
@@ -7365,6 +7670,7 @@ function buildScene(w) {
 
     clearRoadCorridors(w, city, boxes);
     clearLocalStreets(w, city, boxes);
+    planStreets(w, city, boxes);
     clearOverlaps(city, boxes);
     groundBoxes(w, boxes);
     finishShops(boxes);
@@ -7505,7 +7811,8 @@ function buildScene(w) {
   player.proc = makeSeiko();
   player.obj = player.glb ? player.glb : player.proc;
   player.usingGlb = !!player.glb;
-  // ---- traffic and NHRail
+  // ---- traffic and NHRail (the country roads first: their bridges have to exist before a lane is laid over one)
+  buildLinkRoads(root);
   buildTraffic(w, root);
   buildRail(w, root);
   buildRailStops();
@@ -8572,6 +8879,155 @@ function treeGeometry(species, lod) {
 // A geometry that shares another's buffers but has its own bounding sphere, so
 // a few hundred trees in one patch of ground can be skipped as a group when the
 // patch is off screen, which an instanced mesh cannot do for itself.
+// ---- the trees, as impostors ------------------------------------------------------------------------------------------------------------------
+// Every tree on the island is a photograph of a real one. Each CC0 tree model (Poly Haven: a fir for the sugi, a pine for the matsu, a
+// broadleaf for the keyaki, and the same broadleaf in blossom for the sakura and in autumn red for the momiji) was rendered from eight
+// directions at three heights of eye into an atlas, with its normals (Game/tools/bake-trees.mjs). Here each tree is one card, turned to face
+// you, showing the two views nearest to the way you are looking at it and blending between them as you walk round, and lit by the sun and the
+// sky from those baked normals, so a crown is bright on the sunny side and dark under, with the light coming through its edges. Two
+// triangles a tree: a whole forest costs less than the old trees' leaves did, and looks like trees. The towns' trees throw shadows.
+const IMPOSTOR = { cols: 8, rows: 3, elev: [0, 30, 60], species: { sugi: { r: 0.5667, hw: 0.2518, cy: 0.5 }, matsu: { r: 1.0141, hw: 0.8937, cy: 0.5 }, keyaki: { r: 0.8554, hw: 0.7001, cy: 0.5 }, sakura: { r: 0.8554, hw: 0.7001, cy: 0.5 }, momiji: { r: 0.8554, hw: 0.7001, cy: 0.5 } }, tex: {}, mats: {}, depth: {}, quad: null,
+  light: { sunDir: { value: new THREE.Vector3(0.4, 0.8, 0.3) }, sunCol: { value: new THREE.Color(1, 1, 1) }, sky: { value: new THREE.Color(0.5, 0.6, 0.7) }, ground: { value: new THREE.Color(0.2, 0.2, 0.15) } } };
+function impostorSpecies(sp) { return IMPOSTOR.species[sp] ? sp : "keyaki"; }
+function impostorQuad() {
+  if (IMPOSTOR.quad) return IMPOSTOR.quad;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
+  g.setIndex([0, 1, 2, 0, 2, 3]);
+  return (IMPOSTOR.quad = g);
+}
+function impostorTex(sp) {
+  sp = impostorSpecies(sp);
+  if (IMPOSTOR.tex[sp]) return IMPOSTOR.tex[sp];
+  // (the blossom and the maple share the keyaki's shape, and so its normals)
+  const L = new THREE.TextureLoader(), mk = (pass, srgb) => { const t = L.load("art/trees/imp_" + (pass === "nrm" && (sp === "sakura" || sp === "momiji") ? "keyaki" : sp) + "_" + pass + ".webp"); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return t; };
+  return (IMPOSTOR.tex[sp] = { col: mk("col", false), nrm: mk("nrm", false) });
+}
+const IMP_VERT = `
+uniform float uR, uHw, uCy, uCols, uRows;
+uniform vec3 uElev;
+varying vec2 vUv0, vUv1;
+varying float vBlend;
+varying vec3 vRight, vUp, vFwd;
+vec2 frameUv(float c, float r, vec2 q) { return (vec2(c, r) + q * 0.5 + 0.5) / vec2(uCols, uRows); }
+void impostor(out vec4 world) {
+  vec4 b = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+  float sx = length(instanceMatrix[0].xyz), sy = length(instanceMatrix[1].xyz);
+  float yaw = atan(-instanceMatrix[0].z, instanceMatrix[0].x);
+  vec3 centre = b.xyz + vec3(0.0, uCy * sy, 0.0);
+  float R = uR * sy;
+  vec3 toCam = cameraPosition - centre;
+  float len = max(length(toCam), 0.001);
+  vec3 f = toCam / len;
+  vec3 rt = normalize(cross(vec3(0.0, 1.0, 0.0), f) + vec3(1e-5, 0.0, 0.0));
+  vec3 up = cross(f, rt);
+  vRight = rt; vUp = up; vFwd = f;
+  world = vec4(centre + rt * position.x * uHw * sx + up * position.y * R, 1.0);
+  // which of the baked views: round the tree in its own frame, and how far above it
+  float az = atan(f.x, f.z) - yaw;
+  float a = fract(az / 6.2831853) * uCols;
+  float c0 = floor(a), c1 = mod(c0 + 1.0, uCols);
+  vBlend = a - c0;
+  float el = degrees(asin(clamp(f.y, -1.0, 1.0)));
+  float row = el < (uElev.x + uElev.y) * 0.5 ? 0.0 : (el < (uElev.y + uElev.z) * 0.5 ? 1.0 : 2.0);
+  vec2 q = vec2(position.x, position.y);
+  vUv0 = frameUv(c0, row, q); vUv1 = frameUv(c1, row, q);
+}`;
+function impostorMaterial(sp) {
+  sp = impostorSpecies(sp);
+  if (IMPOSTOR.mats[sp]) return IMPOSTOR.mats[sp];
+  const M = IMPOSTOR.species[sp], T = impostorTex(sp), L = IMPOSTOR.light;
+  const m = new THREE.ShaderMaterial({
+    uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { tCol: { value: null }, tNrm: { value: null }, uR: { value: M.r }, uHw: { value: M.hw }, uCy: { value: M.cy }, uCols: { value: IMPOSTOR.cols }, uRows: { value: IMPOSTOR.rows }, uElev: { value: new THREE.Vector3(...IMPOSTOR.elev) } }]),
+    vertexShader: `#include <common>
+#include <fog_pars_vertex>
+${IMP_VERT}
+varying vec3 vTint;
+void main() {
+  vec4 w; impostor(w);
+  vTint = vec3(1.0);
+  #ifdef USE_INSTANCING_COLOR
+  vTint = instanceColor;
+  #endif
+  vec4 mvPosition = viewMatrix * w;
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`,
+    fragmentShader: `#include <common>
+#include <fog_pars_fragment>
+uniform sampler2D tCol, tNrm;
+uniform vec3 sunDir, sunCol, sky, ground;
+varying vec2 vUv0, vUv1;
+varying float vBlend;
+varying vec3 vRight, vUp, vFwd, vTint;
+void main() {
+  vec4 a = texture2D(tCol, vUv0), b = texture2D(tCol, vUv1);
+  vec4 c = mix(a, b, vBlend);
+  if (c.a < 0.42) discard;
+  vec3 n0 = texture2D(tNrm, vUv0).xyz, n1 = texture2D(tNrm, vUv1).xyz;
+  vec3 nn = mix(n0, n1, vBlend) * 2.0 - 1.0;
+  vec3 n = normalize(vRight * nn.x + vUp * nn.y + vFwd * nn.z);
+  // the bake is the leaves' own colour under their own shade, which reads dark; lifted to sit with the island's other greens
+  vec3 alb = pow(c.rgb, vec3(2.2)) * vTint * 2.3;
+  float sunL = max(dot(n, sunDir) * 0.75 + 0.25, 0.0);                       // wrapped: leaves let light round the edges of the crown
+  float through = pow(max(dot(-vFwd, sunDir), 0.0), 3.0) * 0.5;             // and through it when the sun is behind
+  vec3 amb = mix(ground, sky, n.y * 0.5 + 0.5) * 1.15;
+  vec3 col = alb * (amb + sunCol * (sunL * 0.9 + through));
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <encodings_fragment>
+  #include <fog_fragment>
+}`,
+    fog: true
+  });
+  m.uniforms.tCol.value = T.col; m.uniforms.tNrm.value = T.nrm;
+  m.uniforms.sunDir = L.sunDir; m.uniforms.sunCol = L.sunCol; m.uniforms.sky = L.sky; m.uniforms.ground = L.ground;
+  m.userData.shared = true;
+  return (IMPOSTOR.mats[sp] = m);
+}
+// the shadow it casts: the same card, turned to the sun this time, cut out by the same picture
+function impostorDepth(sp) {
+  sp = impostorSpecies(sp);
+  if (IMPOSTOR.depth[sp]) return IMPOSTOR.depth[sp];
+  const M = IMPOSTOR.species[sp], T = impostorTex(sp);
+  const m = new THREE.ShaderMaterial({
+    uniforms: { tCol: { value: T.col }, uR: { value: M.r }, uHw: { value: M.hw }, uCy: { value: M.cy }, uCols: { value: IMPOSTOR.cols }, uRows: { value: IMPOSTOR.rows }, uElev: { value: new THREE.Vector3(...IMPOSTOR.elev) } },
+    vertexShader: `#include <common>
+${IMP_VERT}
+void main() { vec4 w; impostor(w); gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: `#include <common>
+#include <packing>
+uniform sampler2D tCol;
+varying vec2 vUv0, vUv1;
+varying float vBlend;
+void main() { vec4 c = mix(texture2D(tCol, vUv0), texture2D(tCol, vUv1), vBlend); if (c.a < 0.42) discard; gl_FragColor = packDepthToRGBA(gl_FragCoord.z); }`
+  });
+  m.userData.shared = true;
+  return (IMPOSTOR.depth[sp] = m);
+}
+// one tree on its own, for a garden
+function impostorTree(sp, x, y, z, h, wide, yaw) {
+  const m = impostorMesh(sp, 1, x, y + h / 2, z, h * 1.2);
+  m.setMatrixAt(0, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw || 0), new THREE.Vector3(h * (wide || 1), h, h * (wide || 1))));
+  m.castShadow = true; m.frustumCulled = false;
+  return m;
+}
+// a tile's or a town cell's worth of one species: an instanced card with its bounds set to cover the trees
+function impostorMesh(sp, count, cx, cy, cz, radius) {
+  const inst = new THREE.InstancedMesh(sharedGeometry(impostorQuad(), cx, cy, cz, radius), impostorMaterial(sp), count);
+  inst.customDepthMaterial = impostorDepth(sp);
+  return inst;
+}
+// the sun and sky as the trees see them, from the scene's own lights, once a frame
+function impostorLightTick() {
+  const L = IMPOSTOR.light;
+  if (sunLight) {
+    L.sunDir.value.copy(sunLight.position).sub(sunLight.target ? sunLight.target.position : new THREE.Vector3()).normalize();
+    L.sunCol.value.copy(sunLight.color).multiplyScalar(sunLight.intensity);
+  }
+  if (hemiLight) { L.sky.value.copy(hemiLight.color).multiplyScalar(hemiLight.intensity); L.ground.value.copy(hemiLight.groundColor).multiplyScalar(hemiLight.intensity); }
+}
+
 function sharedGeometry(base, cx, cy, cz, radius) {
   const g = new THREE.BufferGeometry();
   Object.keys(base.attributes).forEach(k => g.setAttribute(k, base.attributes[k]));
@@ -8669,8 +9125,17 @@ function treeSpecies(t, i) {
   return r < 0.58 ? "keyaki" : (r < 0.80 ? "sakura" : (r < 0.93 ? "matsu" : "sugi"));
 }
 
+// Is (x, z) on one of the planned local streets of any town (with m metres to spare)?
+function onLocalStreet(x, z, m) {
+  for (const c of world.cities) {
+    const G = c._streetGrid; if (!G) continue;
+    for (const e of G.map.get(Math.floor(x / G.cell) + "," + Math.floor(z / G.cell)) || []) if (distToSeg(x, z, e[0], e[1], e[2], e[3]) < e[4] + m) return true;
+  }
+  return false;
+}
 function plantTrees(root, trees, city) {
   trunkPurge(false);
+  { const n0 = trees.length; trees = trees.filter(t => !onLocalStreet(t.c[0], t.c[1], 1.2)); if (trees.length < n0) console.log("[Konto] " + (city ? city.name : "") + ": " + (n0 - trees.length) + " trees kept off the local streets"); }
   if (city) { const n0 = trees.length; trees = trees.filter(t => !streetTreeOnRoad(city, t.road || null, t.c[0], t.c[1])); if (trees.length < n0) console.log("[Konto] " + city.name + ": " + (n0 - trees.length) + " trees kept off the roads"); }
   const byKind = {};
   trees.forEach((t, i) => {
@@ -8685,7 +9150,6 @@ function plantTrees(root, trees, city) {
       const k = Math.floor(e.t.c[0] / CELL_T) + "," + Math.floor(e.t.c[1] / CELL_T);
       (cells[k] || (cells[k] = [])).push(e);
     });
-    const mat = treeMaterial(sp);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e3 = new THREE.Euler();
     const col = new THREE.Color();
     Object.keys(cells).forEach(k => {
@@ -8696,9 +9160,10 @@ function plantTrees(root, trees, city) {
       let rad = 0;
       list.forEach(e => { rad = Math.max(rad, Math.hypot(e.t.c[0] - cx, e.t.c[1] - cz)); });
       rad += 30;
-      const geos = [0, 1, 2].map(l => sharedGeometry(treeGeometry(sp, l), 0, 10, 0, 0));
-      geos.forEach(g => { g.boundingSphere.center.set(cx, 10, cz); g.boundingSphere.radius = rad; });
-      const inst = new THREE.InstancedMesh(geos[0], mat, list.length);
+      let ty = 0; list.forEach(e => { ty += e.t.y; }); ty /= list.length;
+      const g0 = sharedGeometry(impostorQuad(), cx, ty + 10, cz, rad + 20), geos = [g0, g0, g0];
+      const inst = new THREE.InstancedMesh(g0, impostorMaterial(sp), list.length);
+      inst.customDepthMaterial = impostorDepth(sp);
       list.forEach((en, n) => {
         const t = en.t, i = en.i;
         const r = rnd(Math.round(t.c[1]), Math.round(t.c[0]) + i, 6157);
@@ -9186,7 +9651,7 @@ function vegBuild(root) {
   const mk = (color, flat) => gfx.high
     ? new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: 0.95, metalness: 0, flatShading: !!flat })
     : new THREE.MeshLambertMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), flatShading: !!flat });
-  veg.mats = { sugi: treeMaterial("sugi"), keyaki: treeMaterial("keyaki"), matsu: treeMaterial("matsu") }; void mk;
+  veg.mats = {}; void mk;     // (the trees are impostors now: impostorMaterial)
   veg.mats.grass = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
   veg.geo = veg.geo || {};
   if (!veg.geo.sugi) {
@@ -9242,7 +9707,8 @@ function vegClass(x, z) {
 }
 
 function vegTreeTile(tx, tz) {
-  const x0 = tx * VEG_TILE, z0 = tz * VEG_TILE, sp = 13;
+  // close-set (a cedar plantation is a wall of trunks); on low, at the spacing the old trees had, which is what a slow machine can afford
+  const lean = gfx.tier === "low" || perf.potato, x0 = tx * VEG_TILE, z0 = tz * VEG_TILE, sp = lean ? 12.5 : 9.5;
   const by = { sugi: [], keyaki: [], matsu: [] };
   const per = Math.floor(VEG_TILE / sp);
   for (let j = 0; j < per; j++) for (let i = 0; i < per; i++) {
@@ -9254,7 +9720,7 @@ function vegTreeTile(tx, tz) {
     const wood = fbm(x * 0.0125, z * 0.0125, 7101, 3), clump = fbm(x * 0.045, z * 0.045, 7111, 2);
     const slope = world.slopeAt(x, z), h = world.sampleHeight(x, z);
     // forested hills; scattered trees and woodlots on the flat
-    let p = cls === 1 ? 0.84 * clamp01(0.82 + wood * 1.1) : 0.025 + clamp01(wood * 2.6 + 0.2) * 0.34 + (clump > 0.18 ? 0.25 : 0);
+    let p = cls === 1 ? 0.84 * clamp01(0.82 + wood * 1.1) : (0.025 + clamp01(wood * 2.6 + 0.2) * 0.34 + (clump > 0.18 ? 0.25 : 0)) * (lean ? 0.92 : 0.53);   // (the open country keeps the trees per hectare it had at the old spacing)
     if (slope > 0.5) p *= 0.6;
     if (h > world.highest * 0.40) p *= clamp01(1 - (h - world.highest * 0.40) / (world.highest * 0.14));
     if (rnd(ix, iz, 8107) > p) continue;
@@ -9270,8 +9736,12 @@ function vegTreeTile(tx, tz) {
   Object.keys(by).forEach(sp => {
     const list = by[sp]; if (!list.length) return;
     const look = TREE_LOOK[sp] || TREE_LOOK.keyaki;
-    const G = (gfx.tier === "low" || perf.potato) ? veg.geoLow : veg.geo;
-    const inst = new THREE.InstancedMesh(sharedGeometry(G[sp], x0 + VEG_TILE / 2, 12, z0 + VEG_TILE / 2, VEG_TILE * 0.78), veg.mats[sp], list.length);
+    // (the tile's bounds take in the height its trees stand at, or a wood on a mountainside is culled whenever the valley is out of view)
+    let y0 = 1e9, y1 = -1e9; list.forEach(t => { y0 = Math.min(y0, t.y); y1 = Math.max(y1, t.y); });
+    const inst = impostorMesh(sp, list.length, x0 + VEG_TILE / 2, (y0 + y1) / 2 + 10, z0 + VEG_TILE / 2, VEG_TILE * 0.75 + (y1 - y0) / 2 + 30);
+    // shuffled (the same way every time), so drawing only the first part of the list, which is what a far tile does, thins the wood evenly
+    for (let k = list.length - 1; k > 0; k--) { const j = Math.floor(rnd(tx * 131 + k, tz * 71 + k, 8131) * (k + 1)); const tmp = list[k]; list[k] = list[j]; list[j] = tmp; }
+    inst.userData.full = list.length;
     list.forEach((t, k) => {
       const hgt = lerp(look.tall[0], look.tall[1], t.k) * (sp === "sugi" ? 1.05 : 1);
       const wide = lerp(0.86, 1.2, t.r);
@@ -9331,8 +9801,9 @@ function vegGrassTile(gx, gz) {
 
 function vegRadius() {
   const t = gfx.tier;
-  if (perf.potato) return { tree: 380, grass: 0 };
-  return t === "low" ? { tree: 650, grass: 90 } : t === "medium" ? { tree: 950, grass: 140 } : { tree: 1350, grass: 210 };
+  // (a tree is two triangles now, so the woods reach the far side of the valley and the mountains are forested, not painted green)
+  if (perf.potato) return { tree: 650, grass: 0 };
+  return t === "low" ? { tree: 800, grass: 90 } : t === "medium" ? { tree: 1900, grass: 140 } : t === "high" ? { tree: 2800, grass: 210 } : { tree: 3400, grass: 240 };
 }
 // Plant what is near the viewer, forget what is not. Run every frame; it only
 // ever does a little.
@@ -9370,6 +9841,13 @@ function vegUpdate(px, pz, budget) {
     });
   };
   sweep(veg.trees, VEG_TILE, R.tree, vegTreeTile);
+  // the far woods are drawn thinner: past half the reach a tile shows fewer and fewer of its trees, down to two in five at the edge
+  veg.trees.forEach((obj, key) => {
+    if (!obj) return;
+    const [gx, gz] = key.split(",").map(Number), d = Math.hypot((gx + 0.5) * VEG_TILE - px, (gz + 0.5) * VEG_TILE - pz);
+    const keep = 1 - 0.6 * clamp01((d - R.tree * 0.45) / (R.tree * 0.55));
+    obj.children.forEach(m => { if (m.userData.full) { const n = Math.max(1, Math.round(m.userData.full * keep)); if (m.count !== n) m.count = n; } });
+  });
   sweep(veg.grass, GRASS_TILE, R.grass, vegGrassTile);
 }
 function vegFill(px, pz) {
@@ -9754,6 +10232,7 @@ function watchFrameRate(dt) {
 }
 
 function tick(dt) {
+  impostorLightTick();
   pollPad(dt);
   if (title.on) { updateTitle(dt); return; }
   if (ski.mode === "run") { updateSkiRun(dt); return; }
@@ -10376,14 +10855,48 @@ function trimMaterial() {
 }
 
 // Concrete, steel, stone and timber, in one mesh, same trick.
+// ---- surface detail ---------------------------------------------------------------------------------------------------------------------------
+// Much of what is built in the towns is coloured per vertex and was otherwise bare: the viaducts and platforms, the kerbs, the station
+// concourses, the expressway's barriers and piers. A photograph of worn concrete (CC0, Poly Haven; Web/art/surfaces) is laid over all of it in
+// world space, from whichever side a face looks out of, as light and shade only, so each keeps its colour and gains stains, wear and grain.
+const SURF_TEX = {}, SURF_MEAN = {};       // (r128 textures carry no userData, so the means live here)
+function surfTex(name) {
+  if (SURF_TEX[name]) return SURF_TEX[name];
+  const t = new THREE.TextureLoader().load("art/surfaces/" + name + ".jpg", tt => {
+    // its average brightness, once, so the detail is light and shade about the surface's own colour
+    try { const c = document.createElement("canvas"); c.width = c.height = 8; const g = c.getContext("2d"); g.drawImage(tt.image, 0, 0, 8, 8); const d = g.getImageData(0, 0, 8, 8).data; let sum = 0; for (let i = 0; i < d.length; i += 4) sum += (d[i] + d[i + 1] + d[i + 2]) / 3; SURF_MEAN[name].value = sum / 64 / 255; } catch (e) { /* keep the guess */ }
+  });
+  SURF_MEAN[name] = { value: 0.45 };
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; sharpTex(t);
+  return (SURF_TEX[name] = t);
+}
+function surfaceDetail(m, name, scale, strength) {
+  if (!m || m.userData.surfDetail) return m;
+  m.userData.surfDetail = true;
+  const tex = surfTex(name || "concrete"), prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
+  m.onBeforeCompile = (sh, rend) => {
+    if (prev) prev.call(m, sh, rend);
+    sh.uniforms.sdTex = { value: tex }; sh.uniforms.sdMean = SURF_MEAN[name || "concrete"]; sh.uniforms.sdScale = { value: scale || 3.5 }; sh.uniforms.sdK = { value: strength === undefined ? 0.9 : strength };
+    sh.vertexShader = sh.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vSdW, vSdN;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  {\n    vec4 sdw = vec4(transformed, 1.0);\n    #ifdef USE_INSTANCING\n    sdw = instanceMatrix * sdw;\n    #endif\n    vSdW = (modelMatrix * sdw).xyz; vSdN = normalize(mat3(modelMatrix) * objectNormal);\n  }");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform sampler2D sdTex;\nuniform float sdScale, sdK, sdMean;\nvarying vec3 vSdW, vSdN;")
+      .replace("#include <color_fragment>", "#include <color_fragment>\n  {\n    vec3 an = abs(vSdN);\n    vec2 uv = an.y > max(an.x, an.z) ? vSdW.xz : (an.x > an.z ? vSdW.zy : vSdW.xy);     // (the faces are flat: one projection each)\n    float l = dot(texture2D(sdTex, uv / sdScale).rgb, vec3(0.333));\n    diffuseColor.rgb *= mix(1.0, clamp(pow(l / max(sdMean, 0.05), 1.6), 0.45, 1.6), sdK);\n  }");
+  };
+  m.customProgramCacheKey = () => (prevKey ? prevKey.call(m) : "") + "|surf-" + (name || "concrete");
+  m.needsUpdate = true;
+  return m;
+}
+
 function furnitureMaterial() {
-  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true });
+  if (!gfx.high) return surfaceDetail(new THREE.MeshLambertMaterial({ color: 0xffffff, vertexColors: true }), "concrete", 3.2, 0.8);
   const m = new THREE.MeshStandardMaterial({
     color: 0xffffff, vertexColors: true, metalness: 0.0, roughness: 0.78,
     envMapIntensity: 0.65
   });
   if (gfx.env) m.envMap = gfx.env;
-  return pbrPerVertex(m);
+  return surfaceDetail(pbrPerVertex(m), "concrete", 3.2, 0.8);
 }
 
 // The sky, prefiltered. One bake at scene build, reused by everything.
@@ -10596,6 +11109,210 @@ function bucketQuads(data, widths) {
   }
   return Object.values(out);
 }
+// ---- the local streets, planned -------------------------------------------------------------------------------------------------------------
+// Each ward's street grid is cut by the ward's own edge, by the edge of the built-up ground and by the arterials, and the cuts used to leave
+// streets that simply stopped: a stub into a block, a lane that ran up to the next ward and ended at its fence. Every street here is a through
+// street. A street that ends in nothing is carried on along its line until it meets another road, so long as nothing is built in the way;
+// failing that it is cut back to the last junction it passed, and a street that never met another at all is dropped. That is done again until
+// nothing changes, since dropping one street can leave another hanging. Then anything built on what is left of the street is taken away.
+// Where a station's concourse goes: at one end of the platform or the other, whichever is clear of the roads (it was always the near end,
+// and a good few stood in an avenue). The street planner and the station builder both ask, so they agree.
+function concourseEnd(city, st, t) {
+  const PL = clamp(st.size[0] * 0.62, 84, 158), conZ = -PL * 0.5 - 11;
+  if (!t) return conZ;
+  if (st._conZ !== undefined) return st._conZ;
+  const roads = city._artList2 || (city._artList2 = world.cities.reduce((a, c) => a.concat(c.roads.filter(r => !r.elevated && r.pts && r.pts.length > 1)), []));
+  const blocked = z => {
+    const cx = t.x + Math.sin(t.yaw) * z, cz = t.z + Math.cos(t.yaw) * z, yawD = t.yaw * 180 / Math.PI;
+    for (let u = -1; u <= 1; u += 0.5) for (let v = -1; v <= 1; v += 0.5) {
+      const p = fromRectLocal(u * 14, v * 11, cx, cz, yawD);
+      for (const r of roads) for (let i = 1; i < r.pts.length; i++) { const a = r.pts[i - 1], b = r.pts[i]; if (Math.abs(a[0] - p[0]) > 300 && Math.abs(b[0] - p[0]) > 300) continue; if (distToSeg(p[0], p[1], a[0], a[2], b[0], b[2]) < r.halfWidth + 1) return true; }
+    }
+    return false;
+  };
+  return (st._conZ = blocked(conZ) && !blocked(-conZ) ? -conZ : conZ);
+}
+function planStreets(w, city, boxes) {
+  const b = city.bounds; city.streetPlan = [];
+  if (!b || !city.wards || !city.wards.length) return;
+  // (the towns built before this one are in the collision grid already, and a street may no more run through their buildings than its own)
+  const paved = (x, z) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+  // the palace grounds inside the moat are a park, and no street crosses them
+  const M = city.moat, inMoat = (x, z) => { if (!M) return false; const l = toRectLocal(x, z, M.centre[0], M.centre[1], M.yaw); return Math.abs(l[0]) < M.inner + M.width + 6 && Math.abs(l[1]) < M.inner + M.width + 6; };
+  const pad = 200, x0 = b.x0 - pad, z0 = b.z0 - pad, bw = (b.x1 - b.x0) + pad * 2, bh = (b.z1 - b.z0) + pad * 2;
+  const cells = voronoiCells(city.wards.map(wd => wd.centre), [x0, z0, x0 + bw, z0 + bh]);
+  const inPoly = (poly, x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], q = poly[j]; if ((a[1] > z) !== (q[1] > z) && x < (q[0] - a[0]) * (z - a[1]) / (q[1] - a[1]) + a[0]) c = !c; } return c; };
+  // the arterials (and the country roads and the expressway): a street may not run along one, and a street that reaches one is joined
+  const AC = 80, art = new Map();
+  const addArt = (p, q, hw) => {
+    const reach = hw + 16;
+    for (let cx = Math.floor((Math.min(p[0], q[0]) - reach) / AC); cx <= Math.floor((Math.max(p[0], q[0]) + reach) / AC); cx++)
+      for (let cz = Math.floor((Math.min(p[1], q[1]) - reach) / AC); cz <= Math.floor((Math.max(p[1], q[1]) + reach) / AC); cz++) {
+        const k = cx + "," + cz; if (!art.has(k)) art.set(k, []); art.get(k).push([p[0], p[1], q[0], q[1], hw]);
+      }
+  };
+  w.cities.forEach(cc => cc.roads.forEach(r => {
+    if (r.elevated || r.halfWidth < 4 || !r.pts || r.pts.length < 2) return;
+    const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+    for (let i = 1; i < pts.length; i++) addArt([pts[i - 1][0], pts[i - 1][2]], [pts[i][0], pts[i][2]], r.halfWidth);
+  }));
+  if (w.highway) { const P = w.highway.pts; for (let i = 0; i < P.length; i++) { const q = P[(i + 1) % P.length]; addArt([P[i][0], P[i][2]], [q[0], q[2]], w.highway.hw); } }
+  const artDist = (x, z) => { const l = art.get(Math.floor(x / AC) + "," + Math.floor(z / AC)); let m = 1e9; if (l) for (const s of l) m = Math.min(m, distToSeg(x, z, s[0], s[1], s[2], s[3]) - s[4]); return m; };
+  const nearArt = (x, z) => artDist(x, z) < 5.4;
+  // what is built, to keep an extended street out of it
+  const BC = 40, built = new Map();
+  boxes.forEach(bx => { if (bx.deck) return; const r = Math.hypot(bx.size[0], bx.size[1]) * 0.5; for (let gx = Math.floor((bx.c[0] - r) / BC); gx <= Math.floor((bx.c[0] + r) / BC); gx++) for (let gz = Math.floor((bx.c[1] - r) / BC); gz <= Math.floor((bx.c[1] + r) / BC); gz++) { const k = gx + "," + gz; if (!built.has(k)) built.set(k, []); built.get(k).push(bx); } });
+  // the station concourses, which stand at the end of each platform (worked out as buildStreetFurniture will place them)
+  (city.stations || []).forEach(st => {
+    let best = null, bd = 320 * 320;
+    (city.rails || []).forEach(line => { for (let i = 1; i < line.pts.length; i++) { const p = line.pts[i], q = line.pts[i - 1], d = (p[0] - st.centre[0]) ** 2 + (p[2] - st.centre[1]) ** 2; if (d < bd) { bd = d; best = { x: p[0], z: p[2], yaw: Math.atan2(p[0] - q[0], p[2] - q[2]) }; } } });
+    if (!best) return;
+    const conZ = concourseEnd(city, st, best), bx = { c: [best.x + Math.sin(best.yaw) * conZ, best.z + Math.cos(best.yaw) * conZ], size: [28, 22], yaw: best.yaw * 180 / Math.PI };
+    const r = Math.hypot(14, 11);
+    for (let gx = Math.floor((bx.c[0] - r) / BC); gx <= Math.floor((bx.c[0] + r) / BC); gx++) for (let gz = Math.floor((bx.c[1] - r) / BC); gz <= Math.floor((bx.c[1] + r) / BC); gz++) { const k = gx + "," + gz; if (!built.has(k)) built.set(k, []); built.get(k).push(bx); }
+    (city._concourses || (city._concourses = [])).push(bx);
+  });
+  // the shops of the other towns, where their plots overlap this one's ground: a shop is never moved, so the street gives way
+  const shopGrid = new Map();
+  w.cities.forEach(cc => { if (cc === city) return; cc.plots.forEach(p => { if (!p.shopRef) return; const r = Math.hypot(p.size[0], p.size[1]) * 0.5; for (let gx = Math.floor((p.centre[0] - r) / BC); gx <= Math.floor((p.centre[0] + r) / BC); gx++) for (let gz = Math.floor((p.centre[1] - r) / BC); gz <= Math.floor((p.centre[1] + r) / BC); gz++) { const k = gx + "," + gz; if (!shopGrid.has(k)) shopGrid.set(k, []); shopGrid.get(k).push(p); } }); });
+  const foreignShop = (x, z, m) => { for (const p of shopGrid.get(Math.floor(x / BC) + "," + Math.floor(z / BC)) || []) { const l = toRectLocal(x, z, p.centre[0], p.centre[1], p.yaw); if (Math.abs(l[0]) < p.size[0] * 0.5 + m && Math.abs(l[1]) < p.size[1] * 0.5 + m) return true; } return false; };
+  const onConcourse = (x, z, m) => (city._concourses || []).some(bx => { const l = toRectLocal(x, z, bx.c[0], bx.c[1], bx.yaw); return Math.abs(l[0]) < bx.size[0] * 0.5 + m && Math.abs(l[1]) < bx.size[1] * 0.5 + m; });
+  const plotGrid = new Map();
+  city.plots.forEach(p => { const r = Math.hypot(p.size[0], p.size[1]) * 0.5; for (let gx = Math.floor((p.centre[0] - r) / BC); gx <= Math.floor((p.centre[0] + r) / BC); gx++) for (let gz = Math.floor((p.centre[1] - r) / BC); gz <= Math.floor((p.centre[1] + r) / BC); gz++) { const k = gx + "," + gz; if (!plotGrid.has(k)) plotGrid.set(k, []); plotGrid.get(k).push(p); } });
+  const blocked = (x, z, m) => {
+    const k = Math.floor(x / BC) + "," + Math.floor(z / BC);
+    for (const bx of built.get(k) || []) { const l = toRectLocal(x, z, bx.c[0], bx.c[1], bx.yaw); if (Math.abs(l[0]) < bx.size[0] * 0.5 + m && Math.abs(l[1]) < bx.size[1] * 0.5 + m) return true; }
+    if (insideBuilding(x, z, m) || foreignShop(x, z, m)) return true;
+    for (const p of plotGrid.get(k) || []) { const l = toRectLocal(x, z, p.centre[0], p.centre[1], p.yaw); if (Math.abs(l[0]) < p.size[0] * 0.5 + m - 1 && Math.abs(l[1]) < p.size[1] * 0.5 + m - 1) return true; }
+    return false;
+  };
+  const why = { paved: 0, low: 0, fp: 0, poly: 0, art: 0, ok: 0 };
+  const lines = [];
+  city.wards.forEach((wd, wi) => {
+    const poly = cells[wi]; if (!poly || poly.length < 3) return;
+    const reach = Math.max(wd.radius * 1.6, 400), steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
+    const wOf = k => (wd.alleys && (k & 1) !== 0) ? wd.alley : wd.street;
+    const fwOf = k => (wd.alleys && (k & 1) !== 0) ? 0 : Math.min(2.6, wd.street * 0.25);
+    for (let axis = 0; axis < 2; axis++) {
+      const sAlong = axis === 0 ? wd.sz : wd.sx, crossSteps = Math.ceil(reach / sAlong) + 1;
+      for (let k = -steps; k <= steps; k++) {
+        const hw = wOf(k) / 2, fw = fwOf(k);
+        const wins = [];
+        for (let j = -crossSteps; j <= crossSteps; j++) { const half = wOf(j) / 2 + (fwOf(j) > 0 ? fwOf(j) + 0.12 : 0.2); wins.push([j * sAlong - half, j * sAlong + half]); }
+        const bounds = [-reach, reach]; wins.forEach(wn => { if (wn[0] > -reach && wn[0] < reach) bounds.push(wn[0]); if (wn[1] > -reach && wn[1] < reach) bounds.push(wn[1]); });
+        bounds.sort((p, q) => p - q);
+        const pt = t => axis === 0 ? fromRectLocal(k * wd.sx, t, wd.centre[0], wd.centre[1], wd.yaw) : fromRectLocal(t, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
+        const live = (x, z) => { if (!paved(x, z)) { why.paved++; return false; } if (w.sampleHeight(x, z) <= 0.3) { why.low++; return false; } if (city.footprint(x, z) <= 0.22) { why.fp++; return false; } if (!inPoly(poly, x, z)) { why.poly++; return false; } if (nearArt(x, z)) { why.art++; return false; } if (insideBuilding(x, z, hw * 0.8)) { why.built = (why.built || 0) + 1; return false; } if (inMoat(x, z)) { why.palace = (why.palace || 0) + 1; return false; } if (onConcourse(x, z, hw) || foreignShop(x, z, hw)) { why.station = (why.station || 0) + 1; return false; } why.ok++; return true; };
+        const runs = []; let cur = null;
+        for (let bi = 0; bi + 1 < bounds.length; bi++) {
+          const ta = bounds[bi], tb = bounds[bi + 1]; if (tb - ta < 0.05) continue;
+          const n = Math.max(1, Math.ceil((tb - ta) / 8));
+          for (let s = 0; s < n; s++) {
+            const t0 = ta + (tb - ta) * s / n, t1 = ta + (tb - ta) * (s + 1) / n, pm = pt((t0 + t1) / 2), p0 = pt(t0), p1 = pt(t1);
+            if (Math.abs(p0[0]) > 1e6 || !live(pm[0], pm[1]) || !live(p0[0], p0[1]) || !live(p1[0], p1[1])) { cur = null; continue; }
+            if (cur && Math.abs(cur[1] - t0) < 0.01) cur[1] = t1; else { cur = [t0, t1]; runs.push(cur); }
+          }
+        }
+        if (runs.length) lines.push({ wd: wd, axis: axis, k: k, hw: hw, fw: fw, wins: wins, bounds: bounds, pt: pt, runs: runs });
+      }
+    }
+  });
+  // the streets themselves, in a grid, for "does this end meet another street"
+  const SC = 40;
+  let sgrid = new Map();
+  const index = () => {
+    sgrid = new Map();
+    lines.forEach(L => L.runs.forEach(r => {
+      const a = L.pt(r[0]), c = L.pt(r[1]), e = [a[0], a[1], c[0], c[1], L.hw, L];
+      for (let gx = Math.floor((Math.min(a[0], c[0]) - 10) / SC); gx <= Math.floor((Math.max(a[0], c[0]) + 10) / SC); gx++)
+        for (let gz = Math.floor((Math.min(a[1], c[1]) - 10) / SC); gz <= Math.floor((Math.max(a[1], c[1]) + 10) / SC); gz++) { const k = gx + "," + gz; if (!sgrid.has(k)) sgrid.set(k, []); sgrid.get(k).push(e); }
+    }));
+  };
+  const joinedAt = (x, z, L) => {
+    if (artDist(x, z) < 14) return true;
+    for (const e of sgrid.get(Math.floor(x / SC) + "," + Math.floor(z / SC)) || []) if (e[5] !== L && distToSeg(x, z, e[0], e[1], e[2], e[3]) < e[4] + 1.5) return true;
+    return false;
+  };
+  let extended = 0, trimmed = 0, dropped = 0;
+  for (let round = 0; round < 8; round++) {
+    index();
+    let changed = 0;
+    lines.forEach(L => {
+      for (let ri = L.runs.length - 1; ri >= 0; ri--) {
+        const r = L.runs[ri];
+        for (const end of [1, 0]) {
+          const t = r[end], p = L.pt(t);
+          if (joinedAt(p[0], p[1], L)) continue;
+          const dir = end ? 1 : -1;
+          // carry it on along its line while the ground is clear, until it meets a road
+          let ok = false, tt = t;
+          for (let s = 4; s <= 120; s += 4) {
+            const q = L.pt(t + dir * s);
+            if (!paved(q[0], q[1]) || w.sampleHeight(q[0], q[1]) <= 0.3 || inMoat(q[0], q[1]) || blocked(q[0], q[1], L.hw + 0.4)) break;
+            tt = t + dir * s;
+            if (joinedAt(q[0], q[1], L)) { ok = true; break; }
+          }
+          if (ok) { r[end] = tt; extended++; changed++; continue; }
+          // or cut it back to the last junction it passed
+          let cut = null;
+          for (let s = 2; s < r[1] - r[0]; s += 2) { const q = L.pt(t - dir * s); if (joinedAt(q[0], q[1], L)) { cut = t - dir * s; break; } }
+          if (cut === null) { L.runs.splice(ri, 1); dropped++; changed++; break; }
+          r[end] = cut; trimmed++; changed++;
+          if (r[1] - r[0] < 1) { L.runs.splice(ri, 1); dropped++; break; }
+        }
+      }
+    });
+    if (!changed) break;
+  }
+  // a street that meets an arterial runs right up to its carriageway, so the two surfaces meet in a junction and not across a strip of verge
+  lines.forEach(L => L.runs.forEach(r => {
+    for (const end of [1, 0]) {
+      const dir = end ? 1 : -1; let d = artDist(...L.pt(r[end]));
+      if (d > 16 || d < 0.3) continue;
+      for (let s = 1; s <= 18; s++) {
+        const q = L.pt(r[end] + dir), dq = artDist(q[0], q[1]);
+        if (dq > d || blocked(q[0], q[1], L.hw * 0.5)) break;
+        r[end] += dir; d = dq; if (d < 0.3) break;
+      }
+      // no footway or kerb on the bit that crosses the arterial's own footway
+      const t1 = r[end], t0 = t1 - dir * 7; (L.bare || (L.bare = [])).push([Math.min(t0, t1), Math.max(t0, t1)]);
+    }
+  }));
+  // a run that was carried into another of its own line's runs becomes one run
+  lines.forEach(L => { L.runs.sort((p, q) => p[0] - q[0]); for (let i = L.runs.length - 1; i > 0; i--) if (L.runs[i][0] <= L.runs[i - 1][1] + 0.01) { L.runs[i - 1][1] = Math.max(L.runs[i - 1][1], L.runs[i][1]); L.runs.splice(i, 1); } });
+  city.streetPlan = lines.filter(L => L.runs.length);
+  // a grid of the finished streets, for anything placed later that has to keep off them (the trees)
+  {
+    const G = new Map();
+    city.streetPlan.forEach(L => L.runs.forEach(r => { const a = L.pt(r[0]), c = L.pt(r[1]), e = [a[0], a[1], c[0], c[1], L.hw]; for (let gx = Math.floor((Math.min(a[0], c[0]) - 10) / SC); gx <= Math.floor((Math.max(a[0], c[0]) + 10) / SC); gx++) for (let gz = Math.floor((Math.min(a[1], c[1]) - 10) / SC); gz <= Math.floor((Math.max(a[1], c[1]) + 10) / SC); gz++) { const k = gx + "," + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(e); } }));
+    city._streetGrid = { cell: SC, map: G };
+  }
+  // anything still standing on a street goes: this town's streets, and the streets of the towns planned before it, which this one's
+  // buildings may have been put down on
+  index();
+  w.cities.forEach(cc => { if (cc === city || !cc.streetPlan) return; cc.streetPlan.forEach(L => L.runs.forEach(r => {
+    const a = L.pt(r[0]), c = L.pt(r[1]), e = [a[0], a[1], c[0], c[1], L.hw, L];
+    for (let gx = Math.floor((Math.min(a[0], c[0]) - 10) / SC); gx <= Math.floor((Math.max(a[0], c[0]) + 10) / SC); gx++)
+      for (let gz = Math.floor((Math.min(a[1], c[1]) - 10) / SC); gz <= Math.floor((Math.max(a[1], c[1]) + 10) / SC); gz++) { const k = gx + "," + gz; if (!sgrid.has(k)) sgrid.set(k, []); sgrid.get(k).push(e); }
+  })); });
+  let razed = 0;
+  for (let i = boxes.length - 1; i >= 0; i--) {
+    const bx = boxes[i]; if (bx.deck || bx.landmark || bx.shopRef) continue;
+    const r = Math.hypot(bx.size[0], bx.size[1]) * 0.5, hit = () => {
+      for (let gx = Math.floor((bx.c[0] - r) / SC); gx <= Math.floor((bx.c[0] + r) / SC); gx++) for (let gz = Math.floor((bx.c[1] - r) / SC); gz <= Math.floor((bx.c[1] + r) / SC); gz++)
+        for (const e of sgrid.get(gx + "," + gz) || []) {
+          // the street's centreline against the building, sampled every two metres
+          const L = Math.hypot(e[2] - e[0], e[3] - e[1]), n = Math.max(1, Math.ceil(L / 2));
+          for (let s = 0; s <= n; s++) { const x = e[0] + (e[2] - e[0]) * s / n, z = e[1] + (e[3] - e[1]) * s / n, l = toRectLocal(x, z, bx.c[0], bx.c[1], bx.yaw); if (Math.abs(l[0]) < bx.size[0] * 0.5 + e[4] * 0.8 && Math.abs(l[1]) < bx.size[1] * 0.5 + e[4] * 0.8) return true; }
+        }
+      return false;
+    };
+    if (hit()) { boxes.splice(i, 1); razed++; }
+  }
+  city.streetWhy = why;
+  console.log("[Konto] " + city.name + ": streets made through: " + extended + " carried on to the next road, " + trimmed + " cut back to a junction, " + dropped + " dead ends dropped, " + razed + " buildings cleared off them");
+}
+
 function buildRoadSurfaces(w, city, root) {
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
@@ -10608,7 +11325,9 @@ function buildRoadSurfaces(w, city, root) {
   const walk = { pos: [], nrm: [], uv: [] };
   const kerb = { pos: [], nrm: [], col: [], mr: [] };
 
+  let badQuads = 0;
   function strip(into, a, b2, c, d, ua, ub, va, vb) {
+    if (![a, b2, c, d].every(q => isFinite(q[0]) && isFinite(q[1]) && isFinite(q[2])) || !isFinite(va) || !isFinite(vb)) { badQuads++; return; }   // a degenerate point: skip it rather than poison the batch's bounds
     const quad = [[a, ua, va], [b2, ub, va], [c, ub, vb], [d, ua, vb]];
     [0, 1, 2, 0, 2, 3].forEach(i => {
       into.pos.push(quad[i][0][0], quad[i][0][1], quad[i][0][2]);
@@ -10618,7 +11337,7 @@ function buildRoadSurfaces(w, city, root) {
   }
 
   city.roads.forEach(r => {
-    if (r.elevated || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;
+    if (r.elevated || r.link || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;   // (the country roads are laid by buildLinkRoads)
     const hw = r.halfWidth, fw = 4.4;            // carriageway and footway
     let along = 0;
     let prev = null;
@@ -10648,6 +11367,7 @@ function buildRoadSurfaces(w, city, root) {
         strip(walk, prev.kR, prev.outR, here.outR, here.kR, 0, fw, v0, v1);
         // The kerb face itself: 120 mm of concrete, which is the line your eye
         // follows down a street.
+        if (![prev.kL, here.kL, prev.kR, here.kR].every(q => isFinite(q[0]) && isFinite(q[1]) && isFinite(q[2]))) { badQuads++; along = v1; prev = here; continue; }
         [[prev.kL, here.kL, -1], [prev.kR, here.kR, 1]].forEach(e => {
           const a = e[0], c = e[1], s = e[2];
           const drop = 0.14;
@@ -10673,82 +11393,48 @@ function buildRoadSurfaces(w, city, root) {
   // either side, a centre line and edge lines on the wider ones. Each street is cut where it crosses another so the kerbs do not wall off the
   // junction, and cut where it meets an arterial so the two surfaces never lie on top of each other.
   {
-    const pad = 200, x0 = b.x0 - pad, z0 = b.z0 - pad, bw = (b.x1 - b.x0) + pad * 2, bh = (b.z1 - b.z0) + pad * 2;
-    const cells = voronoiCells(city.wards.map(wd => wd.centre), [x0, z0, x0 + bw, z0 + bh]);
-    const inPoly = (poly, x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const a = poly[i], q = poly[j]; if ((a[1] > z) !== (q[1] > z) && x < (q[0] - a[0]) * (z - a[1]) / (q[1] - a[1]) + a[0]) c = !c; } return c; };
-    // the arterials that already have a ribbon, in a hash grid, so a street can stop where one begins
-    const AC = 80, art = new Map();
-    city.roads.forEach(r => {
-      if (r.elevated || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;
-      const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
-      for (let i = 1; i < pts.length; i++) {
-        const p = pts[i - 1], q = pts[i], reach = r.halfWidth + 5.4;
-        for (let cx = Math.floor((Math.min(p[0], q[0]) - reach) / AC); cx <= Math.floor((Math.max(p[0], q[0]) + reach) / AC); cx++)
-          for (let cz = Math.floor((Math.min(p[2], q[2]) - reach) / AC); cz <= Math.floor((Math.max(p[2], q[2]) + reach) / AC); cz++) {
-            const k = cx + "," + cz; if (!art.has(k)) art.set(k, []); art.get(k).push([p[0], p[2], q[0], q[2], reach]);
-          }
-      }
-    });
-    const nearArt = (x, z) => { const l = art.get(Math.floor(x / AC) + "," + Math.floor(z / AC)); if (!l) return false; for (const s of l) if (distToSeg(x, z, s[0], s[1], s[2], s[3]) < s[4]) return true; return false; };
+    if (!city.streetPlan) planStreets(w, city, []);
     const line = { pos: [] };
     const quadFlat = (a, b2, c, d) => [0, 1, 2, 0, 2, 3].forEach(i => { const q = [a, b2, c, d][i]; line.pos.push(q[0], q[1], q[2]); });
-    const wardLaid = {}; let metres = 0; const why = { paved: 0, low: 0, fp: 0, poly: 0, art: 0, ok: 0 };
-    city.wards.forEach((wd, wi) => {
-      const poly = cells[wi]; if (!poly || poly.length < 3) return;
-      wardLaid[wd.name] = 0; const why0 = Object.assign({}, why); wd._why0 = why0;
-      const reach = Math.max(wd.radius * 1.6, 400), steps = Math.ceil(reach / Math.min(wd.sx, wd.sz)) + 1;
-      const wOf = k => (wd.alleys && (k & 1) !== 0) ? wd.alley : wd.street;
-      const fwOf = k => (wd.alleys && (k & 1) !== 0) ? 0 : Math.min(2.6, wd.street * 0.25);
-      for (let axis = 0; axis < 2; axis++) {
-        const sAlong = axis === 0 ? wd.sz : wd.sx;           // spacing of the streets that cross this one
-        const crossSteps = Math.ceil(reach / sAlong) + 1;
-        for (let k = -steps; k <= steps; k++) {
-          const hw = wOf(k) / 2, fw = fwOf(k), st = fw > 0;
-          // where it crosses the other streets, and so where its footway and kerb stop
-          const wins = [];
-          for (let j = -crossSteps; j <= crossSteps; j++) { const half = wOf(j) / 2 + (fwOf(j) > 0 ? fwOf(j) + 0.12 : 0.2); wins.push([j * sAlong - half, j * sAlong + half]); }
-          const bounds = [-reach, reach]; wins.forEach(wn => { if (wn[0] > -reach && wn[0] < reach) bounds.push(wn[0]); if (wn[1] > -reach && wn[1] < reach) bounds.push(wn[1]); });
-          bounds.sort((p, q) => p - q);
-          const pt = t => axis === 0 ? fromRectLocal(k * wd.sx, t, wd.centre[0], wd.centre[1], wd.yaw) : fromRectLocal(t, k * wd.sz, wd.centre[0], wd.centre[1], wd.yaw);
-          const A = pt(0), B = pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
-          const nx = -dz, nz = dx, yR = 0.06 + axis * 0.003, yW = 0.20;
-          const live = (x, z) => { if (!paved(x, z)) { why.paved++; return false; } if (w.sampleHeight(x, z) <= 0.3) { why.low++; return false; } if (city.footprint(x, z) <= 0.22) { why.fp++; return false; } if (!inPoly(poly, x, z)) { why.poly++; return false; } if (nearArt(x, z)) { why.art++; return false; } why.ok++; return true; };
-          const at = (t, o, y) => { const p = pt(t), x = p[0] + nx * o, z = p[1] + nz * o; return [x, groundAt(x, z) + y, z]; };
-          let along = 0;
-          for (let bi = 0; bi + 1 < bounds.length; bi++) {
-            const ta = bounds[bi], tb = bounds[bi + 1]; if (tb - ta < 0.05) continue;
-            const mid = (ta + tb) / 2, junction = wins.some(wn => mid > wn[0] && mid < wn[1]);
-            const n = Math.max(1, Math.ceil((tb - ta) / 8));
-            for (let s = 0; s < n; s++) {
-              const t0 = ta + (tb - ta) * s / n, t1 = ta + (tb - ta) * (s + 1) / n, pm = pt((t0 + t1) / 2), p0 = pt(t0), p1 = pt(t1);
-              if (!live(pm[0], pm[1]) || !live(p0[0], p0[1]) || !live(p1[0], p1[1])) { along = 0; continue; }
-              if (Math.abs(p0[0]) > 1e6) continue;
-              const v0 = along, v1 = along + (t1 - t0); along = v1;
-              strip(road, at(t0, -hw, yR), at(t0, hw, yR), at(t1, hw, yR), at(t1, -hw, yR), 0, hw * 2, v0, v1);
-              (city.streetSegs || (city.streetSegs = [])).push(p0[0], p0[1], p1[0], p1[1]);
-              metres += t1 - t0; wardLaid[wd.name] += t1 - t0;
-              if (junction) continue;
-              if (st) {
-                const kL0 = at(t0, -hw - 0.12, yW), kL1 = at(t1, -hw - 0.12, yW), kR0 = at(t0, hw + 0.12, yW), kR1 = at(t1, hw + 0.12, yW);
-                strip(walk, at(t0, -hw - fw, yW), kL0, kL1, at(t1, -hw - fw, yW), 0, fw, v0, v1);
-                strip(walk, kR0, at(t0, hw + fw, yW), at(t1, hw + fw, yW), kR1, 0, fw, v0, v1);
-                [[kL0, kL1, -1], [kR0, kR1, 1]].forEach(e => {
-                  const a = e[0], c = e[1], sg = e[2], drop = 0.15;
-                  const face = sg > 0 ? [a, [a[0], a[1] - drop, a[2]], [c[0], c[1] - drop, c[2]], c] : [c, [c[0], c[1] - drop, c[2]], [a[0], a[1] - drop, a[2]], a];
-                  [0, 1, 2, 0, 2, 3].forEach(q => { kerb.pos.push(face[q][0], face[q][1], face[q][2]); kerb.nrm.push(-nx * sg, 0, -nz * sg); kerb.col.push(0.74, 0.72, 0.68); kerb.mr.push(0, 0.82); });
-                });
-              }
-              if (hw * 2 >= 8.5) {
-                // the edge lines, and a dashed centre line, in white paint a hand's width across
-                [-1, 1].forEach(sg => quadFlat(at(t0, sg * (hw - 0.45) - 0.08, yR + 0.012), at(t0, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) - 0.08, yR + 0.012)));
-                for (let tt = t0; tt < t1 - 0.5; tt += 14) { const te = Math.min(t1, tt + 6); quadFlat(at(tt, -0.08, yR + 0.012), at(tt, 0.08, yR + 0.012), at(te, 0.08, yR + 0.012), at(te, -0.08, yR + 0.012)); }
-              }
+    let metres = 0;
+    city.streetSegs = [];
+    city.streetPlan.forEach(L => {
+      const hw = L.hw, fw = L.fw, st = fw > 0, pt = L.pt;
+      const A = pt(0), B = pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+      const nx = -dz, nz = dx, yR = 0.06 + L.axis * 0.003, yW = 0.20;
+      const at = (t, o, y) => { const p = pt(t), x = p[0] + nx * o, z = p[1] + nz * o; return [x, groundAt(x, z) + y, z]; };
+      L.runs.forEach(run => {
+        // the run, cut where it crosses the other streets (its footway and kerb stop there) and into eight-metre pieces
+        const cuts = [run[0]].concat(L.bounds.concat((L.bare || []).flat()).filter(t => t > run[0] + 0.05 && t < run[1] - 0.05).sort((p, q) => p - q)).concat([run[1]]);
+        let along = 0;
+        for (let ci = 0; ci + 1 < cuts.length; ci++) {
+          const ta = cuts[ci], tb = cuts[ci + 1], mid = (ta + tb) / 2, junction = L.wins.some(wn => mid > wn[0] && mid < wn[1]) || (L.bare || []).some(wn => mid > wn[0] && mid < wn[1]);
+          const n = Math.max(1, Math.ceil((tb - ta) / 8));
+          for (let sI = 0; sI < n; sI++) {
+            const t0 = ta + (tb - ta) * sI / n, t1 = ta + (tb - ta) * (sI + 1) / n, p0 = pt(t0), p1 = pt(t1);
+            const v0 = along, v1 = along + (t1 - t0); along = v1;
+            strip(road, at(t0, -hw, yR), at(t0, hw, yR), at(t1, hw, yR), at(t1, -hw, yR), 0, hw * 2, v0, v1);
+            city.streetSegs.push(p0[0], p0[1], p1[0], p1[1]);
+            metres += t1 - t0;
+            if (junction) continue;
+            if (st && isFinite(at(t0, 0, 0)[1]) && isFinite(at(t1, 0, 0)[1])) {
+              const kL0 = at(t0, -hw - 0.12, yW), kL1 = at(t1, -hw - 0.12, yW), kR0 = at(t0, hw + 0.12, yW), kR1 = at(t1, hw + 0.12, yW);
+              strip(walk, at(t0, -hw - fw, yW), kL0, kL1, at(t1, -hw - fw, yW), 0, fw, v0, v1);
+              strip(walk, kR0, at(t0, hw + fw, yW), at(t1, hw + fw, yW), kR1, 0, fw, v0, v1);
+              [[kL0, kL1, -1], [kR0, kR1, 1]].forEach(e => {
+                const a = e[0], c = e[1], sg = e[2], drop = 0.15;
+                const face = sg > 0 ? [a, [a[0], a[1] - drop, a[2]], [c[0], c[1] - drop, c[2]], c] : [c, [c[0], c[1] - drop, c[2]], [a[0], a[1] - drop, a[2]], a];
+                [0, 1, 2, 0, 2, 3].forEach(q => { kerb.pos.push(face[q][0], face[q][1], face[q][2]); kerb.nrm.push(-nx * sg, 0, -nz * sg); kerb.col.push(0.74, 0.72, 0.68); kerb.mr.push(0, 0.82); });
+              });
+            }
+            if (hw * 2 >= 8.5) {
+              [-1, 1].forEach(sg => quadFlat(at(t0, sg * (hw - 0.45) - 0.08, yR + 0.012), at(t0, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) + 0.08, yR + 0.012), at(t1, sg * (hw - 0.45) - 0.08, yR + 0.012)));
+              for (let tt = t0; tt < t1 - 0.5; tt += 14) { const te = Math.min(t1, tt + 6); quadFlat(at(tt, -0.08, yR + 0.012), at(tt, 0.08, yR + 0.012), at(te, 0.08, yR + 0.012), at(te, -0.08, yR + 0.012)); }
             }
           }
         }
-      }
+      });
     });
-    city.wards.forEach((wd, i) => { const a = wd._why0, b2 = city.wards[i + 1] ? city.wards[i + 1]._why0 : why; if (a) { wardLaid[wd.name] = { m: Math.round(wardLaid[wd.name]), why: Object.keys(why).map(k => k + ":" + (b2[k] - a[k])).join(" ") }; } });
     if (line.pos.length) {
       const lm = new THREE.MeshLambertMaterial({ color: 0xe4e4da, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
       bucketQuads(line, { pos: 3 }).forEach(bk => {
@@ -10760,7 +11446,7 @@ function buildRoadSurfaces(w, city, root) {
         streamAdd(o, bk, STREAM.road);
       });
     }
-    console.log("[Konto] " + city.name + ": " + Math.round(metres / 1000) + " km of street laid as geometry " + JSON.stringify(why)); city.streetDebug = wardLaid;
+    console.log("[Konto] " + city.name + ": " + Math.round(metres / 1000) + " km of street laid as geometry " + JSON.stringify(city.streetWhy || {}) + (badQuads ? " (" + badQuads + " degenerate pieces skipped)" : ""));
   }
 
   function mesh(data, tex, repeat, rough) {
@@ -12657,7 +13343,11 @@ function buildTrafficLanes(city) {
           // which is the dark slab that turns up in a photograph of a street
           // near the shore. A submerged stretch ends the run the same way an
           // unpaved one does: no lane, no cars, rather than drowned ones.
-          if (paved(lx, lz) && y > ROAD_MIN_Y - 0.5) {
+          if (road.link) {
+            // a country road is laid all the way to the expressway, so its traffic is too, on the ground it was cut into
+            const by = world.bridgeY ? world.bridgeY(lx, lz) : null;
+            run.push([lx, (by !== null && by !== undefined ? by : world.sampleHeight(lx, lz) + 0.07) + 0.04, lz]);
+          } else if (paved(lx, lz) && y > ROAD_MIN_Y - 0.5) {
             // The road's stored height predates the grading pass, so a car on
             // it floats.
             run.push([lx, y + 0.04, lz]);
@@ -13548,23 +14238,24 @@ function buildStreetFurniture(w, city, root, boxes) {
 
     // A concourse at one end, with the company's mark over the door, and a
     // viaduct-height stair when the line is in the air.
-    const conZ = -PL * 0.5 - 11;
+    const conZ = concourseEnd(city, st, t), fz = conZ < 0 ? 1 : -1, face = fz > 0 ? "B" : "F";     // (its front always looks at the platform)
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
     solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
-    solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1, 20, 3.4, 0.30);
+    solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1 * fz, 20, 3.4, 0.30);
     solid.colour(FURN.green).box(0, conY + 6.8, conZ, 26.4, 0.5, 20.4);
-    badges.panel(0, conY + 5.3, conZ + 10.3, 4.2, 1.9, "B", badgeUV("nhrail"), false);
-    signs.panel(0, conY + 2.9, conZ + 10.3, 7.0, 1.1, "B", signUV(row), false);
+    badges.panel(0, conY + 5.3, conZ + 10.3 * fz, 4.2, 1.9, face, badgeUV("nhrail"), false);
+    signs.panel(0, conY + 2.9, conZ + 10.3 * fz, 7.0, 1.1, face, signUV(row), false);
     if (t.elevated) {
       // The stair up to the platform, as a run of treads under a sloping roof.
       solid.colour(FURN.concrete).box(0, conY + (railY - groundAt(t.x, t.z)) * 0.5,
-        conZ + 12.5, 7.0, Math.max(2, railY - groundAt(t.x, t.z)), 5.0, { tz: 0.4, shift: -1.4 });
+        conZ + 12.5 * fz, 7.0, Math.max(2, railY - groundAt(t.x, t.z)), 5.0, { tz: 0.4, shift: -1.4 * fz });
     }
     // The advertising hoarding on the concourse flank, which is where a
     // Japanese station makes most of its money.
     ads.panel(13.1, conY + 4.2, conZ, 17.0, 2.1, "R", nextAd(), false);
     ads.panel(-13.1, conY + 4.2, conZ, 17.0, 2.1, "L", nextAd(), false);
-    solids.push({ c: [t.x, t.z], size: [26, 20], yaw: t.yaw * 180 / Math.PI,
+    // (the concourse stands at the end of the platform, in the frame the station is drawn in, and that is where you walk into it)
+    solids.push({ c: [t.x + Math.sin(t.yaw) * conZ, t.z + Math.cos(t.yaw) * conZ], size: [26, 20], yaw: t.yaw * 180 / Math.PI,
                   y: groundAt(t.x, t.z), h: 6.6 });
     built.platforms.push([t.x, railY, t.z, t.yaw, st.name]);
 
@@ -17405,13 +18096,13 @@ function buildHighwayMesh(root) {
   const CH = 90, dist = [0];
   for (let i = 1; i <= M; i++) dist.push(dist[i - 1] + Math.hypot(P[i % M][0] - P[i - 1][0], P[i % M][2] - P[i - 1][2]));
   const matRoad = new THREE.MeshLambertMaterial({ map: highwayTexture() });
-  const matConc = new THREE.MeshLambertMaterial({ color: 0x9fa2a2, side: THREE.DoubleSide });
-  const matRail = new THREE.MeshLambertMaterial({ color: 0xc6c9c9, side: THREE.DoubleSide });
+  const matConc = surfaceDetail(new THREE.MeshLambertMaterial({ color: 0xa8aaa8, side: THREE.DoubleSide }), "concrete", 4, 1);
+  const matRail = surfaceDetail(new THREE.MeshLambertMaterial({ color: 0xc6c9c9, side: THREE.DoubleSide }), "concrete", 2.5, 0.5);
   for (let c0 = 0; c0 < M; c0 += CH) {
     const c1 = Math.min(M, c0 + CH);
     const road = { p: [], uv: [], ix: [] }, conc = { p: [], uv: [], ix: [] }, rail = { p: [], uv: [], ix: [] };
     // a strip between two lateral offsets (and heights), over the chunk
-    const strip = (B, offA, yA, offB, yB, vScale) => {
+    const strip = (B, offA, yA, offB, yB, vScale, skip) => {
       const base = B.p.length / 3;
       for (let i = c0; i <= c1; i++) {
         const q = P[i % M], t = tanAt(i % M), nx = -t[1], nz = t[0];
@@ -17420,16 +18111,20 @@ function buildHighwayMesh(root) {
         B.uv.push(0, v, 1, v);
       }
       for (let i = 0; i < c1 - c0; i++) {
+        if (skip && skip(c0 + i)) continue;
         const a = base + i * 2;
         B.ix.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
       }
     };
+    // a gap in the barriers wherever a country road comes in, so it is a junction and not a wall
+    const J = hw.junctions || [], gapAt = (i, sd, r) => J.some(j => (sd === 0 || j.side === sd) && Math.min(Math.abs(i - j.i), M - Math.abs(i - j.i)) <= r);
     strip(road, -HW, 0.05, HW, 0.05, 20);
     // median: a low concrete barrier
-    strip(conc, -1.0, 0.9, 1.0, 0.9);
-    strip(conc, -1.0, 0.05, -1.0, 0.9); strip(conc, 1.0, 0.05, 1.0, 0.9);
+    const midGap = i => gapAt(i, 0, 2);
+    strip(conc, -1.0, 0.9, 1.0, 0.9, 0, midGap);
+    strip(conc, -1.0, 0.05, -1.0, 0.9, 0, midGap); strip(conc, 1.0, 0.05, 1.0, 0.9, 0, midGap);
     // guard rails on both edges: a wall from below the road up to knee height
-    [-1, 1].forEach(sd => { strip(rail, sd * (HW - 0.2), -0.5, sd * (HW - 0.2), 0.85); strip(rail, sd * (HW - 0.2), 0.85, sd * (HW + 0.05), 0.85); });
+    [-1, 1].forEach(sd => { const g = i => gapAt(i, sd, 1); strip(rail, sd * (HW - 0.2), -0.5, sd * (HW - 0.2), 0.85, 0, g); strip(rail, sd * (HW - 0.2), 0.85, sd * (HW + 0.05), 0.85, 0, g); });
     // bridges: a deck slab under the road, down both sides and across the bottom
     const bridged = [];
     for (let i = c0; i <= c1; i++) bridged.push(hw.bridge[i % M]);
@@ -23570,7 +24265,7 @@ function buildFamilyHome(root) {
     [[-0.6, 0.1, 0xe8711a], [0.5, -0.15, 0xf4f1e6], [0.1, 0.3, 0xd8442f]].forEach(k => { const fish = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), new THREE.MeshLambertMaterial({ color: k[2] })); fish.scale.set(1.9, 0.5, 0.8); const q = W(-3.4 + k[0], -3.3 + k[1]); fish.position.set(q[0], gy + 0.1, q[1]); fish.rotation.y = yaw + k[0]; grp.add(fish); });
   }
   try {
-    const pine = new THREE.Mesh(treeGeometry("matsu", 0), treeMaterial("matsu")); const p = W(-5.6, -4.8); pine.position.set(p[0], gy - 0.05, p[1]); pine.scale.set(7.2, 7.2, 7.2); pine.castShadow = true; grp.add(pine);
+    const p = W(-5.6, -4.8); grp.add(impostorTree("matsu", p[0], gy - 0.05, p[1], 7.2, 1.1, 0.6));
     trunkAdd("city", p[0], p[1], 0.42);
   } catch (e) { /* the pine is a nicety */ }
   { const p = W(5.2, -6.6);
@@ -33938,8 +34633,7 @@ function buildVillage(root, city) {
     const st = new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.95 });
     [[0.8, 0.3, 0.8, 0.15], [0.25, 0.7, 0.25, 0.65], [0.6, 0.45, 0.6, 1.22], [1.0, 0.2, 1.0, 1.55], [0.3, 0.25, 0.3, 1.78]].forEach(e => { const b = new THREE.Mesh(new THREE.BoxGeometry(e[0], e[1], e[2]), st); b.position.set(-3.6, e[3], -2.2); g.add(b); });
     // a pine, a maple, clipped azaleas
-    const pine = new THREE.Mesh(treeGeometry("matsu", 1), treeMaterial("matsu")); pine.scale.setScalar(5.5); pine.position.set(-5.2, 0, 0.4); g.add(pine);
-    const maple = new THREE.Mesh(treeGeometry("keyaki", 1), treeMaterial("momiji")); maple.scale.setScalar(4.6); maple.position.set(3.8, 0, 2.6); g.add(maple);
+    g.add(impostorTree("matsu", -5.2, 0, 0.4, 5.5, 1.1, k * 1.7)); g.add(impostorTree("momiji", 3.8, 0, 2.6, 4.6, 1, k * 2.3));
     const az = new THREE.MeshLambertMaterial({ color: 0x3f6e2c }), fl = new THREE.MeshLambertMaterial({ color: 0xe0508a });
     for (let i = 0; i < 6; i++) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 6), i % 2 ? az : fl); b.scale.y = 0.6; b.position.set(-1.5 + i * 0.9, 0.3, 3.2); g.add(b); }
     trunkAdd("city", G.x + Math.cos(G.yaw) * -5.2, G.z - Math.sin(G.yaw) * -5.2, 0.3);

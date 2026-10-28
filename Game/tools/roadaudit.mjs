@@ -1,3 +1,4 @@
+// Road and tree audit: dead-end roads, buildings standing on roads, and trees on roads, counted across the whole island.
 // Air travel end to end: the expressway, the gate, the terminal (hall, ticket office, security, gate, cabin, in-flight screen), Seoul and the islands, and stealing an aircraft with the police and helicopters after you.
 // (Header copied from tour.mjs.) Walks the original game from the loading screen to a saved game and takes a screenshot of every screen on the way: loading, title, the start in
 // Mizuho, the flat, every shop and activity, the capsule hotel, the pause menu tabs, the map, the phone apps, both wheels, and the autosave
@@ -71,40 +72,45 @@ await wait(4000);
 
 
 
-const res = await ev(() => {
-  const out = {};
-  world.cities.slice(0, 3).forEach(city => {
-    const b = city.bounds, wards = city.wards || [];
-    const wardAt = (x, z) => { let best = null, bd = 1e18; for (const w of wards) { const d = (w.centre[0] - x) ** 2 + (w.centre[1] - z) ** 2; if (d < bd) { bd = d; best = w; } } return best; };
-    const wOf = (wd, k) => (wd.alleys && (k & 1) !== 0) ? wd.alley : wd.street;
-    const localPen = (x, z) => { const wd = wardAt(x, z); if (!wd || city.footprint(x, z) <= 0.22) return -99; const l = toRectLocal(x, z, wd.centre[0], wd.centre[1], wd.yaw); const k0 = Math.round(l[0] / wd.sx), k1 = Math.round(l[1] / wd.sz); return Math.max(wOf(wd, k0) / 2 - Math.abs(l[0] - k0 * wd.sx), wOf(wd, k1) / 2 - Math.abs(l[1] - k1 * wd.sz)); };
-    const arts = city.roads.filter(r => !r.elevated && r.halfWidth >= 4 && r.pts && r.pts.length > 2);
-    const segDist = (x, z, a, c) => { const dx = c[0] - a[0], dz = c[2] - a[2], L = dx * dx + dz * dz || 1; let t = ((x - a[0]) * dx + (z - a[2]) * dz) / L; t = Math.max(0, Math.min(1, t)); return Math.hypot(a[0] + dx * t - x, a[2] + dz * t - z); };
-    const artPen = (x, z) => { let m = -99; for (const r of arts) { for (let i = 1; i < r.pts.length; i++) { const p = r.pts[i - 1]; if (Math.abs(p[0] - x) > 90 || Math.abs(p[2] - z) > 90) continue; const d = r.halfWidth - segDist(x, z, p, r.pts[i]); if (d > m) m = d; } } return m; };
-    let n = 0, vArt = 0, vLoc = 0, ex = [], styles = {};
-    for (const s of solids) {
-      if (!s.c || s.h < 3 || s.deck || s.style === "deck" || !s.style) continue;
-      if (!b || s.c[0] < b.x0 || s.c[0] > b.x1 || s.c[1] < b.z0 || s.c[1] > b.z1) continue;
-      n++;
-      let wa = -99, wl = -99; const cs = Math.cos(s.yaw * Math.PI / 180), sn = Math.sin(s.yaw * Math.PI / 180);
-      for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++) { const lx = i / 2 * s.size[0] / 2 * 0.9, lz = j / 2 * s.size[1] / 2 * 0.9; const p = fromRectLocal(lx, lz, s.c[0], s.c[1], s.yaw); wa = Math.max(wa, artPen(p[0], p[1])); wl = Math.max(wl, localPen(p[0], p[1])); }
-      if (wa > 1.2) { vArt++; if (ex.length < 6) ex.push(["art", Math.round(s.c[0]), Math.round(s.c[1]), Math.round(wa * 10) / 10, s.size.map(Math.round)]); }
-      if (wl > 1.2 && ex.length < 6) { let bp = null, bv = -99; for (let i = -3; i <= 3; i++) for (let j = -3; j <= 3; j++) { const q = fromRectLocal(i / 3 * s.size[0] * 0.5, j / 3 * s.size[1] * 0.5, s.c[0], s.c[1], s.yaw), w = wardAt(q[0], q[1]); const v = w ? streetPen(w, q[0], q[1], true) : -99; if (v > bv) { bv = v; bp = [Math.round(q[0]), Math.round(q[1]), w && w.name, w && w.sx, w && w.street]; } } ex.push(["DBG", Math.round(s.c[0]), Math.round(s.c[1]), s.size.map(x => Math.round(x * 10) / 10), s.yaw, "clearWorst", Math.round(bv * 10) / 10, bp, "auditPen", Math.round(wl * 10) / 10]); }
-      if (wl > 1.2) { vLoc++; styles[s.style || s.kind || "none"] = (styles[s.style || s.kind || "none"] || 0) + 1; if (ex.length < 12) ex.push(["loc", Math.round(s.c[0]), Math.round(s.c[1]), Math.round(wl * 10) / 10, s.size.map(Math.round), s.style, Object.keys(s).join(",")]); }
-    }
-    // shops: nearest road and which way the door faces
-    const shopRows = [];
-    shops.list.filter(s => (s.city === city.name || (!s.city && city === world.cities[0])) && s.door && !s.mall && !s.plaza && !s.safe && !s.airport).slice(0, 400).forEach(s => {
-      let best = 1e9, bp = null; const [x, z] = s.door;
-      for (const r of arts) for (let i = 1; i < r.pts.length; i++) { const p = r.pts[i - 1]; if (Math.abs(p[0] - x) > 120 || Math.abs(p[2] - z) > 120) continue; const d = segDist(x, z, p, r.pts[i]) - r.halfWidth; if (d < best) best = d; }
-      const wd = wardAt(x, z); let loc = 1e9; if (wd) { const l = toRectLocal(x, z, wd.centre[0], wd.centre[1], wd.yaw); const k0 = Math.round(l[0] / wd.sx), k1 = Math.round(l[1] / wd.sz); loc = Math.min(Math.abs(l[0] - k0 * wd.sx) - wOf(wd, k0) / 2, Math.abs(l[1] - k1 * wd.sz) - wOf(wd, k1) / 2); }
-      shopRows.push({ art: Math.round(best * 10) / 10, loc: Math.round(loc * 10) / 10 });
-    });
-    const farShops = shopRows.filter(r => Math.min(r.art, r.loc) > 12).length;
-    out[city.name] = { styles: styles, buildings: n, onArterial: vArt, onLocalStreet: vLoc, ex: ex, shops: shopRows.length, shopsFarFromRoad: farShops, shopNearest: shopRows.slice(0, 8) };
-  });
-  return out;
-});
-console.log("AUDIT " + JSON.stringify(res, null, 1));
 
+
+const A = await ev(() => {
+  // every road on the island as centreline segments with a half width
+  const segs = [];
+  world.cities.forEach((c, ci) => {
+    c.roads.forEach((r, ri) => { if (!r.pts || r.pts.length < 2) return; const P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts; for (let i = 1; i < P.length; i++) segs.push({ a: [P[i-1][0], P[i-1][2]], b: [P[i][0], P[i][2]], hw: r.halfWidth, id: "c" + ci + "r" + ri, el: !!r.elevated, kind: "art" }); });
+    (c.streetPlan || []).forEach(L => L.runs.forEach(r => { const a = L.pt(r[0]), b = L.pt(r[1]); segs.push({ a: [a[0], a[1]], b: [b[0], b[1]], hw: L.hw, id: "c" + ci + "s", kind: "street" }); }));
+  });
+  if (world.highway) { const P = world.highway.pts; for (let i = 1; i < P.length; i++) segs.push({ a: [P[i-1][0], P[i-1][2]], b: [P[i][0], P[i][2]], hw: world.highway.hw, id: "hwy", kind: "hwy" }); }
+  // a hash grid of them
+  const G = 40, grid = new Map();
+  segs.forEach((s, k) => { const r = s.hw + 10; for (let gx = Math.floor((Math.min(s.a[0], s.b[0]) - r) / G); gx <= Math.floor((Math.max(s.a[0], s.b[0]) + r) / G); gx++) for (let gz = Math.floor((Math.min(s.a[1], s.b[1]) - r) / G); gz <= Math.floor((Math.max(s.a[1], s.b[1]) + r) / G); gz++) { const key = gx + "," + gz; if (!grid.has(key)) grid.set(key, []); grid.get(key).push(k); } });
+  const dseg = (x, z, s) => { const dx = s.b[0] - s.a[0], dz = s.b[1] - s.a[1], L = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - s.a[0]) * dx + (z - s.a[1]) * dz) / L)); return Math.hypot(s.a[0] + dx * t - x, s.a[1] + dz * t - z); };
+  const onRoad = (x, z, pad, skip) => { const l = grid.get(Math.floor(x / G) + "," + Math.floor(z / G)); if (!l) return null; for (const k of l) { const s = segs[k]; if (skip && skip(s)) continue; if (s.el) continue; if (dseg(x, z, s) < s.hw + pad) return s; } return null; };
+  // 1. dead ends: the open ends of every arterial, the expressway, and every run of local street
+  const ends = [];
+  world.cities.forEach((c, ci) => c.roads.forEach((r, ri) => { if (r.loop || !r.pts || r.pts.length < 2) return; const id = "c" + ci + "r" + ri; [r.pts[0], r.pts[r.pts.length - 1]].forEach(p => { if (!onRoad(p[0], p[2], 6, s => s.id === id)) ends.push({ kind: "art", city: c.name, name: r.name || "", x: Math.round(p[0]), z: Math.round(p[2]) }); }); }));
+  // street ends: a point used by exactly one street segment
+  const deg = new Map(), kq = (x, z) => Math.round(x * 2) + "," + Math.round(z * 2);
+  world.cities.forEach(c => { const S = c.streetSegs || []; for (let i = 0; i < S.length; i += 4) { [[S[i], S[i+1]], [S[i+2], S[i+3]]].forEach(p => { const k = kq(p[0], p[1]); deg.set(k, (deg.get(k) || { n: 0, p: p, c: c.name })); deg.get(k).n++; }); } });
+  let streetEnds = 0, streetDead = 0; const deadSample = [];
+  deg.forEach(v => { if (v.n !== 1) return; streetEnds++; const x = v.p[0], z = v.p[1]; // joined to something else: another street not on this line, an arterial or the expressway
+    const l = grid.get(Math.floor(x / G) + "," + Math.floor(z / G)) || []; let joined = false;
+    for (const k of l) { const s = segs[k]; if (s.el) continue; if (s.kind !== "street") { if (dseg(x, z, s) < s.hw + 2) { joined = true; break; } continue; }
+      // a street segment that does not end at this point and is not collinear-adjacent
+      const ea = Math.hypot(s.a[0] - x, s.a[1] - z), eb = Math.hypot(s.b[0] - x, s.b[1] - z); if (ea < 0.6 || eb < 0.6) continue; if (dseg(x, z, s) < 6) { joined = true; break; } }
+    if (!joined) { streetDead++; if (deadSample.length < 12) deadSample.push([Math.round(x), Math.round(z), v.c]); } });
+  // 2. buildings on roads
+  let bOn = 0; const bSample = []; const seenB = new Set();
+  solids.forEach((b, bi) => { if (b.deck) return; const half = [b.size[0] / 2, b.size[1] / 2]; const pts = []; for (let u = -1; u <= 1; u += 0.5) for (let v = -1; v <= 1; v += 0.5) pts.push(fromRectLocal(u * half[0] * 0.9, v * half[1] * 0.9, b.c[0], b.c[1], b.yaw));
+    for (const p of pts) { const s = onRoad(p[0], p[1], -0.5); if (s) { bOn++; if (bSample.length < 12) bSample.push([Math.round(p[0]), Math.round(p[1]), s.kind, s.id, Math.round(b.h)]); break; } } });
+  // 3. trees: the towns' trees, and every countryside tile a road runs through
+  const tiles = new Set(); segs.forEach(s => { for (let t = 0; t <= 1; t += 0.25) { const x = s.a[0] + (s.b[0] - s.a[0]) * t, z = s.a[1] + (s.b[1] - s.a[1]) * t; tiles.add(Math.floor(x / VEG_TILE) + "," + Math.floor(z / VEG_TILE)); } });
+  const made = []; tiles.forEach(k => { if (veg.trees.has(k)) return; const [tx, tz] = k.split(",").map(Number); if (tx < 0 || tz < 0) return; const g = vegTreeTile(tx, tz); made.push(g); });
+  let tOn = 0, tAll = 0; const tSample = { art: 0, street: 0, hwy: 0 }; const tPts = [];
+  trunks.map.forEach(l => l.forEach(t => { tAll++; const s = onRoad(t[0], t[1], 0.8); if (s) { tOn++; tSample[s.kind]++; if (tPts.length < 12) tPts.push([Math.round(t[0]), Math.round(t[1]), s.kind, t[3] === "city" ? "town" : "forest"]); } }));
+  made.forEach(g => { trunkDrop(g); g.traverse(o => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); }); });
+  return { segs: segs.length, artDeadEnds: ends.length, artSample: ends.slice(0, 20), streetEnds, streetDead, deadSample, buildingsOnRoads: bOn, bSample, trees: tAll, treesOnRoads: tOn, tSample, tPts };
+});
+console.log("AUDIT " + JSON.stringify(A));
 await browser.close(); srv.close();

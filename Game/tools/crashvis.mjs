@@ -100,7 +100,7 @@ ok("crashing damages the car", dm && dm.t > 0.2, dm);
 await ev(() => { const c = drive.car; yaw = c.yaw; pitch = -0.15; look.x = 0.0001; }); await wait(2500); await snap("damaged_front");
 await ev(() => { const c = drive.car; yaw = c.yaw + Math.PI / 2; }); await wait(2500); await snap("damaged_side");
 await ev(() => { look.x = 0; leaveCar(); }); await wait(2000); await ev(() => { const c = drive.parked[drive.parked.length - 1]; const x = c.pos.x + Math.sin(c.yaw) * 5, z = c.pos.z + Math.cos(c.yaw) * 5; placeSeiko(new THREE.Vector3(x, 0, z)); player.yaw = player.targetYaw = c.yaw + Math.PI; yaw = c.yaw; pitch = -0.2; }); await wait(3500); await snap("wreck_parked_front");
-ok("the damage stays with the parked car", await ev(() => !!(drive.parked[drive.parked.length - 1].dmg)), "");
+ok("the damage stays with the parked car", await ev(() => drive.parked.some(q => q.dmg && q.dmg.total > 0.2)), "");   // (scenery cars spawn into the list as you walk past the bays, so not just the last one)
 // a plane crash
 await ev(() => { cheat("AIRPLANE"); }); await wait(3000);
 await ev(() => { flight.air = true; flight.v = 50; flight.pos.y = world.surfaceY(flight.pos.x, flight.pos.z) + flight.off + 40; flight.gamma = -0.6; flight.pitch = -0.6; });
