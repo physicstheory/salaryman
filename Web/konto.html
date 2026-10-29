@@ -14966,20 +14966,34 @@ function bakeTerrainMap(w) {
 // The radar's ground: land and water at twice the heightfield's resolution (sampled between its points, so the coast is a line and not a
 // staircase), grey, a shade greener where things grow and a shade lighter on the high ground, the way GTA V's radar shows the hills.
 function bakeRadarBase(w) {
-  const k = 2, cv = document.createElement("canvas");
+  // Four pixels to each heightfield cell (about 4.8 m), the shading blended between cells and the water's edge blended over half a metre
+  // of height, so the coast and the rivers are smooth lines and the hills smooth shades however far the map is zoomed in. (It was a hard
+  // land-or-sea cut at twice the cell size, with each cell's shade a flat block, which showed as stair steps on the coast and squares
+  // on the hills.)
+  const k = 4, cv = document.createElement("canvas");
   cv.width = GRID_X * k; cv.height = GRID_Z * k;
   const g = cv.getContext("2d"), img = g.createImageData(cv.width, cv.height), rgb = [0, 0, 0];
   const land = [0x3b, 0x3f, 0x42], sea = [0x3f, 0x5b, 0x6e];
-  for (let j = 0; j < cv.height; j++) for (let i = 0; i < cv.width; i++) {
-    const x = (i + 0.5) / cv.width * WORLD_X, z = (j + 0.5) / cv.height * WORLD_Z, h = w.sampleHeight(x, z), o = (j * cv.width + i) * 4;
-    let c;
-    if (h <= 0.15 || w.sampleRiver(x, z) > 0.45) c = sea;
-    else {
-      terrainColour(w, clamp(Math.round(x / CELL), 0, GRID_X - 1), clamp(Math.round(z / CELL), 0, GRID_Z - 1), rgb);
-      const green = clamp01((Math.sqrt(rgb[1]) - Math.max(Math.sqrt(rgb[0]), Math.sqrt(rgb[2]))) * 3), hi = clamp01((h - 250) / 900);
-      c = [land[0] - green * 4 + hi * 22, land[1] + green * 5 + hi * 22, land[2] - green * 3 + hi * 22];
+  // each cell's shade, once
+  const tint = new Float32Array(GRID_X * GRID_Z * 3);
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
+    terrainColour(w, x, z, rgb);
+    const h = w.height[w.idx(x, z)], green = clamp01((Math.sqrt(rgb[1]) - Math.max(Math.sqrt(rgb[0]), Math.sqrt(rgb[2]))) * 3), hi = clamp01((h - 250) / 900), o = (z * GRID_X + x) * 3;
+    tint[o] = land[0] - green * 4 + hi * 22; tint[o + 1] = land[1] + green * 5 + hi * 22; tint[o + 2] = land[2] - green * 3 + hi * 22;
+  }
+  for (let j = 0; j < cv.height; j++) {
+    const z = (j + 0.5) / cv.height * WORLD_Z, fz = clamp(z / CELL, 0, GRID_Z - 1.001), z0 = Math.floor(fz), tz = fz - z0;
+    for (let i = 0; i < cv.width; i++) {
+      const x = (i + 0.5) / cv.width * WORLD_X, fx = clamp(x / CELL, 0, GRID_X - 1.001), x0 = Math.floor(fx), tx = fx - x0, o = (j * cv.width + i) * 4;
+      const a = (z0 * GRID_X + x0) * 3, b = a + 3, c = a + GRID_X * 3, d = c + 3;
+      // how much of this pixel is water: below the waterline, or in a river, with a soft edge
+      const wet = Math.max(1 - sstep(-0.35, 0.65, w.sampleHeight(x, z) - 0.15), sstep(0.30, 0.60, w.sampleRiver(x, z)));
+      for (let ch = 0; ch < 3; ch++) {
+        const t = (tint[a + ch] * (1 - tx) + tint[b + ch] * tx) * (1 - tz) + (tint[c + ch] * (1 - tx) + tint[d + ch] * tx) * tz;
+        img.data[o + ch] = Math.round(t + (sea[ch] - t) * wet);
+      }
+      img.data[o + 3] = 255;
     }
-    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
   }
   g.putImageData(img, 0, 0);
   return cv;
@@ -15474,6 +15488,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   const vx0 = cx - half, vx1 = cx + half, vz0 = cz - half, vz1 = cz + half;
 
   ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";      // (the default, "low", is close to nearest-pixel when the ground image is blown up)
   if (opts.gta && nav.baseGta) ctx.drawImage(nav.baseGta, 0, 0, WORLD_X, WORLD_Z);
   else {
     if (nav.base) ctx.drawImage(nav.base, 0, 0, WORLD_X, WORLD_Z);
