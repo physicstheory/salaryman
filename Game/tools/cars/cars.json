@@ -1,18 +1,76 @@
 {
-  "_note": "Which Sketchfab model becomes which vehicle in the game. Every one is CC Attribution (credited in Web/cars/CREDITS.md). yaw turns the model so its nose points down +Z if it was authored facing another way; tris is the triangle budget after simplification; livery false drops the game's own roof lamp or light bar (the model has its own).",
-  "kei":      { "uid": "a010b75b953d4ed6a5a8dcf6d5b5f2ab", "what": "Daihatsu Move Custom RS", "tris": 60000 },
-  "keivan":   { "uid": "05af2473934e4bc68975fa89f842481c", "what": "Daihatsu HiJet", "tris": 60000 },
-  "hatch":    { "uid": "04eaf6b288cc466785365b7d985e3b29", "what": "Toyota Prius 2012", "tris": 60000 },
-  "sedan":    { "uid": "3ef4527459f5406fb4599864800ab1fa", "what": "Toyota Crown Comfort (the Japanese taxi body)", "tris": 60000 },
-  "saloon":   { "uid": "6e357d856df44d98a615cac1d0c30b56", "what": "Toyota Crown Super Deluxe", "tris": 70000 },
-  "taxi":     { "uid": "3ef4527459f5406fb4599864800ab1fa", "what": "Toyota Crown Comfort", "tris": 60000 },
-  "police":   { "uid": "37719e8018964286b66a55d31fb746f9", "what": "Toyota Crown S150 patrol car", "tris": 70000, "livery": false },
-  "onebox":   { "uid": "f83b4ed4d8534efb81def77b6c1b642d", "what": "Toyota HiAce", "tris": 60000 },
-  "suv":      { "uid": "82bd37c5065040098fb0b86e07fcb959", "what": "Toyota Hilux 2022", "tris": 75000 },
-  "sports":   { "uid": "ff8fb2251dfa4bb9979e7022c5a6666c", "what": "Nissan Skyline R34 GT-R", "tris": 70000 },
-  "super":    { "uid": "1cc15628a00a4739a6b6c01128927c8d", "what": "Honda NSX", "tris": 75000 },
-  "bike":     { "uid": "89a79e0a3c334b23830561961f9644c8", "what": "Honda NR750", "tris": 50000 },
-  "cruiser":  { "uid": "f121301624174b179ca4d50158797b03", "what": "Honda CB750 Four", "tris": 40000 },
-  "scooter":  { "uid": "cb4b2c153e204b88bd3848af1157eb47", "what": "Honda PCX", "tris": 40000 },
-  "dirtbike": { "uid": "c80f0e732e844580af412958c9d67315", "what": "Honda CRF450", "tris": 45000 }
+ "_note": "Which model becomes which vehicle in the game. Every one is CC Attribution (credited in Web/cars/CREDITS.md). \"carros\" names a model in github.com/pedrosoandre/carros (no account needed); \"uid\" names one on Sketchfab (needs SKETCHFAB_TOKEN). paint names the body-paint material when the library guesses wrong. yaw turns the model so its nose points down +Z if it was authored facing another way; tris is the triangle budget after simplification; livery false drops the game's own roof lamp or light bar (the model has its own).",
+ "kei": {
+  "carros": "honda-fit",
+  "what": "Honda Fit (GK3)",
+  "tris": 24000
+ },
+ "keivan": {
+  "carros": "suzuki-carry",
+  "what": "Suzuki Carry / Every kei van",
+  "tris": 24000,
+  "yaw": 0.7854
+ },
+ "hatch": {
+  "carros": "toyota-prius",
+  "what": "Toyota Prius 2012",
+  "tris": 24000,
+  "paint": "Color.002",
+  "yaw": 3.14159
+ },
+ "sedan": {
+  "carros": "toyota-camry",
+  "what": "Toyota Camry (XV40)",
+  "tris": 24000
+ },
+ "saloon": {
+  "carros": "nissan-cefiro-a31",
+  "what": "Nissan Cefiro (A31)",
+  "tris": 30000,
+  "error": 0.03
+ },
+ "taxi": {
+  "carros": "toyota-corolla",
+  "what": "Toyota Corolla (KE80) taxi",
+  "tris": 24000
+ },
+ "police": {
+  "carros": "toyota-crown-athlete",
+  "what": "Toyota Crown Athlete S210 patrol car",
+  "tris": 26000,
+  "error": 0.03
+ },
+ "suv": {
+  "carros": "toyota-rav4",
+  "what": "Toyota RAV4 Hybrid 2021",
+  "tris": 26000,
+  "error": 0.03,
+  "paint": "Silver_Sky_Metallic"
+ },
+ "sports": {
+  "carros": "nissan-gt-r",
+  "what": "Nissan Skyline R34 GT-R",
+  "tris": 28000
+ },
+ "super": {
+  "carros": "honda-nsx",
+  "what": "Honda NSX 1990",
+  "tris": 30000
+ },
+ "bike": {
+  "carros": "suzuki-gsxr-750",
+  "what": "Suzuki GSX-R750",
+  "tris": 16000
+ },
+ "cruiser": {
+  "carros": "honda-cb-750",
+  "what": "Honda CB750 F",
+  "tris": 16000
+ },
+ "dirtbike": {
+  "carros": "honda-crf-450",
+  "what": "Honda CRF450",
+  "tris": 16000,
+  "error": 0.03
+ }
 }

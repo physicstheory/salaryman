@@ -12672,7 +12672,7 @@ function loadCarModelsNow(root) {
       // a detailed car the player supplied is drawn a few times, not once per space in traffic
       let tris = 0;
       if (entry.user) gltf.scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
-      const n = entry.user ? (tris > 200000 ? 2 : tris > 80000 ? 4 : cap) : cap;
+      const n = entry.user ? (tris > 250000 ? 2 : tris > 120000 ? 4 : cap) : cap;
       for (let i = 0; i < n; i++) {
         const clone = fitCarModel(gltf.scene.clone(true), kind, entry);
         clone.visible = false;
@@ -12680,8 +12680,9 @@ function loadCarModelsNow(root) {
         pool.items.push(clone);
       }
       traffic.pool[ki] = pool;
-      // The built body steps aside rather than being drawn inside the model.
-      [traffic.paint[ki], traffic.trim[ki], traffic.deco[ki]].forEach(m => { if (m) m.visible = false; });
+      // The built body stays for the far distance: past a few dozen metres a car is drawn as its instanced box body, and only the
+      // ones near you are the modelled car (the built slot under a model is written empty, so the two never overlap).
+      if (!entry.user) [traffic.paint[ki], traffic.trim[ki], traffic.deco[ki]].forEach(m => { if (m) m.visible = false; });
     };
     // Four kinds share one file, so it is fetched once.
     if (cache[entry.url]) {
@@ -13523,6 +13524,7 @@ function trafficSpawn(at) {
 }
 
 const _carMat = new THREE.Matrix4();
+const _carZero = new THREE.Matrix4().makeScale(0, 0, 0);
 const _carQuat = new THREE.Quaternion();
 const _carEuler = new THREE.Euler();
 const _carPos = new THREE.Vector3();
@@ -13775,8 +13777,17 @@ function updateTraffic(dt, at) {
         px += a * Math.sin(yawV) * cp; pz += a * Math.cos(yawV) * cp; py += -a * Math.sin(pitchV);
       }
     }
-    if (pool && pool.items[i]) {
+    // the player's own car (written first, slot 0 of its kind) is always the model
+    const lodR = gfx.tier === "low" || perf.potato ? 45 : gfx.tier === "medium" ? 75 : gfx.tier === "high" ? 120 : 170;
+    const near = pool && pool.items[i] && (!CAR_MODELS[CAR_KINDS[kindIdx].name] || !CAR_MODELS[CAR_KINDS[kindIdx].name].user ||
+      (drive.car && drive.car.pos === pos) || Math.hypot(px - at.x, pz - at.z) < lodR);
+    if (pool && pool.items[i] && !near) pool.items[i].visible = false;
+    if (near) {
       const o = pool.items[i];
+      if (CAR_MODELS[CAR_KINDS[kindIdx].name] && CAR_MODELS[CAR_KINDS[kindIdx].name].user) {
+        paint.setMatrixAt(i, _carZero); traffic.trim[kindIdx].setMatrixAt(i, _carZero);
+        if (traffic.deco[kindIdx]) traffic.deco[kindIdx].setMatrixAt(i, _carZero);
+      }
       o.visible = true;
       o.position.set(px, py, pz);
       // Pitch for the weight, roll for the slide, yaw for where it is going.
