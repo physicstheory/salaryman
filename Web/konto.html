@@ -6693,7 +6693,11 @@ function initThree() {
   const stage = document.getElementById("stage");
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
-  const startTier = savedTier() || guessTier();
+  let startTier = savedTier() || guessTier();
+  // back from a graphics reset: one step down, so the same thing does not happen again a minute later
+  try { if (sessionStorage.getItem("konto.glLost")) { sessionStorage.removeItem("konto.glLost"); const i = TIER_ORDER.indexOf(startTier);
+    if (i > 0) { startTier = TIER_ORDER[i - 1]; rememberTier(startTier); }
+    setTimeout(() => { try { say("The graphics driver reset. Your game was saved \u2014 press Continue. Graphics are now on " + startTier + ".", 8); } catch (x) {} }, 4000); } } catch (e) { /* none */ }
   renderer = new THREE.WebGLRenderer({
     antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
   });
@@ -6705,6 +6709,16 @@ function initThree() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.appendChild(renderer.domElement);
+  // If the graphics driver drops the context (out of memory, a driver reset, the laptop waking from sleep) the picture would stay white for
+  // good. Save where you are, say what happened, and start again from the save: Continue on the title picks up from that moment.
+  renderer.domElement.addEventListener("webglcontextlost", e => {
+    e.preventDefault();
+    console.warn("[Konto] the graphics context was lost");
+    try { saveGame(null, true); } catch (x) { /* nothing to save yet */ }
+    try { sessionStorage.setItem("konto.glLost", "1"); } catch (x) { /* none */ }
+    const f = document.getElementById("fade"); if (f) f.style.opacity = "1";
+    setTimeout(() => location.reload(), 1500);
+  }, false);
 
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
   sizeRenderer();
@@ -38508,8 +38522,16 @@ function inPhotoDetail(g, kind, w, h, a) {
   g.save(); g.globalCompositeOperation = "overlay"; g.globalAlpha = a || 0.55; g.drawImage(im, 0, 0, w, h); g.restore();
 }
 // A lit material straight from a photo and its relief, for rooms that are lit (Seiko's flat): null if the picture is not here yet.
-function inPhotoMat(kind, rough, rep, tint, bump) {
+// The picture a lit room is given: the full 2048 only on Ultra, a 1024 copy (made once) everywhere else, which is a quarter of the memory.
+function inPhotoSrc(kind) {
   const im = inPhoto.img[kind]; if (!im) return null;
+  if (typeof gfx === "object" && gfx.tier === "ultra") return im;
+  inPhoto.small = inPhoto.small || {};
+  if (!inPhoto.small[kind]) { const c = document.createElement("canvas"); c.width = c.height = 1024; c.getContext("2d").drawImage(im, 0, 0, 1024, 1024); inPhoto.small[kind] = c; }
+  return inPhoto.small[kind];
+}
+function inPhotoMat(kind, rough, rep, tint, bump) {
+  const im = inPhotoSrc(kind); if (!im) return null;
   const t = new THREE.Texture(im); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); sharpTex(t); t.needsUpdate = true;
   const m = new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0 });
   const nm = inPhoto.nor[kind];
@@ -38522,8 +38544,11 @@ inPhotoLoad();
 const inTex = {};
 function inCanvasTex(key, w, h, draw) {
   if (inTex[key]) return inTex[key];
-  // drawn at four times the size it is described at (twice on a low-end machine), so a wall seen from a metre away is still sharp
-  const S = typeof gfx === "object" && (gfx.tier === "low" || perf.potato) ? 2 : 4;
+  // the floors, walls and ceilings are drawn at twice the size they are described at, so a wall seen from a metre away is still sharp;
+  // the posters and banners stay as they were. (Everything at four times was most of a gigabyte of graphics memory once every room had
+  // been built, which is more than a laptop has: the driver gave up and the screen went white.)
+  const low = typeof gfx === "object" && (gfx.tier === "low" || perf.potato);
+  const S = /^(floor:|wall:|ceil)/.test(key) && !low ? 2 : 1;
   const c = document.createElement("canvas"); c.width = w * S; c.height = h * S;
   const redraw = () => { const g = c.getContext("2d"); g.setTransform(S, 0, 0, S, 0, 0); g.clearRect(0, 0, w, h); draw(g, w, h); };
   redraw();
