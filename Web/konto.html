@@ -12531,6 +12531,12 @@ function conformRibbon(pts, loop, t0, t1, ground, lift, opts) {
     if (i) along.push(along[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][2] - P[i - 1][2]));
     rows.push(offsets.map(t => { const x = P[i][0] + nx * t, z = P[i][2] + nz * t; return [x, ground(x, z) + lift, z]; }));
   }
+  // A road is flat: level across its width, and along it a smooth profile (the ground under it averaged over about twenty metres), never
+  // the lumps of the ground grid. Each cross-section takes the highest of its own samples so the edges are not buried, then the profile
+  // is smoothed.
+  { const h = rows.map(row => Math.max(...row.map(q => q[1])));
+    for (let pass = 0; pass < 3; pass++) { const t = h.slice(); for (let i = 0; i < n; i++) { let sum = 0, c = 0; for (let d = -3; d <= 3; d++) { const j = loop ? (i + d + n) % n : Math.min(n - 1, Math.max(0, i + d)); sum += t[j]; c++; } h[i] = Math.max(sum / c, t[i] - 0.15); } }
+    rows.forEach((row, i) => row.forEach(q => { q[1] = h[i]; })); }
   // the check: the ground under the middle and the edges of each quad, against the quad
   const need = new Float32Array(n);
   for (let pass = 0; pass < 2; pass++) {
@@ -12545,7 +12551,7 @@ function conformRibbon(pts, loop, t0, t1, ground, lift, opts) {
       if (worst > 0.002) { need[i - 1] = Math.max(need[i - 1], worst); need[i] = Math.max(need[i], worst); }
     }
     let any = false;
-    for (let i = 0; i < n; i++) if (need[i] > 0) { any = true; const d = Math.min(need[i], 1.5); rows[i].forEach(q => { q[1] += d; }); surfaceGuard.lifted++; surfaceGuard.maxLift = Math.max(surfaceGuard.maxLift, d); need[i] = 0; }
+    for (let i = 0; i < n; i++) if (need[i] > 0) { any = true; const d = Math.min(need[i], 0.25); rows[i].forEach(q => { q[1] += d; }); surfaceGuard.lifted++; surfaceGuard.maxLift = Math.max(surfaceGuard.maxLift, d); need[i] = 0; }
     if (!any) break;
   }
   return { rows: rows, offsets: offsets, along: along, P: P, norms: norms };
