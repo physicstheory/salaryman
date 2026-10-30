@@ -9424,12 +9424,16 @@ function impostorTree(sp, x, y, z, h, wide, yaw) {
   const m = impostorMesh(sp, 1, x, y + h / 2, z, h * 1.2);
   m.setMatrixAt(0, new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw || 0), new THREE.Vector3(h * (wide || 1), h, h * (wide || 1))));
   m.castShadow = true; m.frustumCulled = false;
+  // the cards' shader reads a colour per tree, so a tree on its own has one too (white: as photographed); without it the shared program
+  // draws from an attribute that is not there and the frame is lost
+  m.setColorAt(0, new THREE.Color(1, 1, 1)); m.instanceColor.needsUpdate = true;
   return m;
 }
 // a tile's or a town cell's worth of one species: an instanced card with its bounds set to cover the trees
 function impostorMesh(sp, count, cx, cy, cz, radius) {
   const inst = new THREE.InstancedMesh(sharedGeometry(impostorQuad(), cx, cy, cz, radius), impostorMaterial(sp), count);
   inst.customDepthMaterial = impostorDepth(sp);
+  { const w = new THREE.Color(1, 1, 1); for (let i = 0; i < count; i++) inst.setColorAt(i, w); }
   return inst;
 }
 // the sun and sky as the trees see them, from the scene's own lights, once a frame
