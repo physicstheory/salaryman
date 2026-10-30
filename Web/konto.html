@@ -12471,6 +12471,7 @@ function buildRoadSurfaces(w, city, root) {
         }
       }
     });
+    city.decalSample = { tomare: tomare.slice(0, 8), limits: limits.slice(0, 8) };
     roadDecals(root, tomare, "tomare", 3, 4.4);
     roadDecals(root, stops, "stopline", 3, 0.45);
     roadDecals(root, limits, "limit", 1.6, 4);
@@ -15639,7 +15640,7 @@ function buildCastle(root, city) {
     [a, b, c, d].forEach(q => { const w = W(q[0], q[2]); G.p.push(w[0], q[1], w[1]); });
     const lenU = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), lenV = Math.hypot(d[0] - a[0], d[1] - a[1], d[2] - a[2]);
     G.u.push(0, 0, lenU / rep, 0, lenU / rep, lenV / rep, 0, lenV / rep);
-    G.i.push(base, base + 1, base + 2, base, base + 2, base + 3, base, base + 2, base + 1, base, base + 3, base + 2);   // both faces
+    G.i.push(base, base + 1, base + 2, base, base + 2, base + 3);   // one winding: the material is double-sided (both windings on shared vertices cancel the normals)
   };
   // an axis-aligned box in the castle's frame
   const box = (key, cx, y0, cz, w, h, d, rep) => {
