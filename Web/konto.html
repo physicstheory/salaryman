@@ -827,6 +827,21 @@
     background: linear-gradient(90deg, rgba(255,255,255,0.09), rgba(255,255,255,0));
   }
   .title-btn[hidden] { display: none; }
+  #spotifypanel { position: absolute; right: clamp(20px, 5vw, 90px); top: 50%; transform: translateY(-50%); width: min(470px, 46vw); max-height: 86vh; overflow: auto;
+    padding: 22px 24px 18px; background: rgba(10,12,15,0.92); border-top: 3px solid #1ed760; color: #dfe3e7; font: 14px/1.5 var(--ui); z-index: 5; }
+  #spotifypanel[hidden] { display: none; }
+  #spotifypanel h3 { margin: 2px 0 10px; font: 700 22px/1.2 var(--ui); color: #fff; }
+  #spotifypanel .sp-kick { margin: 0; color: #1ed760; font: 700 12px/1 var(--ui); letter-spacing: 0.14em; text-transform: uppercase; }
+  #spotifypanel p { margin: 0 0 10px; } #spotifypanel b { color: #fff; }
+  #spotifypanel #spstate { color: #9fe8b9; }
+  #spotifypanel label { display: block; margin-top: 6px; font-weight: 600; color: #fff; }
+  #spotifypanel input { width: 100%; box-sizing: border-box; margin: 6px 0 10px; padding: 9px 10px; background: #15181d; color: #fff; border: 1px solid #2c323a; font: 14px ui-monospace, monospace; }
+  #spotifypanel .sp-small { font-size: 12.5px; color: #a3abb4; }
+  #spotifypanel code { display: block; padding: 8px 10px; margin-bottom: 12px; background: #15181d; color: #ffd21c; font: 13px ui-monospace, monospace; word-break: break-all; user-select: all; }
+  #spotifypanel .sp-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  #spotifypanel button { appearance: none; border: 0; padding: 10px 16px; font: 700 13px/1 var(--ui); letter-spacing: 0.04em; cursor: pointer; background: #2a3038; color: #fff; }
+  #spotifypanel #spsignin { background: #1ed760; color: #08130c; }
+  #spotifypanel #spstatus { min-height: 1.5em; color: #c8ced6; font-size: 13px; }
   #iprompt { position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); z-index: 40; padding: 8px 16px; font: 600 15px 'Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(12,14,18,.72); border-left: 3px solid #ffd21c; opacity: 0; transition: opacity .15s; pointer-events: none; white-space: nowrap; }
   #iprompt.on { opacity: 1; } #iprompt b { background: #ffd21c; color: #111; padding: 1px 8px; margin-right: 8px; } #iprompt i { color: #ffd21c; font-style: normal; margin-left: 10px; }
   #icard { position: fixed; left: 50%; bottom: 5%; transform: translate(-50%, 20px); z-index: 41; width: min(620px, 92vw); padding: 16px 20px; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; background: rgba(12,14,18,.84); border-top: 3px solid #ffd21c; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
@@ -1023,11 +1038,25 @@
       <button class="title-btn sel" id="tnew" type="button">New game</button>
       <button class="title-btn" id="tcontinue" type="button" hidden>Continue</button>
       <button class="title-btn" id="tsettings" type="button">Settings</button>
+      <button class="title-btn" id="tspotify" type="button">Spotify Premium: sign in</button>
       <button class="title-btn" id="tquit" type="button" hidden>Quit</button>
     </div>
     <p id="titlehint">Enter, or <b>A</b> on the controller<span id="addhint"></span></p>
   </div>
   <div id="titlefoot"><span id="titlestage">Konto &middot; one island, one seed</span></div>
+  <div id="spotifypanel" hidden>
+    <p class="sp-kick">Car radio</p>
+    <h3>Real music with Spotify</h3>
+    <p>The music stations play real songs from your own <b>Spotify Premium</b> account. Until you sign in, the only station on the dial is
+       <b>Tokonto Classical Radio</b>: public-domain orchestral and piano recordings that come with the game.</p>
+    <p id="spstate"></p>
+    <label for="spclient">Your Spotify app's Client ID</label>
+    <input id="spclient" type="text" spellcheck="false" autocomplete="off" maxlength="40" placeholder="from developer.spotify.com/dashboard">
+    <p class="sp-small">Create an app at developer.spotify.com/dashboard (tick Web API and Web Playback SDK) and add this Redirect URI to it, exactly:</p>
+    <code id="spredirect"></code>
+    <div class="sp-row"><button id="spsignin" type="button">Sign in with Spotify</button><button id="spsignout" type="button" hidden>Sign out</button><button id="spclose" type="button">Close</button></div>
+    <p id="spstatus"></p>
+  </div>
 </div>
 
 <div id="homeview" hidden><canvas id="homecanvas" width="1280" height="720"></canvas></div>
@@ -6663,6 +6692,8 @@ function initThree() {
     e.preventDefault();
   }, { passive: false });
   window.addEventListener("keydown", e => {
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { if (e.code === "Escape" && spotifyUi.open) spotifyPanel(false); return; }
+    if (title.on && spotifyUi.open) { if (e.code === "Escape" || e.code === "Backspace") spotifyPanel(false); return; }
     if (e.code === "F3") { perfToggle(); e.preventDefault(); return; }
     keys[e.code] = true;
     if (e.code === "Tab" && gunArmed()) e.preventDefault();
@@ -6944,6 +6975,7 @@ function pollPad(dt) {
   }
 
   // The title screen owns the pad while it is up.
+  if (title.on && spotifyUi.open) { if (pressed(PAD.B)) spotifyPanel(false); return; }
   if (title.on) {
     const ly = deadzone(gp.axes[1] || 0, 0.45);
     if (pressed(PAD.UP) || (ly < -0.5 && !pad.titleHeld)) { titleMove(-1); pad.titleHeld = true; }
@@ -7311,7 +7343,7 @@ function fillPause(name) {
       return '<div class="radrow' + (i === radio.st ? " on" : "") + '" id="prad' + i + '" style="--rc:' + st.colour + '">' + logo +
         '<div><b>' + st.name + (st.freq ? ' · ' + st.freq : '') + '</b><span>' + (st.off ? 'Silence in the car' : st.talk ? st.genre + ' · ' + info.title : info.title + ' — ' + info.artist) + '</span></div></div>';
     }).join(""));
-    RADIO_STATIONS.forEach((st, i) => { const el = document.getElementById("prad" + i); if (el) el.addEventListener("click", () => { radio.st = i; radio.tuned = -1; fillPause("radio"); syncPauseRows(); say(st.name + " is set for the next drive.", 3); }); });
+    RADIO_STATIONS.forEach((st, i) => { const el = document.getElementById("prad" + i); if (el) el.addEventListener("click", () => { if (radioLocked(st)) { say(st.name + " is locked. Sign in with Spotify Premium on the title screen.", 4); return; } radio.st = i; radio.tuned = -1; fillPause("radio"); syncPauseRows(); say(st.name + " is set for the next drive.", 3); }); });
   }
 }
 function fillPauseStats() { fillPause(PAUSE_TABS[pause.tab]); }
@@ -7321,7 +7353,7 @@ function initPause() {
     const el = document.getElementById(id);
     if (el) el.addEventListener("click", fn);
   };
-  ["tnew", "tcontinue", "tsettings"].forEach((id, i) => {
+  ["tnew", "tcontinue", "tsettings", "tspotify"].forEach((id, i) => {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener("mouseenter", () => {
@@ -24124,6 +24156,7 @@ function spotifySave() {
 }
 async function spotifyLogin() {
   if (!spotify.clientId) { say("Set a Spotify client id in Settings first.", 5); return; }
+  if (typeof spotifySignIn === "function") { spot.client = spotify.clientId; try { localStorage.setItem("konto.spotify.client", spot.client); } catch (e) { /* none */ } return spotifySignIn(); }
   // PKCE: a random verifier, its SHA-256 sent up front, the verifier sent back
   // at the exchange. No secret ever leaves this machine.
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
@@ -24147,6 +24180,7 @@ async function spotifyLogin() {
   location.href = url;
 }
 async function spotifyFinishLogin() {
+  if (typeof spotifyBoot === "function") return;            // the radio's sign-in finishes it (spotifyBoot), and shares the token
   const code = new URLSearchParams(location.search).get("code");
   if (!code) return;
   let verifier = "";
@@ -24182,7 +24216,7 @@ async function spotifyCall(path, method, body) {
                  "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined
     });
-    if (res.status === 401) { spotify.state = "idle"; spotify.token = ""; spotifySave(); return null; }
+    if (res.status === 401) { spotify.state = "idle"; spotify.token = ""; spotifySave(); if (spot.refresh) { spot.exp = 0; spotifyToken().then(t => { if (t) spotifyShare(); }); } return null; }
     if (res.status === 204) return {};
     return await res.json();
   } catch (e) { spotify.error = String(e.message || e); return null; }
@@ -27326,7 +27360,22 @@ const RADIO_LOGOS = {
 // Tap R, or tap left on the D-pad, for the next station. Hold either to open the
 // wheel: it shows what each station is playing, and the right stick, or the
 // arrows, picks one. Radios only play in cars.
+// Tokonto Classical Radio plays real recordings that ship with the game: Musopen's orchestral and Chopin releases, which are in the
+// public domain performances and all (art/classical/LICENSE.txt). It is the one station that needs nothing; the others are locked until
+// a Spotify Premium account is signed in on the title screen (see "Spotify" below), and then play real songs from it.
+const CLASSICAL = [
+  ["01_morning", "Peer Gynt: Morning Mood", "Edvard Grieg"], ["02_mountain_king", "Peer Gynt: In the Hall of the Mountain King", "Edvard Grieg"],
+  ["03_anitra", "Peer Gynt: Anitra's Dance", "Edvard Grieg"], ["04_italian", "Symphony No. 4 'Italian': Allegro vivace", "Felix Mendelssohn"],
+  ["05_hebrides", "The Hebrides (Fingal's Cave)", "Felix Mendelssohn"], ["06_magic_flute", "The Magic Flute: Overture", "W. A. Mozart"],
+  ["07_figaro", "The Marriage of Figaro: Overture", "W. A. Mozart"], ["08_sym40", "Symphony No. 40: Molto allegro", "W. A. Mozart"],
+  ["09_vltava", "Ma vlast: Vltava", "Bedrich Smetana"], ["10_brahms3", "Symphony No. 3: Poco allegretto", "Johannes Brahms"],
+  ["11_goldberg", "Goldberg Variations: Aria", "J. S. Bach"], ["12_american", "String Quartet 'American': Lento", "Antonin Dvorak"],
+  ["13_egmont", "Egmont Overture", "Ludwig van Beethoven"], ["14_nocturne", "Nocturne in E-flat, Op. 9 No. 2", "Frederic Chopin"],
+  ["15_valse", "Grande valse brillante, Op. 18", "Frederic Chopin"], ["16_fantaisie", "Fantaisie-Impromptu, Op. 66", "Frederic Chopin"]
+].map(c => ({ f: "art/classical/" + c[0] + ".m4a", t: c[1], a: c[2] }));
 const RADIO_STATIONS = [
+  { id: "classical", name: "Tokonto Classical Radio", freq: "84.5", genre: "Classical, instrumental", style: "files", colour: "#c9a24a", logo: "none", free: true,
+    files: CLASSICAL, songs: CLASSICAL.map(c => [c.t, c.a, 300]) },
   { id: "gold1", name: "Gold 1", freq: "88.1", genre: "1980s pop and rock", style: "synth80", colour: "#f2b81c", logo: "gold1", songs: [
     ["Midnight Shinkansen", "Mirage Tokyo", 63], ["Chrome Hearts", "Hikari Boulevard", 71], ["Don't Stop the 6:42", "The Salarymen", 66],
     ["Laser Karaoke", "Neon Orchestra", 69], ["Rain on Roppongi", "Velvet Ginza", 74], ["Bubble Economy", "Yen Division", 61]] },
@@ -27390,6 +27439,12 @@ function radioPlaying(st, t) {
   return { i: i, song: st.songs[i], pos: pos };
 }
 function radioInfo(st) {
+  if (radioLocked(st)) return { title: "Locked", artist: "Sign in with Spotify Premium", pos: 0, dur: 1, idx: 0, cap: "Sign in with Spotify Premium on the title screen" };
+  if (spotifyFor(st)) {
+    const n = spot.st === st.id && spot.now;
+    return n ? { title: n.title, artist: n.artist, pos: Math.min(n.dur, n.pos + (spot.sdk ? 0 : (performance.now() - n.at) / 1000)), dur: n.dur, idx: 0 }
+             : { title: "Spotify", artist: SPOTIFY_SEARCH[st.id], pos: 0, dur: 1, idx: 0 };
+  }
   if (st.files) { const f = st.files[(radio.fileIdx || 0) % st.files.length], au = radio.audio; return { title: f.t, artist: f.a || st.name, pos: au && !au.paused ? au.currentTime : 0, dur: au && isFinite(au.duration) ? au.duration : 240, idx: radio.fileIdx || 0 }; }
   if (ytRadio.on && ytRadio.st === st.id && ytRadio.title) return { title: ytRadio.title, artist: "Live", pos: 0, dur: 1, idx: 0 };
   const p = radioPlaying(st, radioNow());
@@ -27567,6 +27622,7 @@ function radioSchedule() {
 function radioBeginSong(next) {
   const ctx = sound.ctx; if (!ctx) return;
   const st = radioStation(radio.st);
+  if (spotifyFor(st)) { radio.plan = null; if (!next) { spotifyPlay(st); radioToast(); } return; }
   if (st.files) { radioFilePlay(st, next); return; }
   let idx, pos;
   if (next) { idx = radio.songIdx; pos = 0; }
@@ -27579,7 +27635,10 @@ function radioBeginSong(next) {
 }
 
 function radioSet(i, quiet) {
+  const want = ((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length;
+  if (radioLocked(RADIO_STATIONS[want])) { if (!quiet) say(RADIO_STATIONS[want].name + " is locked. Sign in with Spotify Premium on the title screen to play real songs on it.", 5); if (!radioLocked(radioStation(radio.st))) return; i = RADIO_STATIONS.findIndex(x => x.free); }
   if (radio.audio) radio.audio.pause();
+  spotifyStop();
   radio.st = ((i % RADIO_STATIONS.length) + RADIO_STATIONS.length) % RADIO_STATIONS.length;
   radio.tuned = radio.st;
   if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ }
@@ -27635,7 +27694,208 @@ async function radioLoadMusic() {
   });
   console.log("[Konto] the radio has real songs on: " + Object.keys(idx.stations).join(", "));
 }
-function radioNext(d) { radioSet(radio.st + (d || 1)); }
+function radioNext(d) {
+  d = d || 1; let i = radio.st;
+  for (let k = 0; k < RADIO_STATIONS.length; k++) { i += d; if (!radioLocked(radioStation(i))) break; }
+  radioSet(i);
+}
+function radioLocked(st) { return !!st && !st.off && !st.free && st.id !== "mymusic" && !spot.ready; }
+function radioLockSync() { if (radioLocked(radioStation(radio.st))) { radio.st = Math.max(0, RADIO_STATIONS.findIndex(x => x.free)); radio.tuned = -1; } }
+
+// ---- Spotify ------------------------------------------------------------------------------------------------------------------------------
+// The music stations play real songs from the player's own Spotify Premium account, signed in from the title screen (Spotify, under
+// Settings). Each station is a playlist found by searching Spotify for its genre, remembered once found, shuffled and joined at a random
+// track, so tuning in is like tuning in. In a browser the game is a Spotify player itself (the Web Playback SDK); the desktop build has
+// no DRM module for that, so it drives the player's own Spotify app instead (Spotify Connect: open Spotify on the computer or the phone
+// and the car radio plays through it). Signing in needs a Spotify app of the player's own - a Client ID from developer.spotify.com - with
+// the redirect address the panel shows, because a game cannot ship anyone else's.
+const SPOTIFY_SCOPES = "streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state";
+const SPOTIFY_SEARCH = { gold1: "80s pop rock hits", tokonto43: "J-pop hits", soul: "K-pop hits", westside: "90s west coast hip hop", nashville: "country hits" };
+const spot = { client: "", token: "", refresh: "", exp: 0, product: "", name: "", ready: false, player: null, device: "", sdk: false, uris: {}, now: null, st: null, err: "", seq: 0 };
+function spotifyDesktop() { return !!(window.KONTO_DESKTOP && window.KONTO_DESKTOP.spotifyAuth); }
+function spotifyRedirect() { return spotifyDesktop() ? "http://127.0.0.1:43117/spotify-callback" : location.origin + location.pathname; }
+function spotLoad() {
+  try {
+    spot.client = localStorage.getItem("konto.spotify.client") || localStorage.getItem("konto.spotify.id") || "";
+    const a = JSON.parse(localStorage.getItem("konto.spotify.auth") || "null"); if (a) { spot.token = a.token || ""; spot.refresh = a.refresh || ""; spot.exp = a.exp || 0; }
+    spot.uris = JSON.parse(localStorage.getItem("konto.spotify.uris") || "{}") || {};
+  } catch (e) { /* storage off: sign in again each time */ }
+}
+function spotifySaveAuth() { try { localStorage.setItem("konto.spotify.auth", JSON.stringify({ token: spot.token, refresh: spot.refresh, exp: spot.exp })); } catch (e) { /* none */ } }
+function b64url(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+async function spotifySignIn() {
+  if (!/^[0-9a-f]{32}$/i.test(spot.client)) { spotifyUiStatus("Paste your Spotify app's Client ID first (32 letters and numbers)."); return; }
+  if (!window.crypto || !crypto.subtle) { spotifyUiStatus("Open the game from https or from http://127.0.0.1 to sign in (browsers only allow it there)."); return; }
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48))), state = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  const challenge = b64url(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)));
+  const q = new URLSearchParams({ client_id: spot.client, response_type: "code", redirect_uri: spotifyRedirect(), code_challenge_method: "S256", code_challenge: challenge, scope: SPOTIFY_SCOPES, state: state });
+  const url = "https://accounts.spotify.com/authorize?" + q.toString();
+  if (spotifyDesktop()) {
+    spotifyUiStatus("Sign in to Spotify in the window that has opened.");
+    const back = await window.KONTO_DESKTOP.spotifyAuth(url, spotifyRedirect());
+    if (!back) { spotifyUiStatus("The sign-in window was closed before it finished."); return; }
+    await spotifyCallback(new URL(back), verifier, state);
+  } else {
+    try { sessionStorage.setItem("konto.spotify.pkce", JSON.stringify({ verifier: verifier, state: state })); } catch (e) { /* none */ }
+    spotifyUiStatus("Going to Spotify to sign in.");
+    location.assign(url);
+  }
+}
+async function spotifyCallback(u, verifier, state) {
+  const code = u.searchParams.get("code"), err = u.searchParams.get("error");
+  if (err) { spotifyUiStatus(err === "access_denied" ? "Sign-in was cancelled." : "Spotify said: " + err); return false; }
+  if (!code || u.searchParams.get("state") !== state) { spotifyUiStatus("That sign-in did not match; try again."); return false; }
+  spotifyUiStatus("Signing in.");
+  const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "authorization_code", code: code, redirect_uri: spotifyRedirect(), client_id: spot.client, code_verifier: verifier }) }).catch(() => null);
+  const j = r ? await r.json().catch(() => ({})) : {};
+  if (!r || !r.ok || !j.access_token) { spotifyUiStatus("Sign-in failed: " + (j.error_description || j.error || (r ? r.status : "no connection"))); return false; }
+  spotifyTake(j); await spotifyStart(); return true;
+}
+function spotifyTake(j) { spot.token = j.access_token; if (j.refresh_token) spot.refresh = j.refresh_token; spot.exp = Date.now() + (j.expires_in || 3600) * 1000 - 60000; spotifySaveAuth(); spotifyShare(); }
+// SOTI Music on the phone talks to the same account: it is handed the radio's token whenever that changes
+function spotifyShare() { spotify.clientId = spot.client; spotify.token = spot.token; spotify.expires = spot.exp; spotify.state = spot.token ? "ready" : "idle"; spotifySave(); }
+async function spotifyToken() {
+  if (spot.token && Date.now() < spot.exp) return spot.token;
+  if (!spot.refresh || !spot.client) return "";
+  const r = await fetch("https://accounts.spotify.com/api/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: spot.refresh, client_id: spot.client }) }).catch(() => null);
+  const j = r ? await r.json().catch(() => ({})) : {};
+  if (!r || !r.ok || !j.access_token) { if (r && r.status === 400) spotifySignOut(true); return ""; }
+  spotifyTake(j); return spot.token;
+}
+async function spotifyApi(method, path, body) {
+  const t = await spotifyToken(); if (!t) { const e = new Error("not signed in"); e.status = 401; throw e; }
+  const r = await fetch("https://api.spotify.com/v1" + path, { method: method, headers: Object.assign({ Authorization: "Bearer " + t }, body ? { "Content-Type": "application/json" } : {}), body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 204 || r.status === 202) return null;
+  const j = await r.json().catch(() => null);
+  if (!r.ok) { const e = new Error((j && j.error && j.error.message) || ("HTTP " + r.status)); e.status = r.status; throw e; }
+  return j;
+}
+async function spotifyStart() {
+  try {
+    const me = await spotifyApi("GET", "/me");
+    spot.name = (me && (me.display_name || me.id)) || ""; spot.product = (me && me.product) || "";
+    spot.ready = spot.product === "premium";
+    spot.err = spot.ready ? "" : "This account is Spotify " + (spot.product || "Free") + "; the radio needs Premium.";
+  } catch (e) {
+    spot.ready = false;
+    spot.err = e.status === 403 ? "Spotify has not opened your app to this account yet: add the account under User Management in the app's dashboard." : "Could not reach Spotify (" + e.message + ").";
+  }
+  if (spot.ready && !spotifyDesktop()) spotifyLoadSdk();
+  spotifyUiSync(); radioLockSync();
+}
+function spotifyLoadSdk() {
+  if (spot.sdkLoading) return; spot.sdkLoading = true;
+  window.onSpotifyWebPlaybackSDKReady = () => {
+    const p = new Spotify.Player({ name: "Salary Man car radio", getOAuthToken: cb => { spotifyToken().then(cb); }, volume: 0.7 });
+    p.addListener("ready", e => { spot.device = e.device_id; spot.sdk = true; });
+    p.addListener("not_ready", () => { spot.sdk = false; });
+    p.addListener("initialization_error", e => { spot.sdk = false; console.warn("[Konto] the Spotify player will not start here; Spotify Connect stands in:", e.message); });
+    p.addListener("account_error", () => { spot.sdk = false; spot.ready = false; spot.err = "Spotify Premium is needed to play the radio."; spotifyUiSync(); radioLockSync(); });
+    p.addListener("authentication_error", e => console.warn("[Konto] Spotify sign-in:", e.message));
+    p.addListener("player_state_changed", s => { const t = s && s.track_window && s.track_window.current_track; if (t) spotifyNow(t.name, t.artists.map(a => a.name).join(", "), s.position / 1000, s.duration / 1000); });
+    p.connect(); spot.player = p;
+  };
+  const sc = document.createElement("script"); sc.src = "https://sdk.scdn.co/spotify-player.js"; sc.onerror = () => { spot.sdkLoading = false; }; document.head.appendChild(sc);
+}
+function spotifyNow(title, artist, pos, dur) {
+  const changed = !spot.now || spot.now.title !== title;
+  spot.now = { title: title, artist: artist, pos: pos, dur: dur || 1, at: performance.now() };
+  if (changed && drive.car && spot.st && radioStation(radio.st).id === spot.st) radioToast();
+}
+function spotifyFor(st) { return spot.ready && !!SPOTIFY_SEARCH[st.id]; }
+async function spotifyStationUri(st) {
+  if (spot.uris[st.id]) return spot.uris[st.id];
+  const j = await spotifyApi("GET", "/search?type=playlist&limit=10&q=" + encodeURIComponent(SPOTIFY_SEARCH[st.id]));
+  const all = ((j && j.playlists && j.playlists.items) || []).filter(Boolean), pick = all.find(x => x.tracks && x.tracks.total >= 25) || all[0];
+  if (!pick) throw new Error("no playlist found");
+  spot.uris[st.id] = pick.uri; try { localStorage.setItem("konto.spotify.uris", JSON.stringify(spot.uris)); } catch (e) { /* none */ }
+  return pick.uri;
+}
+async function spotifyDevice() {
+  if (spot.sdk && spot.device) return spot.device;
+  const j = await spotifyApi("GET", "/me/player/devices");
+  const ds = (j && j.devices) || [], d = ds.find(x => x.is_active) || ds.find(x => x.type === "Computer") || ds[0];
+  return d ? d.id : "";
+}
+async function spotifyPlay(st) {
+  spot.st = st.id; spot.now = null;
+  const seq = ++spot.seq;
+  try {
+    if (spot.player && spot.player.activateElement) { try { spot.player.activateElement(); } catch (e) { /* none */ } }
+    const both = await Promise.all([spotifyStationUri(st), spotifyDevice()]), uri = both[0], dev = both[1];
+    if (seq !== spot.seq) return;
+    if (!dev) { say("Open Spotify on this computer or your phone and the car radio will play through it.", 6); return; }
+    await spotifyApi("PUT", "/me/player/shuffle?state=true&device_id=" + dev).catch(() => {});
+    const pl = await spotifyApi("GET", "/playlists/" + uri.split(":").pop() + "?fields=tracks.total").catch(() => null);
+    const n = pl && pl.tracks ? pl.tracks.total : 0;
+    if (seq !== spot.seq) return;
+    await spotifyApi("PUT", "/me/player/play?device_id=" + dev, n ? { context_uri: uri, offset: { position: Math.floor(Math.random() * Math.min(n, 60)) } } : { context_uri: uri });
+    spot.dev = dev;
+    if (!spot.sdk) { clearTimeout(spot.pollT); spot.pollT = setTimeout(spotPoll, 1500); }
+  } catch (e) {
+    if (e.status === 404) delete spot.uris[st.id];
+    console.warn("[Konto] Spotify could not play " + st.name + ":", e.message);
+    if (seq === spot.seq) say("Spotify could not play " + st.name + " (" + e.message + ").", 5);
+  }
+}
+async function spotPoll() {
+  if (!spot.st || spot.sdk) return;
+  try {
+    const s = await spotifyApi("GET", "/me/player/currently-playing");
+    if (s && s.item && spot.st) {
+      spotifyNow(s.item.name, (s.item.artists || []).map(a => a.name).join(", "), (s.progress_ms || 0) / 1000, (s.item.duration_ms || 1000) / 1000);
+      clearTimeout(spot.pollT); spot.pollT = setTimeout(spotPoll, Math.max(3000, Math.min(30000, s.item.duration_ms - s.progress_ms + 800)));
+    }
+  } catch (e) { /* try again on the next song */ }
+}
+function spotifyStop() {
+  if (!spot.st) return;
+  spot.st = null; spot.seq++; clearTimeout(spot.pollT);
+  if (spot.sdk && spot.player) { spot.player.pause().catch(() => {}); return; }
+  if (spot.dev) spotifyApi("PUT", "/me/player/pause?device_id=" + spot.dev).catch(() => {});
+}
+function spotifySignOut(quiet) {
+  spotifyStop(); spot.token = spot.refresh = ""; spot.exp = 0; spot.ready = false; spot.name = ""; spot.product = ""; spot.err = "";
+  if (spot.player) { try { spot.player.disconnect(); } catch (e) { /* none */ } spot.player = null; spot.sdk = false; spot.sdkLoading = false; }
+  try { localStorage.removeItem("konto.spotify.auth"); } catch (e) { /* none */ }
+  if (!quiet) spotifyUiStatus("Signed out. Only Tokonto Classical Radio plays until you sign in again.");
+  spotifyUiSync(); radioLockSync();
+}
+// On the way in: finish a sign-in Spotify has just sent the browser back from, or pick up the one from last time.
+async function spotifyBoot() {
+  spotLoad();
+  const u = new URL(location.href);
+  if (u.searchParams.get("code") || u.searchParams.get("error")) {
+    let pk = null;
+    try { pk = JSON.parse(sessionStorage.getItem("konto.spotify.pkce") || "null"); sessionStorage.removeItem("konto.spotify.pkce"); } catch (e) { /* none */ }
+    history.replaceState(null, "", location.pathname + location.hash);
+    if (pk) { spotifyUi.open = false; await spotifyCallback(u, pk.verifier, pk.state); }
+    spotifyUiSync(); return;
+  }
+  if (spot.refresh || spot.token) await spotifyStart(); else spotifyUiSync();
+}
+// The panel on the title screen.
+const spotifyUi = { open: false, status: "" };
+function spotifyUiStatus(t) { spotifyUi.status = t; const el = document.getElementById("spstatus"); if (el) el.textContent = t; }
+function spotifyUiSync() {
+  const b = document.getElementById("tspotify");
+  if (b) b.textContent = spot.ready ? "Spotify: " + (spot.name || "signed in") : "Spotify Premium: sign in";
+  const ci = document.getElementById("spclient"); if (ci && document.activeElement !== ci) ci.value = spot.client;
+  const rd = document.getElementById("spredirect"); if (rd) rd.textContent = spotifyRedirect();
+  const so = document.getElementById("spsignout"); if (so) so.hidden = !(spot.token || spot.refresh);
+  const si = document.getElementById("spsignin"); if (si) si.textContent = spot.ready ? "Sign in again" : "Sign in with Spotify";
+  const st = document.getElementById("spstate");
+  if (st) st.textContent = spot.ready ? "Signed in as " + spot.name + " (Premium). Every station is unlocked." + (spotifyDesktop() ? " Keep Spotify open on this computer or your phone: the car radio plays through it." : "")
+                                         : (spot.err || "Not signed in. Only Tokonto Classical Radio plays.");
+}
+function spotifyPanel(on) {
+  spotifyUi.open = !!on;
+  const el = document.getElementById("spotifypanel"); if (!el) return;
+  el.hidden = !on; spotifyUiSync();
+  if (on) { spotifyUiStatus(spotifyUi.status); const ci = document.getElementById("spclient"); if (ci && !spot.client) setTimeout(() => ci.focus(), 50); }
+}
 
 function radioToast() {
   radio.toast = 4.5;
@@ -27791,6 +28051,7 @@ function drawRadioWheel() {
     g.fillStyle = on ? "#0c0e12" : "#e9edf0"; g.textAlign = "center"; g.textBaseline = "middle";
     g.font = "600 " + Math.round(W * 0.0155) + "px " + UI;
     if (st.off) { g.fillText("Radio off", gx, gy + outer * 0.115); return; }
+    if (radioLocked(st)) { g.fillStyle = on ? "#0c0e12" : "#8b939c"; g.fillText("Locked", gx, gy + outer * 0.115); return; }
     let tt = st.talk ? "On air" : info.title;
     while (tt.length > 4 && g.measureText(tt).width > outer * 0.38) tt = tt.slice(0, -2);
     g.fillText(tt === (st.talk ? "On air" : info.title) ? tt : tt + "…", gx, gy + outer * 0.115);
@@ -27807,6 +28068,12 @@ function drawRadioWheel() {
     g.fillText("Let go to switch it off", cx, cy + inner * 0.34);
     g.textAlign = "left"; g.textBaseline = "alphabetic";
     return;
+  }
+  if (radioLocked(st)) {
+    g.fillStyle = "#ffffff"; g.font = "700 " + Math.round(W * 0.024) + "px " + UI; g.fillText(st.name + " is locked", cx, cy + inner * 0.12);
+    g.fillStyle = "#a9b0b8"; g.font = "500 " + Math.round(W * 0.017) + "px " + UI;
+    g.fillText("Sign in with Spotify Premium", cx, cy + inner * 0.34); g.fillText("on the title screen for real songs", cx, cy + inner * 0.48);
+    g.textAlign = "left"; g.textBaseline = "alphabetic"; return;
   }
   g.fillStyle = st.colour; g.font = "800 " + Math.round(W * 0.019) + "px " + UI;
   g.fillText(st.freq + "  ·  " + st.genre, cx, cy + inner * 0.05);
@@ -27832,13 +28099,12 @@ function drawRadioWheel() {
 // is set in the phone's Settings (a link, a video id or a playlist id), and
 // remembered. Only the defaults below ship with the game, and they are a starting
 // point, not a promise: a link that has been taken down simply falls back.
-const RADIO_YT = {
-  gold1: "A22oc_4NTs8"          // Queen at Live Aid, 1985
-};
+const RADIO_YT = {};
 const ytRadio = { frame: null, src: "", on: false, title: "", t0: 0, failed: {} };
 function ytSourceFor(st) {
   let v = "";
   try { v = localStorage.getItem("konto.radio.yt." + st.id) || ""; } catch (e) { /* none */ }
+  if (radioLocked(st) || spotifyFor(st)) return "";
   return (v || RADIO_YT[st.id] || "").trim();
 }
 function ytEmbedUrl(src) {
@@ -27900,6 +28166,7 @@ function updateRadio(dt) {
     if (real) radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.08);       // the real performance has the speakers
   } else if (radio.bus && radio.bus.gain.value > 0) {
     if (radio.audio) radio.audio.pause();
+    spotifyStop();
     radio.bus.gain.setTargetAtTime(0.0, sound.ctx.currentTime, 0.05);
     radio.started = false; radio.tuned = -1;
     if (window.speechSynthesis) try { window.speechSynthesis.cancel(); } catch (e) { /* none */ } talkVoice.queue.length = 0; talkVoice.busy = false;
@@ -32685,7 +32952,7 @@ function fillReadout(w) {
 const title = {
   on: false, t: 0, sel: 0, started: false, from: null, to: null, ready: false
 };
-const TITLE_ITEMS = ["tnew", "tcontinue", "tsettings"];
+const TITLE_ITEMS = ["tnew", "tcontinue", "tsettings", "tspotify"];
 
 // Somewhere high, looking down the length of the city.
 function titleViewpoint() {
@@ -32768,6 +33035,7 @@ function returnToTitle() {
 function titleChoose() {
   const id = titleItems()[title.sel];
   if (id === "tsettings") { setTitle(false); setPaused(true, "settings"); return; }
+  if (id === "tspotify") { spotifyPanel(true); return; }
   // New game and continue both land you on the ground in Tokonto. The
   // difference will matter once there is something to save.
   setTitle(false);
@@ -39068,6 +39336,14 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
 generate(19640101);
 offerSaveOnTitle();
 radioLoadMusic();
+(function spotifyWire() {
+  const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+  on("spclient", "input", e => { spot.client = e.target.value.trim(); spotify.clientId = spot.client; spotifySave(); try { localStorage.setItem("konto.spotify.client", spotify.client); } catch (x) { /* none */ } });
+  on("spsignin", "click", () => { spotifySignIn().catch(e => spotifyUiStatus("Sign-in failed: " + e.message)); });
+  on("spsignout", "click", () => spotifySignOut(false));
+  on("spclose", "click", () => spotifyPanel(false));
+  spotifyBoot().catch(e => console.warn("[Konto] Spotify:", e.message));
+})();
 </script>
 <script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window<br><b>F9</b> get the latest version of the game'; }</script>
 

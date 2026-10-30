@@ -394,6 +394,25 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 
 ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(paths.filter(p => typeof p === "string")); });
 
+// Signing in to Spotify for the car radio. The game's page is served from konto://, which Spotify cannot send anyone back to, so the
+// sign-in happens in a window of its own on Spotify's page; when Spotify redirects to the loopback address the game registered, that
+// navigation is stopped and its address (the one-time code in it) is handed back to the page, which finishes the sign-in itself (PKCE).
+// Only Spotify's authorize page is opened, and only a loopback redirect is caught.
+ipcMain.handle("spotify-auth", (_e, authUrl, redirect) => new Promise(resolve => {
+  if (typeof authUrl !== "string" || !authUrl.startsWith("https://accounts.spotify.com/authorize?") ||
+      typeof redirect !== "string" || !/^http:\/\/127\.0\.0\.1:\d+\//.test(redirect)) { resolve(null); return; }
+  let done = false;
+  const w = new BrowserWindow({ width: 520, height: 780, parent: win || undefined, modal: !!win, title: "Sign in to Spotify", autoHideMenuBar: true,
+    backgroundColor: "#121212", webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  const finish = u => { if (done) return; done = true; resolve(u); if (!w.isDestroyed()) w.destroy(); };
+  const catchRedirect = (ev, u) => { if (typeof u === "string" && u.startsWith(redirect)) { ev.preventDefault(); finish(u); } };
+  w.webContents.on("will-redirect", catchRedirect);
+  w.webContents.on("will-navigate", catchRedirect);
+  w.webContents.setWindowOpenHandler(({ url: t }) => { if (/^https:\/\//.test(t)) shell.openExternal(t); return { action: "deny" }; });
+  w.on("closed", () => finish(null));
+  w.loadURL(authUrl);
+}));
+
 app.whenReady().then(() => {
   dropStaleUpdate();
   protocol.handle("konto", request => {
