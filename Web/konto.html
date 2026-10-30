@@ -37476,21 +37476,22 @@ function interiorHomeRoom() {
   const tatami = homeTex("tatami", 512, 512, (g, w, h) => { g.fillStyle = "#b9b27a"; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 3) { g.fillStyle = "rgba(90,96,40," + (0.08 + (y % 6 ? 0.04 : 0.1)) + ")"; g.fillRect(0, y, w, 1); }
     g.fillStyle = "#2e3a2a"; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14); g.fillRect(0, h / 2 - 7, w, 14); });
   const tile = homeTex("genkan", 256, 256, (g, w, h) => { g.fillStyle = "#6d6a64"; g.fillRect(0, 0, w, h); g.strokeStyle = "#4a4844"; g.lineWidth = 3; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, h); g.moveTo(0, i * 64); g.lineTo(w, i * 64); g.stroke(); } });
-  slab(W, 0.1, D, 0, -0.05, 0, lit(planks, 0.55, [W / 1.1, D / 1.6]));
-  slab(W, 0.08, D, 0, H + 0.04, 0, lit(plaster, 0.95, [4, 3]));
-  const wallM = lit(plaster, 0.95, [5, 1.2]); wallM.color.setHex(0xd8d0c2);
+  // real oak boards, plaster, tatami and slate where the pictures have arrived; the painted ones until they have
+  slab(W, 0.1, D, 0, -0.05, 0, inPhotoMat("planks", 0.5, [W / 2.4, D / 2.4], 0xf2e6d8, 0.9) || lit(planks, 0.55, [W / 1.1, D / 1.6]));
+  slab(W, 0.08, D, 0, H + 0.04, 0, inPhotoMat("plaster", 0.95, [W / 3, D / 3], 0xfaf6ee, 0.4) || lit(plaster, 0.95, [4, 3]));
+  const wallM = inPhotoMat("plaster", 0.95, [W / 3, H / 3], 0xf0e8da, 0.6) || lit(plaster, 0.95, [5, 1.2]); if (!inPhoto.img.plaster) wallM.color.setHex(0xd8d0c2);
   slab(W, H, 0.16, 0, H / 2, -D / 2, wallM); slab(0.16, H, D, -W / 2, H / 2, 0, wallM); slab(0.16, H, D, W / 2, H / 2, 0, wallM);
   const side = (W - 1.6) / 2;
   slab(side, H, 0.16, -(0.8 + side / 2), H / 2, D / 2, wallM); slab(side, H, 0.16, 0.8 + side / 2, H / 2, D / 2, wallM); slab(1.6, H - 2.1, 0.16, 0, 2.1 + (H - 2.1) / 2, D / 2, wallM);
   const wood = new THREE.MeshStandardMaterial({ color: 0x5a3c26, roughness: 0.6 });
   slab(W, 0.1, 0.03, 0, 0.05, -D / 2 + 0.09, wood); slab(0.03, 0.1, D, -W / 2 + 0.09, 0.05, 0, wood); slab(0.03, 0.1, D, W / 2 - 0.09, 0.05, 0, wood);      // skirting
   // the genkan: a sunken tiled square inside the door, shoes, a rack
-  slab(2.4, 0.04, 1.3, 0, 0.005, D / 2 - 0.65, lit(tile, 0.8, [2, 1]));
+  slab(2.4, 0.04, 1.3, 0, 0.005, D / 2 - 0.65, inPhotoMat("slate", 0.7, [1.6, 0.9], 0xbdb8b0, 1.0) || lit(tile, 0.8, [2, 1]));
   slab(2.4, 0.12, 0.06, 0, 0.06, D / 2 - 1.32, wood);
   [[-0.6, 0x1b1b1d], [-0.3, 0x1b1b1d], [0.4, 0xd8d4cc], [0.7, 0x7a2a2a]].forEach(s => { const sh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.08, 0.27), new THREE.MeshStandardMaterial({ color: s[1], roughness: 0.5 })); sh.position.set(s[0], 0.05, D / 2 - 0.5); root.add(sh); });
   slab(0.9, 0.9, 0.34, 1.75, 0.45, D / 2 - 0.3, wood); solid(1.75, D / 2 - 0.3, 0.9, 0.4);
   // the tatami corner: platform, futon, low table, the screens
-  slab(5.2, 0.08, 4.0, -4.4, 0.04, -3.0, lit(tatami, 0.9, [2, 2]));
+  slab(5.2, 0.08, 4.0, -4.4, 0.04, -3.0, inPhotoMat("tatami", 0.85, [5.2 / 1.8, 4.0 / 1.8], 0xffffff, 0.7) || lit(tatami, 0.9, [2, 2]));
   const futon = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.14, 2.05), new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.9 })); futon.position.set(-6.0, 0.15, -3.3); root.add(futon);
   const quilt = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.1, 1.3), new THREE.MeshStandardMaterial({ color: 0x3a5a8a, roughness: 0.9 })); quilt.position.set(-6.0, 0.25, -2.9); root.add(quilt);
   const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.1, 0.32), new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 })); pillow.position.set(-6.0, 0.27, -4.1); root.add(pillow);
@@ -38342,6 +38343,12 @@ function interiorCapsuleRoom() {
   inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
   inAdd(root, IN_W, 0.3, 0.22, 0, 2.95, -IN_D / 2 + 0.02, th.trim);
   for (const x of [-5, 0, 5]) for (const z of [-3, 1.5]) inAdd(root, 2.4, 0.04, 0.4, x, IN_H - 0.01, z, "#cfe8ff");
+  // the carpet and the walls, painted over real surfaces like every other room's
+  root.add(inPlaneTex(inFloorTex("capsule"), IN_W, IN_D, IN_W / 2, IN_D / 2, 0, 0.03, 0, 0, -Math.PI / 2));
+  { const wt = inWallTex("capsule");
+    root.add(inPlaneTex(wt, IN_W, IN_H, IN_W / 4, 1, 0, IN_H / 2, -IN_D / 2 + 0.105, 0));
+    root.add(inPlaneTex(wt, IN_D, IN_H, IN_D / 4, 1, -IN_W / 2 + 0.105, IN_H / 2, 0, Math.PI / 2));
+    root.add(inPlaneTex(wt, IN_D, IN_H, IN_D / 4, 1, IN_W / 2 - 0.105, IN_H / 2, 0, -Math.PI / 2)); }
   const sign = inLabel("CAPSULE HOTEL  カプセル", 4.2, 0.55, th.trim, "#ffffff"); sign.position.set(0, 3.2, IN_D / 2 - 0.13); sign.rotation.y = Math.PI; root.add(sign);
   const sign2 = inLabel("Kapuseru", 3.0, 0.55, th.trim, "#ffffff"); sign2.position.set(0, 3.2, -IN_D / 2 + 0.14); root.add(sign2);
   // the genkan: a raised step, a mat and a rack of slippers just inside the door
@@ -38457,16 +38464,76 @@ function interiorPodAction(a) {
 // Every room gets the same treatment, in its own colours: painted wall and floor textures (tile, wood, carpet, marble) with a skirting board and a
 // chair rail, a panelled ceiling, adverts for what the shop sells, shelves of stock that are only there to be looked at, and a few props that say
 // what kind of place it is (a freezer and an oden pot, a fish tank, noren curtains and paper lanterns, racks of shirts and mannequins, a TV wall).
+// ---- the real surfaces under the paint ---------------------------------------------------------------------------------------------------
+// Photo-scanned floors and walls (Poly Haven, CC0, in art/interior at 2048 px): oak boards, herringbone parquet, tatami, ceramic tile, limestone,
+// carpet, slate and fine plaster. Every room is still painted in its own colours, but the paint now goes over a real surface - the grain of the
+// boards, the weave of the tatami, the grout between the tiles and the trowel marks in the plaster - at four times the resolution it was drawn at.
+// The pictures load in the background; a room built before they arrive is painted again, in place, when they do.
+const IN_PHOTO_FILES = { planks: "interior/wood_floor", parquet: "interior/herringbone_parquet", tatami: "interior/tatami_mat", tile: "interior/interior_tiles",
+  marble: "interior/marble_01", carpet: "interior/dirty_carpet", plaster: "interior/white_plaster_02", slate: "interior/slate_floor", concrete: "surfaces/concrete" };
+const IN_PHOTO_LUM = { planks: 0.39, parquet: 0.46, tatami: 0.51, tile: 0.6, marble: 0.6, carpet: 0.19, plaster: 0.53, slate: 0.13, concrete: 0.5 };
+const inPhoto = { img: {}, nor: {}, timer: 0 };
+const inTexAll = [];
+function inPhotoLoad() {
+  Object.keys(IN_PHOTO_FILES).forEach(k => {
+    const im = new Image(); im.onload = () => { inPhoto.img[k] = im; inPhotoRefresh(); }; im.src = "art/" + IN_PHOTO_FILES[k] + ".jpg";
+    if (k !== "concrete") { const nm = new Image(); nm.onload = () => { inPhoto.nor[k] = nm; }; nm.src = "art/" + IN_PHOTO_FILES[k] + "_nor.jpg"; }
+  });
+}
+// a picture arrived: paint every room surface again over it (once, after the last of a burst)
+function inPhotoRefresh() {
+  clearTimeout(inPhoto.timer);
+  inPhoto.timer = setTimeout(() => inTexAll.forEach(t => { try { t._kon.redraw(); t.needsUpdate = true; t._kon.clones.forEach(c => { c.needsUpdate = true; }); } catch (e) { /* a room that is gone */ } }), 250);
+}
+// The photo, tiled n times across the canvas and turned to the colour asked for: its hue taken towards the tint and its brightness matched to it,
+// so the grain and the grout stay and the room keeps its colours. False if the picture is not here yet.
+function inPhotoFill(g, kind, w, h, tint, n) {
+  const im = inPhoto.img[kind]; if (!im) return false;
+  n = n || 1;
+  g.save();
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) g.drawImage(im, i * w / n, j * h / n, w / n + 0.5, h / n + 0.5);
+  if (tint) {
+    const c = new THREE.Color(tint), lt = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, lp = IN_PHOTO_LUM[kind] || 0.5;
+    g.globalCompositeOperation = "color"; g.globalAlpha = 0.6; g.fillStyle = tint; g.fillRect(0, 0, w, h);
+    g.globalAlpha = 1;
+    if (lt < lp) { const k = Math.round(255 * Math.max(0.15, lt / lp)); g.globalCompositeOperation = "multiply"; g.fillStyle = "rgb(" + k + "," + k + "," + k + ")"; g.fillRect(0, 0, w, h); }
+    else if (lt > lp + 0.02) { const k = Math.round(255 * Math.min(0.9, 1 - (1 - lt) / (1 - lp))); g.globalCompositeOperation = "screen"; g.fillStyle = "rgb(" + k + "," + k + "," + k + ")"; g.fillRect(0, 0, w, h); }
+  }
+  g.restore();
+  return true;
+}
+// The surface of a painted wall: the plaster's texture laid into the paint without changing its colour.
+function inPhotoDetail(g, kind, w, h, a) {
+  const im = inPhoto.img[kind]; if (!im) return;
+  g.save(); g.globalCompositeOperation = "overlay"; g.globalAlpha = a || 0.55; g.drawImage(im, 0, 0, w, h); g.restore();
+}
+// A lit material straight from a photo and its relief, for rooms that are lit (Seiko's flat): null if the picture is not here yet.
+function inPhotoMat(kind, rough, rep, tint, bump) {
+  const im = inPhoto.img[kind]; if (!im) return null;
+  const t = new THREE.Texture(im); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); sharpTex(t); t.needsUpdate = true;
+  const m = new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0 });
+  const nm = inPhoto.nor[kind];
+  if (nm) { const n = new THREE.Texture(nm); n.wrapS = n.wrapT = THREE.RepeatWrapping; n.repeat.set(rep[0], rep[1]); sharpTex(n); n.needsUpdate = true; m.normalMap = n; m.normalScale.set(bump || 0.8, bump || 0.8); }
+  if (tint) m.color.setHex(tint);
+  return m;
+}
+inPhotoLoad();
+
 const inTex = {};
 function inCanvasTex(key, w, h, draw) {
   if (inTex[key]) return inTex[key];
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  draw(c.getContext("2d"), w, h);
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  // drawn at four times the size it is described at (twice on a low-end machine), so a wall seen from a metre away is still sharp
+  const S = typeof gfx === "object" && (gfx.tier === "low" || perf.potato) ? 2 : 4;
+  const c = document.createElement("canvas"); c.width = w * S; c.height = h * S;
+  const redraw = () => { const g = c.getContext("2d"); g.setTransform(S, 0, 0, S, 0, 0); g.clearRect(0, 0, w, h); draw(g, w, h); };
+  redraw();
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; sharpTex(t);
+  t._kon = { redraw: redraw, clones: [] }; inTexAll.push(t);
   return (inTex[key] = t);
 }
 function inPlaneTex(tex, w, h, repX, repY, x, y, z, ry, rx) {
   const t = tex.clone(); t.needsUpdate = true; t.repeat.set(repX, repY);
+  if (tex._kon) tex._kon.clones.push(t);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
   m.position.set(x, y, z); if (ry) m.rotation.y = ry; if (rx) m.rotation.x = rx;
   return m;
@@ -38491,6 +38558,7 @@ function inFloorTex(brand) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
   return inCanvasTex("floor:" + brand, 256, 256, (g, w, h) => {
     const [kind, a, b, grout] = sk.floor;
+    if (inPhotoFill(g, kind, w, h, a, kind === "tile" ? 2 : 1)) return;
     g.fillStyle = a; g.fillRect(0, 0, w, h);
     if (kind === "tile") { for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { g.fillStyle = (i + j) % 2 ? b : a; g.fillRect(i * 64, j * 64, 64, 64); } g.strokeStyle = grout; g.lineWidth = 2; for (let i = 0; i <= 4; i++) { g.beginPath(); g.moveTo(i * 64, 0); g.lineTo(i * 64, h); g.moveTo(0, i * 64); g.lineTo(w, i * 64); g.stroke(); } }
     else if (kind === "planks") { for (let j = 0; j < 8; j++) { g.fillStyle = j % 2 ? b : a; g.fillRect(0, j * 32, w, 32); g.fillStyle = grout; g.fillRect(0, j * 32, w, 2); const off = (j * 83) % 256; g.fillRect(off, j * 32, 2, 32); } }
@@ -38530,6 +38598,7 @@ function inWallTex(brand, accent) {
       g.strokeStyle = "rgba(60,30,10,0.20)"; g.lineWidth = 1.5; for (let x = 0; x <= w; x += 42) for (let y = 0; y < railY; y += 42) { g.beginPath(); g.moveTo(x, y + 21); g.lineTo(x + 21, y); g.lineTo(x + 42, y + 21); g.lineTo(x + 21, y + 42); g.closePath(); g.stroke(); g.fillStyle = "rgba(60,30,10,0.16)"; g.beginPath(); g.arc(x + 21, y + 21, 4, 0, 7); g.fill(); }
       g.fillStyle = low; g.fillRect(0, railY, w, h - railY); }
     else if (kind === "pilasters") { g.fillStyle = "rgba(0,0,0,0.08)"; g.fillRect(0, 0, 18, h); g.fillRect(w - 18, 0, 18, h); g.fillStyle = "rgba(255,255,255,0.35)"; g.fillRect(18, 0, 4, h); }
+    inPhotoDetail(g, "plaster", w, railY, 0.5);                       // plaster above the rail
     g.fillStyle = rail; g.fillRect(0, railY - 3, w, 6);               // the chair rail
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, h - 14, w, 14);   // skirting
     const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, "rgba(0,0,0,0.12)"); gr.addColorStop(0.1, "rgba(0,0,0,0)"); gr.addColorStop(0.92, "rgba(0,0,0,0)"); gr.addColorStop(1, "rgba(0,0,0,0.25)");
@@ -38785,7 +38854,7 @@ function interiorDecor(room, root, th, brand, opts) {
   const side = (W - 2.4) / 2;
   root.add(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
   root.add(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
-  const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h); });
+  const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h);  inPhotoDetail(g, "plaster", w, h, 0.4); });
   root.add(inPlaneTex(ceil, W, D, W / 2, D / 2, 0, H - 0.006, 0, 0, Math.PI / 2));
   // ---- adverts: pillars either side of the door, banners above the shelves
   const lift = !!opts.lift;
