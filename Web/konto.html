@@ -3792,7 +3792,7 @@ function planCity(world, F, seed, report, progressBase) {
       const i = Math.floor((k + 0.35) * N / 6) % N, a = road.pts[i], b = road.pts[(i + 1) % N];
       let tx = b[0] - a[0], tz = b[2] - a[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
       let nx = -tz, nz = tx; if ((a[0] - cw[0]) * nx + (a[2] - cw[1]) * nz < 0) { nx = -nx; nz = -nz; }
-      const dir = k % 2 ? -1 : 1, RHW = 4.6, off = road.halfWidth + RHW - 0.6, LEN = 260, rp = [];
+      const dir = k % 2 ? -1 : 1, RHW = 4.6, off = road.halfWidth + RHW - 0.6, LEN = 320, rp = [];
       for (let d = 0; d <= LEN; d += 10) rp.push([a[0] + nx * off + tx * dir * d, 0, a[2] + nz * off + tz * dir * d]);
       const bad = rp.some(q => world.sampleHeight(q[0], q[2]) < 1.2 || q[0] < 300 || q[2] < 300 || q[0] > WORLD_X - 300 || q[2] > WORLD_Z - 300 ||
         (PAL && (() => { const l = toRectLocal(q[0], q[2], PAL.c[0], PAL.c[1], PAL.yaw); return Math.abs(l[0]) < PAL.H + 10 && Math.abs(l[1]) < PAL.H + 10; })()));
@@ -4438,7 +4438,22 @@ function planCity(world, F, seed, report, progressBase) {
       }
       path.profile = prof;
       if (path.elevated) {
-        for (let i = 0; i < p.length; i++) p[i][1] = prof[i] + (path.cls === "shinkansen" ? 12 : path.cls === "loop" ? 9.5 : 13);
+        // A viaduct stands its full height over whatever is under it: the smoothed profile alone runs below the hills, and there the deck
+        // came down to the street (or into the hillside) and could not be driven. So each point is at least the clearance over the ground
+        // beneath it and its sides, and the deck only rises and falls as fast as the grade allows - raising, never lowering, to meet that.
+        const H = path.cls === "shinkansen" ? 12 : path.cls === "loop" ? 9.5 : 13, grade = path.cls === "expressway" ? 0.045 : 0.035, n = p.length;
+        const t = p.map((q, i) => {
+          const a = p[i > 0 ? i - 1 : (path.loop ? n - 1 : 0)], b = p[i < n - 1 ? i + 1 : (path.loop ? 0 : n - 1)];
+          let dx = b[0] - a[0], dz = b[2] - a[2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+          let gmax = world.sampleHeight(q[0], q[2]);
+          for (const o of [-1, 1]) gmax = Math.max(gmax, world.sampleHeight(q[0] - dz * o * (path.halfWidth + 6), q[2] + dx * o * (path.halfWidth + 6)));
+          return Math.max(prof[i] + H, Math.max(gmax, ROAD_MIN_Y) + H * 0.78);
+        });
+        for (let pass = 0; pass < 4; pass++) {
+          for (let k = 1; k < n + (path.loop ? n : 0); k++) { const i = k % n, j = (k - 1) % n, lim = Math.hypot(p[i][0] - p[j][0], p[i][2] - p[j][2]) * grade; t[i] = Math.max(t[i], t[j] - lim); }
+          for (let k = n - 2 + (path.loop ? n : 0); k >= 0; k--) { const i = k % n, j = (k + 1) % n, lim = Math.hypot(p[i][0] - p[j][0], p[i][2] - p[j][2]) * grade; t[i] = Math.max(t[i], t[j] - lim); }
+        }
+        for (let i = 0; i < n; i++) p[i][1] = t[i];
         return;   // a viaduct wants piers, not a cutting
       }
       for (let i = 0; i < p.length; i++) p[i][1] = prof[i];
@@ -33398,6 +33413,7 @@ function titleChoose() {
   setMode("walk");
   // MyGram's photographs start arriving in the background, so the feed is full when you open it
   setTimeout(() => { try { mynetInit(); } catch (e) { /* the feed will start when the app opens */ } }, 6000);
+  setTimeout(() => { try { interiorPrewarm(); } catch (e) { /* rooms are built at the door instead */ } }, 9000);
   if (id === "tcontinue" && title.resume) {
     const r = title.resume;
     placeSeiko(new THREE.Vector3(r.x, world.surfaceY(r.x, r.z), r.z));
@@ -39258,8 +39274,35 @@ function interiorSupports(s) {
   return (!s.safe || s.brand === "capsule") && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
 }
 
+// Rooms built ahead of time. Each shop kind's room is built once, and building it, fetching its furniture and compiling its materials the
+// first time you walk in is what made the doorway hang. So once the game is running, the rooms for the kinds of shop nearest you are
+// built in quiet moments - nearest first, one every second or so, never while you are driving hard - and are ready when you get there.
+function interiorPrewarm() {
+  if (interiorPrewarm.started) return; interiorPrewarm.started = true;
+  const seen = {}, list = [];
+  shops.list.forEach(s => { if (interiorSupports(s) && !s.mall && !s.plaza && s.brand !== "airport" && !seen[s.brand]) { seen[s.brand] = 1; list.push(s); } });
+  const d = s => Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z);
+  list.sort((a, b) => d(a) - d(b));
+  let i = 0;
+  const later = (f, ms) => (window.requestIdleCallback ? window.requestIdleCallback(f, { timeout: ms }) : setTimeout(f, ms));
+  const step = () => {
+    if (i >= list.length) { console.log("[Konto] " + list.length + " interiors ready ahead of time"); return; }
+    if (interior.active || (drive.car && Math.abs(drive.car.speed || 0) > 8) || (typeof title === "object" && title.on)) { setTimeout(step, 2500); return; }
+    const s = list[i++];
+    try {
+      if (!interiorLevels(s)) {
+        const room = interiorRoom(s);
+        if (room && room.group && renderer && renderer.compile) { const v = room.group.visible; room.group.visible = true; renderer.compile(scene, camera); room.group.visible = v; }
+      }
+    } catch (e) { /* it will be built at the door instead */ }
+    later(step, 1500);
+  };
+  setTimeout(step, 6000);
+}
 function interiorEnter(s) {
   if (!interiorSupports(s) || interior.active) return false;
+  // through the door: a moment of black hides the swap from the street to the room
+  { const fade = document.getElementById("fade"); if (fade) { fade.style.opacity = "1"; setTimeout(() => { fade.style.opacity = "0"; }, 180); } }
   let room;
   const bld = interiorLevels(s);
   try {
