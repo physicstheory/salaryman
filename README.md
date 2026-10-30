@@ -66,6 +66,10 @@ This runs `Web/konto.html` (Three.js) inside Electron, from the `Game` folder. T
 
 **Exotics:** eight rare supercars drive the streets too: a Ferrari F8 Tributo, Lamborghini Aventador SVJ, McLaren 720S, Bugatti Chiron Profilée, Pagani Huayra, Porsche 918 Spyder, Lexus LC 500 and Nissan GT-R R35. Only one is ever out at a time, and the next turns up a few minutes after the last. Which one you get is weighted, so a GT-R or LC 500 is common and a Chiron or Huayra almost never. Seiko remarks on one when it passes close by, and stealing one sets off its alarm. The Chiron and Huayra keep their factory colours; the others come in loud exotic paint. The `EXOTIC` cheat (5550117) gives you a random one.
 
+**Drivers:** every nearby car in traffic has someone at the wheel, on the right-hand side as in Japan, visible through tinted see-through glass. Motorbikes and scooters have helmeted riders. Parked cars are empty.
+
+**Car parks:** some of Tōkonto's open lots are now multi-storey car parks (nine on the current map). Each is two to four concrete decks on columns, with open sides, parapets, strip lights that come on at night, and a blue 「P 駐車場」 sign on the stair tower; the map shows them as a blue P. Every deck has parked cars, and the better cars collect here: saloons and sports cars, and very occasionally an exotic. The ground floor is open on all sides, so you can walk or drive in. Hot-wiring a car inside is never reported: no patrol can see in, and an alarm just echoes round the concrete. The upper decks are scenery for now, and can't be reached.
+
 **PC modes** (Esc, Settings, "PC mode"): two ready-made setups that take over from the graphics setting.
 - **Low-end PC** aims for 40 frames a second. It uses the low tier, draws the world at 85% resolution (and drops to 58% when things get busy), uses medium-sized building textures, thins out the trees beyond 85 m, and has fewer people on the streets and in the rush hour.
 - **High-end PC** aims for 60. It uses the ultra tier at 135% resolution (supersampled, so edges are clean), keeps the full forest out to 1.7 km with tree shadows, and fills the streets and stations.

@@ -7492,10 +7492,17 @@ function buildScene(w) {
     const boxes = [];
     const trees = [];
     let sotiPlot = null;
+    city.carparks = [];
     city.plots.forEach(p => {
       if (p.absorbed) return;                       // swallowed by a neighbouring mall or plaza
       if (p.kind === "landmark") { sotiPlot = p; return; }
       if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) {
+        // Some of the open lots are built up into multi-storey car parks (see buildCarparks): big enough for two rows and an aisle,
+        // and not every one, so most stay as flat lots.
+        if (p.kind === "parking" && region !== "nara" && Math.min(p.size[0], p.size[1]) >= 19 && Math.max(p.size[0], p.size[1]) <= 90 &&
+            rnd(Math.round(p.centre[0]), Math.round(p.centre[1]), 6151) < 0.42 && city.carparks.length < (city === w.cities[0] ? 10 : 3)) {
+          city.carparks.push({ c: p.centre.slice(), size: p.size.slice(), yaw: p.yaw, groundY: p.groundY, city: city.name });
+        }
         if (p.kind === "park" || p.kind === "shrine") {
           const n = clamp(Math.round(p.size[0] * p.size[1] / 230), 3, 90);
           for (let k = 0; k < n; k++) {
@@ -7846,6 +7853,7 @@ function buildScene(w) {
   try { buildOnsens(root); } catch (e) { console.warn("onsens", e); }
   buildStreetLights(root, w);
   buildStreetLife(root, w);
+  try { buildCarparks(root, w); } catch (e) { console.warn("[Konto] the car parks could not be built:", e); }
   vegBuild(root);
   drive.car = null;
   drive.train = null;
@@ -9553,6 +9561,125 @@ function buildStreetLife(root, w) {
   buildSolidGrid();
 }
 
+// ---- multi-storey car parks ------------------------------------------------------------------------------------------------------------
+// Some of the open lots are built up three or four decks high, the way a Japanese city parks: a concrete frame on columns, open at the
+// sides, a parapet round each deck, strip lights under the slabs and the blue P sign on the corner. The ground floor is open on every
+// side, so a car drives in from any of them. The cars on every deck come and go with the kerbside ones; the ground-floor ones are there
+// to be taken. Nobody watches a car park: no patrol can see in, and an alarm going off inside is just one more alarm in a concrete box,
+// so a car hot-wired in one is never reported (it is what they are for).
+const carparks = { list: [] };
+const CARPARK_DECK = 3.3;
+function carparkAt(x, z, y) {
+  for (const c of carparks.list) {
+    const l = toRectLocal(x, z, c.c[0], c.c[1], c.yaw);
+    if (Math.abs(l[0]) < c.w / 2 + 1.5 && Math.abs(l[1]) < c.d / 2 + 1.5 && (y === undefined || y < c.gy + CARPARK_DECK * (c.levels + 1))) return c;
+  }
+  return null;
+}
+function carparkSignTexture() {
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 256;
+  const g = cv.getContext("2d");
+  g.fillStyle = "#1b4fa8"; g.fillRect(0, 0, 256, 256);
+  g.strokeStyle = "#ffffff"; g.lineWidth = 10; g.strokeRect(12, 12, 232, 232);
+  g.fillStyle = "#ffffff"; g.font = "900 190px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("P", 128, 122);
+  g.font = "700 30px " + UI; g.fillText("\u99d0\u8eca\u5834", 128, 222);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; return t;
+}
+function buildCarparks(root, w) {
+  carparks.list.length = 0;
+  const concrete = [], lines = [], lamps = [];
+  const box = (into, cp, lx, y, lz, sx, sy, sz) => {
+    const b = new THREE.BoxGeometry(sx, sy, sz).toNonIndexed();
+    const q = cp.L(lx, lz);
+    b.applyMatrix4(new THREE.Matrix4().makeRotationY(cp.theta)); b.translate(q[0], y, q[1]);
+    into.push(b);
+  };
+  w.cities.forEach(city => (city.carparks || []).forEach(site => {
+    // the long side runs along local x
+    const swap = site.size[1] > site.size[0];
+    const W = Math.min(64, Math.max(site.size[0], site.size[1]) - 2.5), D = Math.min(40, Math.min(site.size[0], site.size[1]) - 2.5);
+    const yawDeg = site.yaw + (swap ? 90 : 0);
+    const gy = world.surfaceY(site.c[0], site.c[1]);
+    // the ground has to be flat enough to put a frame on, and nothing already standing there
+    let bad = false;
+    for (let u = -W / 2; u <= W / 2 && !bad; u += 4) for (let v = -D / 2; v <= D / 2 && !bad; v += 4) {
+      const q = fromRectLocal(u, v, site.c[0], site.c[1], yawDeg);
+      if (Math.abs(world.surfaceY(q[0], q[1]) - gy) > 0.9 || insideBuilding(q[0], q[1], 0.2) || world.bridgeY(q[0], q[1]) !== null) bad = true;
+    }
+    if (bad) return;
+    const a0 = fromRectLocal(0, 0, 0, 0, yawDeg), a1 = fromRectLocal(1, 0, 0, 0, yawDeg);
+    const cp = { c: site.c, w: W, d: D, yaw: yawDeg, gy: gy, levels: 2 + Math.floor(rnd(Math.round(site.c[0]), Math.round(site.c[1]), 6157) * 2.99),
+                 city: site.city, theta: Math.atan2(-(a1[1] - a0[1]), a1[0] - a0[0]),
+                 L: (u, v) => fromRectLocal(u, v, site.c[0], site.c[1], yawDeg) };
+    const top = cp.levels;                                  // decks above the ground: 2 to 4, the top one open to the sky
+    const H = CARPARK_DECK * top;
+    // columns: on the bay lines, every third bay, along the outside and along the aisle edges
+    const BAY = 2.5, ROW = 5.2, nb = Math.floor((W - 1) / BAY), x0 = -nb * BAY / 2;
+    const colZ = [-D / 2 + 0.3, -D / 2 + ROW + 0.2, D / 2 - ROW - 0.2, D / 2 - 0.3];
+    for (let k = 0; k <= nb; k += 3) {
+      const x = x0 + k * BAY;
+      colZ.forEach(z => {
+        box(concrete, cp, x, gy + H / 2, z, 0.55, H, 0.55);
+        const q = cp.L(x, z);
+        solids.push({ c: [q[0], q[1]], size: [0.6, 0.6], yaw: yawDeg, y: gy, h: H });
+      });
+    }
+    // the decks, each with a parapet round it and a down-stand beam on the column lines
+    for (let lv = 1; lv <= top; lv++) {
+      const y = gy + lv * CARPARK_DECK;
+      box(concrete, cp, 0, y - 0.15, 0, nb * BAY + 1.2, 0.3, D + 0.4);
+      [-1, 1].forEach(sd => {
+        box(concrete, cp, 0, y + 0.5, sd * (D / 2 + 0.1), nb * BAY + 1.2, 1.0, 0.2);
+        box(concrete, cp, sd * (nb * BAY / 2 + 0.5), y + 0.5, 0, 0.2, 1.0, D + 0.4);
+      });
+      colZ.forEach(z => box(concrete, cp, 0, y - 0.5, z, nb * BAY + 1.0, 0.4, 0.45));
+      // strip lights down the aisle, under this deck
+      box(lamps, cp, 0, y - 0.33, 0, nb * BAY - 2, 0.06, 0.3);
+    }
+    // a stair core at one end, which is also where the sign goes
+    const sx = nb * BAY / 2 + 2.2;
+    box(concrete, cp, sx, gy + (H + 2.4) / 2, -D / 2 + 2.2, 3.6, H + 2.4, 3.6);
+    { const q = cp.L(sx, -D / 2 + 2.2); solids.push({ c: [q[0], q[1]], size: [3.6, 3.6], yaw: yawDeg, y: gy, h: H + 2.4 }); }
+    // bay lines on every level, the ground included, and the bays themselves
+    for (let lv = 0; lv <= top; lv++) {
+      const y = lv ? gy + lv * CARPARK_DECK + 0.012 : gy + 0.03;
+      [-1, 1].forEach(sd => {
+        const zr = sd * (D / 2 - ROW / 2 - 0.4);
+        for (let k = 0; k <= nb; k++) box(lines, cp, x0 + k * BAY, y, zr, 0.12, 0.02, ROW - 0.4);
+        for (let k = 0; k < nb; k++) {
+          const q = cp.L(x0 + (k + 0.5) * BAY, zr), f = cp.L(x0 + (k + 0.5) * BAY, zr - sd), yawCar = Math.atan2(f[0] - q[0], f[1] - q[1]);
+          const h = rnd(Math.round(q[0] * 3) + lv * 17, Math.round(q[1] * 3), 6163);
+          parking.bays.push({ x: q[0], z: q[1], y: lv ? y + 0.02 : undefined, yaw: yawCar, occ: h < (lv ? 0.5 : 0.62), kind: rnd(Math.round(q[1] * 3), Math.round(q[0] * 3) + lv, 6167),
+                              spawned: null, garage: cp, level: lv });
+        }
+      });
+    }
+    // the sign on the corner, on a mast above the roof parapet
+    const q = cp.L(sx, -D / 2 + 2.2);
+    const signMat = new THREE.MeshStandardMaterial({ map: carparkSignTexture(), roughness: 0.5, emissive: new THREE.Color(0.75, 0.85, 1), emissiveIntensity: 0 });
+    signMat.emissiveMap = signMat.map; nightMats.push({ m: signMat, gain: 1.1 });
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.6, 0.25), signMat);
+    sign.position.set(q[0], gy + H + 4.0, q[1]); sign.rotation.y = cp.theta + Math.PI / 2; root.add(sign);
+    carparks.list.push(cp);
+  }));
+  const merge = (list, mat) => {
+    if (!list.length) return;
+    let n = 0; list.forEach(g => n += g.attributes.position.count);
+    const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3); let o = 0;
+    list.forEach(g => { pos.set(g.attributes.position.array, o * 3); nor.set(g.attributes.normal.array, o * 3); o += g.attributes.position.count; g.dispose(); });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.BufferAttribute(nor, 3));
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; root.add(m); return m;
+  };
+  const std = (c, r) => gfx.high ? new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0 }) : new THREE.MeshLambertMaterial({ color: c });
+  merge(concrete, std(0x7f7d77, 0.92));
+  const ln = merge(lines, new THREE.MeshBasicMaterial({ color: 0xe8e8e2 })); if (ln) ln.castShadow = false;
+  const lampMat = new THREE.MeshStandardMaterial({ color: 0xf2f4f0, emissive: new THREE.Color(0.95, 0.97, 1), emissiveIntensity: 0.4, roughness: 0.4 });
+  nightMats.push({ m: lampMat, gain: 2.2 });
+  const lm = merge(lamps, lampMat); if (lm) lm.castShadow = false;
+  buildSolidGrid();
+  console.log("[Konto] " + carparks.list.length + " multi-storey car parks: " + carparks.list.map(c => c.city).join(", "));
+}
+
 // Cars at the kerb come in as you get near the bays and go away behind you.
 function updateParking(dt) {
   parking.t += dt;
@@ -9565,15 +9692,21 @@ function updateParking(dt) {
     if (q.scenery && Math.hypot(q.pos.x - px, q.pos.z - pz) > 200) { q.bay.spawned = null; drive.parked.splice(i, 1); }
   }
   let live = drive.parked.filter(q => q.scenery).length;
-  for (let i = 0; i < parking.bays.length && live < 26; i++) {
+  // a car park keeps better cars than the kerb: saloons and sports cars, and once in a long while something exotic under a cover of dust
+  const GKINDS = ["kei", "hatch", "sedan", "suv", "saloon", "sedan", "hatch", "onebox", "sports", "kei", "saloon", "suv"];
+  const EXOTIC = CAR_KINDS.filter(k => k.exotic).map(k => k.name);
+  for (let i = 0; i < parking.bays.length && live < 44; i++) {
     const b = parking.bays[i];
     if (!b.occ || b.spawned) continue;
-    if (Math.abs(b.x - px) > 130 || Math.abs(b.z - pz) > 130 || Math.hypot(b.x - px, b.z - pz) > 130) continue;
-    const name = KINDS[Math.floor(b.kind * KINDS.length) % KINDS.length], ki = CAR_KINDS.findIndex(k => k.name === name);
+    const R = b.garage ? 110 : 130;
+    if (Math.abs(b.x - px) > R || Math.abs(b.z - pz) > R || Math.hypot(b.x - px, b.z - pz) > R) continue;
+    const name = b.garage ? (b.kind < 0.012 ? EXOTIC[Math.floor(b.kind * 99991) % EXOTIC.length] : b.kind < 0.035 ? "super" : GKINDS[Math.floor(b.kind * 7919) % GKINDS.length])
+                          : KINDS[Math.floor(b.kind * KINDS.length) % KINDS.length];
+    const ki = CAR_KINDS.findIndex(k => k.name === name);
     if (ki < 0) continue;
     const kind = CAR_KINDS[ki], pal = PAINT[kind.palette || "common"] || PAINT.common;
-    const rec = { kind: ki, pos: new THREE.Vector3(b.x, world.surfaceY(b.x, b.z) + 0.04, b.z), yaw: b.yaw + (b.kind * 7 % 1 > 0.5 ? 0 : 0),
-                  colour: (kind.colour || pal[Math.floor(b.kind * 997) % pal.length]).slice(), uv: [0, 0], scenery: true, bay: b };
+    const rec = { kind: ki, pos: new THREE.Vector3(b.x, b.y !== undefined ? b.y : world.surfaceY(b.x, b.z) + 0.04, b.z), yaw: b.yaw,
+                  colour: (kind.colour || pal[Math.floor(b.kind * 997) % pal.length]).slice(), uv: [0, 0], scenery: true, bay: b, garage: b.garage || null };
     b.spawned = rec; drive.parked.push(rec); live++;
   }
 }
@@ -12603,7 +12736,7 @@ function fitCarModel(object3d, kind, entry) {
   }
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
-  const scale = kind.L / Math.max(0.3, size.z);
+  const scale = kind.L / Math.max(1e-4, size.z);      // some arrive in centimetres or less, so no floor that would shrink them
   inner.scale.setScalar(scale);
   inner.position.set(-centre.x * scale, -box.min.y * scale, -centre.z * scale);
   holder.add(inner);
@@ -12631,7 +12764,7 @@ function fitCarModel(object3d, kind, entry) {
         }
         return paint;
       }
-      if (name === "glass") return sharedCarMat("glass", 0x0d1014, 0.0, 0.06, 1.1);
+      if (name === "glass") return carGlass();
       if (name === "tyre") return sharedCarMat("tyre", 0x0a0a0b, 0.0, 0.95, 0.2);
       if (name === "trim" || !entry.user) return sharedCarMat("trim", 0x16181c, 0.35, 0.42, 0.6);
       // a car the player supplied keeps its own materials and textures; it only gets the world's reflections
@@ -12641,6 +12774,9 @@ function fitCarModel(object3d, kind, entry) {
     o.material = Array.isArray(o.material) ? out : out[0];
   });
   holder.userData.paint = paint;
+  // somebody at the wheel: a car going by with nobody in it is a ghost
+  const drv = carDriver(kind, { L: size.z * scale, W: size.x * scale, H: size.y * scale });
+  if (drv) { holder.add(drv); holder.userData.driver = drv; }
 
   if (entry.livery) {
     // The roof lamp, the light bar and the door panels are built against the
@@ -12656,7 +12792,80 @@ function fitCarModel(object3d, kind, entry) {
   return holder;
 }
 
+// The people in the traffic. Seen through a side window at thirty kilometres an hour a driver is a head, a pair of shoulders and two
+// arms out to the wheel, so that is what is built: a dozen boxes and a sphere, coloured from a handful of skins, hair and clothes.
+// Japan drives on the left, so the driver sits on the right (-x, with the nose down +z). A two-wheeler gets a rider sitting up on it.
+const DRIVER_LOOK = {
+  skin: [0xe7c3a4, 0xdcb08e, 0xd2a27e, 0xf0d0b4, 0xc89472, 0xb98466],
+  hair: [0x141210, 0x1c1714, 0x241c16, 0x2f241c, 0x5a5550, 0x8c8780, 0x3a2414],
+  top:  [0xeef0f2, 0xeef0f2, 0x1e2228, 0x2a3140, 0x3a3f46, 0x6b7582, 0x7a2a2e, 0x2f4a3a, 0xc9b48c, 0x15171a],
+  helmet: [0x111214, 0xe8e8e6, 0xa31d22, 0x1c3f8a, 0x707478]
+};
+const driverMats = {};
+function driverMat(c) {
+  if (!driverMats[c]) driverMats[c] = gfx.high ? new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ color: c });
+  return driverMats[c];
+}
+let driverGeo = null;
+function carDriver(kind, m) {
+  if (!driverGeo) driverGeo = { head: new THREE.SphereGeometry(0.105, 12, 9), box: new THREE.BoxGeometry(1, 1, 1) };
+  const pick = a => a[(Math.random() * a.length) | 0];
+  const skin = driverMat(pick(DRIVER_LOOK.skin)), top = driverMat(pick(DRIVER_LOOK.top));
+  const g = new THREE.Group();
+  const box = (mat, w, h, d, x, y, z, rx) => { const b = new THREE.Mesh(driverGeo.box, mat); b.scale.set(w, h, d); b.position.set(x, y, z); if (rx) b.rotation.x = rx; g.add(b); return b; };
+  const head = new THREE.Mesh(driverGeo.head, skin); g.add(head);
+  // a box from one point to another: an arm, a thigh, a shin
+  const limb = (mat, a, b, t) => {
+    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = d.length();
+    const m3 = new THREE.Mesh(driverGeo.box, mat); m3.scale.set(t, L, t);
+    m3.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+    m3.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(m3); return m3;
+  };
+  if (TWO_WHEELERS[kind.body]) {
+    if (kind.body === "mtb") return null;
+    // a rider, sat on the seat: the seat height, how far forward the bars are and how far the rider leans to them, by kind of bike
+    const k = m.H / kind.H, Lk = m.L / kind.L;
+    const P = { bike: [0.80, 0.70, 0.30, 0.20], cruiser: [0.70, 0.08, 0.34, 0.42], tourer: [0.78, 0.12, 0.34, 0.40],
+                dirtbike: [0.92, 0.40, 0.30, 0.30], scooter: [0.76, 0.15, 0.36, 0.30] }[kind.body] || [0.8, 0.4, 0.3, 0.3];
+    const sy = P[0] * k, lean = P[1], hipZ = -0.12 * Lk * kind.L / 2.1, barZ = P[2] * kind.L * Lk, barY = sy + P[3];
+    const legs = driverMat(pick([0x1d2128, 0x24272c, 0x2b3340, 0x3a3328])), boot = driverMat(0x121315);
+    const hip = [0, sy + 0.1, hipZ];
+    const sh = [0, hip[1] + 0.52 * Math.cos(lean), hip[2] + 0.52 * Math.sin(lean)];
+    limb(top, hip, sh, 0.27);                                                            // the back and chest
+    const hd = new THREE.Vector3(0, sh[1] + 0.2 * Math.cos(lean * 0.6), sh[2] + 0.2 * Math.sin(lean * 0.6));
+    head.position.copy(hd); head.scale.setScalar(1.3); head.material = driverMat(pick(DRIVER_LOOK.helmet));
+    [-1, 1].forEach(sd => {
+      const s0 = [sd * 0.17, sh[1] - 0.04, sh[2]], grip = [sd * 0.3, barY, barZ];
+      limb(top, s0, grip, 0.085);                                                       // arms to the grips
+      const h0 = [sd * 0.12, hip[1], hip[2]], knee = [sd * 0.2, hip[1] + 0.02, hip[2] + 0.42], peg = [sd * 0.18, sy - 0.42, hip[2] + 0.22];
+      limb(legs, h0, knee, 0.13); limb(legs, knee, peg, 0.11);                          // thigh and shin
+      limb(boot, peg, [peg[0], peg[1] - 0.02, peg[2] + 0.2], 0.1);                      // a boot on the peg
+    });
+  } else {
+    // which way along the car the seat is: well forward in a cab-over van, back and low in a supercar
+    const zf = kind.body === "keivan" || kind.body === "onebox" || kind.body === "truck" || kind.body === "bus" ? 0.24 : kind.body === "super" ? -0.06 : kind.body === "sports" ? -0.04 : 0.0;
+    const x = -m.W * 0.21, z = m.L * zf, hy = Math.min(m.H - 0.30, (kind.body === "super" ? 0.88 : 1.12) + (m.H - 1.45) * 0.55);
+    head.position.set(x, hy, z);
+    box(driverMat(pick(DRIVER_LOOK.hair)), 0.2, 0.08, 0.2, x, hy + 0.07, z - 0.01);
+    box(top, 0.4, 0.5, 0.24, x, hy - 0.42, z - 0.04);                       // shoulders and chest
+    box(skin, 0.08, 0.1, 0.08, x, hy - 0.14, z);                            // neck
+    [-1, 1].forEach(sd => box(top, 0.08, 0.08, 0.42, x + sd * 0.17, hy - 0.42, z + 0.2, -0.35));   // arms out to the wheel
+    box(driverMat(0x101214), 0.34, 0.34, 0.04, x, hy - 0.36, z + 0.42, -0.45);                      // the wheel
+  }
+  g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
+  return g;
+}
+
 const carMatCache = {};
+// tinted, but you can see who is inside
+function carGlass() {
+  if (carMatCache.glass) return carMatCache.glass;
+  const m = gfx.high
+    ? new THREE.MeshStandardMaterial({ color: 0x1a2128, metalness: 0.1, roughness: 0.05, envMap: gfx.env || null, envMapIntensity: 1.2, transparent: true, opacity: 0.5, depthWrite: false })
+    : new THREE.MeshLambertMaterial({ color: 0x1a2128, transparent: true, opacity: 0.5, depthWrite: false });
+  carMatCache.glass = m;
+  return m;
+}
 function sharedCarMat(name, colour, metal, rough, envI) {
   if (carMatCache[name]) return carMatCache[name];
   const m = gfx.high
@@ -13565,6 +13774,7 @@ function trafficSpawn(at) {
 
 const _carMat = new THREE.Matrix4();
 const _carZero = new THREE.Matrix4().makeScale(0, 0, 0);
+let _carManned = true;          // parked cars are written with nobody in them
 const _carQuat = new THREE.Quaternion();
 const _carEuler = new THREE.Euler();
 const _carPos = new THREE.Vector3();
@@ -13824,6 +14034,7 @@ function updateTraffic(dt, at) {
     if (pool && pool.items[i] && !near) pool.items[i].visible = false;
     if (near) {
       const o = pool.items[i];
+      if (o.userData.driver) o.userData.driver.visible = _carManned;
       if (CAR_MODELS[CAR_KINDS[kindIdx].name] && CAR_MODELS[CAR_KINDS[kindIdx].name].user) {
         paint.setMatrixAt(i, _carZero); traffic.trim[kindIdx].setMatrixAt(i, _carZero);
         if (traffic.deco[kindIdx]) traffic.deco[kindIdx].setMatrixAt(i, _carZero);
@@ -13861,7 +14072,9 @@ function updateTraffic(dt, at) {
   }
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
                           drive.car.uv, drive.car.pitch || 0, drive.car.slide || 0, drive.car.dmg);
+  _carManned = false;
   drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg));
+  _carManned = true;
   dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
   police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
 
@@ -15657,6 +15870,19 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Car parks: the blue P.
+  if (opts.markers !== false && carparks.list.length && across < 4200) {
+    const prad = Math.max(5 * mPerPx, 12);
+    carparks.list.forEach(c => {
+      if (c.c[0] < vx0 || c.c[0] > vx1 || c.c[1] < vz0 || c.c[1] > vz1) return;
+      ctx.save(); ctx.translate(c.c[0], c.c[1]); ctx.rotate(-rot);
+      ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.fillRect(-prad * 1.05, -prad * 1.05, prad * 2.1, prad * 2.1);
+      ctx.fillStyle = "#1b4fa8"; ctx.fillRect(-prad * 0.9, -prad * 0.9, prad * 1.8, prad * 1.8);
+      ctx.fillStyle = "#ffffff"; ctx.font = "900 " + Math.round(prad * 1.5) + "px " + UI; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("P", 0, prad * 0.08);
+      ctx.restore();
+    });
+  }
+
   // Markers: stations, shrines and the places worth going.
   if (opts.markers !== false && across < 9000) {
     const r = Math.max(6 * mPerPx, 11);
@@ -15942,6 +16168,7 @@ function mapPois(across) {
     if (across <= 7000) out.push({ x: R.res.base[0], z: R.res.base[1], name: nm + " lift station", kind: "Ski resort" });
   });
   onsens.list.forEach(o => out.push({ x: o.door[0], z: o.door[1], name: o.name, kind: "Hot spring" }));
+  if (across < 4200) carparks.list.forEach(c => out.push({ x: c.c[0], z: c.c[1], name: "Car park", kind: "Nobody watches: steal freely" }));
   (world.airports || []).forEach(ap => out.push({ x: ap.cx, z: ap.cz, name: ap.name + " (" + ap.code + ")", kind: "Airport" }));
   DEST.sites.forEach(s => { out.push({ x: s.cx, z: s.cz, name: AIR_DESTS[s.id].name + " (" + AIR_DESTS[s.id].code + ")", kind: "Holiday area" }); if (s.kiosk && across < 3000) out.push({ x: s.kiosk.sx, z: s.kiosk.sz, name: "Departures kiosk", kind: "Fly home" }); });
   if (across < 9000) {
@@ -21337,7 +21564,8 @@ const PHONE_RECORDINGS = {
 // Dearer cars are harder at every step. Escape backs off.
 const heist = { stage: null, rec: null, t: 0, step: 0, meter: 0, tleft: 0, seq: [], si: 0, strikes: 0, cur: 0, dir: 1, zone: 0.5,
                 hits: 0, need: 1, diff: 1, msg: "", msgT: 0, faceYaw: 0, struck: false, shards: null, flash: 0, side: 1, last: "" };
-const HOT_DIFF = { kei: 0.8, keivan: 0.85, hatch: 0.9, sedan: 1.0, saloon: 1.2, suv: 1.1, onebox: 1.0, taxi: 1.0, ryde: 1.25, sports: 1.5, "super": 1.75 };
+const HOT_DIFF = { kei: 0.8, keivan: 0.85, hatch: 0.9, sedan: 1.0, saloon: 1.2, suv: 1.1, onebox: 1.0, taxi: 1.0, ryde: 1.25, sports: 1.5, "super": 1.75,
+                   lc500: 1.7, gtr35: 1.75, p918: 1.95, f8: 1.95, mc720: 1.95, aventador: 2.0, huayra: 2.05, chiron: 2.1 };
 function playGlass(vol) {
   if (!sound.ready || !sound.ctx || !sound.master) return;
   const ctx = sound.ctx, t = ctx.currentTime, out = ctx.createGain(); out.gain.value = vol || 0.8; out.connect(sound.master);
@@ -21381,8 +21609,9 @@ function heistEnd(why) {
 function heistFail() {
   vitals.stress = clamp01(vitals.stress + 0.08);
   const loud = Math.random() < 0.45 * heist.diff;
-  if (loud && !(sound.alarmUntil > clock)) { sound.alarmUntil = clock + 9; commitCrime("alarm"); }
-  heistEnd("The wires spark and fry. That is enough for one night." + (loud ? " The alarm is going." : ""));
+  const hidden = heist.rec && heist.rec.garage;              // in a car park nobody comes for an alarm
+  if (loud && !(sound.alarmUntil > clock)) { sound.alarmUntil = clock + 9; if (!hidden) commitCrime("alarm"); }
+  heistEnd("The wires spark and fry. That is enough for one night." + (loud ? (hidden ? " The alarm echoes round the concrete. Nobody comes." : " The alarm is going.") : ""));
 }
 function heistStrike(msg) {
   heist.strikes++; heist.msg = msg; heist.msgT = 1.2; heist.flash = 0.3;
@@ -21414,11 +21643,11 @@ function heistSucceed() {
   const rec = heist.rec, i = drive.parked.indexOf(rec);
   // anyone in blue looking at it sees the whole thing
   let seen = false; const pk = CAR_KINDS.findIndex(k => k.name === "police");
-  carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
+  if (!(rec && rec.garage)) carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
   heist.stage = null; player.forceClip = null;
   if (rec && rec.bay) { rec.bay.occ = false; rec.bay.spawned = null; }
   if (i >= 0) { enterParked(i); drive.car.stolen = true; }
-  say("Hot-wired. The engine catches.", 3.5);
+  say(rec && rec.garage ? "Hot-wired. The engine catches, and nobody saw a thing." : "Hot-wired. The engine catches.", 3.5);
   if (seen) commitCrime("jackSeen");
 }
 const HEIST_STEPS = ["Pry the column shroud off", "Find the wires", "Twist battery to ignition", "Crank the starter", "Break the steering lock"];
@@ -21489,9 +21718,11 @@ function updateHeist(dt) {
       pts.frustumCulled = false; scene.add(pts); heist.shards = { pts: pts, vel: vel, t: 0 };
       // a car worth stealing has an alarm worth hearing
       heist.alarmT = 0;
-      if (heist.diff >= 1.2 || Math.random() < 0.28) { sound.alarmUntil = clock + 40; say("The alarm is going off.", 3); commitCrime("alarm"); heist.alarm = true; } else heist.alarm = false;
+      // inside a car park: the alarm can scream all it likes, there is nobody to hear it and no patrol can see in
+      const hidden = !!heist.rec.garage;
+      if (heist.diff >= 1.2 || Math.random() < 0.28) { sound.alarmUntil = clock + (hidden ? 12 : 40); say(hidden ? "The alarm echoes round the concrete. Nobody comes." : "The alarm is going off.", 3); if (!hidden) commitCrime("alarm"); heist.alarm = !hidden; } else heist.alarm = false;
       let seen = false; const pk = CAR_KINDS.findIndex(k => k.name === "police");
-      carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
+      if (!hidden) carsNear(player.pos.x, player.pos.z, COP_SIGHT, pc => { if (!seen && pc.kind === pk && copSees(pc, player.pos.x, player.pos.z)) seen = true; });
       if (seen) commitCrime("jackSeen");
     }
     if (heist.t > 1.2) { heist.stage = "wire"; heist.step = 0; heistInitStep(); player.forceClip = "hotwire"; }
@@ -29623,6 +29854,7 @@ function findRide() {
   for (let i = 0; i < drive.parked.length; i++) {
     const p = drive.parked[i];
     if (p.scenery) {                               // a stranger's car at the kerb: only by breaking in
+      if (Math.abs(p.pos.y - player.pos.y) > 2.0) continue;       // one on a car park deck overhead
       if (heistStealable(p) && Math.hypot(p.pos.x - px, p.pos.z - pz) < 3.3) return { what: "steal", parked: i };
       continue;
     }
