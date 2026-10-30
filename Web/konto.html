@@ -20455,7 +20455,7 @@ function webPageShop(g, W, site) {
   ["Food & drink", "Daily goods", "Electronics", "Delivery", "Store finder"].forEach((t, i) => wText(g, t, WEB_X + 300 + i * 150, 58, "600 18px " + UI, eleven ? "rgba(255,255,255,0.9)" : "#33404e"));
   wText(g, "Balance " + yenText(purse.yen), WEB_X + WEB_COL, 58, "700 18px " + UI, eleven ? "#ffffff" : main, "right");
   // the hero
-  const hg = g.createLinearGradient(0, 96, W, 420); hg.addColorStop(0, main); hg.addColorStop(1, shade(main, 0.65));
+  const hg = g.createLinearGradient(0, 96, W, 420); hg.addColorStop(0, main); hg.addColorStop(1, shadeCss(main, 0.65));
   g.fillStyle = hg; g.fillRect(0, 96, W, 330);
   wText(g, eleven ? "Open 24 hours. Even for you." : "Everything for the family. All of it.", WEB_X, 220, "800 52px " + UI, "#ffffff");
   wText(g, "Order online · bento and coffee now, electronics delivered to your door", WEB_X, 270, "500 22px " + UI, "rgba(255,255,255,0.85)");
@@ -20476,7 +20476,7 @@ function webPageShop(g, W, site) {
   });
   let y = 516 + Math.ceil(SHOP_ITEMS.length / cols) * (ch + 28) + 20;
   // the shop's own card
-  wShadowCard(g, WEB_X, y, WEB_COL, 150, 18, shade(main, 0.85));
+  wShadowCard(g, WEB_X, y, WEB_COL, 150, 18, shadeCss(main, 0.85));
   wText(g, (eleven ? "11 Eleven" : "Pet Mart") + " point card", WEB_X + 40, y + 64, "800 30px " + UI, "#ffffff");
   wText(g, "Points on every purchase, in store and online. Switch it on in your Wallet.", WEB_X + 40, y + 104, "500 19px " + UI, "rgba(255,255,255,0.85)");
   wButton(g, WEB_X + WEB_COL - 270, y + 48, 230, 56, "Activate card", "#ffffff", main, { shopBuy: SHOP_ITEMS.length });
@@ -20515,7 +20515,9 @@ function webPageCars(g, W, site) {
     const x = WEB_X + (i % cols) * (cw + 28), y = 706 + ((i / cols) | 0) * (ch + 28);
     wShadowCard(g, x, y, cw, ch, 18, card);
     wRect(g, x + 16, y + 16, cw - 32, 180, 12, lux ? "#1f242b" : "#eef1f4");
+    g.save(); g.beginPath(); roundRect(g, x + 16, y + 16, cw - 32, 180, 12); g.clip();               // a tall van stays inside its picture
     try { drawCarSide(g, x + 40, y + 170, cw - 80, c.kind, paint[1]); } catch (e) { /* no picture */ }
+    g.restore();
     wText(g, c.name, x + 24, y + 240, "700 24px " + UI, ink, "left", cw - 48);
     wText(g, "From " + yenText(c.price), x + 24, y + 278, "800 26px " + UI, accent);
     wText(g, "or " + yenText(c.rent) + " a day to rent", x + 24, y + 308, "500 17px " + UI, sub);
@@ -20538,7 +20540,7 @@ function webPageTech(g, W, site) {
     wText(g, t.name, x + 92, 170, "700 19px " + UI, on ? "#ffffff" : "#14171b", "center");
     wHit(x, 136, 184, 54, { tab: i });
   });
-  const list = dokotoList(tab), cols = 4, cw = (WEB_COL - 3 * 24) / cols, ch = 360;
+  const list = dokotoList(tab), cols = 4, cw = (WEB_COL - 3 * 24) / cols, ch = 384;
   const col = { phone: "#6a3fb5", gear: "#1a9ad6", audio: "#2a2d33", tv: "#1d3b5a", game: "#c43a3a", card: "#d4152c" };
   list.forEach((it, i) => {
     const x = WEB_X + (i % cols) * (cw + 24), y = 224 + ((i / cols) | 0) * (ch + 24);
@@ -20547,8 +20549,8 @@ function webPageTech(g, W, site) {
     wProduct(g, it.kind, x + cw / 2, y + 89, 110, col[it.kind] || "#5a6b7a");
     wText(g, it.name, x + 20, y + 200, "700 21px " + UI, "#14171b", "left", cw - 40);
     wPara(g, it.note || "", x + 20, y + 230, cw - 40, "500 15px " + UI, "#5f6770", 21);
-    wText(g, it.price ? yenText(it.price) : "Free", x + 20, y + 318, "800 24px " + UI, "#d4152c");
-    wButton(g, x + cw - 150, y + 290, 130, 46, it.kind === "card" ? "Activate" : "Buy", "#14171b", "#ffffff", { techBuy: i }, "700 18px " + UI);
+    wText(g, it.price ? yenText(it.price) : "Free", x + 20, y + 304, "800 24px " + UI, "#d4152c");
+    wButton(g, x + 20, y + 320, cw - 40, 46, it.kind === "card" ? "Activate" : "Buy", "#14171b", "#ffffff", { techBuy: i }, "700 18px " + UI);
   });
   const y = 224 + Math.ceil(list.length / cols) * (ch + 24) + 30;
   return wFooter(g, y, W, "#14171b", "#ffffff", "Dokoto Camera");
@@ -20656,7 +20658,7 @@ function webPageGov(g, W) {
 function webPageText(g, W, site) {
   const col = site.col || "#5a6b7a";
   wRect(g, 0, 0, W, 4000, 0, "#fbfaf7");
-  const hg = g.createLinearGradient(0, 0, W, 300); hg.addColorStop(0, col); hg.addColorStop(1, shade(col, 0.6));
+  const hg = g.createLinearGradient(0, 0, W, 300); hg.addColorStop(0, col); hg.addColorStop(1, shadeCss(col, 0.6));
   g.fillStyle = hg; g.fillRect(0, 0, W, 300);
   wText(g, "www." + site.host, WEB_X + 160, 70, "600 17px " + UI, "rgba(255,255,255,0.75)");
   wText(g, site.title, WEB_X + 160, 170, "800 58px " + UI, "#ffffff", "left", 940);
@@ -20692,7 +20694,7 @@ function webChrome(g, W, site) {
   wRect(g, 210, 56, W - 420, 34, 17, "#f1f3f5");
   const scam = site && site.kind === "scam";
   wText(g, scam ? "⚠ Not secure" : "\u{1F512}", 232, 79, "600 15px " + UI, scam ? "#d0601c" : "#3a8a52");
-  wText(g, site ? "https://www." + site.host : searchUI.on ? "noodle.co.kn/search?q=" + encodeURIComponent(searchUI.q || "") : "noodle.co.kn", scam ? 330 : 262, 79, "500 17px " + UI, "#2a2f35");
+  wText(g, site ? "https://www." + site.host : searchUI.on ? "noodle.co.kn/search?q=" + encodeURIComponent(searchUI.q || "") : "noodle.co.kn", scam ? 356 : 262, 79, "500 17px " + UI, "#2a2f35");
   wHit(210, 56, W - 420, 34, { act: "search" });
   wText(g, "Balance " + yenText(purse.yen), W - 24, 79, "700 16px " + UI, "#2a2f35", "right");
   // bookmarks: every main site, a click away
