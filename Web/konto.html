@@ -7623,7 +7623,7 @@ function buildScene(w) {
   water.mats.length = 0;
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD_X * 2.4, WORLD_Z * 2.4, 1, 1),
-    waterMaterial(0, 0x082638, 0x2a9aa0, 0.95)
+    waterMaterial(0, 0x082638, 0x2a9aa0, 0.95, { sea: true })
   );
   sea.geometry.rotateX(-Math.PI / 2);
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
@@ -8021,7 +8021,7 @@ function buildScene(w) {
       const outer = m.inner + m.width;
       const water = new THREE.Mesh(
         new THREE.PlaneGeometry(outer * 2, outer * 2, 1, 1),
-        waterMaterial(Math.max(m.waterY, 0.12), 0x0e2a2a, 0x2c5a48, 0.97)
+        waterMaterial(Math.max(m.waterY, 0.12), 0x0b2420, 0x1f4234, 0.98, { env: 0.28, rough: 0.2 })
       );
       water.geometry.rotateX(-Math.PI / 2);
       water.position.set(m.centre[0], Math.max(m.waterY, 0.12), m.centre[1]);      // always over the sea's sheet, which runs under everything
@@ -9972,28 +9972,39 @@ function waterHeightTexture() {
     const i = z * GRID_X + x, h = H[world.idx ? world.idx(x, z) : i];
     data[i * 4] = Math.round(clamp01((h + 25) / 50) * 255); data[i * 4 + 3] = 255;
   }
+  // which low ground is the sea: flooded in from the edge of the map through everything below the waterline (and the cells beside it,
+  // so the shore itself is in). A hollow inland that happens to lie below sea level - reclaimed ground under a city - is not.
+  const sea = new Uint8Array(GRID_X * GRID_Z), q = [];
+  const low = i => data[i * 4] < Math.round((25 + 0.4) / 50 * 255);
+  for (let x = 0; x < GRID_X; x++) { q.push(x, (GRID_Z - 1) * GRID_X + x); }
+  for (let z = 0; z < GRID_Z; z++) { q.push(z * GRID_X, z * GRID_X + GRID_X - 1); }
+  for (let k = 0; k < q.length; k++) { const i = q[k]; if (sea[i] || !low(i)) continue; sea[i] = 1; const x = i % GRID_X, z = (i / GRID_X) | 0; if (x > 0) q.push(i - 1); if (x < GRID_X - 1) q.push(i + 1); if (z > 0) q.push(i - GRID_X); if (z < GRID_Z - 1) q.push(i + GRID_X); }
+  for (let i = 0; i < sea.length; i++) { const x = i % GRID_X, z = (i / GRID_X) | 0; let on = sea[i]; if (!on) for (let dz = -1; dz <= 1 && !on; dz++) for (let dx = -1; dx <= 1 && !on; dx++) { const xx = x + dx, zz = z + dz; if (xx >= 0 && zz >= 0 && xx < GRID_X && zz < GRID_Z && sea[zz * GRID_X + xx]) on = 1; } data[i * 4 + 1] = on ? 255 : 0; }
   const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat);
   t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
   water.heightTex = t; water.heightFor = world;
   return t;
 }
-function waterMaterial(level, deep, shallow, opacity) {
+function waterMaterial(level, deep, shallow, opacity, opts) {
+  opts = opts || {};
   if (!gfx.high) return new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
   if (!water.normTex) { water.normTex = new THREE.TextureLoader().load("art/terrain/water_nor.jpg"); water.normTex.wrapS = water.normTex.wrapT = THREE.RepeatWrapping; }
-  const m = new THREE.MeshStandardMaterial({ color: deep, roughness: 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: 0.55 });
-  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level },
+  const m = new THREE.MeshStandardMaterial({ color: deep, roughness: opts.rough || 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: opts.env || 0.55 });
+  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
               cDeep: { value: new THREE.Color(deep) }, cShallow: { value: new THREE.Color(shallow) }, gridK: { value: new THREE.Vector2(1 / CELL, 1 / CELL) }, gridN: { value: new THREE.Vector2(GRID_X, GRID_Z) } };
   m.onBeforeCompile = sh => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWP;")
       .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nuniform sampler2D tWaterN, tHeight; uniform float wTime, wLevel; uniform vec3 cDeep, cShallow; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nuniform sampler2D tWaterN, tHeight; uniform float wTime, wLevel, seaOnly; uniform vec3 cDeep, cShallow; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
       .replace("#include <color_fragment>", [
         "#include <color_fragment>",
         "  {",
         "    vec2 huv = (vWP.xz * gridK + 0.5) / gridN;",
-        "    float h = texture2D(tHeight, huv).r * 50.0 - 25.0;",
+        "    vec2 hs = texture2D(tHeight, huv).rg;",
+        "    float h = hs.r * 50.0 - 25.0;",
+        "    if (seaOnly > 0.5 && hs.g < 0.5 && huv.x > 0.0 && huv.y > 0.0 && huv.x < 1.0 && huv.y < 1.0) discard;",
         "    wDepth = wLevel - h;",
         "    vec2 p = vWP.xz;",
         "    vec2 n1 = texture2D(tWaterN, p / 23.0 + vec2(wTime * 0.013, wTime * 0.009)).rg * 2.0 - 1.0;",
