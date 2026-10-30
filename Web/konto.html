@@ -2160,7 +2160,7 @@ function makeWorld(seed, report) {
       if (along < 0 || along > b.len) continue;
       if (Math.abs(dx * b.uz - dz * b.ux) > b.hw) continue;
       const y = b.ya + (b.yb - b.ya) * (along / b.len);
-      if (refY === undefined) return y;
+      if (refY === undefined) { if (b.elevated) continue; return y; }      // asked without a height: the ground's level (a bridge, not a viaduct)
       if (y <= refY + 1.6 && (best === null || y > best)) best = y;
     }
     if (refY !== undefined) return best;
