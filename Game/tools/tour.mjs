@@ -42,6 +42,7 @@ const page = await ctx.newPage();
 page.on("pageerror", e => console.log("[pageerror]", String(e).slice(0, 200)));
 await page.route("**/three.min.js", r => r.fulfill({ path: path.join(VENDOR, "three.min.js"), contentType: "text/javascript" }));
 await page.route("**/GLTFLoader.js", r => r.fulfill({ path: path.join(VENDOR, "GLTFLoader.js"), contentType: "text/javascript" }));
+await page.route("**/RGBELoader.js", r => r.fulfill({ path: path.join(VENDOR, "RGBELoader.js"), contentType: "text/javascript" }));
 await page.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
 
 let n = 0;

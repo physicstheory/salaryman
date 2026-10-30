@@ -208,7 +208,8 @@ const UPDATE_DIR = path.join(app.getPath("userData"), "Update");
 const UPDATE_APP = path.join(UPDATE_DIR, "app");
 const CDN_SWAPS = {
   "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js": "konto://vendor/three.min.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js": "konto://vendor/GLTFLoader.js"
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js": "konto://vendor/GLTFLoader.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js": "konto://vendor/RGBELoader.js"
 };
 function stagePage(page) {      // the same changes tools/stage.js makes: the libraries come from vendor/, and no web fonts
   Object.keys(CDN_SWAPS).forEach(u => { page = page.split(u).join(CDN_SWAPS[u]); });

@@ -23,7 +23,8 @@ const OUT = path.join(GAME, "app");
 // inside the staged folder.
 const CDN = {
   "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js": "konto://vendor/three.min.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js": "konto://vendor/GLTFLoader.js"
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js": "konto://vendor/GLTFLoader.js",
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js": "konto://vendor/RGBELoader.js"
 };
 
 function main() {

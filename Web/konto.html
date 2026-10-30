@@ -1164,6 +1164,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script>
 "use strict";
 /* ============================================================================
@@ -2897,25 +2898,109 @@ function wingPrism(x0, y0, z0, root, tip, span, sweepDeg, dih, thickRoot, thickT
   const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
   return g;
 }
+// ---- the airlines ----------------------------------------------------------------------------------------------------------------------------
+// Six carriers, all of them Konto's own, and every airliner at the gates wears one: the fuselage painted as a texture (body and belly colour,
+// the cheatline, the window line with its doors, the name in English and Japanese the right way round on both sides, a JA registration),
+// art on the tail, and the engines in the house colour.
+const AIRLINES = [
+  { id: "konto", tail: 0xc0172b, name: "KONTO AIRLINES", jp: "コント航空", body: "#f5f6f7", belly: "#f5f6f7", stripe: "#c0172b", stripe2: "#1a1a1a", fin: "#c0172b", art: "fuji", engine: 0xc0172b, ink: "#16181c" },
+  { id: "nipponsky", tail: 0x1d5fb0, name: "NIPPON SKY", jp: "日空", body: "#f5f6f7", belly: "#1d5fb0", stripe: "#1d5fb0", stripe2: "#7fb8e8", fin: "#1d5fb0", art: "wave", engine: 0x1d5fb0, ink: "#1d5fb0" },
+  { id: "ryujima", tail: 0x1e8f5a, name: "RYUJIMA ISLAND AIR", jp: "竜島エア", body: "#f5f6f7", belly: "#1e8f5a", stripe: "#1e8f5a", stripe2: "#f2c419", fin: "#1e8f5a", art: "island", engine: 0xf2f3f4, ink: "#16704a" },
+  { id: "sakura", tail: 0x7a3fb5, name: "SAKURA AIRWAYS", jp: "さくら航空", body: "#fbf3f7", belly: "#f3d4e4", stripe: "#e27aa8", stripe2: "#7a3fb5", fin: "#7a3fb5", art: "sakura", engine: 0xe27aa8, ink: "#7a3fb5" },
+  { id: "momiji", tail: 0xe08a1c, name: "MOMIJI EXPRESS", jp: "もみじエクスプレス", body: "#ffffff", belly: "#e8701c", stripe: "#e8701c", stripe2: "#ffc107", fin: "#e05a1c", art: "maple", engine: 0xe8701c, ink: "#d0451c" },
+  { id: "hokuto", tail: 0x14284c, name: "HOKUTO AIR", jp: "北斗航空", body: "#14284c", belly: "#c9ced6", stripe: "#c9a54a", stripe2: "#e8eaee", fin: "#14284c", art: "stars", engine: 0xc9ced6, ink: "#f2f2f2" }
+];
+const liveryTex = {};
+function airlineFor(tailHex) { return AIRLINES.find(a => a.tail === tailHex) || AIRLINES[Math.abs(tailHex | 0) % AIRLINES.length]; }
+// the fuselage: u runs tail (0) to nose (1); v round the body, the crown at 0.5, the right side (+z) at 0.75, the left at 0.25
+function fuselageLivery(A, reg) {
+  const key = "f" + A.id + reg; if (liveryTex[key]) return liveryTex[key];
+  const W = 2048, H = 800, cv = document.createElement("canvas"); cv.width = W; cv.height = H; const g = cv.getContext("2d");
+  const row = t => t * H;
+  g.fillStyle = A.body; g.fillRect(0, 0, W, H);
+  // the belly, below the waterline either side
+  g.fillStyle = A.belly; g.fillRect(0, 0, W, row(0.2)); g.fillRect(0, row(0.8), W, H - row(0.8));
+  // each side, drawn once for the right and once (turned round) for the left
+  const side = (draw) => { g.save(); draw(0.75); g.restore(); g.save(); g.translate(W, H); g.rotate(Math.PI); draw(0.75); g.restore(); };
+  side(t0 => {
+    // cheatlines, swept up at the tail
+    g.fillStyle = A.stripe; g.beginPath(); g.moveTo(W * 0.04, row(t0 + 0.0)); g.lineTo(W * 0.96, row(t0 + 0.035)); g.lineTo(W * 0.96, row(t0 + 0.06)); g.lineTo(W * 0.04, row(t0 + 0.03)); g.fill();
+    g.fillStyle = A.stripe2; g.fillRect(W * 0.1, row(t0 + 0.065), W * 0.86, row(0.012));
+    // the window line, with the doors
+    const doors = [0.18, 0.5, 0.82];
+    g.fillStyle = "#1b222b";
+    for (let u = 0.2; u < 0.84; u += 0.0105) { if (doors.some(d => Math.abs(u - d) < 0.022)) continue; g.beginPath(); const x = W * u, y = row(t0 - 0.06); g.ellipse(x, y, 6, 11, 0, 0, Math.PI * 2); g.fill(); }
+    g.strokeStyle = "rgba(40,48,58,0.75)"; g.lineWidth = 3;
+    doors.forEach(d => { g.strokeRect(W * d - 15, row(t0 - 0.11), 30, row(0.13)); g.fillStyle = "#1b222b"; g.fillRect(W * d - 4, row(t0 - 0.085), 8, 14); });
+    // the name over the windows, the Japanese after it, and the registration by the tail
+    g.fillStyle = A.ink; g.textBaseline = "middle";
+    g.font = "900 64px " + UI; g.textAlign = "left"; g.fillText(A.name, W * 0.38, row(t0 - 0.16));
+    const nw = g.measureText(A.name).width; g.font = "700 46px " + UI; g.fillText(A.jp, W * 0.38 + nw + 30, row(t0 - 0.16));
+    g.font = "700 26px " + UI; g.fillStyle = A.belly === A.body ? "#5a6068" : A.ink; g.fillText(reg, W * 0.09, row(t0 - 0.07));
+  });
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+  return (liveryTex[key] = t);
+}
+function tailLivery(A) {
+  const key = "t" + A.id; if (liveryTex[key]) return liveryTex[key];
+  const S = 512, cv = document.createElement("canvas"); cv.width = S; cv.height = S; const g = cv.getContext("2d");
+  g.fillStyle = A.fin; g.fillRect(0, 0, S, S);
+  const cx = S * 0.42, cy = S * 0.55;
+  if (A.art === "fuji") {
+    g.fillStyle = "#ffffff"; g.beginPath(); g.moveTo(S * 0.08, S * 0.82); g.lineTo(S * 0.4, S * 0.4); g.lineTo(S * 0.5, S * 0.42); g.lineTo(S * 0.82, S * 0.82); g.fill();
+    g.fillStyle = A.fin; g.beginPath(); g.moveTo(S * 0.3, S * 0.53); g.lineTo(S * 0.38, S * 0.6); g.lineTo(S * 0.45, S * 0.54); g.lineTo(S * 0.52, S * 0.6); g.lineTo(S * 0.6, S * 0.55); g.lineTo(S * 0.82, S * 0.82); g.lineTo(S * 0.08, S * 0.82); g.fill();
+    g.fillStyle = "#ffffff"; g.beginPath(); g.arc(S * 0.62, S * 0.26, S * 0.11, 0, Math.PI * 2); g.fill();
+  } else if (A.art === "wave") {
+    g.strokeStyle = "#ffffff"; g.lineWidth = 16;
+    for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(cx + k * 30 - 40, cy + k * 40 - 40, 120 - k * 18, Math.PI * 0.9, Math.PI * 2.05); g.stroke(); }
+    g.fillStyle = "#7fb8e8"; for (let k = 0; k < 9; k++) { g.beginPath(); g.arc(S * 0.2 + k * 34, S * 0.86, 14, 0, Math.PI * 2); g.fill(); }
+  } else if (A.art === "island") {
+    g.fillStyle = "#f2c419"; g.beginPath(); g.arc(S * 0.58, S * 0.34, S * 0.15, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#0f5e3a"; g.beginPath(); g.moveTo(S * 0.1, S * 0.8); g.quadraticCurveTo(S * 0.35, S * 0.42, S * 0.62, S * 0.62); g.quadraticCurveTo(S * 0.75, S * 0.7, S * 0.9, S * 0.8); g.fill();
+    g.strokeStyle = "#ffffff"; g.lineWidth = 8; g.beginPath(); for (let x = 40; x < S; x += 10) g.lineTo(x, S * 0.86 + Math.sin(x / 20) * 8); g.stroke();
+  } else if (A.art === "sakura") {
+    const flower = (x, y, r) => { g.fillStyle = "#fbd3e6"; for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 - Math.PI / 2; g.beginPath(); g.ellipse(x + Math.cos(a) * r * 0.55, y + Math.sin(a) * r * 0.55, r * 0.42, r * 0.3, a, 0, Math.PI * 2); g.fill(); } g.fillStyle = "#e27aa8"; g.beginPath(); g.arc(x, y, r * 0.18, 0, Math.PI * 2); g.fill(); };
+    flower(S * 0.45, S * 0.5, 120); flower(S * 0.72, S * 0.28, 60); flower(S * 0.25, S * 0.78, 50);
+  } else if (A.art === "maple") {
+    g.fillStyle = "#ffc107"; g.beginPath();
+    const pts = [[0, -1], [0.18, -0.55], [0.55, -0.72], [0.42, -0.3], [0.95, -0.18], [0.5, 0.05], [0.62, 0.38], [0.15, 0.25], [0.05, 0.9], [-0.05, 0.9], [-0.15, 0.25], [-0.62, 0.38], [-0.5, 0.05], [-0.95, -0.18], [-0.42, -0.3], [-0.55, -0.72], [-0.18, -0.55]];
+    pts.forEach((p, i) => { const x = cx + p[0] * 160, y = cy + p[1] * 160; if (i) g.lineTo(x, y); else g.moveTo(x, y); }); g.fill();
+  } else if (A.art === "stars") {
+    const star = (x, y, r) => { g.beginPath(); for (let k = 0; k < 10; k++) { const a = k / 10 * Math.PI * 2 - Math.PI / 2, rr = k % 2 ? r * 0.42 : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); } g.fill(); };
+    g.fillStyle = "#c9a54a"; [[0.18, 0.7], [0.32, 0.62], [0.46, 0.6], [0.58, 0.5], [0.62, 0.32], [0.82, 0.3], [0.86, 0.48]].forEach(([x, y], i) => star(S * x, S * y, i === 4 ? 30 : 22));
+    g.strokeStyle = "rgba(201,165,74,0.5)"; g.lineWidth = 3; g.beginPath(); [[0.18, 0.7], [0.32, 0.62], [0.46, 0.6], [0.58, 0.5], [0.62, 0.32], [0.82, 0.3], [0.86, 0.48], [0.58, 0.5]].forEach(([x, y], i) => i ? g.lineTo(S * x, S * y) : g.moveTo(S * x, S * y)); g.stroke();
+  }
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+  return (liveryTex[key] = t);
+}
+let liveryReg = 801;
+
 function airplaneMesh(len, span, tailHex, hi) {
   if (len < 26) return propPlaneMesh(len, span, tailHex, hi);
   const g = new THREE.Group(), r = len * 0.062, L = len;
   const M = (c, rough, met) => hi ? new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.4 : rough, metalness: met === undefined ? 0.2 : met, envMap: gfx.env || null, envMapIntensity: 0.55 }) : new THREE.MeshLambertMaterial({ color: c });
-  const white = M(0xf3f4f5), grey = M(0xc9cdd1, 0.5, 0.3), dark = M(0x141b24, 0.15, 0.5), tailM = M(tailHex, 0.4, 0.15), engM = M(0xaeb4ba, 0.35, 0.6), tyre = M(0x16181b, 0.9, 0);
+  const A = airlineFor(tailHex), reg = "JA" + (liveryReg++) + (A.id === "momiji" ? "M" : A.id === "sakura" ? "S" : "A");
+  const white = M(0xffffff), grey = M(0xc9cdd1, 0.5, 0.3), dark = M(0x141b24, 0.15, 0.5), tailM = M(0xffffff, 0.4, 0.15), engM = M(A.engine, 0.35, 0.45), tyre = M(0x16181b, 0.9, 0);
+  if (hi) { white.map = fuselageLivery(A, reg); white.roughness = 0.32; tailM.map = tailLivery(A); }
+  else { white.color.set(A.body); tailM.color.set(A.fin); }
   const add = (geo, mat, x, y, z, parent) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); (parent || g).add(m); return m; };
   // the fuselage: one lathe from the tail cone to the nose, so it is round and tapers where a real one does
   const prof = [[0.02, -0.5], [0.10, -0.47], [0.30, -0.42], [0.58, -0.36], [0.82, -0.30], [0.96, -0.24], [1.0, -0.16], [1.0, 0.22], [0.98, 0.30], [0.90, 0.37], [0.74, 0.43], [0.50, 0.47], [0.24, 0.495], [0.0, 0.5]];
   const lathe = new THREE.LatheGeometry(prof.map(p => new THREE.Vector2(p[0] * r, p[1] * L)), 28); lathe.rotateZ(-Math.PI / 2);
   const fus = add(lathe, white, 0, 0, 0);
+  // the livery's coordinates: along the body, and round it from the belly up over the crown
+  { const lp = lathe.attributes.position, uv = new Float32Array(lp.count * 2);
+    for (let i = 0; i < lp.count; i++) { const x = lp.getX(i), y = lp.getY(i), z = lp.getZ(i); uv[i * 2] = clamp01(x / L + 0.5); uv[i * 2 + 1] = 1 - (0.5 + Math.atan2(z, y) / (Math.PI * 2)); }
+    lathe.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); }
   // the upswept tail cone sits a little high: lift the aft vertices
   const fp = lathe.attributes.position; for (let i = 0; i < fp.count; i++) { const x = fp.getX(i); if (x < -0.2 * L) fp.setY(i, fp.getY(i) + (-0.2 * L - x) / (0.3 * L) * r * 0.55); } fp.needsUpdate = true; lathe.computeVertexNormals();
-  // the airline's cheat line, either side
-  [-1, 1].forEach(sd => add(new THREE.BoxGeometry(L * 0.52, r * 0.09, r * 0.04), tailM, L * 0.05, -r * 0.18, sd * r * 0.99));
+  // (the cheat line and the windows are painted on, in the livery)
+  if (!hi) [-1, 1].forEach(sd => add(new THREE.BoxGeometry(L * 0.52, r * 0.09, r * 0.04), M(A.tail), L * 0.05, -r * 0.18, sd * r * 0.99));
   // windows: a row either side, and a windscreen
   const nW = Math.floor(L * 0.44 / (L * 0.016));
   const winG = new THREE.BoxGeometry(L * 0.007, r * 0.15, r * 0.05), wi = new THREE.InstancedMesh(winG, dark, nW * 2), m4 = new THREE.Matrix4();
   for (let i = 0; i < nW; i++) for (let sd = 0; sd < 2; sd++) { const x = -L * 0.22 + i * L * 0.016, y = r * 0.3, zz = Math.sqrt(Math.max(0, r * r - y * y)) * (sd ? 1 : -1); m4.makeTranslation(x, y, zz * 1.005); wi.setMatrixAt(i * 2 + sd, m4); }
-  wi.frustumCulled = false; g.add(wi);
+  wi.frustumCulled = false; if (!hi) g.add(wi);
   add(new THREE.BoxGeometry(L * 0.03, r * 0.22, r * 1.3), dark, L * 0.425, r * 0.42, 0);
   [-1, 1].forEach(sd => add(new THREE.BoxGeometry(L * 0.022, r * 0.2, r * 0.05), dark, L * 0.41, r * 0.4, sd * r * 0.7));
   // wings: swept, tapered, dihedral, with a winglet, and slim flap tracks
@@ -2923,7 +3008,7 @@ function airplaneMesh(len, span, tailHex, hi) {
   [-1, 1].forEach(sd => {
     const wg = wingPrism(wx, -r * 0.5, 0, L * 0.17, L * 0.045, semi, 27, r * 0.45, r * 0.10, r * 0.025);
     const w = new THREE.Mesh(wg, grey); w.position.z = sd * r * 0.9; if (sd < 0) w.scale.z = -1; if (sd < 0) { w.material = grey; } g.add(w);
-    const tip = wingPrism(0, 0, 0, L * 0.035, L * 0.012, r * 0.9, 20, 0, r * 0.015, r * 0.008); const wl = new THREE.Mesh(tip, tailM);
+    const tip = wingPrism(0, 0, 0, L * 0.035, L * 0.012, r * 0.9, 20, 0, r * 0.015, r * 0.008); const wl = new THREE.Mesh(tip, M(A.fin));
     const sw = Math.tan(27 * Math.PI / 180) * semi; wl.position.set(wx - sw, -r * 0.5 + r * 0.45, sd * (r * 0.9 + semi)); g.add(wl);
     wl.rotation.x = -Math.PI / 2;
     // engines: nacelle, a dark intake, a fan, an exhaust cone, on a pylon
@@ -2937,7 +3022,11 @@ function airplaneMesh(len, span, tailHex, hi) {
     userGear(g, tyre, grey, r, sd * r * 0.62, wx - L * 0.09, 0);
   });
   // tail: fin, and tailplanes
-  const fin = new THREE.Mesh(wingPrism(0, 0, 0, L * 0.13, L * 0.06, r * 3.1, 36, 0, r * 0.07, r * 0.025), tailM); fin.rotation.x = -Math.PI / 2; fin.position.set(-L * 0.355, r * 0.85, 0); g.add(fin);
+  const finG = wingPrism(0, 0, 0, L * 0.13, L * 0.06, r * 3.1, 36, 0, r * 0.07, r * 0.025);
+  { finG.computeBoundingBox(); const bb = finG.boundingBox, fp = finG.attributes.position, uv = new Float32Array(fp.count * 2);
+    for (let i = 0; i < fp.count; i++) { uv[i * 2] = (fp.getX(i) - bb.min.x) / (bb.max.x - bb.min.x || 1); uv[i * 2 + 1] = (fp.getZ(i) - bb.min.z) / (bb.max.z - bb.min.z || 1); }
+    finG.setAttribute("uv", new THREE.BufferAttribute(uv, 2)); }
+  const fin = new THREE.Mesh(finG, tailM); fin.rotation.x = -Math.PI / 2; fin.position.set(-L * 0.355, r * 0.85, 0); g.add(fin);
   [-1, 1].forEach(sd => { const tp = new THREE.Mesh(wingPrism(-L * 0.405, r * 0.95, 0, L * 0.075, L * 0.03, span * 0.17, 30, r * 0.12, r * 0.035, r * 0.012), grey); tp.position.z = sd * r * 0.2; if (sd < 0) tp.scale.z = -1; g.add(tp); });
   // nose gear
   userGear(g, tyre, grey, r, 0, L * 0.34, 1);
@@ -3522,6 +3611,57 @@ function planCity(world, F, seed, report, progressBase) {
   // ---- roads -----------------------------------------------------------
   function pointAt(px, pz) { return [px, world.sampleHeight(px, pz), pz]; }
 
+  // ---- the palace is not a short cut ---------------------------------------------------------------------------------------------------
+  // The palace grounds, the moat and a margin beyond it form a square no road may cross. A road that would is taken round the outside of
+  // the moat instead, the shorter way, on the line Uchibori-dōri follows (a ring road of its own, added below, so every road that meets the
+  // palace meets a road there); a radial that would have started inside starts at the moat. The expressway goes round too, on its viaduct.
+  const palW = site.palace ? L.wards.find(w => w.kind === "Palace") : null;
+  const PAL = palW ? { c: palW.centre, yaw: palW.yaw, H: site.palaceRadius + site.moatWidth + 36 } : null;
+  function avoidPalace(pts, loop, extra, yOf) {
+    if (!PAL || !pts || pts.length < 2) return pts;
+    const H = PAL.H + (extra || 0), P8 = 8 * H;
+    const loc = p => toRectLocal(p[0], p[2], PAL.c[0], PAL.c[1], PAL.yaw);
+    const inside = p => { const l = loc(p); return Math.abs(l[0]) < H && Math.abs(l[1]) < H; };
+    if (!pts.some(inside)) return pts;
+    const mk = (lx, lz) => { const q = fromRectLocal(lx, lz, PAL.c[0], PAL.c[1], PAL.yaw); return yOf ? [q[0], yOf(q[0], q[1]), q[1]] : pointAt(q[0], q[1]); };
+    // where a segment from outside (a) to inside (b) crosses the square, pushed out onto it
+    const cross = (a, b) => {
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 18; k++) { const m = (lo + hi) / 2, q = [a[0] + (b[0] - a[0]) * m, 0, a[2] + (b[2] - a[2]) * m]; if (inside(q)) hi = m; else lo = m; }
+      const q = [a[0] + (b[0] - a[0]) * lo, 0, a[2] + (b[2] - a[2]) * lo], l = loc(q);
+      if (Math.abs(l[0]) > Math.abs(l[1])) l[0] = Math.sign(l[0]) * H; else l[1] = Math.sign(l[1]) * H;
+      return l;
+    };
+    // a point on the square by how far round it is, and back
+    const along = t => { t = ((t % P8) + P8) % P8; if (t < 2 * H) return [-H + t, -H]; if (t < 4 * H) return [H, -H + (t - 2 * H)]; if (t < 6 * H) return [H - (t - 4 * H), H]; return [-H, H - (t - 6 * H)]; };
+    const round = l => { const d = [Math.abs(l[1] + H), Math.abs(l[0] - H), Math.abs(l[1] - H), Math.abs(l[0] + H)], e = d.indexOf(Math.min(...d)); return e === 0 ? l[0] + H : e === 1 ? 2 * H + l[1] + H : e === 2 ? 4 * H + H - l[0] : 6 * H + H - l[1]; };
+    const detour = (le, lx) => {
+      const te = round(le), tx = round(lx), fwd = ((tx - te) % P8 + P8) % P8, dir = fwd <= P8 / 2 ? 1 : -1, len = dir > 0 ? fwd : P8 - fwd;
+      const out = [];
+      for (let d = 0; d <= len; d += 30) { const l = along(te + dir * d); out.push(l); }
+      out.push(lx);
+      // round the corners off: no road turns ninety degrees on the spot
+      const sm = [out[0]];
+      for (let i = 1; i < out.length - 1; i++) { const a = out[i - 1], b = out[i], c = out[i + 1]; sm.push([b[0] * 0.5 + (a[0] + c[0]) * 0.25, b[1] * 0.5 + (a[1] + c[1]) * 0.25]); }
+      sm.push(out[out.length - 1]);
+      return sm.map(l => mk(l[0], l[1]));
+    };
+    let P = pts.slice();
+    if (loop) { const k = P.findIndex(p => !inside(p)); if (k < 0) return []; P = P.slice(k).concat(P.slice(0, k)); P.push(P[0]); }
+    const out = [];
+    for (let i = 0; i < P.length;) {
+      if (!inside(P[i])) { out.push(P[i]); i++; continue; }
+      let j = i; while (j < P.length && inside(P[j])) j++;
+      const entry = i > 0 ? cross(P[i - 1], P[i]) : null, exit = j < P.length ? cross(P[j], P[j - 1]) : null;
+      if (entry && exit) detour(entry, exit).forEach(q => out.push(q));
+      else if (entry) out.push(mk(entry[0], entry[1]));
+      else if (exit) out.push(mk(exit[0], exit[1]));
+      i = j;
+    }
+    if (loop && out.length > 1) out.pop();
+    return out;
+  }
+
   for (let ring = 0; ring < site.rings; ring++) {
     const frac = site.rings <= 1 ? 0.6 : lerp(0.34, 0.95, ring / (site.rings - 1));
     const pts = [];
@@ -3536,8 +3676,9 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push(pointAt(w[0], w[1]));
     }
     const road = { name: "Kanjō " + (ring + 1) + "-gō", cls: "arterial", ring: ring,
-                   halfWidth: ring === 0 ? 13 : 11, loop: true, pts: pts };
-    L.roads.push(road); claimPath(pts, road.halfWidth + 4, true);
+                   halfWidth: ring === 0 ? 13 : 11, loop: true, pts: avoidPalace(pts, true) };
+    if (road.pts.length < 4) continue;
+    L.roads.push(road); claimPath(road.pts, road.halfWidth + 4, true);
   }
 
   const phase = h01(5, 9) * 6.2831853;
@@ -3571,10 +3712,23 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push(pointAt(pw[0], pw[1]));
       if (travelled > meanR * 1.2 && footprint(pw[0], pw[1]) <= 0.01) break;
     }
-    if (pts.length < 4) continue;
+    const routed = avoidPalace(pts, false);
+    if (routed.length < 4) continue;
     const road = { name: AVENUE_NAMES[(Math.abs(citySeed / 11 | 0) + i) % AVENUE_NAMES.length],
-                   cls: "arterial", radial: i, halfWidth: 12, loop: false, pts: pts };
-    L.roads.push(road); claimPath(pts, road.halfWidth + 4, false);
+                   cls: "arterial", radial: i, halfWidth: 12, loop: false, pts: routed };
+    L.roads.push(road); claimPath(road.pts, road.halfWidth + 4, false);
+  }
+
+  // Uchibori-dōri: the road round the outside of the moat, which the detours above run along and the radials begin from
+  if (PAL) {
+    const H = PAL.H, pts = [];
+    for (let k = 0; k < 4; k++) for (let t = 0; t < 2 * H; t += 30) {
+      const c = [[-H, -H], [H, -H], [H, H], [-H, H]][k], d = [[1, 0], [0, 1], [-1, 0], [0, -1]][k], r = 24;
+      if (t < r || t > 2 * H - r) continue;
+      const q = fromRectLocal(c[0] + d[0] * t, c[1] + d[1] * t, PAL.c[0], PAL.c[1], PAL.yaw); pts.push(pointAt(q[0], q[1]));
+    }
+    const road = { name: "Uchibori-d\u014dri", cls: "arterial", halfWidth: 10, loop: true, pts: pts };
+    L.roads.push(road); claimPath(pts, road.halfWidth + 4, true);
   }
 
   if (site.expressway) {
@@ -3586,8 +3740,8 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push([w[0], Math.max(g, 1) + 13, w[1]]);
     }
     const road = { name: "Konto Metropolitan Expressway", cls: "expressway",
-                   halfWidth: 10.5, loop: true, elevated: true, pts: pts };
-    L.roads.push(road); claimPath(pts, road.halfWidth + 1.5, true);
+                   halfWidth: 10.5, loop: true, elevated: true, pts: avoidPalace(pts, true, 40, (x, z) => Math.max(world.sampleHeight(x, z), 1) + 13) };
+    L.roads.push(road); claimPath(road.pts, road.halfWidth + 1.5, true);
   }
 
   // ---- the scramble crossing -------------------------------------------
@@ -3702,8 +3856,8 @@ function planCity(world, F, seed, report, progressBase) {
       const w = F.toWorld(core[0] + Math.cos(a) * r * 1.15, core[1] + Math.sin(a) * r);
       pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 9.5, w[1]]);
     }
-    const line = { name: "NHRail Kanjo Loop Line", cls: "loop", halfWidth: 9, loop: true, elevated: true, pts: pts };
-    L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, true);
+    const line = { name: "NHRail Kanjo Loop Line", cls: "loop", halfWidth: 9, loop: true, elevated: true, pts: avoidPalace(pts, true, 30, (x, z) => Math.max(world.sampleHeight(x, z), 1) + 9.5) };
+    L.rails.push(line); claimPath(line.pts, line.halfWidth + 1.5, true);
     stationsAlong(line, 620);
   }
 
@@ -3722,9 +3876,10 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push(pointAt(w[0], w[1]));
       if (Math.hypot(u - core[0], v - core[1]) > meanR * 1.9) break;
     }
-    if (pts.length < 4) continue;
-    const line = { name: "NHRail Line " + (i + 1), cls: "radial", halfWidth: 7.5, loop: false, pts: pts };
-    L.rails.push(line); claimPath(pts, line.halfWidth + 9, false);
+    const routedR = avoidPalace(pts, false, 34);
+    if (routedR.length < 4) continue;
+    const line = { name: "NHRail Line " + (i + 1), cls: "radial", halfWidth: 7.5, loop: false, pts: routedR };
+    L.rails.push(line); claimPath(line.pts, line.halfWidth + 9, false);
     stationsAlong(line, 800);
   }
 
@@ -3736,8 +3891,8 @@ function planCity(world, F, seed, report, progressBase) {
       pts.push([w[0], Math.max(world.sampleHeight(w[0], w[1]), 1) + 12, w[1]]);
     }
     if (pts.length > 3) {
-      const line = { name: "NHRail Shinkansen", cls: "shinkansen", halfWidth: 11, loop: false, elevated: true, pts: pts };
-      L.rails.push(line); claimPath(pts, line.halfWidth + 1.5, false);
+      const line = { name: "NHRail Shinkansen", cls: "shinkansen", halfWidth: 11, loop: false, elevated: true, pts: avoidPalace(pts, false, 60, (x, z) => Math.max(world.sampleHeight(x, z), 1) + 12) };
+      L.rails.push(line); claimPath(line.pts, line.halfWidth + 1.5, false);
     }
   }
 
@@ -5189,7 +5344,7 @@ float gdLuma(vec2 p, vec3 base, float slope, float city) {
 // above so a cliff is not a smear of stretched pixels; snow on the peaks; sand on the shore; scree and river gravel. Each is read at two
 // sizes so it does not tile, and a slow variation across the whole island breaks it up further. Until the photographs arrive the old
 // procedural grain stands in. High and ultra light it per pixel, so a ridge catches the sun along its length and not in nineteen-metre steps.
-const TERRAIN_TEX = { list: ["grass", "grass2", "rock", "rock_moss", "snow", "sand", "scree"], tex: null, ready: { value: 0 }, avg: { value: new THREE.Vector3(0.12, 0.16, 0.06) } };
+const TERRAIN_TEX = { list: ["grass", "grass2", "rock", "rock_moss", "snow", "sand", "scree", "sand_wet", "grass_nor", "sand_nor"], tex: null, ready: { value: 0 }, avg: { value: new THREE.Vector3(0.12, 0.16, 0.06) } };
 function terrainTextures() {
   if (TERRAIN_TEX.tex) return TERRAIN_TEX.tex;
   const L = new THREE.TextureLoader(), T = TERRAIN_TEX.tex = {};
@@ -5202,13 +5357,16 @@ function terrainTextures() {
       }
       if (--left === 0) TERRAIN_TEX.ready.value = 1;
     }, undefined, () => { /* the procedural grain stays */ });
-    T[n].encoding = THREE.sRGBEncoding; T[n].wrapS = T[n].wrapT = THREE.RepeatWrapping; sharpTex(T[n]);
+    if (!/_nor$/.test(n)) T[n].encoding = THREE.sRGBEncoding;                 // normal maps are data, not colour
+    T[n].wrapS = T[n].wrapT = THREE.RepeatWrapping; sharpTex(T[n]);
   });
   return T;
 }
 const TERRAIN_GLSL = `
-uniform sampler2D tGrass, tGrass2, tRock, tMoss, tSnow, tSand, tScree;
+uniform sampler2D tGrass, tGrass2, tRock, tMoss, tSnow, tSand, tScree, tSandWet, tGrassN, tSandN;
 uniform float tReady;
+// the relief the photographs' normal maps add, in world x/z, handed from the colour pass to the normal pass
+vec2 tgRelief = vec2(0.0);
 uniform vec3 tAvg;
 varying vec3 vTW, vTN;
 varying vec4 vSplat;
@@ -5243,9 +5401,30 @@ vec3 terrainGround(vec3 tint) {
   float pl = lum(photo) / max(lum(tAvg), 0.004);
   vec3 col = mix(photo * (lum(tint) / max(lum(tAvg), 0.004)), tint * pl, 0.4) * 0.9;
   col = mix(col, tint * 0.95, far * 0.45);
-  // each layer is read only where it lies (a branch costs less than a texture nobody sees)
-  if (vSplat.x > 0.01) col = mix(col, TWO(tSand, p / 6.0, p / 29.0, 0.4) * 0.95, clamp(vSplat.x, 0.0, 1.0));
+#ifndef TERRAIN_LEAN
+  // the grass's own relief, fading out with distance
+  { vec2 gn = texture2D(tGrassN, p / 9.0).rg * 2.0 - 1.0; tgRelief = gn * 0.55 * (1.0 - far); }
+#endif
+  // The beach, worked out per pixel from the height of the ground itself rather than from the nineteen-metre colour map, so the line where
+  // the sand starts runs smooth along the shore instead of in steps: dry sand up to a metre or two above the sea, darker wet sand at the
+  // water's edge, broken up a little so it is not ruled with a pencil. The colour map's own sand still lies where it says.
+  float shoreN = texture2D(tGrass2, p / 37.0).g - 0.5;
+  float beach = (1.0 - smoothstep(1.3, 2.6, vTW.y + shoreN * 1.4)) * (1.0 - smoothstep(0.18, 0.34, slope)) * step(-4.0, vTW.y);
+  float sandW = clamp(max(vSplat.x, beach), 0.0, 1.0);
+  if (sandW > 0.01) {
+    vec3 dry = TWO(tSand, p / 7.0, p / 31.0, 0.4) * 1.02;
+#ifdef TERRAIN_LEAN
+    vec3 sandC = dry;
+#else
+    float wet = 1.0 - smoothstep(0.25, 0.85, vTW.y + shoreN * 0.5);
+    vec3 sandC = mix(dry, tx(tSandWet, p / 6.0) * 0.82, wet);
+    vec2 sn = texture2D(tSandN, p / 5.0).rg * 2.0 - 1.0;
+    tgRelief = mix(tgRelief, sn * 0.7 * (1.0 - far), sandW);
+#endif
+    col = mix(col, sandC, sandW);
+  }
   float rockW = clamp(smoothstep(0.30, 0.52, slope + breakup * 0.18) + vSplat.w * 0.8, 0.0, 1.0);
+  tgRelief *= 1.0 - rockW;
   float cragW = clamp(smoothstep(0.46, 0.70, slope + breakup * 0.2) + vSplat.w * 0.5, 0.0, 1.0);
   vec3 crag = vec3(0.0);
   if (rockW > 0.01 || vSplat.z > 0.01) {
@@ -5276,13 +5455,15 @@ function terrainMaterial() {
   const T = terrainTextures(), grain = groundGrain();
   const m = gfx.high ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.94, metalness: 0 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
   m.onBeforeCompile = shader => {
-    Object.assign(shader.uniforms, { tGrass: { value: T.grass }, tGrass2: { value: T.grass2 }, tRock: { value: T.rock }, tMoss: { value: T.rock_moss }, tSnow: { value: T.snow }, tSand: { value: T.sand }, tScree: { value: T.scree }, tReady: TERRAIN_TEX.ready, tAvg: TERRAIN_TEX.avg, gdetail: { value: groundDetail() }, detailMap: { value: grain } });
+    Object.assign(shader.uniforms, { tGrass: { value: T.grass }, tGrass2: { value: T.grass2 }, tRock: { value: T.rock }, tMoss: { value: T.rock_moss }, tSnow: { value: T.snow }, tSand: { value: T.sand }, tScree: { value: T.scree },
+      tSandWet: { value: T.sand_wet }, tGrassN: { value: T.grass_nor }, tSandN: { value: T.sand_nor }, tReady: TERRAIN_TEX.ready, tAvg: TERRAIN_TEX.avg, gdetail: { value: groundDetail() }, detailMap: { value: grain } });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nattribute vec4 splat;\nvarying vec3 vTW, vTN;\nvarying vec4 vSplat;\nvarying float vTDist;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTW = position; vTN = normal; vSplat = splat;")
       .replace("#include <project_vertex>", "#include <project_vertex>\n  vTDist = -mvPosition.z;");
     shader.fragmentShader = (gfx.tier === "low" || perf.potato ? "#define TERRAIN_LEAN\n" : "") + shader.fragmentShader
       .replace("#include <common>", "#include <common>\n" + GDETAIL_GLSL + TERRAIN_GLSL)
+      .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n  if (tReady > 0.5) normal = normalize(normal + (viewMatrix * vec4(tgRelief.x, 0.0, tgRelief.y, 0.0)).xyz);")
       .replace("#include <color_fragment>", "#include <color_fragment>\n  {\n    vec3 tint = diffuseColor.rgb;\n    if (tReady > 0.5) diffuseColor.rgb = terrainGround(tint);\n    else diffuseColor.rgb = tint * gdLuma(vTW.xz, tint, (1.0 - clamp(normalize(vTN).y, 0.0, 1.0)) * 1.6, 0.0);\n  }");
   };
   m.customProgramCacheKey = () => "konto-terrain-photo" + (gfx.tier === "low" || perf.potato ? "-lean" : "");
@@ -6277,7 +6458,8 @@ function makeSkyMesh() {
       horizon: { value: new THREE.Color(HORIZON) },
       glow: { value: new THREE.Color(0xffeccd) },
       sunDir: { value: sunDir },
-      night: { value: 0 }
+      night: { value: 0 },
+      tClouds: { value: null }, cloudOn: { value: 0 }, cloudShift: { value: 0 }
     },
     vertexShader: [
       "varying vec3 vDir;",
@@ -6289,6 +6471,7 @@ function makeSkyMesh() {
     fragmentShader: [
       "uniform vec3 zenith; uniform vec3 horizon; uniform vec3 glow; uniform vec3 sunDir;",
       "uniform float night;",
+      "uniform sampler2D tClouds; uniform float cloudOn; uniform float cloudShift;",
       "varying vec3 vDir;",
       // A cheap hash, used to scatter stars over the dome without a texture.
       "float h21(vec2 p) {",
@@ -6317,12 +6500,27 @@ function makeSkyMesh() {
       "      col += vec3(0.86, 0.90, 1.0) * star * night * clamp(d.y * 3.0, 0.0, 1.0);",
       "    }",
       "  }",
+      // The clouds: the real ones out of a CC0 sky panorama (Poly Haven), separated from its blue by colour and laid over this sky, lit by
+      // the time of day - white at noon, warm at sunset, a dim grey at night - and drifting slowly round.
+      "  if (cloudOn > 0.5 && d.y > -0.03) {",
+      "    float u = atan(d.z, d.x) / 6.2831853 + 0.5 + cloudShift;",
+      "    float v = clamp(asin(clamp(d.y, 0.0, 1.0)) / 1.5707963, 0.003, 0.997);",
+      "    vec3 ph = texture2D(tClouds, vec2(u, v)).rgb;",
+      "    float lum = dot(ph, vec3(0.30, 0.59, 0.11));",
+      "    float mask = smoothstep(0.17, 0.04, ph.b - ph.r) * smoothstep(0.30, 0.62, lum);",
+      "    vec3 lit = vec3(lum) * mix(vec3(1.0), glow, 0.5) * (1.0 - night * 0.9) * 1.08 + horizon * 0.08;",
+      "    col = mix(col, lit, mask * smoothstep(-0.03, 0.10, d.y));",
+      "  }",
       "  col = mix(col, horizon, smoothstep(0.14, -0.06, d.y));",
       "  gl_FragColor = vec4(col, 1.0);",
       "}"
     ].join("\n")
   });
   const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 24), mat);
+  new THREE.TextureLoader().load("art/sky/clouds.jpg", t => {
+    t.wrapS = THREE.RepeatWrapping; t.anisotropy = 4; t.minFilter = THREE.LinearMipmapLinearFilter;
+    mat.uniforms.tClouds.value = t; mat.uniforms.cloudOn.value = 1;
+  }, undefined, () => { /* a clear sky, then */ });
   dome.scale.setScalar(26000);
   dome.frustumCulled = false;
   dome.renderOrder = -1;
@@ -7347,6 +7545,7 @@ function buildScene(w) {
   nightMats.length = 0;
   if (gfx.env && gfx.env.dispose) gfx.env.dispose();
   gfx.env = bakeEnvironment();
+  loadHdri();
   scene.environment = gfx.env || null;
   solids.length = 0;
   treeCells.length = 0;
@@ -7421,9 +7620,10 @@ function buildScene(w) {
   root.add(terrain);
 
   // ---- sea
+  water.mats.length = 0;
   const sea = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD_X * 2.4, WORLD_Z * 2.4, 1, 1),
-    new THREE.MeshLambertMaterial({ color: 0x18323c, transparent: true, opacity: 0.86 })
+    waterMaterial(0, 0x082638, 0x2a9aa0, 0.95)
   );
   sea.geometry.rotateX(-Math.PI / 2);
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
@@ -7817,10 +8017,10 @@ function buildScene(w) {
       const outer = m.inner + m.width;
       const water = new THREE.Mesh(
         new THREE.PlaneGeometry(outer * 2, outer * 2, 1, 1),
-        new THREE.MeshLambertMaterial({ color: 0x1a3b45 })
+        waterMaterial(Math.max(m.waterY, 0.12), 0x0e2a2a, 0x2c5a48, 0.97)
       );
       water.geometry.rotateX(-Math.PI / 2);
-      water.position.set(m.centre[0], m.waterY, m.centre[1]);
+      water.position.set(m.centre[0], Math.max(m.waterY, 0.12), m.centre[1]);      // always over the sea's sheet, which runs under everything
       water.rotation.y = -m.yaw * Math.PI / 180;
       root.add(water);
     }
@@ -7857,6 +8057,7 @@ function buildScene(w) {
   buildStreetLife(root, w);
   try { buildCarparks(root, w); } catch (e) { console.warn("[Konto] the car parks could not be built:", e); }
   try { buildBoats(root, w); } catch (e) { console.warn("[Konto] the boats could not be built:", e); }
+  try { buildBeaches(root, w); } catch (e) { console.warn("[Konto] the beaches could not be dressed:", e); }
   vegBuild(root);
   drive.car = null;
   drive.train = null;
@@ -9753,6 +9954,200 @@ function buildCarparks(root, w) {
   console.log("[Konto] " + carparks.list.length + " multi-storey car parks: " + carparks.list.map(c => c.city).join(", "));
 }
 
+// ---- water ---------------------------------------------------------------------------------------------------------------------------------
+// The sea and the moat as water rather than a tinted sheet: two layers of wave normals scrolling across each other (three.js's
+// waternormals, MIT), a mirror-smooth surface that reflects the HDRI sky with the right fresnel and throws a glint off the sun, and colour
+// from the depth under each pixel - read from a texture of the island's heights - so it runs from turquoise over the sand to navy over the
+// deep, with a line of white foam and the water thinning to nothing where it meets the beach. That fade is also what hides the shore's
+// shape: the ground is laid out every nineteen metres, and a hard waterline traced its steps.
+const water = { mats: [], heightTex: null, normTex: null, t: 0 };
+function waterHeightTexture() {
+  if (water.heightTex && water.heightFor === world) return water.heightTex;
+  const H = world.height, data = new Uint8Array(GRID_X * GRID_Z * 4);
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
+    const i = z * GRID_X + x, h = H[world.idx ? world.idx(x, z) : i];
+    data[i * 4] = Math.round(clamp01((h + 25) / 50) * 255); data[i * 4 + 3] = 255;
+  }
+  const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+  water.heightTex = t; water.heightFor = world;
+  return t;
+}
+function waterMaterial(level, deep, shallow, opacity) {
+  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
+  if (!water.normTex) { water.normTex = new THREE.TextureLoader().load("art/terrain/water_nor.jpg"); water.normTex.wrapS = water.normTex.wrapT = THREE.RepeatWrapping; }
+  const m = new THREE.MeshStandardMaterial({ color: deep, roughness: 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: 0.55 });
+  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level },
+              cDeep: { value: new THREE.Color(deep) }, cShallow: { value: new THREE.Color(shallow) }, gridK: { value: new THREE.Vector2(1 / CELL, 1 / CELL) }, gridN: { value: new THREE.Vector2(GRID_X, GRID_Z) } };
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nvarying vec3 vWP;")
+      .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
+    sh.fragmentShader = sh.fragmentShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nuniform sampler2D tWaterN, tHeight; uniform float wTime, wLevel; uniform vec3 cDeep, cShallow; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
+      .replace("#include <color_fragment>", [
+        "#include <color_fragment>",
+        "  {",
+        "    vec2 huv = (vWP.xz * gridK + 0.5) / gridN;",
+        "    float h = texture2D(tHeight, huv).r * 50.0 - 25.0;",
+        "    wDepth = wLevel - h;",
+        "    vec2 p = vWP.xz;",
+        "    vec2 n1 = texture2D(tWaterN, p / 23.0 + vec2(wTime * 0.013, wTime * 0.009)).rg * 2.0 - 1.0;",
+        "    vec2 n2 = texture2D(tWaterN, p / 61.0 - vec2(wTime * 0.007, -wTime * 0.011)).rg * 2.0 - 1.0;",
+        "    vec2 n3 = texture2D(tWaterN, p / 7.0 + vec2(-wTime * 0.021, wTime * 0.017)).rg * 2.0 - 1.0;",
+        "    float dist = length(vWP - cameraPosition);",
+        "    wN = (n1 * 0.55 + n2 * 0.45 + n3 * 0.3 * (1.0 - smoothstep(30.0, 160.0, dist))) * mix(0.42, 0.12, smoothstep(80.0, 1500.0, dist));",
+        "    float shallowK = 1.0 - smoothstep(0.4, 9.0, wDepth);",
+        "    diffuseColor.rgb = mix(cDeep, cShallow, shallowK);",
+        "    float foamLine = smoothstep(0.35, 0.6, wDepth) * (1.0 - smoothstep(0.7, 1.3, wDepth));",
+        "    float foamN = texture2D(tWaterN, p / 3.1 + vec2(wTime * 0.05, 0.0)).b;",
+        "    float foam = clamp(foamLine * (0.55 + foamN * 0.8), 0.0, 1.0);",
+        "    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.93, 0.95, 0.96), foam * 0.8);",
+        // fully clear over the last half metre: the ground is laid out in nineteen-metre triangles and the height read here is smoothed
+        // between them, so the two disagree by a little near the line - clear water there, and the line itself never shows
+        "    float edge = smoothstep(0.45, 1.6, wDepth);",
+        "    diffuseColor.a *= clamp(edge * (0.6 + 0.4 * smoothstep(1.0, 5.0, wDepth)) + foam * 0.55 * smoothstep(0.35, 0.55, wDepth), 0.0, 1.0);",
+        "  }"].join("\n"))
+      .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n  normal = normalize(normal + (viewMatrix * vec4(wN.x, 0.0, wN.y, 0.0)).xyz);");
+  };
+  m.customProgramCacheKey = () => "konto-water";
+  water.mats.push(U);
+  return m;
+}
+function updateWater(dt) {
+  water.t += dt;
+  for (const U of water.mats) U.wTime.value = water.t;
+}
+
+// ---- beaches ------------------------------------------------------------------------------------------------------------------------------
+// The sand is shaded per pixel by the terrain (dry above, wet at the waterline, the sea thinning onto it); this puts people's things on it.
+// The best stretches are found by walking out from the middle of the island, and from each coastal town, to the water: where the last
+// twenty metres before it are low, gentle and not a town, that is a beach. Each one gets what a Japanese summer beach has - a row of
+// striped parasols with towels and loungers under them, an umi-no-ie (the wooden beach hut that sells kakigōri and ramen, its nobori
+// banners out front), a lifeguard tower with its flag, surfboards stood in the sand, a volleyball net, beach balls, a cool box.
+const beaches = { list: [] };
+function findBeaches(w) {
+  const cands = [];
+  const urban = (x, z) => w.cities.some(c => c.footprint && c.footprint(x, z) > 0.18);
+  const ray = (cx, cz, a, rMax) => {
+    const ux = Math.sin(a), uz = Math.cos(a);
+    let land = false, last = null;
+    for (let r = 20; r < rMax; r += 6) {
+      const x = cx + ux * r, z = cz + uz * r; if (x < 60 || z < 60 || x > WORLD_X - 60 || z > WORLD_Z - 60) return;
+      const h = world.sampleHeight(x, z);
+      if (h > 0.4) { land = true; last = [x, z]; continue; }
+      if (land && h < 0.1 && last) {
+        // the shore is at `last`; inland is back along the ray
+        let ok = 0;
+        for (let d = 2; d <= 26; d += 4) { const q = [last[0] - ux * d, last[1] - uz * d], hh = world.sampleHeight(q[0], q[1]); if (hh > 0.15 && hh < 2.6 && !urban(q[0], q[1]) && !insideBuilding(q[0], q[1], 1) && world.bridgeY(q[0], q[1]) === null) ok++; }
+        if (ok >= 6) cands.push({ x: last[0], z: last[1], nx: -ux, nz: -uz, score: ok });
+        return;
+      }
+    }
+  };
+  const C = [[WORLD_X / 2, WORLD_Z / 2, 96, 7000]];
+  w.cities.forEach(c => { if (c.site && (c.site.coastal || c === w.cities[0]) && c.plots && c.plots.length) { const m = [0, 0]; c.plots.forEach(p => { m[0] += p.centre[0] / c.plots.length; m[1] += p.centre[1] / c.plots.length; }); C.push([m[0], m[1], 64, 1800]); } });
+  C.forEach(([cx, cz, n, rMax]) => { for (let k = 0; k < n; k++) ray(cx, cz, (k + 0.5) / n * Math.PI * 2, rMax); });
+  cands.sort((a, b) => b.score - a.score);
+  const out = [];
+  for (const c of cands) { if (out.length >= 9) break; if (out.every(o => Math.hypot(o.x - c.x, o.z - c.z) > 500)) out.push(c); }
+  return out;
+}
+function buildBeaches(root, w) {
+  beaches.list = findBeaches(w);
+  if (!beaches.list.length) { console.log("[Konto] no beaches found"); return; }
+  const lean = gfx.tier === "low";
+  const poles = [], canopies = [], towels = [], loungers = [], boards = [], balls = [];
+  const PARASOL = [0xd8262b, 0x1f6fd0, 0xf2c419, 0x2aa35a, 0xf06292, 0xff8a1c, 0xffffff];
+  const TOWEL = [0xf06292, 0x4fc3f7, 0xffd54f, 0x81c784, 0xff8a65, 0x9575cd, 0xfafafa];
+  const std = (c, rough, extra) => gfx.high ? new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: rough === undefined ? 0.7 : rough, metalness: 0 }, extra || {})) : new THREE.MeshLambertMaterial(Object.assign({ color: c }, extra && extra.map ? { map: extra.map } : {}));
+  const G = new THREE.Group(); root.add(G);
+  const mesh = (geo, mat, x, y, z, ry) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry || 0; m.castShadow = true; m.receiveShadow = true; G.add(m); return m; };
+  beaches.list.forEach((b, bi) => {
+    const tx = -b.nz, tz = b.nx, R = k => rnd(Math.round(b.x) + k, Math.round(b.z), 8801 + bi);
+    const at = (along, inland) => { const x = b.x + tx * along + b.nx * inland, z = b.z + tz * along + b.nz * inland; return [x, world.surfaceY(x, z), z]; };
+    const yawIn = Math.atan2(b.nx, b.nz);                     // facing inland; +PI faces the sea
+    // the parasols, in two loose rows, each with a towel or two and sometimes a lounger
+    const n = lean ? 8 : 18;
+    for (let k = 0; k < n; k++) {
+      const along = (k - n / 2) * 4.2 + (R(k) - 0.5) * 2.0, inland = 6 + (k % 2) * 4.5 + R(k + 50) * 1.5;
+      const q = at(along, inland); if (q[1] < 0.15) continue;
+      const c = PARASOL[Math.floor(R(k + 100) * PARASOL.length)];
+      poles.push({ x: q[0], y: q[1] + 1.15, z: q[2], ry: 0, s: [1, 1, 1] });
+      canopies.push({ x: q[0], y: q[1] + 2.25, z: q[2], ry: R(k + 7) * 6.28, s: [1, 1, 1], c: c, tilt: (R(k + 8) - 0.5) * 0.25 });
+      const t = at(along + 0.6, inland - 1.4);
+      towels.push({ x: t[0], y: t[1] + 0.02, z: t[2], ry: yawIn + (R(k + 9) - 0.5) * 0.4, s: [1, 1, 1], c: TOWEL[Math.floor(R(k + 10) * TOWEL.length)] });
+      if (R(k + 11) < 0.5) { const t2 = at(along - 0.7, inland - 1.2); towels.push({ x: t2[0], y: t2[1] + 0.02, z: t2[2], ry: yawIn + (R(k + 12) - 0.5) * 0.4, s: [1, 1, 1], c: TOWEL[Math.floor(R(k + 13) * TOWEL.length)] }); }
+      if (R(k + 14) < 0.35) { const l = at(along + 1.4, inland + 0.6); loungers.push({ x: l[0], y: l[1] + 0.25, z: l[2], ry: yawIn + Math.PI, s: [1, 1, 1], c: 0xf4f4f0 }); }
+      if (R(k + 15) < 0.18) { const bb = at(along + 2.2, inland - 3); balls.push({ x: bb[0], y: bb[1] + 0.2, z: bb[2], ry: 0, s: [1, 1, 1], c: [0xff5252, 0x40c4ff, 0xffeb3b][k % 3] }); }
+    }
+    // surfboards stood in the sand
+    for (let k = 0; k < (lean ? 2 : 5); k++) { const q = at(n * 2.1 + 3 + k * 0.9, 13); boards.push({ x: q[0], y: q[1] + 0.9, z: q[2], ry: yawIn + 0.2, s: [1, 1, 1], c: [0xffffff, 0x29b6f6, 0xffca28, 0xef5350, 0x66bb6a][k % 5] }); }
+    // the umi-no-ie at the back of the beach
+    {
+      const q = at(-n * 2.1 - 8, 17), wood = std(0x8a6038, 0.85), tin = std(0x5b7d8e, 0.5, { metalness: 0.3 });
+      const hut = new THREE.Group(); hut.position.set(q[0], q[1], q[2]); hut.rotation.y = yawIn + Math.PI; G.add(hut);
+      const hb = (gw, gh, gd, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, gd), mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; hut.add(m); return m; };
+      hb(12, 0.25, 7, wood, 0, 0.5, 0);                                         // the deck on its stilts
+      [-5.6, 0, 5.6].forEach(x => [-3.2, 3.2].forEach(z => hb(0.22, 3.4, 0.22, wood, x, 2.1, z)));
+      hb(12, 2.6, 0.12, wood, 0, 1.9, -3.4);                                   // the back wall
+      const roof = hb(13.4, 0.15, 8.2, tin, 0, 3.85, 0); roof.rotation.x = 0.08;
+      const sign = new THREE.MeshBasicMaterial({ map: boatCanvas(512, 128, (g, cw, ch) => { g.fillStyle = "#f5efe0"; g.fillRect(0, 0, cw, ch); g.fillStyle = "#c8202a"; g.font = "900 84px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("海の家", cw / 2, ch / 2 + 4); }) });
+      const sg = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 1.05), sign); sg.position.set(0, 4.5, 4.15); hut.add(sg);
+      const kakigori = boatCanvas(128, 512, (g, cw, ch) => { g.fillStyle = "#ffffff"; g.fillRect(0, 0, cw, ch); g.fillStyle = "#1d6fd0"; g.fillRect(0, 0, cw, 50); g.fillStyle = "#d8262b"; g.font = "900 92px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; ["氷"].forEach((c, i) => g.fillText(c, cw / 2, 150)); g.fillStyle = "#1d6fd0"; g.font = "900 64px " + UI; [..."かき氷"].forEach((c, i) => g.fillText(c, cw / 2, 260 + i * 78)); });
+      const ramen = boatCanvas(128, 512, (g, cw, ch) => { g.fillStyle = "#d8262b"; g.fillRect(0, 0, cw, ch); g.fillStyle = "#ffffff"; g.font = "900 72px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; [..."ラーメン"].forEach((c, i) => g.fillText(c, cw / 2, 70 + i * 92)); });
+      [[-4.5, kakigori], [-2.4, ramen], [2.4, kakigori], [4.5, ramen]].forEach(([x, tex]) => {
+        hb(0.05, 3.2, 0.05, std(0x222222), x, 1.6, 5.2);
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 2.4), new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })); f.position.set(x + 0.33, 1.95, 5.2); hut.add(f);
+      });
+      // tables on the deck
+      [-3.5, 0, 3.5].forEach(x => { hb(1.6, 0.08, 0.9, wood, x, 1.15, 0.8); hb(0.1, 0.5, 0.1, wood, x, 0.85, 0.8); });
+    }
+    // the lifeguard tower, with its flag
+    {
+      const q = at(4, 9.5), white = std(0xf2f2ee, 0.5), red = std(0xd8262b, 0.5);
+      const t = new THREE.Group(); t.position.set(q[0], q[1], q[2]); t.rotation.y = yawIn + Math.PI; G.add(t);
+      [[-0.7, -0.7], [0.7, -0.7], [-0.7, 0.7], [0.7, 0.7]].forEach(([x, z]) => { const l = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 3.0, 6), white); l.position.set(x, 1.5, z); t.add(l); });
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.12, 1.8), white); seat.position.y = 3.0; t.add(seat);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.0, 0.1), red); back.position.set(0, 3.6, -0.85); t.add(back);
+      const shade = new THREE.Mesh(new THREE.ConeGeometry(1.4, 0.6, 8), red); shade.position.y = 4.6; t.add(shade);
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), white); pole.position.set(0.9, 5.0, 0.9); t.add(pole);
+      const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.6), new THREE.MeshBasicMaterial({ color: 0xf2c419, side: THREE.DoubleSide })); flag.position.set(1.35, 5.7, 0.9); t.add(flag);
+      t.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    }
+    // a volleyball net
+    if (!lean) {
+      const a = at(-6, 20), c = at(3, 20), net = std(0xffffff, 0.9, { transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+      [a, c].forEach(q => mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.5, 6), std(0xdddddd), q[0], q[1] + 1.25, q[2]));
+      const mid = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2], len = Math.hypot(c[0] - a[0], c[2] - a[2]);
+      const nm = mesh(new THREE.PlaneGeometry(len, 0.9), net, mid[0], mid[1] + 2.0, mid[2], Math.atan2(c[2] - a[2], -(c[0] - a[0]))); nm.castShadow = false;
+      const cb = mesh(new THREE.BoxGeometry(0.6, 0.4, 0.4), std(0x1d6fd0, 0.5), mid[0] + tx * 3, mid[1] + 0.2, mid[2] + tz * 3); void cb;
+    }
+  });
+  // instanced: one draw for every parasol pole, canopy, towel, lounger, board and ball on the island
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), p4 = new THREE.Vector3(), s4 = new THREE.Vector3(), c4 = new THREE.Color();
+  const inst = (geo, mat, list) => {
+    if (!list.length) return;
+    const im = new THREE.InstancedMesh(geo, mat, list.length);
+    list.forEach((o, i) => { e4.set(o.tilt || 0, o.ry, 0); q4.setFromEuler(e4); p4.set(o.x, o.y, o.z); s4.set(o.s[0], o.s[1], o.s[2]); m4.compose(p4, q4, s4); im.setMatrixAt(i, m4); if (o.c !== undefined) { c4.setHex(o.c); im.setColorAt(i, c4); } });
+    im.castShadow = true; im.receiveShadow = true; G.add(im);
+  };
+  // a parasol canopy: eight panels, alternate ones white, so every one is striped whatever its colour
+  const panels = off => {
+    const pos = [], nor = [];
+    for (let k = 0; k < 4; k++) { const g = new THREE.ConeGeometry(1.25, 0.45, 4, 1, true, (2 * k + off) * Math.PI / 4, Math.PI / 4).toNonIndexed(); pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array); g.dispose(); }
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3)); return g;
+  };
+  inst(new THREE.CylinderGeometry(0.03, 0.03, 2.3, 6), std(0xe8e8e8, 0.4), poles);
+  inst(panels(0), std(0xffffff, 0.8, { side: THREE.DoubleSide }), canopies);
+  inst(panels(1), std(0xffffff, 0.8, { side: THREE.DoubleSide }), canopies.map(o => Object.assign({}, o, { c: 0xf6f6f2 })));
+  inst(new THREE.BoxGeometry(0.9, 0.02, 1.8), std(0xffffff, 0.95), towels);
+  inst(new THREE.BoxGeometry(0.7, 0.12, 1.9), std(0xffffff, 0.6), loungers);
+  inst(new THREE.BoxGeometry(0.55, 1.9, 0.07), std(0xffffff, 0.35), boards);
+  inst(new THREE.SphereGeometry(0.2, 14, 10), std(0xffffff, 0.4), balls);
+  console.log("[Konto] " + beaches.list.length + " beaches, " + canopies.length + " parasols");
+}
+
 // ---- boats --------------------------------------------------------------------------------------------------------------------------------
 // What floats. Japan's waterfronts are crowded with a handful of unmistakable boats, so those are the ones built here:
 //   gyosen      the white fibreglass fishing boat: a high flared bow, the wheelhouse aft, a mast with radar and lamps, a kanji name down
@@ -10708,6 +11103,7 @@ function tick(dt) {
   updateTreeLod(dt);
   updateParking(dt);
   updateBoats(dt);
+  updateWater(dt);
   updateSki(dt);
   updateMyNet(dt);
   updateVitals(dt);
@@ -11424,6 +11820,43 @@ function skyScene(radius) {
   return sc;
 }
 
+// Image-based light from a real sky. The procedural environment above lights the world until it arrives; then a CC0 HDRI (Poly Haven,
+// kloofendal_48d_partly_cloudy_puresky, Web/art/sky) is prefiltered for roughness and swapped in on every material, so a car's paint, a
+// window and the sea reflect an actual sky with actual clouds in it. Reflections follow the sun down: at night they are a sixth of the
+// day's, where before the noon sky shone out of every windscreen at midnight.
+const hdri = { env: null, t: 0, dayK: 1 };
+function loadHdri() {
+  if (!gfx.high || !renderer || typeof THREE.RGBELoader !== "function") return;
+  try {
+    new THREE.RGBELoader().setDataType(THREE.UnsignedByteType).load("art/sky/sky_1k.hdr", tex => {
+      try {
+        const pm = new THREE.PMREMGenerator(renderer); pm.compileEquirectangularShader();
+        const rt = pm.fromEquirectangular(tex); pm.dispose(); tex.dispose();
+        if (!envUsable(rt.texture)) { rt.dispose(); return; }
+        const old = gfx.env; gfx.env = hdri.env = rt.texture;
+        if (scene) scene.traverse(o => { if (!o.material) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (m && m.envMap === old) { m.envMap = gfx.env; m.needsUpdate = true; } }); });
+        envFollowSun(true);
+        console.log("[Konto] lit by the HDRI sky");
+      } catch (e) { console.warn("[Konto] the HDRI could not be used:", e); }
+    }, undefined, () => {});
+  } catch (e) { console.warn("[Konto] no HDRI:", e); }
+}
+// every few seconds, every material with a reflection takes the day's share of it (new ones - a car that just arrived - are picked up as they come)
+function envFollowSun(force) {
+  if (!scene || !gfx.env) return;
+  hdri.t += 1;
+  if (!force && hdri.t % 120) return;
+  const k = hdri.dayK;
+  scene.traverse(o => {
+    if (!o.material) return;
+    (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+      if (!m || !m.envMap) return;
+      if (m.userData.envBase === undefined) m.userData.envBase = m.envMapIntensity === undefined ? 1 : m.envMapIntensity;
+      m.envMapIntensity = m.userData.envBase * k;
+    });
+  });
+}
+
 function bakeEnvironment() {
   if (!gfx.high || !renderer) return null;
   // First choice: a prefiltered map, which is what roughness wants.
@@ -11783,6 +12216,76 @@ function planStreets(w, city, boxes) {
   console.log("[Konto] " + city.name + ": streets made through: " + extended + " carried on to the next road, " + trimmed + " cut back to a junction, " + dropped + " dead ends dropped, " + razed + " buildings cleared off them");
 }
 
+// ---- road markings, Japanese ------------------------------------------------------------------------------------------------------------
+// Painted into the arterials' surface by the shader, from the road's own coordinates (across it in metres, along it in metres): the solid
+// yellow centre line of a road you may not overtake on (in pairs, as the wide ones have them), white lane lines five metres on and five off,
+// and the solid white edge line. The paint is a little worn, takes the asphalt's grain, and is a touch shinier than the road.
+function roadMarkings(m) {
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nattribute vec2 aRoad;\nvarying vec2 vRoadUV, vRoadAux;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  vRoadUV = uv; vRoadAux = aRoad;");
+    sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec2 vRoadUV, vRoadAux;\nfloat rmPaint = 0.0;")
+      .replace("#include <map_fragment>", [
+        "#include <map_fragment>",
+        "  if (vRoadAux.y > 0.5) {",
+        "    float hw = vRoadAux.x, x = vRoadUV.x - hw, ax = abs(x), v = vRoadUV.y;",
+        "    float soft = 0.012 + 0.6 * fwidth(x);",
+        "    float line = 1.0 - smoothstep(0.075 - soft, 0.075 + soft, abs(ax - 0.2));",              // the double yellow centre line
+        "    float edgeX = hw - 0.55;",
+        "    float edge = 1.0 - smoothstep(0.075 - soft, 0.075 + soft, abs(ax - edgeX));",
+        "    float n = max(1.0, floor((edgeX - 0.3) / 3.25 + 0.2));",                                  // lanes each way
+        "    float lw = (edgeX - 0.3) / n, k = floor((ax - 0.3) / lw + 0.5), dl = abs(ax - 0.3 - k * lw);",
+        "    float lane = (k >= 1.0 && k <= n - 1.0) ? (1.0 - smoothstep(0.065 - soft, 0.065 + soft, dl)) * step(fract(v / 10.0 + x * 0.0), 0.5) : 0.0;",
+        "    float wear = 0.78 + 0.22 * texture2D(map, vUv * 3.7).g;",
+        "    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.80, 0.50, 0.03) * wear, line * 0.92);",
+        "    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.78, 0.78, 0.76) * wear, max(edge, lane) * 0.92);",
+        "    rmPaint = max(line, max(edge, lane));",
+        "  }"].join("\n"))
+      .replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n  roughnessFactor = mix(roughnessFactor, 0.55, rmPaint);");
+  };
+  const key = m.customProgramCacheKey ? m.customProgramCacheKey() : "";
+  m.customProgramCacheKey = () => key + "-jpmarks";
+  if (m.extensions) m.extensions.derivatives = true;
+}
+// The marks that are not lines: 止まれ and its stop line where a minor street meets a junction, the painted speed limit on the arterials, and
+// the decorated manhole covers every Japanese town is proud of. All instanced, a handful of draws for the whole city.
+const roadDecalTex = {};
+function roadDecalTexture(kind) {
+  if (roadDecalTex[kind]) return roadDecalTex[kind];
+  const cv = document.createElement("canvas"); const g = cv.getContext("2d");
+  if (kind === "tomare") {
+    cv.width = 512; cv.height = 1024; g.clearRect(0, 0, 512, 1024); g.fillStyle = "#f2f2ec";
+    g.save(); g.scale(1, 2.6); g.font = "900 150px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("止まれ", 256, 512 / 2.6); g.restore();
+  } else if (kind === "limit") {
+    cv.width = 256; cv.height = 512; g.clearRect(0, 0, 256, 512); g.fillStyle = "#f2f2ec";
+    g.save(); g.scale(1, 2.4); g.font = "900 170px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("40", 128, 256 / 2.4); g.restore();
+  } else if (kind === "manhole") {
+    cv.width = 512; cv.height = 512; const c = 256;
+    g.clearRect(0, 0, 512, 512);
+    g.fillStyle = "#3b3e42"; g.beginPath(); g.arc(c, c, 250, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#55595e"; g.beginPath(); g.arc(c, c, 236, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#2b2e32"; g.lineWidth = 6; for (let k = 0; k < 24; k++) { const a = k / 24 * Math.PI * 2; g.beginPath(); g.moveTo(c + Math.cos(a) * 150, c + Math.sin(a) * 150); g.lineTo(c + Math.cos(a) * 230, c + Math.sin(a) * 230); g.stroke(); }
+    g.fillStyle = "#4a4e53"; g.beginPath(); g.arc(c, c, 148, 0, Math.PI * 2); g.fill();
+    // the town's emblem: five sakura petals round a crest, and the words for what is underneath
+    g.fillStyle = "#6b7076"; for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2 - Math.PI / 2; g.beginPath(); g.ellipse(c + Math.cos(a) * 62, c + Math.sin(a) * 62, 46, 30, a, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = "#3b3e42"; g.beginPath(); g.arc(c, c, 26, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#6b7076"; g.font = "800 40px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("汚水", c, c + 112); g.fillText("コント市", c, c - 112);
+  }
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 8;
+  return (roadDecalTex[kind] = t);
+}
+function roadDecals(root, list, kind, w, h) {
+  if (!list.length) return;
+  const geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
+  const mat = kind === "stopline" ? new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 })
+    : new THREE.MeshStandardMaterial({ map: roadDecalTexture(kind), transparent: kind !== "manhole", alphaTest: kind === "manhole" ? 0.5 : 0.05, roughness: kind === "manhole" ? 0.45 : 0.6, metalness: kind === "manhole" ? 0.5 : 0, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const im = new THREE.InstancedMesh(geo, mat, list.length), m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), p4 = new THREE.Vector3(), s4 = new THREE.Vector3();
+  list.forEach((d, i) => { e4.set(0, d.yaw, 0); q4.setFromEuler(e4); p4.set(d.x, d.y, d.z); s4.set(d.w || w, 1, d.h || h); m4.compose(p4, q4, s4); im.setMatrixAt(i, m4); });
+  im.receiveShadow = true; im.frustumCulled = false; im.renderOrder = 3; root.add(im);
+}
+
 function buildRoadSurfaces(w, city, root) {
   const b = city.bounds;
   const paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
@@ -11791,8 +12294,9 @@ function buildRoadSurfaces(w, city, root) {
   // the road then always stands above the ground, and the kerb has a step to show.
   const groundAt = (x, z) => paved(x, z) ? cityGroundMax(w, x, z) : w.surfaceY(x, z);
 
-  const road = { pos: [], nrm: [], uv: [] };
+  const road = { pos: [], nrm: [], uv: [], aux: [] };
   const walk = { pos: [], nrm: [], uv: [] };
+  let roadAux = [0, 0];                       // what the road shader paints on this piece: half-width, and 1 for an arterial (0: nothing)
   const kerb = { pos: [], nrm: [], col: [], mr: [] };
 
   let badQuads = 0;
@@ -11803,12 +12307,14 @@ function buildRoadSurfaces(w, city, root) {
       into.pos.push(quad[i][0][0], quad[i][0][1], quad[i][0][2]);
       into.nrm.push(0, 1, 0);
       into.uv.push(quad[i][1], quad[i][2]);
+      if (into.aux) into.aux.push(roadAux[0], roadAux[1]);
     });
   }
 
   city.roads.forEach(r => {
     if (r.elevated || r.link || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;   // (the country roads are laid by buildLinkRoads)
     const hw = r.halfWidth, fw = 4.4;            // carriageway and footway
+    roadAux = [hw, hw >= 7.5 ? 1 : 0];
     let along = 0;
     let prev = null;
     const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
@@ -11863,6 +12369,7 @@ function buildRoadSurfaces(w, city, root) {
   // either side, a centre line and edge lines on the wider ones. Each street is cut where it crosses another so the kerbs do not wall off the
   // junction, and cut where it meets an arterial so the two surfaces never lie on top of each other.
   {
+    roadAux = [0, 0];
     if (!city.streetPlan) planStreets(w, city, []);
     const line = { pos: [] };
     const quadFlat = (a, b2, c, d) => [0, 1, 2, 0, 2, 3].forEach(i => { const q = [a, b2, c, d][i]; line.pos.push(q[0], q[1], q[2]); });
@@ -11919,6 +12426,58 @@ function buildRoadSurfaces(w, city, root) {
     console.log("[Konto] " + city.name + ": " + Math.round(metres / 1000) + " km of street laid as geometry " + JSON.stringify(city.streetWhy || {}) + (badQuads ? " (" + badQuads + " degenerate pieces skipped)" : ""));
   }
 
+  // ---- the painted marks that are not lines, and the manhole covers
+  {
+    const tomare = [], stops = [], limits = [], holes = [];
+    const lean = gfx.tier === "low";
+    // 止まれ on the minor streets (one of the two grid directions gives way), a lane-width before each junction, both ways in
+    (city.streetPlan || []).forEach((L, li) => {
+      const hw = L.hw; if (!L.wins || hw < 2.2) return;
+      const A = L.pt(0), B = L.pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+      const nx = -dz, nz = dx;
+      const runIn = t => L.runs.some(r => t > r[0] + 0.5 && t < r[1] - 0.5);
+      const put = (t, dir) => {
+        if (!runIn(t)) return;
+        const lane = Math.min(hw * 0.5, 1.6), p = L.pt(t), o = -dir * lane;                 // Japan drives on the left: the inbound lane is to the left of the direction of travel
+        const x = p[0] + nx * o, z = p[1] + nz * o; if (!paved(x, z)) return;
+        const y = groundAt(x, z) + 0.06 + 0.02, yaw = Math.atan2(-dx * dir, -dz * dir);
+        if (L.axis === 1) {
+          tomare.push({ x: x - dx * dir * 3.4, y: y, z: z - dz * dir * 3.4, yaw: yaw, w: lane * 1.7, h: 4.4 });
+          stops.push({ x: x - dx * dir * 0.8, y: y + 0.002, z: z - dz * dir * 0.8, yaw: yaw, w: lane * 1.9, h: 0.45 });
+        }
+      };
+      L.wins.forEach(wn => { put(wn[0] - 1.0, 1); put(wn[1] + 1.0, -1); });
+      // a manhole every forty metres or so down the middle of the street
+      if (!lean) L.runs.forEach(r => { for (let t = r[0] + 12; t < r[1] - 6; t += 38 + (li % 5) * 3) { const p = L.pt(t); if (!paved(p[0], p[1])) continue; holes.push({ x: p[0] + nx * 0.6, y: groundAt(p[0], p[1]) + 0.06 + 0.012, z: p[1] + nz * 0.6, yaw: t * 0.37 }); } });
+    });
+    // on the arterials: the speed limit in each direction every few hundred metres, and the manholes
+    city.roads.forEach((r, ri) => {
+      if (r.elevated || r.link || r.halfWidth < 7.5 || !r.pts || r.pts.length < 3) return;
+      const hw = r.halfWidth; let since = 120 + (ri * 37) % 160, sinceH = 30;
+      for (let i = 1; i < r.pts.length; i++) {
+        const a = r.pts[i - 1], q = r.pts[i], seg = Math.hypot(q[0] - a[0], q[2] - a[2]); if (seg < 1) continue;
+        const dx = (q[0] - a[0]) / seg, dz = (q[2] - a[2]) / seg, nx = -dz, nz = dx;
+        since += seg; sinceH += seg;
+        if (since > 280) {
+          since = 0;
+          [-1, 1].forEach(dir => {
+            const o = -dir * (hw - 0.55 - 1.7), x = q[0] + nx * o, z = q[2] + nz * o; if (!paved(x, z) || w.slopeAt(x, z) > 0.2) return;
+            limits.push({ x: x, y: groundAt(x, z) + 0.06 + 0.02, z: z, yaw: Math.atan2(-dx * dir, -dz * dir), w: 1.6, h: 4.0 });
+          });
+        }
+        if (!lean && sinceH > 70) {
+          sinceH = 0; const o = (ri % 2 ? 1 : -1) * hw * 0.3, x = q[0] + nx * o, z = q[2] + nz * o;
+          if (paved(x, z)) holes.push({ x: x, y: groundAt(x, z) + 0.06 + 0.012, z: z, yaw: i * 0.9 });
+        }
+      }
+    });
+    roadDecals(root, tomare, "tomare", 3, 4.4);
+    roadDecals(root, stops, "stopline", 3, 0.45);
+    roadDecals(root, limits, "limit", 1.6, 4);
+    roadDecals(root, holes, "manhole", 0.64, 0.64);
+    console.log("[Konto] " + city.name + ": " + tomare.length + " \u6b62\u307e\u308c, " + limits.length + " speed limits, " + holes.length + " manholes painted");
+  }
+
   function mesh(data, tex, repeat, rough) {
     if (!data.pos.length) return null;
     const t = tex.clone();
@@ -11930,13 +12489,15 @@ function buildRoadSurfaces(w, city, root) {
       : new THREE.MeshLambertMaterial({ map: t });
     if (gfx.high && gfx.env) m.envMap = gfx.env;
     if (tex === gfx.asphalt && gfx.high) roadHD(t, m);
+    if (data.aux) roadMarkings(m);
     m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;     // the city ground is a coarse grid; never let it bury a street
     bubbleFog(m, "road");
-    bucketQuads(data, { pos: 3, nrm: 3, uv: 2 }).forEach(bk => {
+    bucketQuads(data, data.aux ? { pos: 3, nrm: 3, uv: 2, aux: 2 } : { pos: 3, nrm: 3, uv: 2 }).forEach(bk => {
       const g = new THREE.BufferGeometry();
       g.setAttribute("position", new THREE.Float32BufferAttribute(bk.d.pos, 3));
       g.setAttribute("normal", new THREE.Float32BufferAttribute(bk.d.nrm, 3));
       g.setAttribute("uv", new THREE.Float32BufferAttribute(bk.d.uv, 2));
+      if (bk.d.aux) g.setAttribute("aRoad", new THREE.Float32BufferAttribute(bk.d.aux, 2));
       const o = new THREE.Mesh(g, m);
       o.receiveShadow = true;
       o.frustumCulled = false;
@@ -15152,8 +15713,12 @@ function buildCastle(root, city) {
       [-1, 1].forEach(sd => { quad("stone", [sd * 4.4, y0, z0], [sd * 4.4, y1, z1], [sd * 4.4, y1 + 1.1, z1], [sd * 4.4, y0 + 1.1, z0], 4); quad("stone", [sd * 4.4, y0 - 1.6, z0], [sd * 4.4, y1 - 1.6, z1], [sd * 4.4, y1, z1], [sd * 4.4, y0, z0], 4); });
     }
   }
-  // ---- the keep, on its stone base, in the north of the grounds
-  const kz = -inner * 0.38, kx = 0;
+  // ---- the keep, on its stone base, wherever in the grounds is furthest from any road (the radials were laid before the palace was)
+  const roadPts = [];
+  world.cities.forEach(cc => cc.roads.forEach(rd => (rd.pts || []).forEach((q, i) => { if (i % 2 === 0) { const l = toRectLocal(q[0], q[2], m.centre[0], m.centre[1], m.yaw); if (Math.abs(l[0]) < inner && Math.abs(l[1]) < inner) roadPts.push(l); } })));
+  const clearOf = (x, z) => roadPts.reduce((d, q) => Math.min(d, Math.hypot(q[0] - x, q[1] - z)), 1e9);
+  let kx = 0, kz = -inner * 0.38, best = clearOf(kx, kz);
+  for (let x = -inner * 0.6; x <= inner * 0.6; x += inner * 0.1) for (let z = -inner * 0.6; z <= inner * 0.2; z += inner * 0.1) { const d = clearOf(x, z); if (d > best + 5) { best = d; kx = x; kz = z; } }
   const baseH = 9;
   // the base: a battered stone frustum
   roof("stone", kx, kz, 36, 31, gy, 29, 24, gy + baseH, 0);
@@ -15183,11 +15748,12 @@ function buildCastle(root, city) {
   const gold = [];
   [-1, 1].forEach(sd => gold.push([kx + sd * tiers[4][0] * 0.22, y, kz]));
   // ---- the palace hall, south of the keep, under a green copper roof
-  const hz = inner * 0.22;
-  box("plaster", 0, gy, hz, 58, 1.0, 26, 4);
-  storey(0, hz, 54, 22, gy + 1.0, 5.2, "keep");
-  roof("copper", 0, hz, 62, 30, gy + 6.0, 30, 0.3, gy + 13.5);
-  solid(0, hz, 58, 26, gy, 14);
+  let hx = kx, hz = kz + 75, hb = -1;
+  for (const [dx, dz] of [[0, 75], [0, -75], [75, 0], [-75, 0], [60, 60], [-60, 60]]) { const x = kx + dx, z = kz + dz; if (Math.abs(x) > inner - 40 || Math.abs(z) > inner - 40) continue; const d = clearOf(x, z); if (d > hb) { hb = d; hx = x; hz = z; } }
+  box("plaster", hx, gy, hz, 58, 1.0, 26, 4);
+  storey(hx, hz, 54, 22, gy + 1.0, 5.2, "keep");
+  roof("copper", hx, hz, 62, 30, gy + 6.0, 30, 0.3, gy + 13.5);
+  solid(hx, hz, 58, 26, gy, 14);
   // ---- meshes
   const mats = {
     stone: { map: castleTexture("stone"), rough: 0.95 }, plaster: { map: castleTexture("plaster"), rough: 0.85 },
@@ -15207,7 +15773,12 @@ function buildCastle(root, city) {
     f.position.set(w[0], q[1] + 1.0, w[1]); f.rotation.z = (i ? -1 : 1) * 0.5; root.add(f);
   });
   city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, bc), gy: gy };
-  console.log("[Konto] " + city.name + ": the castle, its keep " + Math.round(y - gy) + " m to the ridge");
+  // the audit: nothing laid across the grounds or the moat (roads, railways, the expressway)
+  const crossing = [];
+  world.cities.forEach(cc => cc.roads.concat(cc.rails || []).forEach(rd => { if ((rd.pts || []).some(q => { const l = toRectLocal(q[0], q[2], m.centre[0], m.centre[1], m.yaw); return Math.abs(l[0]) < outer && Math.abs(l[1]) < outer; })) crossing.push(rd.name || rd.cls); }));
+  city.palaceCrossings = crossing;
+  if (crossing.length) console.warn("[Konto] across the palace grounds: " + crossing.join(", "));
+  console.log("[Konto] " + city.name + ": the castle, its keep " + Math.round(y - gy) + " m to the ridge, " + Math.round(best) + " m from the nearest road; " + (crossing.length ? crossing.length + " roads still cross it" : "no road or railway crosses the grounds"));
 }
 
 // ---- what makes a Japanese street look like one -------------------------------------------------------------------------------------------
@@ -15569,6 +16140,7 @@ function buildStreetFurniture(w, city, root, boxes) {
   let dashes = 0;
   city.roads.forEach(road => {
     if (road.elevated || road.halfWidth < 9 || !road.pts || road.pts.length < 3) return;
+    if (gfx.high || road.halfWidth >= 7.5) return;      // now painted into the surface itself (roadMarkings), lanes, centre and edges
     for (let i = 1; i < road.pts.length && dashes < 1800; i++) {
       const p = road.pts[i - 1], q = road.pts[i];
       const seg = Math.hypot(q[0] - p[0], q[2] - p[2]);
@@ -31876,6 +32448,9 @@ function applySky(h, dirX, dirZ) {
   // and at night there is almost none of it. Left at its daytime value the
   // streets were as bright at midnight as at noon and no window could show.
   if (hemiLight) hemiLight.intensity = 0.10 + k.sun * 0.34;
+  const dk = 0.16 + 0.84 * clamp01(k.sun);
+  if (Math.abs(dk - hdri.dayK) > 0.04) { hdri.dayK = dk; envFollowSun(true); } else envFollowSun(false);
+  if (skyDome && skyDome.material.uniforms && skyDome.material.uniforms.cloudShift) skyDome.material.uniforms.cloudShift.value = (performance.now() * 0.0000012) % 1;
 }
 
 function updateTitle(dt) {
