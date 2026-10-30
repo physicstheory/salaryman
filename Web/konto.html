@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Konto Generator</title>
+<!-- the game's own typeface, Konto Sans (M PLUS 1, OFL), shipped with it so it is the same offline and in the desktop build -->
+<link rel="stylesheet" href="art/fonts/konto-sans.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
@@ -21,7 +23,7 @@
     --accent: #8e939b;   /* the interface is grey; only the map's waypoint is allowed colour */
     --indigo: #274a6d;
     --shadow: 0 10px 30px rgba(20, 18, 12, 0.18);
-    --ui: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
+    --ui: "Konto Sans", "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
     --data: "M PLUS 1 Code", ui-monospace, "SFMono-Regular", Menlo, monospace;
     --serif: "Playfair Display", "Times New Roman", Georgia, serif;
   }
@@ -847,30 +849,30 @@
   #spotifypanel button { appearance: none; border: 0; padding: 10px 16px; font: 700 13px/1 var(--ui); letter-spacing: 0.04em; cursor: pointer; background: #2a3038; color: #fff; }
   #spotifypanel #spsignin { background: #1ed760; color: #08130c; }
   #spotifypanel #spstatus { min-height: 1.5em; color: #c8ced6; font-size: 13px; }
-  #iprompt { position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); z-index: 40; padding: 8px 16px; font: 600 15px 'Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(12,14,18,.72); border-left: 3px solid #ffd21c; opacity: 0; transition: opacity .15s; pointer-events: none; white-space: nowrap; }
+  #iprompt { position: fixed; left: 50%; bottom: 14%; transform: translateX(-50%); z-index: 40; padding: 8px 16px; font: 600 15px 'Konto Sans','Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(12,14,18,.72); border-left: 3px solid #ffd21c; opacity: 0; transition: opacity .15s; pointer-events: none; white-space: nowrap; }
   #iprompt.on { opacity: 1; } #iprompt b { background: #ffd21c; color: #111; padding: 1px 8px; margin-right: 8px; } #iprompt i { color: #ffd21c; font-style: normal; margin-left: 10px; }
-  #icard { position: fixed; left: 50%; bottom: 5%; transform: translate(-50%, 20px); z-index: 41; width: min(620px, 92vw); padding: 16px 20px; color: #fff; font-family: 'Segoe UI', system-ui, sans-serif; background: rgba(12,14,18,.84); border-top: 3px solid #ffd21c; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  #icard { position: fixed; left: 50%; bottom: 5%; transform: translate(-50%, 20px); z-index: 41; width: min(620px, 92vw); padding: 16px 20px; color: #fff; font-family: 'Konto Sans','Segoe UI', system-ui, sans-serif; background: rgba(12,14,18,.84); border-top: 3px solid #ffd21c; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
   #icard.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
   #icard .ih { display: flex; justify-content: space-between; align-items: baseline; font-size: 22px; } #icard .ih i { font-style: normal; color: #ffd21c; font-weight: 800; }
   #icard .in { margin: 4px 0 12px; font-size: 14px; color: #c8ced6; min-height: 18px; }
-  #icard .ib { display: flex; gap: 8px; flex-wrap: wrap; } #icard .ib button { flex: 1; padding: 10px 14px; font: 700 15px 'Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(255,255,255,.12); border: 0; cursor: pointer; }
+  #icard .ib { display: flex; gap: 8px; flex-wrap: wrap; } #icard .ib button { flex: 1; padding: 10px 14px; font: 700 15px 'Konto Sans','Segoe UI', system-ui, sans-serif; color: #fff; background: rgba(255,255,255,.12); border: 0; cursor: pointer; }
   #icard .ib button.on { background: #ffd21c; color: #111; } #icard .ib button.dim { opacity: .5; } #icard .ib button:hover { outline: 2px solid #fff; }
   #icard .ik { margin-top: 10px; font-size: 12px; letter-spacing: .06em; color: #8f98a3; }
   #iplates { position: fixed; top: 14px; right: 14px; z-index: 42; opacity: 0; transition: opacity .2s; pointer-events: none; filter: drop-shadow(0 4px 10px rgba(0,0,0,.45)); } #iplates.on { opacity: 1; } #iplates canvas { display: block; border-radius: 10px; border: 2px solid rgba(255,255,255,.25); }
-  #isheet { position: fixed; left: 50%; bottom: 2.5%; transform: translate(-50%, 24px); z-index: 41; width: min(600px, 95vw); max-height: 86vh; overflow: auto; color: #8a1010; font-family: 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, 'Segoe UI', serif; background: #fbf5e2 repeating-linear-gradient(0deg, rgba(160,20,20,.05) 0 1px, transparent 1px 30px); border: 3px solid #b3201f; box-shadow: 0 10px 34px rgba(0,0,0,.55); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
+  #isheet { position: fixed; left: 50%; bottom: 2.5%; transform: translate(-50%, 24px); z-index: 41; width: min(600px, 95vw); max-height: 86vh; overflow: auto; color: #8a1010; font-family: 'Yu Mincho', 'Hiragino Mincho ProN', Georgia, 'Konto Sans','Segoe UI', serif; background: #fbf5e2 repeating-linear-gradient(0deg, rgba(160,20,20,.05) 0 1px, transparent 1px 30px); border: 3px solid #b3201f; box-shadow: 0 10px 34px rgba(0,0,0,.55); opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; }
   #isheet.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
   #isheet .hd { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 14px; background: #b3201f; color: #fff; font-size: 22px; } #isheet .hd b { font-weight: 900; letter-spacing: .12em; margin-right: 10px; } #isheet .hd i { font-style: normal; font-size: 13px; opacity: .85; }
   #isheet .bs { padding: 6px 14px; font-size: 16px; border-bottom: 2px dashed #b3201f; } #isheet .bs b { float: right; }
   #isheet .rw { display: flex; gap: 12px; align-items: center; padding: 5px 14px; border-bottom: 1px solid rgba(179,32,31,.35); } #isheet .rw > span { flex: 0 0 170px; font-weight: 700; font-size: 14px; }
   #isheet .rw.cur { background: rgba(255,210,28,.35); } #isheet .rw > div { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
-  #isheet button { font: 600 13px/1.1 'Yu Mincho', Georgia, 'Segoe UI', serif; color: #8a1010; background: #fffdf4; border: 1.5px solid #b3201f; padding: 5px 9px 5px 24px; position: relative; cursor: pointer; }
+  #isheet button { font: 600 13px/1.1 'Yu Mincho', Georgia, 'Konto Sans','Segoe UI', serif; color: #8a1010; background: #fffdf4; border: 1.5px solid #b3201f; padding: 5px 9px 5px 24px; position: relative; cursor: pointer; }
   #isheet button::before { content: ''; position: absolute; left: 6px; top: 50%; width: 11px; height: 11px; margin-top: -6px; border: 1.5px solid #b3201f; background: #fff; }
   #isheet button.tick { background: #ffe9e4; } #isheet button.tick::after { content: '✔'; position: absolute; left: 7px; top: 50%; margin-top: -10px; font-size: 16px; color: #d4151c; font-weight: 900; }
   #isheet button.foc { outline: 2px solid #ffb800; } #isheet button b { color: #b3201f; margin-left: 4px; }
   #isheet .go { display: block; width: calc(100% - 28px); margin: 10px 14px; padding: 11px; text-align: center; font-size: 16px; font-weight: 900; color: #fff; background: #b3201f; border-color: #8a1010; } #isheet .go::before { display: none; } #isheet .go.foc { outline: 3px solid #ffb800; }
   #isheet .ik { padding: 0 14px 10px; font-size: 11px; letter-spacing: .06em; color: #7a5a5a; }
   body.ininterior #hud, body.ininterior #minimapwrap { }
-  #savemark { position: fixed; right: 18px; top: 16px; z-index: 60; padding: 6px 12px; font: 600 12px 'Segoe UI', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #eaf1ea; background: rgba(12,14,18,.7); border-left: 3px solid #43b36b; opacity: 0; transition: opacity .35s; pointer-events: none; }
+  #savemark { position: fixed; right: 18px; top: 16px; z-index: 60; padding: 6px 12px; font: 600 12px 'Konto Sans','Segoe UI', system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #eaf1ea; background: rgba(12,14,18,.7); border-left: 3px solid #43b36b; opacity: 0; transition: opacity .35s; pointer-events: none; }
   #savemark.on { opacity: 1; }
   #titlehint {
     margin: 26px 0 0; font-family: var(--data); font-size: 11px;
@@ -3193,7 +3195,7 @@ function buildAirports(root) {
       solids2.push({ x: ox, z: tz, w: tl_ + 10, d: tw_ + 4, h: th + rise });
       if (big) {
         // the name, over the entrance on the landside, and a garage for the cars
-        const tt = apCanvas("term" + (ti + 1), 1024, 160, (g, w, h) => { g.fillStyle = "#14527a"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "900 96px 'Segoe UI',sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("TERMINAL " + (ti + 1) + "  ·  第" + (ti + 1) + "ターミナル", w / 2, h / 2 + 4); });
+        const tt = apCanvas("term" + (ti + 1), 1024, 160, (g, w, h) => { g.fillStyle = "#14527a"; g.fillRect(0, 0, w, h); g.fillStyle = "#fff"; g.font = "900 96px 'Konto Sans','Segoe UI',sans-serif"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("TERMINAL " + (ti + 1) + "  ·  第" + (ti + 1) + "ターミナル", w / 2, h / 2 + 4); });
         const sg = new THREE.Mesh(new THREE.PlaneGeometry(40, 6.25), new THREE.MeshBasicMaterial({ map: tt, fog: false })); sg.position.set(ox, th - 2.2, tz + tw_ / 2 + 0.2); G.add(sg);
         box(190, 16, 36, ox + 130, 8, tz + tw_ / 2 + 120, S(0xb9bdc2, 0.7)); for (let f = 1; f < 5; f++) box(190.4, 0.8, 36.4, ox + 130, f * 3.2, tz + tw_ / 2 + 120, S(0x3a4048, 0.8));
         solids2.push({ x: ox + 130, z: tz + tw_ / 2 + 120, w: 190, d: 36, h: 16 });
@@ -6909,7 +6911,12 @@ function padGlyphs() {
 let rumbleAt = 0;
 function rumble(strong, weak, ms) {
   if (!gameSet.rumble || pad.index < 0 || !pad.gp) return;
-  const now = performance.now(); if (now - rumbleAt < 70) return; rumbleAt = now;
+  // Rumble is for events you should feel - a crash, a shot, a hard landing - not a constant buzz: everything is scaled to about a third,
+  // the faint continuous hum of driving is dropped, and pulses are spaced out.
+  strong = clamp01(strong) * 0.35; weak = clamp01(weak) * 0.3;
+  if (strong + weak < 0.06) return;
+  const now = performance.now(); if (now - rumbleAt < 180) return; rumbleAt = now;
+  ms = Math.min(ms || 120, 350);
   try {
     const a = pad.gp.vibrationActuator;
     if (a && a.playEffect) a.playEffect("dual-rumble", { startDelay: 0, duration: ms || 120, strongMagnitude: clamp01(strong), weakMagnitude: clamp01(weak) });
@@ -7143,10 +7150,10 @@ function pollPad(dt) {
   pad.throttle = trigger(PAD.RT, 5);
   pad.brake = trigger(PAD.LT, 4);
   pad.handbrake = held(PAD.A);
-  // On foot X sprints, in a car the right trigger is the throttle.
-  pad.run = held(PAD.X) || pad.throttle > 0.5;
+  // On foot, as in GTA V: A sprints (gun out or not), X jumps, B reloads; in a car the right trigger is the throttle.
+  pad.run = held(PAD.A) || (pad.throttle > 0.5 && !(typeof gunArmed === "function" && gunArmed()));
   pad.up = (held(PAD.RB) ? 1 : 0) - (held(PAD.LB) ? 1 : 0);
-  if (pressed(PAD.A) && player.mode === "walk" && !drive.car && !drive.train
+  if (pressed(PAD.X) && player.mode === "walk" && !drive.car && !drive.train
       && player.down <= 0 && player.jump <= 0) player.jump = 0.42;
 }
 
@@ -12864,7 +12871,9 @@ function buildRoadSurfaces(w, city, root) {
 // of a bus and of a sign over a Tokyo street, so they get eight panels at 8:1.
 
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
-const UI = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const UI = '"Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+// the canvases (map, phone, HUD) draw text in Konto Sans, so it is asked for up front and everything drawn is redrawn once it is in
+if (document.fonts && document.fonts.load) Promise.all(["400", "600", "800"].map(w => document.fonts.load(w + " 16px 'Konto Sans'", "Konto 東京 あア"))).then(() => { try { if (typeof phone === "object") phone.dirty = true; if (typeof drawTitleLogo === "function" && title && title.on) drawTitleLogo(); } catch (e) { /* drawn next time round */ } }).catch(() => {});
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
 
 // The eight makers, and who each one is a joke about. The badge is described
@@ -17992,7 +18001,7 @@ function navGuideEnsure() {
   g.add(beam); g.add(ring); g.add(ribbon); scene.add(g);
   Object.assign(navGuide, { group: g, beam: beam, ring: ring, ribbon: ribbon });
   const b = document.createElement("div"); b.id = "navhud";
-  b.style.cssText = "position:fixed;left:50%;top:max(96px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;display:none;min-width:260px;padding:9px 18px 9px 14px;background:rgba(10,16,14,.8);border-left:4px solid #2fe08a;color:#fff;font:700 15px 'Segoe UI',sans-serif;align-items:center;gap:14px;pointer-events:none;border-radius:4px";
+  b.style.cssText = "position:fixed;left:50%;top:max(96px,env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:40;display:none;min-width:260px;padding:9px 18px 9px 14px;background:rgba(10,16,14,.8);border-left:4px solid #2fe08a;color:#fff;font:700 15px 'Konto Sans','Segoe UI',sans-serif;align-items:center;gap:14px;pointer-events:none;border-radius:4px";
   b.innerHTML = "<span class='nv-a' style='font-size:34px;line-height:1;width:34px;text-align:center;color:#2fe08a'></span><span><span class='nv-t' style='display:block;font-size:17px'></span><span class='nv-s' style='display:block;font-weight:600;font-size:13px;opacity:.75;margin-top:2px'></span></span>";
   document.body.appendChild(b); navGuide.banner = b;
 }
@@ -18372,20 +18381,34 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
       ctx.lineJoin = "round"; ctx.lineCap = "round";
       const pts = nav.route.pts.map(q => toScreen(q[0], q[1]));
       const draw = () => { ctx.beginPath(); pts.forEach((q, i) => { if (i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }); ctx.stroke(); };
-      ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.lineWidth = opts.labels === false ? 6 : 8; draw();
-      ctx.strokeStyle = P.waypoint; ctx.lineWidth = opts.labels === false ? 3.6 : 5; draw();
+      const lw = opts.labels === false ? 4 : 5.5;
+      ctx.shadowColor = P.waypoint; ctx.shadowBlur = 10;
+      ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = lw + 3.2; draw();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = P.waypoint; ctx.lineWidth = lw; draw();
+      // chevrons running along it, towards the marker
+      ctx.setLineDash([2, 16]); ctx.lineDashOffset = -(performance.now() / 40) % 18;
+      ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = lw * 0.45; draw();
+      ctx.setLineDash([]);
       ctx.restore();
     }
-    ctx.fillStyle = P.waypoint;
-    ctx.strokeStyle = "rgba(0,0,0,0.65)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(p[0], p[1]);
-    ctx.lineTo(p[0] - 7, p[1] - 16);
-    ctx.arc(p[0], p[1] - 20, 7.5, 0.9 * Math.PI, 0.1 * Math.PI);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
+    // the pin: a teardrop with a white rim and a dot, standing on a little shadow, and how far it is
+    const big = opts.labels === false ? 0.8 : 1.15, px = p[0], py = p[1];
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.35)"; ctx.beginPath(); ctx.ellipse(px, py + 1, 6 * big, 2.4 * big, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+    ctx.fillStyle = P.waypoint; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2.4 * big;
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.bezierCurveTo(px - 4 * big, py - 9 * big, px - 11 * big, py - 14 * big, px - 11 * big, py - 22 * big);
+    ctx.arc(px, py - 22 * big, 11 * big, Math.PI, 0); ctx.bezierCurveTo(px + 11 * big, py - 14 * big, px + 4 * big, py - 9 * big, px, py); ctx.closePath();
+    ctx.fill(); ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.stroke();
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.arc(px, py - 22 * big, 4.2 * big, 0, Math.PI * 2); ctx.fill();
+    if (opts.labels !== false && player.placed) {
+      const d = Math.hypot(nav.waypoint.x - player.pos.x, nav.waypoint.z - player.pos.z), t = d >= 1000 ? (d / 1000).toFixed(1) + " km" : Math.round(d / 10) * 10 + " m";
+      ctx.font = "800 13px " + UI; ctx.textAlign = "center"; ctx.textBaseline = "top";
+      const w = ctx.measureText(t).width + 12; ctx.fillStyle = "rgba(10,12,16,0.82)"; roundRect(ctx, px - w / 2, py + 5, w, 19, 9.5); ctx.fill();
+      ctx.fillStyle = "#ffffff"; ctx.fillText(t, px, py + 8);
+    }
+    ctx.restore();
   }
 
   // ---- you
@@ -32131,10 +32154,10 @@ function serviceFrame(now) {
     for (let k = 0; k < s.carry; k++) { g.fillStyle = ["#3f8ae0", "#c9ced4", "#e8a33d", "#5fae44"][k]; g.fillRect(s.x + 16, s.y - 20 + k * 9, 12, 7); }
     // the board
     g.fillStyle = "rgba(10,12,16,0.82)"; g.fillRect(0, 0, 960, 52);
-    g.fillStyle = "#fff"; g.textAlign = "left"; g.font = "800 22px 'Segoe UI', sans-serif"; g.fillText("Community service", 16, 33);
+    g.fillStyle = "#fff"; g.textAlign = "left"; g.font = "800 22px 'Konto Sans','Segoe UI', sans-serif"; g.fillText("Community service", 16, 33);
     g.textAlign = "center"; g.fillStyle = s.t < 12 ? "#ff8a7a" : "#fff"; g.fillText(Math.ceil(Math.max(0, s.t)) + " s", 480, 33);
     g.textAlign = "right"; g.fillStyle = "#ffd21c"; g.fillText("In the bin: " + s.done + " / " + s.goal + "     Carrying: " + s.carry + " / 4", 944, 33);
-    g.textAlign = "center"; g.font = "600 15px 'Segoe UI', sans-serif"; g.fillStyle = "#c8ced6"; g.fillText(s.msg || "Move with WASD or the stick. " + (pad.index >= 0 ? padLabel("A") : "Space") + " picks up when you are next to something, and empties your hands at the bin. Esc gives up.", 480, 528);
+    g.textAlign = "center"; g.font = "600 15px 'Konto Sans','Segoe UI', sans-serif"; g.fillStyle = "#c8ced6"; g.fillText(s.msg || "Move with WASD or the stick. " + (pad.index >= 0 ? padLabel("A") : "Space") + " picks up when you are next to something, and empties your hands at the bin. Esc gives up.", 480, 528);
   }
 }
 
@@ -34788,7 +34811,7 @@ function airShell(root, W, D, H, opts) {
 }
 function airBoard(root, x, y, z, ry, w, h, lines, title) {
   const c = document.createElement("canvas"); c.width = 768; c.height = Math.round(768 * h / w); const g = c.getContext("2d");
-  g.fillStyle = "#06101c"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#ffd21c"; g.font = "800 38px 'Segoe UI', sans-serif"; g.fillText(title, 24, 50);
+  g.fillStyle = "#06101c"; g.fillRect(0, 0, c.width, c.height); g.fillStyle = "#ffd21c"; g.font = "800 38px 'Konto Sans','Segoe UI', sans-serif"; g.fillText(title, 24, 50);
   g.font = "700 28px 'Consolas','Courier New',monospace"; lines.forEach((l, i) => { g.fillStyle = l[3] || "#f2f4f6"; const y0 = 98 + i * 40; g.fillText(l[0], 24, y0); g.fillText(l[1], 190, y0); g.fillText(l[2], 560, y0); });
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false })); m.position.set(x, y, z); m.rotation.y = ry; root.add(m); return m;
@@ -34976,7 +34999,7 @@ function expedioCss() {
   if (document.getElementById("excss")) return;
   const st = document.createElement("style"); st.id = "excss";
   st.textContent = `
-#expedio { position: fixed; inset: 0; z-index: 80; display: none; background: rgba(8,12,20,.72); font-family: 'Segoe UI', system-ui, sans-serif; align-items: center; justify-content: center; }
+#expedio { position: fixed; inset: 0; z-index: 80; display: none; background: rgba(8,12,20,.72); font-family: 'Konto Sans','Segoe UI', system-ui, sans-serif; align-items: center; justify-content: center; }
 #expedio.on { display: flex; }
 #expedio .win { width: min(880px, 96vw); max-height: 92vh; overflow: auto; background: #f4f6f8; color: #1b2430; border-radius: 14px; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
 #expedio .hd { display: flex; align-items: center; gap: 14px; padding: 16px 22px; background: linear-gradient(90deg, #14284c, #1d4c8c); color: #fff; border-radius: 14px 14px 0 0; }
@@ -35066,7 +35089,7 @@ function ifeCss() {
   if (document.getElementById("ifecss")) return;
   const st = document.createElement("style"); st.id = "ifecss";
   st.textContent = `
-#ife { position: fixed; inset: 0; z-index: 85; display: none; background: radial-gradient(ellipse at 50% 20%, #0f2744, #050b16); color: #eaf2fb; font-family: 'Segoe UI', system-ui, sans-serif; flex-direction: column; }
+#ife { position: fixed; inset: 0; z-index: 85; display: none; background: radial-gradient(ellipse at 50% 20%, #0f2744, #050b16); color: #eaf2fb; font-family: 'Konto Sans','Segoe UI', system-ui, sans-serif; flex-direction: column; }
 #ife.on { display: flex; }
 #ife .top { display: flex; align-items: center; gap: 22px; padding: 10px 24px; background: rgba(0,0,0,.45); border-bottom: 2px solid #c0172b; font-size: 14px; flex-wrap: wrap; }
 #ife .top b { font-size: 20px; letter-spacing: .12em; } #ife .top b i { color: #c0172b; font-style: normal; } #ife .top span { opacity: .9; } #ife .top .sp { flex: 1; }
@@ -35115,9 +35138,9 @@ function ifeMap() {
   const A = place[ife.from], B = place[ife.to], ax = A[0] * W, ay = A[1] * H, bx = B[0] * W, by = B[1] * H, mx = (ax + bx) / 2, my = Math.min(ay, by) - 90;
   g.strokeStyle = "#ffd21c"; g.lineWidth = 3; g.setLineDash([10, 8]); g.beginPath(); g.moveTo(ax, ay); g.quadraticCurveTo(mx, my, bx, by); g.stroke(); g.setLineDash([]);
   const t = p, px = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * bx, py = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * by;
-  [[A, AIR_DESTS[ife.from]], [B, AIR_DESTS[ife.to]]].forEach(o => { g.fillStyle = "#fff"; g.beginPath(); g.arc(o[0][0] * W, o[0][1] * H, 7, 0, 7); g.fill(); g.font = "700 20px 'Segoe UI'"; g.fillText(o[1].name + " " + o[1].code, o[0][0] * W + 14, o[0][1] * H - 10); });
+  [[A, AIR_DESTS[ife.from]], [B, AIR_DESTS[ife.to]]].forEach(o => { g.fillStyle = "#fff"; g.beginPath(); g.arc(o[0][0] * W, o[0][1] * H, 7, 0, 7); g.fill(); g.font = "700 20px 'Konto Sans','Segoe UI'"; g.fillText(o[1].name + " " + o[1].code, o[0][0] * W + 14, o[0][1] * H - 10); });
   const dx = 2 * (1 - t) * (mx - ax) + 2 * t * (bx - mx), dy = 2 * (1 - t) * (my - ay) + 2 * t * (by - my); g.save(); g.translate(px, py); g.rotate(Math.atan2(dy, dx)); g.fillStyle = "#fff"; g.beginPath(); g.moveTo(16, 0); g.lineTo(-10, -10); g.lineTo(-5, 0); g.lineTo(-10, 10); g.closePath(); g.fill(); g.restore();
-  g.fillStyle = "#eaf2fb"; g.font = "600 18px 'Segoe UI'"; g.fillText(Math.round(p * 100) + "% of the way", 20, H - 20);
+  g.fillStyle = "#eaf2fb"; g.font = "600 18px 'Konto Sans','Segoe UI'"; g.fillText(Math.round(p * 100) + "% of the way", 20, H - 20);
 }
 function ifePlay() { ife.playing = IFE_FILMS[ife.sel]; ifeDraw(); }
 function ifeTick() {
@@ -35286,8 +35309,8 @@ function destPaving() { const t = pavingTexture().clone(); t.needsUpdate = true;
 function destSign(text, w, h, bg, fg, font) {
   const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w)); const g = c.getContext("2d");
   g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(5, 5, c.width - 10, c.height - 10);
-  g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; let fs = c.height * 0.55; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Segoe UI',sans-serif");
-  while (g.measureText(text).width > c.width - 28 && fs > 14) { fs -= 3; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Segoe UI',sans-serif"); }
+  g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; let fs = c.height * 0.55; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Konto Sans','Segoe UI',sans-serif");
+  while (g.measureText(text).width > c.width - 28 && fs > 14) { fs -= 3; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Konto Sans','Segoe UI',sans-serif"); }
   g.fillText(text, c.width / 2, c.height / 2 + 2);
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false, side: THREE.DoubleSide }));
@@ -35297,8 +35320,8 @@ function destKiosk(G, site, x, z, ry, label) {
   const M = c => new THREE.MeshLambertMaterial({ color: c }), box = (w, h, d, px, py, pz, c) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), M(c)); m.position.set(px, py, pz); g.add(m); return m; };
   box(7, 0.3, 4.5, 0, 0.15, 0, 0xc9ced4); box(0.3, 3.4, 0.3, -3.2, 1.7, -1.9, 0x8d939c); box(0.3, 3.4, 0.3, 3.2, 1.7, -1.9, 0x8d939c); box(7.2, 0.3, 4.8, 0, 3.5, 0, 0xc0172b);
   box(1.4, 1.9, 0.9, 0, 0.95 + 0.15, -0.5, 0xe8eaed); box(1.1, 0.7, 0.05, 0, 1.5, -0.03, 0xffb400);
-  const s = destSign(label, 6.6, 1.0, "#14284c", "#ffffff", "'Segoe UI',sans-serif"); s.position.set(0, 4.4, 0.1); g.add(s);
-  const e = destSign("Expedio  ·  Return flights", 1.0, 0.6, "#ffb400", "#14284c", "'Segoe UI',sans-serif"); e.scale.set(1.1, 0.7, 1); e.position.set(0, 1.5, 0.1); g.add(e);
+  const s = destSign(label, 6.6, 1.0, "#14284c", "#ffffff", "'Konto Sans','Segoe UI',sans-serif"); s.position.set(0, 4.4, 0.1); g.add(s);
+  const e = destSign("Expedio  ·  Return flights", 1.0, 0.6, "#ffb400", "#14284c", "'Konto Sans','Segoe UI',sans-serif"); e.scale.set(1.1, 0.7, 1); e.position.set(0, 1.5, 0.1); g.add(e);
   const spot = [x + Math.sin(ry) * 3.2, z + Math.cos(ry) * 3.2];
   site.kiosk = { x: x, z: z, sx: spot[0], sz: spot[1] };
   solidsAdd(site, x, z, 7, 4.5, 3.6);
@@ -35415,7 +35438,7 @@ function buildIsland(site, G) {
     for (let i = 0; i < 16; i++) { const x = -180 + i * 9, z = 160 + (i % 2) * 6, y = site.h(x, z); const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 5), M(0xdddddd)); pl.position.set(cx + x, y + 1.2, cz + z); G.add(pl); const um = new THREE.Mesh(new THREE.ConeGeometry(1.7, 0.7, 10), M(["#e8453a", "#ffd21c", "#3fb8e8", "#f4f4f4"][i % 4])); um.position.set(cx + x, y + 2.6, cz + z); G.add(um); box(0.7, 0.18, 1.8, x + 1.4, z, 0xf2efe6, y + 0.3); }
     // the pier and the bar on it
     box(4, 0.4, 150, -318, 120, 0x8a6a44, 0.9); for (let k = 0; k < 14; k++) box(0.3, 2, 0.3, -320 + (k % 2) * 4, 55 + k * 11, 0x5a4630, -0.6);
-    const bar = box(12, 3, 7, -150, 235, 0xd9b878); const bs = destSign("KOHANA BAR  ·  coconuts", 8, 1.2, "#12a6b3", "#ffffff", "'Segoe UI',sans-serif"); bs.position.set(cx - 150, site.h(-150, 235) + 3.4, cz + 231.4); bs.rotation.y = Math.PI; G.add(bs); void bar; solidsAdd(site, cx - 150, cz + 235, 12, 7, 4);
+    const bar = box(12, 3, 7, -150, 235, 0xd9b878); const bs = destSign("KOHANA BAR  ·  coconuts", 8, 1.2, "#12a6b3", "#ffffff", "'Konto Sans','Segoe UI',sans-serif"); bs.position.set(cx - 150, site.h(-150, 235) + 3.4, cz + 231.4); bs.rotation.y = Math.PI; G.add(bs); void bar; solidsAdd(site, cx - 150, cz + 235, 12, 7, 4);
     site.spawn = [cx + 120, cz + 60, 0]; destKiosk(G, site, cx + 150, cz + 25, 0, "KOHANA  AIRSTRIP  ·  DEPARTURES");
   } else {
     for (let i = 0; i < 9; i++) { const a = 2.7 + i * 0.28, r = 300; destPlaceBuilding(G, site, Math.cos(a) * r + 40, Math.sin(a) * r * 0.9, 9 + (i % 3) * 3, 8, 7.5, "machiya", (-a * 57.3 + 90) % 360); }
@@ -35427,7 +35450,7 @@ function buildIsland(site, G) {
     const t = new THREE.Group(); t.position.set(cx + 90, site.h(90, -40), cz - 40); G.add(t); [[-3, 0], [3, 0]].forEach(o => { const p = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 7, 8), M(0xc0172b)); p.position.set(o[0], 3.5, 0); t.add(p); }); const b1 = new THREE.Mesh(new THREE.BoxGeometry(9.4, 0.7, 0.8), M(0xc0172b)); b1.position.y = 7; t.add(b1); const b2 = new THREE.Mesh(new THREE.BoxGeometry(7, 0.4, 0.5), M(0x14171b)); b2.position.y = 5.8; t.add(b2);
     box(5, 14, 5, -230, -260, 0xf2efe6); box(7, 1.2, 7, -230, -260, 0xc0172b, site.h(-230, -260) + 14); box(3, 3, 3, -230, -260, 0xffe9a0, site.h(-230, -260) + 15.2); solidsAdd(site, cx - 230, cz - 260, 5, 5, 18);
     box(5, 0.4, 150, 360, -50, 0x6a5a4a, 0.9); const boat = box(14, 3.2, 5, 372, 30, 0xe8e8e2, 0.8); void boat; box(8, 4, 4.4, 372, 30, 0xc0172b, 4);
-    const rs = destSign("RYŪJIMA  AIRSTRIP  ·  DEPARTURES", 8, 1.0, "#8a3a1f", "#ffffff", "'Segoe UI',sans-serif");
+    const rs = destSign("RYŪJIMA  AIRSTRIP  ·  DEPARTURES", 8, 1.0, "#8a3a1f", "#ffffff", "'Konto Sans','Segoe UI',sans-serif");
     site.spawn = [cx + 300, cz - 120, -Math.PI / 2]; destKiosk(G, site, cx + 330, cz - 100, -Math.PI / 2, "RYŪJIMA  AIRSTRIP  ·  DEPARTURES"); void rs;
   }
 }
@@ -35480,7 +35503,7 @@ function airportExtras(ap, G, ctx) {
   for (const sd of [-1, 1]) { const b = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), M(0xe8eaed)); b.position.set(sd * (gap / 2 + 2.2), 1.5, gz); G.add(b); const w = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1, 3.05), M(0x2a4a6a)); w.position.set(sd * (gap / 2 + 2.2), 1.9, gz); G.add(w); const r = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.3, 3.6), M(0x14527a)); r.position.set(sd * (gap / 2 + 2.2), 3.1, gz); G.add(r); const p = wp(sd * (gap / 2 + 2.2), gz); solids.push({ c: [p[0], p[1]], size: [3, 3], yaw: ap.yaw, y: ap.y, h: 3.2 }); }
   const arm = new THREE.Mesh(new THREE.BoxGeometry(gap + 0.4, 0.28, 0.28), armMat); arm.position.set(0, 1.15, gz); G.add(arm);
   for (let k = -5; k <= 5; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.3, 0.3), M(k % 2 ? 0xc0172b : 0xffffff)); st.position.set(k * 1.0, 0, 0); arm.add(st); }
-  const gsg = destSign("SECURITY  ·  AIRPORT AREA  ·  STOP", 9, 1.2, "#c0172b", "#ffffff", "'Segoe UI',sans-serif"); gsg.position.set(0, 4.3, gz + 1.6); G.add(gsg);
+  const gsg = destSign("SECURITY  ·  AIRPORT AREA  ·  STOP", 9, 1.2, "#c0172b", "#ffffff", "'Konto Sans','Segoe UI',sans-serif"); gsg.position.set(0, 4.3, gz + 1.6); G.add(gsg);
   const pl = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 4.3, 6), M(0x555b62)); pl.position.set(-gap / 2 - 5, 2.2, gz + 1.6); G.add(pl); const pl2 = pl.clone(); pl2.position.x = gap / 2 + 5; G.add(pl2);
   const gp = wp(0, gz), armSolid = { c: [gp[0], gp[1]], size: [gap, 0.9], yaw: ap.yaw, y: ap.y, h: 1.4 };
   solids.push(armSolid); ap.gate = { arm: arm, solid: armSolid, x: gp[0], z: gp[1], broken: false, group: G };
@@ -35491,7 +35514,7 @@ function airportExtras(ap, G, ctx) {
   ap.shops = [];
   terms.forEach(T => {
     const label = terms.length > 1 ? "✈  TERMINAL " + T.n + "  ·  DEPARTURES  出発" : "✈  DEPARTURES  出発  ·  TERMINAL ENTRANCE";
-    const door = destSign(label, 14, 1.6, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); door.position.set(T.ox, 5.2, ap.tzDoor + 1.2); G.add(door);
+    const door = destSign(label, 14, 1.6, "#14527a", "#ffffff", "'Konto Sans','Segoe UI',sans-serif"); door.position.set(T.ox, 5.2, ap.tzDoor + 1.2); G.add(door);
     for (const sx of [-3.2, 3.2]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, 5, 0.4), M(0xc9ced4)); post.position.set(T.ox + sx, 2.5, ap.tzDoor); G.add(post); }
     const lintel = new THREE.Mesh(new THREE.BoxGeometry(7.2, 0.5, 0.6), M(0x30363e)); lintel.position.set(T.ox, 4.9, ap.tzDoor); G.add(lintel);
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(6, 4.4), new THREE.MeshBasicMaterial({ color: 0xcfe6f2, transparent: true, opacity: 0.35, side: THREE.DoubleSide })); glow.position.set(T.ox, 2.4, ap.tzDoor); G.add(glow);
@@ -35519,6 +35542,9 @@ function buildAirportHighway(ap, G) {
     for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
       if (!di && !dj) continue; const ni = ci + di, nj = cj + dj; if (ni < 1 || nj < 1 || ni >= nx - 1 || nj >= nz - 1) continue;
       const d = Math.hypot(di, dj) * C, h0 = hc[key(ci, cj)], h1 = hc[key(ni, nj)], slope = Math.abs(h1 - h0) / d;
+      // never across an airfield: the runways, taxiways and aprons of every airport are out of bounds to it
+      const ax = ni * C + C / 2, az = nj * C + C / 2;
+      if ((world.airports || []).some(A => { const l = toRectLocal(ax, az, A.cx, A.cz, A.yaw); return Math.abs(l[0]) < A.sx / 2 + 60 && l[1] < A.sz - 60 && l[1] > -A.sz - 60; })) continue;
       const cost = d * (1 + slope * 55 + (h1 < 0.6 ? 7 : 0) + (h1 > 90 ? 6 : 0)), g = gs[key(ci, cj)] + cost, k = key(ni, nj);
       if (g < gs[k]) { gs[k] = g; from[k] = key(ci, cj); open.push([g + Math.hypot(ni - g0[0], nj - g0[1]) * C, ni, nj]); }
     }
@@ -35562,7 +35588,7 @@ function buildAirportHighway(ap, G) {
   const lp = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.16, 9, 6), new THREE.MeshLambertMaterial({ color: 0x555b62 }), lamps.length), lh = new THREE.InstancedMesh(new THREE.BoxGeometry(2.2, 0.22, 0.6), new THREE.MeshBasicMaterial({ color: 0xfff1c0 }), lamps.length), m5 = new THREE.Matrix4();
   lamps.forEach(([i, sg], k) => { const p = E(i, sg * (hw + sh + 0.3)); m5.makeTranslation(p[0], p[1] + 4.5, p[2]); lp.setMatrixAt(k, m5); m5.makeTranslation(p[0] - sg * 0.2, p[1] + 9, p[2]); lh.setMatrixAt(k, m5); });
   lp.frustumCulled = lh.frustumCulled = false; scene.add(lp); scene.add(lh);
-  [Math.floor(n * 0.08), Math.floor(n * 0.5), n - 12].forEach((i, k) => { const p = E(i, 0), d = dir(i), ang = Math.atan2(d[0], d[1]); const g = new THREE.Group(); g.position.set(p[0], p[1], p[2]); g.rotation.y = ang; scene.add(g); for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); post.position.set(sx * (hw + sh + 0.6), 3.7, 0); g.add(post); } const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + sh) * 2 + 1.4, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); beam.position.y = 7.2; g.add(beam); const sg = destSign(k === 0 ? "TŌKONTO INTERNATIONAL AIRPORT  ✈  空港" : k === 1 ? "✈  TKO  空港  ·  Airport Expressway" : "✈  TŌKONTO  ·  Airport  ✈", 14, 3, "#14527a", "#ffffff", "'Segoe UI',sans-serif"); sg.position.set(0, 5.4, 0.3); g.add(sg); const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -0.3; g.add(sg2); });
+  [Math.floor(n * 0.08), Math.floor(n * 0.5), n - 12].forEach((i, k) => { const p = E(i, 0), d = dir(i), ang = Math.atan2(d[0], d[1]); const g = new THREE.Group(); g.position.set(p[0], p[1], p[2]); g.rotation.y = ang; scene.add(g); for (const sx of [-1, 1]) { const post = new THREE.Mesh(new THREE.BoxGeometry(0.5, 7.4, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); post.position.set(sx * (hw + sh + 0.6), 3.7, 0); g.add(post); } const beam = new THREE.Mesh(new THREE.BoxGeometry((hw + sh) * 2 + 1.4, 0.5, 0.5), new THREE.MeshLambertMaterial({ color: 0x555b62 })); beam.position.y = 7.2; g.add(beam); const sg = destSign(k === 0 ? "TŌKONTO INTERNATIONAL AIRPORT  ✈  空港" : k === 1 ? "✈  TKO  空港  ·  Airport Expressway" : "✈  TŌKONTO  ·  Airport  ✈", 14, 3, "#14527a", "#ffffff", "'Konto Sans','Segoe UI',sans-serif"); sg.position.set(0, 5.4, 0.3); g.add(sg); const sg2 = sg.clone(); sg2.rotation.y = Math.PI; sg2.position.z = -0.3; g.add(sg2); });
   if (veg.mask) for (let i = 1; i < n; i++) vegSeg([res[i - 1][0], res[i - 1][1]], [res[i][0], res[i][1]], hw + sh + 6);
   // the deck is a surface you stand on: cars, people and the camera's ground follow it, not the soil under it
   for (let i = 1; i < n; i++) {
@@ -35821,21 +35847,21 @@ function flightPFD(alt) {
   g.translate(cx, cy); g.rotate(-f.roll); const py = f.pitch * 150; g.translate(0, py);
   g.fillStyle = "#3b7fc4"; g.fillRect(-200, -400, 400, 400); g.fillStyle = "#7a5a34"; g.fillRect(-200, 0, 400, 400);
   g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(-200, 0); g.lineTo(200, 0); g.stroke();
-  g.font = "700 11px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.textAlign = "center";
+  g.font = "700 11px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.textAlign = "center";
   for (let d = -30; d <= 30; d += 5) { if (!d) continue; const y = -d * Math.PI / 180 * 150, w = d % 10 ? 18 : 34; g.beginPath(); g.moveTo(-w, y); g.lineTo(w, y); g.stroke(); if (!(d % 10)) { g.fillText(String(Math.abs(d)), -w - 12, y + 4); g.fillText(String(Math.abs(d)), w + 12, y + 4); } }
   g.restore();
   g.strokeStyle = "#ffd21c"; g.lineWidth = 3.5; g.beginPath(); g.moveTo(cx - 44, cy); g.lineTo(cx - 14, cy); g.lineTo(cx - 14, cy + 8); g.moveTo(cx + 44, cy); g.lineTo(cx + 14, cy); g.lineTo(cx + 14, cy + 8); g.stroke(); g.fillStyle = "#ffd21c"; g.fillRect(cx - 2, cy - 2, 4, 4);
   g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 2; g.beginPath(); g.arc(cx, cy, R, 0, 7); g.stroke();
-  g.font = "800 16px 'Segoe UI',sans-serif"; g.textAlign = "left"; g.fillStyle = "#7df0a8"; g.fillText("SPD", 18, 44); g.font = "800 26px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.round(f.v * 3.6)), 18, 74); g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("km/h", 18, 90);
-  g.textAlign = "right"; g.font = "800 16px 'Segoe UI',sans-serif"; g.fillStyle = "#7df0a8"; g.fillText("ALT", W - 18, 44); g.font = "800 26px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.max(0, Math.round(alt))), W - 18, 74); g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("m above ground", W - 18, 90);
-  const vs = f.air ? Math.sin(f.gamma) * f.v : 0; g.font = "700 15px 'Segoe UI',sans-serif"; g.fillStyle = vs < -6 && alt < 250 ? "#ff6b5a" : "#fff"; g.fillText("V/S " + (vs >= 0 ? "+" : "") + vs.toFixed(1), W - 18, 128);
-  g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText("THR", 18, 128); g.fillStyle = "rgba(255,255,255,.2)"; g.fillRect(18, 136, 8, 60); g.fillStyle = "#7df0a8"; g.fillRect(18, 196 - 60 * f.thr, 8, 60 * f.thr); g.fillStyle = "#fff"; g.font = "600 12px 'Segoe UI',sans-serif"; g.fillText(Math.round(f.thr * 100) + "%", 30, 196);
-  let hd = ((f.h * 180 / Math.PI) % 360 + 360) % 360; hd = (360 - hd) % 360; g.textAlign = "center"; g.font = "800 18px 'Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText("HDG " + String(Math.round(hd)).padStart(3, "0") + "°", cx, 18);
-  g.font = "700 13px 'Segoe UI',sans-serif"; g.fillStyle = f.air && (f.mesh.userData.gear || []).length && (f.mesh.userData.gear[0].visible) ? "#7df0a8" : "#9db"; g.fillText(f.mesh.userData.gear && f.mesh.userData.gear[0] && f.mesh.userData.gear[0].visible ? "GEAR DOWN" : "GEAR UP", cx, H - 10);
+  g.font = "800 16px 'Konto Sans','Segoe UI',sans-serif"; g.textAlign = "left"; g.fillStyle = "#7df0a8"; g.fillText("SPD", 18, 44); g.font = "800 26px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.round(f.v * 3.6)), 18, 74); g.font = "600 12px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("km/h", 18, 90);
+  g.textAlign = "right"; g.font = "800 16px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#7df0a8"; g.fillText("ALT", W - 18, 44); g.font = "800 26px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText(String(Math.max(0, Math.round(alt))), W - 18, 74); g.font = "600 12px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText("m above ground", W - 18, 90);
+  const vs = f.air ? Math.sin(f.gamma) * f.v : 0; g.font = "700 15px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = vs < -6 && alt < 250 ? "#ff6b5a" : "#fff"; g.fillText("V/S " + (vs >= 0 ? "+" : "") + vs.toFixed(1), W - 18, 128);
+  g.textAlign = "left"; g.fillStyle = "#fff"; g.fillText("THR", 18, 128); g.fillStyle = "rgba(255,255,255,.2)"; g.fillRect(18, 136, 8, 60); g.fillStyle = "#7df0a8"; g.fillRect(18, 196 - 60 * f.thr, 8, 60 * f.thr); g.fillStyle = "#fff"; g.font = "600 12px 'Konto Sans','Segoe UI',sans-serif"; g.fillText(Math.round(f.thr * 100) + "%", 30, 196);
+  let hd = ((f.h * 180 / Math.PI) % 360 + 360) % 360; hd = (360 - hd) % 360; g.textAlign = "center"; g.font = "800 18px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#fff"; g.fillText("HDG " + String(Math.round(hd)).padStart(3, "0") + "°", cx, 18);
+  g.font = "700 13px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = f.air && (f.mesh.userData.gear || []).length && (f.mesh.userData.gear[0].visible) ? "#7df0a8" : "#9db"; g.fillText(f.mesh.userData.gear && f.mesh.userData.gear[0] && f.mesh.userData.gear[0].visible ? "GEAR DOWN" : "GEAR UP", cx, H - 10);
   const flash = Math.floor(performance.now() / 280) % 2 === 0;
-  if (f.stall && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Segoe UI',sans-serif"; g.fillText("STALL", cx, cy - R - 2); }
-  else if (f.air && vs < -8 && alt < 200 && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Segoe UI',sans-serif"; g.fillText("PULL UP", cx, cy - R - 2); }
-  g.textAlign = "center"; g.font = "600 12px 'Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText(!f.air && f.v < 6 ? "F: get out" : f.air ? "F / Y: jump out" : "", cx, H - 26);
+  if (f.stall && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Konto Sans','Segoe UI',sans-serif"; g.fillText("STALL", cx, cy - R - 2); }
+  else if (f.air && vs < -8 && alt < 200 && flash) { g.fillStyle = "#ff3b2f"; g.font = "900 22px 'Konto Sans','Segoe UI',sans-serif"; g.fillText("PULL UP", cx, cy - R - 2); }
+  g.textAlign = "center"; g.font = "600 12px 'Konto Sans','Segoe UI',sans-serif"; g.fillStyle = "#9db"; g.fillText(!f.air && f.v < 6 ? "F: get out" : f.air ? "F / Y: jump out" : "", cx, H - 26);
 }
 // ---- jumping out ------------------------------------------------------------------------------------------------------------------------------
 const chute = { active: false, state: "", pos: new THREE.Vector3(), vy: 0, vx: 0, vz: 0, hs: 0, h: 0, open: 0, canopy: null, t: 0, hud: null, bank: 0, warned: false };
@@ -35886,7 +35912,7 @@ function bailOut() {
   chute.vx = Math.sin(f.h) * chute.hs; chute.vz = Math.cos(f.h) * chute.hs;
   player.obj.visible = true; player.speed = 0; player.mode = "walk"; placeSeiko(new THREE.Vector3(chute.pos.x, 0, chute.pos.z)); player.pos.y = chute.pos.y;
   yaw = chute.h + Math.PI; pitch = -0.45;
-  if (!chute.hud) { const h = document.createElement("div"); h.id = "chutehud"; h.style.cssText = "position:fixed;left:50%;bottom:calc(8% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;pointer-events:none;color:#fff;font:800 17px 'Segoe UI',sans-serif;padding:10px 20px;background:rgba(8,12,18,.72);border-left:4px solid #ffd21c;white-space:nowrap;text-align:center"; document.body.appendChild(h); chute.hud = h; }
+  if (!chute.hud) { const h = document.createElement("div"); h.id = "chutehud"; h.style.cssText = "position:fixed;left:50%;bottom:calc(8% + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;pointer-events:none;color:#fff;font:800 17px 'Konto Sans','Segoe UI',sans-serif;padding:10px 20px;background:rgba(8,12,18,.72);border-left:4px solid #ffd21c;white-space:nowrap;text-align:center"; document.body.appendChild(h); chute.hud = h; }
   chute.hud.style.display = "block";
   say("You jumped. " + (pad.index >= 0 ? padLabel("A") : "Space") + " opens the parachute. Do it with height to spare.", 6);
 }
@@ -36132,7 +36158,7 @@ function gunGive(id, boxes) { const a = gunAmmoOf(id), g = GUNS[id]; a.res += (b
 function gunHud() {
   if (gun.hud) return gun.hud;
   const h = document.createElement("div"); h.id = "gunhud";
-  h.style.cssText = "position:fixed;right:max(22px,env(safe-area-inset-right,0px));bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:45;pointer-events:none;display:none;text-align:right;color:#fff;font:800 13px 'Segoe UI',sans-serif;letter-spacing:.1em;text-shadow:0 2px 6px rgba(0,0,0,.8)";
+  h.style.cssText = "position:fixed;right:max(22px,env(safe-area-inset-right,0px));bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:45;pointer-events:none;display:none;text-align:right;color:#fff;font:800 13px 'Konto Sans','Segoe UI',sans-serif;letter-spacing:.1em;text-shadow:0 2px 6px rgba(0,0,0,.8)";
   h.innerHTML = "<div class='gn'></div><div class='ga' style='font-size:34px;letter-spacing:0'></div><div class='gh' style='font-weight:600;font-size:11px;opacity:.7;letter-spacing:.03em'></div>";
   document.body.appendChild(h); gun.hud = h;
   const x = document.createElement("div"); x.id = "xhair"; x.style.cssText = "position:fixed;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;z-index:44;pointer-events:none;display:none";
@@ -36232,14 +36258,15 @@ function gunFrame(dt) {
   const gp = pad.gp;
   const aimWant = gun.aimIn || keys.KeyV || (gp && pad.index >= 0 && gp.buttons[PAD.LT] && gp.buttons[PAD.LT].value > 0.3);
   const fireWant = (gun.fireIn && aimWant) || keys.Enter || (gp && pad.index >= 0 && gp.buttons[PAD.RT] && gp.buttons[PAD.RT].value > 0.35);
-  if (gp && pad.index >= 0) { const x = !!(gp.buttons[PAD.X] && gp.buttons[PAD.X].pressed); if (x && !gun.pw.x) gunReload(); gun.pw.x = x; }
+  if (gp && pad.index >= 0 && !phone.open) { const x = !!(gp.buttons[PAD.B] && gp.buttons[PAD.B].pressed); if (x && !gun.pw.x) gunReload(); gun.pw.x = x; }
   gun.aim = lerp(gun.aim, aimWant ? 1 : 0, 1 - Math.pow(0.0005, dt));
   if (!interior.active) gunLockFrame(dt, aimWant); else { gun.lock = null; gun.target = null; }
   gun.cool = Math.max(0, gun.cool - dt); gun.recoil = Math.max(0, gun.recoil - dt * 7);
   if (gun.reload > 0) { gun.reload -= dt; if (gun.reload <= 0) { const need = G.mag - a.mag, take = Math.min(need, a.res); a.mag += take; a.res -= take; } }
   // face where you are aiming, and walk slower for it
   const fwd = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
-  if (gun.aim > 0.5) { player.yaw = player.targetYaw = Math.atan2(fwd.x, fwd.z); player.obj.rotation.y = player.yaw; player.speed *= 0.7; }
+  // aiming: face down the sights and move at a jog (you can still run with the gun out when not aiming)
+  if (gun.aim > 0.5) { player.yaw = player.targetYaw = Math.atan2(fwd.x, fwd.z); player.obj.rotation.y = player.yaw; player.speed = Math.min(player.speed, 2.6); }
   // fire
   if (gun.aim > 0.85 && fireWant && gun.cool <= 0 && gun.reload <= 0 && (G.auto || !gun.latch)) { gunFire(); gun.latch = true; }
   if (!fireWant) gun.latch = false;
@@ -36939,7 +36966,7 @@ function pedPickTarget(after, side) {
   for (const t of pedTargets()) {
     const v = new THREE.Vector3(t.x - eye.x, t.y - eye.y, t.z - eye.z), d = v.length(); if (d > 55 || d < 0.8) continue;
     v.divideScalar(d); const ang = Math.acos(clamp(v.dot(fwd), -1, 1));
-    if (ang > (after ? 0.9 : 0.42)) continue;
+    if (ang > (after ? 0.9 : 0.62)) continue;
     if (!interior.active && !pedLineClear(eye, t)) continue;
     list.push({ t: t, ang: ang, side: v.dot(right), d: d });
   }
@@ -36977,14 +37004,15 @@ function gunLockFrame(dt, aimWant) {
   if (gun.lock && peds.list.indexOf(gun.lock) < 0 && police.officers.indexOf(gun.lock) < 0) gun.lock = null;
   if (gun.lock && peds.list.indexOf(gun.lock) >= 0 && (gun.lock.state === "dead" || gun.lock.state === "down")) gun.lock = null;
   // moving the aim yourself breaks the lock, as in the big game: free aim until you let go and aim again
-  if (gun.lock && gun.lockYaw !== undefined && (Math.abs(Math.atan2(Math.sin(yaw - gun.lockYaw), Math.cos(yaw - gun.lockYaw))) > 0.06 || Math.abs(pitch - gun.lockPitch) > 0.06)) { gun.lock = null; gun.lockFree = true; }
+  // (only a deliberate move breaks it: the small drift of a hand on the mouse or a stick off centre does not)
+  if (gun.lock && gun.lockYaw !== undefined && (Math.abs(Math.atan2(Math.sin(yaw - gun.lockYaw), Math.cos(yaw - gun.lockYaw))) > 0.22 || Math.abs(pitch - gun.lockPitch) > 0.2)) { gun.lock = null; gun.lockFree = true; }
   if (!gun.lock && !gun.lockFree && gun.aim > 0.3) gun.lock = pedPickTarget(null);
   if (gun.lock && sw && !gun.swWas) gun.lock = pedPickTarget(gun.lock, keys.ShiftLeft ? -1 : 1);
   if (!gun.lock && gun.lockFree && sw && !gun.swWas) { gun.lockFree = false; gun.lock = pedPickTarget(null); }
   gun.swWas = sw;
   if (gun.lock) {
     const tp = pedTargetPos(gun.lock), eye = camera.position, dx = tp.x - eye.x, dy = tp.y - eye.y, dz = tp.z - eye.z;
-    const wy = Math.atan2(-dx, -dz), wp = Math.atan2(dy, Math.hypot(dx, dz)), k = Math.min(1, dt * 14);
+    const wy = Math.atan2(-dx, -dz), wp = Math.atan2(dy, Math.hypot(dx, dz)), k = Math.min(1, dt * 20);
     yaw += Math.atan2(Math.sin(wy - yaw), Math.cos(wy - yaw)) * k; pitch += (wp - pitch) * k;
     gun.lockYaw = yaw; gun.lockPitch = pitch;
   } else { gun.lockYaw = undefined; }
@@ -37115,14 +37143,14 @@ function robDraw() {
   const g = c.getContext("2d"), W = c.width, H = c.height;
   g.clearRect(0, 0, W, H);
   g.fillStyle = "rgba(16,18,22,0.94)"; g.fillRect(0, 0, W, H);
-  g.fillStyle = "#fff"; g.font = "800 15px 'Segoe UI',sans-serif"; g.textAlign = "left";
+  g.fillStyle = "#fff"; g.font = "800 15px 'Konto Sans','Segoe UI',sans-serif"; g.textAlign = "left";
   g.fillText(rob.stage === "threat" ? "KEEP YOUR GUN ON THE CLERK" : "THE TILL", 22, 32);
-  g.textAlign = "right"; g.fillStyle = "#7ee09a"; g.font = "800 22px 'Segoe UI',sans-serif"; g.fillText(yenText(rob.cash), W - 22, 34);
+  g.textAlign = "right"; g.fillStyle = "#7ee09a"; g.font = "800 22px 'Konto Sans','Segoe UI',sans-serif"; g.fillText(yenText(rob.cash), W - 22, 34);
   g.textAlign = "left";
   if (rob.stage === "threat") {
     g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, 22, 70, W - 44, 26, 13); g.fill();
     g.fillStyle = "#f2c94c"; roundRect(g, 22, 70, Math.max(26, (W - 44) * rob.threat), 26, 13); g.fill();
-    g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "600 13px 'Segoe UI',sans-serif"; g.fillText("Aim at the clerk (right mouse) until they open the till. Look away and they go for the alarm.", 22, 124);
+    g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "600 13px 'Konto Sans','Segoe UI',sans-serif"; g.fillText("Aim at the clerk (right mouse) until they open the till. Look away and they go for the alarm.", 22, 124);
   } else {
     // the drawer: five compartments, a stack of notes in each, the marker running along them
     const x0 = 22, y0 = 52, cw = (W - 44) / 5, ch = 150;
@@ -37131,19 +37159,19 @@ function robDraw() {
       const x = x0 + s * cw;
       g.fillStyle = "#1b1e23"; roundRect(g, x + 4, y0, cw - 8, ch, 6); g.fill();
       for (let k = 0; k < rob.slots[s]; k++) { g.fillStyle = ROB_SLOTS[s][2]; const yy = y0 + ch - 18 - k * 13; if (s === 4) { g.beginPath(); g.ellipse(x + cw / 2, yy + 6, cw * 0.3, 7, 0, 0, 7); g.fill(); g.strokeStyle = "rgba(0,0,0,.3)"; g.stroke(); } else { g.fillRect(x + 14, yy, cw - 28, 10); g.fillStyle = "rgba(0,0,0,.18)"; g.fillRect(x + 14, yy + 8, cw - 28, 2); } }
-      g.fillStyle = "rgba(255,255,255,.7)"; g.font = "700 12px 'Segoe UI',sans-serif"; g.textAlign = "center"; g.fillText(ROB_SLOTS[s][0], x + cw / 2, y0 + 18); g.textAlign = "left";
+      g.fillStyle = "rgba(255,255,255,.7)"; g.font = "700 12px 'Konto Sans','Segoe UI',sans-serif"; g.textAlign = "center"; g.fillText(ROB_SLOTS[s][0], x + cw / 2, y0 + 18); g.textAlign = "left";
     }
     // the sweet spot of the compartment under the marker, and the marker
     const s = Math.min(4, Math.floor(rob.cur)), mx = x0 + rob.cur * cw;
     g.fillStyle = "rgba(126,224,154,0.16)"; g.fillRect(x0 + (s + 0.5 - 0.34) * cw, y0, cw * 0.68, ch);
     g.fillStyle = rob.flash > 0 ? "#7ee09a" : rob.flash < 0 ? "#ff5252" : "#ffffff"; g.fillRect(mx - 2, y0 - 8, 4, ch + 16);
     g.beginPath(); g.moveTo(mx - 9, y0 - 14); g.lineTo(mx + 9, y0 - 14); g.lineTo(mx, y0 - 4); g.fill();
-    g.fillStyle = "rgba(255,255,255,0.7)"; g.font = "600 13px 'Segoe UI',sans-serif"; g.fillText("Space / E / click to grab   ·   Esc to stop and go   ·   fumbles " + rob.fumbles, 22, y0 + ch + 30);
-    if (rob.msgT > 0) { g.fillStyle = "#ff6b6b"; g.font = "800 18px 'Segoe UI',sans-serif"; g.textAlign = "right"; g.fillText(rob.msg, W - 22, y0 + ch + 30); g.textAlign = "left"; }
+    g.fillStyle = "rgba(255,255,255,0.7)"; g.font = "600 13px 'Konto Sans','Segoe UI',sans-serif"; g.fillText("Space / E / click to grab   ·   Esc to stop and go   ·   fumbles " + rob.fumbles, 22, y0 + ch + 30);
+    if (rob.msgT > 0) { g.fillStyle = "#ff6b6b"; g.font = "800 18px 'Konto Sans','Segoe UI',sans-serif"; g.textAlign = "right"; g.fillText(rob.msg, W - 22, y0 + ch + 30); g.textAlign = "left"; }
   }
   // the silent alarm
   const ay = H - 40;
-  g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "700 11px 'Segoe UI',sans-serif"; g.fillText("SILENT ALARM", 22, ay - 6);
+  g.fillStyle = "rgba(255,255,255,0.75)"; g.font = "700 11px 'Konto Sans','Segoe UI',sans-serif"; g.fillText("SILENT ALARM", 22, ay - 6);
   g.fillStyle = "rgba(255,255,255,0.12)"; roundRect(g, 22, ay, W - 44, 16, 8); g.fill();
   const a = clamp01(rob.alarm / 100); g.fillStyle = a > 0.75 ? "#ff3b3b" : a > 0.45 ? "#ff9f43" : "#e0565b"; roundRect(g, 22, ay, Math.max(16, (W - 44) * a), 16, 8); g.fill();
 }
@@ -37879,7 +37907,7 @@ function inLabel(text, w, h, bg, fg) {
   const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w));
   const g = c.getContext("2d");
   g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = fg; g.font = "800 " + Math.round(c.height * 0.52) + "px 'Segoe UI', system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = fg; g.font = "800 " + Math.round(c.height * 0.52) + "px 'Konto Sans','Segoe UI', system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
   g.fillText(text, c.width / 2, c.height / 2 + 2, c.width - 24);
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
@@ -38351,14 +38379,14 @@ function inPoster(root, brand, i, x, y, z, ry, w, h) {
 // place, with a coloured illustration of the thing it sells rather than a one-colour symbol.
 const IN_FONT = {
   sushiya: ["'Yu Mincho','Hiragino Mincho ProN','MS Mincho','IPAMincho',Georgia,'Noto Serif JP',serif", "'Yu Mincho','Hiragino Mincho ProN','MS Mincho',Georgia,serif"],
-  sushi:   ["'Meiryo','Yu Gothic','IPAGothic','Arial Black',Impact,sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Segoe UI',sans-serif"],
-  ramen:   ["Impact,'Arial Black','Yu Gothic','IPAGothic',sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Segoe UI',sans-serif"],
+  sushi:   ["'Meiryo','Yu Gothic','IPAGothic','Arial Black',Impact,sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Konto Sans','Segoe UI',sans-serif"],
+  ramen:   ["Impact,'Arial Black','Yu Gothic','IPAGothic',sans-serif", "'Yu Gothic','Meiryo','IPAGothic','Konto Sans','Segoe UI',sans-serif"],
   books:   ["Georgia,'Palatino Linotype','Yu Mincho',serif", "Georgia,'Yu Mincho',serif"],
-  clothes: ["'Didot','Bodoni MT',Georgia,'Yu Mincho',serif", "'Segoe UI','Yu Gothic',sans-serif"],
+  clothes: ["'Didot','Bodoni MT',Georgia,'Yu Mincho',serif", "'Konto Sans','Segoe UI','Yu Gothic',sans-serif"],
   arms:    ["Impact,'Arial Narrow Bold','Arial Black',sans-serif", "'Courier New',monospace"],
-  dokoto:  ["'Segoe UI Black','Arial Black','Yu Gothic',sans-serif", "'Segoe UI','Yu Gothic',sans-serif"],
-  capsule: ["'Trebuchet MS','Segoe UI','Yu Gothic',sans-serif", "'Segoe UI','Yu Gothic',sans-serif"],
-  _:       ["'Segoe UI Black','Arial Black','Meiryo','Yu Gothic','IPAGothic',sans-serif", "'Segoe UI','Meiryo','Yu Gothic','IPAGothic',sans-serif"]
+  dokoto:  ["'Segoe UI Black','Arial Black','Yu Gothic',sans-serif", "'Konto Sans','Segoe UI','Yu Gothic',sans-serif"],
+  capsule: ["'Trebuchet MS','Konto Sans','Segoe UI','Yu Gothic',sans-serif", "'Konto Sans','Segoe UI','Yu Gothic',sans-serif"],
+  _:       ["'Segoe UI Black','Arial Black','Meiryo','Yu Gothic','IPAGothic',sans-serif", "'Konto Sans','Segoe UI','Meiryo','Yu Gothic','IPAGothic',sans-serif"]
 };
 function inFontsOf(brand) { return IN_FONT[brand] || IN_FONT._; }
 function inArt(g, kind, cx, cy, s, top) {
@@ -39010,7 +39038,7 @@ function platesHudDraw(S) {
   const c = el.firstChild, g = c.getContext("2d"), W = c.width, H = c.height;
   g.clearRect(0, 0, W, H);
   g.fillStyle = "rgba(12,14,18,0.78)"; g.fillRect(0, 0, W, H);
-  g.fillStyle = "#fff"; g.font = "800 15px 'Segoe UI', system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  g.fillStyle = "#fff"; g.font = "800 15px 'Konto Sans','Segoe UI', system-ui, sans-serif"; g.textAlign = "left"; g.textBaseline = "alphabetic";
   g.fillText("Plates  " + S.plates.length, 12, 22);
   g.textAlign = "right"; g.fillStyle = "#ffd21c"; g.fillText(yenText(S.total), W - 12, 22);
   // the pile, in the order it was eaten, each plate a thin disc a little under the one above
@@ -39024,11 +39052,11 @@ function platesHudDraw(S) {
     g.strokeStyle = "rgba(0,0,0,0.25)"; g.lineWidth = 1; g.stroke();
     if (i === shown.length - 1) { g.fillStyle = shadeCss(t.c, 0.85); g.beginPath(); g.ellipse(cx, y, 34, 6, 0, 0, 7); g.fill(); }
   });
-  if (S.plates.length > 20) { g.fillStyle = "#fff"; g.font = "600 12px 'Segoe UI', sans-serif"; g.textAlign = "left"; g.fillText("+" + (S.plates.length - 20) + " below", 12, base - 4); }
+  if (S.plates.length > 20) { g.fillStyle = "#fff"; g.font = "600 12px 'Konto Sans','Segoe UI', sans-serif"; g.textAlign = "left"; g.fillText("+" + (S.plates.length - 20) + " below", 12, base - 4); }
   // what the colours cost
   KAITEN.tiers.forEach((t, i) => { const x = 26 + i * 42, n = S.plates.filter(v => v === i).length; g.fillStyle = t.c; g.beginPath(); g.arc(x, H - 28, 11, 0, 7); g.fill(); g.strokeStyle = "rgba(255,255,255,0.5)"; g.stroke();
-    g.fillStyle = i === 0 || i === 3 ? "#222" : "#fff"; g.font = "800 12px 'Segoe UI', sans-serif"; g.textAlign = "center"; g.fillText(n, x, H - 24);
-    g.fillStyle = "#c8ced6"; g.font = "600 10px 'Segoe UI', sans-serif"; g.fillText("¥" + t.price, x, H - 7); });
+    g.fillStyle = i === 0 || i === 3 ? "#222" : "#fff"; g.font = "800 12px 'Konto Sans','Segoe UI', sans-serif"; g.textAlign = "center"; g.fillText(n, x, H - 24);
+    g.fillStyle = "#c8ced6"; g.font = "600 10px 'Konto Sans','Segoe UI', sans-serif"; g.fillText("¥" + t.price, x, H - 7); });
 }
 function shadeCss(hex, k) { const c = new THREE.Color(hex).multiplyScalar(k); return "#" + c.getHexString(); }
 function $platesEl() {
@@ -39366,7 +39394,7 @@ function interiorPrewarm() {
         if (room && room.group && renderer && renderer.compile) { const v = room.group.visible; room.group.visible = true; renderer.compile(scene, camera); room.group.visible = v; }
       }
     } catch (e) { /* it will be built at the door instead */ }
-    later(step, 1500);
+    later(step, 4000);
   };
   setTimeout(step, 6000);
 }
