@@ -657,6 +657,58 @@
   /* A quarter-second dip to black, used for doorways and for waking up in
      hospital. It never swallows input: it is painted over everything and
      takes no pointer events. */
+
+  /* ---- the story: cutscenes, objectives, the job card, mission passed ------------------------------------------------------------ */
+  body.cutscene #hud, body.cutscene #phone, body.cutscene #prompt, body.cutscene #radiotoast, body.cutscene #notice, body.cutscene #objective { visibility: hidden !important; }
+  #cutbars { position: fixed; inset: 0; z-index: 29; pointer-events: none; display: none; }
+  body.cutscene #cutbars { display: block; }
+  #cutbars i { position: absolute; left: 0; right: 0; height: 11vh; background: #000; animation: cutbar 0.7s ease-out both; }
+  #cutbars i:first-child { top: 0; } #cutbars i:last-child { bottom: 0; }
+  @keyframes cutbar { from { height: 0; } }
+  #cutsub { position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%); z-index: 31; max-width: min(1100px, 86vw); text-align: center; pointer-events: none;
+    font: 600 clamp(18px, 2.1vw, 30px)/1.35 var(--ui); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 2px #000; }
+  #cutsub b { display: block; font-size: 0.62em; letter-spacing: 0.16em; text-transform: uppercase; color: #f2c230; margin-bottom: 4px; }
+  #cutskip { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 31; font: 600 14px var(--ui); color: rgba(255,255,255,0.7); pointer-events: none; display: none; --k: 0; }
+  body.cutscene #cutskip { display: block; }
+  #cutskip::after { content: ""; display: block; height: 3px; margin-top: 6px; width: calc(var(--k) * 100%); background: #f2c230; border-radius: 2px; }
+  #cutover { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
+  #cutover.dream { background: radial-gradient(ellipse at center, rgba(255,250,235,0) 45%, rgba(255,246,225,0.55) 82%, rgba(255,252,245,0.9) 100%); }
+  body.cutscene:has(#cutover.dream) canvas { filter: saturate(1.2) brightness(1.08) contrast(0.94); }
+  #cutover.window::before { content: ""; position: absolute; inset: 5vh 7vw 9vh 7vw; border-radius: 4vw; box-shadow: 0 0 0 100vmax #1b1f24, inset 0 0 40px rgba(0,0,0,0.5);
+    background: linear-gradient(115deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.13) 38%, rgba(255,255,255,0) 46%); }
+  #cutover.window::after { content: ""; position: absolute; left: 7vw; right: 7vw; bottom: 9vh; height: 1.4vh; background: #2c3138; }
+  #cutover.white { background: rgba(255,255,255,0.0); animation: cutwhite 4.2s ease-in forwards; }
+  @keyframes cutwhite { 60% { background: rgba(255,255,255,0.25); } 100% { background: rgba(255,255,255,1); } }
+  #cutover.black { background: #000; }
+  #cutover.blink { animation: cutblink 3.6s ease-out forwards; background: #000; }
+  @keyframes cutblink { 0% { opacity: 1; } 25% { opacity: 0.85; } 35% { opacity: 1; } 60% { opacity: 0.4; } 70% { opacity: 0.75; } 100% { opacity: 0; } }
+  #objective { position: fixed; left: 24px; top: 24px; z-index: 15; max-width: 440px; pointer-events: none; opacity: 0; transform: translateX(-12px); transition: opacity 0.4s, transform 0.4s;
+    background: rgba(12,14,18,0.72); border-left: 4px solid #f2c230; border-radius: 6px; padding: 12px 16px 12px 14px; color: #fff; font-family: var(--ui); }
+  #objective.on { opacity: 1; transform: none; }
+  #objective .mt { font: 700 12px var(--ui); letter-spacing: 0.18em; text-transform: uppercase; color: #f2c230; margin-bottom: 6px; }
+  #objective .ob { display: flex; gap: 10px; align-items: flex-start; font: 600 18px/1.3 var(--ui); }
+  #objective .ob i { flex: 0 0 auto; width: 16px; height: 16px; margin-top: 3px; border: 2px solid #fff; border-radius: 3px; position: relative; }
+  #objective.done .ob i { background: #3fbf6a; border-color: #3fbf6a; }
+  #objective.done .ob i::after { content: ""; position: absolute; left: 4px; top: 0; width: 5px; height: 10px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+  #objective.done .ob span { text-decoration: line-through; opacity: 0.7; }
+  #objective .oh { font: 500 14px/1.35 var(--ui); color: rgba(255,255,255,0.72); margin: 6px 0 0 26px; }
+  #objective .ot { font: 700 16px var(--ui); color: #f2c230; margin: 6px 0 0 26px; }
+  #objective .ot:empty { display: none; }
+  #objective .ot.late { color: #ff5a4a; }
+  #peekcard { position: fixed; right: 5vw; top: 16vh; z-index: 32; width: 340px; background: #fff; color: #14171b; border-radius: 22px; padding: 18px 20px 22px; font-family: var(--ui);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5); opacity: 0; transform: translateY(-14px) scale(0.98); transition: opacity 0.5s, transform 0.5s; pointer-events: none; }
+  #peekcard.on { opacity: 1; transform: none; }
+  #peekcard .pk { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  #peekcard .pk b { font: 900 26px var(--ui); color: #e6007a; letter-spacing: -0.02em; }
+  #peekcard .pk span { font: 500 13px var(--ui); color: #6a717a; }
+  #peekcard .pt { font: 800 21px var(--ui); margin-bottom: 8px; }
+  #peekcard .pb { font: 500 16px/1.45 var(--ui); color: #2a2f35; }
+  #mpassed { position: fixed; left: 0; right: 0; top: 34vh; z-index: 33; text-align: center; pointer-events: none; opacity: 0; font-family: var(--ui); }
+  #mpassed.on { animation: mpass 5.2s ease both; }
+  @keyframes mpass { 0% { opacity: 0; transform: scale(1.08); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; } }
+  #mpassed .mp1 { font: 900 clamp(34px, 5vw, 74px) var(--ui); color: #f2c230; letter-spacing: 0.04em; text-shadow: 0 3px 0 #000, 0 0 18px rgba(0,0,0,0.6); }
+  #mpassed .mp2 { font: 700 clamp(18px, 2vw, 28px) var(--ui); color: #fff; text-shadow: 0 2px 6px #000; margin-top: 6px; }
+  #mpassed .mp3 { font: 500 clamp(14px, 1.4vw, 19px) var(--ui); color: rgba(255,255,255,0.85); text-shadow: 0 2px 6px #000; margin-top: 10px; }
   #fade {
     position: fixed; inset: 0; z-index: 28;
     background: #000; opacity: 0; pointer-events: none;
@@ -6977,6 +7029,7 @@ function pollPad(dt) {
   };
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
+  if (cut.active) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; cut.padHold = held(PAD.A) || held(PAD.START); return; }
   if (ex.open || ife.open) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; if (ex.open) expedioPad(pressed); else ifePad(pressed); return; }
   // A trigger is analogue on an Xbox pad and reports through .value; some
   // drivers put it on an axis instead, so both are read and the larger wins.
@@ -7199,7 +7252,7 @@ function useRide() {
   }
   const r = findRide();
   if (!r) return;
-  if (r.what === "car") enterCar(r.car);
+  if (r.what === "car") { if (!rydePassengerTry(r.car)) enterCar(r.car); }
   else if (r.what === "parked") enterParked(r.parked);
   else if (r.what === "steal") heistStart(r.parked);
   else if (r.what === "train") boardTrain(r.train);
@@ -7785,6 +7838,7 @@ function buildScene(w) {
   // Shops are chosen now, before any building goes up, because each one is a
   // building of its own on the plot it is given.
   placeShops(w.cities[0]);
+  placeSoti(w.cities[0]);
   placeTownShops(w);
   placeMalls(w);
   placePlazas(w);
@@ -7878,7 +7932,7 @@ function buildScene(w) {
         // wants, with a plant room on the roof so the top is a roofline.
         const sz = [Math.max(6, p.size[0] - 1.2), Math.max(6, p.size[1] - 1.2)];
         const hh = (SHOP_BUILD[p.shop] || 6) * lerp(0.94, 1.08, r);
-        const main = { c: p.centre, size: sz, yaw: p.yaw, y: p.groundY, h: hh, style: facadeStyleFor("shop", region), shopRef: p.shopRef };
+        const main = { c: p.centre, size: sz, yaw: p.yaw, y: p.groundY, h: hh, style: p.shop === "soti" ? "glass" : facadeStyleFor("shop", region), shopRef: p.shopRef };
         boxes.push(main);
         const pr = rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9177);
         boxes.push({ c: fromRectLocal((pr - 0.5) * sz[0] * 0.4, -sz[1] * 0.22, p.centre[0], p.centre[1], p.yaw),
@@ -8407,6 +8461,7 @@ function addActionClips(root, mixer, clips) {
   make("skydive_dive", 0.6, [{ t: 0, pose: dive(0) }, { t: 0.3, pose: dive(0.05) }, { t: 0.6, pose: dive(0) }], true);
   const hang = (r, l, sw) => ({ UpperArmR: [0, 0, r], ForearmR: [0, 0, 0.55], UpperArmL: [0, 0, -l], ForearmL: [0, 0, -0.55], ThighR: [0.35 + sw, 0, 0], ThighL: [0.3 - sw, 0, 0], ShinR: [-0.45, 0, 0], ShinL: [-0.5, 0, 0], Spine: [0.05, 0, 0] });
   make("canopy", 2.4, [{ t: 0, pose: hang(2.65, 2.65, 0) }, { t: 1.2, pose: hang(2.65, 2.65, 0.08) }, { t: 2.4, pose: hang(2.65, 2.65, 0) }], true);
+  storySeikoClips(make);
   make("canopy_r", 1, [{ t: 0, pose: hang(1.35, 2.65, 0.05) }, { t: 1, pose: hang(1.35, 2.65, 0.05) }], true);
   make("canopy_l", 1, [{ t: 0, pose: hang(2.65, 1.35, 0.05) }, { t: 1, pose: hang(2.65, 1.35, 0.05) }], true);
   make("flare", 1, [{ t: 0, pose: Object.assign(hang(0.75, 0.75, 0), { ThighR: [0.7, 0, 0], ThighL: [0.7, 0, 0], ShinR: [-0.25, 0, 0], ShinL: [-0.25, 0, 0] }) }, { t: 1, pose: Object.assign(hang(0.75, 0.75, 0), { ThighR: [0.7, 0, 0], ThighL: [0.7, 0, 0], ShinR: [-0.25, 0, 0], ShinL: [-0.25, 0, 0] }) }], true);
@@ -11446,6 +11501,9 @@ function tick(dt) {
   }
   if (nav.mapOpen) { updatePhone(); present(); return; }
   if (paused) { updatePhone(); present(); return; }
+  // a cutscene owns the frame; otherwise the story checks its objectives and moves its people
+  if (cut.active) { cutTick(dt); return; }
+  storyTick(dt);
 
   // The right stick turns the camera the way dragging does, at a rate rather than a step.
   if (look.x || look.y) {
@@ -16875,6 +16933,9 @@ function buildStreetFurniture(w, city, root, boxes) {
     // A concourse at one end, with the company's mark over the door, and a
     // viaduct-height stair when the line is in the air.
     const conZ = concourseEnd(city, st, t), fz = conZ < 0 ? 1 : -1, face = fz > 0 ? "B" : "F";     // (its front always looks at the platform)
+    // where the story finds it: the track frame (for a camera on the platform) and the street door of the concourse
+    { const zs = conZ - fz * 11.6; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
+      st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw }; }
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
     solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
     solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1 * fz, 20, 3.4, 0.30);
@@ -18426,6 +18487,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  if (story.blips.length) storyMapBlips(ctx, toScreen, opts);
   // ---- the waypoint, and the line to it
   if (nav.waypoint) {
     const p = toScreen(nav.waypoint.x, nav.waypoint.z);
@@ -26101,6 +26163,7 @@ function shopNear(x, z, radius, noVend) {
 
 function enterShop(s) {
   if (!s) return;
+  if (s.brand === "soti") { storySotiDoor(s); return; }
   if (s.brand === "kustoms") { s.inCar = !!drive.car; s.hot = !!(wanted.stars && wanted.seen); if (!s.inCar) say("Konto Kustoms works on cars. Drive one in to the roller door.", 4); }
   else if (interiorEnter(s)) return;
   if (s.safe) { enterSafehouse(s); return; }
@@ -27079,6 +27142,7 @@ function takeFromShelf() {
   if (shops.ask) { resolveAsk(); return; }
   const it = shopShelves(s)[shops.shelf].items[shops.item];
   if (it.kmod) { kustomFit(it); return; }
+  if (it.outfit) { outfitBuy(it); drawShop(); return; }
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   if (shopConsumable(it)) { shops.ask = { it: it, choice: 0 }; drawShop(); return; }
   purse.yen -= it.price;
@@ -34073,6 +34137,7 @@ function titleChoose() {
   setTitle(false);
   title.started = true;
   tour = false;
+  try { stationShop(); } catch (e) { /* no terminus */ }
   setMode("walk");
   // MyGram's photographs start arriving in the background, so the feed is full when you open it
   setTimeout(() => { try { mynetInit(); } catch (e) { /* the feed will start when the app opens */ } }, 6000);
@@ -34087,7 +34152,7 @@ function titleChoose() {
     say("Welcome back. Your game was loaded.", 4);
     return;
   }
-  if (id === "tnew") { newGameBackup(); player.outfitWant = "village"; if (player.hq && wardrobe.list) seikoOutfit("village", true); }
+  if (id === "tnew") { newGameBackup(); storyNewGame(); return; }
   placeSeiko(seikoSpawn(world));
   player.placed = true;
   updateWorldSky(0, true);          // the title's sky is a screensaver; the world's is the clock
@@ -36947,6 +37012,7 @@ function pedPoseClips(root) {
   // sitting on a chair or a bench: thighs level, knees bent square, hands resting on the thighs, a slight slump
   make("sit", { ThighR: [1.52, 0, 0.06], ThighL: [1.52, 0, -0.06], ShinR: [-1.5, 0, 0], ShinL: [-1.5, 0, 0], Spine: [0.08, 0, 0], Chest: [0.04, 0, 0],
     UpperArmR: [0.25, 0, 0.42], ForearmR: [0, 0, 0.95], UpperArmL: [0.25, 0, -0.42], ForearmL: [0, 0, -0.95] }, 0.44);
+  storyPeoplePoses(make);
   return out;
 }
 // A shirt colour per person, painted into a copy of the texture the way a shop shirt is painted onto Seiko.
@@ -38592,6 +38658,7 @@ function interiorPlazaLevel(s, idx) {
 function interiorLevels(s) {
   if (s.mall) return { kind: "mall", floors: MALL_FLOORS, street: 1, make: (i) => interiorMallLevel(s, i) };
   if (s.plaza) return { kind: "plaza", floors: PLAZA_FLOORS, street: 1, make: (i) => interiorPlazaLevel(s, i) };
+  if (s.station) return { kind: "plaza", floors: STATION_FLOORS, street: 1, make: (i) => interiorStationLevel(s, i) };
   return null;
 }
 function interiorShowRoom(room, at, face) {
@@ -38807,6 +38874,7 @@ function interiorPodAction(a) {
   if (a === "back") { interiorPodClose(); return; }
   if (a === "tv") { const s = interior.shop; interiorPodClose(); interiorLeave(true); enterSafehouse(s); return; }
   if (a !== "sleep") return;
+  if (storySleepHook()) return;
   if (purse.yen < CAPSULE_FEE) { say("Not enough for a capsule. " + yenText(CAPSULE_FEE) + " at the desk.", 4); return; }
   interiorPodClose();
   const fade = document.getElementById("fade");
@@ -40018,7 +40086,7 @@ function interiorSitPad(pressed) {
 
 function interiorSupports(s) {
   if (!s || s.vend || s.parent) return false;
-  if (s.mall || s.plaza) return true;
+  if (s.mall || s.plaza || s.station) return true;
   return (!s.safe || s.brand === "capsule") && INTERIOR_BRANDS.indexOf(s.brand) >= 0;
 }
 
@@ -40276,6 +40344,7 @@ function interiorCardDraw() {
 function interiorBuy() {
   const c = interior.card; if (!c) return;
   const it = c.e.it, s = interior.shop;
+  if (it.outfit) { outfitBuy(it); c.bought = true; interiorCardDraw(); return; }
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   if (s.mall) { if (interiorMallBuy(it)) c.bought = true; interiorCardDraw(); return; }
   const shelves = shopShelves(s), si = shelves.findIndex(sh => sh.items.indexOf(it) >= 0);
@@ -40413,6 +40482,728 @@ function interiorPad(pressed) {
 //    while playing, when the window loses focus or closes, and when you go back to the title.
 // Continue on the title screen loads it. Starting a new game keeps the last save as a backup under konto.save.v1.prev.
 const SAVE_KEY = "konto.save.v1";
+// ==== THE STORY ==================================================================================================================================
+// Seiko's story is told in missions, and a mission is told in two ways: cutscenes - the real game, through a cinema camera, with the black bars,
+// subtitles and the people in it - and objectives you play, which tick off as you do them. Between them the island is yours.
+//
+//   story.m       the mission you are on (1 = The Interview)
+//   story.step    where in it you are; the save keeps it, so Continue picks up at the same objective
+//   story.flags   what has happened (the village clothes traded in, the job got, the money spent)
+//
+// The engine underneath: cutPlay(shots, onEnd) plays a cutscene; storyObjective(text) puts up the objective and storyTick() works out when it is
+// done; storyBlip() marks a place on the map, with a lettered marker for a mission that is waiting to be started.
+const story = { m: 0, step: "", flags: {}, blips: [], obj: null, timer: null, owned: {} };
+const cut = { active: false, shots: [], i: -1, t: 0, onEnd: null, hold: 0, padHold: false, keyHold: false, nearWas: 0 };
+const actors = { list: [] };
+
+// ---- people in cutscenes ----------------------------------------------------------------------------------------------------------------------
+// A person for a scene: one of the real people, picked by the kind wanted (a woman, a man in a suit), standing where they are put, in a pose or
+// walking a path. They are the street's own people, so a cutscene looks like the game.
+function actorAdd(o) {
+  const want = pplLib.ready.filter(e => (o.female === undefined || !!e.female === o.female) && (o.business === undefined || !!e.business === o.business));
+  const pool = want.length ? want : pplLib.ready;
+  const e = pool.length ? pool[(o.pick || 0) % pool.length] : null;
+  const f = e ? pplFigure(e, o.h || 1) : pedFigure(o.shirt || 0, o.h || 1);
+  const a = Object.assign(f, { x: o.x, y: o.y, z: o.z, yaw: o.yaw || 0, pose: o.pose || "idle", path: o.path || null, pi: 0, sp: o.sp || 1.35, tag: o.tag || "", fixedY: o.y !== undefined, wait: o.wait || 0, vanish: !!o.vanish });
+  if (a.y === undefined) a.y = world.surfaceY(a.x, a.z);
+  a.holder.position.set(a.x, a.y, a.z); a.holder.rotation.y = a.yaw;
+  scene.add(a.holder); pedPlay(a, a.pose, 0);
+  actors.list.push(a);
+  return a;
+}
+function actorsClear(tag) {
+  for (let i = actors.list.length - 1; i >= 0; i--) {
+    const a = actors.list[i]; if (tag && a.tag !== tag) continue;
+    scene.remove(a.holder); a.mixer.stopAllAction(); actors.list.splice(i, 1);
+  }
+}
+function actorsTick(dt) {
+  actors.list.forEach(a => {
+    if (a.wait > 0) { a.wait -= dt; pedPlay(a, a.pose); }
+    else if (a.path && a.pi < a.path.length) {
+      const q = a.path[a.pi], dx = q[0] - a.x, dz = q[1] - a.z, d = Math.hypot(dx, dz);
+      if (d < 0.6) a.pi++;
+      else {
+        const s = Math.min(d, a.sp * dt); a.x += dx / d * s; a.z += dz / d * s;
+        let dy = Math.atan2(dx, dz) - a.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); a.yaw += dy * Math.min(1, dt * 8);
+        if (!a.fixedY) a.y = world.surfaceY(a.x, a.z);
+      }
+      pedPlay(a, "walk", 0.25, a.sp / WALK_SPEED);
+      if (a.pi >= a.path.length && a.vanish) { a.gone = true; }
+    } else pedPlay(a, a.pose, 0.3);
+    a.holder.position.set(a.x, a.y, a.z); a.holder.rotation.y = a.yaw;
+    a.mixer.update(dt);
+  });
+  for (let i = actors.list.length - 1; i >= 0; i--) if (actors.list[i].gone) { scene.remove(actors.list[i].holder); actors.list.splice(i, 1); }
+}
+function actorLook(a, x, z) { a.yaw = Math.atan2(x - a.x, z - a.z); }
+
+// ---- the cinema ----------------------------------------------------------------------------------------------------------------------------
+// A cutscene is a list of shots. Each shot holds the camera on a move from one place to another (eased at both ends, the way a dolly moves),
+// says its lines as subtitles at the times given, and can set the scene up when it starts (enter) and keep it going while it runs (tick). The
+// black bars come in, the HUD goes, and holding Space, Enter or A skips to the end, which is where the story picks up.
+function cutEl(id, cls, parent) {
+  let el = document.getElementById(id);
+  if (!el) { el = document.createElement("div"); el.id = id; if (cls) el.className = cls; (parent || document.body).appendChild(el); }
+  return el;
+}
+function cutPlay(shots, onEnd) {
+  if (cut.active) cutFinish(true);
+  cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0;
+  if (phone.open) setPhone(false);
+  if (nav.mapOpen && typeof setMap === "function") setMap(false);
+  player.speed = 0;
+  cut.nearWas = camera.near;
+  document.body.classList.add("cutscene");
+  cutEl("cutbars").innerHTML = "<i></i><i></i>";
+  cutEl("cutsub"); cutEl("cutskip").textContent = "Hold " + (pad.index >= 0 ? "A" : "Space") + " to skip";
+  cutEl("cutover");
+  cutNext();
+}
+function cutNext() {
+  cut.i++; cut.t = 0;
+  const s = cut.shots[cut.i];
+  if (!s) { cutFinish(false); return; }
+  cut.said = -1;
+  const ov = cutEl("cutover"); ov.className = s.overlay || ""; ov.innerHTML = s.overlayHtml || "";
+  document.getElementById("cutsub").innerHTML = "";
+  camera.near = s.near || cut.nearWas;
+  camera.updateProjectionMatrix();
+  if (s.fadeIn) { const f = document.getElementById("fade"); if (f) { f.style.transition = "none"; f.style.opacity = "1"; void f.offsetWidth; f.style.transition = "opacity " + s.fadeIn + "s"; f.style.opacity = "0"; } }
+  try { if (s.enter) s.enter(s); } catch (e) { console.warn("[Konto] cutscene shot:", e); }
+}
+function cutFinish(skipped) {
+  if (!cut.active) return;
+  // a skipped scene still sets up everything its shots would have (the place you wake, the clothes you are in)
+  if (skipped) for (let k = Math.max(0, cut.i); k < cut.shots.length; k++) { const s = cut.shots[k]; try { if (s.always) s.always(s); } catch (e) { /* on */ } }
+  cut.active = false; cut.shots = []; cut.i = -1;
+  document.body.classList.remove("cutscene");
+  ["cutsub", "cutover"].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML = ""; el.className = ""; } });
+  camera.near = cut.nearWas || camera.near; camera.updateProjectionMatrix();
+  player.forceClip = null;
+  if (player.obj) player.obj.visible = true;
+  const f = document.getElementById("fade"); if (f) { f.style.transition = ""; f.style.opacity = "0"; }
+  const done = cut.onEnd; cut.onEnd = null;
+  try { if (done) done(skipped); } catch (e) { console.warn("[Konto] after the cutscene:", e); }
+}
+const _cutA = new THREE.Vector3(), _cutB = new THREE.Vector3(), _cutL = new THREE.Vector3(), _cutM = new THREE.Vector3();
+function cutTick(dt) {
+  const s = cut.shots[cut.i];
+  if (!s) { cutFinish(false); return; }
+  cut.t += dt;
+  // skipping: held for most of a second, so a tap meant for something else does not throw the scene away
+  const holding = cut.padHold || cut.keyHold;
+  cut.hold = holding ? cut.hold + dt : 0;
+  const sk = document.getElementById("cutskip"); if (sk) sk.style.setProperty("--k", Math.min(1, cut.hold / 0.8));
+  if (cut.hold > 0.8) { cutFinish(true); return; }
+  const u = clamp01(cut.t / s.dur), e = s.linear ? u : u * u * (3 - 2 * u);
+  const from = typeof s.from === "function" ? s.from() : s.from, to = typeof s.to === "function" ? s.to() : (s.to || from);
+  if (from) {
+    _cutA.fromArray(from.pos); _cutB.fromArray(to.pos); camPos.copy(_cutA).lerp(_cutB, e);
+    _cutL.fromArray(from.look); _cutM.fromArray(to.look); _cutL.lerp(_cutM, e);
+    camera.position.copy(camPos); camera.lookAt(_cutL);
+    if (s.roll) camera.rotateZ(s.roll);
+  }
+  // the lines, each on screen from its time to the next one's
+  const lines = s.lines || [];
+  let li = -1; for (let k = 0; k < lines.length; k++) if (cut.t >= lines[k][0]) li = k;
+  if (li !== cut.said) {
+    cut.said = li;
+    const L = lines[li], el = document.getElementById("cutsub");
+    el.innerHTML = L ? (L[1] ? "<b>" + L[1] + "</b>" : "") + "<span>" + L[2] + "</span>" : "";
+  }
+  try { if (s.tick) s.tick(dt, cut.t, s); } catch (err) { console.warn("[Konto] cutscene:", err); }
+  clock += dt * (s.timeScale === undefined ? 1 : s.timeScale);
+  updateWorldSky(dt); followSun();
+  streamFrame();
+  updateSeikoClip(dt);
+  actorsTick(dt);
+  pedsTick(dt);
+  updateTraffic(dt, camPos);
+  updateRail(dt, camPos);
+  present();
+  if (cut.t >= s.dur) cutNext();
+}
+// the camera, looking from a place to a place, in a frame turned by yaw around a point: [right, up, forward] offsets
+function framePt(f, r, up, fw) { const sy = Math.sin(f.yaw), cy = Math.cos(f.yaw); return [f.x + cy * r + sy * fw, f.y + up, f.z - sy * r + cy * fw]; }
+
+// ---- what to do, on screen ----------------------------------------------------------------------------------------------------------------
+// The objective sits top left under the mission's name, with a box that ticks when it is done; the tick holds a moment and the next one
+// takes its place. A deadline shows as a clock counting down beside it.
+function storyObjective(text, hint) {
+  story.obj = { text: text, hint: hint || "", done: false };
+  const el = cutEl("objective");
+  el.innerHTML = "<div class='mt'>" + (STORY_TITLES[story.m] || "") + "</div><div class='ob'><i></i><span>" + text + "</span></div>" + (hint ? "<div class='oh'>" + hint + "</div>" : "") + "<div class='ot'></div>";
+  el.classList.remove("done"); el.classList.add("on");
+}
+function storyTick_done(next) {
+  const el = document.getElementById("objective"); if (!el || !story.obj || story.obj.done) { if (next) next(); return; }
+  story.obj.done = true; el.classList.add("done");
+  if (typeof sfxTick === "function") try { sfxTick(); } catch (e) { /* quiet */ }
+  setTimeout(() => { el.classList.remove("on"); if (next) setTimeout(next, 300); }, 1600);
+}
+function storyClearObjective() { story.obj = null; const el = document.getElementById("objective"); if (el) el.classList.remove("on", "done"); }
+function storyPassed(title, sub) {
+  const el = cutEl("mpassed");
+  el.innerHTML = "<div class='mp1'>MISSION PASSED</div><div class='mp2'>" + title + "</div>" + (sub ? "<div class='mp3'>" + sub + "</div>" : "");
+  el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
+  setTimeout(() => el.classList.remove("on"), 5200);
+}
+// A place on the map: a yellow dot for where to go, or a lettered marker for a mission waiting to be started. The first one also gets the
+// GPS line, and a beam in the world you can see over the roofs.
+function storyBlip(x, z, label, opts) {
+  const b = Object.assign({ x: x, z: z, label: label || "", letter: "", col: "#f2c230" }, opts || {});
+  story.blips.push(b);
+  if (!b.noRoute) nav.waypoint = { x: x, z: z };
+  storyBeam(b);
+  return b;
+}
+function storyClearBlips() { story.blips.forEach(b => { if (b.beam) scene.remove(b.beam); }); story.blips = []; nav.waypoint = null; nav.route = null; }
+function storyBeam(b) {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.25, 32, 1, true), new THREE.MeshBasicMaterial({ color: b.col, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }));
+  ring.position.y = 0.15; g.add(ring);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.9, 60, 16, 1, true), new THREE.MeshBasicMaterial({ color: b.col, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+  beam.position.y = 30; g.add(beam);
+  if (b.letter) {
+    const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+    x.fillStyle = b.col; x.beginPath(); x.arc(64, 64, 58, 0, 7); x.fill(); x.lineWidth = 8; x.strokeStyle = "#111"; x.stroke();
+    x.fillStyle = "#111"; x.font = "900 76px " + UI; x.textAlign = "center"; x.textBaseline = "middle"; x.fillText(b.letter, 64, 70);
+    const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true })); sp.scale.set(3.2, 3.2, 1); sp.position.y = 4.2; g.add(sp); g.userData.letter = sp;
+  }
+  g.position.set(b.x, world.surfaceY(b.x, b.z), b.z);
+  scene.add(g); b.beam = g;
+}
+// drawn on both the minimap and the big map, by drawMapView
+function storyMapBlips(ctx, toScreen, opts) {
+  story.blips.forEach(b => {
+    const p = toScreen(b.x, b.z), r = opts && opts.labels === false ? 9 : 12;
+    ctx.save();
+    ctx.fillStyle = b.col; ctx.strokeStyle = "#111"; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#111"; ctx.font = "900 " + Math.round(r * 1.3) + "px " + UI; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(b.letter || "★", p[0], p[1] + 1);
+    if (b.label && !(opts && opts.labels === false)) { ctx.font = "700 13px " + UI; ctx.fillStyle = "#fff"; ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 3; ctx.strokeText(b.label, p[0], p[1] + r + 12); ctx.fillText(b.label, p[0], p[1] + r + 12); }
+    ctx.restore();
+  });
+}
+
+// ---- Tōkonto Central, inside --------------------------------------------------------------------------------------------------------------
+// The terminus as a building you walk round: the concourse on the street floor with the gates and the departure board and a konbini and a ramen
+// counter, the station's fashion floor upstairs with Suit Select and Machi Street, and the food hall downstairs. The lift on the right wall
+// takes you between them. Its door is the street side of the concourse building at the end of the platforms.
+SHOP_BRANDS.station = { name: "Tōkonto Central", band: "#15894f", ink: "#ffffff", jp: "東都中央駅", stripes: ["#ffffff", "#15894f"], tag: "NHRail" };
+SHOP_BRANDS.street = { name: "Machi Street", band: "#14171b", ink: "#ffd21c", jp: "街ストリート", stripes: ["#ffd21c", "#14171b"], tag: "Streetwear · tees · track jackets" };
+SHOP_BRANDS.soti = { name: "SOTI", band: "#0d1117", ink: "#ffffff", jp: "ソティ", stripes: ["#2a9ad6", "#0d1117"], tag: "SOTI Corporation" };
+const STATION_FLOORS = [
+  { id: 2, label: "2F", name: "Ekinaka fashion", stores: ["clothes", "street"] },
+  { id: 1, label: "1F", name: "Concourse · gates", stores: ["eleven", "ramen"] },
+  { id: 0, label: "B1", name: "Food hall", stores: ["sushi", "pharmacy"] }
+];
+function stationExtra(def) {
+  const base = plazaExtra(def);
+  return (room, root, th) => {
+    base(room, root, th);
+    if (def.id !== 1) return;
+    // the ticket gates along the left, the departure board over them, and a pillar clock
+    for (let i = 0; i < 6; i++) { const z = -2.6 + i * 0.95; inAdd(root, 1.1, 1.0, 0.18, -IN_W / 2 + 2.4, 0.5, z, "#c9ced4"); inAdd(root, 0.5, 0.06, 0.2, -IN_W / 2 + 2.4, 1.02, z, i % 2 ? "#2a9ad6" : "#15894f"); }
+    room.colliders.push({ x0: -IN_W / 2 + 1.8, x1: -IN_W / 2 + 3.0, z0: -2.8, z1: 2.3 });
+    const board = inCanvasTex("deptboard", 512, 160, (g, w, h) => {
+      g.fillStyle = "#0b0d10"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffb000"; g.font = "700 18px " + UI; g.fillText("発車 DEPARTURES", 12, 24);
+      [["08:02", "Kanjō Loop", "Outer", "3"], ["08:05", "Shinkansen", "Nagisa", "11"], ["08:07", "Mizuho Line", "Mizuho", "6"], ["08:10", "Kanjō Loop", "Inner", "4"], ["08:14", "Coastal", "Hamaura", "8"]]
+        .forEach((r, i) => { g.fillStyle = i % 2 ? "#ffd27a" : "#ffb000"; g.font = "600 16px " + UI; g.fillText(r[0], 12, 50 + i * 22); g.fillText(r[1], 80, 50 + i * 22); g.fillText(r[2], 260, 50 + i * 22); g.fillText(r[3], 470, 50 + i * 22); });
+    });
+    const bm = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.44), new THREE.MeshBasicMaterial({ map: board, fog: false }));
+    bm.position.set(-IN_W / 2 + 0.14, 2.6, -0.4); bm.rotation.y = Math.PI / 2; root.add(bm);
+    const sg = inLabel("改札口  TICKET GATES  ← Platforms", 4.6, 0.36, "#15894f", "#ffffff"); sg.position.set(-IN_W / 2 + 0.14, 3.45, -0.4); sg.rotation.y = Math.PI / 2; root.add(sg);
+    room.bench = { x: 2.8, z: 1.2 };
+  };
+}
+function interiorStationLevel(s, idx) {
+  const f = STATION_FLOORS[idx];
+  return interiorRoom({ brand: "plaza", name: "Tōkonto Central" }, { key: "station:" + f.id, stock: [], title: "Tōkonto Central  " + f.label + "  " + f.name, noExit: f.id !== 1, lift: true, extra: stationExtra(f) });
+}
+// the terminus and its door, worked out once from the station the rail builder put up
+function stationShop() {
+  if (story.station) return story.station;
+  const city = world.cities[0], st = city && (city.stations.find(s => s.terminus) || city.stations[0]);
+  if (!st) return null;
+  let door, yawO;
+  if (st.conc) { door = st.conc.door; yawO = st.conc.yaw; }
+  else { door = [st.centre[0] + 30, st.centre[1]]; yawO = 0; }
+  const s = { brand: "station", station: true, name: st.name || "Tōkonto Central", at: st.centre.slice(), door: door, yaw: yawO, groundY: world.surfaceY(door[0], door[1]), size: [26, 20], city: city.name, built: true };
+  shops.list.push(s);
+  return (story.station = s);
+}
+
+// ---- SOTI Tower -----------------------------------------------------------------------------------------------------------------------------
+// The tallest glass tower in that end of the city, five or six hundred metres from the station, with SOTI over the door. Chosen before anything
+// is built, the way a shop's plot is.
+function placeSoti(city) {
+  if (!city || !city.plots) return;
+  const st = city.stations && (city.stations.find(s => s.terminus) || city.stations[0]); if (!st) return;
+  let best = null, bs = -1e9;
+  city.plots.forEach(p => {
+    if (p.shop || !(p.kind === "office" || p.kind === "glass" || p.kind === "midrise")) return;
+    if (Math.min(p.size[0], p.size[1]) < 22 || Math.max(p.size[0], p.size[1]) > 70) return;
+    const d = Math.hypot(p.centre[0] - st.centre[0], p.centre[1] - st.centre[1]);
+    if (d < 260 || d > 760) return;
+    const score = -Math.abs(d - 480) + Math.min(p.size[0], p.size[1]) * 2;
+    if (score > bs) { bs = score; best = p; }
+  });
+  if (!best) return;
+  plotFaceRoad(city, best);
+  const yaw = best.yaw * Math.PI / 180, half = best.size[1] * 0.5 + 1.6;
+  const s = { brand: "soti", soti: true, name: "SOTI Tower", at: [best.centre[0], best.centre[1]],
+    door: [best.centre[0] + Math.sin(yaw) * half, best.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: best.groundY, size: best.size };
+  shops.list.push(s); best.shop = "soti"; best.shopRef = s; story.soti = s;
+}
+SHOP_BUILD.soti = 158;
+
+// ---- the shops that sell clothes -------------------------------------------------------------------------------------------------------------
+// Suit Select sells suits (and takes the clothes you came in, against one); Machi Street sells what you wear at the weekend. A bought outfit is
+// worn there and then, which is what a changing room is for.
+const SUIT_IDS = ["suit_charcoal", "suit_black", "suit_check", "waistcoat"];
+const TRADE_IN = 18000;
+STORE_SHELVES.clothes.unshift({ name: "Suits", items: [
+  { id: "o_suit_charcoal", name: "Charcoal suit", price: 19800, outfit: "suit_charcoal" },
+  { id: "o_suit_black", name: "Black suit, red tie", price: 24800, outfit: "suit_black" },
+  { id: "o_suit_check", name: "Check suit", price: 29800, outfit: "suit_check" },
+  { id: "o_waistcoat", name: "Three-piece, waistcoat", price: 34800, outfit: "waistcoat" }] });
+STORE_SHELVES.street = [{ name: "Streetwear", items: [
+  { id: "o_tshirt", name: "T-shirt and jeans", price: 6900, outfit: "tshirt" },
+  { id: "o_track", name: "Track jacket", price: 8900, outfit: "track" },
+  { id: "o_polo", name: "Polo and shorts", price: 5900, outfit: "polo" },
+  { id: "o_blue", name: "Blue shirt and jeans", price: 7900, outfit: "blue_shirt" },
+  { id: "o_denim", name: "Work shirt and jeans", price: 7400, outfit: "village_denim" }] },
+  { name: "Everyday", items: [{ id: "socks", name: "Sports socks", price: 490, plain: true }, { id: "umbrella", name: "Clear vinyl umbrella", price: 550 }] }];
+[IN_THEME, IN_SKIN, IN_ADS, IN_FONT, IN_PROP_SETS].forEach(T => { if (T && T.clothes && !T.street) T.street = T.clothes; });
+if (typeof IN_ACCENT === "object") IN_ACCENT.street = "#14171b";
+if (INTERIOR_BRANDS.indexOf("street") < 0) INTERIOR_BRANDS.push("street");
+function outfitBuy(it) {
+  const inSuitShop = shops.inside && shops.inside.brand === "clothes" || (interior.shop && interior.shop.brand === "clothes");
+  const credit = inSuitShop && SUIT_IDS.indexOf(it.outfit) >= 0 && player.outfit === "village" && !story.flags.tradedIn ? TRADE_IN : 0;
+  const cost = Math.max(0, it.price - credit);
+  if (story.owned[it.outfit]) { seikoOutfit(it.outfit); return true; }
+  if (purse.yen < cost) { say("Not enough for that. " + yenText(cost) + (credit ? " after the trade-in" : "") + "; you have " + yenText(purse.yen) + "." + (!credit && player.outfit === "village" && SUIT_IDS.indexOf(it.outfit) >= 0 ? " Suit Select will take your village clothes against a suit." : ""), 6); return true; }
+  purse.yen -= cost; noteBuy(inSuitShop ? "clothes" : "street", cost);
+  story.owned[it.outfit] = true;
+  if (credit) { story.flags.tradedIn = true; say("Traded in your village clothes for " + yenText(TRADE_IN) + " · " + it.name + " " + yenText(it.price) + " · you pay " + yenText(cost) + ". Changing…", 6); }
+  else say(it.name + " · " + yenText(cost) + ". Changing…", 4);
+  seikoOutfit(it.outfit, true);
+  player.outfitWant = it.outfit; player.outfit = player.outfit === it.outfit ? player.outfit : player.outfit;
+  story.wearing = it.outfit;
+  return true;
+}
+function storyWearingSuit() { return SUIT_IDS.indexOf(player.outfit) >= 0 || SUIT_IDS.indexOf(story.wearing) >= 0; }
+
+// ---- Ryde, as a passenger ---------------------------------------------------------------------------------------------------------------------
+// Get into the Ryde you booked and you are driven: you sit in the back, say where, and the city goes by. Where to is the mission's destination
+// if there is one, or the marker you put on the map; with neither, the car is yours to drive the old way.
+function rydePassengerTry(car) {
+  const u = dispatch.units.find(q => q.svc === "ryde" && q.car === car);
+  if (!u) return false;
+  const dest = story.blips.length ? story.blips[0] : nav.waypoint;
+  if (!dest) return false;
+  rydeBoarded(u);
+  const kind = CAR_KINDS[car.kind];
+  const dist = Math.hypot(dest.x - player.pos.x, dest.z - player.pos.z);
+  const going = dest.label ? dest.label : "the marker on your map";
+  u.state = "leaving"; u.t2 = 0; car.hailed = false; car.stopped = false;
+  if (player.obj) player.obj.visible = false;
+  const behind = () => { const a = car.at || { x: player.pos.x, y: player.pos.y, z: player.pos.z }, yw = car.yawNow || 0; return { pos: [a.x - Math.sin(yw) * 9, a.y + 3.4, a.z - Math.cos(yw) * 9], look: [a.x + Math.sin(yw) * 6, a.y + 1.0, a.z + Math.cos(yw) * 6] }; };
+  const inside = () => { const a = car.at || player.pos, yw = car.yawNow || 0, r = [Math.cos(yw), -Math.sin(yw)]; return { pos: [a.x - Math.sin(yw) * 0.9 + r[0] * 0.35, a.y + 1.15, a.z - Math.cos(yw) * 0.9 + r[1] * 0.35], look: [a.x + Math.sin(yw) * 8, a.y + 1.0, a.z + Math.cos(yw) * 8] }; };
+  const hurry = story.step === "toSoti";
+  cutPlay([
+    { dur: 3.4, from: inside, to: inside, near: 0.05, lines: [[0.2, "Seiko", hurry ? "SOTI Tower, please — and please hurry. I have an interview at nine!" : "To " + going + ", please."]] },
+    { dur: 3.6, from: behind, to: behind, lines: [[0.1, "Driver", hurry ? "Nine? Hold on to something." : "Right away."]], tick: () => { if (hurry) car.v = Math.min((car.v || 0) + 0.6, 16); } },
+    { dur: 0.8, from: behind, to: behind, overlay: "black" }
+  ], () => {
+    // the rest of the trip, in the time it would take
+    const secs = dist / (hurry ? 14 : 11);
+    advanceGameMinutes(secs * TIME.rate * 0.5);
+    const tx = dest.x, tz = dest.z, a = Math.atan2(player.pos.x - tx, player.pos.z - tz);
+    let px = tx + Math.sin(a) * 9, pz = tz + Math.cos(a) * 9;
+    for (let k = 0; k < 12 && insideBuilding(px, pz, 0.5); k++) { px = tx + Math.sin(a + k * 0.5) * (9 + k); pz = tz + Math.cos(a + k * 0.5) * (9 + k); }
+    placeSeiko(new THREE.Vector3(px, world.surfaceY(px, pz), pz));
+    player.yaw = player.targetYaw = Math.atan2(tx - px, tz - pz); yaw = player.yaw + Math.PI;
+    if (player.obj) player.obj.visible = true;
+    const f = document.getElementById("fade"); if (f) { f.style.opacity = "1"; setTimeout(() => { f.style.opacity = "0"; }, 250); }
+    say("Arigatou gozaimashita.", 2.5);
+  });
+  return true;
+}
+
+// ---- Seiko's own moves for the story: a bow, a look at the phone, sitting -----------------------------------------------------------------
+function storySeikoClips(make) {
+  make("bow", 2.4, [
+    { t: 0.0, pose: {} },
+    { t: 0.55, pose: { Spine: [-0.62, 0, 0], Chest: [-0.22, 0, 0], Neck: [-0.18, 0, 0], UpperArmR: [0.08, 0, 0.18], UpperArmL: [0.08, 0, -0.18] } },
+    { t: 1.6, pose: { Spine: [-0.62, 0, 0], Chest: [-0.22, 0, 0], Neck: [-0.18, 0, 0], UpperArmR: [0.08, 0, 0.18], UpperArmL: [0.08, 0, -0.18] } },
+    { t: 2.4, pose: {} }], false);
+  const look = { UpperArmR: [0, 0, 0.55], ForearmR: [0, 0, 2.45], Neck: [-0.32, 0, 0.1], Spine: [-0.05, 0, 0] };
+  make("phone", 1.0, [{ t: 0, pose: look }, { t: 1, pose: look }], true);
+  const sit = { ThighR: [1.52, 0, 0.06], ThighL: [1.52, 0, -0.06], ShinR: [-1.5, 0, 0], ShinL: [-1.5, 0, 0], Spine: [0.08, 0, 0], Chest: [0.04, 0, 0],
+    UpperArmR: [0.25, 0, 0.42], ForearmR: [0, 0, 0.95], UpperArmL: [0.25, 0, -0.42], ForearmL: [0, 0, -0.95] };
+  make("sit", 1.0, [{ t: 0, pose: sit, drop: 0.44 }, { t: 1, pose: sit, drop: 0.44 }], true);
+  const doze = Object.assign({}, sit, { Neck: [-0.55, 0, 0.15], Spine: [0.18, 0, 0] });
+  make("doze", 1.0, [{ t: 0, pose: doze, drop: 0.44 }, { t: 1, pose: doze, drop: 0.44 }], true);
+  const sitPhone = Object.assign({}, sit, { UpperArmR: [0.2, 0, 0.55], ForearmR: [0, 0, 2.3], Neck: [-0.35, 0, 0.1] });
+  make("sitphone", 1.0, [{ t: 0, pose: sitPhone, drop: 0.44 }, { t: 1, pose: sitPhone, drop: 0.44 }], true);
+}
+// and the people's: a wave goodbye, arms folded, a bow back
+function storyPeoplePoses(make) {
+  make("wave", { UpperArmR: [0, 0, 2.55], ForearmR: [0, 0, 0.55], Neck: [0.04, 0, 0] });
+  make("folded", { UpperArmR: [0.55, 0, 0.42], ForearmR: [0, 0, 2.2], UpperArmL: [0.55, 0, -0.42], ForearmL: [0, 0, -2.2], Neck: [0.06, 0, 0] });
+  make("bow", { Spine: [-0.55, 0, 0], Chest: [-0.2, 0, 0], Neck: [-0.15, 0, 0] });
+  make("desk", { UpperArmR: [0.6, 0, 0.3], ForearmR: [0, 0, 1.3], UpperArmL: [0.6, 0, -0.3], ForearmL: [0, 0, -1.3] });
+}
+
+// ---- the game clock, set to a time of day ---------------------------------------------------------------------------------------------------
+function setGameTime(min) { const d = ((min - gameMinutes()) % 1440 + 1440) % 1440; clock += d / TIME.rate; updateWorldSky(0, true); }
+function hhmm(m) { m = ((m % 1440) + 1440) % 1440; return two(Math.floor(m / 60)) + ":" + two(Math.floor(m % 60)); }
+
+// =====================================================================================================================================================
+// MISSION 1 - THE INTERVIEW
+// =====================================================================================================================================================
+const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
+// New game: the dream on the train out of Mizuho, then Tōkonto Central.
+function storyNewGame() {
+  story.m = 1; story.step = "intro"; story.flags = {}; story.owned = { village: true }; storyClearBlips(); storyClearObjective();
+  purse.yen = 2400;
+  player.outfitWant = "village"; if (player.hq && wardrobe.list) seikoOutfit("village", true);
+  const go = () => { try { storyOpening(); } catch (e) { console.warn("[Konto] the opening could not play:", e); storyWake(true); } };
+  // the family are real people, so wait (a few seconds at most) for the people to have loaded
+  let n = 0; const wait = () => { if (pplLib.ready.length >= 6 || n++ > 40) go(); else setTimeout(wait, 150); };
+  wait();
+}
+// The dream. Through the window of the train as it pulls out of Mizuho: his mother, his father and his little sister on the platform, waving,
+// getting smaller. Soft and bright, the way a memory is.
+function storyOpening() {
+  const miz = world.cities.find(c => c.name === "Mizuho"), st = miz && miz.stations[0];
+  const F = st && st.frame ? st.frame : { x: home.door[0], y: world.surfaceY(home.door[0], home.door[1]), z: home.door[1], yaw: home.yaw || 0 };
+  const pf = st && st.frame ? 1.1 : 0;
+  placeSeiko(new THREE.Vector3(F.x, world.surfaceY(F.x, F.z), F.z)); player.placed = true;
+  if (player.obj) player.obj.visible = false;
+  setGameTime(6 * 60 + 40);
+  const fam = [];
+  const at = (r, fw) => framePt(F, r, pf, fw);
+  const famAdd = (o, r, fw) => { const p = at(r, fw); const a = actorAdd(Object.assign({ x: p[0], y: p[1], z: p[2], tag: "family" }, o)); const c = at(1.6, fw); actorLook(a, c[0], c[2]); fam.push(a); return a; };
+  famAdd({ female: true, business: false, pose: "wave", pick: 1 }, 6.2, -1.2);
+  famAdd({ female: false, business: false, pose: "idle", pick: 2 }, 6.4, 0.0);
+  famAdd({ female: true, business: false, pose: "wave", pick: 4, h: 0.74 }, 6.0, 1.0);
+  const win = (fw, look) => ({ pos: at(1.7, fw).map((v, i) => i === 1 ? v + 1.25 : v), look: at(6.2, look).map((v, i) => i === 1 ? v + 1.3 : v) });
+  cutPlay([
+    { dur: 5.5, from: win(-1.5, 0), to: win(3.5, 0.4), overlay: "dream window", fadeIn: 2.5, timeScale: 0,
+      lines: [[1.2, "", "Mizuho."], [3.4, "Mother", "Eat properly! And call us!"]] },
+    { dur: 5.0, from: win(3.5, 0.4), to: win(26, 1), overlay: "dream window", timeScale: 0,
+      lines: [[0.6, "Sister", "Onii-chan! Bring me something from the city!"], [3.0, "Father", "…Make us proud, Seiko."]],
+      tick: (dt, t) => { if (t > 2.2) fam[1].pose = "wave"; } },
+    { dur: 4.2, from: () => ({ pos: at(-60, -120).map((v, i) => i === 1 ? v + 70 : v), look: at(0, 30) }), to: () => ({ pos: at(-90, -260).map((v, i) => i === 1 ? v + 110 : v), look: at(0, 120) }),
+      overlay: "dream white", timeScale: 0, lines: [[0.8, "", "Seiko watched the village until the mountains took it."]] }
+  ], skipped => { actorsClear("family"); storyWake(skipped); });
+}
+// He wakes on a bench on the concourse at Tōkonto Central, to his phone buzzing.
+function storyWake(quick) {
+  const s = stationShop();
+  if (!s) { placeSeiko(seikoSpawn(world)); storySuitObjective(); return; }
+  setGameTime(7 * 60 + 48);
+  placeSeiko(new THREE.Vector3(s.door[0], world.surfaceY(s.door[0], s.door[1]), s.door[1])); player.placed = true;
+  if (!interiorEnter(s)) { storySuitObjective(); return; }
+  const R = interior.room, fy = interior.floorY, b = R.bench || { x: 2.8, z: 1.2 };
+  const P = (x, y, z) => [R.ox + x, fy + y, R.oz + z];
+  player.pos.set(R.ox + b.x, fy, R.oz + b.z - 0.15); player.yaw = player.targetYaw = Math.PI; player.obj.position.copy(player.pos); player.obj.rotation.y = player.yaw;
+  if (player.obj) player.obj.visible = true;
+  // a few commuters crossing the concourse
+  for (let i = 0; i < 4; i++) actorAdd({ x: R.ox - 6 + i * 1.7, y: fy, z: R.oz - 3.6 + (i % 2) * 1.1, business: true, pick: i + 2, tag: "conc", sp: 1.4 + i * 0.1, wait: i * 0.6,
+    path: [[R.ox + 6, R.oz - 3.4 + (i % 2) * 1.1], [R.ox + 6.6, R.oz + 4.5]], vanish: true });
+  if (quick) { actorsClear("conc"); player.pos.z = R.oz + b.z - 0.9; player.obj.position.copy(player.pos); storyPeek(true); storySuitObjective(); return; }
+  cutPlay([
+    { dur: 3.6, from: { pos: P(b.x - 0.4, 1.0, b.z - 1.5), look: P(b.x, 1.25, b.z) }, to: { pos: P(b.x - 0.3, 1.05, b.z - 1.25), look: P(b.x, 1.2, b.z) }, near: 0.05, overlay: "blink", timeScale: 0.2,
+      enter: () => { player.forceClip = "doze"; notify("Peek", "Interview request · SOTI", "SOTI Corporation would like to meet you.", 8); }, lines: [[1.2, "", "*bzzt* *bzzt*"]] },
+    { dur: 4.4, from: { pos: P(b.x - 2.6, 1.6, b.z - 2.6), look: P(b.x, 0.9, b.z) }, to: { pos: P(b.x - 2.0, 1.5, b.z - 2.2), look: P(b.x, 0.9, b.z) }, near: 0.05, timeScale: 0.2,
+      enter: () => { player.forceClip = "sitphone"; }, lines: [[0.3, "Seiko", "Huh…? Where—"], [2.0, "Seiko", "Tōkonto Central. I made it."]] },
+    { dur: 6.5, from: { pos: P(b.x - 0.7, 1.35, b.z - 0.9), look: P(b.x, 0.95, b.z) }, to: { pos: P(b.x - 0.6, 1.3, b.z - 0.8), look: P(b.x, 0.95, b.z) }, near: 0.03, timeScale: 0.2,
+      enter: () => storyPeek(false), always: () => storyPeek(true), lines: [[0.4, "", "Peek — 1 new message"], [2.2, "Seiko", "SOTI… SOTI wants to meet me?!"]] },
+    { dur: 4.2, from: { pos: P(b.x - 1.6, 1.5, b.z - 2.0), look: P(b.x, 0.8, b.z) }, to: { pos: P(b.x - 1.2, 1.2, b.z - 1.6), look: P(b.x, 0.6, b.z) }, near: 0.05, timeScale: 0.2,
+      enter: () => { const pc = document.getElementById("peekcard"); if (pc) pc.classList.remove("on"); player.forceClip = null; playSeikoClip("idle", 0.2); },
+      lines: [[0.2, "Seiko", "“Dress sharp.”"], [1.8, "Seiko", "…In these? I need to freshen up."]] }
+  ], () => { actorsClear("conc"); const pc = document.getElementById("peekcard"); if (pc) pc.classList.remove("on"); player.forceClip = null;
+    player.pos.z = R.oz + b.z - 0.9; player.obj.position.copy(player.pos);             // up off the bench, clear of it
+    storySuitObjective(); });
+}
+// the job app's message, as a card on the screen (a parody of a job site: Peek)
+function storyPeek(silent) {
+  const el = cutEl("peekcard");
+  el.innerHTML = "<div class='pk'><b>peek</b><span>Jobs · now</span></div><div class='pt'>Interview request</div>" +
+    "<div class='pb'><b>SOTI Corporation</b> would like to meet you.<br><br>📅 Today, <b>09:00</b><br>📍 SOTI Tower, Tōkonto<br><br><i>Dress sharp. Be on time.</i></div>";
+  if (!silent) { el.classList.remove("on"); void el.offsetWidth; el.classList.add("on"); }
+  story.flags.peek = true;
+}
+function storySuitObjective() {
+  story.step = "suit";
+  storyObjective("Buy a suit at Suit Select and change into it", "2F Fashion, by the lift. You have " + yenText(purse.yen) + " — Suit Select takes your village clothes against a suit.");
+  saveGame(null, true);
+}
+// Out on the street in the suit, and the time: "I'm gonna be late!"
+function storyLate() {
+  story.step = "late";
+  const s = story.soti;
+  if (!s) { storyToSoti(); return; }
+  const P = player.pos, f = { x: P.x, y: P.y, z: P.z, yaw: player.yaw };
+  cutPlay([
+    { dur: 3.6, from: { pos: framePt(f, 0.9, 1.75, 1.3), look: framePt(f, 0, 1.45, 0) }, to: { pos: framePt(f, 0.7, 1.7, 1.0), look: framePt(f, 0, 1.4, 0) }, near: 0.05, timeScale: 0,
+      enter: () => { player.forceClip = "phone"; setGameTime(8 * 60 + 42); }, lines: [[0.3, "", "08:42"], [1.2, "Seiko", "Eight forty-two… I'm gonna be late!"]] },
+    { dur: 2.6, from: () => ({ pos: [s.door[0] + Math.sin(s.yaw) * 60, s.groundY + 4, s.door[1] + Math.cos(s.yaw) * 60], look: [s.at[0], s.groundY + 40, s.at[1]] }),
+      to: () => ({ pos: [s.door[0] + Math.sin(s.yaw) * 50, s.groundY + 3, s.door[1] + Math.cos(s.yaw) * 50], look: [s.at[0], s.groundY + 120, s.at[1]] }), timeScale: 0,
+      lines: [[0.2, "", "SOTI Tower"]] }
+  ], () => storyToSoti());
+}
+function storyToSoti() {
+  story.step = "toSoti";
+  const s = story.soti; if (!s) return;
+  storyClearBlips();
+  storyBlip(s.door[0], s.door[1], "SOTI Tower");
+  // the clock: eighteen game minutes to nine, made to last as long as the walk takes with time to spare
+  const dist = Math.hypot(s.door[0] - player.pos.x, s.door[1] - player.pos.z);
+  const realSecs = dist / 1.5 + 35;
+  if (gameMinutes() < 8 * 60 + 30 || gameMinutes() > 8 * 60 + 50) setGameTime(8 * 60 + 42);
+  story.timer = { rateWas: TIME.rate, deadline: 9 * 60 };
+  TIME.rate = (story.timer.deadline - gameMinutes()) / realSecs;
+  storyObjective("Get to SOTI Tower by 9:00", "Follow the salarymen heading to work, or book a Ryde on your phone (P) and ride.");
+  // the morning crowd, walking to the same tower
+  const route = routeSolve({ x: player.pos.x, z: player.pos.z }, { x: s.door[0], z: s.door[1] }) || [[s.door[0], s.door[1]]];
+  const path = pavementPath(route, 5.5).concat([[s.door[0], s.door[1]], [s.at[0], s.at[1]]]);
+  for (let i = 0; i < 6; i++) {
+    const ox = (i % 3 - 1) * 1.1, oz = Math.floor(i / 3) * 1.3;
+    const p0 = path[0] || [player.pos.x, player.pos.z];
+    actorAdd({ x: p0[0] + ox - Math.sin(player.yaw) * (3 + oz), z: p0[1] - Math.cos(player.yaw) * (3 + oz), business: true, female: i === 4 ? true : undefined, pick: i * 3 + 1,
+      tag: "commute", sp: 1.55 + (i % 3) * 0.04, wait: 1.2 + i * 0.35, path: path.map(q => [q[0] + ox * 0.6, q[1] + oz * 0.4]), vanish: true });
+  }
+  saveGame(null, true);
+}
+// the road route shifted onto the pavement on the left, so the commuters walk where people walk
+function pavementPath(pts, off) {
+  if (!pts || pts.length < 2) return pts || [];
+  const out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
+    out.push([pts[i][0] - dz / L * off, pts[i][1] + dx / L * off]);
+  }
+  return out;
+}
+// At the door of SOTI Tower: reception, the lift, and Akio Sotiyama on the top floor.
+function storyInterview() {
+  story.step = "interview";
+  storyTick_done();
+  const late = gameMinutes() > 9 * 60 + 0.5;
+  if (story.timer) { TIME.rate = story.timer.rateWas || 0.4; story.timer = null; }
+  actorsClear("commute"); storyClearBlips();
+  const lob = storyLobbyRoom(), off = storyOfficeRoom(), fy = interior.floorY;
+  const L = (x, y, z) => [lob.ox + x, fy + y, lob.oz + z], O = (x, y, z) => [off.ox + x, fy + y, off.oz + z];
+  const s = story.soti;
+  const rec = actorAdd({ x: lob.ox + 0, y: fy, z: lob.oz - 2.6, yaw: 0, female: true, business: true, pick: 1, tag: "soti", pose: "idle" });
+  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "folded", h: 1.04 });
+  const seat = (x, z, yw) => { player.pos.set(x, fy, z); player.yaw = player.targetYaw = yw; player.obj.position.copy(player.pos); player.obj.rotation.y = yw; };
+  lob.group.visible = true; off.group.visible = false;
+  cutPlay([
+    { dur: 3.6, from: () => ({ pos: [s.door[0] + Math.sin(s.yaw) * 14, s.groundY + 1.6, s.door[1] + Math.cos(s.yaw) * 14], look: [s.at[0], s.groundY + 30, s.at[1]] }),
+      to: () => ({ pos: [s.door[0] + Math.sin(s.yaw) * 10, s.groundY + 1.4, s.door[1] + Math.cos(s.yaw) * 10], look: [s.at[0], s.groundY + 140, s.at[1]] }), timeScale: 0,
+      enter: () => { if (player.obj) player.obj.visible = false; }, lines: [[0.6, "", "SOTI Tower · 08:59"]] },
+    { dur: 5.2, from: { pos: L(2.4, 1.6, 3.4), look: L(0, 1.4, -2.4) }, to: { pos: L(1.6, 1.55, 2.2), look: L(0, 1.45, -2.6) }, near: 0.05, timeScale: 0,
+      enter: () => { if (player.obj) player.obj.visible = true; seat(lob.ox + 0, lob.oz - 0.9, Math.PI); rec.pose = "bow"; setTimeout(() => { rec.pose = "idle"; }, 1400); },
+      lines: [[0.3, "Receptionist", "Good morning! You must be Seiko-san."], [2.4, "Receptionist", "Sotiyama-sama is expecting you. Top floor — the lift is on your right."]] },
+    { dur: 1.4, from: { pos: L(1.6, 1.55, 2.2), look: L(0, 1.45, -2.6) }, overlay: "black lift", timeScale: 0, lines: [[0.3, "", "*ding*  58F"]],
+      enter: () => { lob.group.visible = false; off.group.visible = true; seat(off.ox + 0, off.oz + 1.4, Math.PI); } },
+    { dur: 3.8, from: { pos: O(0, 1.7, 4.2), look: O(0, 1.5, -2.9) }, to: { pos: O(0, 1.65, 3.4), look: O(0, 1.6, -2.9) }, near: 0.05, timeScale: 0,
+      lines: [[0.4, "", "Akio Sotiyama — grandson of the founder"]] },
+    { dur: 2.8, from: { pos: O(0.35, 1.72, -1.4), look: O(0, 1.62, -2.9) }, to: { pos: O(0.3, 1.7, -1.6), look: O(0, 1.64, -2.9) }, near: 0.05, timeScale: 0,
+      lines: [[0.3, "Akio", late ? "You're late. Very late." : "You're late."]] },
+    { dur: 2.8, from: { pos: O(2.6, 2.3, -3.6), look: O(4.6, 2.4, -5.1) }, to: { pos: O(3.4, 2.35, -4.3), look: O(4.6, 2.4, -5.1) }, near: 0.05, timeScale: 0,
+      lines: [[0.6, "", late ? "" : "09:00:01"]] },
+    { dur: 3.2, from: { pos: O(-1.8, 1.4, 2.6), look: O(0, 1.0, 1.4) }, to: { pos: O(-1.6, 1.35, 2.4), look: O(0, 0.95, 1.4) }, near: 0.05, timeScale: 0,
+      enter: () => { player.forceClip = "bow"; }, lines: [[0.2, "Seiko", "M-moushiwake gozaimasen! Terribly sorry!"]] },
+    { dur: 7.0, from: { pos: O(1.4, 1.6, 2.6), look: O(-0.2, 1.4, -1.0) }, to: { pos: O(1.1, 1.55, 2.2), look: O(-0.2, 1.4, -1.0) }, near: 0.05, timeScale: 0,
+      enter: () => { player.forceClip = null; playSeikoClip("idle", 0.2); },
+      lines: [[0.2, "Akio", "My grandfather built this company on one rule. Be where you said you would be."],
+              [3.2, "Akio", "Your file says you can talk to anyone. We'll see."], [5.4, "Seiko", "Hai."]] },
+    { dur: 7.2, from: { pos: O(0.35, 1.72, -1.4), look: O(0, 1.62, -2.9) }, to: { pos: O(0.4, 1.7, -1.2), look: O(0, 1.62, -2.9) }, near: 0.05, timeScale: 0,
+      lines: [[0.2, "Akio", "Customer service. Third floor. The calls nobody else wants."], [3.0, "Akio", "You start tomorrow. Do not be late again."]] },
+    { dur: 3.4, from: { pos: O(-1.8, 1.4, 2.6), look: O(0, 1.0, 1.4) }, near: 0.05, timeScale: 0,
+      enter: () => { player.forceClip = "bow"; }, lines: [[0.2, "Seiko", "Hai! Thank you, Sotiyama-sama!"], [2.2, "", "(One day, this office will be mine.)"]] },
+    { dur: 0.9, from: { pos: O(-1.8, 1.4, 2.6), look: O(0, 1.0, 1.4) }, overlay: "black", timeScale: 0 }
+  ], () => {
+    actorsClear("soti"); lob.group.visible = false; off.group.visible = false;
+    player.forceClip = null; if (player.obj) player.obj.visible = true;
+    stepOutFrom(s.door, s.yaw); yaw = s.yaw + Math.PI;
+    story.flags.hired = true;
+    purse.yen += 6000;
+    storyPassed("The Interview", "Hired · SOTI Customer Service · travel advance +" + yenText(6000));
+    notify("SOTI HR", "Welcome to SOTI", "A " + yenText(6000) + " travel advance has been paid to your Wallet.", 7);
+    setTimeout(() => storyRest(), 2600);
+  });
+}
+// He needs to sleep: a Ryde to the nearest capsule hotel, and the last of the money on a bed.
+function storyRest() {
+  story.step = "rest";
+  say("Seiko: “I need to rest…”", 4);
+  const s = story.soti || { door: [player.pos.x, player.pos.z] };
+  let best = null, bd = 1e12;
+  shops.list.forEach(c => { if (c.brand === "capsule") { const d = Math.hypot(c.door[0] - s.door[0], c.door[1] - s.door[1]); if (d < bd) { bd = d; best = c; } } });
+  storyClearBlips();
+  if (best) storyBlip(best.door[0], best.door[1], "Capsule hotel");
+  storyObjective("Get to a capsule hotel and sleep", "Book a Ryde on your phone (P) and get in: it takes you to the marker.");
+  saveGame(null, true);
+}
+// sleeping in a pod during the mission: everything left goes on the bed, and the morning brings the letter
+function storySleepHook() {
+  if (story.step !== "rest") return false;
+  interiorPodClose();
+  const spent = purse.yen;
+  const fade = document.getElementById("fade"); if (fade) fade.style.opacity = "1";
+  setTimeout(() => {
+    purse.yen = 0;
+    vitals.stress = 0; vitals.health = 1; vitals.slept = 60 * 8; vitals.awake = 0;
+    setGameTime(7 * 60 + 5);
+    if (fade) fade.style.opacity = "0";
+    storyTick_done();
+    say("Slept until morning · " + yenText(spent) + " — the last of the money.", 6);
+    story.m = 2; story.step = "m2wait";
+    const s = story.soti;
+    setTimeout(() => {
+      notify("Mail", "SOTI Corporation · Your first day", "Report to SOTI Tower, 3F Customer Service. Be on time.", 8);
+      storyClearBlips();
+      if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower", { letter: "A", noRoute: true });
+      storyObjective("Start the next mission: go to Ⓐ on the map", "SOTI Tower. Take your time today — the day is yours until you walk in.");
+      saveGame("Saved.", true);
+    }, 2400);
+  }, 900);
+  return true;
+}
+// the A marker: the next chapter starts here (it is being written)
+function storyMarkerA() {
+  storyClearObjective();
+  cutPlay([{ dur: 4.5, from: () => ({ pos: [player.pos.x + 3, player.pos.y + 2.2, player.pos.z + 3], look: [player.pos.x, player.pos.y + 1.4, player.pos.z] }), timeScale: 0,
+    lines: [[0.3, "", "Chapter 2 — First Day"], [1.8, "", "This part of Seiko's story is being written. It arrives in the next update."]] }],
+    () => { storyObjective("Free roam — Chapter 2 arrives in the next update", ""); });
+}
+// SOTI's door outside the story
+function storySotiDoor(s) {
+  if (story.step === "toSoti") { storyInterview(); return; }
+  if (story.step === "m2wait") { storyMarkerA(); return; }
+  say(story.flags.hired ? "SOTI Tower. Your pass works from your first day." : "SOTI Tower. Visitors by appointment only.", 4);
+}
+
+// ---- the rooms at SOTI: the lobby and the office on the top floor -------------------------------------------------------------------------
+function storyRoom(key, W, D, H, build) {
+  if (interior.rooms[key]) return interior.rooms[key];
+  const slot = interior.count++, ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
+  const root = new THREE.Group(); root.position.set(ox, fy, oz); root.visible = false; scene.add(root);
+  propLight(root);
+  const room = { key: key, group: root, ox: ox, oz: oz, W: W, D: D, H: H, colliders: [], items: [], spots: [] };
+  const box = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); root.add(m); return m; };
+  build(root, box, room);
+  return (interior.rooms[key] = room);
+}
+function storySkylineTex() {
+  return inCanvasTex("skyline", 512, 256, (g, w, h) => {
+    const sk = g.createLinearGradient(0, 0, 0, h); sk.addColorStop(0, "#8fb8dc"); sk.addColorStop(0.7, "#d8e6ee"); sk.addColorStop(1, "#c9d2d8");
+    g.fillStyle = sk; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 40; i++) { const x = (i * 53) % w, bw = 14 + (i * 7) % 26, bh = 40 + (i * 37) % 140; g.fillStyle = i % 3 ? "#7d8a96" : "#6a7784"; g.fillRect(x, h - bh, bw, bh);
+      g.fillStyle = "rgba(255,255,255,0.35)"; for (let y = h - bh + 6; y < h - 4; y += 8) g.fillRect(x + 3, y, bw - 6, 2); }
+    g.fillStyle = "rgba(255,255,255,0.18)"; g.fillRect(0, 0, w, h);
+  });
+}
+function storyLobbyRoom() {
+  return storyRoom("soti:lobby", 16, 12, 6, (root, box, room) => {
+    const lit = (c, r, m) => new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? 0.6 : r, metalness: m || 0 });
+    const floor = inPhotoMat("marble", 0.25, [4, 3], 0xf4efe6, 0.4) || lit(0xe8e2d6, 0.3);
+    box(16, 0.1, 12, 0, -0.05, 0, floor);
+    const wall = lit(0x20252c, 0.5); box(16, 6, 0.2, 0, 3, -6, wall); box(0.2, 6, 12, -8, 3, 0, wall); box(0.2, 6, 12, 8, 3, 0, lit(0x2a3038, 0.5));
+    box(16, 0.2, 12, 0, 6, 0, lit(0xf2f2f0, 0.9));
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(16, 6), new THREE.MeshBasicMaterial({ map: storySkylineTex(), fog: false })); glass.position.set(0, 3, 6); glass.rotation.y = Math.PI; root.add(glass);
+    // the logo wall and the desk
+    const logo = inLabel("SOTI", 4.2, 1.3, "#20252c", "#ffffff"); logo.position.set(0, 3.6, -5.88); root.add(logo);
+    const tag = inLabel("Make it yours.", 3.4, 0.4, "#20252c", "#2a9ad6"); tag.position.set(0, 2.7, -5.88); root.add(tag);
+    box(4.8, 1.1, 1.0, 0, 0.55, -1.8, lit(0xf4f4f2, 0.25)); box(5.0, 0.06, 1.15, 0, 1.13, -1.8, lit(0x14171b, 0.2, 0.4));
+    propPut(root, "potted_plant_01", -6.6, 0, -5.2, 0, { h: 1.9 }); propPut(root, "potted_plant_01", 6.6, 0, -5.2, 0, { h: 1.9 });
+    propPut(root, "modular_street_seating", -5.4, 0, 2.6, 0, { w: 3.2 });
+    [[-4, -1], [4, -1], [0, 3]].forEach(p => propPut(root, "modern_ceiling_lamp_01", p[0], 5.2, p[1], 0, { h: 0.8 }));
+    const lift = lit(0xb8c0c8, 0.2, 0.7); box(0.1, 2.6, 1.6, 7.9, 1.3, -2.5, lift); box(0.1, 2.6, 1.6, 7.9, 1.3, 0.2, lift);
+  });
+}
+function storyOfficeRoom() {
+  return storyRoom("soti:office", 14, 12, 3.4, (root, box, room) => {
+    const lit = (c, r, m) => new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? 0.6 : r, metalness: m || 0 });
+    box(14, 0.1, 12, 0, -0.05, 0, inPhotoMat("parquet", 0.45, [4, 3.4], 0x8a6a52, 0.7) || lit(0x5a4030, 0.5));
+    box(14, 0.12, 12, 0, 3.46, 0, lit(0x1a1d22, 0.7));
+    const wall = inPhotoMat("plaster", 0.9, [4, 1], 0x3a3f46, 0.4) || lit(0x3a3f46, 0.8);
+    box(0.2, 3.4, 12, 7, 1.7, 0, wall); box(14, 3.4, 0.2, 0, 1.7, 6, wall);
+    // two walls of glass, the city behind them
+    const sky = storySkylineTex();
+    const back = new THREE.Mesh(new THREE.PlaneGeometry(14, 3.4), new THREE.MeshBasicMaterial({ map: sky, fog: false })); back.position.set(0, 1.7, -6); root.add(back);
+    const left = new THREE.Mesh(new THREE.PlaneGeometry(12, 3.4), new THREE.MeshBasicMaterial({ map: sky, fog: false })); left.position.set(-7, 1.7, 0); left.rotation.y = Math.PI / 2; root.add(left);
+    for (let i = -3; i <= 3; i++) box(0.08, 3.4, 0.08, i * 2.2, 1.7, -5.95, lit(0x14171b, 0.3, 0.6));
+    // his desk: long, black, nothing on it but a lamp and a frame
+    box(3.6, 0.08, 1.4, 0, 0.78, -2.2, lit(0x111316, 0.15, 0.3)); box(3.4, 0.74, 0.08, 0, 0.37, -2.85, lit(0x111316, 0.3));
+    box(0.08, 0.74, 1.3, -1.7, 0.37, -2.2, lit(0x111316, 0.3)); box(0.08, 0.74, 1.3, 1.7, 0.37, -2.2, lit(0x111316, 0.3));
+    propPut(root, "standing_picture_frame_01", 1.2, 0.82, -2.4, 0.4, { h: 0.28 });
+    propPut(root, "modern_wooden_cabinet", 4.6, 0, -5.4, 0, { w: 2.6 });
+    propPut(root, "sofa_03", -4.4, 0, 3.6, Math.PI / 2, { w: 2.4 });
+    propPut(root, "potted_plant_02", 6.2, 0, 5.2, 0, { h: 1.2 });
+    [[0, -2], [-3, 2], [3, 2]].forEach(p => propPut(root, "modern_ceiling_lamp_01", p[0], 2.7, p[1], 0, { h: 0.6 }));
+    const nm = inLabel("代表取締役  A. SOTIYAMA", 1.2, 0.16, "#111316", "#c9a24a"); nm.position.set(0, 0.86, -1.48); nm.rotation.x = -0.5; root.add(nm);
+    // the clock, on the cabinet wall, one second past nine
+    const clk = inCanvasTex("soticlock", 256, 96, (g, w, h) => { g.fillStyle = "#0b0d10"; g.fillRect(0, 0, w, h); g.fillStyle = "#ff3b30"; g.font = "700 64px 'Courier New', monospace"; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("09:00:01", w / 2, h / 2 + 3); });
+    const cm = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.52), new THREE.MeshBasicMaterial({ map: clk, fog: false })); cm.position.set(4.6, 2.4, -5.84); root.add(cm);
+  });
+}
+
+// ---- every frame, outside the cutscenes ---------------------------------------------------------------------------------------------------
+function storyTick(dt) {
+  if (actors.list.length) actorsTick(dt);
+  story.blips.forEach(b => { if (b.beam) { b.beam.rotation.y += dt * 0.6; if (b.beam.userData.letter) b.beam.userData.letter.position.y = 4.2 + Math.sin(clock * 2) * 0.25; } });
+  if (!story.m || cut.active) return;
+  const el = document.getElementById("objective");
+  if (story.step === "suit" && storyWearingSuit() && story.obj && !story.obj.done) {
+    storyTick_done(() => { story.step = "out"; storyObjective("Head out to the street", "The street door is on the concourse, 1F."); });
+  }
+  if (story.step === "out" && !interior.active && player.placed && !home.inside) storyLate();
+  if (story.step === "toSoti") {
+    const s = story.soti, m = gameMinutes(), left = Math.max(0, 9 * 60 - m);
+    if (m >= 9 * 60 && story.timer) { TIME.rate = story.timer.rateWas || 0.4; story.timer = null; }
+    if (el) { const t = el.querySelector(".ot"); if (t) { t.textContent = (m >= 9 * 60 ? "LATE  " : "") + hhmm(m) + "  ·  " + (m >= 9 * 60 ? "past nine" : Math.floor(left) + " min " + two(Math.floor((left % 1) * 60)) + " s to nine"); t.classList.toggle("late", m >= 9 * 60); } }
+    if (s && !drive.car && Math.hypot(player.pos.x - s.door[0], player.pos.z - s.door[1]) < 9) storyInterview();
+  }
+  if (story.step === "m2wait" && story.soti && !drive.car && Math.hypot(player.pos.x - story.soti.door[0], player.pos.z - story.soti.door[1]) < 4) storyMarkerA();
+}
+// what the save keeps
+function storySave() { return { m: story.m, step: story.step, flags: story.flags, owned: story.owned }; }
+function storyLoad(d) {
+  if (!d || !d.m) return;
+  story.m = d.m; story.step = d.step || ""; story.flags = d.flags || {}; story.owned = d.owned || {};
+  // pick up at the objective the step belongs to (a scene that was playing is simply past)
+  setTimeout(() => {
+    if (story.step === "intro" || story.step === "suit") { if (storyWearingSuit()) { story.step = "out"; storyObjective("Head out to the street", ""); } else storySuitObjective(); }
+    else if (story.step === "out" || story.step === "late") storyLate();
+    else if (story.step === "toSoti") storyToSoti();
+    else if (story.step === "interview") storyRest();
+    else if (story.step === "rest") storyRest();
+    else if (story.step === "m2wait") { const s = story.soti; if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower", { letter: "A", noRoute: true }); storyObjective("Start the next mission: go to Ⓐ on the map", ""); }
+  }, 1500);
+}
+// keys during a cutscene: everything is swallowed, and Space, Enter or Escape held skips
+(function cutKeys() {
+  window.addEventListener("keydown", e => {
+    if (!cut.active) return;
+    if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = true;
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  window.addEventListener("keyup", e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = false; }, true);
+})();
+
+
 function snapshotSave() {
   const at = interior.active ? interior.ret : (drive.car ? drive.car.pos : player.pos);
   const wall = phone.wall && phone.wall.photo ? { kind: "default", g: 0, photo: null } : phone.wall;
@@ -40426,6 +41217,7 @@ function snapshotSave() {
     record: { offences: record.offences, owed: record.owed, served: record.served, arrests: record.arrests, fines: record.fines, history: record.history.slice(-12) },
     air: { ticket: air.ticket, flights: air.flights, at: air.at },
     outfit: player.outfit || null,
+    story: storySave(),
     arms: { ammo: gun.ammo, owned: { baton: !!wheel.batonOwned, pistol: !!wheel.pistolOwned, smg: !!wheel.smgOwned, shotgun: !!wheel.shotgunOwned, umbrella: !!wheel.umbrellaOwned }, equipped: wheel.equipped }
   };
 }
@@ -40456,6 +41248,7 @@ function readSave() {
 }
 function applySave(s) {
   try {
+    if (s.story) storyLoad(s.story);
     purse.yen = s.yen;
     Object.assign(vitals, s.vitals);
     bag.counts = s.bag.counts || {}; bag.phones = s.bag.phones || {}; bag.games = s.bag.games || {}; bag.gear = s.bag.gear || {};
