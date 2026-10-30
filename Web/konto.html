@@ -15184,6 +15184,22 @@ function sampleLane(lane, s) {
   };
 }
 
+// A car points along its axles, not along the bit of lane under its middle: the heading of the lane jumps at every kink, and a car that
+// took it would snap sideways at each one and crab through every bend. The front and rear axles sit on the lane a wheelbase apart and the
+// body lies between them, so it follows the curve the way a car does.
+function trafficPose(lane, car) {
+  const p = sampleLane(lane, car.s);
+  const wb = Math.max(1.2, (car.half || 2) * 1.2), f = sampleLane(lane, car.s + wb * 0.5), r = sampleLane(lane, car.s - wb * 0.5);
+  const dx = f.x - r.x, dz = f.z - r.z;
+  if (dx * dx + dz * dz > 0.25) {
+    const mx = (f.x + r.x) * 0.5, mz = (f.z + r.z) * 0.5;
+    p.yaw = Math.atan2(dx, dz);
+    p.x = mx + (p.x - mx) * 0.5; p.z = mz + (p.z - mz) * 0.5;
+    p.pitch = -Math.atan2(f.y - r.y, Math.sqrt(dx * dx + dz * dz));
+  }
+  return p;
+}
+
 function buildTraffic(w, root) {
   traffic.lanes = [];
   traffic.cars = [];
@@ -15288,7 +15304,7 @@ function trafficSpawn(at) {
         if (Math.abs(o.s - s) < car.half + o.half + 9) { blocked = true; break; }
       }
       if (blocked) continue;
-      car.lane = li;
+      car.lane = li; car.yawNow = undefined;
       car.s = s;
       car.v = Math.min(lane.speed, car.top) * (0.65 + Math.random() * 0.35);
       car.live = true;
@@ -15513,9 +15529,11 @@ function updateTraffic(dt, at) {
   for (let c = 0; c < traffic.cars.length; c++) {
     const car = traffic.cars[c];
     if (!car.live) continue;
-    const p = sampleLane(traffic.lanes[car.lane], car.s);
+    const p = trafficPose(traffic.lanes[car.lane], car);
     car.at = p;
-    car.yawNow = p.yaw;
+    // and it turns smoothly rather than snapping, even where the lane itself has a corner
+    if (car.yawNow === undefined) car.yawNow = p.yaw;
+    else { let d = p.yaw - car.yawNow; d = Math.atan2(Math.sin(d), Math.cos(d)); car.yawNow += d * Math.min(1, dt * 10); }
   }
 
   // Everything ahead of each car that is not in its own lane's queue.
@@ -15629,7 +15647,7 @@ function updateTraffic(dt, at) {
     if (!car.live) continue;
     const lane = traffic.lanes[car.lane];
     const ranOut = !lane.loop && car.s > lane.length - car.half;
-    const p = sampleLane(lane, car.s);
+    const p = trafficPose(lane, car);
     if (ranOut || (!car.dispatch && Math.hypot(p.x - at.x, p.z - at.z) > traffic.killR)) {
       const list = traffic.byLane[car.lane];
       const at_ = list.indexOf(c);
@@ -15637,7 +15655,7 @@ function updateTraffic(dt, at) {
       car.live = false;
       continue;
     }
-    writeCar(car.kind, p, p.yaw, car.colour, car.uv, p.pitch, 0);
+    writeCar(car.kind, p, car.yawNow === undefined ? p.yaw : car.yawNow, car.colour, car.uv, p.pitch, 0);
     // an exotic going by is worth a word, once
     if (CAR_KINDS[car.kind].exotic && !car.spotted && !drive.car && Math.hypot(p.x - at.x, p.z - at.z) < 30) {
       car.spotted = true; say("Is that a " + CAR_KINDS[car.kind].exotic + "?", 3);
@@ -18883,7 +18901,7 @@ const phone = {
 // and the third field names the glyph.
 const PHONE_APPS = [
   ["Ryde",      "#12b36b", "ryde"],
-  ["Noodle",    "#e0662c", "globe"],
+  ["Noodle",    "#fff6ea", "noodle"],
   ["Wallet",    "#1d2026", "card"],
   ["Camera",    "#4a5058", "cam"],
   ["MyGram",     "#101014", "mynet"],
@@ -19284,6 +19302,9 @@ function phoneIcon(g, x, y, s, colour, glyph) {
     g.fillRect(c - u * 0.42, m - u * 0.5, u * 0.84, u * 1.0);
     g.fillStyle = "#f4f6f8";
     for (let i = 0; i < 4; i++) g.fillRect(c - u * 0.28, m - u * 0.3 + i * u * 0.2, u * 0.56, u * 0.07);
+  } else if (glyph === "noodle") {
+    // Noodle's own mark, the bowl and chopsticks, on its cream tile: the same logo as the browser
+    noodleMark(g, s, c, m + u * 0.02, u * 0.36);
   } else if (glyph === "globe") {
     g.beginPath(); g.arc(c, m, u * 0.52, 0, 6.2832); g.stroke();
     g.beginPath(); g.ellipse(c, m, u * 0.22, u * 0.52, 0, 0, 6.2832); g.stroke();
@@ -25464,12 +25485,18 @@ var kustoms = { mods: {} };     // var: perfOf can be asked about a car before t
 try { kustoms.mods = JSON.parse(localStorage.getItem(KUSTOM_KEY) || "{}") || {}; } catch (e) { kustoms.mods = {}; }
 function kustomOf(kind) { return (kind && kustoms && kustoms.mods[kind.name]) || { engine: 0, brakes: 0, tyres: 0, susp: 0 }; }
 function kustomSave() { try { localStorage.setItem(KUSTOM_KEY, JSON.stringify(kustoms.mods)); } catch (e) {} }
+// The respray. Roll in with the police on you but not watching, and the roller door comes down behind you: a new colour, new plates, and
+// they are looking for a car that is not there any more. Roll in with a patrol watching you do it and nobody will touch the car.
+const KUSTOM_SPRAY = [["Midnight blue", [0.05, 0.08, 0.22]], ["Pearl white", [0.92, 0.92, 0.9]], ["Gunmetal", [0.22, 0.24, 0.27]],
+  ["Racing red", [0.62, 0.04, 0.05]], ["Kustoms yellow", [0.95, 0.72, 0.1]], ["British green", [0.04, 0.2, 0.12]], ["Matte black", [0.03, 0.03, 0.035]], ["Sakura pink", [0.92, 0.62, 0.7]]];
+function kustomSprayPrice() { return 12000 + (wanted.stars || 0) * 18000; }
 function kustomShelves() {
   const car = drive.car && CAR_KINDS[drive.car.kind], m = kustomOf(car);
-  return KUSTOM_PARTS.map(P => ({ name: P.name, items: P.stages.map((st, i) => {
+  const spray = { name: wanted.stars ? "Respray \u00b7 lose the police" : "Respray", items: KUSTOM_SPRAY.map((c, i) => ({ id: "k_spray" + i, name: "Respray \u00b7 " + c[0], price: kustomSprayPrice(), spray: c[1], plain: true })) };
+  return [spray].concat(KUSTOM_PARTS.map(P => ({ name: P.name, items: P.stages.map((st, i) => {
     const lvl = i + 1, fitted = m[P.cat] >= lvl;
     return { id: "k_" + P.cat + lvl, name: P.name + " " + lvl + " \u00b7 " + st + (fitted ? "  \u2713 fitted" : ""), price: fitted ? 0 : P.price[i], kmod: { cat: P.cat, lvl: lvl }, plain: true };
-  }) }));
+  }) })));
 }
 function kustomsNear() {
   if (!drive.car || Math.abs(drive.car.speed || 0) > 2.5) return null;
@@ -25480,6 +25507,19 @@ function kustomsNear() {
 function kustomFit(it) {
   const car = drive.car && CAR_KINDS[drive.car.kind];
   if (!car) { say("Drive a car into the bay and we will put it on the ramp.", 4); return; }
+  if (it.spray) {
+    const s = shops.inside;
+    if (s && s.hot) { say("Not with a patrol car watching you pull in. Lose them first, then come back.", 5); return; }
+    if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
+    purse.yen -= it.price; noteBuy("kustoms", it.price);
+    drive.car.colour = it.spray.slice();
+    if (wanted.stars) {
+      wanted.stars = 0; wanted.escape = 0; wanted.heat = 0; wanted.cops.length = 0;
+      policeStandDown(); toggleSiren(false);
+      say("New colour, new plates \u00b7 " + yenText(it.price) + ". The police are looking for a car that is not there any more.", 6);
+    } else say("Resprayed \u00b7 " + it.name.replace("Respray \u00b7 ", "") + " \u00b7 " + yenText(it.price) + ".", 4);
+    drawShop(); return;
+  }
   const m = kustoms.mods[car.name] || (kustoms.mods[car.name] = { engine: 0, brakes: 0, tyres: 0, susp: 0 });
   if (m[it.kmod.cat] >= it.kmod.lvl) { say("That is already on this car.", 3); return; }
   if (it.kmod.lvl > m[it.kmod.cat] + 1) { say("Fit stage " + (m[it.kmod.cat] + 1) + " first.", 3); return; }
@@ -25705,7 +25745,7 @@ function shopNear(x, z, radius, noVend) {
 
 function enterShop(s) {
   if (!s) return;
-  if (s.brand === "kustoms") { s.inCar = !!drive.car; if (!s.inCar) say("Konto Kustoms works on cars. Drive one in to the roller door.", 4); }
+  if (s.brand === "kustoms") { s.inCar = !!drive.car; s.hot = !!(wanted.stars && wanted.seen); if (!s.inCar) say("Konto Kustoms works on cars. Drive one in to the roller door.", 4); }
   else if (interiorEnter(s)) return;
   if (s.safe) { enterSafehouse(s); return; }
   if (s.plaza) { enterPlaza(s); return; }
@@ -31796,7 +31836,7 @@ function dispatchPlace(car, li, s) {
     if (!o.dispatch && Math.abs(o.s - s) < car.half + o.half + 14) { o.live = false; list.splice(i, 1); }
   }
   const kind = CAR_KINDS[car.kind];
-  car.lane = li; car.s = s; car.v = 0; car.live = true;
+  car.lane = li; car.yawNow = undefined; car.s = s; car.v = 0; car.live = true;
   if (kind.colour) car.colour = kind.colour.slice();
   else { const pal = PAINT[kind.palette || "common"] || PAINT.common; car.colour = pal[(Math.random() * pal.length) | 0].slice(); }
   car.uv[0] = 0; car.uv[1] = 0;
@@ -32431,15 +32471,17 @@ function updateWanted(dt) {
   const px = player.pos.x, pz = player.pos.z;
   wanted.cops = wanted.cops.filter(c => c.live && c.at);
   let seen = false;
-  wanted.cops.forEach(c => { if (copSees(c, px, pz)) seen = true; });
+  // behind the roller door of a Kustoms bay, nobody outside can see the car
+  const hidden = !!(shops.inside && shops.inside.brand === "kustoms" && shops.inside.inCar);
+  if (!hidden) wanted.cops.forEach(c => { if (copSees(c, px, pz)) seen = true; });
   // Patrols you have not provoked can still spot you.
-  if (!seen) {
+  if (!seen && !hidden) {
     const ki = CAR_KINDS.findIndex(k => k.name === "police");
     carsNear(px, pz, COP_SIGHT, c => {
       if (!seen && c.kind === ki && copSees(c, px, pz)) { seen = true; callPolice(player.pos); }
     });
   }
-  if (!seen && heli.list.length && policeHeliSees()) seen = true;
+  if (!seen && !hidden && heli.list.length && policeHeliSees()) seen = true;
   wanted.seen = seen;
   if (seen) {
     wanted.escape = 0;
@@ -32466,6 +32508,7 @@ function updateWanted(dt) {
   let boxed = 0;
   police.units.forEach(u => { if (!u.leaving && Math.hypot(u.pos.x - px, u.pos.z - pz) < (drive.car ? 9 : 7)) boxed++; });
   if (still && boxed >= (drive.car ? 1 : 1) && (drive.car ? boxed >= 1 : true)) wanted.busting = (wanted.busting || 0) + dt; else if (!police.officers.some(o => Math.hypot(o.x - px, o.z - pz) < 2)) wanted.busting = Math.max(0, (wanted.busting || 0) - dt * 2);
+  if (hidden && !shops.inside.hot) wanted.busting = 0;           // they never saw it go in, so they do not know which bay to look in
   if (wanted.busting > (drive.car ? 2.4 : 2.0)) arrest();
   // They drive at you rather than round their lane.
   // pursuit: keep the road behind you stocked with patrol cars
