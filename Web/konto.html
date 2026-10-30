@@ -595,7 +595,7 @@
   /* the web, full screen: the phone steps aside and the browser fills the screen */
   #webview { position: fixed; inset: 0; z-index: 75; background: #0b0d10; }
   #webview[hidden] { display: none; }
-  #webcanvas { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+  #webcanvas { display: block; width: 100%; height: 100%; object-fit: contain; cursor: none; }
   body.webfull #phone { visibility: hidden; }
   #phonehole {
     position: absolute;
@@ -3785,13 +3785,13 @@ function planCity(world, F, seed, report, progressBase) {
     const road = { name: "Konto Metropolitan Expressway", cls: "expressway",
                    halfWidth: 10.5, loop: true, elevated: true, pts: avoidPalace(pts, true, 40, (x, z) => Math.max(world.sampleHeight(x, z), 1) + 13) };
     L.roads.push(road); claimPath(road.pts, road.halfWidth + 1.5, true);
-    // The ramps. A viaduct with no way onto it is scenery: six slip roads, alternately on and off, run alongside it on the outside of
+    // The ramps. A viaduct with no way onto it is scenery: ten slip roads, alternately on and off, run alongside it on the outside of
     // the ring, level with the deck for a merge, then down at about seven in a hundred to the street, with a stretch of road at the foot.
     // Their heights are set once the expressway's own are (see the viaducts in buildCity). One that would land in the sea, on the
     // palace or in another road's way is not built.
     const cw = F.toWorld(core[0], core[1]), N = road.pts.length;
-    for (let k = 0; k < 6; k++) {
-      const i = Math.floor((k + 0.35) * N / 6) % N, a = road.pts[i], b = road.pts[(i + 1) % N];
+    for (let k = 0; k < 10; k++) {
+      const i = Math.floor((k + 0.35) * N / 10) % N, a = road.pts[i], b = road.pts[(i + 1) % N];
       let tx = b[0] - a[0], tz = b[2] - a[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
       let nx = -tz, nz = tx; if ((a[0] - cw[0]) * nx + (a[2] - cw[1]) * nz < 0) { nx = -nx; nz = -nz; }
       const dir = k % 2 ? -1 : 1, RHW = 4.6, off = road.halfWidth + RHW - 0.6, LEN = 320, rp = [];
@@ -7117,12 +7117,24 @@ function pollPad(dt) {
   // button meant every press of up shut the phone and the row above could not
   // be reached at all. B closes it, which is how you got out of it anyway.
   if (phone.open) {
+    if (document.body.classList.contains("webfull")) {
+      webStick(deadzone(gp.axes[0] || 0, 0.15), deadzone(gp.axes[1] || 0, 0.15), 1 / 60);
+      const h = webv.hover, now = performance.now();
+      if (h && (h.act === "up" || h.act === "down") && now - webv.lastStick > 380) { webv.lastStick = now; webClick(webv.cx, webv.cy); }
+      if (pressed(PAD.A)) { if (!webClick(webv.cx, webv.cy)) phoneAct(); }
+      if (pressed(PAD.LEFT)) phoneMove(-1, 0);
+      if (pressed(PAD.RIGHT)) phoneMove(1, 0);
+      if (pressed(PAD.DOWN)) phoneMove(0, 1);
+      if (pressed(PAD.UP)) phoneMove(0, -1);
+      if (pressed(PAD.B)) { if (!phoneBack()) setPhone(false); }
+    } else {
     if (pressed(PAD.LEFT)) phoneMove(-1, 0);
     if (pressed(PAD.RIGHT)) phoneMove(1, 0);
     if (pressed(PAD.DOWN)) phoneMove(0, 1);
     if (pressed(PAD.UP)) phoneMove(0, -1);
     if (pressed(PAD.A)) phoneAct();
     if (pressed(PAD.B)) { if (!phoneBack()) setPhone(false); }
+    }
   } else {
     if (pressed(PAD.UP)) setPhone(true);
     if (pressed(PAD.DOWN)) toggleWalk();
@@ -7160,9 +7172,10 @@ function pollPad(dt) {
 // Y: get in, get out, board, alight.
 function useRide() {
   if (chute.active) return;
+  if (reservedRent()) return;
   if (flight.active) { if (!flight.air && flight.v < 6) flightLeave(); else if (flight.air) bailOut(); else say("Slow down first.", 2); return; }
   if (player.placed && player.mode === "walk" && !drive.car && !drive.train && airUse()) return;
-  if (drive.car) { if (canKeepHere()) { keepCar(); return; } leaveCar(); return; }
+  if (drive.car) { const ks = kustomsNear(); if (ks) { enterShop(ks); return; } if (canKeepHere()) { keepCar(); return; } leaveCar(); return; }
   if (drive.train) { leaveTrain(); return; }
   if (player.placed && player.mode === "walk") {
     if (skiUse()) return;
@@ -7195,11 +7208,12 @@ function updatePrompt() {
   if (chute.active) { setPromptText(chute.state === "fall" ? "Open the parachute" : null); return; }
   if (flight.active) { setPromptText(!flight.air && flight.v < 6 ? "Get out of the aircraft" : flight.air ? "Jump out and use the parachute" : null); return; }
   { const an = airNear(); if (an) { setPromptText(an.text); return; } }
-  if (drive.car) { setPromptText(canKeepHere() ? "Park it here and keep it" : "Get out"); return; }
+  if (drive.car) { setPromptText(kustomsNear() ? "Konto Kustoms: upgrade this car" : canKeepHere() ? "Park it here and keep it" : "Get out"); return; }
   if (drive.train) { setPromptText("Get off"); return; }
   // A shop door takes precedence over a car parked outside it, because you
   // are standing at the door.
   if (player.placed && player.mode === "walk") {
+    if (reservedNear()) { setPromptText("Rent a reserved bay \u00b7 " + yenText(RESERVED_PRICE)); return; }
     const sk = skiNear(player.pos.x, player.pos.z);
     if (sk) { setPromptText(sk.what === "base" ? "Take me to the summit" : "Rent skis"); return; }
     if (parcelNear(player.pos.x, player.pos.z)) { setPromptText(parcels.list.length > 1 ? "Open parcels" : "Open parcel"); return; }
@@ -8219,6 +8233,7 @@ function buildScene(w) {
   buildStreetLife(root, w);
   console.log("[Konto] surface guard: " + surfaceGuard.quads + " road and footway pieces checked against the ground, " + surfaceGuard.lifted + " cross-sections lifted clear of it (most " + surfaceGuard.maxLift.toFixed(2) + " m)");
   try { buildCarparks(root, w); } catch (e) { console.warn("[Konto] the car parks could not be built:", e); }
+  try { reservedBays(root); } catch (e) { console.warn("[Konto] the reserved bays could not be laid out:", e); }
   try { buildBoats(root, w); } catch (e) { console.warn("[Konto] the boats could not be built:", e); }
   try { buildBeaches(root, w); } catch (e) { console.warn("[Konto] the beaches could not be dressed:", e); }
   vegBuild(root);
@@ -13711,12 +13726,13 @@ function decoMesh() {
 // are, and the world has the time it needs to be there when you arrive.
 const DRIVE_PACE = 0.7;
 function perfOf(kind, fallback) {
-  const P = PERF[kind.name] || fallback;
-  return { top: P.top * DRIVE_PACE, to100: P.to100 / 0.9 };
+  const P = PERF[kind.name] || fallback, k = kustomOf(kind).engine;
+  return { top: P.top * DRIVE_PACE * (1 + 0.05 * k), to100: P.to100 / 0.9 * (1 - 0.1 * k) };
 }
 // Brakes, as a fraction of a g on good tarmac: carbon-ceramics on the exotics, big discs on the sports cars, drums on a kei van, and a
 // loaded bus that takes its time.
-function brakeG(kind) {
+function brakeG(kind) { return brakeBase(kind) * (1 + 0.1 * kustomOf(kind).brakes); }
+function brakeBase(kind) {
   if (kind.exotic || kind.body === "super") return 1.28;
   if (kind.body === "sports") return 1.14;
   if (kind.body === "truck" || kind.body === "fire") return 0.66;
@@ -17808,6 +17824,14 @@ function drawBrandMark(ctx, brand, r) {
     ctx.fillStyle = "#ffffff"; roundRect(ctx, -r * 0.5, -r * 0.62, r, r * 1.0, r * 0.18); ctx.fill();
     ctx.fillStyle = "#15894f"; ctx.fillRect(-r * 0.36, -r * 0.46, r * 0.72, r * 0.36);
     ctx.fillStyle = "#ffffff"; ctx.fillRect(-r * 0.62, r * 0.50, r * 1.24, r * 0.12);
+  } else if (brand === "kustoms") {
+    // a spanner, yellow on black
+    disc("#111215");
+    ctx.save(); ctx.rotate(-0.78); ctx.fillStyle = "#f2c230";
+    ctx.fillRect(-r * 0.12, -r * 0.30, r * 0.24, r * 0.92);
+    ctx.beginPath(); ctx.arc(0, -r * 0.42, r * 0.30, 0, 7); ctx.fill();
+    ctx.fillStyle = "#111215"; ctx.fillRect(-r * 0.10, -r * 0.78, r * 0.20, r * 0.36);
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -18510,7 +18534,7 @@ function mapPois(across) {
       if (!sh.mall && !sh.plaza && across > 14000) return;
       out.push({ x: sh.at[0], z: sh.at[1], name: sh.name || "Shop", kind: sh.airport ? "Airport" : sh.mall ? "Shopping mall" : sh.plaza ? "Plaza" : sh.police ? "Police station" : sh.safe ? "Hotel" : "Shop" });
     });
-    if (garage.built && across < 3200) out.push({ x: garage.centre[0], z: garage.centre[1], name: "Garage", kind: "Yours" });
+    if (garage.built && across < 3200) out.push({ x: garage.centre[0], z: garage.centre[1], name: "Parking", kind: "Your bay" }); if (reserved.cp && across < 3200) out.push({ x: reserved.bays[0].x, z: reserved.bays[0].z, name: "Reserved bays", kind: reserved.owned ? "Yours" : "Rent " + yenText(RESERVED_PRICE) });
     if (garage.cars.length && across < 6500) garage.cars.forEach(rec => {
       if (drive.car && drive.car.rec === rec) return;
       out.push({ x: rec.pos.x, z: rec.pos.z, name: rec.name || "Your car", kind: "Your car, parked" });
@@ -20243,7 +20267,10 @@ function drawPhone() {
 // middle (drawn by the same renderers the phone uses, at a desktop size, and cropped to its viewport), browser chrome along the top,
 // Noodle's suggested sites down the left (click one, or press its number) and what is trending, and a sponsor, down the right.
 // The phone's own controls still drive it: the stick or arrows move, A or Enter opens, B or Backspace goes back.
-const webv = { page: null, hits: [], sugg: [] };
+// A pointer, the way the GTA internet has one: an arrow you push around with the mouse or the left stick, that turns into a hand over
+// anything you can press - a suggestion, the back button, the address bar, a shortcut tile, the sponsor, a part of the page - which
+// lights up under it. A (or a click) presses it; the wheel, or holding the pointer at the top or bottom of the page, scrolls.
+const webv = { page: null, base: null, hits: [], sugg: [], cx: 960, cy: 600, hover: null, lastStick: 0 };
 function webviewSync() {
   const on = !!(phone.open && phone.app === "Noodle" && !(typeof isBasic === "function" && isBasic()));
   document.body.classList.toggle("webfull", on);
@@ -20267,7 +20294,8 @@ function webOpen(i) {
 }
 function drawWebView() {
   const cv = document.getElementById("webcanvas"); if (!cv) return;
-  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  if (!webv.base) { webv.base = document.createElement("canvas"); webv.base.width = cv.width; webv.base.height = cv.height; }
+  const g = webv.base.getContext("2d"), W = cv.width, H = cv.height;
   if (!webv.page) { webv.page = document.createElement("canvas"); webv.page.width = 980; webv.page.height = 1300; }
   const PW = webv.page.width, PH = webv.page.height, pg = webv.page.getContext("2d");
   try { appNoodle(pg, PW, PH); } catch (e) { pg.fillStyle = "#15181b"; pg.fillRect(0, 0, PW, PH); }
@@ -20295,6 +20323,24 @@ function drawWebView() {
   g.drawImage(webv.page, 0, sy0, PW, ch, dx, dy, dw, dh);
   // the left: Noodle's suggestions
   webv.hits = []; webv.sugg = webSuggestions();
+  // the chrome, and the page itself
+  webv.hits.push({ x: 28, y: 62, w: 44, h: 44, act: "back", tip: "Back" }, { x: W - 132, y: 62, w: 44, h: 44, act: "reload", tip: "Reload" },
+                 { x: 150, y: 64, w: W - 300, h: 38, act: "home", tip: "New tab" }, { x: 24, y: 10, w: 380, h: 44, act: "home", tip: "New tab" });
+  if (!site && !(typeof searchUI === "object" && searchUI.on)) {
+    // the new tab's shortcut tiles, where the page drew them
+    const cols = 4, tileW = PW * 0.84 / cols, top = PH * 0.425, rowsN = Math.ceil(WEB.length / cols);
+    const curRow = phone.sub < 0 ? 0 : (phone.sub / cols) | 0, firstRow = clamp(curRow - 2, 0, Math.max(0, rowsN - 4));
+    const toX = px => dx + px * dw / PW, toY = py => dy + (py - sy0) * dh / ch;
+    WEB.forEach((w, i) => {
+      const c = i % cols, r = ((i / cols) | 0) - firstRow; if (r < 0 || r > 3) return;
+      const cx = PW * 0.08 + tileW * (c + 0.5), cy = top + r * PH * 0.105;
+      webv.hits.push({ x: toX(cx - tileW * 0.46), y: toY(cy - PW * 0.058 * 1.3), w: tileW * 0.92 * dw / PW, h: PH * 0.104 * dh / ch, site: i, tip: w.title });
+    });
+    webv.hits.push({ x: toX(PW * 0.085), y: toY(PH * 0.325), w: PW * 0.83 * dw / PW, h: PH * 0.052 * dh / ch, act: "page", sub: -1, tip: "Search Noodle" });
+  } else {
+    webv.hits.push({ x: dx, y: dy, w: dw, h: dh * 0.12, act: "up", tip: "Scroll up" }, { x: dx, y: dy + dh * 0.88, w: dw, h: dh * 0.12, act: "down", tip: "Scroll down" },
+                   { x: dx, y: dy + dh * 0.12, w: dw, h: dh * 0.76, act: "page", tip: "Open" });
+  }
   const lx = 34, lw = dx - 70;
   g.textAlign = "left"; noodleMark(g, W, lx + 22, 168, 14); noodleWord(g, lx + 125, 160, 34);
   g.fillStyle = "#9aa1a9"; g.font = "600 17px " + UI; g.textAlign = "left"; g.fillText(site ? "Noodle suggests" : "Suggested for you", lx, 214);
@@ -20306,7 +20352,7 @@ function drawWebView() {
     g.textAlign = "left"; g.fillStyle = "#ffffff"; g.font = "600 20px " + UI; clipText(g, w.title, lx + 72, y + 26, lw - 110);
     g.fillStyle = "#7fa6d6"; g.font = "500 16px " + UI; clipText(g, "www." + w.host, lx + 72, y + 50, lw - 110);
     g.fillStyle = "#5d656e"; g.font = "700 18px " + UI; g.textAlign = "right"; g.fillText(String(k + 1), lx + lw - 14, y + 36); g.textAlign = "left";
-    webv.hits.push({ x: lx, y: y, w: lw, h: 70, site: i });
+    webv.hits.push({ x: lx, y: y, w: lw, h: 70, site: i, tip: w.title });
   });
   // the right: trending, and a sponsor
   const rx = dx + dw + 36, rw = W - rx - 34;
@@ -20315,6 +20361,8 @@ function drawWebView() {
     const y = 196 + k * 44;
     g.fillStyle = "#e0662c"; g.font = "700 17px " + UI; g.fillText((k + 1) + ".", rx, y);
     g.fillStyle = "#e6e9ec"; g.font = "500 18px " + UI; clipText(g, q, rx + 34, y, rw - 40);
+    const hit = WEB.findIndex(w => (w.title + " " + w.host).toLowerCase().indexOf(q.split(" ")[0]) >= 0);
+    webv.hits.push(hit >= 0 ? { x: rx, y: y - 22, w: rw, h: 40, site: hit, tip: WEB[hit].title } : { x: rx, y: y - 22, w: rw, h: 40, act: "home", tip: "Search \u201c" + q + "\u201d" });
   });
   const ad = WEB.find((w, i) => w.kind === "shop" && i !== phone.site) || WEB[0], ay = 580;
   g.fillStyle = "#1b1f23"; roundRect(g, rx, ay, rw, 300, 14); g.fill();
@@ -20323,11 +20371,62 @@ function drawWebView() {
   g.fillStyle = "#fff"; g.font = "800 34px " + UI; g.textAlign = "center"; clipText(g, ad.title, rx + rw / 2, ay + 120, rw - 60);
   g.font = "500 17px " + UI; g.fillStyle = "#c9ced3"; clipText(g, "Open now at www." + ad.host, rx + rw / 2, ay + 230, rw - 40);
   g.textAlign = "left";
-  webv.hits.push({ x: rx, y: ay, w: rw, h: 300, site: WEB.indexOf(ad) });
+  webv.hits.push({ x: rx, y: ay, w: rw, h: 300, site: WEB.indexOf(ad), tip: ad.title });
   // the keys
   g.fillStyle = "#6b737c"; g.font = "500 17px " + UI; g.textAlign = "center";
-  g.fillText("Arrows or stick: move    A / Enter: open    B / Backspace: back    1-9: a suggested site    P or Esc: put the phone away", W / 2, H - 30);
+  g.fillText("Mouse or left stick: pointer    Click / A: select    Wheel: scroll    D-pad / arrows: move    B / Backspace: back    1-9: a suggested site    P or Esc: put the phone away", W / 2, H - 30);
   g.textAlign = "left"; g.textBaseline = "alphabetic";
+  webPresent();
+}
+// The finished page, with the pointer over it. Moving the pointer only redraws this, never the page underneath.
+function webPresent() {
+  const cv = document.getElementById("webcanvas"); if (!cv || !webv.base) return;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  g.drawImage(webv.base, 0, 0);
+  const x = webv.cx = clamp(webv.cx, 0, W - 1), y = webv.cy = clamp(webv.cy, 0, H - 1), h = webv.hover = webHitAt(x, y);
+  if (h) {
+    g.save(); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 3; g.shadowColor = "rgba(127,214,154,0.8)"; g.shadowBlur = 14;
+    roundRect(g, h.x - 3, h.y - 3, h.w + 6, h.h + 6, 12); g.stroke(); g.restore();
+    if (h.tip) {
+      g.font = "600 17px " + UI; const tw = g.measureText(h.tip).width + 24, tx = clamp(x + 26, 8, W - tw - 8), ty = clamp(y + 30, 8, H - 40);
+      g.fillStyle = "rgba(14,16,19,0.92)"; roundRect(g, tx, ty, tw, 32, 8); g.fill();
+      g.fillStyle = "#e6e9ec"; g.textBaseline = "middle"; g.textAlign = "left"; g.fillText(h.tip, tx + 12, ty + 16); g.textBaseline = "alphabetic";
+    }
+  }
+  // the pointer: a white arrow with a black edge, or a hand over something to press
+  g.save(); g.translate(x, y); g.lineJoin = "round"; g.shadowColor = "rgba(0,0,0,0.55)"; g.shadowBlur = 6; g.shadowOffsetY = 2;
+  g.beginPath();
+  if (h) { // a pointing hand
+    g.moveTo(-4, 0); g.lineTo(-4, 16); g.lineTo(-10, 12); g.lineTo(-13, 15); g.lineTo(-3, 30); g.lineTo(14, 30); g.lineTo(17, 18); g.lineTo(17, 13);
+    g.lineTo(13, 11); g.lineTo(10, 12); g.lineTo(9, 10); g.lineTo(5, 9); g.lineTo(2, 10); g.lineTo(2, 0); g.closePath(); g.translate(0, 0);
+  } else { g.moveTo(0, 0); g.lineTo(0, 30); g.lineTo(7, 23); g.lineTo(12, 34); g.lineTo(17, 32); g.lineTo(12, 21); g.lineTo(22, 21); g.closePath(); }
+  g.fillStyle = "#ffffff"; g.fill(); g.shadowColor = "transparent"; g.lineWidth = 2.5; g.strokeStyle = "#0b0d10"; g.stroke();
+  g.restore();
+}
+function webHitAt(x, y) {
+  for (let i = webv.hits.length - 1; i >= 0; i--) { const h = webv.hits[i]; if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h; }
+  return null;
+}
+// Press whatever is under the pointer. Nothing there: false, and the caller does what the button does anyway.
+function webClick(x, y) {
+  const h = webHitAt(x, y); if (!h) return false;
+  if (h.site != null) webOpen(h.site);
+  else if (h.act === "back") { phoneBack(); phone.dirty = true; }
+  else if (h.act === "reload") phone.dirty = true;
+  else if (h.act === "home") { phone.site = null; phone.sub = 0; if (typeof searchUI === "object") searchUI.on = false; phone.dirty = true; }
+  else if (h.act === "up") phoneMove(0, -1);
+  else if (h.act === "down") phoneMove(0, 1);
+  else if (h.act === "page") { if (h.sub != null) phone.sub = h.sub; phoneAct(); }
+  if (typeof drawPhone === "function") drawPhone();
+  return true;
+}
+// The left stick, while the web is up: the pointer goes where it is pushed, quicker the further it is pushed, and resting it at the top
+// or bottom of the page scrolls.
+function webStick(sx, sy, dt) {
+  if (!sx && !sy) return;
+  const sp = 1500 * dt;
+  webv.cx += sx * Math.abs(sx) * sp; webv.cy += sy * Math.abs(sy) * sp;
+  webPresent();
 }
 
 function drawPhoneScreen() {
@@ -25203,13 +25302,17 @@ function phoneAct() {
         dokotoBuy();
       } else if (site.kind === "cars") {
         const c = CAR_STOCK[site.tier][clamp(phone.sub, 0, CAR_STOCK[site.tier].length - 1)];
-        if (purse.yen < c.price) {
+        if (!reserved.owned) {
+          say("The dealer delivers only to a reserved parking bay. Rent one in the reserved section of the car park nearest home (" + yenText(RESERVED_PRICE) + "), then order again.", 7);
+        } else if (!reservedFreeSpot()) {
+          say("Your reserved bays are full. Move a car out first.", 5);
+        } else if (purse.yen < c.price) {
           say("Not enough. " + c.name + " is " + yenText(c.price) + "; you have " + yenText(purse.yen) + ".", 5);
         } else {
           purse.yen -= c.price;
           const rec = ownCar(c, phone.paint || 0);
           say(c.name + " in " + PAINTS[rec.paint][0] + " \u00b7 " +
-              (rec.atGarage ? "waiting in your garage in Mizuho. The key is on the map." : "parked near you. The key is on the map."), 7);
+              "delivered to your reserved bay at the car park. The key is on the map.", 7);
         }
       }
     }
@@ -25344,12 +25447,56 @@ const SHELVES = [
 
 const shops = { list: [], inside: null, shelf: 0, item: 0, basket: [], ready: false };
 
+// ---- Konto Kustoms ------------------------------------------------------------------
+// The tuner. A roller door on a back street with four bays behind it: drive in, stop, press F (or Y) and the car goes up on the ramp.
+// Four kinds of part in three stages each, fitted to that model of car for good (every Hachi you own after that has them):
+// the engine (more top end and a quicker hundred), the brakes, the tyres (grip in the corners and under braking) and the
+// suspension (a sharper front end that answers the wheel at speed). Saved with the game.
+SHOP_BRANDS.kustoms = { name: "Konto Kustoms", band: "#111215", ink: "#f2c230", jp: "\u30ab\u30b9\u30bf\u30e0", stripes: ["#f2c230", "#d4152c"], tag: "Tuning \u00b7 Brakes \u00b7 Tyres \u00b7 Suspension" };
+const KUSTOM_KEY = "konto.kustoms.v1";
+const KUSTOM_PARTS = [
+  { cat: "engine", name: "Engine",     stages: ["Intake & exhaust", "ECU remap + turbo", "Race build"],          price: [180000, 520000, 1400000] },
+  { cat: "brakes", name: "Brakes",     stages: ["Sport pads & lines", "Big brake kit", "Carbon-ceramic"],        price: [90000, 260000, 780000] },
+  { cat: "tyres",  name: "Tyres",      stages: ["Sport tyres", "Semi-slicks", "Track compound"],                 price: [70000, 190000, 480000] },
+  { cat: "susp",   name: "Suspension", stages: ["Lowering springs", "Coilovers", "Adjustable race dampers"],     price: [80000, 230000, 640000] }
+];
+var kustoms = { mods: {} };     // var: perfOf can be asked about a car before this line runs
+try { kustoms.mods = JSON.parse(localStorage.getItem(KUSTOM_KEY) || "{}") || {}; } catch (e) { kustoms.mods = {}; }
+function kustomOf(kind) { return (kind && kustoms && kustoms.mods[kind.name]) || { engine: 0, brakes: 0, tyres: 0, susp: 0 }; }
+function kustomSave() { try { localStorage.setItem(KUSTOM_KEY, JSON.stringify(kustoms.mods)); } catch (e) {} }
+function kustomShelves() {
+  const car = drive.car && CAR_KINDS[drive.car.kind], m = kustomOf(car);
+  return KUSTOM_PARTS.map(P => ({ name: P.name, items: P.stages.map((st, i) => {
+    const lvl = i + 1, fitted = m[P.cat] >= lvl;
+    return { id: "k_" + P.cat + lvl, name: P.name + " " + lvl + " \u00b7 " + st + (fitted ? "  \u2713 fitted" : ""), price: fitted ? 0 : P.price[i], kmod: { cat: P.cat, lvl: lvl }, plain: true };
+  }) }));
+}
+function kustomsNear() {
+  if (!drive.car || Math.abs(drive.car.speed || 0) > 2.5) return null;
+  const c = drive.car.pos;
+  for (let i = 0; i < shops.list.length; i++) { const s = shops.list[i]; if (s.brand === "kustoms" && Math.hypot(s.door[0] - c.x, s.door[1] - c.z) < 10) return s; }
+  return null;
+}
+function kustomFit(it) {
+  const car = drive.car && CAR_KINDS[drive.car.kind];
+  if (!car) { say("Drive a car into the bay and we will put it on the ramp.", 4); return; }
+  const m = kustoms.mods[car.name] || (kustoms.mods[car.name] = { engine: 0, brakes: 0, tyres: 0, susp: 0 });
+  if (m[it.kmod.cat] >= it.kmod.lvl) { say("That is already on this car.", 3); return; }
+  if (it.kmod.lvl > m[it.kmod.cat] + 1) { say("Fit stage " + (m[it.kmod.cat] + 1) + " first.", 3); return; }
+  if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
+  purse.yen -= it.price; noteBuy("kustoms", it.price);
+  m[it.kmod.cat] = it.kmod.lvl; kustomSave();
+  if (typeof padRumble === "function") try { padRumble(0.4, 0.3, 160); } catch (e) {}
+  say("Fitted: " + it.name.replace(/\s+\u2713.*$/, "") + " \u00b7 " + yenText(it.price) + ". Every car of this model you drive has it now.", 5);
+  drawShop();
+}
+
 // Pick plots to be shops: small, street-facing, spread out, and never two of
 // the same chain next to each other.
 function placeShops(city) {
   shops.list.length = 0;
   if (!city || !city.plots) return;
-  const want = 40;
+  const want = 34;                    // fewer konbini and ramen counters, so the tuners stand out
   const spacing = 240;
   // A shop is a building, so it goes on a plot that is meant to hold one: a
   // shopping-street plot first, then a mid-rise, a block of flats or an office.
@@ -25376,7 +25523,7 @@ function placeShops(city) {
     // streets: a hardware shop with a shutter, a nod, and a price list.
     const n = shops.list.length;
     const CYCLE = ["eleven", "ramen", "petmart", "sushi", "pharmacy", "ramen", "eleven", "books", "sushi", "petmart", "clothes", "ramen", "sushi"];
-    let brand = (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
+    let brand = (n % 8 === 5) ? "kustoms" : (n % 7 === 3) ? "arms" : CYCLE[n % CYCLE.length];
     if (brand === "sushi" && (placeShops.sushiN = (placeShops.sushiN || 0) + 1) % 2 === 0) brand = "sushiya";     // every second sushi bar is the old-fashioned, expensive kind
     plotFaceRoad(city, p);
     const yaw = p.yaw * Math.PI / 180;
@@ -25400,7 +25547,7 @@ function placeShops(city) {
 // What each kind of shop is as a building: how many storeys it is, which is most
 // of what tells a konbini from a pharmacy from a bookshop in a street.
 const SHOP_BUILD = {
-  eleven: 5.6, petmart: 5.6, ramen: 8.4, sushi: 8.4, sushiya: 8.4, police: 11.0, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6, dokoto: 30, plaza: 26
+  eleven: 5.6, petmart: 5.6, kustoms: 9.0, ramen: 8.4, sushi: 8.4, sushiya: 8.4, police: 11.0, pharmacy: 12.0, books: 13.8, clothes: 13.8, arms: 7.6, dokoto: 30, plaza: 26
 };
 
 // A lit sign band over each door. One instanced box per chain, with the brand
@@ -25558,7 +25705,8 @@ function shopNear(x, z, radius, noVend) {
 
 function enterShop(s) {
   if (!s) return;
-  if (interiorEnter(s)) return;
+  if (s.brand === "kustoms") { s.inCar = !!drive.car; if (!s.inCar) say("Konto Kustoms works on cars. Drive one in to the roller door.", 4); }
+  else if (interiorEnter(s)) return;
   if (s.safe) { enterSafehouse(s); return; }
   if (s.plaza) { enterPlaza(s); return; }
   shops.inside = s;
@@ -25577,7 +25725,7 @@ function leaveShop() {
   if (shops.inside.parent) { shops.inside = shops.inside.parent; plaza.mode = "floor"; drawPlaza(); return; }
   if (shops.inside.plaza && plazaBack()) return;
   frameGrab.want = false;
-  stepOutFrom(shops.inside.door, shops.inside.yaw);
+  if (!(shops.inside.brand === "kustoms" && shops.inside.inCar && drive.car)) stepOutFrom(shops.inside.door, shops.inside.yaw);
   shops.inside = null;
   document.body.classList.remove("inshop");
   const el = document.getElementById("shop");
@@ -26534,6 +26682,7 @@ function takeFromShelf() {
   if (s.plaza) { plazaAct(); return; }
   if (shops.ask) { resolveAsk(); return; }
   const it = shopShelves(s)[shops.shelf].items[shops.item];
+  if (it.kmod) { kustomFit(it); return; }
   if (purse.yen < it.price) { say("Not enough for that.", 3); return; }
   if (shopConsumable(it)) { shops.ask = { it: it, choice: 0 }; drawShop(); return; }
   purse.yen -= it.price;
@@ -26597,6 +26746,7 @@ function shopMove(dx, dy) {
 
 // ---- the inside of a shop, drawn -------------------------------------------
 function shopShelves(s) {
+  if (s && s.brand === "kustoms") return kustomShelves();
   if (s && s.brand === "arms") {
     return [{ name: "Hardware", items: ARMS_STOCK.filter(i => i.id === "baton") },
             { name: "Under the counter", items: ARMS_STOCK.filter(i => i.id !== "baton") }];
@@ -27391,51 +27541,65 @@ function buildGarage(root) {
     ? new THREE.MeshStandardMaterial(Object.assign({ color: color, roughness: rough, metalness: 0.0 }, extra || {}))
     : new THREE.MeshLambertMaterial(Object.assign({ color: color }, extra && extra.emissive ? { emissive: extra.emissive } : {}));
 
-  // slab, and the lines that make three bays
-  mk(new THREE.BoxGeometry(RW + 0.8, 0.16, RD + 0.6), std(0x7b7f84, 0.95), 0, gy + 0.08, 0);
-  const line = std(0xeeeeea, 0.8);
-  [-RW / 2, -RW / 6, RW / 6, RW / 2].forEach(u => {
-    const m = mk(new THREE.BoxGeometry(0.12, 0.03, RD - 0.4), line, u, gy + 0.175, 0);
-    m.castShadow = false;
-  });
-  // back wall: concrete block, and it stops cars and people
-  mk(new THREE.BoxGeometry(RW + 0.6, 2.7, 0.24), std(0xb4afa2, 0.95), 0, gy + 1.35, -RD / 2 - 0.1);
-  // two steel posts at the front corners, and a roof on them
-  const steel = std(0x30353a, 0.55, { metalness: 0.5 });
-  [-1, 1].forEach(sd => mk(new THREE.BoxGeometry(0.2, 2.95, 0.2), steel, sd * (RW / 2 + 0.2), gy + 1.475, RD / 2 + 0.55));
-  const roof = mk(new THREE.BoxGeometry(RW + 1.4, 0.16, RD + 1.7), std(0x6d7479, 0.55, { metalness: 0.4 }), 0, gy + 3.02, 0.35, 0.05);
-  mk(new THREE.BoxGeometry(RW + 1.4, 0.34, 0.1), std(0x3c4247, 0.6), 0, gy + 2.86, RD / 2 + 1.15);
-  // the sign, lit at night with everything else
-  const signMat = new THREE.MeshStandardMaterial({ map: garageSignTexture(), roughness: 0.6,
-    emissive: new THREE.Color(1, 0.95, 0.85), emissiveMap: null, emissiveIntensity: 0 });
-  signMat.emissiveMap = signMat.map;
-  const sign = mk(new THREE.BoxGeometry(RW * 0.5, 1.15, 0.12), signMat, 0, gy + 3.55, RD / 2 + 1.2);
-  sign.castShadow = false;
-  nightMats.push({ m: signMat, gain: 0.9 });
-  // a strip light under the roof
-  const lamp = new THREE.MeshStandardMaterial({ color: 0xf4eedc, emissive: new THREE.Color(1, 0.85, 0.6), emissiveIntensity: 0, roughness: 0.4 });
-  mk(new THREE.BoxGeometry(RW - 1.0, 0.07, 0.24), lamp, 0, gy + 2.9, 0.4).castShadow = false;
-  nightMats.push({ m: lamp, gain: 2.4 });
-
-  // a collider for the back wall, so nothing drives or walks through it
-  const wc = at(0, -RD / 2 - 0.1);
-  solids.push({ c: [wc[0], wc[1]], size: [RW + 0.6, 0.24], yaw: yawDeg, y: gy, h: 2.7 });
-  buildSolidGrid();
-
-  // where the cars go: three bays, nose out, and an overflow row in front
-  [-RW / 3, 0, RW / 3].forEach(u => {
-    const p = at(u, -0.35);
-    garage.bays.push({ x: p[0], z: p[1], yaw: site.yaw });
-  });
-  [-RW / 3, 0, RW / 3].forEach(u => {
-    const p = at(u, RD / 2 + 4.6);
-    garage.spill.push({ x: p[0], z: p[1], yaw: site.yaw });
-  });
+  // Seiko's spot is a bay painted on the street in front of the house, the way a Japanese house keeps its car: white lines, the blue P
+  // painted in it, nothing built. (Cars bought from a dealer are delivered to a reserved bay in a car park instead - see reservedBays.)
+  const BW = 2.6, BL = 5.6, paintM = new THREE.MeshBasicMaterial({ color: 0xf2f2ec, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  [[-BW / 2, 0, 0.14, BL], [BW / 2, 0, 0.14, BL], [0, -BL / 2, BW + 0.14, 0.14], [0, BL / 2, BW + 0.14, 0.14]].forEach(([u, v, w2, d2]) => {
+    const m = mk(new THREE.BoxGeometry(w2, 0.02, d2), paintM, u, gy + 0.03, v); m.castShadow = false; m.receiveShadow = false; });
+  { const cv = document.createElement("canvas"); cv.width = cv.height = 128; const g2 = cv.getContext("2d");
+    g2.fillStyle = "#1f5fbf"; g2.fillRect(8, 8, 112, 112); g2.fillStyle = "#ffffff"; g2.font = "900 92px " + UI; g2.textAlign = "center"; g2.textBaseline = "middle"; g2.fillText("P", 64, 70);
+    const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding;
+    const pm = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: t, transparent: true, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    const q = at(0, 1.2); pm.position.set(q[0], gy + 0.035, q[1]); pm.rotation.set(-Math.PI / 2, 0, site.yaw + Math.PI, "YXZ"); root.add(pm); }
+  garage.bays.push((() => { const p = at(0, 0); return { x: p[0], z: p[1], yaw: site.yaw }; })());
   garage.centre = [site.cx, site.cz];
   garage.front = f; garage.yaw = site.yaw; garage.gy = gy;
   garage.built = true;
 }
 
+// ---- the reserved bays ----------------------------------------------------------------------------------------------------------------------
+// The car park nearest home keeps three bays on its ground floor as a reserved section (painted blue, 予約). Renting one is what lets a
+// dealer deliver: a bought car arrives there, never at the kerb. Walk up to them and press F (or Y) to rent.
+const RESERVED_PRICE = 300000;
+const reserved = { owned: false, bays: [], cp: null };
+try { reserved.owned = localStorage.getItem("konto.reserved.v1") === "1"; } catch (e) { /* not remembered */ }
+function reservedBays(root) {
+  reserved.bays.length = 0; reserved.cp = null;
+  if (!home.at || !carparks.list.length) return;
+  const cp = carparks.list.slice().sort((a, b) => Math.hypot(a.c[0] - home.at[0], a.c[1] - home.at[1]) - Math.hypot(b.c[0] - home.at[0], b.c[1] - home.at[1]))[0];
+  const ground = parking.bays.filter(b => b.garage === cp && b.level === 0).slice(0, 3);
+  if (!ground.length) return;
+  reserved.cp = cp;
+  const blue = new THREE.MeshBasicMaterial({ color: 0x1f5fbf, transparent: true, opacity: 0.55, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+  const cv = document.createElement("canvas"); cv.width = 256; cv.height = 128; const g = cv.getContext("2d");
+  g.fillStyle = "#ffffff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 54px " + UI; g.fillText("予約", 128, 44); g.font = "800 30px " + UI; g.fillText("RESERVED", 128, 98);
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding;
+  const txt = new THREE.MeshBasicMaterial({ map: tex, transparent: true, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  ground.forEach(b => {
+    b.reserved = true; b.occ = false; reserved.bays.push(b);
+    const y = (b.y !== undefined ? b.y : world.surfaceY(b.x, b.z)) + 0.04;
+    const pad = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 4.8), blue); pad.rotation.set(-Math.PI / 2, 0, b.yaw, "YXZ"); pad.position.set(b.x, y, b.z); root.add(pad);
+    const tm = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.0), txt); tm.rotation.set(-Math.PI / 2, 0, b.yaw + Math.PI, "YXZ"); tm.position.set(b.x, y + 0.005, b.z); root.add(tm);
+  });
+}
+function reservedFreeSpot() {
+  if (!reserved.owned) return null;
+  for (const b of reserved.bays) {
+    let taken = drive.parked.some(p => Math.hypot(p.pos.x - b.x, p.pos.z - b.z) < 2.4);
+    if (drive.car && Math.hypot(drive.car.pos.x - b.x, drive.car.pos.z - b.z) < 2.4) taken = true;
+    if (!taken) return { x: b.x, z: b.z, yaw: b.yaw, y: b.y };
+  }
+  return null;
+}
+function reservedNear() { return !reserved.owned && !drive.car && reserved.bays.some(b => Math.hypot(player.pos.x - b.x, player.pos.z - b.z) < 5); }
+function reservedRent() {
+  if (!reservedNear()) return false;
+  if (purse.yen < RESERVED_PRICE) { say("A reserved bay is " + yenText(RESERVED_PRICE) + ". You have " + yenText(purse.yen) + ".", 4); return true; }
+  purse.yen -= RESERVED_PRICE; reserved.owned = true;
+  try { localStorage.setItem("konto.reserved.v1", "1"); } catch (e) { /* this session only */ }
+  say("Reserved bays rented · " + yenText(RESERVED_PRICE) + ". Cars you buy are delivered here now.", 6);
+  return true;
+}
 // Which of the bays are taken: a parked car within a couple of metres.
 function garageFreeSpot() {
   const all = garage.bays.concat(garage.spill);
@@ -27454,7 +27618,7 @@ function garageFreeSpot() {
 
 // Buy a car: it appears in a bay, and the key goes on the map.
 function ownCar(spec, paintIdx) {
-  const spot = garage.built ? garageFreeSpot() : null;
+  const spot = reservedFreeSpot() || (garage.built ? garageFreeSpot() : null);
   const kindIdx = carKindIndex(spec.kind);
   const kind = CAR_KINDS[kindIdx];
   let uv = [0, 0];
@@ -27463,7 +27627,7 @@ function ownCar(spec, paintIdx) {
     uv = [pick.u0 - base.u0, pick.v0 - base.v0];
   }
   let pos, yaw;
-  if (spot) { pos = new THREE.Vector3(spot.x, world.surfaceY(spot.x, spot.z) + 0.04, spot.z); yaw = spot.yaw; }
+  if (spot) { pos = new THREE.Vector3(spot.x, (spot.y !== undefined ? spot.y : world.surfaceY(spot.x, spot.z)) + 0.04, spot.z); yaw = spot.yaw; }
   else {
     // no garage, or it is full: in front of the house, which is at least findable
     const o = player.pos;
@@ -33015,7 +33179,7 @@ function updateDrive(dt) {
     const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
     if (!c.vel) c.vel = new THREE.Vector2(fx * c.speed, fz * c.speed);
     let vf = c.vel.x * fx + c.vel.y * fz, vl = c.vel.x * rx + c.vel.y * rz;
-    const mu = bikeGrip(kind, c.pos.x, c.pos.z) * (kind.body === "sports" || /super|sports|roadster/.test(kind.name) ? 1.08 : kind.body === "truck" || kind.body === "bus" ? 0.82 : 0.95);
+    const mu = bikeGrip(kind, c.pos.x, c.pos.z) * (kind.body === "sports" || /super|sports|roadster/.test(kind.name) ? 1.08 : kind.body === "truck" || kind.body === "bus" ? 0.82 : 0.95) * (1 + 0.06 * kustomOf(kind).tyres);
     const g = 9.81;
     const pull = 27.8 / perf.to100;
     const fade = 1 - clamp01(Math.abs(vf) / top) * 0.72;
@@ -33037,8 +33201,8 @@ function updateDrive(dt) {
     if (hand) vf *= Math.pow(0.35, dt);
     vf = clamp(vf, -top * 0.35, top);
     // steering: a wheel angle that narrows with speed, and the yaw rate the angle asks for (a bicycle model), held to what the front can grip
-    c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015, dt));
-    const wheelbase = kind.L * 0.6, maxAng = 0.62 / (1 + Math.abs(vf) * 0.045);
+    c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015 / (1 + 2 * kustomOf(kind).susp), dt));
+    const wheelbase = kind.L * 0.6, maxAng = 0.62 / (1 + Math.abs(vf) * 0.045 * (1 - 0.15 * kustomOf(kind).susp));
     let rate = vf * Math.tan(c.steer * maxAng) / wheelbase;
     const cap = mu * g * 1.05 / Math.max(Math.abs(vf), 1.5);
     c.under = Math.abs(rate) > cap ? clamp01((Math.abs(rate) - cap) / cap) : 0;          // understeer: how much more you asked for than you got
@@ -39856,12 +40020,15 @@ radioLoadMusic();
     if (m) { webOpen(webv.sugg[+m[1] - 1]); e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
   const cv = document.getElementById("webcanvas");
-  if (cv) cv.addEventListener("click", e => {
+  const at = e => {
     const r = cv.getBoundingClientRect(), sc = Math.min(r.width / cv.width, r.height / cv.height), ox = (r.width - cv.width * sc) / 2, oy = (r.height - cv.height * sc) / 2;
-    const x = (e.clientX - r.left - ox) / sc, y = (e.clientY - r.top - oy) / sc;
-    const h = webv.hits.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
-    if (h) webOpen(h.site);
-  });
+    return [(e.clientX - r.left - ox) / sc, (e.clientY - r.top - oy) / sc];
+  };
+  if (cv) {
+    cv.addEventListener("mousemove", e => { const p = at(e); webv.cx = p[0]; webv.cy = p[1]; webPresent(); });
+    cv.addEventListener("click", e => { const p = at(e); webv.cx = p[0]; webv.cy = p[1]; webClick(p[0], p[1]); });
+    cv.addEventListener("wheel", e => { phoneMove(0, e.deltaY > 0 ? 1 : -1); if (typeof drawPhone === "function") drawPhone(); e.preventDefault(); }, { passive: false });
+  }
 })();
 (function spotifyWire() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
