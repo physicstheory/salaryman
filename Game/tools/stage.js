@@ -67,33 +67,19 @@ function main() {
   if (fs.existsSync(glb)) fs.copyFileSync(glb, path.join(OUT, "seiko.glb"));
   else console.warn("seiko.glb is not there; the built-in figure will stand in for him.");
 
-  // The modelled cars live in a folder beside the page and are fetched at
-  // runtime, so they have to travel with it or the world falls back to the
-  // built box bodies.
-  // Artwork the page fetches at runtime (the title logo) travels with it too.
-  const artIn = path.join(SRC, "art");
-  if (fs.existsSync(artIn)) {
-    const artOut = path.join(OUT, "art");
-    fs.mkdirSync(artOut, { recursive: true });
-    // art/ has folders in it now (the radio covers), so copy it whole. The
-    // prompts for the artwork are notes for the author, not part of the game.
-    fs.cpSync(artIn, artOut, { recursive: true, filter: src => !/\.md$/i.test(src) });
-  }
-
-  // Kenney's city and train kits (CC0) build the Got No Auto city.
-  const kenIn = path.join(SRC, "kenney");
-  if (fs.existsSync(kenIn)) fs.cpSync(kenIn, path.join(OUT, "kenney"), { recursive: true });
-
-  const carsIn = path.join(SRC, "cars");
+  // Everything else the page fetches at runtime travels with it, whole: art/ (textures, the sky, the radio's recordings), cars/ (the
+  // models and user.json, the list that says which of them to fit - without it no imported or exotic car appears), people/ (the
+  // pedestrians and Seiko's own model and outfits), props/ (the furniture in the interiors) and kenney/. Only the author's notes stay.
   let cars = 0;
-  if (fs.existsSync(carsIn)) {
-    const carsOut = path.join(OUT, "cars");
-    fs.mkdirSync(carsOut, { recursive: true });
-    fs.readdirSync(carsIn).filter(f => f.endsWith(".glb")).forEach(f => {
-      fs.copyFileSync(path.join(carsIn, f), path.join(carsOut, f));
-      cars++;
-    });
-  }
+  ["art", "cars", "people", "props", "kenney"].forEach(dir => {
+    const from = path.join(SRC, dir);
+    if (!fs.existsSync(from)) { console.warn(dir + "/ is not there; the game will do without it."); return; }
+    const to = path.join(OUT, dir);
+    fs.rmSync(to, { recursive: true, force: true });
+    fs.cpSync(from, to, { recursive: true, filter: src => !/\.md$/i.test(src) || /LICENSE/i.test(src) });
+    if (dir === "cars") cars = fs.readdirSync(to).filter(f => f.endsWith(".glb")).length;
+  });
+  if (!fs.existsSync(path.join(OUT, "cars", "user.json"))) console.warn("cars/user.json is missing: the imported cars will not be fitted.");
 
   // "Add Your Files": anything the player drops in there goes over the game's own copy, so a new car or a real road scan is a copy-and-paste,
   // with no upload and no git. cars/*.glb replaces a car of the same name, road/* replaces the road textures, seiko.glb replaces the character.
