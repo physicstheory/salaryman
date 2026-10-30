@@ -590,6 +590,11 @@
     background: #06080c;
   }
   #phonecanvas { display: block; width: 100%; height: 100%; }
+  /* the web, full screen: the phone steps aside and the browser fills the screen */
+  #webview { position: fixed; inset: 0; z-index: 75; background: #0b0d10; }
+  #webview[hidden] { display: none; }
+  #webcanvas { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+  body.webfull #phone { visibility: hidden; }
   #phonehole {
     position: absolute;
     top: 9px;
@@ -1059,6 +1064,7 @@
   </div>
 </div>
 
+<div id="webview" hidden><canvas id="webcanvas" width="1920" height="1080"></canvas></div>
 <div id="homeview" hidden><canvas id="homecanvas" width="1280" height="720"></canvas></div>
 <div id="shop" hidden><canvas id="shopcanvas" width="1280" height="720"></canvas></div>
 <div id="radiowheel" hidden><canvas id="radiowheelcanvas" width="860" height="860"></canvas></div>
@@ -6749,7 +6755,7 @@ function initThree() {
     if (interior.active && interiorKey(e)) { e.preventDefault(); return; }
     if (phone.open && phone.entry && phoneEntryKey(e)) { e.preventDefault(); return; }
     if (phone.open && phone.app === "MyGram" && mynetKey(e)) { e.preventDefault(); return; }
-    if (phone.open && phone.app === "Poodle" && phone.site == null && searchUI.on && searchKey(e)) { e.preventDefault(); return; }
+    if (phone.open && phone.app === "Noodle" && phone.site == null && searchUI.on && searchKey(e)) { e.preventDefault(); return; }
     if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyQ", "KeyE"].indexOf(e.code) >= 0) { tour = false; flyTo = null; }
     if (nav.mapOpen) {
       // The map takes the arrows and the zoom keys while it is up.
@@ -13621,7 +13627,7 @@ const CAR_KINDS = [
   { name: "scooter", body: "scooter", L: 1.90, W: 0.70, H: 1.32, share: 0.025, top: 10.5,
     livery: "hayabin", colour: [0.94, 0.70, 0.11], plate: "plateKei" },
   // The big American-style cruisers. Not in the street: the only way to get
-  // one is the dealer's page on Poodle, and they are heavier and faster than the
+  // one is the dealer's page on Noodle, and they are heavier and faster than the
   // little commuters that do ride the roads.
   { name: "cruiser", palette: "bike", body: "cruiser", L: 2.45, W: 0.92, H: 1.40, share: 0, top: 26,
     marques: ["kaneda"], dispatch: true },
@@ -18673,7 +18679,7 @@ const phone = {
 // and the third field names the glyph.
 const PHONE_APPS = [
   ["Ryde",      "#12b36b", "ryde"],
-  ["Poodle",    "#3b6ea8", "globe"],
+  ["Noodle",    "#e0662c", "globe"],
   ["Wallet",    "#1d2026", "card"],
   ["Camera",    "#4a5058", "cam"],
   ["MyGram",     "#101014", "mynet"],
@@ -18716,7 +18722,7 @@ const SHOP_ITEMS = [
     note: "For the So24." }
 ];
 
-// Poodle's index. Each site is a little renderer; the shopping and dealership
+// Noodle's index. Each site is a little renderer; the shopping and dealership
 // ones take your money, the rest are there to be read.
 const WEB = [
   { host: "11eleven.co.kn",   title: "11 Eleven",            kind: "shop",  brand: "eleven" },
@@ -18731,7 +18737,7 @@ const WEB = [
   { host: "tokonto-city.kn",  title: "T\u014dkonto City Hall",  kind: "gov" }
 ];
 
-// ---- Poodle search, and the rest of the web ---------------------------------------
+// ---- Noodle search, and the rest of the web ---------------------------------------
 // The search pill on the new-tab page now takes text: from the keyboard if you
 // have one, from the on-screen keys if you do not. Results are matched against
 // every site there is, and there are rather more of those now.
@@ -18779,7 +18785,7 @@ FILLER_SITES.forEach(f => WEB.push({ host: f.host, title: f.title, kind: "page",
 // the originals get searchable words too
 WEB.forEach(w => { if (!w.kw) w.kw = ({ shop: "shop store buy food drink konbini phone", cars: "car cars buy drive vehicle", tech: "phone phones camera games console watch pear soti dokoto", news: "news shimbun paper", forum: "forum sararii talk", scam: "win prize free money", gov: "city hall government forms" })[w.kind] || ""; });
 
-// Poodle's search looks through the sites on the island, and only those.
+// Noodle's search looks through the sites on the island, and only those.
 const searchUI = { on: false, q: "", focus: "kb", r: 0, c: 0, res: 0 };
 const KB_ROWS = ["qwertyuiop", "asdfghjkl-", "zxcvbnm.", ""];
 const KB_BOTTOM = ["space", "back", "go"];
@@ -18798,7 +18804,7 @@ function searchType(ch) { if (searchUI.q.length < 28) searchUI.q += ch; searchUI
 function searchOpenResult() {
   const r = webSearch(searchUI.q);
   const pick = r[clamp(searchUI.res, 0, Math.max(0, r.length - 1))];
-  if (!pick) { say("Nothing matches that. Poodle suggests a different word.", 3); return; }
+  if (!pick) { say("Nothing matches that. Noodle suggests a different word.", 3); return; }
   searchUI.on = false; phone.site = pick.i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
 }
 function searchMove(dx, dy) {
@@ -18856,8 +18862,8 @@ function gallerySave(img, credit, extra, wallpaper) {
 }
 function drawSearchPage(g, W, H) {
   g.fillStyle = "#15181b"; g.fillRect(0, 0, W, H);
-  poodleTabStrip(g, W, H, "Search", "#5b6b7a");
-  poodleOmnibox(g, W, H, searchUI.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
+  noodleTabStrip(g, W, H, "Search", "#5b6b7a");
+  noodleOmnibox(g, W, H, searchUI.q + (Math.floor(performance.now() / 500) % 2 ? "" : "|"), false);
   const res = webSearch(searchUI.q);
   const x = W * 0.05, w = W * 0.90, rowH = H * 0.062;
   g.textAlign = "left"; g.textBaseline = "middle";
@@ -18868,14 +18874,14 @@ function drawSearchPage(g, W, H) {
     g.fillStyle = "#c3c9ce"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
     g.fillText("Nothing matches “" + searchUI.q + "”.", x, H * 0.19);
     g.fillStyle = "#7d858d"; g.font = "500 " + Math.round(W * 0.036) + "px " + UI;
-    g.fillText("Poodle suggests: ramen, train, cat, forms, toll.", x, H * 0.235);
+    g.fillText("Noodle suggests: ramen, train, cat, forms, toll.", x, H * 0.235);
   }
   const first = clamp(searchUI.res - 3, 0, Math.max(0, res.length - 6));
   res.slice(first, first + 6).forEach((r, k) => {
     const site = WEB[r.i], y = H * 0.158 + k * (rowH + H * 0.004), on = searchUI.focus === "results" && first + k === searchUI.res;
     g.fillStyle = on ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.05)"; roundRect(g, x, y, w, rowH, W * 0.02); g.fill();
     if (on) { g.strokeStyle = "rgba(255,255,255,0.5)"; g.lineWidth = W * 0.005; roundRect(g, x, y, w, rowH, W * 0.02); g.stroke(); }
-    g.fillStyle = POODLE_TILE[r.i % POODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
+    g.fillStyle = NOODLE_TILE[r.i % NOODLE_TILE.length]; g.beginPath(); g.arc(x + W * 0.045, y + rowH / 2, W * 0.028, 0, 7); g.fill();
     g.fillStyle = "#fff"; g.font = "700 " + Math.round(W * 0.034) + "px " + UI; g.textAlign = "center"; g.fillText((site.title.replace(/[^A-Za-z0-9]/g, "")[0] || "?").toUpperCase(), x + W * 0.045, y + rowH / 2 + 1); g.textAlign = "left";
     g.fillStyle = "#e6e9ec"; g.font = "600 " + Math.round(W * 0.038) + "px " + UI; clipText(g, site.title, x + W * 0.095, y + rowH * 0.36, w - W * 0.12);
     g.fillStyle = "#7fc49a"; g.font = "500 " + Math.round(W * 0.030) + "px " + UI; clipText(g, site.host, x + W * 0.095, y + rowH * 0.72, w - W * 0.12);
@@ -18894,7 +18900,7 @@ function drawSearchPage(g, W, H) {
     });
   });
   g.textAlign = "left";
-  poodleToolbar(g, W, H);
+  noodleToolbar(g, W, H);
 }
 
 function wrapLines(g, text, maxW) {
@@ -19894,7 +19900,7 @@ function padPress(id) {
 // ---- backgrounds
 // A wallpaper is the Tōkonto dusk (SOTI only), one of the four colour washes, or
 // any photograph in the gallery - one you took, one you saved from MyGram, one
-// you found in Poodle.
+// you found in Noodle.
 function wallChoices() {
   const out = [];
   if (!isPear()) out.push({ kind: "default", name: "Tōkonto dusk" });
@@ -20049,6 +20055,99 @@ function drawPhone() {
   drawPhoneScreen();
   if (phone.watchPrompt) drawWatchPrompt(g, W, H);
   phoneCutout(g, W, H);       // the notch or island goes over whatever was drawn
+  webviewSync();
+}
+
+// ---- the web, full screen --------------------------------------------------------------------------------------------------------------
+// Opening Noodle takes the browser out of the phone and over the whole screen, the way the internet opens in a GTA: the page in the
+// middle (drawn by the same renderers the phone uses, at a desktop size, and cropped to its viewport), browser chrome along the top,
+// Noodle's suggested sites down the left (click one, or press its number) and what is trending, and a sponsor, down the right.
+// The phone's own controls still drive it: the stick or arrows move, A or Enter opens, B or Backspace goes back.
+const webv = { page: null, hits: [], sugg: [] };
+function webviewSync() {
+  const on = !!(phone.open && phone.app === "Noodle" && !(typeof isBasic === "function" && isBasic()));
+  document.body.classList.toggle("webfull", on);
+  const el = document.getElementById("webview"); if (!el) return;
+  if (el.hidden === on) el.hidden = !on;
+  if (on) drawWebView();
+}
+function webSuggestions() {
+  const cur = phone.site != null ? WEB[phone.site] : null, out = [];
+  const order = WEB.map((w, i) => i).filter(i => i !== phone.site && WEB[i].kind !== "scam");
+  if (cur) order.sort((a, b) => (WEB[b].kind === cur.kind) - (WEB[a].kind === cur.kind));
+  const rot = phone.site == null ? 0 : phone.site * 3;
+  for (let k = 0; k < order.length && out.length < 9; k++) out.push(order[(k + (cur ? 0 : rot)) % order.length]);
+  return out;
+}
+function webOpen(i) {
+  if (i == null || !WEB[i]) return;
+  if (typeof searchUI === "object") searchUI.on = false;
+  phone.site = i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
+  if (typeof drawPhone === "function") drawPhone();
+}
+function drawWebView() {
+  const cv = document.getElementById("webcanvas"); if (!cv) return;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
+  if (!webv.page) { webv.page = document.createElement("canvas"); webv.page.width = 980; webv.page.height = 1300; }
+  const PW = webv.page.width, PH = webv.page.height, pg = webv.page.getContext("2d");
+  try { appNoodle(pg, PW, PH); } catch (e) { pg.fillStyle = "#15181b"; pg.fillRect(0, 0, PW, PH); }
+  const site = phone.site != null ? WEB[phone.site] : null;
+  // the desk behind it all
+  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#14171b"); bg.addColorStop(1, "#0b0d10");
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // the browser's chrome: a tab, the address bar, the Noodle mark
+  g.fillStyle = "#1f2327"; g.fillRect(0, 0, W, 54);
+  g.fillStyle = "#2c3136"; roundRect(g, 24, 10, 380, 44, 10); g.fill();
+  g.fillStyle = "#e6e9ec"; g.font = "600 19px " + UI; g.textBaseline = "middle"; g.textAlign = "left";
+  clipText(g, site ? site.title : "New tab", 60, 33, 320);
+  noodleMark(g, W, 40, 33, 8);
+  g.fillStyle = "#2c3136"; g.fillRect(0, 54, W, 58);
+  g.fillStyle = "#15181b"; roundRect(g, 150, 64, W - 300, 38, 19); g.fill();
+  g.fillStyle = site && site.kind === "scam" ? "#e0662c" : "#7fd69a"; g.font = "600 18px " + UI;
+  g.fillText(site && site.kind === "scam" ? "\u26a0 Not secure" : "\u{1F512}", 172, 84);
+  g.fillStyle = "#e6e9ec"; g.font = "500 19px " + UI;
+  g.fillText(site ? "https://www." + site.host : "noodle.co.kn", 214, 84);
+  g.fillStyle = "#9aa1a9"; g.font = "700 26px " + UI; g.textAlign = "center";
+  g.fillText("\u2039", 50, 84); g.fillText("\u203a", 92, 84); g.fillText("\u21bb", W - 110, 84);
+  // the page, in the middle
+  const sy0 = PH * 0.142, sy1 = PH * 0.918, ch = sy1 - sy0, dh = H - 112 - 70, dw = PW * dh / ch, dx = (W - dw) / 2, dy = 122;
+  g.save(); g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 30; g.fillStyle = "#000"; g.fillRect(dx, dy, dw, dh); g.restore();
+  g.drawImage(webv.page, 0, sy0, PW, ch, dx, dy, dw, dh);
+  // the left: Noodle's suggestions
+  webv.hits = []; webv.sugg = webSuggestions();
+  const lx = 34, lw = dx - 70;
+  g.textAlign = "left"; noodleMark(g, W, lx + 22, 168, 14); noodleWord(g, lx + 125, 160, 34);
+  g.fillStyle = "#9aa1a9"; g.font = "600 17px " + UI; g.textAlign = "left"; g.fillText(site ? "Noodle suggests" : "Suggested for you", lx, 214);
+  webv.sugg.forEach((i, k) => {
+    const w = WEB[i], y = 236 + k * 82;
+    g.fillStyle = "rgba(255,255,255,0.05)"; roundRect(g, lx, y, lw, 70, 12); g.fill();
+    g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(lx + 36, y + 35, 22, 0, 6.2832); g.fill();
+    g.fillStyle = "#fff"; g.font = "700 22px " + UI; g.textAlign = "center"; g.fillText(w.title.replace(/[^A-Za-z0-9\u3000-\u9fff]/g, "").slice(0, 1).toUpperCase() || "?", lx + 36, y + 36);
+    g.textAlign = "left"; g.fillStyle = "#ffffff"; g.font = "600 20px " + UI; clipText(g, w.title, lx + 72, y + 26, lw - 110);
+    g.fillStyle = "#7fa6d6"; g.font = "500 16px " + UI; clipText(g, "www." + w.host, lx + 72, y + 50, lw - 110);
+    g.fillStyle = "#5d656e"; g.font = "700 18px " + UI; g.textAlign = "right"; g.fillText(String(k + 1), lx + lw - 14, y + 36); g.textAlign = "left";
+    webv.hits.push({ x: lx, y: y, w: lw, h: 70, site: i });
+  });
+  // the right: trending, and a sponsor
+  const rx = dx + dw + 36, rw = W - rx - 34;
+  g.fillStyle = "#9aa1a9"; g.font = "600 17px " + UI; g.fillText("Trending on Noodle", rx, 160);
+  ["ramen near me", "train times Tokonto", "salaryman forms", "cat cafe", "toll expressway", "konbini new flavour", "Mizuho shrine", "sakura forecast"].forEach((q, k) => {
+    const y = 196 + k * 44;
+    g.fillStyle = "#e0662c"; g.font = "700 17px " + UI; g.fillText((k + 1) + ".", rx, y);
+    g.fillStyle = "#e6e9ec"; g.font = "500 18px " + UI; clipText(g, q, rx + 34, y, rw - 40);
+  });
+  const ad = WEB.find((w, i) => w.kind === "shop" && i !== phone.site) || WEB[0], ay = 580;
+  g.fillStyle = "#1b1f23"; roundRect(g, rx, ay, rw, 300, 14); g.fill();
+  g.fillStyle = "#6b737c"; g.font = "600 13px " + UI; g.fillText("SPONSORED", rx + 18, ay + 26);
+  g.fillStyle = NOODLE_TILE[WEB.indexOf(ad) % NOODLE_TILE.length]; roundRect(g, rx + 18, ay + 44, rw - 36, 150, 10); g.fill();
+  g.fillStyle = "#fff"; g.font = "800 34px " + UI; g.textAlign = "center"; clipText(g, ad.title, rx + rw / 2, ay + 120, rw - 60);
+  g.font = "500 17px " + UI; g.fillStyle = "#c9ced3"; clipText(g, "Open now at www." + ad.host, rx + rw / 2, ay + 230, rw - 40);
+  g.textAlign = "left";
+  webv.hits.push({ x: rx, y: ay, w: rw, h: 300, site: WEB.indexOf(ad) });
+  // the keys
+  g.fillStyle = "#6b737c"; g.font = "500 17px " + UI; g.textAlign = "center";
+  g.fillText("Arrows or stick: move    A / Enter: open    B / Backspace: back    1-9: a suggested site    P or Esc: put the phone away", W / 2, H - 30);
+  g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
 function drawPhoneScreen() {
@@ -20213,7 +20312,7 @@ function phoneChrome(g, W, H, title, sub) {
     g.textAlign = "left"; g.textBaseline = "middle";
     g.fillStyle = accent;
     g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText("\u2039 " + (phone.app === "Poodle" && phone.site != null ? "Poodle" : "Home"), W * 0.055, H * 0.070);
+    g.fillText("\u2039 " + (phone.app === "Noodle" && phone.site != null ? "Noodle" : "Home"), W * 0.055, H * 0.070);
     g.fillStyle = "#ffffff";
     g.font = "800 " + Math.round(W * 0.090) + "px " + UI;
     clipText(g, title, W * 0.055, H * 0.109, W * 0.80);
@@ -20862,27 +20961,47 @@ function updateTolls(dt) {
   });
 }
 
-// ---- Poodle, and the web behind it
-function poodleMark(g, W, cx, cy, size) {
-  // Six dots in a ring, in the four colours, because that is what these marks
-  // all look like.
-  const cols = ["#3b6ea8", "#d1483c", "#e0a21c", "#2f8a4c", "#3b6ea8", "#d1483c"];
-  for (let i = 0; i < 6; i++) {
-    const a = i / 6 * Math.PI * 2 - Math.PI / 2;
-    g.fillStyle = cols[i];
+// ---- Noodle, and the web behind it
+function noodleMark(g, W, cx, cy, size) {
+  // Noodle's mark: a ramen bowl, three noodles lifting out of it in the brand's colours, and a pair of chopsticks across the top.
+  g.save();
+  g.lineCap = "round";
+  const cols = ["#e0662c", "#e0a21c", "#d1483c"];
+  cols.forEach((c, i) => {
+    g.strokeStyle = c; g.lineWidth = size * 0.22;
     g.beginPath();
-    g.arc(cx + Math.cos(a) * size, cy + Math.sin(a) * size, size * 0.42, 0, Math.PI * 2);
-    g.fill();
-  }
+    const x0 = cx - size * 0.45 + i * size * 0.45;
+    g.moveTo(x0, cy + size * 0.15);
+    g.bezierCurveTo(x0 - size * 0.35, cy - size * 0.35, x0 + size * 0.35, cy - size * 0.55, x0 + size * 0.05, cy - size * 1.05);
+    g.stroke();
+  });
+  g.strokeStyle = "#8a5a32"; g.lineWidth = size * 0.12;
+  g.beginPath(); g.moveTo(cx - size * 1.2, cy - size * 1.15); g.lineTo(cx + size * 1.25, cy - size * 0.55); g.stroke();
+  g.beginPath(); g.moveTo(cx - size * 1.15, cy - size * 1.35); g.lineTo(cx + size * 1.3, cy - size * 0.8); g.stroke();
+  g.fillStyle = "#d1483c";
+  g.beginPath(); g.moveTo(cx - size * 1.3, cy + size * 0.1); g.lineTo(cx + size * 1.3, cy + size * 0.1);
+  g.quadraticCurveTo(cx + size * 1.15, cy + size * 1.25, cx, cy + size * 1.3); g.quadraticCurveTo(cx - size * 1.15, cy + size * 1.25, cx - size * 1.3, cy + size * 0.1); g.fill();
+  g.fillStyle = "#ffffff"; g.fillRect(cx - size * 1.1, cy + size * 0.42, size * 2.2, size * 0.12);
+  g.fillStyle = "#a83228"; g.fillRect(cx - size * 0.45, cy + size * 1.28, size * 0.9, size * 0.14);
+  g.restore();
+}
+// "Noodle", each letter in a colour of the bowl
+function noodleWord(g, x, y, px) {
+  const L = "Noodle", cols = ["#e0662c", "#e0a21c", "#d1483c", "#e0662c", "#2f8a4c", "#d1483c"];
+  g.font = "700 " + Math.round(px) + "px " + UI; g.textBaseline = "middle";
+  let w = 0; for (const ch of L) w += g.measureText(ch).width;
+  let at = x - w / 2; const al = g.textAlign; g.textAlign = "left";
+  [...L].forEach((ch, i) => { g.fillStyle = cols[i]; g.fillText(ch, at, y); at += g.measureText(ch).width; });
+  g.textAlign = al;
 }
 
 // A browser is almost entirely its own furniture: the tab strip, the omnibox
 // with the lock in it, and the toolbar along the bottom. Get those three right
 // and any page you put between them reads as a page in a browser. These are
 // Chrome's, because Chrome is what a phone browser looks like.
-const POODLE_TILE = ["#3b6ea8", "#d1483c", "#e0a21c", "#2f8a4c", "#8a5fc4", "#2f8a9c", "#c4663b", "#5b6b7a"];
+const NOODLE_TILE = ["#e0662c", "#d1483c", "#e0a21c", "#2f8a4c", "#8a5fc4", "#2f8a9c", "#c4663b", "#5b6b7a"];
 
-function poodleTabStrip(g, W, H, title, accent) {
+function noodleTabStrip(g, W, H, title, accent) {
   g.fillStyle = "#1f2225";
   g.fillRect(0, 0, W, H * 0.082);
   // the status line, above the tabs
@@ -20918,7 +21037,7 @@ function poodleTabStrip(g, W, H, title, accent) {
   }
 }
 
-function poodleOmnibox(g, W, H, text, secure) {
+function noodleOmnibox(g, W, H, text, secure) {
   const y = H * 0.090, h = H * 0.044;
   g.fillStyle = "#1f2225";
   g.fillRect(0, H * 0.082, W, H * 0.060);
@@ -20947,7 +21066,7 @@ function poodleOmnibox(g, W, H, text, secure) {
   g.closePath(); g.fill();
 }
 
-function poodleToolbar(g, W, H) {
+function noodleToolbar(g, W, H) {
   const by = H * 0.918, bh = H * 0.062;
   g.fillStyle = "#1f2225";
   g.fillRect(0, by, W, H - by);
@@ -20987,7 +21106,7 @@ function poodleToolbar(g, W, H) {
   phoneNavBar(g, W, H);
 }
 
-function appPoodle(g, W, H) {
+function appNoodle(g, W, H) {
   const site = phone.site != null ? WEB[phone.site] : null;
   if (!site && searchUI.on) { drawSearchPage(g, W, H); return; }
   if (!site) {
@@ -20995,14 +21114,12 @@ function appPoodle(g, W, H) {
     // shortcut tiles, which is what a phone browser opens on.
     g.fillStyle = "#15181b";
     g.fillRect(0, 0, W, H);
-    poodleTabStrip(g, W, H, "New tab", "#5b6b7a");
-    poodleOmnibox(g, W, H, "Search or type a web address", false);
+    noodleTabStrip(g, W, H, "New tab", "#5b6b7a");
+    noodleOmnibox(g, W, H, "Search or type a web address", false);
 
-    poodleMark(g, W, W * 0.5, H * 0.225, W * 0.052);
-    g.fillStyle = "#e6e9ec";
-    g.font = "400 " + Math.round(W * 0.078) + "px " + UI;
+    noodleMark(g, W, W * 0.5, H * 0.225, W * 0.052);
     g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("Poodle", W * 0.5, H * 0.288);
+    noodleWord(g, W * 0.5, H * 0.288, W * 0.082);
 
     g.fillStyle = "#23272b";
     roundRect(g, W * 0.085, H * 0.325, W * 0.83, H * 0.052, H * 0.026); g.fill();
@@ -21010,7 +21127,7 @@ function appPoodle(g, W, H) {
     g.fillStyle = "#7d858d";
     g.font = "500 " + Math.round(W * 0.040) + "px " + UI;
     g.textAlign = "left";
-    g.fillText(phone.sub === -1 ? "Search Poodle  \u00b7  press A to type" : "Search Poodle", W * 0.175, H * 0.351);
+    g.fillText(phone.sub === -1 ? "Search Noodle  \u00b7  press A to type" : "Search Noodle", W * 0.175, H * 0.351);
     // the little magnifier
     g.strokeStyle = "#7d858d"; g.lineWidth = W * 0.008;
     g.beginPath(); g.arc(W * 0.132, H * 0.3495, W * 0.017, 0, 6.2832); g.stroke();
@@ -21033,7 +21150,7 @@ function appPoodle(g, W, H) {
         roundRect(g, cx - tileW * 0.46, cy - rad * 1.30, tileW * 0.92, H * 0.104, W * 0.030);
         g.stroke();
       }
-      g.fillStyle = POODLE_TILE[i % POODLE_TILE.length];
+      g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length];
       g.beginPath(); g.arc(cx, cy, rad, 0, 6.2832); g.fill();
       g.fillStyle = "#ffffff";
       g.font = "700 " + Math.round(W * 0.050) + "px " + UI;
@@ -21045,7 +21162,7 @@ function appPoodle(g, W, H) {
       clipText(g, w.title, cx, cy + rad * 1.52, tileW * 0.86);
     });
     g.textAlign = "left"; g.textBaseline = "middle";
-    poodleToolbar(g, W, H);
+    noodleToolbar(g, W, H);
     return;
   }
   drawSite(g, W, H, site);
@@ -21573,9 +21690,9 @@ function drawSite(g, W, H, site) {
   drawSiteBody(g, W, H, site);
   g.restore();
   const i = WEB.indexOf(site);
-  poodleTabStrip(g, W, H, site.title, POODLE_TILE[(i < 0 ? 0 : i) % POODLE_TILE.length]);
-  poodleOmnibox(g, W, H, site.host, site.kind !== "scam");
-  poodleToolbar(g, W, H);
+  noodleTabStrip(g, W, H, site.title, NOODLE_TILE[(i < 0 ? 0 : i) % NOODLE_TILE.length]);
+  noodleOmnibox(g, W, H, site.host, site.kind !== "scam");
+  noodleToolbar(g, W, H);
   g.textAlign = "left"; g.textBaseline = "alphabetic";
 }
 
@@ -24342,7 +24459,7 @@ function appMusic(g, W, H) {
     g.fillStyle = "#8a919a";
     g.fillText("Buy earbuds or headphones first \u2014", W * 0.5, H * 0.62);
     g.fillText("11 Eleven, Pet Mart, or order", W * 0.5, H * 0.665);
-    g.fillText("them through Poodle.", W * 0.5, H * 0.71);
+    g.fillText("them through Noodle.", W * 0.5, H * 0.71);
     g.textAlign = "left";
     return;
   }
@@ -24662,7 +24779,7 @@ function appSettings(g, W, H) {
 }
 
 const PHONE_SCREENS = {
-  Ryde: appRyde, Poodle: appPoodle, Wallet: appWallet, Camera: appCamera,
+  Ryde: appRyde, Noodle: appNoodle, Wallet: appWallet, Camera: appCamera,
   MyGram: appMyNet, Nihon: appNihon, Phone: appDialler, Mail: appMail,
   Contacts: appContacts, Music: appMusic, Photos: appPhotos, Settings: appSettings,
   Health: appHealth, Numbers: appNumbers
@@ -24670,6 +24787,7 @@ const PHONE_SCREENS = {
 
 function setPhone(on) {
   phone.open = !!on;
+  setTimeout(webviewSync, 0);
   document.body.classList.toggle("phone-up", phone.open);
   if (phone.open) { applyDeviceSkin(); phone.dirty = true; drawPhone(); }
 }
@@ -24678,7 +24796,7 @@ function setPhone(on) {
 function phoneCount() {
   if (!phone.app) return homeApps().length;
   if (phone.app === "Ryde") return phone.ryde ? 1 : RYDE_CLASSES.length + 1;
-  if (phone.app === "Poodle") {
+  if (phone.app === "Noodle") {
     if (phone.site == null) return WEB.length;
     const site = WEB[phone.site];
     if (site.kind === "shop") return SHOP_ITEMS.length + 1;
@@ -24738,16 +24856,16 @@ function phoneMoveScreen(dx, dy) {
     if (dy && z > 1) { phone.zoom = clamp((phone.zoom || 1) - dy * 0.5, 1, z); phone.dirty = true; }
     return;
   }
-  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchMove(dx, dy); return; }
-  if (phone.app === "Poodle" && phone.site == null) {
+  if (phone.app === "Noodle" && phone.site == null && searchUI.on) { searchMove(dx, dy); return; }
+  if (phone.app === "Noodle" && phone.site == null) {
     const cols = 4;
     if (phone.sub === -1) { if (dy > 0) phone.sub = 0; phone.dirty = true; return; }
     if (dy < 0 && phone.sub < cols) { phone.sub = -1; phone.dirty = true; return; }
     const n = WEB.length;
     phone.sub = clamp(phone.sub + dx + dy * cols, 0, n - 1); phone.dirty = true; return;
   }
-  if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "tech") { dokotoMove(dx, dy); return; }
-  if (phone.app === "Poodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
+  if (phone.app === "Noodle" && phone.site != null && WEB[phone.site].kind === "tech") { dokotoMove(dx, dy); return; }
+  if (phone.app === "Noodle" && phone.site != null && WEB[phone.site].kind === "cars" && dx) {
     phone.paint = (((phone.paint || 0) + dx) % PAINTS.length + PAINTS.length) % PAINTS.length;
     phone.dirty = true;
     return;
@@ -24808,7 +24926,7 @@ function phoneAct() {
         say(rs.unit ? "Ryde on the way \u00b7 about " + Math.max(10, Math.round(rs.eta / 5) * 5) + " seconds" : "Ryde on the way \u00b7 " + Math.ceil(eta) + " min", 4);
       }
     }
-  } else if (app === "Poodle") {
+  } else if (app === "Noodle") {
     if (phone.site == null && searchUI.on) { searchAct(); }
     else if (phone.site == null && phone.sub === -1) { searchOpen(); }
     else if (phone.site == null) { phone.site = phone.sub; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; }
@@ -24891,10 +25009,10 @@ function phoneBack() {
   if (isBasic() && phone.pad.on) { phone.pad.on = false; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.vmail) { phone.vmail = ""; phone.call = null; phone.dirty = true; return true; }
   if (phone.app === "Phone" && phone.dial) { phone.dial = phone.dial.slice(0, -1); phone.dirty = true; return true; }
-  if (phone.app === "Poodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
+  if (phone.app === "Noodle" && phone.site == null && searchUI.on) { searchBack(); return true; }
   if (phone.app === "Wallet" && walletBack()) { phone.dirty = true; return true; }
   if (phone.app === "MyGram" && mynetBack()) { phone.dirty = true; return true; }
-  if (phone.app === "Poodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
+  if (phone.app === "Noodle" && phone.site != null) { phone.site = null; phone.sub = 0; phone.dirty = true; return true; }
   if (phone.app) { phone.app = null; phone.sub = 0; phone.dirty = true; return true; }
   return false;
 }
@@ -39422,6 +39540,20 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
 generate(19640101);
 offerSaveOnTitle();
 radioLoadMusic();
+(function webviewWire() {
+  window.addEventListener("keydown", e => {
+    if (!document.body.classList.contains("webfull")) return;
+    const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
+    if (m) { webOpen(webv.sugg[+m[1] - 1]); e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+  const cv = document.getElementById("webcanvas");
+  if (cv) cv.addEventListener("click", e => {
+    const r = cv.getBoundingClientRect(), sc = Math.min(r.width / cv.width, r.height / cv.height), ox = (r.width - cv.width * sc) / 2, oy = (r.height - cv.height * sc) / 2;
+    const x = (e.clientX - r.left - ox) / sc, y = (e.clientY - r.top - oy) / sc;
+    const h = webv.hits.find(h => x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h);
+    if (h) webOpen(h.site);
+  });
+})();
 (function spotifyWire() {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on("spclient", "input", e => { spot.client = e.target.value.trim(); spotify.clientId = spot.client; spotifySave(); try { localStorage.setItem("konto.spotify.client", spotify.client); } catch (x) { /* none */ } });
