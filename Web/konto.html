@@ -3942,7 +3942,7 @@ function planCity(world, F, seed, report, progressBase) {
     const prof = D[ward.kind] || D.House;
     if (ward.kind === "Palace") {
       const r = site.palaceRadius;
-      addPlot(wi, L.blocks.length, 0, ward.centre, [r * 1.55, r * 1.55], ward.yaw, "park", 1);
+      addPlot(wi, L.blocks.length, 0, ward.centre, [r * 2, r * 2], ward.yaw, "park", 1);
       addPlot(wi, L.blocks.length, 1, ward.centre, [r * 0.42, r * 0.34], ward.yaw, "civic", 3);
       L.blocks.push({ ward: wi, centre: ward.centre, size: [r * 1.6, r * 1.6], yaw: ward.yaw });
       ward.blocks = 1;
@@ -7706,6 +7706,7 @@ function buildScene(w) {
     const overlayMat = new THREE.MeshLambertMaterial({
       map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
     });
+    w.overlays[w.overlays.length - 1].mat = overlayMat;
     // The plan is painted at metres to the pixel, which is a flat wash once you
     // are standing on it. A grain texture at eight metres a repeat gives the
     // tarmac and the paving a surface without a second set of geometry.
@@ -15854,7 +15855,7 @@ function parkTrees(city, trees) {
   const onPath = (lx, lz) => Math.abs(lx) < 11 || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
   const offTrack = (lx, lz) => { const d = Math.max(Math.abs(lx), Math.abs(lz)); return d < T - 8 || (d > T + 7 && d < inner - 14); };
   let n = 0;
-  const add = (lx, lz, sp, s) => { const w = W(lx, lz); trees.push({ c: [w[0], w[1]], y: gy, s: s, where: "palace", sp: sp }); n++; };
+  const add = (lx, lz, sp, s) => { const w = W(lx, lz); trees.push({ c: [w[0], w[1]], y: gy + CITY_LIFT, s: s, where: "palace", sp: sp }); n++; };
   for (let lz = -inner + 18; lz < inner - 18; lz += 14) for (let lx = -inner + 18; lx < inner - 18; lx += 14) {
     const jx = lx + (rnd(lx, lz, 811) - 0.5) * 10, jz = lz + (rnd(lz, lx, 812) - 0.5) * 10;
     const grove = rnd(Math.floor(jx / 80), Math.floor(jz / 80), 813);
@@ -15886,6 +15887,7 @@ function castlePlan(m) {
 function buildCastle(root, city) {
   const m = city.moat; if (!m) return;
   world.walk = world.walk.filter(d => !d.castle);
+  const gv = m.groundY + CITY_LIFT;                       // the painted lawn lies this much over the graded ground
   const gy = m.groundY, wy = m.waterY, inner = m.inner, outer = m.inner + m.width, r = m.yaw * Math.PI / 180;
   const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
   const geos = {};                                       // material key -> [positions, uvs, indices]
@@ -15935,7 +15937,7 @@ function buildCastle(root, city) {
   // wall and shows as a raw slope along it. A strip of the same ground (the terrain's own material, at the grounds' height) is laid over
   // that band, and the whole of the grounds is a deck at that height so nothing walks or drives down into it.
   {
-    const band = CELL * 1.7, ein = inner - 0.3, P = [], C = [], S = [], N = [], I = [], rgb = [0, 0, 0], sp = [0, 0, 0, 0];
+    const band = CELL * 2.4, ein = inner - 0.3, P = [], C = [], S = [], N = [], I = [], UV = [], ov = (world.overlays || []).find(o => m.centre[0] > o.x0 && m.centre[0] < o.x0 + o.w && m.centre[1] > o.z0 && m.centre[1] < o.z0 + o.h && o.mat), rgb = [0, 0, 0], sp = [0, 0, 0, 0];
     // the grounds' own green, read off the terrain's colours a little way in from the band
     { let n = 0; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, q = W(Math.cos(a) * (inner - band - CELL * 2), Math.sin(a) * (inner - band - CELL * 2)), gx = Math.round(q[0] / CELL), gz = Math.round(q[1] / CELL);
         if (!world.terrainColours || gx < 0 || gz < 0 || gx >= GRID_X || gz >= GRID_Z) continue; const vi = (gz * GRID_X + gx) * 3; rgb[0] += world.terrainColours[vi]; rgb[1] += world.terrainColours[vi + 1]; rgb[2] += world.terrainColours[vi + 2]; n++; }
@@ -15945,7 +15947,7 @@ function buildCastle(root, city) {
       for (let a = 0; a <= along; a++) for (let b = 0; b <= across; b++) {
         const u = -ein + 2 * ein * a / along, d = ein - band + band * b / across;
         const l = f[0] ? [f[0] * d, u] : [u, f[1] * d], w = W(l[0], l[1]);
-        P.push(w[0] - WORLD_X * 0.5, gy, w[1] - WORLD_Z * 0.5); C.push(rgb[0], rgb[1], rgb[2]); S.push(0, 0, 0, 0); N.push(0, 1, 0);
+        P.push(w[0] - WORLD_X * 0.5, gv, w[1] - WORLD_Z * 0.5); C.push(rgb[0], rgb[1], rgb[2]); S.push(0, 0, 0, 0); N.push(0, 1, 0); UV.push(ov ? (w[0] - ov.x0) / ov.w : 0, ov ? 1 - (w[1] - ov.z0) / ov.h : 0);
       }
       // wound to face up whichever side this is
       const ax = P[(base + across + 1) * 3] - P[base * 3], az = P[(base + across + 1) * 3 + 2] - P[base * 3 + 2], bx = P[(base + 1) * 3] - P[base * 3], bz = P[(base + 1) * 3 + 2] - P[base * 3 + 2];
@@ -15956,11 +15958,11 @@ function buildCastle(root, city) {
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(strip);
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
-    g.setAttribute("splat", new THREE.Float32BufferAttribute(S, 4)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3)); g.setIndex(I);
-    const mat = terrainMaterial(); mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -2;
-    const lawn = new THREE.Mesh(g, mat); lawn.position.set(WORLD_X * 0.5, 0.04, WORLD_Z * 0.5); lawn.receiveShadow = true; root.add(lawn);
+    g.setAttribute("splat", new THREE.Float32BufferAttribute(S, 4)); g.setAttribute("uv", new THREE.Float32BufferAttribute(UV, 2)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3)); g.setIndex(I);
+    const mat = ov ? ov.mat.clone() : terrainMaterial(); if (ov) { mat.onBeforeCompile = ov.mat.onBeforeCompile; if (ov.mat.customProgramCacheKey) mat.customProgramCacheKey = ov.mat.customProgramCacheKey; } mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -2;
+    const lawn = new THREE.Mesh(g, mat); if (ov) { g.translate(WORLD_X * 0.5, 0, WORLD_Z * 0.5); lawn.position.set(0, 0.01, 0); } else lawn.position.set(WORLD_X * 0.5, 0.01, WORLD_Z * 0.5); lawn.receiveShadow = true; root.add(lawn);
     const q = W(0, 0);
-    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: ein, hl: ein, ya: gy, yb: gy, r: inner * 1.5, castle: true });
+    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: ein, hl: ein, ya: gv, yb: gv, r: inner * 1.5, castle: true });
   }
   // ---- the dobei round the grounds, with a gap for the gate on the +z side
   const DB = inner - 1.2, DH = 2.4;
@@ -16165,48 +16167,48 @@ function buildCastle(root, city) {
     poles.push([px, tz, ty + 11.2, 13, 6.0]);
     // the plaza: paving, the pool with its fountains, a flag at each front corner
     const p0 = front + 15, p1 = Math.min(front + 100, inner - 34);
-    quad("paving", [px - 100, gy + 0.09, p1], [px + 100, gy + 0.09, p1], [px + 100, gy + 0.09, p0], [px - 100, gy + 0.09, p0], 8);
+    quad("paving", [px - 100, gv + 0.09, p1], [px + 100, gv + 0.09, p1], [px + 100, gv + 0.09, p0], [px - 100, gv + 0.09, p0], 8);
     const pc = (p0 + p1) / 2 + 4, pl = (p1 - p0) * 0.62;
-    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(f => box("granite", px + f[0] * 12, gy, pc + f[1] * pl / 2, f[0] ? 1.2 : 25.2, 0.7, f[0] ? pl + 1.2 : 1.2, 3));
-    [-1, 1].forEach(sd => solid(px + sd * 12, pc, 1.2, pl, gy, 0.7)); [-1, 1].forEach(sd => solid(px, pc + sd * pl / 2, 25, 1.2, gy, 0.7));
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(f => box("granite", px + f[0] * 12, gv, pc + f[1] * pl / 2, f[0] ? 1.2 : 25.2, 0.7, f[0] ? pl + 1.2 : 1.2, 3));
+    [-1, 1].forEach(sd => solid(px + sd * 12, pc, 1.2, pl, gv, 0.7)); [-1, 1].forEach(sd => solid(px, pc + sd * pl / 2, 25, 1.2, gv, 0.7));
     domes.push(["pool", px, pc, 23.8, pl - 1.2]);
     for (let k = 0; k < 3; k++) domes.push(["jet", px, pc - pl * 0.3 + k * pl * 0.3]);
-    [-1, 1].forEach(sd => poles.push([px + sd * 92, p1 - 6, gy, 16, 3.6]));
+    [-1, 1].forEach(sd => poles.push([px + sd * 92, p1 - 6, gv, 16, 3.6]));
     // the walk to it from the gate avenue
-    quad("gravel", [px + 100, gy + 0.1, front + 64], [-6, gy + 0.1, front + 64], [-6, gy + 0.1, front + 56], [px + 100, gy + 0.1, front + 56], 6);
+    quad("gravel", [px + 100, gv + 0.1, front + 64], [-6, gv + 0.1, front + 64], [-6, gv + 0.1, front + 56], [px + 100, gv + 0.1, front + 56], 6);
   }
   // ---- the park. A running track all the way round inside the outer wall (a little under two kilometres of it), a gravel avenue from the
   // main gate to the honmaru, benches and lamps along the track. The trees are planted with the city's (see parkTrees).
   {
     const T = inner - 25, HW = 2.6, c0 = T - HW, c1 = T + HW;
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(f => {
-      const P = (d, u) => f[0] ? [f[0] * d, gy + 0.13, u] : [u, gy + 0.13, f[1] * d];
+      const P = (d, u) => f[0] ? [f[0] * d, gv + 0.13, u] : [u, gv + 0.13, f[1] * d];
       // each side runs corner to corner; the corners overlap, which is a square of track
       quad("track", P(c0, -c1), P(c0, c1), P(c1, c1), P(c1, -c1), HW * 2);
       for (let u = -T + 30; u < T - 30; u += 36) {
         const lamp = (Math.round(u / 36) & 1) === 0, at = P(c0 - 2.2, u), x = at[0], z = at[2];
-        if (lamp) { box("iron", x, gy, z, 0.22, 4.2, 0.22, 2); box("plaster", x, gy + 4.2, z, 0.55, 0.7, 0.55, 2); box("iron", x, gy + 4.9, z, 0.75, 0.12, 0.75, 2); solid(x, z, 0.4, 0.4, gy, 5); }
-        else { const along = f[0] ? [0.6, 2.0] : [2.0, 0.6]; box("stone", x, gy, z, along[0] * 0.8, 0.42, along[1] * 0.8, 2); box("wood", x, gy + 0.42, z, along[0], 0.1, along[1], 2); }
+        if (lamp) { box("iron", x, gv, z, 0.22, 4.2, 0.22, 2); box("plaster", x, gv + 4.2, z, 0.55, 0.7, 0.55, 2); box("iron", x, gv + 4.9, z, 0.75, 0.12, 0.75, 2); solid(x, z, 0.4, 0.4, gv, 5); }
+        else { const along = f[0] ? [0.6, 2.0] : [2.0, 0.6]; box("stone", x, gv, z, along[0] * 0.8, 0.42, along[1] * 0.8, 2); box("wood", x, gv + 0.42, z, along[0], 0.1, along[1], 2); }
       }
     });
-    quad("gravel", [-6, gy + 0.1, T - HW - 0.5], [6, gy + 0.1, T - HW - 0.5], [6, gy + 0.1, HM.z + HM.d / 2 + 34.5], [-6, gy + 0.1, HM.z + HM.d / 2 + 34.5], 6);
-    quad("gravel", [-6, gy + 0.1, -inner + 4], [6, gy + 0.1, -inner + 4], [6, gy + 0.1, HM.z - HM.d / 2 - 4], [-6, gy + 0.1, HM.z - HM.d / 2 - 4], 6);
+    quad("gravel", [-6, gv + 0.1, T - HW - 0.5], [6, gv + 0.1, T - HW - 0.5], [6, gv + 0.1, HM.z + HM.d / 2 + 34.5], [-6, gv + 0.1, HM.z + HM.d / 2 + 34.5], 6);
+    quad("gravel", [-6, gv + 0.1, -inner + 4], [6, gv + 0.1, -inner + 4], [6, gv + 0.1, HM.z - HM.d / 2 - 4], [-6, gv + 0.1, HM.z - HM.d / 2 - 4], 6);
   }
   // ---- the ninomaru garden: a pond, a red drum bridge over it, lanterns round it, a tea house
   const GD = plan.garden;
   const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 48), gfx.high ? new THREE.MeshStandardMaterial({ color: 0x15343a, roughness: 0.08, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.6 }) : new THREE.MeshLambertMaterial({ color: 0x15343a }));
   pond.rotation.x = -Math.PI / 2; pond.scale.set(GD.rx, GD.rz, 1);
-  { const q = W(GD.x, GD.z); pond.position.set(q[0], gy + 0.06, q[1]); pond.rotation.z = r; root.add(pond); }
-  for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2; box("stone", GD.x + Math.cos(a) * GD.rx, gy - 0.1, GD.z + Math.sin(a) * GD.rz, 3.6, 0.55, 2.2, 3); }
+  { const q = W(GD.x, GD.z); pond.position.set(q[0], gv + 0.06, q[1]); pond.rotation.z = r; root.add(pond); }
+  for (let k = 0; k < 64; k++) { const a = k / 64 * Math.PI * 2; box("stone", GD.x + Math.cos(a) * GD.rx, gv - 0.1, GD.z + Math.sin(a) * GD.rz, 3.6, 0.55, 2.2, 3); }
   // the drum bridge: a vermilion arc across the narrow way
   for (let k = 0; k < 14; k++) { const t0 = k / 14, t1 = (k + 1) / 14, x0 = GD.x - GD.rx - 4 + (GD.rx * 2 + 8) * t0, x1 = GD.x - GD.rx - 4 + (GD.rx * 2 + 8) * t1;
-    const y0 = gy + 0.3 + Math.sin(Math.PI * t0) * 3.2, y1 = gy + 0.3 + Math.sin(Math.PI * t1) * 3.2;
+    const y0 = gv + 0.3 + Math.sin(Math.PI * t0) * 3.2, y1 = gv + 0.3 + Math.sin(Math.PI * t1) * 3.2;
     quad("vermilion", [x0, y0, GD.z - 2.2], [x1, y1, GD.z - 2.2], [x1, y1, GD.z + 2.2], [x0, y0, GD.z + 2.2], 3);
     [-1, 1].forEach(sd => quad("vermilion", [x0, y0, GD.z + sd * 2.2], [x1, y1, GD.z + sd * 2.2], [x1, y1 + 1.0, GD.z + sd * 2.2], [x0, y0 + 1.0, GD.z + sd * 2.2], 3)); }
-  { const q = W(GD.x, GD.z); world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r + Math.PI / 2), s: Math.sin(r + Math.PI / 2), hw: 2.2, hl: GD.rx + 4, ya: gy + 0.3, yb: gy + 0.3, amp: 3.2, r: GD.rx + 7, castle: true }); }
+  { const q = W(GD.x, GD.z); world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r + Math.PI / 2), s: Math.sin(r + Math.PI / 2), hw: 2.2, hl: GD.rx + 4, ya: gv + 0.3, yb: gv + 0.3, amp: 3.2, r: GD.rx + 7, castle: true }); }
   for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2 + 0.2, x = GD.x + Math.cos(a) * (GD.rx + 9), z = GD.z + Math.sin(a) * (GD.rz + 9);
-    box("stone", x, gy, z, 0.9, 0.9, 0.9, 2); box("stone", x, gy + 0.9, z, 0.35, 1.0, 0.35, 2); box("plaster", x, gy + 1.9, z, 0.9, 0.7, 0.9, 2); roof("tile", x, z, 1.5, 1.5, gy + 2.6, 0.2, 0.2, gy + 3.2, 0.05); solid(x, z, 1, 1, gy, 3); }
-  hall(GD.x + GD.rx * 0.2, GD.z + GD.rz + 26, gy, 14, 10, 3.2, "thatch");
+    box("stone", x, gv, z, 0.9, 0.9, 0.9, 2); box("stone", x, gv + 0.9, z, 0.35, 1.0, 0.35, 2); box("plaster", x, gv + 1.9, z, 0.9, 0.7, 0.9, 2); roof("tile", x, z, 1.5, 1.5, gv + 2.6, 0.2, 0.2, gv + 3.2, 0.05); solid(x, z, 1, 1, gv, 3); }
+  hall(GD.x + GD.rx * 0.2, GD.z + GD.rz + 26, gv, 14, 10, 3.2, "thatch");
   // ---- the sannomaru storehouses, and a second row
   let kura = 0;
   for (const z0 of [plan.kura.z0, plan.kura.z0 + inner * 0.72]) for (let k = 0; k < 6; k++) for (const col of [0, 1]) {
@@ -16267,11 +16269,11 @@ function buildCastle(root, city) {
   // the Diet's domes, columns, pool and fountains, and its flags
   const hi = gfx.high, std = o => hi ? new THREE.MeshStandardMaterial(Object.assign({ envMap: gfx.env || null, envMapIntensity: 0.5 }, o)) : new THREE.MeshLambertMaterial({ color: o.color, map: o.map || null, transparent: !!o.transparent, opacity: o.opacity === undefined ? 1 : o.opacity });
   const domeMat = std({ color: 0x5f8f80, metalness: 0.35, roughness: 0.45 }), poolMat = std({ color: 0x1d3640, metalness: 0.2, roughness: 0.04, envMapIntensity: 1.0 });
-  const jetMat = std({ color: 0xeaf4fa, roughness: 0.2, transparent: true, opacity: 0.55 });
+  const jetMat = std({ color: 0xeaf4fa, roughness: 0.2, transparent: true, opacity: 0.38, depthWrite: false });
   domes.forEach(d => {
-    if (d[0] === "pool") { const w = W(d[1], d[2]), pm = new THREE.Mesh(new THREE.PlaneGeometry(d[3], d[4]), poolMat); pm.rotation.order = "YXZ"; pm.rotation.set(-Math.PI / 2, r, 0); pm.position.set(w[0], gy + 0.45, w[1]); root.add(pm); return; }
-    if (d[0] === "jet") { const w = W(d[1], d[2]), j = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.7, 6, 10, 1, true), jetMat); j.position.set(w[0], gy + 3.4, w[1]); root.add(j);
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.5, 20), std({ color: 0xb9b2a5, roughness: 0.7, map: castleTexture("granite") })); c.position.set(w[0], gy + 0.4, w[1]); root.add(c); return; }
+    if (d[0] === "pool") { const w = W(d[1], d[2]), pm = new THREE.Mesh(new THREE.PlaneGeometry(d[3], d[4]), poolMat); pm.rotation.order = "YXZ"; pm.rotation.set(-Math.PI / 2, r, 0); pm.position.set(w[0], gv + 0.35, w[1]); root.add(pm); return; }
+    if (d[0] === "jet") { const w = W(d[1], d[2]), j = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.7, 6, 10, 1, true), jetMat); j.position.set(w[0], gv + 3.4, w[1]); root.add(j);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.5, 20), std({ color: 0xb9b2a5, roughness: 0.7, map: castleTexture("granite") })); c.position.set(w[0], gv + 0.3, w[1]); root.add(c); return; }
     const w = W(d[0], d[2]), dm = new THREE.Mesh(new THREE.SphereGeometry(d[3], 36, 12, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
     dm.scale.y = 0.5; dm.position.set(w[0], d[1], w[1]); dm.castShadow = true; root.add(dm);
     const lan = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 2.4, 12), domeMat); lan.position.set(w[0], d[1] + d[3] * 0.5 + 1.0, w[1]); root.add(lan);
@@ -16293,7 +16295,7 @@ function buildCastle(root, city) {
     castleFx.flags.push({ mesh: flag, base: Float32Array.from(fg.attributes.position.array), w: fw, phase: p[0] * 0.01 });
   });
   // petals and leaves: falling round whoever is in the park, and lying on the lawn
-  castleFx.petals = makePetals(root, m, gy, plan);
+  castleFx.petals = makePetals(root, m, gv, plan);
   city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, bc), gy: gy, parliament: W(PL.x, PL.z) };
   // the audit: nothing laid across the grounds or the moat (roads, railways, the expressway)
   const crossing = [];
