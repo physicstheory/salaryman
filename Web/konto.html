@@ -7132,15 +7132,12 @@ function pollPad(dt) {
   // be reached at all. B closes it, which is how you got out of it anyway.
   if (phone.open) {
     if (document.body.classList.contains("webfull")) {
+      // the left stick is the pointer, the right stick and the d-pad scroll, A clicks, B goes back
       webStick(deadzone(gp.axes[0] || 0, 0.15), deadzone(gp.axes[1] || 0, 0.15), 1 / 60);
-      const h = webv.hover, now = performance.now();
-      if (h && (h.act === "up" || h.act === "down") && now - webv.lastStick > 380) { webv.lastStick = now; webClick(webv.cx, webv.cy); }
-      if (pressed(PAD.A)) { if (!webClick(webv.cx, webv.cy)) phoneAct(); }
-      if (pressed(PAD.LEFT)) phoneMove(-1, 0);
-      if (pressed(PAD.RIGHT)) phoneMove(1, 0);
-      if (pressed(PAD.DOWN)) phoneMove(0, 1);
-      if (pressed(PAD.UP)) phoneMove(0, -1);
-      if (pressed(PAD.B)) { if (!phoneBack()) setPhone(false); }
+      const sy = deadzone(gp.axes[3] || 0, 0.15) + (held(PAD.DOWN) ? 1 : 0) - (held(PAD.UP) ? 1 : 0);
+      if (sy) webScroll(sy * 1100 / 60);
+      if (pressed(PAD.A)) webClick(webv.cx, webv.cy);
+      if (pressed(PAD.B)) { if (searchUI.on) searchBack(); else if (!phoneBack()) setPhone(false); webv.scroll = 0; if (typeof drawPhone === "function") drawPhone(); }
     } else {
     if (pressed(PAD.LEFT)) phoneMove(-1, 0);
     if (pressed(PAD.RIGHT)) phoneMove(1, 0);
@@ -20298,14 +20295,15 @@ function drawPhone() {
 }
 
 // ---- the web, full screen --------------------------------------------------------------------------------------------------------------
-// Opening Noodle takes the browser out of the phone and over the whole screen, the way the internet opens in a GTA: the page in the
-// middle (drawn by the same renderers the phone uses, at a desktop size, and cropped to its viewport), browser chrome along the top,
-// Noodle's suggested sites down the left (click one, or press its number) and what is trending, and a sponsor, down the right.
-// The phone's own controls still drive it: the stick or arrows move, A or Enter opens, B or Backspace goes back.
-// A pointer, the way the GTA internet has one: an arrow you push around with the mouse or the left stick, that turns into a hand over
-// anything you can press - a suggestion, the back button, the address bar, a shortcut tile, the sponsor, a part of the page - which
-// lights up under it. A (or a click) presses it; the wheel, or holding the pointer at the top or bottom of the page, scrolls.
-const webv = { page: null, base: null, hits: [], sugg: [], cx: 960, cy: 600, hover: null, lastStick: 0 };
+// Opening Noodle takes the browser out of the phone and over the whole screen, the way the internet opens in a GTA: a desktop browser with
+// its tab, toolbar and bookmarks bar, and real desktop websites under it - full width, laid out in columns, scrolled with the wheel or
+// the stick. Nothing is picked out by a selection box: there is a pointer, an arrow you push around with the mouse or the left stick, that
+// turns into a hand over anything you can press. A (or a click) presses it; B or Backspace goes back; the wheel, the right stick, the
+// d-pad or the arrow keys scroll. Buying works exactly as on the phone, because a click sets what the phone would have had selected and
+// then does what the phone does.
+const WEB_TOP = 134;                                  // the page starts under the toolbar and the bookmarks bar
+const webv = { base: null, page: null, hits: [], pageHits: [], cx: 960, cy: 600, hover: null, scroll: 0, pageH: 1080, key: "", lastStick: 0,
+               kb: false };
 function webviewSync() {
   const on = !!(phone.open && phone.app === "Noodle" && !(typeof isBasic === "function" && isBasic()));
   document.body.classList.toggle("webfull", on);
@@ -20325,115 +20323,449 @@ function webOpen(i) {
   if (i == null || !WEB[i]) return;
   if (typeof searchUI === "object") searchUI.on = false;
   phone.site = i; phone.sub = 0; phone.tab = 0; phone.tabsOn = false; phone.paint = 0; phone.dirty = true;
+  webv.scroll = 0;
   if (typeof drawPhone === "function") drawPhone();
 }
+function webHome() { phone.site = null; phone.sub = 0; if (typeof searchUI === "object") searchUI.on = false; webv.scroll = 0; phone.dirty = true; }
+
+// -- drawing helpers, for the page canvas
+function wRect(g, x, y, w, h, r, fill) { g.fillStyle = fill; if (r) { roundRect(g, x, y, w, h, r); g.fill(); } else g.fillRect(x, y, w, h); }
+function wText(g, s, x, y, font, col, align, max) {
+  g.font = font; g.fillStyle = col; g.textAlign = align || "left"; g.textBaseline = "alphabetic";
+  if (max) clipText(g, s, x, y, max); else g.fillText(s, x, y);
+}
+function wPara(g, s, x, y, w, font, col, lh) {
+  g.font = font; g.fillStyle = col; g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const lines = wrapLines(g, s, w); lines.forEach((l, i) => g.fillText(l, x, y + i * lh)); return y + lines.length * lh;
+}
+function wHit(x, y, w, h, act) { webv.pageHits.push(Object.assign({ x: x, y: y, w: w, h: h }, act)); }
+function wButton(g, x, y, w, h, label, bg, fg, act, font) {
+  wRect(g, x, y, w, h, h / 2, bg);
+  g.font = font || "700 20px " + UI; g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(label, x + w / 2, y + h / 2 + 1);
+  g.textBaseline = "alphabetic"; g.textAlign = "left";
+  wHit(x, y, w, h, act);
+}
+function wShadowCard(g, x, y, w, h, r, fill) {
+  g.save(); g.shadowColor = "rgba(15,20,30,0.10)"; g.shadowBlur = 24; g.shadowOffsetY = 6; wRect(g, x, y, w, h, r, fill); g.restore();
+}
+function wFooter(g, y, W, bg, fg, name) {
+  wRect(g, 0, y, W, 150, 0, bg);
+  wText(g, name, 340, y + 64, "800 24px " + UI, fg);
+  wText(g, "About  ·  Help  ·  Privacy  ·  Terms  ·  Contact", 340, y + 104, "500 17px " + UI, fg === "#ffffff" ? "rgba(255,255,255,0.6)" : "#7a828b");
+  wText(g, "© Konto " + new Date().getFullYear(), 1580, y + 104, "500 17px " + UI, fg === "#ffffff" ? "rgba(255,255,255,0.6)" : "#7a828b", "right");
+  return y + 150;
+}
+// a product, drawn rather than photographed: one silhouette per kind of thing, in the colour given
+function wProduct(g, kind, cx, cy, s, col) {
+  g.save(); g.translate(cx, cy); g.lineJoin = "round"; g.lineCap = "round";
+  const dk = "#1b1e23";
+  if (kind === "phone") { wRect(g, -s * 0.28, -s * 0.5, s * 0.56, s, s * 0.08, dk); wRect(g, -s * 0.25, -s * 0.46, s * 0.5, s * 0.92, s * 0.06, col); wRect(g, -s * 0.06, -s * 0.43, s * 0.12, s * 0.03, s * 0.015, dk); }
+  else if (kind === "gear") { wRect(g, -s * 0.07, -s * 0.5, s * 0.14, s, s * 0.05, dk); wRect(g, -s * 0.24, -s * 0.24, s * 0.48, s * 0.48, s * 0.1, dk); wRect(g, -s * 0.2, -s * 0.2, s * 0.4, s * 0.4, s * 0.08, col); }
+  else if (kind === "audio") { g.strokeStyle = dk; g.lineWidth = s * 0.08; g.beginPath(); g.arc(0, 0, s * 0.36, Math.PI, 0); g.stroke(); wRect(g, -s * 0.44, -s * 0.02, s * 0.18, s * 0.34, s * 0.06, col); wRect(g, s * 0.26, -s * 0.02, s * 0.18, s * 0.34, s * 0.06, col); }
+  else if (kind === "tv") { wRect(g, -s * 0.55, -s * 0.36, s * 1.1, s * 0.64, s * 0.03, dk); wRect(g, -s * 0.51, -s * 0.32, s * 1.02, s * 0.56, s * 0.02, col); wRect(g, -s * 0.2, s * 0.3, s * 0.4, s * 0.05, 4, dk); }
+  else if (kind === "game") { wRect(g, -s * 0.32, -s * 0.44, s * 0.64, s * 0.88, s * 0.04, col); wRect(g, -s * 0.32, -s * 0.44, s * 0.64, s * 0.14, s * 0.04, dk); g.fillStyle = "rgba(255,255,255,0.85)"; g.beginPath(); g.arc(0, s * 0.06, s * 0.16, 0, 7); g.fill(); }
+  else if (kind === "card") { wRect(g, -s * 0.5, -s * 0.3, s, s * 0.6, s * 0.06, col); wRect(g, -s * 0.5, -s * 0.14, s, s * 0.1, 0, dk); }
+  else { wRect(g, -s * 0.36, -s * 0.36, s * 0.72, s * 0.72, s * 0.12, col); }
+  g.restore();
+}
+
+// -- the pages. Each draws into the page canvas at desktop size, records where its links are, and returns how tall it is.
+const WEB_COL = 1240, WEB_X = (1920 - 1240) / 2;
+function webPageHome(g, W) {
+  wRect(g, 0, 0, W, 2600, 0, "#f7f8fa");
+  noodleMark(g, W, W / 2, 150, 34);
+  g.textAlign = "center"; noodleWord(g, W / 2, 262, 92);
+  // the search box
+  wShadowCard(g, W / 2 - 380, 320, 760, 64, 32, "#ffffff");
+  g.strokeStyle = "#dfe3e8"; g.lineWidth = 2; roundRect(g, W / 2 - 380, 320, 760, 64, 32); g.stroke();
+  g.strokeStyle = "#8a929b"; g.lineWidth = 3; g.beginPath(); g.arc(W / 2 - 340, 350, 11, 0, 7); g.stroke(); g.beginPath(); g.moveTo(W / 2 - 332, 358); g.lineTo(W / 2 - 322, 368); g.stroke();
+  wText(g, "Search Noodle or type a web address", W / 2 - 310, 360, "500 21px " + UI, "#8a929b");
+  wHit(W / 2 - 380, 320, 760, 64, { act: "search" });
+  // shortcuts: the sites people actually go to
+  wText(g, "Shortcuts", WEB_X, 470, "700 22px " + UI, "#2a2f35");
+  const main = WEB.map((w, i) => i).filter(i => WEB[i].kind !== "page");
+  const cols = 5, tw = (WEB_COL - (cols - 1) * 24) / cols, th = 150;
+  main.forEach((i, k) => {
+    const x = WEB_X + (k % cols) * (tw + 24), y = 496 + ((k / cols) | 0) * (th + 24), w = WEB[i];
+    wShadowCard(g, x, y, tw, th, 18, "#ffffff");
+    g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(x + tw / 2, y + 56, 30, 0, 7); g.fill();
+    wText(g, w.title.replace(/[^A-Za-z0-9　-鿿]/g, "").slice(0, 1).toUpperCase() || "?", x + tw / 2, y + 66, "800 28px " + UI, "#ffffff", "center");
+    wText(g, w.title, x + tw / 2, y + 116, "600 19px " + UI, "#2a2f35", "center", tw - 24);
+    wText(g, w.host, x + tw / 2, y + 138, "500 14px " + UI, "#8a929b", "center", tw - 24);
+    wHit(x, y, tw, th, { site: i });
+  });
+  // the rest of the web: a reading list of everything else
+  let y = 496 + Math.ceil(main.length / cols) * (th + 24) + 40;
+  wText(g, "Discover", WEB_X, y, "700 22px " + UI, "#2a2f35"); y += 26;
+  const rest = WEB.map((w, i) => i).filter(i => WEB[i].kind === "page"), cw = (WEB_COL - 24) / 2, ch = 132;
+  rest.forEach((i, k) => {
+    const x = WEB_X + (k % 2) * (cw + 24), yy = y + ((k / 2) | 0) * (ch + 20), w = WEB[i];
+    wShadowCard(g, x, yy, cw, ch, 16, "#ffffff");
+    wRect(g, x, yy, 10, ch, 0, w.col || "#5a6b7a");
+    wText(g, w.title, x + 34, yy + 44, "700 22px " + UI, "#1d2126", "left", cw - 60);
+    wText(g, w.tag || "", x + 34, yy + 74, "500 17px " + UI, "#5f6770", "left", cw - 60);
+    wText(g, "www." + w.host, x + 34, yy + 106, "500 15px " + UI, "#3b78c4", "left", cw - 60);
+    wHit(x, yy, cw, ch, { site: i });
+  });
+  y += Math.ceil(rest.length / 2) * (ch + 20) + 40;
+  return wFooter(g, y, W, "#eceef1", "#2a2f35", "Noodle");
+}
+// the results page, and an on-screen keyboard so a controller can type
+function webPageSearch(g, W) {
+  wRect(g, 0, 0, W, 2000, 0, "#ffffff");
+  g.textAlign = "left"; noodleMark(g, W, WEB_X + 26, 70, 13); noodleWord(g, WEB_X + 150, 66, 40);
+  wRect(g, WEB_X + 250, 38, 760, 58, 29, "#f1f3f5");
+  wText(g, (searchUI.q || "") + (Math.floor(Date.now() / 500) % 2 ? "|" : ""), WEB_X + 286, 76, "500 22px " + UI, searchUI.q ? "#1d2126" : "#8a929b");
+  if (!searchUI.q) wText(g, "Type with your keyboard, or use the keys below", WEB_X + 300, 76, "500 20px " + UI, "#9aa1a9");
+  wButton(g, WEB_X + 1030, 38, 150, 58, "Search", "#e0662c", "#ffffff", { act: "go" });
+  const res = webSearch(searchUI.q || "");
+  let y = 160;
+  if (searchUI.q) wText(g, res.length ? "About " + res.length + " result" + (res.length === 1 ? "" : "s") : "Nothing matches that. Noodle suggests a different word.", WEB_X, y, "500 17px " + UI, "#6a717a");
+  y += 30;
+  res.slice(0, 8).forEach(r => {
+    const w = WEB[r.i];
+    wText(g, "www." + w.host, WEB_X, y + 22, "500 16px " + UI, "#3b6f3a");
+    wText(g, w.title, WEB_X, y + 56, "700 26px " + UI, "#1a4fb5", "left", 900);
+    wText(g, w.tag || (w.kind === "shop" ? "Shop online, delivered to your door" : w.kind === "cars" ? "New and used vehicles, delivered" : w.kind === "news" ? "The island's newspaper of record" : w.kind === "tech" ? "Cameras, phones, games and TVs" : "Official site"), WEB_X, y + 86, "500 18px " + UI, "#4a5058", "left", 900);
+    wHit(WEB_X, y, 900, 96, { site: r.i });
+    y += 116;
+  });
+  // the keys
+  y = Math.max(y + 20, 560);
+  const rows = ["1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm."], kw = 76, kh = 62;
+  rows.forEach((row, r) => {
+    const x0 = W / 2 - (row.length * (kw + 10)) / 2 + r * 18;
+    [...row].forEach((ch, i) => { const x = x0 + i * (kw + 10), yy = y + r * (kh + 10);
+      wRect(g, x, yy, kw, kh, 10, "#eef0f3"); wText(g, ch.toUpperCase(), x + kw / 2, yy + 41, "600 24px " + UI, "#2a2f35", "center"); wHit(x, yy, kw, kh, { key: ch }); });
+  });
+  const by = y + 4 * (kh + 10);
+  [["Space", " ", 360], ["⌫ Delete", "back", 200], ["Clear", "clear", 160]].forEach((k, i, a) => {
+    const total = a.reduce((s, q) => s + q[2] + 12, -12), x = W / 2 - total / 2 + a.slice(0, i).reduce((s, q) => s + q[2] + 12, 0);
+    wRect(g, x, by, k[2], kh, 10, "#e3e6ea"); wText(g, k[0], x + k[2] / 2, by + 40, "600 20px " + UI, "#2a2f35", "center"); wHit(x, by, k[2], kh, { key: k[1] });
+  });
+  return by + kh + 80;
+}
+function webPageShop(g, W, site) {
+  const eleven = site.brand === "eleven", main = eleven ? "#0a6b42" : "#1272d6", acc = eleven ? "#e8711a" : "#13a150";
+  wRect(g, 0, 0, W, 3000, 0, "#f5f6f4");
+  // the header: the shop's own colours, its name, a nav and a basket
+  wRect(g, 0, 0, W, 96, 0, eleven ? main : "#ffffff");
+  if (eleven) { wRect(g, 0, 84, W, 6, 0, "#e8711a"); wRect(g, 0, 90, W, 6, 0, "#cf2027"); } else { wRect(g, 0, 0, W, 6, 0, "#13a150"); wRect(g, 0, 90, W, 6, 0, "#1272d6"); }
+  wText(g, eleven ? "11 ELEVEN" : "Pet Mart", WEB_X, 60, "900 36px " + UI, eleven ? "#ffffff" : main);
+  ["Food & drink", "Daily goods", "Electronics", "Delivery", "Store finder"].forEach((t, i) => wText(g, t, WEB_X + 300 + i * 150, 58, "600 18px " + UI, eleven ? "rgba(255,255,255,0.9)" : "#33404e"));
+  wText(g, "Balance " + yenText(purse.yen), WEB_X + WEB_COL, 58, "700 18px " + UI, eleven ? "#ffffff" : main, "right");
+  // the hero
+  const hg = g.createLinearGradient(0, 96, W, 420); hg.addColorStop(0, main); hg.addColorStop(1, shade(main, 0.65));
+  g.fillStyle = hg; g.fillRect(0, 96, W, 330);
+  wText(g, eleven ? "Open 24 hours. Even for you." : "Everything for the family. All of it.", WEB_X, 220, "800 52px " + UI, "#ffffff");
+  wText(g, "Order online · bento and coffee now, electronics delivered to your door", WEB_X, 270, "500 22px " + UI, "rgba(255,255,255,0.85)");
+  wButton(g, WEB_X, 310, 220, 56, "Shop now", "#ffffff", main, { scrollTo: 470 });
+  wProduct(g, "audio", WEB_X + 1050, 260, 190, acc);
+  // the products, three across
+  wText(g, "Popular right now", WEB_X, 486, "800 30px " + UI, "#1d2126");
+  const cols = 3, cw = (WEB_COL - 2 * 28) / cols, ch = 360;
+  SHOP_ITEMS.forEach((it, i) => {
+    const x = WEB_X + (i % cols) * (cw + 28), y = 516 + ((i / cols) | 0) * (ch + 28);
+    wShadowCard(g, x, y, cw, ch, 18, "#ffffff");
+    wRect(g, x + 16, y + 16, cw - 32, 150, 12, "#f1f3f1");
+    try { shelfIcon(g, it, x + cw / 2, y + 91, 56); } catch (e) { wProduct(g, "box", x + cw / 2, y + 91, 90, acc); }
+    wText(g, it.name, x + 24, y + 204, "700 23px " + UI, "#1d2126", "left", cw - 48);
+    wPara(g, it.note || "", x + 24, y + 236, cw - 48, "500 17px " + UI, "#5f6770", 24);
+    wText(g, yenText(it.price), x + 24, y + 318, "800 26px " + UI, main);
+    wButton(g, x + cw - 196, y + 286, 172, 50, it.days > 0 ? "Order · " + it.days + " day" + (it.days > 1 ? "s" : "") : "Buy now", main, "#ffffff", { shopBuy: i }, "700 18px " + UI);
+  });
+  let y = 516 + Math.ceil(SHOP_ITEMS.length / cols) * (ch + 28) + 20;
+  // the shop's own card
+  wShadowCard(g, WEB_X, y, WEB_COL, 150, 18, shade(main, 0.85));
+  wText(g, (eleven ? "11 Eleven" : "Pet Mart") + " point card", WEB_X + 40, y + 64, "800 30px " + UI, "#ffffff");
+  wText(g, "Points on every purchase, in store and online. Switch it on in your Wallet.", WEB_X + 40, y + 104, "500 19px " + UI, "rgba(255,255,255,0.85)");
+  wButton(g, WEB_X + WEB_COL - 270, y + 48, 230, 56, "Activate card", "#ffffff", main, { shopBuy: SHOP_ITEMS.length });
+  return wFooter(g, y + 200, W, "#1d2126", "#ffffff", eleven ? "11 Eleven" : "Pet Mart");
+}
+function webPageCars(g, W, site) {
+  const lux = site.tier !== "budget", bg = lux ? "#0d0f12" : "#f6f6f4", ink = lux ? "#f2f2ef" : "#1d2126", sub = lux ? "#9aa1a9" : "#5f6770", card = lux ? "#171a1f" : "#ffffff";
+  const accent = site.tier === "luxury" ? "#c9a24a" : site.tier === "cruiser" ? "#e06a1c" : "#2f6fb0";
+  const stock = CAR_STOCK[site.tier] || [];
+  wRect(g, 0, 0, W, 4000, 0, bg);
+  wRect(g, 0, 0, W, 90, 0, lux ? "#08090b" : "#ffffff");
+  wText(g, site.title.toUpperCase(), WEB_X, 58, "900 30px " + UI, accent);
+  ["Models", "Configure", "Finance", "Dealers", "Owners"].forEach((t, i) => wText(g, t, WEB_X + 520 + i * 130, 56, "600 18px " + UI, sub));
+  // the hero: the first car, big, in the paint picked
+  const paint = PAINTS[clamp(phone.paint || 0, 0, PAINTS.length - 1)], hero = stock[0];
+  const hg = g.createLinearGradient(0, 90, 0, 600); hg.addColorStop(0, lux ? "#1a1e25" : "#e9edf2"); hg.addColorStop(1, bg);
+  g.fillStyle = hg; g.fillRect(0, 90, W, 510);
+  wText(g, site.tier === "luxury" ? "Engineered without compromise." : site.tier === "cruiser" ? "The open road is calling." : "Honest cars. Honest prices.", WEB_X, 210, "800 54px " + UI, ink);
+  wText(g, "Pick a colour, then order. Delivered to your reserved parking bay.", WEB_X, 258, "500 22px " + UI, sub);
+  if (hero) try { drawCarSide(g, WEB_X + 560, 520, 640, hero.kind, paint[1]); } catch (e) { /* no picture */ }
+  // the paint
+  wText(g, "Colour · " + paint[0], WEB_X, 330, "700 20px " + UI, ink);
+  PAINTS.forEach((p, k) => {
+    const x = WEB_X + k * 58, y = 352, c = p[1], on = k === (phone.paint || 0);
+    g.fillStyle = "rgb(" + Math.round(c[0] * 255) + "," + Math.round(c[1] * 255) + "," + Math.round(c[2] * 255) + ")";
+    g.beginPath(); g.arc(x + 22, y + 22, 20, 0, 7); g.fill();
+    g.strokeStyle = on ? accent : (lux ? "#3a3f46" : "#cfd4da"); g.lineWidth = on ? 4 : 2; g.beginPath(); g.arc(x + 22, y + 22, on ? 25 : 21, 0, 7); g.stroke();
+    wHit(x, y, 44, 44, { paint: k });
+  });
+  const status = !reserved.owned ? "You need a reserved parking bay before we can deliver (" + yenText(RESERVED_PRICE) + " at the car park nearest home)." : reservedFreeSpot() ? "Your reserved bay is free — we deliver today." : "Your reserved bays are full: move a car out first.";
+  wPara(g, status, WEB_X, 440, 520, "500 18px " + UI, reserved.owned && reservedFreeSpot() ? "#4fbf7a" : "#e0a03a", 26);
+  // the range
+  wText(g, "The range", WEB_X, 676, "800 32px " + UI, ink);
+  const cols = 3, cw = (WEB_COL - 2 * 28) / cols, ch = 400;
+  stock.forEach((c, i) => {
+    const x = WEB_X + (i % cols) * (cw + 28), y = 706 + ((i / cols) | 0) * (ch + 28);
+    wShadowCard(g, x, y, cw, ch, 18, card);
+    wRect(g, x + 16, y + 16, cw - 32, 180, 12, lux ? "#1f242b" : "#eef1f4");
+    try { drawCarSide(g, x + 40, y + 170, cw - 80, c.kind, paint[1]); } catch (e) { /* no picture */ }
+    wText(g, c.name, x + 24, y + 240, "700 24px " + UI, ink, "left", cw - 48);
+    wText(g, "From " + yenText(c.price), x + 24, y + 278, "800 26px " + UI, accent);
+    wText(g, "or " + yenText(c.rent) + " a day to rent", x + 24, y + 308, "500 17px " + UI, sub);
+    wButton(g, x + 24, y + 330, cw - 48, 52, "Order in " + paint[0], accent, lux ? "#0d0f12" : "#ffffff", { carBuy: i });
+  });
+  const y = 706 + Math.ceil(stock.length / cols) * (ch + 28) + 30;
+  return wFooter(g, y, W, lux ? "#08090b" : "#1d2126", "#ffffff", site.title);
+}
+function webPageTech(g, W, site) {
+  wRect(g, 0, 0, W, 6000, 0, "#f4f4f2");
+  wRect(g, 0, 0, W, 100, 0, "#d4152c"); wRect(g, 0, 100, W, 10, 0, "#ffd21c");
+  wText(g, "DOKOTO CAMERA", WEB_X, 64, "900 38px " + UI, "#ffffff");
+  wText(g, "Cameras · Phones · Games · TVs", WEB_X + 380, 62, "600 19px " + UI, "rgba(255,255,255,0.85)");
+  wText(g, "Balance " + yenText(purse.yen), WEB_X + WEB_COL, 62, "700 19px " + UI, "#ffffff", "right");
+  // the departments
+  const tab = clamp(phone.tab || 0, 0, DOKOTO_TABS.length - 1);
+  DOKOTO_TABS.forEach((t, i) => {
+    const x = WEB_X + i * 200, on = i === tab;
+    wRect(g, x, 136, 184, 54, 27, on ? "#14171b" : "#ffffff");
+    wText(g, t.name, x + 92, 170, "700 19px " + UI, on ? "#ffffff" : "#14171b", "center");
+    wHit(x, 136, 184, 54, { tab: i });
+  });
+  const list = dokotoList(tab), cols = 4, cw = (WEB_COL - 3 * 24) / cols, ch = 360;
+  const col = { phone: "#6a3fb5", gear: "#1a9ad6", audio: "#2a2d33", tv: "#1d3b5a", game: "#c43a3a", card: "#d4152c" };
+  list.forEach((it, i) => {
+    const x = WEB_X + (i % cols) * (cw + 24), y = 224 + ((i / cols) | 0) * (ch + 24);
+    wShadowCard(g, x, y, cw, ch, 16, "#ffffff");
+    wRect(g, x + 14, y + 14, cw - 28, 150, 12, "#f1f2f4");
+    wProduct(g, it.kind, x + cw / 2, y + 89, 110, col[it.kind] || "#5a6b7a");
+    wText(g, it.name, x + 20, y + 200, "700 21px " + UI, "#14171b", "left", cw - 40);
+    wPara(g, it.note || "", x + 20, y + 230, cw - 40, "500 15px " + UI, "#5f6770", 21);
+    wText(g, it.price ? yenText(it.price) : "Free", x + 20, y + 318, "800 24px " + UI, "#d4152c");
+    wButton(g, x + cw - 150, y + 290, 130, 46, it.kind === "card" ? "Activate" : "Buy", "#14171b", "#ffffff", { techBuy: i }, "700 18px " + UI);
+  });
+  const y = 224 + Math.ceil(list.length / cols) * (ch + 24) + 30;
+  return wFooter(g, y, W, "#14171b", "#ffffff", "Dokoto Camera");
+}
+const WEB_NEWS = [
+  ["Ministry announces committee to study committees", "“We expect findings within nine years,” says the chair, who will also chair the committee that reviews them."],
+  ["Tōkonto commuters set new record: 4 h 12 min average", "Rail operator calls it “a triumph of endurance” and announces a commemorative strap."],
+  ["Salaryman promoted after 31 years; declines, citing fatigue", "Colleagues describe the decision as “the bravest thing anyone in accounts has ever done.”"],
+  ["Capsule hotel chain adds ‘slightly larger capsule’ tier", "Guests report being able to sit up “almost completely.”"],
+  ["Bay reclamation project reclaims part of itself", "Engineers say the sea “disagreed with the plan” and will be consulted next time."],
+  ["Cat appointed station master at Kaido for a third year", "Duties continue to include sitting, observing and blocking the ticket machine."],
+  ["Expressway toll rises by ¥10 to fund study of tolls", "Drivers are invited to comment using Form 7-B."]
+];
+function webPageNews(g, W) {
+  wRect(g, 0, 0, W, 3000, 0, "#fbfaf6");
+  const serif = "Georgia, 'Times New Roman', serif";
+  wText(g, "The Konto Shimbun", W / 2, 96, "700 64px " + serif, "#14171b", "center");
+  wText(g, "Tōkonto · Morning edition · The island's newspaper of record since 1952", W / 2, 136, "500 17px " + UI, "#6a717a", "center");
+  wRect(g, WEB_X, 160, WEB_COL, 2, 0, "#14171b"); wRect(g, WEB_X, 166, WEB_COL, 1, 0, "#14171b");
+  ["National", "Tōkonto", "Business", "Rail", "Weather", "Opinion", "Sport"].forEach((t, i) => wText(g, t, WEB_X + i * 130, 200, "600 18px " + UI, "#2a2f35"));
+  wRect(g, WEB_X, 218, WEB_COL, 1, 0, "#cfcabd");
+  // the lead story, with a picture box, and the rest in columns
+  const lead = WEB_NEWS[0];
+  wRect(g, WEB_X, 250, 760, 420, 4, "#d9d4c6");
+  g.fillStyle = "#b9b2a0"; g.beginPath(); g.moveTo(WEB_X, 670); g.lineTo(WEB_X + 260, 470); g.lineTo(WEB_X + 420, 590); g.lineTo(WEB_X + 560, 500); g.lineTo(WEB_X + 760, 670); g.fill();
+  wPara(g, lead[0], WEB_X, 730, 760, "700 42px " + serif, "#14171b", 50);
+  wPara(g, lead[1], WEB_X, 850, 760, "400 22px " + serif, "#3c434b", 32);
+  let y = 250;
+  WEB_NEWS.slice(1, 5).forEach(s => {
+    const yy = wPara(g, s[0], WEB_X + 800, y + 26, 440, "700 26px " + serif, "#14171b", 32);
+    y = wPara(g, s[1], WEB_X + 800, yy + 6, 440, "400 18px " + serif, "#4a5058", 26) + 20;
+    wRect(g, WEB_X + 800, y, 440, 1, 0, "#d9d4c6"); y += 16;
+  });
+  y = Math.max(y, 960);
+  wRect(g, WEB_X, y, WEB_COL, 2, 0, "#14171b"); y += 40;
+  WEB_NEWS.slice(5).forEach((s, i) => {
+    const x = WEB_X + i * 640, yy = wPara(g, s[0], x, y, 600, "700 26px " + serif, "#14171b", 32);
+    wPara(g, s[1], x, yy + 6, 600, "400 18px " + serif, "#4a5058", 26);
+  });
+  return wFooter(g, y + 180, W, "#14171b", "#ffffff", "The Konto Shimbun");
+}
+const WEB_THREADS = [
+  ["Boss replied ‘noted’ to my resignation letter. Thoughts?", "kachou_no_more", 412, "2 minutes ago"],
+  ["Is 3 hours sleep enough. Be honest", "last_train_tanaka", 88, "14 minutes ago"],
+  ["Found a vending machine that sells hot soup. Life changed", "corn_potage_fan", 1204, "pinned"],
+  ["Does anyone actually use the gym in their building", "deskchair_athlete", 6, "1 hour ago"],
+  ["How many bows is too many bows", "ojigi_master", 233, "3 hours ago"],
+  ["Rate my bento (it is just rice)", "plain_rice_guy", 57, "yesterday"],
+  ["The 23:58 from Tōkonto Central is my therapist now", "loop_line_lyf", 640, "yesterday"]
+];
+function webPageForum(g, W) {
+  wRect(g, 0, 0, W, 3000, 0, "#eef0f3");
+  wRect(g, 0, 0, W, 90, 0, "#1f2a3a");
+  wText(g, "Sararii Forums", WEB_X, 58, "800 32px " + UI, "#ffffff");
+  wText(g, "For people who stay late", WEB_X + 300, 56, "500 18px " + UI, "#9fb2c8");
+  wButton(g, WEB_X + WEB_COL - 180, 22, 180, 46, "New thread", "#3b78c4", "#ffffff", { say: "You start a thread, read it back, and delete it. Wise." });
+  wShadowCard(g, WEB_X, 130, WEB_COL, 70 + WEB_THREADS.length * 92, 14, "#ffffff");
+  wText(g, "Topic", WEB_X + 30, 178, "700 16px " + UI, "#6a717a"); wText(g, "Replies", WEB_X + 960, 178, "700 16px " + UI, "#6a717a", "right"); wText(g, "Last post", WEB_X + WEB_COL - 30, 178, "700 16px " + UI, "#6a717a", "right");
+  WEB_THREADS.forEach((t, i) => {
+    const y = 200 + i * 92;
+    wRect(g, WEB_X, y, WEB_COL, 1, 0, "#e3e6ea");
+    g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(WEB_X + 52, y + 46, 22, 0, 7); g.fill();
+    wText(g, t[0], WEB_X + 92, y + 42, "700 21px " + UI, "#1d2126", "left", 780);
+    wText(g, "by " + t[1], WEB_X + 92, y + 70, "500 16px " + UI, "#8a929b");
+    wText(g, t[2].toLocaleString(), WEB_X + 960, y + 54, "700 20px " + UI, "#2a2f35", "right");
+    wText(g, t[3], WEB_X + WEB_COL - 30, y + 54, "500 17px " + UI, "#6a717a", "right");
+    wHit(WEB_X, y, WEB_COL, 92, { say: "“" + t[0] + "” — " + t[2] + " replies, none of them helpful." });
+  });
+  return wFooter(g, 200 + WEB_THREADS.length * 92 + 110, W, "#1f2a3a", "#ffffff", "Sararii Forums");
+}
+function webPageScam(g, W) {
+  const t = Date.now() / 300, flash = Math.floor(t) % 2;
+  wRect(g, 0, 0, W, 2000, 0, flash ? "#fff36a" : "#ffe14a");
+  for (let i = 0; i < 24; i++) { g.fillStyle = i % 2 ? "rgba(255,0,0,0.12)" : "rgba(0,0,255,0.08)"; g.beginPath(); g.moveTo(W / 2, 400); g.arc(W / 2, 400, 1600, i * Math.PI / 12, (i + 1) * Math.PI / 12); g.fill(); }
+  wText(g, "★ CONGRATULATIONS ★", W / 2, 170, "900 92px " + UI, flash ? "#d0101a" : "#1a2ad0", "center");
+  wText(g, "You are the 1,000,000th visitor to this website!", W / 2, 250, "800 36px " + UI, "#14171b", "center");
+  wText(g, "You have been selected to receive ¥50,000,000", W / 2, 320, "900 48px " + UI, "#0a8a2a", "center");
+  wShadowCard(g, W / 2 - 420, 380, 840, 300, 20, "#ffffff");
+  ["Full name", "Bank account and PIN", "Residence card number", "Mother's maiden name"].forEach((f, i) => {
+    wText(g, f, W / 2 - 380, 428 + i * 62, "600 18px " + UI, "#4a5058"); wRect(g, W / 2 - 100, 404 + i * 62, 480, 40, 6, "#f1f3f5");
+  });
+  wButton(g, W / 2 - 260, 720, 520, 90, "CLAIM NOW ▶", flash ? "#d0101a" : "#0a8a2a", "#ffffff", { scam: true }, "900 38px " + UI);
+  wText(g, "This offer expires in 00:0" + (4 - Math.floor(t / 20) % 5) + ":" + two(59 - Math.floor(t) % 60), W / 2, 860, "700 22px " + UI, "#8a2a10", "center");
+  return 960;
+}
+function webPageGov(g, W) {
+  wRect(g, 0, 0, W, 3000, 0, "#f6f7f9");
+  wRect(g, 0, 0, W, 110, 0, "#14284c");
+  g.fillStyle = "#ffffff"; g.beginPath(); g.arc(WEB_X + 34, 55, 30, 0, 7); g.fill(); g.fillStyle = "#c8372d"; g.beginPath(); g.arc(WEB_X + 34, 55, 14, 0, 7); g.fill();
+  wText(g, "Tōkonto City Hall", WEB_X + 90, 52, "800 32px " + UI, "#ffffff"); wText(g, "東都市役所 · Official website", WEB_X + 90, 84, "500 17px " + UI, "#b8c4d8");
+  wRect(g, 0, 110, W, 70, 0, "#e3e8f0");
+  wText(g, "⚠  Online services are currently under maintenance (since 2019). Please visit your ward office.", WEB_X, 154, "600 19px " + UI, "#8a4a10");
+  const svc = [["Residence registration", "Forms A through A-14, in person, with your seal"], ["Waste separation", "Eleven categories, revised monthly. Calendar attached"], ["Noise ordinance", "Quiet hours 22:00–06:00. Bowing is permitted at any hour"],
+    ["Capsule hotel register", "Licensed premises and inspection dates"], ["Ward office hours", "08:45–17:15, closed 12:00–13:00 for lunch"], ["Parking permits", "Reserved bays at municipal car parks"]];
+  const cols = 3, cw = (WEB_COL - 2 * 24) / cols;
+  svc.forEach((s, i) => {
+    const x = WEB_X + (i % cols) * (cw + 24), y = 220 + ((i / cols) | 0) * 184;
+    wShadowCard(g, x, y, cw, 160, 12, "#ffffff"); wRect(g, x, y, cw, 6, 0, "#14284c");
+    wText(g, s[0], x + 28, y + 60, "700 23px " + UI, "#14284c", "left", cw - 56);
+    wPara(g, s[1], x + 28, y + 96, cw - 56, "500 17px " + UI, "#4a5058", 24);
+    wHit(x, y, cw, 160, { say: s[0] + ": please complete the form in person. The form is not online. The form is never online." });
+  });
+  return wFooter(g, 220 + Math.ceil(svc.length / cols) * 184 + 40, W, "#14284c", "#ffffff", "Tōkonto City Hall");
+}
+function webPageText(g, W, site) {
+  const col = site.col || "#5a6b7a";
+  wRect(g, 0, 0, W, 4000, 0, "#fbfaf7");
+  const hg = g.createLinearGradient(0, 0, W, 300); hg.addColorStop(0, col); hg.addColorStop(1, shade(col, 0.6));
+  g.fillStyle = hg; g.fillRect(0, 0, W, 300);
+  wText(g, "www." + site.host, WEB_X + 160, 70, "600 17px " + UI, "rgba(255,255,255,0.75)");
+  wText(g, site.title, WEB_X + 160, 170, "800 58px " + UI, "#ffffff", "left", 940);
+  wText(g, site.tag || "", WEB_X + 160, 226, "500 24px " + UI, "rgba(255,255,255,0.85)", "left", 940);
+  let y = 380;
+  (site.lines || []).forEach((t, i) => {
+    y = wPara(g, t, WEB_X + 160, y, 920, (i === 0 ? "600 30px " : "400 24px ") + UI, i === 0 ? "#1d2126" : "#3c434b", i === 0 ? 42 : 36) + 26;
+  });
+  wRect(g, WEB_X + 160, y + 10, 920, 1, 0, "#ddd8cc");
+  wText(g, "More from around the web", WEB_X + 160, y + 70, "700 22px " + UI, "#2a2f35");
+  const more = WEB.map((w, i) => i).filter(i => WEB[i].kind === "page" && WEB[i] !== site).slice(0, 4);
+  more.forEach((i, k) => {
+    const x = WEB_X + 160 + (k % 2) * 470, yy = y + 96 + ((k / 2) | 0) * 100;
+    wShadowCard(g, x, yy, 450, 84, 12, "#ffffff"); wRect(g, x, yy, 8, 84, 0, WEB[i].col || col);
+    wText(g, WEB[i].title, x + 28, yy + 36, "700 20px " + UI, "#1d2126", "left", 400); wText(g, WEB[i].tag || "", x + 28, yy + 64, "500 15px " + UI, "#6a717a", "left", 400);
+    wHit(x, yy, 450, 84, { site: i });
+  });
+  return wFooter(g, y + 96 + Math.ceil(more.length / 2) * 100 + 40, W, "#1d2126", "#ffffff", site.title);
+}
+
+// The browser chrome along the top: the tab, the toolbar with back and reload, the address bar, and a bookmarks bar.
+function webChrome(g, W, site) {
+  wRect(g, 0, 0, W, WEB_TOP, 0, "#dfe3e8");
+  wRect(g, 12, 8, 400, 42, 10, "#ffffff");
+  if (site) { g.fillStyle = NOODLE_TILE[Math.max(0, WEB.indexOf(site)) % NOODLE_TILE.length]; g.beginPath(); g.arc(36, 29, 9, 0, 7); g.fill(); }
+  else noodleMark(g, W, 36, 33, 6);
+  wText(g, site ? site.title : searchUI.on ? "Noodle Search" : "New tab", 56, 35, "600 17px " + UI, "#2a2f35", "left", 330);
+  wText(g, "×", 392, 35, "500 20px " + UI, "#6a717a", "center");
+  wText(g, "+", 440, 36, "500 26px " + UI, "#4a5058", "center");
+  wHit(426, 12, 30, 36, { act: "home" });
+  wRect(g, 0, 50, W, 46, 0, "#ffffff");
+  [["←", "back", 32], ["→", "fwd", 78], ["↻", "reload", 124], ["⌂", "home", 170]].forEach(b => { wText(g, b[0], b[2], 82, "500 26px " + UI, "#3c434b", "center"); wHit(b[2] - 20, 52, 40, 42, { act: b[1] }); });
+  wRect(g, 210, 56, W - 420, 34, 17, "#f1f3f5");
+  const scam = site && site.kind === "scam";
+  wText(g, scam ? "⚠ Not secure" : "\u{1F512}", 232, 79, "600 15px " + UI, scam ? "#d0601c" : "#3a8a52");
+  wText(g, site ? "https://www." + site.host : searchUI.on ? "noodle.co.kn/search?q=" + encodeURIComponent(searchUI.q || "") : "noodle.co.kn", scam ? 330 : 262, 79, "500 17px " + UI, "#2a2f35");
+  wHit(210, 56, W - 420, 34, { act: "search" });
+  wText(g, "Balance " + yenText(purse.yen), W - 24, 79, "700 16px " + UI, "#2a2f35", "right");
+  // bookmarks: every main site, a click away
+  wRect(g, 0, 96, W, WEB_TOP - 96, 0, "#ffffff"); wRect(g, 0, WEB_TOP - 1, W, 1, 0, "#d5dae0");
+  let x = 20;
+  WEB.forEach((w, i) => {
+    if (w.kind === "page" || w.kind === "scam") return;
+    g.font = "500 15px " + UI; const tw = g.measureText(w.title).width + 34;
+    if (x + tw > W - 20) return;
+    g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(x + 9, 115, 6, 0, 7); g.fill();
+    wText(g, w.title, x + 22, 120, "500 15px " + UI, "#3c434b");
+    wHit(x - 4, 100, tw, 30, { site: i });
+    x += tw + 10;
+  });
+}
+
+// Draw the whole thing: the chrome on the base, the page on its own canvas (as tall as it needs to be), and remember where everything is.
 function drawWebView() {
   const cv = document.getElementById("webcanvas"); if (!cv) return;
-  if (!webv.base) { webv.base = document.createElement("canvas"); webv.base.width = cv.width; webv.base.height = cv.height; }
-  const g = webv.base.getContext("2d"), W = cv.width, H = cv.height;
-  if (!webv.page) { webv.page = document.createElement("canvas"); webv.page.width = 980; webv.page.height = 1300; }
-  const PW = webv.page.width, PH = webv.page.height, pg = webv.page.getContext("2d");
-  try { appNoodle(pg, PW, PH); } catch (e) { pg.fillStyle = "#15181b"; pg.fillRect(0, 0, PW, PH); }
+  const W = cv.width, H = cv.height;
+  if (!webv.base) { webv.base = document.createElement("canvas"); webv.base.width = W; webv.base.height = H; }
+  if (!webv.page) { webv.page = document.createElement("canvas"); webv.page.width = W; webv.page.height = 3600; }
   const site = phone.site != null ? WEB[phone.site] : null;
-  // the desk behind it all
-  const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, "#14171b"); bg.addColorStop(1, "#0b0d10");
-  g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  // the browser's chrome: a tab, the address bar, the Noodle mark
-  g.fillStyle = "#1f2327"; g.fillRect(0, 0, W, 54);
-  g.fillStyle = "#2c3136"; roundRect(g, 24, 10, 380, 44, 10); g.fill();
-  g.fillStyle = "#e6e9ec"; g.font = "600 19px " + UI; g.textBaseline = "middle"; g.textAlign = "left";
-  clipText(g, site ? site.title : "New tab", 60, 33, 320);
-  noodleMark(g, W, 40, 33, 8);
-  g.fillStyle = "#2c3136"; g.fillRect(0, 54, W, 58);
-  g.fillStyle = "#15181b"; roundRect(g, 150, 64, W - 300, 38, 19); g.fill();
-  g.fillStyle = site && site.kind === "scam" ? "#e0662c" : "#7fd69a"; g.font = "600 18px " + UI;
-  g.fillText(site && site.kind === "scam" ? "\u26a0 Not secure" : "\u{1F512}", 172, 84);
-  g.fillStyle = "#e6e9ec"; g.font = "500 19px " + UI;
-  g.fillText(site ? "https://www." + site.host : "noodle.co.kn", 214, 84);
-  g.fillStyle = "#9aa1a9"; g.font = "700 26px " + UI; g.textAlign = "center";
-  g.fillText("\u2039", 50, 84); g.fillText("\u203a", 92, 84); g.fillText("\u21bb", W - 110, 84);
-  // the page, in the middle
-  const sy0 = PH * 0.142, sy1 = PH * 0.918, ch = sy1 - sy0, dh = H - 112 - 70, dw = PW * dh / ch, dx = (W - dw) / 2, dy = 122;
-  g.save(); g.shadowColor = "rgba(0,0,0,0.6)"; g.shadowBlur = 30; g.fillStyle = "#000"; g.fillRect(dx, dy, dw, dh); g.restore();
-  g.drawImage(webv.page, 0, sy0, PW, ch, dx, dy, dw, dh);
-  // the left: Noodle's suggestions
-  webv.hits = []; webv.sugg = webSuggestions();
-  // the chrome, and the page itself
-  webv.hits.push({ x: 28, y: 62, w: 44, h: 44, act: "back", tip: "Back" }, { x: W - 132, y: 62, w: 44, h: 44, act: "reload", tip: "Reload" },
-                 { x: 150, y: 64, w: W - 300, h: 38, act: "home", tip: "New tab" }, { x: 24, y: 10, w: 380, h: 44, act: "home", tip: "New tab" });
-  if (!site && !(typeof searchUI === "object" && searchUI.on)) {
-    // the new tab's shortcut tiles, where the page drew them
-    const cols = 4, tileW = PW * 0.84 / cols, top = PH * 0.425, rowsN = Math.ceil(WEB.length / cols);
-    const curRow = phone.sub < 0 ? 0 : (phone.sub / cols) | 0, firstRow = clamp(curRow - 2, 0, Math.max(0, rowsN - 4));
-    const toX = px => dx + px * dw / PW, toY = py => dy + (py - sy0) * dh / ch;
-    WEB.forEach((w, i) => {
-      const c = i % cols, r = ((i / cols) | 0) - firstRow; if (r < 0 || r > 3) return;
-      const cx = PW * 0.08 + tileW * (c + 0.5), cy = top + r * PH * 0.105;
-      webv.hits.push({ x: toX(cx - tileW * 0.46), y: toY(cy - PW * 0.058 * 1.3), w: tileW * 0.92 * dw / PW, h: PH * 0.104 * dh / ch, site: i, tip: w.title });
-    });
-    webv.hits.push({ x: toX(PW * 0.085), y: toY(PH * 0.325), w: PW * 0.83 * dw / PW, h: PH * 0.052 * dh / ch, act: "page", sub: -1, tip: "Search Noodle" });
-  } else {
-    webv.hits.push({ x: dx, y: dy, w: dw, h: dh * 0.12, act: "up", tip: "Scroll up" }, { x: dx, y: dy + dh * 0.88, w: dw, h: dh * 0.12, act: "down", tip: "Scroll down" },
-                   { x: dx, y: dy + dh * 0.12, w: dw, h: dh * 0.76, act: "page", tip: "Open" });
-  }
-  const lx = 34, lw = dx - 70;
-  g.textAlign = "left"; noodleMark(g, W, lx + 22, 168, 14); noodleWord(g, lx + 125, 160, 34);
-  g.fillStyle = "#9aa1a9"; g.font = "600 17px " + UI; g.textAlign = "left"; g.fillText(site ? "Noodle suggests" : "Suggested for you", lx, 214);
-  webv.sugg.forEach((i, k) => {
-    const w = WEB[i], y = 236 + k * 82;
-    g.fillStyle = "rgba(255,255,255,0.05)"; roundRect(g, lx, y, lw, 70, 12); g.fill();
-    g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(lx + 36, y + 35, 22, 0, 6.2832); g.fill();
-    g.fillStyle = "#fff"; g.font = "700 22px " + UI; g.textAlign = "center"; g.fillText(w.title.replace(/[^A-Za-z0-9\u3000-\u9fff]/g, "").slice(0, 1).toUpperCase() || "?", lx + 36, y + 36);
-    g.textAlign = "left"; g.fillStyle = "#ffffff"; g.font = "600 20px " + UI; clipText(g, w.title, lx + 72, y + 26, lw - 110);
-    g.fillStyle = "#7fa6d6"; g.font = "500 16px " + UI; clipText(g, "www." + w.host, lx + 72, y + 50, lw - 110);
-    g.fillStyle = "#5d656e"; g.font = "700 18px " + UI; g.textAlign = "right"; g.fillText(String(k + 1), lx + lw - 14, y + 36); g.textAlign = "left";
-    webv.hits.push({ x: lx, y: y, w: lw, h: 70, site: i, tip: w.title });
-  });
-  // the right: trending, and a sponsor
-  const rx = dx + dw + 36, rw = W - rx - 34;
-  g.fillStyle = "#9aa1a9"; g.font = "600 17px " + UI; g.fillText("Trending on Noodle", rx, 160);
-  ["ramen near me", "train times Tokonto", "salaryman forms", "cat cafe", "toll expressway", "konbini new flavour", "Mizuho shrine", "sakura forecast"].forEach((q, k) => {
-    const y = 196 + k * 44;
-    g.fillStyle = "#e0662c"; g.font = "700 17px " + UI; g.fillText((k + 1) + ".", rx, y);
-    g.fillStyle = "#e6e9ec"; g.font = "500 18px " + UI; clipText(g, q, rx + 34, y, rw - 40);
-    const hit = WEB.findIndex(w => (w.title + " " + w.host).toLowerCase().indexOf(q.split(" ")[0]) >= 0);
-    webv.hits.push(hit >= 0 ? { x: rx, y: y - 22, w: rw, h: 40, site: hit, tip: WEB[hit].title } : { x: rx, y: y - 22, w: rw, h: 40, act: "home", tip: "Search \u201c" + q + "\u201d" });
-  });
-  const ad = WEB.find((w, i) => w.kind === "shop" && i !== phone.site) || WEB[0], ay = 580;
-  g.fillStyle = "#1b1f23"; roundRect(g, rx, ay, rw, 300, 14); g.fill();
-  g.fillStyle = "#6b737c"; g.font = "600 13px " + UI; g.fillText("SPONSORED", rx + 18, ay + 26);
-  g.fillStyle = NOODLE_TILE[WEB.indexOf(ad) % NOODLE_TILE.length]; roundRect(g, rx + 18, ay + 44, rw - 36, 150, 10); g.fill();
-  g.fillStyle = "#fff"; g.font = "800 34px " + UI; g.textAlign = "center"; clipText(g, ad.title, rx + rw / 2, ay + 120, rw - 60);
-  g.font = "500 17px " + UI; g.fillStyle = "#c9ced3"; clipText(g, "Open now at www." + ad.host, rx + rw / 2, ay + 230, rw - 40);
-  g.textAlign = "left";
-  webv.hits.push({ x: rx, y: ay, w: rw, h: 300, site: WEB.indexOf(ad), tip: ad.title });
-  // the keys
-  g.fillStyle = "#6b737c"; g.font = "500 17px " + UI; g.textAlign = "center";
-  g.fillText("Mouse or left stick: pointer    Click / A: select    Wheel: scroll    D-pad / arrows: move    B / Backspace: back    1-9: a suggested site    P or Esc: put the phone away", W / 2, H - 30);
-  g.textAlign = "left"; g.textBaseline = "alphabetic";
+  const key = (site ? phone.site : searchUI.on ? "s" : "h") + ":" + (phone.tab || 0);
+  if (key !== webv.key) { webv.key = key; webv.scroll = 0; }
+  // the chrome: its links are in screen space
+  webv.pageHits = [];
+  const bg = webv.base.getContext("2d");
+  webChrome(bg, W, site);
+  const chromeHits = webv.pageHits; webv.pageHits = [];
+  // the page
+  const pg = webv.page.getContext("2d");
+  pg.setTransform(1, 0, 0, 1, 0, 0); pg.clearRect(0, 0, W, webv.page.height); pg.textBaseline = "alphabetic"; pg.textAlign = "left";
+  let h = H;
+  try {
+    if (!site) h = searchUI.on ? webPageSearch(pg, W) : webPageHome(pg, W);
+    else if (site.kind === "shop") h = webPageShop(pg, W, site);
+    else if (site.kind === "cars") h = webPageCars(pg, W, site);
+    else if (site.kind === "tech") h = webPageTech(pg, W, site);
+    else if (site.kind === "news") h = webPageNews(pg, W);
+    else if (site.kind === "forum") h = webPageForum(pg, W);
+    else if (site.kind === "scam") h = webPageScam(pg, W);
+    else if (site.kind === "gov") h = webPageGov(pg, W);
+    else h = webPageText(pg, W, site);
+  } catch (e) { console.warn("[Konto] web page:", e); }
+  webv.pageH = Math.min(webv.page.height, Math.max(H - WEB_TOP, h || 0));
+  webv.chromeHits = chromeHits;
   webPresent();
 }
-// The finished page, with the pointer over it. Moving the pointer only redraws this, never the page underneath.
+function webMaxScroll() { return Math.max(0, webv.pageH - (1080 - WEB_TOP)); }
+function webScroll(dy) { webv.scroll = clamp(webv.scroll + dy, 0, webMaxScroll()); webPresent(); }
+// The frame: chrome, the visible slice of the page, a scrollbar, and the pointer on top. Moving the pointer or scrolling only redraws this.
 function webPresent() {
-  const cv = document.getElementById("webcanvas"); if (!cv || !webv.base) return;
-  const g = cv.getContext("2d"), W = cv.width, H = cv.height;
-  g.drawImage(webv.base, 0, 0);
-  const x = webv.cx = clamp(webv.cx, 0, W - 1), y = webv.cy = clamp(webv.cy, 0, H - 1), h = webv.hover = webHitAt(x, y);
-  if (h) {
-    g.save(); g.strokeStyle = "rgba(255,255,255,0.9)"; g.lineWidth = 3; g.shadowColor = "rgba(127,214,154,0.8)"; g.shadowBlur = 14;
-    roundRect(g, h.x - 3, h.y - 3, h.w + 6, h.h + 6, 12); g.stroke(); g.restore();
-    if (h.tip) {
-      g.font = "600 17px " + UI; const tw = g.measureText(h.tip).width + 24, tx = clamp(x + 26, 8, W - tw - 8), ty = clamp(y + 30, 8, H - 40);
-      g.fillStyle = "rgba(14,16,19,0.92)"; roundRect(g, tx, ty, tw, 32, 8); g.fill();
-      g.fillStyle = "#e6e9ec"; g.textBaseline = "middle"; g.textAlign = "left"; g.fillText(h.tip, tx + 12, ty + 16); g.textBaseline = "alphabetic";
-    }
-  }
-  // the pointer: a white arrow with a black edge, or a hand over something to press
-  g.save(); g.translate(x, y); g.lineJoin = "round"; g.shadowColor = "rgba(0,0,0,0.55)"; g.shadowBlur = 6; g.shadowOffsetY = 2;
+  const cv = document.getElementById("webcanvas"); if (!cv || !webv.base || !webv.page) return;
+  const g = cv.getContext("2d"), W = cv.width, H = cv.height, vh = H - WEB_TOP;
+  webv.scroll = clamp(webv.scroll, 0, webMaxScroll());
+  g.drawImage(webv.base, 0, 0, W, WEB_TOP, 0, 0, W, WEB_TOP);
+  g.fillStyle = "#ffffff"; g.fillRect(0, WEB_TOP, W, vh);
+  g.drawImage(webv.page, 0, webv.scroll, W, vh, 0, WEB_TOP, W, vh);
+  // the hits, in screen space: the chrome's as they are, the page's moved by the scroll and cut to the viewport
+  webv.hits = (webv.chromeHits || []).slice();
+  webv.pageHits.forEach(h => { const y = h.y - webv.scroll + WEB_TOP; if (y + h.h > WEB_TOP && y < H) webv.hits.push(Object.assign({}, h, { y: Math.max(WEB_TOP, y), h: Math.min(y + h.h, H) - Math.max(WEB_TOP, y) })); });
+  // the scrollbar
+  const max = webMaxScroll();
+  if (max > 0) { const th = Math.max(60, vh * vh / webv.pageH), ty = WEB_TOP + (vh - th) * (webv.scroll / max);
+    g.fillStyle = "rgba(0,0,0,0.06)"; g.fillRect(W - 14, WEB_TOP, 14, vh); g.fillStyle = "rgba(0,0,0,0.32)"; roundRect(g, W - 11, ty + 2, 8, th - 4, 4); g.fill(); }
+  const x = webv.cx = clamp(webv.cx, 0, W - 1), y = webv.cy = clamp(webv.cy, 0, H - 1), hv = webv.hover = webHitAt(x, y);
+  // the pointer: a white arrow with a black edge, or a hand over something you can press - and nothing else
+  g.save(); g.translate(x, y); g.lineJoin = "round"; g.shadowColor = "rgba(0,0,0,0.5)"; g.shadowBlur = 5; g.shadowOffsetY = 2;
   g.beginPath();
-  if (h) { // a pointing hand
+  if (hv) {
     g.moveTo(-4, 0); g.lineTo(-4, 16); g.lineTo(-10, 12); g.lineTo(-13, 15); g.lineTo(-3, 30); g.lineTo(14, 30); g.lineTo(17, 18); g.lineTo(17, 13);
-    g.lineTo(13, 11); g.lineTo(10, 12); g.lineTo(9, 10); g.lineTo(5, 9); g.lineTo(2, 10); g.lineTo(2, 0); g.closePath(); g.translate(0, 0);
+    g.lineTo(13, 11); g.lineTo(10, 12); g.lineTo(9, 10); g.lineTo(5, 9); g.lineTo(2, 10); g.lineTo(2, 0); g.closePath();
   } else { g.moveTo(0, 0); g.lineTo(0, 30); g.lineTo(7, 23); g.lineTo(12, 34); g.lineTo(17, 32); g.lineTo(12, 21); g.lineTo(22, 21); g.closePath(); }
   g.fillStyle = "#ffffff"; g.fill(); g.shadowColor = "transparent"; g.lineWidth = 2.5; g.strokeStyle = "#0b0d10"; g.stroke();
   g.restore();
@@ -20442,21 +20774,29 @@ function webHitAt(x, y) {
   for (let i = webv.hits.length - 1; i >= 0; i--) { const h = webv.hits[i]; if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h; }
   return null;
 }
-// Press whatever is under the pointer. Nothing there: false, and the caller does what the button does anyway.
+// Press whatever is under the pointer. Nothing there: false.
 function webClick(x, y) {
   const h = webHitAt(x, y); if (!h) return false;
-  if (h.site != null) webOpen(h.site);
-  else if (h.act === "back") { phoneBack(); phone.dirty = true; }
-  else if (h.act === "reload") phone.dirty = true;
-  else if (h.act === "home") { phone.site = null; phone.sub = 0; if (typeof searchUI === "object") searchUI.on = false; phone.dirty = true; }
-  else if (h.act === "up") phoneMove(0, -1);
-  else if (h.act === "down") phoneMove(0, 1);
-  else if (h.act === "page") { if (h.sub != null) phone.sub = h.sub; phoneAct(); }
+  if (h.site != null) { webOpen(h.site); return true; }
+  if (h.act === "back") { if (!phoneBack()) setPhone(false); webv.scroll = 0; }
+  else if (h.act === "home") webHome();
+  else if (h.act === "reload" || h.act === "fwd") phone.dirty = true;
+  else if (h.act === "search") { phone.site = null; searchOpen(); webv.scroll = 0; }
+  else if (h.act === "go") searchOpenResult();
+  else if (h.key != null) { if (h.key === "back") searchUI.q = searchUI.q.slice(0, -1); else if (h.key === "clear") searchUI.q = ""; else searchType(h.key); }
+  else if (h.scrollTo != null) { webv.scroll = h.scrollTo; }
+  else if (h.shopBuy != null) { phone.sub = h.shopBuy; phoneAct(); }
+  else if (h.carBuy != null) { phone.sub = h.carBuy; phoneAct(); }
+  else if (h.paint != null) phone.paint = h.paint;
+  else if (h.tab != null) { phone.tab = h.tab; phone.sub = 0; }
+  else if (h.techBuy != null) { phone.sub = h.techBuy; dokotoBuy(); }
+  else if (h.scam) say("You fill nothing in and close the tab in your head. Your bank would be proud.", 5);
+  else if (h.say) say(h.say, 5);
+  phone.dirty = true;
   if (typeof drawPhone === "function") drawPhone();
   return true;
 }
-// The left stick, while the web is up: the pointer goes where it is pushed, quicker the further it is pushed, and resting it at the top
-// or bottom of the page scrolls.
+// The left stick, while the web is up: the pointer goes where it is pushed, quicker the further it is pushed.
 function webStick(sx, sy, dt) {
   if (!sx && !sy) return;
   const sp = 1500 * dt;
@@ -40159,8 +40499,12 @@ radioLoadMusic();
 (function webviewWire() {
   window.addEventListener("keydown", e => {
     if (!document.body.classList.contains("webfull")) return;
-    const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
-    if (m) { webOpen(webv.sugg[+m[1] - 1]); e.preventDefault(); e.stopImmediatePropagation(); }
+    // while searching, the keyboard types; otherwise the arrows and page keys scroll and Enter clicks where the pointer is
+    if (typeof searchUI === "object" && searchUI.on) return;
+    const k = e.code, step = { ArrowDown: 90, ArrowUp: -90, PageDown: 800, PageUp: -800, Space: 800, End: 1e5, Home: -1e5 }[k];
+    if (step) { webScroll(step); e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (k === "ArrowLeft" || k === "ArrowRight") { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    if (k === "Enter") { webClick(webv.cx, webv.cy); e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
   const cv = document.getElementById("webcanvas");
   const at = e => {
@@ -40170,7 +40514,7 @@ radioLoadMusic();
   if (cv) {
     cv.addEventListener("mousemove", e => { const p = at(e); webv.cx = p[0]; webv.cy = p[1]; webPresent(); });
     cv.addEventListener("click", e => { const p = at(e); webv.cx = p[0]; webv.cy = p[1]; webClick(p[0], p[1]); });
-    cv.addEventListener("wheel", e => { phoneMove(0, e.deltaY > 0 ? 1 : -1); if (typeof drawPhone === "function") drawPhone(); e.preventDefault(); }, { passive: false });
+    cv.addEventListener("wheel", e => { webScroll(e.deltaY); e.preventDefault(); }, { passive: false });
   }
 })();
 (function spotifyWire() {
