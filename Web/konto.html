@@ -7620,6 +7620,7 @@ function buildScene(w) {
   }
   geo.setAttribute("color", new THREE.BufferAttribute(colours, 3));
   geo.setAttribute("splat", new THREE.BufferAttribute(splats, 4));
+  w.terrainColours = colours;
   geo.computeVertexNormals();
   const terrainMat = terrainMaterial();
   // The island is 680 thousand triangles in one piece, and a mesh in one piece
@@ -8032,6 +8033,7 @@ function buildScene(w) {
       }
     });
 
+    if (city.moat) parkTrees(city, trees);
     if (city.moat && trees.length) {
       const m = city.moat, P = castlePlan(m);
       for (let i = trees.length - 1; i >= 0; i--) { const l = toRectLocal(trees[i].c[0], trees[i].c[1], m.centre[0], m.centre[1], m.yaw); if (P.rects.some(q => Math.abs(l[0] - q[0]) < q[2] / 2 && Math.abs(l[1] - q[1]) < q[3] / 2)) trees.splice(i, 1); }
@@ -9369,6 +9371,7 @@ function treeMaterial(species) {
 // Which tree goes where. A shrine precinct is sugi and sakura and nothing
 // else; a park is mostly keyaki with cherries in it; the coast gets pine.
 function treeSpecies(t, i) {
+  if (t.sp) return t.sp;
   const r = rnd(Math.round(t.c[0]), Math.round(t.c[1]) + i, 6151);
   if (t.where === "shrine") return r < 0.74 ? "sugi" : "sakura";
   if (t.where === "coast")  return r < 0.62 ? "matsu" : (r < 0.86 ? "keyaki" : "sugi");
@@ -11164,6 +11167,7 @@ function tick(dt) {
   updateParking(dt);
   updateBoats(dt);
   updateWater(dt);
+  updateCastleFx(dt);
   updateSki(dt);
   updateMyNet(dt);
   updateVitals(dt);
@@ -15733,6 +15737,31 @@ function castleTexture(kind) {
     }
     g.fillStyle = "#e8e2d2"; g.fillRect(0, 0, 512, 40);
     g.fillStyle = "#1a1410"; g.fillRect(0, 40, 512, 14); g.fillRect(0, 360, 512, 10); g.fillRect(0, 466, 512, 46);
+  } else if (kind === "granite" || kind === "facade" || kind === "paving") {
+    // the Diet's pale granite: big ashlar courses, a little warm, each block its own shade
+    g.fillStyle = "#b9b2a5"; g.fillRect(0, 0, 512, 512);
+    const bh = kind === "paving" ? 128 : 64, bw = kind === "paving" ? 128 : 160;
+    for (let y = 0, row = 0; y < 512; y += bh, row++) for (let x = -(row % 2) * bw / 2; x < 512; x += bw) {
+      const v = 0.9 + R(row, x) * 0.16; g.fillStyle = "rgb(" + (186 * v | 0) + "," + (179 * v | 0) + "," + (166 * v | 0) + ")"; g.fillRect(x + 1, y + 1, bw - 2, bh - 2);
+    }
+    for (let i = 0; i < 5000; i++) { g.fillStyle = "rgba(" + (R(i, 1) > 0.5 ? "60,56,50" : "235,230,220") + ",0.12)"; g.fillRect(R(i, 2) * 512, R(i, 3) * 512, 2, 2); }
+    if (kind === "facade") {
+      // tall windows in deep reveals, three to a bay, a spandrel between floors
+      for (let x = 0; x < 512; x += 128) for (const y of [40, 296]) {
+        for (let k = 0; k < 3; k++) { g.fillStyle = "#3a3a3a"; g.fillRect(x + 14 + k * 38, y, 26, 170); g.fillStyle = "#1c2630"; g.fillRect(x + 16 + k * 38, y + 2, 22, 166);
+          g.fillStyle = "rgba(160,190,210,0.25)"; g.fillRect(x + 16 + k * 38, y + 2, 22, 50); g.fillStyle = "#9a9384"; g.fillRect(x + 16 + k * 38, y + 84, 22, 3); }
+        g.fillStyle = "rgba(0,0,0,0.18)"; g.fillRect(x + 122, 0, 6, 512);
+      }
+    }
+  } else if (kind === "track") {
+    // a running track's rubber, red-brown and grainy, a white line at each edge and a broken one down the middle
+    g.fillStyle = "#9a3b2c"; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 16000; i++) { const v = R(i, 7); g.fillStyle = "rgba(" + (v > 0.5 ? "170,80,62" : "90,30,22") + ",0.35)"; g.fillRect(R(i, 8) * 512, R(i, 9) * 512, 2, 2); }
+    g.fillStyle = "#ece8e0"; g.fillRect(0, 14, 512, 10); g.fillRect(0, 488, 512, 10);
+    for (let x = 0; x < 512; x += 128) g.fillRect(x, 251, 76, 10);
+  } else if (kind === "iron") {
+    g.fillStyle = "#26292c"; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 2000; i++) { g.fillStyle = "rgba(255,255,255," + (R(i, 1) * 0.05) + ")"; g.fillRect(R(i, 2) * 512, R(i, 3) * 512, 3, 3); }
   } else if (kind === "vermilion") {
     g.fillStyle = "#c63a22"; g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 400; i++) { g.fillStyle = "rgba(60,10,0," + (R(i, 3) * 0.12) + ")"; g.fillRect(R(i, 4) * 512, R(i, 5) * 512, 20 + R(i, 6) * 60, 3); }
@@ -15749,14 +15778,108 @@ function castleTexture(kind) {
   return (castleTex[kind] = t);
 }
 // where the castle's buildings stand, in the castle's own frame (+z towards the main gate), so the trees can be kept off them
+// What moves in the palace park: the flags, and the petals and leaves.
+const castleFx = { flags: [], petals: null, t: 0 };
+let hinomaruTex = null;
+function hinomaruTexture() {
+  if (hinomaruTex) return hinomaruTex;
+  const cv = document.createElement("canvas"); cv.width = 300; cv.height = 200; const g = cv.getContext("2d");
+  g.fillStyle = "#fbfbf8"; g.fillRect(0, 0, 300, 200);
+  g.fillStyle = "#bc002d"; g.beginPath(); g.arc(150, 100, 60, 0, Math.PI * 2); g.fill();        // the disc three-fifths of the hoist, centred
+  hinomaruTex = new THREE.CanvasTexture(cv); hinomaruTex.encoding = THREE.sRGBEncoding; hinomaruTex.anisotropy = 4;
+  return hinomaruTex;
+}
+function makePetals(root, m, gy, plan) {
+  const cv = document.createElement("canvas"); cv.width = cv.height = 64; const g = cv.getContext("2d");
+  g.fillStyle = "#fff"; g.beginPath(); g.ellipse(32, 34, 13, 24, 0.5, 0, Math.PI * 2); g.fill();
+  g.globalCompositeOperation = "destination-out"; g.beginPath(); g.arc(44, 6, 9, 0, Math.PI * 2); g.fill();      // the notch in a cherry petal
+  const tex = new THREE.CanvasTexture(cv);
+  const cols = [[1.0, 0.86, 0.9], [0.99, 0.78, 0.86], [1.0, 0.92, 0.94], [0.97, 0.7, 0.8], [0.86, 0.26, 0.12], [0.92, 0.52, 0.16], [0.86, 0.7, 0.22]];
+  const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
+  const free = (lx, lz) => !plan.rects.some(q => Math.abs(lx - q[0]) < q[2] / 2 && Math.abs(lz - q[1]) < q[3] / 2);
+  // on the lawn: a drift under the trees, everywhere the buildings are not
+  const NL = gfx.tier === "low" ? 3000 : 9000, PL = new Float32Array(NL * 3), CL = new Float32Array(NL * 3);
+  for (let i = 0, k = 0; i < NL * 4 && k < NL; i++) {
+    const lx = (rnd(i, 1, 9101) - 0.5) * 2 * (m.inner - 8), lz = (rnd(i, 2, 9103) - 0.5) * 2 * (m.inner - 8);
+    if (!free(lx, lz)) continue;
+    const w = W(lx, lz), c = cols[Math.floor(rnd(i, 3, 9105) * cols.length)];
+    PL.set([w[0], gy + 0.16, w[1]], k * 3); CL.set(c, k * 3); k++;
+  }
+  const lg = new THREE.BufferGeometry(); lg.setAttribute("position", new THREE.BufferAttribute(PL, 3)); lg.setAttribute("color", new THREE.BufferAttribute(CL, 3));
+  const lm = new THREE.PointsMaterial({ size: 0.22, map: tex, vertexColors: true, transparent: true, alphaTest: 0.4, sizeAttenuation: true });
+  const lying = new THREE.Points(lg, lm); root.add(lying);
+  // in the air: a few thousand falling round the camera, tumbling on the breeze
+  const N = gfx.tier === "low" ? 600 : 2200, P = new Float32Array(N * 3), C = new Float32Array(N * 3), V = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) { C.set(cols[Math.floor(rnd(i, 4, 9107) * cols.length)], i * 3); V[i * 3] = rnd(i, 5, 9109) * 6.28; V[i * 3 + 1] = 0.5 + rnd(i, 6, 9111) * 0.9; P[i * 3 + 1] = -1e4; }
+  const fg = new THREE.BufferGeometry(); fg.setAttribute("position", new THREE.BufferAttribute(P, 3)); fg.setAttribute("color", new THREE.BufferAttribute(C, 3));
+  const fm = new THREE.PointsMaterial({ size: 0.3, map: tex, vertexColors: true, transparent: true, alphaTest: 0.4, sizeAttenuation: true });
+  const falling = new THREE.Points(fg, fm); falling.frustumCulled = false; falling.visible = false; root.add(falling);
+  return { falling, P, V, N, m, gy, seeded: false };
+}
+function updateCastleFx(dt) {
+  castleFx.t += dt; const t = castleFx.t;
+  castleFx.flags.forEach(f => {
+    const pa = f.mesh.geometry.attributes.position, a = pa.array, b = f.base;
+    for (let i = 0; i < a.length; i += 3) { const x = b[i], k = x / f.w;
+      a[i + 2] = (Math.sin(x * 1.3 - t * 5.2 + f.phase) * 0.32 + Math.sin(x * 2.9 - t * 8.1 + f.phase * 2) * 0.08) * k * (f.w / 6);
+      a[i + 1] = b[i + 1] - k * k * 0.25 * (f.w / 6) + Math.sin(x * 1.7 - t * 4.4) * 0.05 * k; }
+    pa.needsUpdate = true; f.mesh.geometry.computeVertexNormals();
+  });
+  const F = castleFx.petals; if (!F || !camera) return;
+  const cp = camera.position, l = toRectLocal(cp.x, cp.z, F.m.centre[0], F.m.centre[1], F.m.yaw);
+  const near = Math.max(Math.abs(l[0]), Math.abs(l[1])) < F.m.inner + 60 && cp.y < F.gy + 160;
+  F.falling.visible = near; if (!near) { F.seeded = false; return; }
+  const P = F.P, V = F.V, R = 55, wind = Math.sin(t * 0.21) * 0.8 + 0.6;
+  for (let i = 0; i < F.N; i++) {
+    const j = i * 3;
+    let x = P[j], y = P[j + 1], z = P[j + 2];
+    if (!F.seeded || y < F.gy + 0.15 && (V[j + 2] += dt) > 3 || Math.abs(x - cp.x) > R || Math.abs(z - cp.z) > R) {
+      x = cp.x + (Math.random() - 0.5) * 2 * R; z = cp.z + (Math.random() - 0.5) * 2 * R; y = F.gy + (F.seeded ? 10 + Math.random() * 14 : 0.3 + Math.random() * 24); V[j + 2] = 0;
+    } else if (y >= F.gy + 0.15) {
+      const ph = V[j];
+      x += (wind + Math.sin(t * 1.3 + ph) * 0.9) * dt; z += Math.cos(t * 0.9 + ph * 1.7) * 0.7 * dt;
+      y -= V[j + 1] * (0.75 + 0.5 * Math.sin(t * 2.1 + ph)) * dt;
+      if (y < F.gy + 0.15) y = F.gy + 0.14;
+    }
+    P[j] = x; P[j + 1] = y; P[j + 2] = z;
+  }
+  F.seeded = true; F.falling.geometry.attributes.position.needsUpdate = true;
+}
+// The trees of the palace park: groves of cherry, pine, keyaki and maple across the open lawns, with open meadows between them, and an
+// avenue of cherries along the inside of the running track. Kept off the castle, the Diet and its plaza, the track and the avenues.
+function parkTrees(city, trees) {
+  const m = city.moat, P = castlePlan(m), gy = m.groundY, inner = m.inner, T = inner - 25;
+  const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
+  const clear = (lx, lz, pad) => !P.rects.some(q => Math.abs(lx - q[0]) < q[2] / 2 + pad && Math.abs(lz - q[1]) < q[3] / 2 + pad);
+  const onPath = (lx, lz) => Math.abs(lx) < 11 || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
+  const offTrack = (lx, lz) => { const d = Math.max(Math.abs(lx), Math.abs(lz)); return d < T - 8 || (d > T + 7 && d < inner - 14); };
+  let n = 0;
+  const add = (lx, lz, sp, s) => { const w = W(lx, lz); trees.push({ c: [w[0], w[1]], y: gy, s: s, where: "palace", sp: sp }); n++; };
+  for (let lz = -inner + 18; lz < inner - 18; lz += 14) for (let lx = -inner + 18; lx < inner - 18; lx += 14) {
+    const jx = lx + (rnd(lx, lz, 811) - 0.5) * 10, jz = lz + (rnd(lz, lx, 812) - 0.5) * 10;
+    const grove = rnd(Math.floor(jx / 80), Math.floor(jz / 80), 813);
+    if (grove < 0.3 || rnd(lx, lz, 814) > 0.35 + grove * 0.5) continue;
+    if (!offTrack(jx, jz) || onPath(jx, jz) || !clear(jx, jz, 5)) continue;
+    const r = rnd(Math.round(jx), Math.round(jz), 815);
+    add(jx, jz, r < 0.44 ? "sakura" : r < 0.62 ? "matsu" : r < 0.8 ? "keyaki" : r < 0.94 ? "momiji" : "sugi", lerp(0.85, 1.3, rnd(lx, lz, 816)));
+  }
+  [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(f => {
+    for (let u = -T + 10; u <= T - 10; u += 12) {
+      const d = T - 6.5, lx = f[0] ? f[0] * d : u, lz = f[0] ? u : f[1] * d;
+      if (onPath(lx, lz) || !clear(lx, lz, 3)) continue;
+      add(lx, lz, "sakura", lerp(1.0, 1.25, rnd(u, f[0] + 2 * f[1], 817)));
+    }
+  });
+  console.log("[Konto] " + city.name + ": " + n + " trees in the palace park");
+}
 function castlePlan(m) {
   const k = m.inner / 470;
   return {
     honmaru: { x: 0, z: -m.inner * 0.33, w: m.inner * 1.42, d: m.inner * 0.9, h: 7 },
-    ninomaru: { x: -m.inner * 0.47, z: m.inner * 0.5, w: m.inner * 0.72, d: m.inner * 0.5, h: 3.6 },
+    parliament: { x: -m.inner * 0.5, z: m.inner * 0.6, w: 216, d: 70 },
     garden: { x: m.inner * 0.4, z: m.inner * 0.52, rx: 105 * k, rz: 58 * k },
     kura: { x: m.inner * 0.79, z0: -m.inner * 0.72 },
-    rects: [[0, -m.inner * 0.33, m.inner * 1.42 + 16, m.inner * 0.9 + 16], [-m.inner * 0.47, m.inner * 0.5 + 18, m.inner * 0.72 + 16, m.inner * 0.5 + 52], [0, m.inner * 0.3, 40, m.inner * 0.6],
+    rects: [[0, -m.inner * 0.33, m.inner * 1.42 + 16, m.inner * 0.9 + 16], [-m.inner * 0.5, m.inner * 0.6 + 48, 250, 190], [0, m.inner * 0.3, 40, m.inner * 0.6],
             [m.inner * 0.4, m.inner * 0.52 + 14, 260 * k, 180 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
   };
 }
@@ -15813,7 +15936,10 @@ function buildCastle(root, city) {
   // that band, and the whole of the grounds is a deck at that height so nothing walks or drives down into it.
   {
     const band = CELL * 1.7, ein = inner - 0.3, P = [], C = [], S = [], N = [], I = [], rgb = [0, 0, 0], sp = [0, 0, 0, 0];
-    terrainColour(world, Math.min(GRID_X - 1, Math.max(0, Math.round(m.centre[0] / CELL))), Math.min(GRID_Z - 1, Math.max(0, Math.round(m.centre[1] / CELL))), rgb, sp);
+    // the grounds' own green, read off the terrain's colours a little way in from the band
+    { let n = 0; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, q = W(Math.cos(a) * (inner - band - CELL * 2), Math.sin(a) * (inner - band - CELL * 2)), gx = Math.round(q[0] / CELL), gz = Math.round(q[1] / CELL);
+        if (!world.terrainColours || gx < 0 || gz < 0 || gx >= GRID_X || gz >= GRID_Z) continue; const vi = (gz * GRID_X + gx) * 3; rgb[0] += world.terrainColours[vi]; rgb[1] += world.terrainColours[vi + 1]; rgb[2] += world.terrainColours[vi + 2]; n++; }
+      if (n) { rgb[0] /= n; rgb[1] /= n; rgb[2] /= n; } else terrainColour(world, Math.round(m.centre[0] / CELL), Math.round(m.centre[1] / CELL), rgb, sp); }
     const strip = (f) => {
       const along = Math.ceil(ein * 2 / 8), across = 4, base = P.length / 3;
       for (let a = 0; a <= along; a++) for (let b = 0; b <= across; b++) {
@@ -15821,13 +15947,17 @@ function buildCastle(root, city) {
         const l = f[0] ? [f[0] * d, u] : [u, f[1] * d], w = W(l[0], l[1]);
         P.push(w[0] - WORLD_X * 0.5, gy, w[1] - WORLD_Z * 0.5); C.push(rgb[0], rgb[1], rgb[2]); S.push(0, 0, 0, 0); N.push(0, 1, 0);
       }
-      for (let a = 0; a < along; a++) for (let b = 0; b < across; b++) { const v = base + a * (across + 1) + b; I.push(v, v + 1, v + across + 1, v + 1, v + across + 2, v + across + 1); }
+      // wound to face up whichever side this is
+      const ax = P[(base + across + 1) * 3] - P[base * 3], az = P[(base + across + 1) * 3 + 2] - P[base * 3 + 2], bx = P[(base + 1) * 3] - P[base * 3], bz = P[(base + 1) * 3 + 2] - P[base * 3 + 2];
+      const up = (bz * ax - bx * az) > 0;
+      for (let a = 0; a < along; a++) for (let b = 0; b < across; b++) { const v = base + a * (across + 1) + b;
+        if (up) I.push(v, v + 1, v + across + 1, v + 1, v + across + 2, v + across + 1); else I.push(v, v + across + 1, v + 1, v + 1, v + across + 1, v + across + 2); }
     };
     [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(strip);
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
     g.setAttribute("splat", new THREE.Float32BufferAttribute(S, 4)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3)); g.setIndex(I);
-    const mat = terrainMaterial(); mat.side = THREE.DoubleSide; mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -2;
+    const mat = terrainMaterial(); mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -2;
     const lawn = new THREE.Mesh(g, mat); lawn.position.set(WORLD_X * 0.5, 0.04, WORLD_Z * 0.5); lawn.receiveShadow = true; root.add(lawn);
     const q = W(0, 0);
     world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: ein, hl: ein, ya: gy, yb: gy, r: inner * 1.5, castle: true });
@@ -15990,19 +16120,78 @@ function buildCastle(root, city) {
   });
   moss(HM.x - HM.w / 2 + 30, HM.x - 60, HM.z - HM.d / 2 + 26, HM.z - HM.d * 0.12, hy);
   moss(HM.x + 90, HM.x + HM.w / 2 - 30, HM.z - HM.d / 2 + 26, HM.z - HM.d * 0.12, hy);
-  // ---- the ninomaru: a lower terrace in the south-west, its own wall and turrets, the halls of the heir's palace, a ramp to its gate
-  const NM = plan.ninomaru, ny = terrace(NM.x, NM.z, NM.w, NM.d, NM.h, 8);
-  { const e = { x0: NM.x - NM.w / 2 + 1.2, x1: NM.x + NM.w / 2 - 1.2, z0: NM.z - NM.d / 2 + 1.2, z1: NM.z + NM.d / 2 - 1.2 };
-    wallAt(e.x0, e.x1, e.z0, e.z0, ny); wallAt(e.x0, e.x0, e.z0, e.z1, ny); wallAt(e.x1, e.x1, e.z0, e.z1, ny);
-    wallAt(e.x0, NM.x - 8, e.z1, e.z1, ny); wallAt(NM.x + 8, e.x1, e.z1, e.z1, ny);
-    [[e.x0 + 5, e.z0 + 5], [e.x1 - 5, e.z0 + 5], [e.x0 + 5, e.z1 - 5], [e.x1 - 5, e.z1 - 5]].forEach(([x, z]) => yagura(x, z, ny, 10, false));
-    rampUp(NM.x, NM.z + NM.d / 2 - 1.5, 26, ny, 6);
-    box("stone", NM.x - 10, ny, e.z1, 5, 4.6, 7, 5); box("stone", NM.x + 10, ny, e.z1, 5, 4.6, 7, 5);
-    storey(NM.x, e.z1, 25, 9, ny + 4.6, 3.8); roof("tile", NM.x, e.z1, 29, 13, ny + 8.3, 17, 0.2, ny + 11.6);
-    [-1, 1].forEach(sd => { hall(NM.x + sd * 95, NM.z - NM.d * 0.18, ny, 48, 30, 6.0, "copper"); hall(NM.x + sd * 95, NM.z + NM.d * 0.18, ny, 40, 26, 5.4, "tile"); halls += 2; });
-    hall(NM.x, NM.z - NM.d * 0.22, ny, 56, 32, 6.6, "copper"); halls++;
-    box("wood", NM.x + 0, ny + 0.6, NM.z - NM.d * 0.02, 5, 0.7, NM.d * 0.2, 4);
-    moss(NM.x - 60, NM.x + 60, NM.z + NM.d * 0.05, NM.z + NM.d * 0.32, ny); }
+  // ---- the Diet. Parliament sits in the grounds' south-west, two hundred metres from the honmaru across the park, facing its own plaza:
+  // a granite podium; two long wings, each ending in a chamber pavilion under a shallow verdigris dome (the two houses); a portico of
+  // columns in the middle; and over it the tower that makes it known from anywhere in the city - four stepped drums, each smaller than
+  // the one below and ringed with granite fins, a copper pyramid, a gilt finial, and the Hinomaru flying from the pole at the very top.
+  // In front, a long reflecting pool with fountains, and a flag either side of the plaza.
+  const PL = plan.parliament, domes = [], cols = [], poles = [];
+  {
+    const px = PL.x, pz = PL.z, yb = gy + 1.6, front = pz + PL.d / 2;
+    box("granite", px, gy, pz, PL.w + 10, 1.6, PL.d + 10, 6); solid(px, pz, PL.w + 10, PL.d + 10, gy, 1.6);
+    { const q = W(px, pz); world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: (PL.w + 10) / 2, hl: (PL.d + 10) / 2, ya: yb, yb: yb, r: PL.w, castle: true }); }
+    [-1, 1].forEach(sd => {
+      const wx = px + sd * 58, cx = px + sd * (PL.w / 2 - 15);
+      box("facade", wx, yb, pz, 70, 15, PL.d - 16, 8); box("granite", wx, yb + 15, pz, 72, 1.2, PL.d - 14, 6); solid(wx, pz, 70, PL.d - 16, yb, 17);
+      box("facade", cx, yb, pz, 30, 19, PL.d, 8); box("granite", cx, yb + 19, pz, 32, 1.4, PL.d + 2, 6); solid(cx, pz, 30, PL.d, yb, 21);
+      box("granite", cx, yb + 20.4, pz, 24, 2.2, 24, 6);
+      domes.push([cx, yb + 22.6, pz, 11.5]);
+      // a short portico of four columns on each pavilion
+      for (let k = 0; k < 4; k++) cols.push([cx - 9 + k * 6, front + 3.5, yb, 14, 0.6]);
+      box("granite", cx, yb + 14, front + 3.5, 24, 1.8, 6, 6);
+    });
+    // the central hall and its portico
+    box("facade", px, yb, pz, 46, 24, PL.d - 4, 8); box("granite", px, yb + 24, pz, 48, 1.4, PL.d - 2, 6); solid(px, pz, 46, PL.d - 4, yb, 26);
+    for (let k = 0; k < 8; k++) cols.push([px - 19.6 + k * 5.6, front + 5, yb, 19, 0.85]);
+    box("granite", px, yb + 19, front + 5, 46, 2.6, 10, 6);
+    roof("granite", px, front + 5, 46, 10, yb + 21.6, 30, 0.3, yb + 25.4, 0);
+    // the steps down to the plaza
+    for (let k = 0; k < 6; k++) box("granite", px, gy + 1.6 - (k + 1) * 0.27, front + 5 + 5 + k * 0.9 + 0.45, 52 - k * 0.0, 0.27, 0.9 + (5 - k) * 0, 4);
+    { const q = W(px, front + 12.5); world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 26, hl: 2.7, ya: yb, yb: gy, r: 30, castle: true }); }
+    // the tower
+    let ty = yb + 25.4; const tz = pz - 2;
+    [[30, 10], [24, 8.5], [18, 7.5], [12, 6.5]].forEach(([w, h], i) => {
+      box(i % 2 ? "granite" : "facade", px, ty, tz, w, h, w, 6);
+      for (let f = -2; f <= 2; f++) [-1, 1].forEach(s2 => {
+        box("granite", px + f * w / 5, ty, tz + s2 * (w / 2 + 0.45), 0.9, h + 0.5, 0.9, 3);
+        box("granite", px + s2 * (w / 2 + 0.45), ty, tz + f * w / 5, 0.9, h + 0.5, 0.9, 3);
+      });
+      box("granite", px, ty + h, tz, w + 2.4, 0.9, w + 2.4, 6);
+      ty += h + 0.9;
+    });
+    solid(px, tz, 30, 30, yb, ty - yb);
+    roof("copper", px, tz, 11, 11, ty, 0.3, 0.3, ty + 10, 0);
+    gold.push([px, ty + 10, tz, "finial"]);
+    poles.push([px, tz, ty + 11.2, 13, 6.0]);
+    // the plaza: paving, the pool with its fountains, a flag at each front corner
+    const p0 = front + 15, p1 = Math.min(front + 100, inner - 34);
+    quad("paving", [px - 100, gy + 0.09, p1], [px + 100, gy + 0.09, p1], [px + 100, gy + 0.09, p0], [px - 100, gy + 0.09, p0], 8);
+    const pc = (p0 + p1) / 2 + 4, pl = (p1 - p0) * 0.62;
+    [[-1, 0], [1, 0], [0, -1], [0, 1]].forEach(f => box("granite", px + f[0] * 12, gy, pc + f[1] * pl / 2, f[0] ? 1.2 : 25.2, 0.7, f[0] ? pl + 1.2 : 1.2, 3));
+    [-1, 1].forEach(sd => solid(px + sd * 12, pc, 1.2, pl, gy, 0.7)); [-1, 1].forEach(sd => solid(px, pc + sd * pl / 2, 25, 1.2, gy, 0.7));
+    domes.push(["pool", px, pc, 23.8, pl - 1.2]);
+    for (let k = 0; k < 3; k++) domes.push(["jet", px, pc - pl * 0.3 + k * pl * 0.3]);
+    [-1, 1].forEach(sd => poles.push([px + sd * 92, p1 - 6, gy, 16, 3.6]));
+    // the walk to it from the gate avenue
+    quad("gravel", [px + 100, gy + 0.1, front + 64], [-6, gy + 0.1, front + 64], [-6, gy + 0.1, front + 56], [px + 100, gy + 0.1, front + 56], 6);
+  }
+  // ---- the park. A running track all the way round inside the outer wall (a little under two kilometres of it), a gravel avenue from the
+  // main gate to the honmaru, benches and lamps along the track. The trees are planted with the city's (see parkTrees).
+  {
+    const T = inner - 25, HW = 2.6, c0 = T - HW, c1 = T + HW;
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(f => {
+      const P = (d, u) => f[0] ? [f[0] * d, gy + 0.13, u] : [u, gy + 0.13, f[1] * d];
+      // each side runs corner to corner; the corners overlap, which is a square of track
+      quad("track", P(c0, -c1), P(c0, c1), P(c1, c1), P(c1, -c1), HW * 2);
+      for (let u = -T + 30; u < T - 30; u += 36) {
+        const lamp = (Math.round(u / 36) & 1) === 0, at = P(c0 - 2.2, u), x = at[0], z = at[2];
+        if (lamp) { box("iron", x, gy, z, 0.22, 4.2, 0.22, 2); box("plaster", x, gy + 4.2, z, 0.55, 0.7, 0.55, 2); box("iron", x, gy + 4.9, z, 0.75, 0.12, 0.75, 2); solid(x, z, 0.4, 0.4, gy, 5); }
+        else { const along = f[0] ? [0.6, 2.0] : [2.0, 0.6]; box("stone", x, gy, z, along[0] * 0.8, 0.42, along[1] * 0.8, 2); box("wood", x, gy + 0.42, z, along[0], 0.1, along[1], 2); }
+      }
+    });
+    quad("gravel", [-6, gy + 0.1, T - HW - 0.5], [6, gy + 0.1, T - HW - 0.5], [6, gy + 0.1, HM.z + HM.d / 2 + 34.5], [-6, gy + 0.1, HM.z + HM.d / 2 + 34.5], 6);
+    quad("gravel", [-6, gy + 0.1, -inner + 4], [6, gy + 0.1, -inner + 4], [6, gy + 0.1, HM.z - HM.d / 2 - 4], [-6, gy + 0.1, HM.z - HM.d / 2 - 4], 6);
+  }
   // ---- the ninomaru garden: a pond, a red drum bridge over it, lanterns round it, a tea house
   const GD = plan.garden;
   const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 48), gfx.high ? new THREE.MeshStandardMaterial({ color: 0x15343a, roughness: 0.08, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.6 }) : new THREE.MeshLambertMaterial({ color: 0x15343a }));
@@ -16055,7 +16244,9 @@ function buildCastle(root, city) {
     stone: { map: castleTexture("stone"), rough: 0.95 }, plaster: { map: castleTexture("plaster"), rough: 0.85 },
     keep: { map: castleTexture("keep"), rough: 0.8 }, tile: { map: castleTexture("tile"), rough: 0.55 }, copper: { map: castleTexture("copper"), rough: 0.5 },
     gravel: { map: castleTexture("gravel"), rough: 0.95 }, moss: { map: castleTexture("moss"), rough: 0.95 },
-    wood: { map: castleTexture("wood"), rough: 0.7 }, goten: { map: castleTexture("goten"), rough: 0.8 }, vermilion: { map: castleTexture("vermilion"), rough: 0.5 }, thatch: { map: castleTexture("thatch"), rough: 0.95 }
+    wood: { map: castleTexture("wood"), rough: 0.7 }, goten: { map: castleTexture("goten"), rough: 0.8 },
+    granite: { map: castleTexture("granite"), rough: 0.7 }, facade: { map: castleTexture("facade"), rough: 0.6 }, paving: { map: castleTexture("paving"), rough: 0.75 },
+    track: { map: castleTexture("track"), rough: 0.9 }, iron: { map: castleTexture("iron"), rough: 0.5 }, vermilion: { map: castleTexture("vermilion"), rough: 0.5 }, thatch: { map: castleTexture("thatch"), rough: 0.95 }
   };
   Object.keys(geos).forEach(k => {
     const G = geos[k], g = new THREE.BufferGeometry();
@@ -16067,16 +16258,49 @@ function buildCastle(root, city) {
   });
   const gm = gfx.high ? new THREE.MeshStandardMaterial({ color: 0xd8a930, metalness: 0.9, roughness: 0.25, envMap: gfx.env || null }) : new THREE.MeshLambertMaterial({ color: 0xd8a930 });
   gold.forEach((q, i) => {
-    const w = W(q[0], q[2]), f = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.4, 8), gm);
+    const w = W(q[0], q[2]);
+    if (q[3] === "finial") { const f = new THREE.Mesh(new THREE.ConeGeometry(0.9, 3.2, 12), gm); f.position.set(w[0], q[1] + 1.6, w[1]); root.add(f);
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.7, 14, 10), gm); b.position.set(w[0], q[1] + 0.2, w[1]); root.add(b); return; }
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.55, 2.4, 8), gm);
     f.position.set(w[0], q[1] + 1.0, w[1]); f.rotation.z = (i ? -1 : 1) * 0.5; root.add(f);
   });
-  city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, bc), gy: gy };
+  // the Diet's domes, columns, pool and fountains, and its flags
+  const hi = gfx.high, std = o => hi ? new THREE.MeshStandardMaterial(Object.assign({ envMap: gfx.env || null, envMapIntensity: 0.5 }, o)) : new THREE.MeshLambertMaterial({ color: o.color, map: o.map || null, transparent: !!o.transparent, opacity: o.opacity === undefined ? 1 : o.opacity });
+  const domeMat = std({ color: 0x5f8f80, metalness: 0.35, roughness: 0.45 }), poolMat = std({ color: 0x1d3640, metalness: 0.2, roughness: 0.04, envMapIntensity: 1.0 });
+  const jetMat = std({ color: 0xeaf4fa, roughness: 0.2, transparent: true, opacity: 0.55 });
+  domes.forEach(d => {
+    if (d[0] === "pool") { const w = W(d[1], d[2]), pm = new THREE.Mesh(new THREE.PlaneGeometry(d[3], d[4]), poolMat); pm.rotation.order = "YXZ"; pm.rotation.set(-Math.PI / 2, r, 0); pm.position.set(w[0], gy + 0.45, w[1]); root.add(pm); return; }
+    if (d[0] === "jet") { const w = W(d[1], d[2]), j = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.7, 6, 10, 1, true), jetMat); j.position.set(w[0], gy + 3.4, w[1]); root.add(j);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.6, 0.5, 20), std({ color: 0xb9b2a5, roughness: 0.7, map: castleTexture("granite") })); c.position.set(w[0], gy + 0.4, w[1]); root.add(c); return; }
+    const w = W(d[0], d[2]), dm = new THREE.Mesh(new THREE.SphereGeometry(d[3], 36, 12, 0, Math.PI * 2, 0, Math.PI / 2), domeMat);
+    dm.scale.y = 0.5; dm.position.set(w[0], d[1], w[1]); dm.castShadow = true; root.add(dm);
+    const lan = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 2.4, 12), domeMat); lan.position.set(w[0], d[1] + d[3] * 0.5 + 1.0, w[1]); root.add(lan);
+  });
+  if (cols.length) {
+    const cg = new THREE.CylinderGeometry(1, 1.08, 1, 18); cg.translate(0, 0.5, 0);
+    const cm = std({ color: 0xd8d2c4, roughness: 0.6, map: castleTexture("granite") }), ci = new THREE.InstancedMesh(cg, cm, cols.length), M4 = new THREE.Matrix4();
+    cols.forEach((c, i) => { const w = W(c[0], c[1]); M4.makeScale(c[4], c[3], c[4]); M4.setPosition(w[0], c[2], w[1]); ci.setMatrixAt(i, M4); solid(c[0], c[1], c[4] * 2, c[4] * 2, c[2], c[3]); });
+    ci.castShadow = true; ci.receiveShadow = true; root.add(ci);
+  }
+  castleFx.flags.length = 0;
+  const poleMat = std({ color: 0xc9cdd2, metalness: 0.8, roughness: 0.3 });
+  poles.forEach(p => {
+    const w = W(p[0], p[1]), pole = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, p[3], 8), poleMat); pole.position.set(w[0], p[2] + p[3] / 2, w[1]); root.add(pole);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), gm); knob.position.set(w[0], p[2] + p[3] + 0.2, w[1]); root.add(knob);
+    const fw = p[4], fh = fw * 2 / 3, fg = new THREE.PlaneGeometry(fw, fh, 24, 10); fg.translate(fw / 2, -fh / 2, 0);
+    const flag = new THREE.Mesh(fg, hi ? new THREE.MeshStandardMaterial({ map: hinomaruTexture(), side: THREE.DoubleSide, roughness: 0.85 }) : new THREE.MeshLambertMaterial({ map: hinomaruTexture(), side: THREE.DoubleSide }));
+    flag.position.set(w[0] + 0.15, p[2] + p[3] - 0.15, w[1]); flag.castShadow = true; root.add(flag);
+    castleFx.flags.push({ mesh: flag, base: Float32Array.from(fg.attributes.position.array), w: fw, phase: p[0] * 0.01 });
+  });
+  // petals and leaves: falling round whoever is in the park, and lying on the lawn
+  castleFx.petals = makePetals(root, m, gy, plan);
+  city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, bc), gy: gy, parliament: W(PL.x, PL.z) };
   // the audit: nothing laid across the grounds or the moat (roads, railways, the expressway)
   const crossing = [];
   world.cities.forEach(cc => cc.roads.concat(cc.rails || []).forEach(rd => { if ((rd.pts || []).some(q => { const l = toRectLocal(q[0], q[2], m.centre[0], m.centre[1], m.yaw); return Math.abs(l[0]) < outer && Math.abs(l[1]) < outer; })) crossing.push(rd.name || rd.cls); }));
   city.palaceCrossings = crossing;
   if (crossing.length) console.warn("[Konto] across the palace grounds: " + crossing.join(", "));
-  console.log("[Konto] " + city.name + ": the castle, its keep " + Math.round(y - gy) + " m over the grounds, " + halls + " palace halls, " + kura + " storehouses; " + (crossing.length ? crossing.length + " roads still cross it" : "no road or railway crosses the grounds"));
+  console.log("[Konto] " + city.name + ": the castle, its keep " + Math.round(y - gy) + " m over the grounds, " + halls + " palace halls, " + kura + " storehouses, the Diet and its park; " + (crossing.length ? crossing.length + " roads still cross it" : "no road or railway crosses the grounds"));
 }
 
 // ---- what makes a Japanese street look like one -------------------------------------------------------------------------------------------
