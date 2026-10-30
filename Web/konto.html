@@ -4188,6 +4188,40 @@ function planCity(world, F, seed, report, progressBase) {
         U[i] = Math.max(U[i], urbanValue);
       }
     }
+    // The city's shoulder. A city is graded flat plot by plot, and where it is built against a hill the hill used to stand on right at the
+    // last plot's kerb: a sawtooth ridge of nineteen-metre cells, fifty metres over the streets, cut off sheer where the city began. So
+    // before anything is graded, the ground round every city is held to a gentle rise away from its nearest plot - twelve in a hundred -
+    // and let go of over the next few hundred metres, so the hills beyond are still the hills. Ground already set by something else (an
+    // airport, a resort's platform) is left alone.
+    (function shoulder() {
+      const N = GRID_X * GRID_Z, src = new Float32Array(N).fill(NaN), dist = new Uint16Array(N).fill(65535), q = [];
+      L.plots.forEach(p => {
+        const rad = p.yaw * Math.PI / 180, ex = Math.abs(Math.cos(rad) * p.size[0] * 0.5) + Math.abs(Math.sin(rad) * p.size[1] * 0.5), ez = Math.abs(Math.sin(rad) * p.size[0] * 0.5) + Math.abs(Math.cos(rad) * p.size[1] * 0.5);
+        const x0 = Math.max(0, Math.floor((p.centre[0] - ex) / CELL)), x1 = Math.min(GRID_X - 1, Math.ceil((p.centre[0] + ex) / CELL));
+        const z0 = Math.max(0, Math.floor((p.centre[1] - ez) / CELL)), z1 = Math.min(GRID_Z - 1, Math.ceil((p.centre[1] + ez) / CELL));
+        for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const k = z * GRID_X + x; if (dist[k] === 0) continue; dist[k] = 0; src[k] = H[world.idx(x, z)]; q.push(k); }
+      });
+      const FAR = Math.ceil(700 / CELL);
+      for (let h = 0; h < q.length; h++) {
+        const k = q[h], d = dist[k]; if (d >= FAR) continue;
+        const x = k % GRID_X, z = (k / GRID_X) | 0;
+        if (x > 0 && dist[k - 1] > d + 1) { dist[k - 1] = d + 1; src[k - 1] = src[k]; q.push(k - 1); }
+        if (x < GRID_X - 1 && dist[k + 1] > d + 1) { dist[k + 1] = d + 1; src[k + 1] = src[k]; q.push(k + 1); }
+        if (z > 0 && dist[k - GRID_X] > d + 1) { dist[k - GRID_X] = d + 1; src[k - GRID_X] = src[k]; q.push(k - GRID_X); }
+        if (z < GRID_Z - 1 && dist[k + GRID_X] > d + 1) { dist[k + GRID_X] = d + 1; src[k + GRID_X] = src[k]; q.push(k + GRID_X); }
+      }
+      let eased = 0;
+      for (let k = 0; k < N; k++) {
+        const d = dist[k]; if (d === 0 || d === 65535) continue;
+        const x = k % GRID_X, z = (k / GRID_X) | 0, i = world.idx(x, z);
+        if (U[i] > 0) continue;
+        const m = d * CELL * 0.75, cap = src[k] + Math.max(2, m * 0.12);         // a four-way walk is longer than the straight line
+        if (H[i] <= cap) continue;
+        const keep = Math.min(1, Math.max(0, (m - 300) / 400)), t = keep * keep * (3 - 2 * keep);
+        H[i] = cap + (H[i] - cap) * t; eased++;
+      }
+      L.shoulderEased = eased;
+    })();
     // The carriageway is set to the graded height exactly; the ground either
     // side is pulled towards it over a shoulder, so a road across a slope gets
     // a cutting on one side and an embankment on the other instead of a knife
@@ -15678,13 +15712,13 @@ function castleTexture(kind) {
       g.fillStyle = "#6a655c"; g.fillRect(0, 440, 512, 72);
     }
   } else if (kind === "gravel") {
-    g.fillStyle = "#a39a8a"; g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 12000; i++) { const v = 105 + R(i, 7) * 75; g.fillStyle = "rgb(" + Math.round(v) + "," + Math.round(v * 0.97) + "," + Math.round(v * 0.9) + ")"; g.fillRect(R(i, 8) * 512, R(i, 9) * 512, 2 + R(i, 10) * 3, 2 + R(i, 11) * 3); }
+    g.fillStyle = "#857d70"; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 12000; i++) { const v = 88 + R(i, 7) * 62; g.fillStyle = "rgb(" + Math.round(v) + "," + Math.round(v * 0.97) + "," + Math.round(v * 0.9) + ")"; g.fillRect(R(i, 8) * 512, R(i, 9) * 512, 2 + R(i, 10) * 3, 2 + R(i, 11) * 3); }
     // raked, the way the courts of a palace are kept
     for (let y = 0; y < 512; y += 16) { g.fillStyle = "rgba(0,0,0,0.10)"; g.fillRect(0, y, 512, 4); g.fillStyle = "rgba(255,250,235,0.07)"; g.fillRect(0, y + 6, 512, 3); }
   } else if (kind === "moss") {
-    g.fillStyle = "#3d5a2c"; g.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 7000; i++) { const v = R(i, 7); g.fillStyle = "rgba(" + (40 + v * 50 | 0) + "," + (70 + v * 60 | 0) + "," + (30 + v * 25 | 0) + ",0.6)"; g.fillRect(R(i, 8) * 512, R(i, 9) * 512, 2 + R(i, 10) * 5, 2 + R(i, 11) * 5); }
+    g.fillStyle = "#2a3d20"; g.fillRect(0, 0, 512, 512);
+    for (let i = 0; i < 9000; i++) { const v = R(i, 7); g.fillStyle = "rgba(" + (30 + v * 40 | 0) + "," + (48 + v * 46 | 0) + "," + (22 + v * 18 | 0) + ",0.65)"; g.fillRect(R(i, 8) * 512, R(i, 9) * 512, 2 + R(i, 10) * 5, 2 + R(i, 11) * 5); }
   } else if (kind === "wood") {
     g.fillStyle = "#3a2a1e"; g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 260; i++) { g.fillStyle = "rgba(" + (R(i, 1) > 0.5 ? "90,66,44" : "20,14,10") + "," + (0.08 + R(i, 2) * 0.12) + ")"; g.fillRect(0, R(i, 3) * 512, 512, 1 + R(i, 4) * 3); }
@@ -15706,7 +15740,7 @@ function castleTexture(kind) {
     g.fillStyle = "#7a6440"; g.fillRect(0, 0, 512, 512);
     for (let i = 0; i < 3000; i++) { g.strokeStyle = "rgba(" + (90 + R(i, 1) * 60 | 0) + "," + (70 + R(i, 2) * 40 | 0) + ",40,0.5)"; g.beginPath(); const x = R(i, 3) * 512, y0 = R(i, 4) * 512; g.moveTo(x, y0); g.lineTo(x + (R(i, 5) - 0.5) * 6, y0 + 20 + R(i, 6) * 30); g.stroke(); }
   } else if (kind === "tile" || kind === "copper") {
-    const base = kind === "tile" ? [58, 62, 68] : [74, 112, 100];
+    const base = kind === "tile" ? [58, 62, 68] : [60, 94, 84];
     g.fillStyle = "rgb(" + base.join(",") + ")"; g.fillRect(0, 0, 512, 512);
     for (let x = 0; x < 512; x += 16) { g.fillStyle = "rgba(255,255,255,0.10)"; g.fillRect(x, 0, 5, 512); g.fillStyle = "rgba(0,0,0,0.28)"; g.fillRect(x + 11, 0, 4, 512); }
     for (let y = 0; y < 512; y += 32) { g.fillStyle = "rgba(0,0,0,0.12)"; g.fillRect(0, y, 512, 3); }
@@ -15728,6 +15762,7 @@ function castlePlan(m) {
 }
 function buildCastle(root, city) {
   const m = city.moat; if (!m) return;
+  world.walk = world.walk.filter(d => !d.castle);
   const gy = m.groundY, wy = m.waterY, inner = m.inner, outer = m.inner + m.width, r = m.yaw * Math.PI / 180;
   const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
   const geos = {};                                       // material key -> [positions, uvs, indices]
@@ -15773,6 +15808,30 @@ function buildCastle(root, city) {
     // outer bank, the mirror of it
     quad("stone", side(outer - RUN, IN_FOOT, outer), side(outer - RUN, IN_FOOT, -outer), side(outer + 0.5, og + 0.6, -outer), side(outer + 0.5, og + 0.6, outer), 6);
   });
+  // ---- the lawn's edge. The terrain is a nineteen-metre grid, so the drop from the grounds to the moat bed starts up to a cell inside the
+  // wall and shows as a raw slope along it. A strip of the same ground (the terrain's own material, at the grounds' height) is laid over
+  // that band, and the whole of the grounds is a deck at that height so nothing walks or drives down into it.
+  {
+    const band = CELL * 1.7, ein = inner - 0.3, P = [], C = [], S = [], N = [], I = [], rgb = [0, 0, 0], sp = [0, 0, 0, 0];
+    terrainColour(world, Math.min(GRID_X - 1, Math.max(0, Math.round(m.centre[0] / CELL))), Math.min(GRID_Z - 1, Math.max(0, Math.round(m.centre[1] / CELL))), rgb, sp);
+    const strip = (f) => {
+      const along = Math.ceil(ein * 2 / 8), across = 4, base = P.length / 3;
+      for (let a = 0; a <= along; a++) for (let b = 0; b <= across; b++) {
+        const u = -ein + 2 * ein * a / along, d = ein - band + band * b / across;
+        const l = f[0] ? [f[0] * d, u] : [u, f[1] * d], w = W(l[0], l[1]);
+        P.push(w[0] - WORLD_X * 0.5, gy, w[1] - WORLD_Z * 0.5); C.push(rgb[0], rgb[1], rgb[2]); S.push(0, 0, 0, 0); N.push(0, 1, 0);
+      }
+      for (let a = 0; a < along; a++) for (let b = 0; b < across; b++) { const v = base + a * (across + 1) + b; I.push(v, v + 1, v + across + 1, v + 1, v + across + 2, v + across + 1); }
+    };
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(strip);
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(P, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(C, 3));
+    g.setAttribute("splat", new THREE.Float32BufferAttribute(S, 4)); g.setAttribute("normal", new THREE.Float32BufferAttribute(N, 3)); g.setIndex(I);
+    const mat = terrainMaterial(); mat.side = THREE.DoubleSide; mat.polygonOffset = true; mat.polygonOffsetFactor = -2; mat.polygonOffsetUnits = -2;
+    const lawn = new THREE.Mesh(g, mat); lawn.position.set(WORLD_X * 0.5, 0.04, WORLD_Z * 0.5); lawn.receiveShadow = true; root.add(lawn);
+    const q = W(0, 0);
+    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: ein, hl: ein, ya: gy, yb: gy, r: inner * 1.5, castle: true });
+  }
   // ---- the dobei round the grounds, with a gap for the gate on the +z side
   const DB = inner - 1.2, DH = 2.4;
   const dobei = (x0, x1, z0, z1) => {
@@ -15802,7 +15861,6 @@ function buildCastle(root, city) {
   const BH = 2.6, bz0 = inner - 1.5, bz1 = outer + 1.5, bl = bz1 - bz0, bc = (bz0 + bz1) / 2;
   {
     const q = W(0, bc);
-    world.walk = world.walk.filter(d => !d.castle);
     world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 4.2, hl: bl / 2, ya: gy, yb: gy, amp: BH, r: Math.hypot(4.2, bl / 2) + 1, castle: true });
     // the deck as a run of stone segments following the arch, with a parapet each side
     const N = 16;
