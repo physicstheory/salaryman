@@ -4279,6 +4279,10 @@ function planCity(world, F, seed, report, progressBase) {
     if (p.kind === "parking") p.kind = "park";
     else if (p.kind === "factory" || p.kind === "shed" || p.kind === "wharf" || p.kind === "civic" || p.kind === "campus") p.kind = "shed";
     else if (p.kind !== "park" && p.kind !== "shrine") p.kind = (p.kind === "shop" && r < 0.6) ? "shop" : "houses";
+    // and between the houses, fields: a third of the house plots away from the middle are rice and vegetables, which is what makes it a
+    // farming village and not a suburb with old roofs
+    if (p.kind === "houses" && rnd(Math.round(p.centre[1]), Math.round(p.centre[0]), 9411) < 0.36 &&
+        Math.hypot(p.centre[0] - coreW[0], p.centre[1] - coreW[1]) > site.coreRadius * 0.55) p.kind = "farm";
     p.floors = Math.min(p.floors, p.kind === "shed" ? 1 : 2);
     p.height = p.floors * floorHeight(p.kind);
   });
@@ -4904,7 +4908,7 @@ function paintCity(world, city, size) {
     g.save();
     g.translate(X(p.centre[0]), Z(p.centre[1]));
     g.rotate(-p.yaw * Math.PI / 180);
-    g.fillStyle = (p.kind === "park" || p.kind === "shrine") ? C.park : (p.kind === "parking" ? C.asphalt : C.lot);
+    g.fillStyle = (p.kind === "park" || p.kind === "shrine" || p.kind === "farm") ? C.park : (p.kind === "parking" ? C.asphalt : C.lot);
     g.fillRect(-p.size[0] * 0.5 * S, -p.size[1] * 0.5 * S, p.size[0] * S, p.size[1] * S);
     g.restore();
   });
@@ -5233,7 +5237,7 @@ function facadeTexture(style) {
     const coast = style === "coast";
     const kura = style === "kura";
     // Plaster: pale and warm inland, greyer and saltier on the coast.
-    const wall = coast ? "#b9bcb6" : kura ? "#d8d4c6" : "#cdc6b4";
+    const wall = coast ? "#aaa79c" : kura ? "#d8d4c6" : "#bfae92";
     const timber = coast ? "#4a4038" : "#3a2c21";
     const dark = coast ? "#38302a" : "#271d16";
     g.fillStyle = wall; g.fillRect(0, 0, S, S);
@@ -7904,6 +7908,7 @@ function buildScene(w) {
     city.plots.forEach(p => {
       if (p.absorbed) return;                       // swallowed by a neighbouring mall or plaza
       if (p.kind === "landmark") { sotiPlot = p; return; }
+      if (p.kind === "farm") return;                // fields: the paddies are laid by the village plan
       if (["park", "parking", "shrine", "wharf"].indexOf(p.kind) >= 0) {
         // Some of the open lots are built up into multi-storey car parks (see buildCarparks): big enough for two rows and an aisle,
         // and not every one, so most stay as flat lots.
@@ -11780,9 +11785,9 @@ const DET_STYLE = {
   civic:   { floor: 4.4, bay: 4.4, ww: 0.46, wh: 0.70, wall: [0.74, 0.72, 0.66], frame: [0.26, 0.24, 0.22], trim: [0.82, 0.80, 0.74], lobby: true, pil: 0.5 },
   houses:  { floor: 3.0, bay: 2.8, ww: 0.50, wh: 0.52, wall: [0.84, 0.81, 0.73], frame: [0.30, 0.27, 0.24], trim: [0.52, 0.46, 0.40], pil: 0.0, houses: true },
   shed:    { floor: 6.0, bay: 6.0, ww: 0.30, wh: 0.22, wall: [0.62, 0.64, 0.64], frame: [0.30, 0.32, 0.34], trim: [0.5, 0.52, 0.52], pil: 0.25, shed: true },
-  machiya: { floor: 3.0, bay: 2.4, ww: 0.54, wh: 0.40, wall: [0.80, 0.76, 0.66], frame: [0.20, 0.15, 0.11], trim: [0.20, 0.15, 0.11], pil: 0.22, timber: true },
+  machiya: { floor: 3.0, bay: 2.4, ww: 0.58, wh: 0.46, wall: [0.74, 0.67, 0.54], frame: [0.20, 0.15, 0.11], trim: [0.20, 0.15, 0.11], pil: 0.22, timber: true, skirt: true },
   kura:    { floor: 3.4, bay: 4.5, ww: 0.18, wh: 0.22, wall: [0.86, 0.84, 0.78], frame: [0.15, 0.12, 0.10], trim: [0.15, 0.12, 0.10], pil: 0.0, timber: true },
-  coast:   { floor: 3.0, bay: 2.6, ww: 0.50, wh: 0.44, wall: [0.66, 0.68, 0.64], frame: [0.24, 0.20, 0.17], trim: [0.30, 0.26, 0.22], pil: 0.15, timber: true }
+  coast:   { floor: 3.0, bay: 2.6, ww: 0.50, wh: 0.44, wall: [0.62, 0.60, 0.54], frame: [0.24, 0.20, 0.17], trim: [0.30, 0.26, 0.22], pil: 0.15, timber: true, skirt: true }
 };
 function detailMats() {
   if (DETAIL.mats) return DETAIL.mats;
@@ -11868,6 +11873,18 @@ function buildingDetail(b) {
         }
         const ww = bw * st.ww, wh = hh * st.wh, wy = y0 + hh * (j === 0 ? 0.55 : 0.52);
         if (j === 0 && !(st.lobby || st.awning) && r < 18) continue;            // a blank bay now and then
+        // An old timber house has no plate glass. Upstairs, shoji: paper in a fine wooden grid; on the street floor, koshi: close-set
+        // timber bars over the dark of the room behind.
+        if (st.timber) {
+          const koshi = j === 0, gap = koshi ? 0.09 : 0.17, nbar = Math.max(3, Math.round(ww / gap));
+          put(S, s, u, wy, 0.025, ww, wh, 0.05, koshi ? [0.11, 0.08, 0.06] : [0.88, 0.84, 0.72]);
+          for (let q = 0; q <= nbar; q++) put(S, s, u - ww / 2 + q * ww / nbar, wy, 0.06, koshi ? 0.045 : 0.03, wh, 0.05, st.frame);
+          if (!koshi) for (let q = 1; q < 4; q++) put(S, s, u, wy - wh / 2 + q * wh / 4, 0.06, ww, 0.03, 0.05, st.frame);
+          else { put(S, s, u, wy - wh * 0.17, 0.065, ww, 0.04, 0.05, st.frame); put(S, s, u, wy + wh * 0.2, 0.065, ww, 0.04, 0.05, st.frame); }
+          put(S, s, u, wy + wh / 2 + 0.05, 0.05, ww + 0.14, 0.1, 0.14, st.frame);
+          put(S, s, u, wy - wh / 2 - 0.05, 0.05, ww + 0.14, 0.1, 0.14, st.frame);
+          continue;
+        }
         quad(r < litShare * 100 ? L : G, s, u, wy, 0.012, ww, wh);
         put(S, s, u, wy + wh / 2 + 0.05, 0.05, ww + 0.14, 0.1, 0.14, st.frame);                  // the head
         put(S, s, u, wy - wh / 2 - 0.05, 0.08, ww + 0.30, 0.1, 0.24, shade(st.trim, 1.05));      // the sill, which sticks out
@@ -11877,14 +11894,15 @@ function buildingDetail(b) {
           put(S, s, u, wy - wh / 2 - 0.12, 0.62, bw * 0.84, 0.14, 1.24, shade(st.trim, 1.1));
           put(S, s, u, wy - wh / 2 + 0.45, 1.2, bw * 0.84, 0.9, 0.05, [0.5, 0.52, 0.54]);
           if (r > 78) put(S, s, u + bw * 0.28, wy - wh / 2 + 0.28, 0.5, 0.7, 0.55, 0.3, [0.88, 0.89, 0.88]);
-        } else if (!st.balcony && j > 0 && r > 90) put(S, s, u + ww * 0.42, wy - wh * 0.62, 0.35, 0.7, 0.5, 0.28, [0.86, 0.87, 0.86]);
+        } else if (!st.balcony && !st.timber && j > 0 && r > 90) put(S, s, u + ww * 0.42, wy - wh * 0.62, 0.35, 0.7, 0.5, 0.28, [0.86, 0.87, 0.86]);
       }
     }
+    if (st.skirt) put(S, s, 0, 0.45, 0.04, s.len + 0.1, 0.9, 0.08, [0.17, 0.12, 0.09]);              // the boarded skirt along the foot of the wall
     if (st.awning && si === 0) { put(S, s, 0, gh + 0.1, 0.75, s.len * 0.94, 0.12, 1.5, [0.55 + (hi % 5) * 0.08, 0.2 + (hi % 3) * 0.1, 0.18]); put(S, s, 0, gh + 0.7, 0.06, s.len * 0.9, 0.9, 0.1, shade(wall, 0.7)); }
     if (st.lobby && si === 0) { put(S, s, 0, gh + 0.05, 1.3, Math.min(s.len * 0.45, 9), 0.22, 2.6, st.trim); for (const sg of [-1, 1]) put(S, s, sg * Math.min(s.len * 0.2, 4), gh / 2, 2.2, 0.3, gh, 0.3, st.trim); }
   });
-  // the roof: a plant room, a water tank and a mast, and the outdoor units
-  if (!st.houses) {
+  // the roof: a plant room, a water tank and a mast, and the outdoor units (not on a tiled roof in a village)
+  if (!st.houses && !st.timber) {
     const rx = (hi % 9 - 4) * W * 0.04, rz = (hi % 7 - 3) * D * 0.04;
     dbBox(S, rx, H + 1.7, rz, Math.max(3, W * 0.3), 2.4, Math.max(3, D * 0.28), shade(wall, 0.85));
     dbBox(S, rx - W * 0.2, H + 1.2, rz + D * 0.2, 2.0, 1.6, 2.0, [0.72, 0.74, 0.75]);
@@ -38306,6 +38324,18 @@ function villagePlan(city) {
     // it flows from the high end of the valley to the low
     if (world.sampleHeight(V.stream[0][0], V.stream[0][1]) < world.sampleHeight(V.stream[V.stream.length - 1][0], V.stream[V.stream.length - 1][1])) V.stream.reverse();
   }
+  // the fields inside the village: each farm plot ruled into paddies and a vegetable strip, at the plot's own level
+  (city.plots || []).forEach(p => {
+    if (p.kind !== "farm") return;
+    const yd = p.yaw, nx = Math.max(1, Math.round(p.size[0] / 15)), nz = Math.max(1, Math.round(p.size[1] / 11));
+    const o = fromRectLocal(0, 0, p.centre[0], p.centre[1], yd), e = fromRectLocal(1, 0, p.centre[0], p.centre[1], yd), axp = [e[0] - o[0], e[1] - o[1]];
+    const w = p.size[0] / nx - gp, d = p.size[1] / nz - gp;
+    for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++) {
+      const q = fromRectLocal(-p.size[0] / 2 + (i + 0.5) * p.size[0] / nx, -p.size[1] / 2 + (j + 0.5) * p.size[1] / nz, p.centre[0], p.centre[1], yd);
+      const y = world.sampleHeight(q[0], q[1]) + CITY_LIFT + 0.06, r = rnd(Math.round(q[0]), Math.round(q[1]), 9421);
+      V.paddies.push({ x: q[0], z: q[1], y: y, lo: y - 0.7, w: w, d: d, yaw: Math.atan2(-axp[1], axp[0]), kind: r < 0.18 ? "water" : r < 0.78 ? "green" : r < 0.86 ? "gold" : "earth" });
+    }
+  });
   // keep the paddies off the stream
   if (V.stream.length) V.paddies = V.paddies.filter(p => !V.stream.some(s => Math.hypot(s[0] - p.x, s[1] - p.z) < 18));
   // gardens: in the clear ground just outside the houses, in a ring round the village core
@@ -40738,28 +40768,30 @@ function stationShop() {
 }
 
 // ---- SOTI Tower -----------------------------------------------------------------------------------------------------------------------------
-// The tallest glass tower in that end of the city, five or six hundred metres from the station, with SOTI over the door. Chosen before anything
-// is built, the way a shop's plot is.
+// The tower is the city's landmark - two hundred and forty-eight metres, the one building that is modelled and not massed. Its plot is turned to
+// face the nearest road before anything is built, and the door is on that side of the podium. (If a city had no landmark, the tallest office
+// plot near the station would be made into one.)
 function placeSoti(city) {
   if (!city || !city.plots) return;
-  const st = city.stations && (city.stations.find(s => s.terminus) || city.stations[0]); if (!st) return;
-  let best = null, bs = -1e9;
-  city.plots.forEach(p => {
-    if (p.shop || !(p.kind === "office" || p.kind === "glass" || p.kind === "midrise")) return;
-    if (Math.min(p.size[0], p.size[1]) < 22 || Math.max(p.size[0], p.size[1]) > 70) return;
-    const d = Math.hypot(p.centre[0] - st.centre[0], p.centre[1] - st.centre[1]);
-    if (d < 260 || d > 760) return;
-    const score = -Math.abs(d - 480) + Math.min(p.size[0], p.size[1]) * 2;
-    if (score > bs) { bs = score; best = p; }
-  });
-  if (!best) return;
-  plotFaceRoad(city, best);
-  const yaw = best.yaw * Math.PI / 180, half = best.size[1] * 0.5 + 1.6;
-  const s = { brand: "soti", soti: true, name: "SOTI Tower", at: [best.centre[0], best.centre[1]],
-    door: [best.centre[0] + Math.sin(yaw) * half, best.centre[1] + Math.cos(yaw) * half], yaw: yaw, groundY: best.groundY, size: best.size };
-  shops.list.push(s); best.shop = "soti"; best.shopRef = s; story.soti = s;
+  let p = city.plots.find(q => q.kind === "landmark");
+  if (!p) {
+    const st = city.stations && (city.stations.find(s => s.terminus) || city.stations[0]); if (!st) return;
+    let bs = -1e9;
+    city.plots.forEach(q => {
+      if (q.shop || !(q.kind === "office" || q.kind === "glass" || q.kind === "midrise")) return;
+      if (Math.min(q.size[0], q.size[1]) < 22 || Math.max(q.size[0], q.size[1]) > 70) return;
+      const d = Math.hypot(q.centre[0] - st.centre[0], q.centre[1] - st.centre[1]); if (d < 260 || d > 760) return;
+      const sc = -Math.abs(d - 480) + Math.min(q.size[0], q.size[1]) * 2; if (sc > bs) { bs = sc; p = q; }
+    });
+    if (!p) return;
+    p.kind = "landmark";
+  }
+  plotFaceRoad(city, p);
+  const yaw = p.yaw * Math.PI / 180, half = (SOTI.podiumHalf || 20) + 2.5;
+  story.soti = { brand: "soti", soti: true, name: "SOTI Tower", at: [p.centre[0], p.centre[1]], yaw: yaw, groundY: p.groundY,
+    door: [p.centre[0] + Math.sin(yaw) * half, p.centre[1] + Math.cos(yaw) * half] };
 }
-SHOP_BUILD.soti = 158;
+
 
 // ---- the shops that sell clothes -------------------------------------------------------------------------------------------------------------
 // Suit Select sells suits (and takes the clothes you came in, against one); Machi Street sells what you wear at the weekend. A bought outfit is
