@@ -8684,9 +8684,58 @@ function cameraFullOn() { return !!(phone.open && phone.app === "Camera" && came
 // The field of view opens a little with speed, which is most of what makes a car feel quick; it settles back on foot.
 function fovFrame(dt) {
   if (camMode.on || !camera) return;
-  const sp = drive.car ? Math.abs(drive.car.speed || 0) : 0;
-  const want = 58 + clamp01(sp / 42) * 13 - (drive.car ? 0 : 18 * (gun.aim || 0));
+  const sp = drive.car ? Math.abs(drive.car.speed || 0) : 0, f = drive.car ? clamp01(sp / Math.max(12, (drive.car.topNow || 30) * 0.95)) : 0;
+  const want = 58 + Math.pow(f, 1.25) * 24 - (drive.car ? 0 : 18 * (gun.aim || 0));
+  speedFx(dt, drive.car && !drive.car.air ? f : 0);
   if (Math.abs(camera.fov - want) > 0.05) { camera.fov += (want - camera.fov) * (1 - Math.pow(0.02, dt)); camera.updateProjectionMatrix(); }
+}
+// What makes a car feel fast: streaks at the edges of the screen that stream past and thicken with speed, the corners closing in, a wind
+// that roars up with the square of it, and a buffet that shakes the picture a little at the top end.
+const sfx = { cv: null, g: null, f: 0, streaks: [], wind: null, windGain: null };
+function speedFx(dt, f) {
+  sfx.f = lerp(sfx.f, f, 1 - Math.pow(0.05, dt));
+  const k = clamp01((sfx.f - 0.42) / 0.58);
+  if (!sfx.cv) {
+    sfx.cv = document.createElement("canvas"); sfx.cv.id = "speedfx";
+    sfx.cv.style.cssText = "position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:6";
+    document.body.appendChild(sfx.cv); sfx.g = sfx.cv.getContext("2d");
+    for (let i = 0; i < 70; i++) sfx.streaks.push({ a: Math.random() * 6.2832, r: Math.random(), v: 0.6 + Math.random() * 0.8, w: 0.5 + Math.random() * 1.6 });
+  }
+  const cv = sfx.cv, g = sfx.g;
+  if (k <= 0.001) { if (cv.style.display !== "none") { cv.style.display = "none"; } }
+  else {
+    cv.style.display = "";
+    const W = Math.round(innerWidth / 2), H = Math.round(innerHeight / 2);
+    if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+    g.clearRect(0, 0, W, H);
+    const cx = W / 2, cy = H * 0.46, R = Math.hypot(W, H) / 2;
+    const vg = g.createRadialGradient(cx, cy, R * (0.62 - 0.12 * k), cx, cy, R);
+    vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0," + (0.42 * k).toFixed(3) + ")");
+    g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    g.lineCap = "round";
+    sfx.streaks.forEach(st => {
+      st.r += dt * st.v * (1.2 + 2.8 * k); if (st.r > 1) { st.r = 0.45 + Math.random() * 0.1; st.a = Math.random() * 6.2832; }
+      const r0 = R * (0.55 + st.r * 0.5), r1 = r0 + R * (0.05 + 0.16 * k) * st.v;
+      const ca = Math.cos(st.a), sa = Math.sin(st.a) * 0.62;
+      g.strokeStyle = "rgba(235,242,250," + (0.22 * k * (st.r)).toFixed(3) + ")"; g.lineWidth = st.w * (0.6 + k);
+      g.beginPath(); g.moveTo(cx + ca * r0, cy + sa * r0); g.lineTo(cx + ca * r1, cy + sa * r1); g.stroke();
+    });
+  }
+  if (k > 0.25 && drive.car) drive.shake = Math.max(drive.shake || 0, (k - 0.25) * 0.09);
+  // the wind
+  if (sound.ready && sound.ctx && sound.master) {
+    if (!sfx.wind) {
+      const ctx = sound.ctx, len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      let last = 0; for (let i = 0; i < len; i++) { last = last * 0.97 + (Math.random() * 2 - 1) * 0.03; d[i] = last * 6; }
+      const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 500; bp.Q.value = 0.6;
+      const gn = ctx.createGain(); gn.gain.value = 0; src.connect(bp); bp.connect(gn); gn.connect(sound.master); src.start();
+      sfx.wind = bp; sfx.windGain = gn;
+    }
+    const ctx = sound.ctx, w = drive.car ? sfx.f * sfx.f : 0;
+    sfx.windGain.gain.setTargetAtTime(0.32 * w, ctx.currentTime, 0.15);
+    sfx.wind.frequency.setTargetAtTime(380 + 900 * w, ctx.currentTime, 0.2);
+  }
 }
 function applyCameraFull(dt) {
   const on = cameraFullOn();
@@ -13563,6 +13612,26 @@ function decoMesh() {
 // `top` in the catalogue stays what it was - the speed the computer drives it
 // at in traffic - because a kei car doing its real 137 km/h through a ward is
 // not traffic, it is a problem.
+// The pace. Everything you drive goes at seven tenths of its catalogue speed, and gets there a little more gently: the streets stream
+// in comfortably ahead of you at that, and the rest of the speed is in how it feels - the engine screams at the lower ceiling, the
+// lens opens wide, the wind roars and buffets, and the edges of the screen streak (see speedFx). So the cars feel as fast as they
+// are, and the world has the time it needs to be there when you arrive.
+const DRIVE_PACE = 0.7;
+function perfOf(kind, fallback) {
+  const P = PERF[kind.name] || fallback;
+  return { top: P.top * DRIVE_PACE, to100: P.to100 / 0.9 };
+}
+// Brakes, as a fraction of a g on good tarmac: carbon-ceramics on the exotics, big discs on the sports cars, drums on a kei van, and a
+// loaded bus that takes its time.
+function brakeG(kind) {
+  if (kind.exotic || kind.body === "super") return 1.28;
+  if (kind.body === "sports") return 1.14;
+  if (kind.body === "truck" || kind.body === "fire") return 0.66;
+  if (kind.body === "bus") return 0.58;
+  if (kind.name === "kei" || kind.name === "keivan" || kind.name === "taxi") return 0.9;
+  if (kind.name === "ambulance" || kind.name === "onebox") return 0.84;
+  return 1.0;
+}
 const PERF = {
   kei:     { top: 38, to100: 13.5 },   // 658 cc, 64 PS, which is the class limit
   keivan:  { top: 34, to100: 15.5 },
@@ -17240,7 +17309,7 @@ function updateSound(dt) {
   if (!sound.engine) sound.engine = buildEngine();
   const c = drive.car;
   const kind = CAR_KINDS[c.kind];
-  const perf = PERF[kind.name] || { top: 40 };
+  const perf = perfOf(kind, { top: 40, to100: 10 });
   const r = revsFor(c.speed, perf.top);
   const load = clamp01(pad.throttle + (keys.KeyW || keys.ArrowUp ? 1 : 0));
 
@@ -24121,8 +24190,32 @@ const CHEAT_VEHICLES = {
   EXOTIC:    { kind: "exotic",    dial: "5550117" },
   AIRPLANE:  { kind: "plane",     dial: "5550120" },
   SKYDIVE:   { kind: "skydive",   dial: "5550122" },
-  HELICOPTER:{ kind: "heli",      dial: "5550121" }
+  HELICOPTER:{ kind: "heli",      dial: "5550121" },
+  // one for every model on the road, by its name, so what you type is what you get
+  HONDAFIT:  { kind: "kei",       dial: "5550201" },
+  SUZUKICARRY:{ kind: "keivan",   dial: "5550202" },
+  PRIUS:     { kind: "hatch",     dial: "5550203" },
+  CAMRY:     { kind: "sedan",     dial: "5550204" },
+  CEFIRO:    { kind: "saloon",    dial: "5550205" },
+  COROLLA:   { kind: "taxi",      dial: "5550206" },
+  CROWN:     { kind: "police",    dial: "5550207" },
+  TOYOTARAV: { kind: "suv",       dial: "5550208" },
+  SKYLINE:   { kind: "sports",    dial: "5550209" },
+  HONDANSX:  { kind: "super",     dial: "5550210" },
+  GSXR:      { kind: "bike",      dial: "5550211" },
+  HONDACB:   { kind: "cruiser",   dial: "5550212" },
+  HONDACRF:  { kind: "dirtbike",  dial: "5550213" },
+  FERRARI:   { kind: "f8",        dial: "5550221" },
+  LAMBORGHINI:{ kind: "aventador", dial: "5550222" },
+  MCLAREN:   { kind: "mc720",     dial: "5550223" },
+  BUGATTI:   { kind: "chiron",    dial: "5550224" },
+  PAGANI:    { kind: "huayra",    dial: "5550225" },
+  PORSCHE:   { kind: "p918",      dial: "5550226" },
+  LEXUS:     { kind: "lc500",     dial: "5550227" },
+  GODZILLA:  { kind: "gtr35",     dial: "5550228" }
 };
+// What each kind is, as a car: the model it is drawn with (see Game/tools/cars/cars.json), so a cheat says what it gave you.
+const KIND_MODEL = {"kei": "Honda Fit (GK3)", "keivan": "Suzuki Carry / Every kei van", "hatch": "Toyota Prius 2012", "sedan": "Toyota Camry (XV40)", "saloon": "Nissan Cefiro (A31)", "taxi": "Toyota Corolla (KE80) taxi", "police": "Toyota Crown Athlete S210 patrol car", "suv": "Toyota RAV4 Hybrid 2021", "sports": "Nissan Skyline R34 GT-R", "super": "Honda NSX 1990", "bike": "Suzuki GSX-R750", "cruiser": "Honda CB750 F", "dirtbike": "Honda CRF450", "f8": "Ferrari F8 Tributo", "aventador": "Lamborghini Aventador SVJ", "mc720": "McLaren 720S", "chiron": "Bugatti Chiron Profil\u00e9e", "huayra": "Pagani Huayra", "p918": "Porsche 918 Spyder", "lc500": "Lexus LC 500", "gtr35": "Nissan GT-R (R35)"};
 const CHEAT_ACTIONS = {
   MONEYBAGS: { dial: "5550130", note: "\u00a51,000,000", fn: () => { purse.yen += 1000000; } },
   HEALTHY:   { dial: "5550131", note: "Health and nerves restored", fn: () => { vitals.health = 1; vitals.stress = 0.05; } },
@@ -24250,7 +24343,7 @@ function cheatSpawn(kindName) {
                 colour: (kind.colour || pal).slice(), uv: [0, 0], spawned: true };
   drive.parked.push(rec);
   enterParked(drive.parked.length - 1);
-  say(kindName === "dirtbike" ? "Dirt bike." : kind.name[0].toUpperCase() + kind.name.slice(1) + " spawned.", 3);
+  say((KIND_MODEL[kind.name] || kind.exotic || (kind.name[0].toUpperCase() + kind.name.slice(1))) + ".", 3);
   return true;
 }
 function runCheat(name) {
@@ -32594,7 +32687,7 @@ function driveFeedback(c, kind, dt, thr, brk, two) {
   if (strong + weak > 0.06) rumble(clamp01(strong), clamp01(weak), 130);
 }
 function updateBike(dt, c, kind, inp) {
-  const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = PERF[kind.name] || { top: 30, to100: 6 };
+  const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = perfOf(kind, { top: 30, to100: 6 });
   const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
   const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw);
   if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z); c.vyG = 0; c.slip = 0; c.downT = 0; }
@@ -32753,7 +32846,7 @@ function updateDrive(dt) {
     if (c.downT > 0 || !c.air) driveCollisions(c, kind, dt);
     driveFeedback(c, kind, dt, throttle, brake, true);
   } else {
-  const perf = PERF[kind.name] || { top: kind.top * 1.4, to100: 12 };
+  const perf = perfOf(kind, { top: kind.top * 1.4, to100: 12 });
     // Damage takes the edge off: a smashed front end loses power, and a wrecked car will not go at all.
     const D = c.dmg, hurt = D ? Math.max(D.front * 0.9, D.total) : 0;
     if (D && D.total >= 1) { throttle = 0; if (!c.deadSaid) { c.deadSaid = true; say("The engine is dead. Get out and find another car.", 4); } }
@@ -32771,9 +32864,17 @@ function updateDrive(dt) {
     // drive: limited by grip (wheelspin), and by the engine
     let ax = 0;
     if (throttle > 0) ax += throttle * (vf < 0 ? pull * 2.4 : Math.min(pull * fade, mu * g * 0.85));
-    if (brake > 0) ax -= vf > 0.4 ? brake * Math.min(13, mu * g * 1.05) : brake * pull * 0.9;
+    // the brake pedal builds pressure over a fifth of a second (a key is all or nothing; a foot is not), the car's own brakes decide how
+    // hard it can stop, and at a crawl it simply stops rather than creeping
+    c.brakeP = lerp(c.brakeP || 0, brake, 1 - Math.pow(0.0004, dt));
+    if (brake > 0 && vf > 0.4) ax -= c.brakeP * Math.min(15, mu * g * brakeG(kind));
+    else if (brake > 0) ax -= brake * pull * 0.9;
+    if (brake > 0.2 && vf > 0 && vf < 1.2) { vf = Math.max(0, vf - 6 * dt); }
     if (throttle === 0 && brake === 0) ax -= vf * 0.38 + Math.sign(vf) * 0.25;     // engine braking and rolling resistance
-    ax -= 0.0009 * vf * Math.abs(vf);                                                 // air
+    // wind resistance: it grows with the square of the speed and takes about a third of the engine at the top, so the last of the
+    // speed comes slowly, the way it does
+    ax -= 0.35 * pull * vf * Math.abs(vf) / (top * top);
+    c.topNow = top;
     vf += ax * dt;
     if (hand) vf *= Math.pow(0.35, dt);
     vf = clamp(vf, -top * 0.35, top);
