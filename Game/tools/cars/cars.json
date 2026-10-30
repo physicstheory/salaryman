@@ -72,5 +72,60 @@
   "what": "Honda CRF450",
   "tris": 16000,
   "error": 0.03
+ },
+ "f8": {
+  "carros": "ferrari-f8",
+  "what": "Ferrari F8 Tributo",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "aventador": {
+  "carros": "lamborghini-aventador-svj",
+  "what": "Lamborghini Aventador SVJ",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": [
+   "CARROSSERIE",
+   "Material.004"
+  ]
+ },
+ "mc720": {
+  "carros": "mclaren-720s",
+  "what": "McLaren 720S",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "chiron": {
+  "carros": "bugatti-chiron",
+  "what": "Bugatti Chiron Profilée",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "none"
+ },
+ "huayra": {
+  "carros": "pagani-huayra",
+  "what": "Pagani Huayra",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "none"
+ },
+ "p918": {
+  "carros": "porsche-918-spyder",
+  "what": "Porsche 918 Spyder",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "lc500": {
+  "carros": "lexus-lc-500",
+  "what": "Lexus LC 500",
+  "tris": 40000,
+  "error": 0.05
+ },
+ "gtr35": {
+  "carros": "nissan-skyline-gtr",
+  "what": "Nissan GT-R (R35)",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "r35_paint"
  }
 }

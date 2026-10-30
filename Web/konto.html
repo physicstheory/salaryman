@@ -12347,6 +12347,14 @@ const PERF = {
   tourer:  { top: 64, to100: 5.2 },
   dirtbike: { top: 36, to100: 4.0 },   // light, short-geared, quick
   mtb:      { top: 16, to100: 11.0 },
+  f8:        { top: 94, to100: 2.9 },
+  aventador: { top: 97, to100: 2.8 },
+  mc720:     { top: 95, to100: 2.9 },
+  chiron:    { top: 116, to100: 2.4 },
+  huayra:    { top: 106, to100: 2.8 },
+  p918:      { top: 96, to100: 2.6 },
+  lc500:     { top: 75, to100: 4.4 },
+  gtr35:     { top: 87, to100: 2.9 },
   truck:   { top: 28, to100: 20.0 },
   bus:     { top: 25, to100: 25.0 }
 };
@@ -12405,7 +12413,17 @@ const CAR_KINDS = [
   { name: "ambulance", body: "ambulance", L: 5.10, W: 1.90, H: 2.20, share: 0, top: 18.0,
     livery: "ambulance", colour: [0.93, 0.94, 0.92], plate: "plateGreen", dispatch: true },
   { name: "fire", body: "fire", L: 7.40, W: 2.20, H: 3.10, share: 0, top: 16.0,
-    livery: "fire", colour: [0.78, 0.07, 0.06], plate: "plateGreen", dispatch: true }
+    livery: "fire", colour: [0.78, 0.07, 0.06], plate: "plateGreen", dispatch: true },
+  // The exotics. One of these in a thousand cars, give or take, so most drives pass none and a day in the city might turn up one:
+  // the thing you stop and look at. Far away they are drawn as the built supercar body; close up they are the real car.
+  { name: "f8", palette: "exotic", body: "super", L: 4.61, W: 1.98, H: 1.21, share: 0.0016, top: 19.0, exotic: "Ferrari F8 Tributo" },
+  { name: "aventador", palette: "exotic", body: "super", L: 4.94, W: 2.10, H: 1.14, share: 0.0012, top: 19.0, exotic: "Lamborghini Aventador SVJ" },
+  { name: "mc720", palette: "exotic", body: "super", L: 4.54, W: 1.93, H: 1.20, share: 0.0014, top: 19.0, exotic: "McLaren 720S" },
+  { name: "chiron", palette: "exotic", body: "super", L: 4.54, W: 2.04, H: 1.21, share: 0.0006, top: 18.0, exotic: "Bugatti Chiron Profilée" },
+  { name: "huayra", palette: "exotic", body: "super", L: 4.61, W: 2.04, H: 1.17, share: 0.0006, top: 18.0, exotic: "Pagani Huayra" },
+  { name: "p918", palette: "exotic", body: "super", L: 4.64, W: 1.94, H: 1.17, share: 0.0010, top: 19.0, exotic: "Porsche 918 Spyder" },
+  { name: "lc500", palette: "exotic", body: "sports", L: 4.77, W: 1.92, H: 1.35, share: 0.0020, top: 17.5, exotic: "Lexus LC 500" },
+  { name: "gtr35", palette: "exotic", body: "sports", L: 4.71, W: 1.90, H: 1.37, share: 0.0020, top: 18.5, exotic: "Nissan GT-R (R35)" }
 ];
 
 // Paint, by class, because a kei car is not painted like a saloon and a
@@ -12457,6 +12475,17 @@ const PAINT = {
     [0.64, 0.05, 0.08],                                            // red
     [0.88, 0.88, 0.87]
   ],
+  // what the exotics come in: the loud colours they are ordered in, and the black and white the rest are
+  exotic: [
+    [0.72, 0.03, 0.04], [0.72, 0.03, 0.04],                        // rosso
+    [0.95, 0.72, 0.02],                                            // giallo
+    [0.85, 0.36, 0.02],                                            // papaya
+    [0.42, 0.76, 0.06],                                            // verde
+    [0.04, 0.22, 0.62],                                            // blu
+    [0.38, 0.10, 0.62],                                            // viola
+    [0.92, 0.92, 0.90], [0.03, 0.03, 0.035],                       // white, gloss black
+    [0.30, 0.31, 0.33]                                             // matt grey
+  ],
   bike: [
     [0.66, 0.07, 0.08], [0.08, 0.20, 0.46], [0.075, 0.08, 0.085],
     [0.88, 0.88, 0.87], [0.36, 0.38, 0.40]
@@ -12467,7 +12496,7 @@ const CAR_COLOURS = PAINT.common;
 
 const traffic = {
   lanes: [], cars: [], byLane: [], paint: [], trim: [], deco: [], pool: [], ready: false,
-  max: 130, spawnR: 250, killR: 340, clearR: 34, seed: 1
+  max: 130, spawnR: 250, killR: 340, clearR: 34, seed: 1, exoticPick: -1, exoticNext: 60
 };
 
 // ---- real models, where you have one ------------------------------------
@@ -13426,7 +13455,7 @@ function buildTraffic(w, root) {
     const body = buildVehicle(kind);
     // Three spare slots a kind, so the car you are driving and the ones you
     // parked always have somewhere to be drawn.
-    const cap = Math.max(2, Math.round(traffic.max * kind.share / total * 1.25)) + 3;
+    const cap = kind.exotic ? 4 : Math.max(2, Math.round(traffic.max * kind.share / total * 1.25)) + 3;
     const paint = new THREE.InstancedMesh(body.paint, paintMaterial(), cap);
     // Made here, at full size. setColorAt would make it on the first car, while
     // the count is still zero, and a zero-length colour buffer leaves every box
@@ -13474,11 +13503,20 @@ function trafficSpawn(at) {
   let live = 0;
   for (let c = 0; c < traffic.cars.length; c++) if (traffic.cars[c].live) live++;
   if (live >= want) return;
+  // The exotics are let out one at a time, a few minutes apart, and which one is drawn by its share: the GT-R and the LC turn
+  // up most, a Chiron or a Huayra hardly ever.
+  if (traffic.exoticPick < 0 && clock > traffic.exoticNext && !traffic.cars.some(c => c.live && CAR_KINDS[c.kind].exotic)) {
+    const ex = CAR_KINDS.map((k, i) => [k, i]).filter(e => e[0].exotic);
+    let r = Math.random() * ex.reduce((a, e) => a + e[0].share, 0);
+    traffic.exoticPick = ex[ex.length - 1][1];
+    for (const e of ex) { r -= e[0].share; if (r <= 0) { traffic.exoticPick = e[1]; break; } }
+  }
   for (let c = 0; c < traffic.cars.length && budget > 0 && live < want; c++) {
     const car = traffic.cars[c];
     if (car.live) continue;
     const kind = CAR_KINDS[car.kind];
     if (kind.dispatch) continue;
+    if (kind.exotic && car.kind !== traffic.exoticPick) continue;
     for (let attempt = 0; attempt < 6; attempt++) {
       const li = (Math.random() * lanes.length) | 0;
       const lane = lanes[li];
@@ -13500,6 +13538,8 @@ function trafficSpawn(at) {
       car.s = s;
       car.v = Math.min(lane.speed, car.top) * (0.65 + Math.random() * 0.35);
       car.live = true;
+      car.spotted = false;
+      if (kind.exotic) { traffic.exoticPick = -1; traffic.exoticNext = clock + 150 + Math.random() * 210; }
       const pal = PAINT[kind.palette || "common"] || PAINT.common;
       car.colour = kind.colour ? kind.colour : pal[(Math.random() * pal.length) | 0];
       // Which marque wears the badge, or which advertisement is on the bus.
@@ -13840,6 +13880,10 @@ function updateTraffic(dt, at) {
       continue;
     }
     writeCar(car.kind, p, p.yaw, car.colour, car.uv, p.pitch, 0);
+    // an exotic going by is worth a word, once
+    if (CAR_KINDS[car.kind].exotic && !car.spotted && !drive.car && Math.hypot(p.x - at.x, p.z - at.z) < 30) {
+      car.spotted = true; say("Is that a " + CAR_KINDS[car.kind].exotic + "?", 3);
+    }
   }
 
   for (let k = 0; k < CAR_KINDS.length; k++) {
@@ -21579,6 +21623,7 @@ const CHEAT_VEHICLES = {
   SCOOTER:   { kind: "scooter",   dial: "5550114" },
   DIRTBIKE:  { kind: "dirtbike",  dial: "5550115" },
   TRAILBIKE: { kind: "mtb",       dial: "5550116" },
+  EXOTIC:    { kind: "exotic",    dial: "5550117" },
   AIRPLANE:  { kind: "plane",     dial: "5550120" },
   SKYDIVE:   { kind: "skydive",   dial: "5550122" },
   HELICOPTER:{ kind: "heli",      dial: "5550121" }
@@ -21694,6 +21739,7 @@ function cheatAircraft(air) {
   return true;
 }
 function cheatSpawn(kindName) {
+  if (kindName === "exotic") { const ex = CAR_KINDS.filter(k => k.exotic); kindName = ex[(Math.random() * ex.length) | 0].name; }
   if (kindName === "plane") return cheatAircraft(false);
   if (kindName === "skydive") return cheatAircraft(true);
   if (kindName === "heli") { say("You can't fly helicopters yet. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
@@ -29616,7 +29662,7 @@ function startJacking(index) {
   drive.jack = {
     index: index, t: 0, dur: 1.45,
     alarm: kind.name === "sports" || kind.name === "super" || kind.name === "saloon"
-           || kind.name === "ryde",
+           || kind.name === "ryde" || !!kind.exotic,
     seen: false
   };
   player.jacking = 0;
@@ -29699,6 +29745,7 @@ function enterParked(i) {
 }
 function bikeHint(kindIdx) {
   const k = CAR_KINDS[kindIdx];
+  if (k && k.exotic) { say(k.exotic + ". Try not to scratch it.", 4); return; }
   if (!k || !TWO_WHEELERS[k.body] || k.body === "scooter") return;
   if (k.body === "mtb") say("Pedal with W. Lean back for a manual, and hit the lips fast.", 5);
   else if (k.body === "dirtbike") say("Hit the lips fast for air. Hold Shift (or pull the stick back) on the gas for a wheelie; in the air the stick rotates the bike.", 6);

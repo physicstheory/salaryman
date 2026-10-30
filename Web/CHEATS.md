@@ -22,6 +22,7 @@ the driving seat.
 | SCOOTER | 5550114 | delivery scooter |
 | DIRTBIKE | 5550115 | dirt bike |
 | TRAILBIKE | 5550116 | mountain bike |
+| EXOTIC | 5550117 | a random exotic: Ferrari F8, Aventador SVJ, McLaren 720S, Chiron, Huayra, 918 Spyder, LC 500 or GT-R |
 | AIRPLANE | 5550120 | aircraft |
 | SKYDIVE | 5550122 | a light aircraft 1,200 m up, ready to jump |
 | MONEYBAGS | 5550130 | +¥1,000,000 |

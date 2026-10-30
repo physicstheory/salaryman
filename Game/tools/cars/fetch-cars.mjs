@@ -77,7 +77,9 @@ function nameMaterials(doc, hint) {
   }
   const named = { paint: null, glass: [], tyre: [] };
   // the library says which material is the paint when it knows
-  if (hint && hint.length) named.paint = doc.getRoot().listMaterials().find(m => hint.includes(m.getName())) || null;
+  // "none": the car keeps the colours it was made in (a signature livery), nothing is repainted
+  const keep = hint && hint[0] === "none";
+  if (hint && hint.length && !keep) named.paint = doc.getRoot().listMaterials().find(m => hint.includes(m.getName())) || null;
   for (const m of doc.getRoot().listMaterials()) {
     const n = (m.getName() || "").toLowerCase();
     if (/glass|window|windscreen|windshield|wind_?shield/.test(n) || m.getAlphaMode() === "BLEND") named.glass.push(m);
@@ -85,7 +87,7 @@ function nameMaterials(doc, hint) {
     else if (m === named.paint) continue;
     else if (!named.paint && /car_?paint|body_?paint|\bpaint|carpaint|body$|^body|exterior|coat/.test(n)) named.paint = m;
   }
-  if (!named.paint) {
+  if (!named.paint && !keep) {
     let best = null, ba = 0;
     for (const [m, a] of area) {
       const n = (m.getName() || "").toLowerCase();
