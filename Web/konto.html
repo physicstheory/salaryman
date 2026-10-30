@@ -2365,7 +2365,7 @@ function buildLinkRoads(root) {
   const road = { pos: [], nrm: [], uv: [] }, verge = { pos: [], nrm: [], uv: [] }, paint = { pos: [] };
   const quad = (B, a, b, c, d, u0, u1, v0, v1) => { const q = [[a, u0, v0], [b, u1, v0], [c, u1, v1], [d, u0, v1]]; [0, 1, 2, 0, 2, 3].forEach(i => { B.pos.push(q[i][0][0], q[i][0][1], q[i][0][2]); if (B.nrm) B.nrm.push(0, 1, 0); if (B.uv) B.uv.push(q[i][1], q[i][2]); }); };
   world.links.forEach(L => {
-    const P = L.road.pts, n = P.length, hw = L.road.halfWidth, along = [0];
+    const P = resamplePath(L.road.pts, false, 4), n = P.length, hw = L.road.halfWidth, along = [0];
     for (let i = 1; i < n; i++) along.push(along[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][2] - P[i - 1][2]));
     const dir = i => { const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)], dx = b[0] - a[0], dz = b[2] - a[2], l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
     // the surface follows the ground it was cut into, a hand's breadth above it; over water it is the deck the profile gives
@@ -8059,6 +8059,7 @@ function buildScene(w) {
   try { buildOnsens(root); } catch (e) { console.warn("onsens", e); }
   buildStreetLights(root, w);
   buildStreetLife(root, w);
+  console.log("[Konto] surface guard: " + surfaceGuard.quads + " road and footway pieces checked against the ground, " + surfaceGuard.lifted + " cross-sections lifted clear of it (most " + surfaceGuard.maxLift.toFixed(2) + " m)");
   try { buildCarparks(root, w); } catch (e) { console.warn("[Konto] the car parks could not be built:", e); }
   try { buildBoats(root, w); } catch (e) { console.warn("[Konto] the boats could not be built:", e); }
   try { buildBeaches(root, w); } catch (e) { console.warn("[Konto] the beaches could not be dressed:", e); }
@@ -10510,11 +10511,11 @@ function vegBuild(root) {
     }
     city.roads.concat(city.rails).forEach(path => {
       const pts = path.pts; if (!pts) return;
-      const r = (path.halfWidth || 6) + 3.5;
+      const r = (path.halfWidth || 6) + 4.4 + 2.5;               // the carriageway, the footway, and a little more: no grass on a pavement
       for (let i = 1; i < pts.length; i++) vegSeg([pts[i - 1][0], pts[i - 1][2]], [pts[i][0], pts[i][2]], r);
     });
     city.plots.forEach(p => vegDisc(p.centre[0], p.centre[1], Math.max(p.size[0], p.size[1]) * 0.6 + 3));
-    if (city.streetSegs) { const S = city.streetSegs; for (let i = 0; i < S.length; i += 4) vegSeg([S[i], S[i + 1]], [S[i + 2], S[i + 3]], 8); }
+    if (city.streetSegs) { const S = city.streetSegs; for (let i = 0; i < S.length; i += 4) vegSeg([S[i], S[i + 1]], [S[i + 2], S[i + 3]], 10); }
   });
   if (world.highway) {
     const P = world.highway.pts;
@@ -12231,6 +12232,54 @@ function planStreets(w, city, boxes) {
   console.log("[Konto] " + city.name + ": streets made through: " + extended + " carried on to the next road, " + trimmed + " cut back to a junction, " + dropped + " dead ends dropped, " + razed + " buildings cleared off them");
 }
 
+// ---- the surface guard -------------------------------------------------------------------------------------------------------------------
+// Nothing built on the ground may have the ground come up through it. The land is laid out every nineteen metres and the made ground of a
+// town every forty, and both are flat between their points; a road drawn from points fifty metres apart, one quad across twenty-five
+// metres of width, is flat between its own - and where the two disagree the grass shows through the tarmac. So every ribbon (carriageway,
+// footway, country road) is conformed: resampled to a vertex every four metres along and six across, each set on the ground plus its
+// clearance, and then checked - the ground under the middle and the edges of every quad is read, and wherever it would stand proud of the
+// quad the whole cross-section is lifted until it does not. The lifts are counted (surfaceGuard), so the build says how much it fixed.
+const surfaceGuard = { quads: 0, lifted: 0, maxLift: 0 };
+function resamplePath(pts, loop, step) {
+  const P = loop ? pts.concat([pts[0]]) : pts, out = [P[0]];
+  for (let i = 1; i < P.length; i++) {
+    const a = P[i - 1], b = P[i], L = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(1, Math.ceil(L / step));
+    for (let k = 1; k <= n; k++) { const t = k / n; out.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]); }
+  }
+  return out;
+}
+// rows[i][j]: the point j across the ribbon at sample i; offsets[j] from the centre line; along[i] in metres
+function conformRibbon(pts, loop, t0, t1, ground, lift, opts) {
+  opts = opts || {};
+  const P = resamplePath(pts, loop, opts.step || 4), n = P.length, k = Math.max(1, Math.ceil(Math.abs(t1 - t0) / (opts.across || 6)));
+  const offsets = []; for (let j = 0; j <= k; j++) offsets.push(t0 + (t1 - t0) * j / k);
+  const rows = [], along = [0], norms = [];
+  for (let i = 0; i < n; i++) {
+    const a = P[Math.max(0, i - 1)], b = P[Math.min(n - 1, i + 1)]; let dx = b[0] - a[0], dz = b[2] - a[2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    const nx = -dz, nz = dx; norms.push([nx, nz]);
+    if (i) along.push(along[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][2] - P[i - 1][2]));
+    rows.push(offsets.map(t => { const x = P[i][0] + nx * t, z = P[i][2] + nz * t; return [x, ground(x, z) + lift, z]; }));
+  }
+  // the check: the ground under the middle and the edges of each quad, against the quad
+  const need = new Float32Array(n);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 1; i < n; i++) for (let j = 0; j < k; j++) {
+      const A = rows[i - 1][j], B = rows[i - 1][j + 1], C = rows[i][j + 1], D = rows[i][j];
+      let worst = 0;
+      [[A, B, C, D, 0.25, 0.25, 0.25, 0.25], [A, B, null, null, 0.5, 0.5, 0, 0], [null, null, C, D, 0, 0, 0.5, 0.5], [A, null, null, D, 0.5, 0, 0, 0.5], [null, B, C, null, 0, 0.5, 0.5, 0]].forEach(w => {
+        let x = 0, y = 0, z = 0; [w[0], w[1], w[2], w[3]].forEach((q, m) => { if (q) { x += q[0] * w[4 + m]; y += q[1] * w[4 + m]; z += q[2] * w[4 + m]; } });
+        worst = Math.max(worst, ground(x, z) + lift * 0.7 - y);
+      });
+      if (pass === 0) surfaceGuard.quads++;
+      if (worst > 0.002) { need[i - 1] = Math.max(need[i - 1], worst); need[i] = Math.max(need[i], worst); }
+    }
+    let any = false;
+    for (let i = 0; i < n; i++) if (need[i] > 0) { any = true; const d = Math.min(need[i], 1.5); rows[i].forEach(q => { q[1] += d; }); surfaceGuard.lifted++; surfaceGuard.maxLift = Math.max(surfaceGuard.maxLift, d); need[i] = 0; }
+    if (!any) break;
+  }
+  return { rows: rows, offsets: offsets, along: along, P: P, norms: norms };
+}
+
 // ---- road markings, Japanese ------------------------------------------------------------------------------------------------------------
 // Painted into the arterials' surface by the shader, from the road's own coordinates (across it in metres, along it in metres): the solid
 // yellow centre line of a road you may not overtake on (in pairs, as the wide ones have them), white lane lines five metres on and five off,
@@ -12330,51 +12379,34 @@ function buildRoadSurfaces(w, city, root) {
     if (r.elevated || r.link || r.halfWidth < 4 || !r.pts || r.pts.length < 3) return;   // (the country roads are laid by buildLinkRoads)
     const hw = r.halfWidth, fw = 4.4;            // carriageway and footway
     roadAux = [hw, hw >= 7.5 ? 1 : 0];
-    let along = 0;
-    let prev = null;
-    const pts = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
-    for (let i = 0; i < pts.length; i++) {
-      const p = pts[i];
-      const q = pts[Math.min(pts.length - 1, i + 1)];
-      const o = pts[Math.max(0, i - 1)];
-      let dx = q[0] - o[0], dz = q[2] - o[2];
-      const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
-      const nx = -dz, nz = dx;
-      const edge = (t, up) => {
-        const x = p[0] + nx * t, z = p[2] + nz * t;
-        return [x, groundAt(x, z) + 0.06 + (up || 0), z];
-      };
-      const here = {
-        ok: paved(p[0], p[2]),
-        inL: edge(-hw), inR: edge(hw),
-        outL: edge(-hw - fw, 0.14), outR: edge(hw + fw, 0.14),
-        kL: edge(-hw - 0.12, 0.14), kR: edge(hw + 0.12, 0.14)
-      };
-      if (prev && prev.ok && here.ok) {
-        const seg = Math.hypot(p[0] - pts[i - 1][0], p[2] - pts[i - 1][2]);
-        const v0 = along, v1 = along + seg;
-        strip(road, prev.inL, prev.inR, here.inR, here.inL, 0, hw * 2, v0, v1);
-        strip(walk, prev.outL, prev.kL, here.kL, here.outL, 0, fw, v0, v1);
-        strip(walk, prev.kR, prev.outR, here.outR, here.kR, 0, fw, v0, v1);
-        // The kerb face itself: 120 mm of concrete, which is the line your eye
-        // follows down a street.
-        if (![prev.kL, here.kL, prev.kR, here.kR].every(q => isFinite(q[0]) && isFinite(q[1]) && isFinite(q[2]))) { badQuads++; along = v1; prev = here; continue; }
-        [[prev.kL, here.kL, -1], [prev.kR, here.kR, 1]].forEach(e => {
-          const a = e[0], c = e[1], s = e[2];
-          const drop = 0.14;
-          const A = [a[0], a[1], a[2]], B = [c[0], c[1], c[2]];
-          const Ad = [a[0], a[1] - drop, a[2]], Bd = [c[0], c[1] - drop, c[2]];
-          const face = s > 0 ? [A, Ad, Bd, B] : [B, Bd, Ad, A];
-          [0, 1, 2, 0, 2, 3].forEach(k => {
-            kerb.pos.push(face[k][0], face[k][1], face[k][2]);
-            kerb.nrm.push(-nx * s, 0, -nz * s);
-            kerb.col.push(0.74, 0.72, 0.68);
-            kerb.mr.push(0, 0.82);
-          });
-        });
-        along = v1;
-      } else if (prev && !here.ok) along = 0;
-      prev = here;
+    // the carriageway, conformed (see the surface guard), and a footway either side built on its edge so the kerb always has a step
+    const C = conformRibbon(r.pts, r.loop, -hw, hw, groundAt, 0.06);
+    const n = C.rows.length, k = C.offsets.length - 1;
+    const okRow = C.P.map(p => paved(p[0], p[2]));
+    const sides = [-1, 1].map(sd => {
+      const edgeY = i => C.rows[i][sd < 0 ? 0 : k][1];
+      const F = conformRibbon(r.pts, r.loop, sd * (hw + 0.12), sd * (hw + fw), (x, z) => groundAt(x, z), 0.2, { across: 5 });
+      // the inner edge of the footway is the top of the kerb: never lower than the road edge plus a step
+      F.rows.forEach((row, i) => { const kTop = Math.max(row[0][1], edgeY(Math.min(i, n - 1)) + 0.14), lift = kTop - row[0][1]; if (lift > 0) row.forEach(q => { q[1] += lift; }); });
+      return F;
+    });
+    for (let i = 1; i < n; i++) {
+      if (!okRow[i - 1] || !okRow[i]) continue;
+      const v0 = C.along[i - 1], v1 = C.along[i];
+      for (let j = 0; j < k; j++) strip(road, C.rows[i - 1][j], C.rows[i - 1][j + 1], C.rows[i][j + 1], C.rows[i][j], C.offsets[j] + hw, C.offsets[j + 1] + hw, v0, v1);
+      sides.forEach((F, si) => {
+        const sd = si ? 1 : -1, m = F.offsets.length - 1, R0 = F.rows[i - 1], R1 = F.rows[i];
+        for (let j = 0; j < m; j++) {
+          if (sd < 0) strip(walk, R0[j + 1], R0[j], R1[j], R1[j + 1], fw - Math.abs(F.offsets[j + 1]) + hw, fw - Math.abs(F.offsets[j]) + hw, v0, v1);
+          else strip(walk, R0[j], R0[j + 1], R1[j + 1], R1[j], Math.abs(F.offsets[j]) - hw, Math.abs(F.offsets[j + 1]) - hw, v0, v1);
+        }
+        // the kerb face, from the top of the kerb down to the road edge
+        const a = R0[0], c = R1[0], ea = C.rows[i - 1][sd < 0 ? 0 : k], ec = C.rows[i][sd < 0 ? 0 : k];
+        if (![a, c, ea, ec].every(q => isFinite(q[0]) && isFinite(q[1]) && isFinite(q[2]))) { badQuads++; return; }
+        const face = sd > 0 ? [a, [a[0], ea[1], a[2]], [c[0], ec[1], c[2]], c] : [c, [c[0], ec[1], c[2]], [a[0], ea[1], a[2]], a];
+        const nx = C.norms[i][0], nz = C.norms[i][1];
+        [0, 1, 2, 0, 2, 3].forEach(q => { kerb.pos.push(face[q][0], face[q][1], face[q][2]); kerb.nrm.push(-nx * sd, 0, -nz * sd); kerb.col.push(0.74, 0.72, 0.68); kerb.mr.push(0, 0.82); });
+      });
     }
   });
 
@@ -12401,9 +12433,10 @@ function buildRoadSurfaces(w, city, root) {
         let along = 0;
         for (let ci = 0; ci + 1 < cuts.length; ci++) {
           const ta = cuts[ci], tb = cuts[ci + 1], mid = (ta + tb) / 2, junction = L.wins.some(wn => mid > wn[0] && mid < wn[1]) || (L.bare || []).some(wn => mid > wn[0] && mid < wn[1]);
-          const n = Math.max(1, Math.ceil((tb - ta) / 8));
+          const n = Math.max(1, Math.ceil((tb - ta) / 4));
           for (let sI = 0; sI < n; sI++) {
             const t0 = ta + (tb - ta) * sI / n, t1 = ta + (tb - ta) * (sI + 1) / n, p0 = pt(t0), p1 = pt(t1);
+            surfaceGuard.quads++;
             const v0 = along, v1 = along + (t1 - t0); along = v1;
             strip(road, at(t0, -hw, yR), at(t0, hw, yR), at(t1, hw, yR), at(t1, -hw, yR), 0, hw * 2, v0, v1);
             city.streetSegs.push(p0[0], p0[1], p1[0], p1[1]);
