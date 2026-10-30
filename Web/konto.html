@@ -1199,6 +1199,7 @@
         <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
         <button class="menu-btn" id="mpcmode" type="button">PC mode: off</button>
+        <button class="menu-btn" id="mart" type="button">Art style: Anime</button>
         <button class="menu-btn" id="madapt" type="button">Adaptive graphics: on</button>
         <button class="menu-btn" id="mundo" type="button">Undo automatic graphics changes</button>
         <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
@@ -7517,12 +7518,14 @@ function initPause() {
   const syncSet = () => {
     const g = id => document.getElementById(id);
     if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
+    if (g("mart")) g("mart").textContent = "Art style: " + (animeOn() ? "Anime (cel shading, ink lines, painted colour)" : "Realistic");
     if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (lowers quality if the game is slow)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
+  on("mart", () => { gameSet.art = animeOn() ? "real" : "anime"; saveSettings(); syncSet(); say(animeOn() ? "Art style: anime." : "Art style: realistic.", 3); });
   on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
   on("mpcmode", () => { pcModeApply(gameSet.pcMode === "low" ? "high" : gameSet.pcMode === "high" ? null : "low"); syncSet(); });
   on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
@@ -11245,9 +11248,59 @@ void main() {
 const COMPOSITE_FRAG = `
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D tColor, tAO, tBloom;
+uniform sampler2D tColor, tAO, tBloom, tDepth;
 uniform vec2 uRes;
 uniform float uAO, uBloom, uSharp, uGrain, uVignette, uCA, uTime, uExposure;
+uniform float uAnime, uNear, uFar, uLine;
+
+// ---- the anime look ----------------------------------------------------------------------------------------------------------------
+// Still the real 3D world, drawn the way an animated film draws it: surfaces flattened into painted colour (noise smoothed away, edges
+// kept), light falling in soft bands rather than gradients, an ink line wherever one thing stands in front of another (tinted from the
+// colour underneath, the way a key animator's line is), richer colour, and a sky with a painter's blue in it.
+float linDepth(vec2 uv) {
+  float z = texture2D(tDepth, uv).x * 2.0 - 1.0;
+  return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+}
+vec3 animeLook(vec3 c, vec2 uv, vec2 px) {
+  float d = linDepth(uv);
+  float sky = step(uFar * 0.92, d);
+  // painted: an edge-preserving average of the ring around the pixel, so grain and photo noise go and outlines stay
+  vec3 acc = c; float wsum = 1.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.785398;
+    vec2 o = vec2(cos(a), sin(a)) * px * 2.2;
+    vec3 q = texture2D(tColor, uv + o).rgb;
+    vec3 dq = q - c;
+    float w = exp(-dot(dq, dq) * 38.0);
+    acc += q * w; wsum += w;
+  }
+  vec3 p = acc / wsum;
+  // cel bands: the light in three soft steps, the colour kept
+  float l = max(dot(p, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
+  float b = 0.10 + 0.30 * smoothstep(0.14, 0.20, l) + 0.30 * smoothstep(0.38, 0.45, l) + 0.32 * smoothstep(0.66, 0.74, l);
+  float lb = mix(l, b, 0.62);
+  vec3 cel = p * (lb / l);
+  // colour: more of it, warm in the lights and a cool violet in the shade, which is the palette of the genre
+  float lc = dot(cel, vec3(0.2126, 0.7152, 0.0722));
+  cel = mix(vec3(lc), cel, 1.32);
+  cel *= mix(vec3(0.90, 0.92, 1.08), vec3(1.05, 1.0, 0.94), smoothstep(0.2, 0.8, lc));
+  // the sky: deeper blue overhead, clean white clouds
+  vec3 skyc = mix(vec3(dot(c, vec3(0.3333))), c, 1.45);
+  skyc = mix(skyc, vec3(1.0), smoothstep(0.82, 0.95, dot(c, vec3(0.3333))) * 0.5);
+  vec3 outc = mix(cel, skyc, sky);
+  // the ink line: where the depth jumps (an outline round a figure, a car, a building's edge) and where the colour does (a window, a
+  // sign), thinner and lighter into the distance so far streets do not turn into a scribble
+  float dl = linDepth(uv - vec2(px.x, 0.0)), dr = linDepth(uv + vec2(px.x, 0.0)), du = linDepth(uv + vec2(0.0, px.y)), dd = linDepth(uv - vec2(0.0, px.y));
+  float jump = (abs(dl + dr - 2.0 * d) + abs(du + dd - 2.0 * d)) / max(d, 0.5);
+  float edgeD = smoothstep(0.06, 0.16, jump);
+  vec3 cx = texture2D(tColor, uv + vec2(px.x, 0.0)).rgb - texture2D(tColor, uv - vec2(px.x, 0.0)).rgb;
+  vec3 cy = texture2D(tColor, uv + vec2(0.0, px.y)).rgb - texture2D(tColor, uv - vec2(0.0, px.y)).rgb;
+  float edgeC = smoothstep(0.30, 0.55, length(cx) + length(cy)) * 0.55;
+  float fade = 1.0 - smoothstep(60.0, 420.0, d);
+  float ink = clamp(max(edgeD, edgeC) * fade * uLine, 0.0, 1.0) * (1.0 - sky);
+  outc = mix(outc, outc * vec3(0.16, 0.15, 0.20), ink * 0.85);
+  return outc;
+}
 
 vec3 grade(vec3 c) {
   // lift the shadows a touch towards blue and push the highlights towards the
@@ -11287,14 +11340,15 @@ void main() {
              + texture2D(tAO, vUv + vec2(-ap.x,  ap.y)).r
              + texture2D(tAO, vUv + vec2( ap.x, -ap.y)).r
              + texture2D(tAO, vUv + vec2(-ap.x, -ap.y)).r) * 0.25;
-  c *= mix(1.0, occ, uAO);
-  c += texture2D(tBloom, vUv).rgb * uBloom;
+  c *= mix(1.0, occ, uAO * (1.0 - 0.4 * uAnime));
+  if (uAnime > 0.5) c = animeLook(c, vUv, px);
+  c += texture2D(tBloom, vUv).rgb * uBloom * (1.0 + 0.6 * uAnime);
   c = grade(c * uExposure);
-  c *= 1.0 - uVignette * smoothstep(0.22, 0.98, r2);
+  c *= 1.0 - uVignette * (1.0 - 0.6 * uAnime) * smoothstep(0.22, 0.98, r2);
 
-  // grain, animated, so it reads as film and not as a dirty screen
+  // grain, animated, so it reads as film and not as a dirty screen (and not at all in the anime look, which is clean)
   float g = fract(sin(dot(vUv * uRes + uTime, vec2(12.9898, 78.233))) * 43758.5453);
-  c += (g - 0.5) * uGrain;
+  c += (g - 0.5) * uGrain * (1.0 - uAnime);
 
   gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
 }
@@ -11326,7 +11380,8 @@ function postSetup() {
     uThreshold: { value: 0.70 }, uBright: { value: 0 }
   });
   post.mats.comp = fsMaterial(COMPOSITE_FRAG, {
-    tColor: { value: null }, tAO: { value: null }, tBloom: { value: null },
+    tColor: { value: null }, tAO: { value: null }, tBloom: { value: null }, tDepth: { value: null },
+    uAnime: { value: 0 }, uNear: { value: 1 }, uFar: { value: 1000 }, uLine: { value: 1 },
     uRes: { value: new THREE.Vector2(1, 1) },
     uAO: { value: post.ao }, uBloom: { value: post.bloom }, uSharp: { value: post.sharp },
     uGrain: { value: post.grain }, uVignette: { value: post.vignette },
@@ -11355,6 +11410,14 @@ function postResize(w, h) {
   post.blurB = new THREE.WebGLRenderTarget(bw, bh, opts);
 }
 
+// a one-pixel texture of one grey, standing in for a pass that was not run
+function postFlat(v) {
+  post.flat = post.flat || {};
+  if (!post.flat[v]) { const t = new THREE.DataTexture(new Uint8Array([v, v, v, 255]), 1, 1, THREE.RGBAFormat); t.needsUpdate = true; post.flat[v] = t; }
+  return post.flat[v];
+}
+// The art style. Anime is the game's look; the realistic render is kept as an option in Settings.
+function animeOn() { return gameSet.art !== "real"; }
 function runPass(mat, target) {
   post.quad.material = mat;
   renderer.setRenderTarget(target || null);
@@ -11364,7 +11427,7 @@ function runPass(mat, target) {
 // True only when the chain can actually run: the tier asks for it, the device
 // can give us a depth texture, and nothing has gone wrong with it yet.
 function postUsable() {
-  if (!post.want || !renderer) return false;
+  if (!(post.want || animeOn()) || !renderer) return false;
   if (post.broken) return false;
   const caps = renderer.capabilities;
   if (!caps.isWebGL2 && !renderer.extensions.get("WEBGL_depth_texture")) return false;
@@ -11379,6 +11442,9 @@ function renderPost() {
   renderer.clear();
   renderer.render(scene, camera);
 
+  // the full chain on the tiers that want it; on the others (the anime look only) the occlusion and bloom passes are skipped
+  const full = post.want;
+  if (full) {
   // ---- occlusion
   const ao = post.mats.ao.uniforms;
   ao.tDepth.value = post.rt.depthTexture;
@@ -11398,16 +11464,20 @@ function renderPost() {
   bl.tTex.value = post.blurB.texture;
   bl.uStep.value.set(0, 4.0 / post.h);
   runPass(post.mats.blur, post.blurA);
+  }
 
   // ---- the picture
   const cu = post.mats.comp.uniforms;
   cu.tColor.value = post.rt.texture;
-  cu.tAO.value = post.aoRT.texture;
-  cu.tBloom.value = post.blurA.texture;
+  cu.tAO.value = full ? post.aoRT.texture : postFlat(255);
+  cu.tBloom.value = full ? post.blurA.texture : postFlat(0);
+  cu.tDepth.value = post.rt.depthTexture;
+  cu.uAnime.value = animeOn() ? 1 : 0; cu.uNear.value = camera.near; cu.uFar.value = camera.far;
+  cu.uLine.value = gfx.tier === "low" ? 0.8 : 1.0;
   cu.uRes.value.set(post.w, post.h);
   cu.uTime.value = post.time;
-  cu.uAO.value = post.ao; cu.uBloom.value = post.bloom; cu.uSharp.value = post.sharp;
-  cu.uGrain.value = post.grain; cu.uVignette.value = post.vignette; cu.uCA.value = post.ca;
+  cu.uAO.value = full ? post.ao : 0; cu.uBloom.value = full ? post.bloom : 0; cu.uSharp.value = full ? post.sharp : 0;
+  cu.uGrain.value = full ? post.grain : 0; cu.uVignette.value = full ? post.vignette : 0.12; cu.uCA.value = full ? post.ca : 0;
   cu.uExposure.value = post.exposure;
   runPass(post.mats.comp, null);
 }
