@@ -9610,7 +9610,7 @@ function plantTrees(root, trees, city) {
       treeCells.push({ mesh: inst, geos: geos, x: cx, z: cz, r: rad, n: list.length, cur: 0 });
     });
   });
-  if (byKind.__trunks) parkTrunks(root, byKind.__trunks);
+  // (park trunks: the photographed crowns carry their own trunks, which a modelled one stood beside rather than inside; left off)
 }
 // Under the park's trees, real trunks: a tapering bole with a flare at the foot, forking into two limbs that climb into the crown, in bark
 // (the dark, banded bark of a cherry; grey keyaki; red-brown pine). The crown is the photographed card as everywhere else; the trunk is
@@ -16137,7 +16137,7 @@ function castlePlan(m) {
     garden: { x: m.inner * 0.4, z: m.inner * 0.52, rx: 105 * k, rz: 58 * k },
     kura: { x: m.inner * 0.79, z0: -m.inner * 0.72 },
     rects: [[0, -m.inner * 0.33, m.inner * 1.42 + 16, m.inner * 0.9 + 16], [-m.inner * 0.5, m.inner * 0.6 + 48, 250, 190], [0, m.inner * 0.3, 40, m.inner * 0.6],
-            [m.inner * 0.4, m.inner * 0.52 + 14, 260 * k, 180 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
+            [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
   };
 }
 function buildCastle(root, city) {
@@ -16453,7 +16453,7 @@ function buildCastle(root, city) {
   // ---- the ninomaru garden: two ponds joined by a narrow channel, a vermilion drum bridge over the channel, stone edging, lanterns
   // round them, a tea house. Drum bridges are short and steep - twenty metres or so - so the channel is what makes one possible.
   const GD = plan.garden;
-  const pondMat = gfx.high ? new THREE.MeshStandardMaterial({ color: 0x1c3a30, roughness: 0.16, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.22 }) : new THREE.MeshLambertMaterial({ color: 0x1c3a30 });
+  const pondMat = gfx.high ? new THREE.MeshStandardMaterial({ color: 0x0f2a22, roughness: 0.42, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.06 }) : new THREE.MeshLambertMaterial({ color: 0x0f2a22 });
   const ponds = [[GD.x - GD.rx * 0.42, GD.z, GD.rx * 0.56, GD.rz], [GD.x + GD.rx * 0.5, GD.z + GD.rz * 0.1, GD.rx * 0.38, GD.rz * 0.72]];
   const chX0 = ponds[0][0] + ponds[0][2] * 0.9, chX1 = ponds[1][0] - ponds[1][2] * 0.9, chZ = GD.z + GD.rz * 0.04, CH = 6;
   ponds.forEach(([px, pz, rx, rz]) => {
