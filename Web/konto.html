@@ -6951,6 +6951,93 @@ const gameSet = { rumble: true, invertY: false, lookSens: 1.0, adapt: true };
 try { Object.assign(gameSet, JSON.parse(localStorage.getItem("konto.settings.v1") || "{}")); } catch (e) { /* defaults */ }
 function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.stringify(gameSet)); } catch (e) { /* not kept */ } }
 
+// ==== THE ANIME LOOK, AT THE SOURCE ===================================================================================================
+// In the anime art style every picture the game loads is repainted as it arrives - the terrain, the roads, the shopfronts, the rooms, the
+// trees and every texture inside the cars, the people and the furniture: smoothed into flat colour, its colour pushed up, and stepped into a
+// few tones the way a background painter lays them in. Relief maps (the bumps in tarmac and plaster) are flattened, because a painted
+// world is smooth. The people, Seiko, the cars and the furniture are drawn with toon materials: one hard shadow edge, no glossy
+// reflections, which is also lighter work for the graphics card. The realistic style (Settings) loads everything as it was.
+function animeArt() { return gameSet.art !== "real"; }
+function animePaint(img) {
+  try {
+    const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0) return img;
+    const k = Math.min(1, 512 / Math.max(w0, h0)), w = Math.max(4, Math.round(w0 * k)), h = Math.max(4, Math.round(h0 * k));
+    const c = document.createElement("canvas"); c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.filter = "blur(" + Math.max(0.8, w / 300).toFixed(1) + "px) saturate(1.35) contrast(1.05)";
+    g.drawImage(img, 0, 0, w, h);
+    g.filter = "none";
+    const d = g.getImageData(0, 0, w, h), a = d.data, L = 7, st = 255 / (L - 1);
+    for (let i = 0; i < a.length; i += 4) {
+      const y = 0.2126 * a[i] + 0.7152 * a[i + 1] + 0.0722 * a[i + 2];
+      for (let ch = 0; ch < 3; ch++) {
+        let v = y + (a[i + ch] - y) * 1.15;
+        a[i + ch] = Math.max(0, Math.min(255, Math.round(Math.round(v / st) * st * 0.45 + v * 0.55)));
+      }
+    }
+    g.putImageData(d, 0, 0);
+    return c;
+  } catch (e) { return img; }
+}
+function animeFlatNormal() {
+  if (animeFlatNormal.c) return animeFlatNormal.c;
+  const c = document.createElement("canvas"); c.width = c.height = 4; const g = c.getContext("2d"); g.fillStyle = "rgb(128,128,255)"; g.fillRect(0, 0, 4, 4);
+  return (animeFlatNormal.c = c);
+}
+(function animeLoaders() {
+  if (!animeArt() || typeof THREE === "undefined") return;
+  const skip = url => /\/sky\/|water|fonts?\/|icon|logo|splash|\.hdr/i.test(url || "");
+  const isNormal = url => /_nor|nrm|normal/i.test(url || "");
+  const TL = THREE.TextureLoader.prototype.load;
+  THREE.TextureLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+    if (skip(url)) return TL.call(this, url, onLoad, onProgress, onError);
+    const tex = TL.call(this, url, t => {
+      try { t.image = isNormal(url) ? animeFlatNormal() : animePaint(t.image); t.needsUpdate = true; } catch (e) { /* keep the original */ }
+      if (onLoad) onLoad(t);
+    }, onProgress, onError);
+    return tex;
+  };
+  if (THREE.ImageBitmapLoader) {
+    const BL = THREE.ImageBitmapLoader.prototype.load;
+    THREE.ImageBitmapLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+      return BL.call(this, url, bmp => { let out = bmp; try { if (!skip(url)) out = animePaint(bmp); } catch (e) { /* keep it */ } if (onLoad) onLoad(out); }, onProgress, onError);
+    };
+  }
+})();
+// a toon material for an object: the same colour, map and transparency, lit in three hard steps
+function animeGradient() {
+  if (animeGradient.t) return animeGradient.t;
+  const t = new THREE.DataTexture(new Uint8Array([96, 96, 96, 255, 178, 178, 178, 255, 255, 255, 255, 255]), 3, 1, THREE.RGBAFormat);
+  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
+  return (animeGradient.t = t);
+}
+const _toonCache = new Map();
+function toonMat(m, skinned) {
+  if (!m || m.isMeshToonMaterial || m.isShaderMaterial || m.isMeshBasicMaterial || m.isPointsMaterial || m.isLineBasicMaterial || m.isSpriteMaterial) return m;
+  const key = m.uuid + (skinned ? ":s" : "");
+  if (_toonCache.has(key)) return _toonCache.get(key);
+  const t = new THREE.MeshToonMaterial({ color: m.color ? m.color.clone() : 0xffffff, map: m.map || null, gradientMap: animeGradient(),
+    emissive: m.emissive ? m.emissive.clone() : 0x000000, emissiveMap: m.emissiveMap || null, emissiveIntensity: m.emissiveIntensity === undefined ? 1 : m.emissiveIntensity,
+    alphaMap: m.alphaMap || null, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest || 0, side: m.side, vertexColors: m.vertexColors,
+    depthWrite: m.depthWrite });
+  if (skinned) t.skinning = true;
+  t.name = m.name;
+  _toonCache.set(key, t);
+  return t;
+}
+function toonify(root) {
+  if (!animeArt() || !root) return root;
+  root.traverse(o => {
+    if (!o.isMesh || (o.material && o.material.isShaderMaterial)) return;
+    const sk = !!o.isSkinnedMesh;
+    o.material = Array.isArray(o.material) ? o.material.map(m => toonMat(m, sk)) : toonMat(o.material, sk);
+  });
+  return root;
+}
+// anime proportions for a person: a touch more head
+function animeHead(bones) { if (animeArt() && bones && bones.Bip01_Head) bones.Bip01_Head.scale.setScalar(1.09); }
+
 // ---- what kind of pad it is, for the labels on screen and for shaking it -------------------------------------------------------------------
 function padKind() {
   const n = pad.name || "";
@@ -7525,7 +7612,7 @@ function initPause() {
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
-  on("mart", () => { gameSet.art = animeOn() ? "real" : "anime"; saveSettings(); syncSet(); say(animeOn() ? "Art style: anime." : "Art style: realistic.", 3); });
+  on("mart", () => { gameSet.art = animeOn() ? "real" : "anime"; saveSettings(); syncSet(); say((animeOn() ? "Art style: anime." : "Art style: realistic.") + " The shading changes now; textures and models change the next time the game starts.", 6); });
   on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
   on("mpcmode", () => { pcModeApply(gameSet.pcMode === "low" ? "high" : gameSet.pcMode === "high" ? null : "low"); syncSet(); });
   on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
@@ -14212,7 +14299,8 @@ function fitCarModel(object3d, kind, entry) {
     });
     o.material = Array.isArray(o.material) ? out : out[0];
   });
-  holder.userData.paint = paint;
+  if (animeArt()) { toonify(holder); if (paint) paint = toonMat(paint, false); holder.userData.paint = paint; }
+  else holder.userData.paint = paint;
   // a modelled beacon pair flashes like the built light bar does
   const bA = [], bB = []; holder.traverse(o => { if (o.isMesh && o.material && o.material.name === "beaconA") bA.push(o.material); if (o.isMesh && o.material && o.material.name === "beaconB") bB.push(o.material); });
   if (bA.length && bB.length) holder.userData.lamps = [bA[0], bB[0]];
@@ -37179,6 +37267,7 @@ function pplAdopt(e, gltf) {
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
   });
   if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
+  toonify(root); animeHead(bones);
   // face +Z, the way everything that walks here faces
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
@@ -37280,6 +37369,7 @@ function pplPlayer(gltf) {
   const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
   const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
   if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
+  toonify(root); animeHead(bones);
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
@@ -37931,7 +38021,7 @@ function propLoad(id, cb) {
 function propPut(parent, id, x, y, z, ry, opts) {
   const holder = new THREE.Group(); holder.position.set(x, y, z); holder.rotation.y = ry || 0; parent.add(holder);
   propLoad(id, tpl => {
-    const c = tpl.clone(true), sz = tpl.userData.size, o = opts || {};
+    const c = toonify(tpl.clone(true)), sz = tpl.userData.size, o = opts || {};
     const k = o.h ? o.h / Math.max(0.01, sz.y) : o.w ? o.w / Math.max(0.01, sz.x) : (o.s || 1);
     c.scale.setScalar(k); holder.add(c);
   });
@@ -39008,8 +39098,8 @@ const inPhoto = { img: {}, nor: {}, timer: 0 };
 const inTexAll = [];
 function inPhotoLoad() {
   Object.keys(IN_PHOTO_FILES).forEach(k => {
-    const im = new Image(); im.onload = () => { inPhoto.img[k] = im; inPhotoRefresh(); }; im.src = "art/" + IN_PHOTO_FILES[k] + ".jpg";
-    if (k !== "concrete") { const nm = new Image(); nm.onload = () => { inPhoto.nor[k] = nm; }; nm.src = "art/" + IN_PHOTO_FILES[k] + "_nor.jpg"; }
+    const im = new Image(); im.onload = () => { inPhoto.img[k] = animeArt() ? animePaint(im) : im; inPhotoRefresh(); }; im.src = "art/" + IN_PHOTO_FILES[k] + ".jpg";
+    if (k !== "concrete" && !animeArt()) { const nm = new Image(); nm.onload = () => { inPhoto.nor[k] = nm; }; nm.src = "art/" + IN_PHOTO_FILES[k] + "_nor.jpg"; }
   });
 }
 // a picture arrived: paint every room surface again over it (once, after the last of a burst)
