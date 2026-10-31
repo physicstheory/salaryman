@@ -7456,6 +7456,7 @@ showPad.had = false;
 
 // ---------------------------------------------------------------- pause
 function setPaused(on, tabName) {
+  if (paused && !on) try { storyObjectiveFlash(); } catch (e) { /* no story yet */ }
   paused = !!on;
   document.body.classList.toggle("paused", paused);
   const panel = document.getElementById("pause");
@@ -23714,7 +23715,7 @@ function mnJudgeDeal(post, A, caption) {
 // What the phone would show on its glass is shown here instead, over the picture
 // and above the minimap, so that it can be seen without taking the phone out:
 // a coloured app tile, who it is from and what it says, for a few seconds.
-const NOTIF_APPS = { MyGram: ["#d6249f", "M"], Ryde: ["#101215", "R"], Messages: ["#31b36b", "\u2709"], Phone: ["#31b36b", "\u260e"],
+const NOTIF_APPS = { Contacts: ["#a0652d", "\u263a"], MyGram: ["#d6249f", "M"], Ryde: ["#101215", "R"], Messages: ["#31b36b", "\u2709"], Phone: ["#31b36b", "\u260e"],
                      Hayabin: ["#e8711a", "\u25a3"], Wallet: ["#3b8cf0", "\u00a5"], Health: ["#e5483c", "\u2665"], Emergency: ["#d4152c", "!"] };
 function notify(app, title, body, secs) {
   const host = document.getElementById("notifs"); if (!host) { say((title ? title + ": " : "") + (body || ""), secs || 4); return; }
@@ -40903,6 +40904,17 @@ function storyObjective(text, hint) {
   const el = cutEl("objective");
   el.innerHTML = "<div class='mt'>" + (STORY_TITLES[story.m] || "") + "</div><div class='ob'><i></i><span>" + text + "</span></div>" + (hint ? "<div class='oh'>" + hint + "</div>" : "") + "<div class='ot'></div>";
   el.classList.remove("done"); el.classList.add("on");
+  storyObjectiveHide(10);
+}
+// The objective is shown when it is set and then gets out of the way, the way the big open-world games do it; closing the map or the pause
+// menu brings it back for a few seconds (the yellow route on the minimap is what stays).
+function storyObjectiveHide(secs) {
+  clearTimeout(story.objTimer);
+  story.objTimer = setTimeout(() => { const el = document.getElementById("objective"); if (el && story.obj && !story.obj.done) el.classList.remove("on"); }, secs * 1000);
+}
+function storyObjectiveFlash() {
+  const el = document.getElementById("objective"); if (!el || !story.obj || story.obj.done) return;
+  el.classList.add("on"); storyObjectiveHide(6);
 }
 function storyTick_done(next) {
   const el = document.getElementById("objective"); if (!el || !story.obj || story.obj.done) { if (next) next(); return; }
@@ -41530,6 +41542,7 @@ function storyPeek(silent) {
 }
 function storySuitObjective() {
   story.step = "suit";
+  const st = stationShop(); storyClearBlips(); if (st) storyBlip(st.door[0], st.door[1], "Suit Select · Tōkonto Central 2F");
   storyObjective("Buy a suit at Suit Select and change into it", "2F Fashion, by the lift. You have " + yenText(purse.yen) + " — Suit Select takes your village clothes against a suit.");
   saveGame(null, true);
 }
@@ -41627,8 +41640,10 @@ function storyInterview() {
     story.flags.hired = true;
     purse.yen += 6000;
     storyPassed("The Interview", "Hired · SOTI Customer Service · travel advance +" + yenText(6000));
-    notify("SOTI HR", "Welcome to SOTI", "A " + yenText(6000) + " travel advance has been paid to your Wallet.", 7);
-    setTimeout(() => storyRest(), 2600);
+    if (!mynet.contacts.some(c => c.name === "Akio Sotiyama")) mynet.contacts.unshift({ name: "Akio Sotiyama", handle: "@sotiyama", phone: "090-0001-1958", line: "This is Sotiyama. Leave a message. Briefly.", boss: true });
+    setTimeout(() => notify("Contacts", "New contact", "Akio Sotiyama · SOTI Corporation", 7), 5400);
+    setTimeout(() => notify("Wallet", "SOTI HR", "A " + yenText(6000) + " travel advance has been paid to your Wallet.", 6), 7600);
+    setTimeout(() => storyRest(), 9000);
   });
 }
 // He needs to sleep: a Ryde to the nearest capsule hotel, and the last of the money on a bed.
@@ -41659,10 +41674,11 @@ function storySleepHook() {
     story.m = 2; story.step = "m2wait";
     const s = story.soti;
     setTimeout(() => {
-      notify("Mail", "SOTI Corporation · Your first day", "Report to SOTI Tower, 3F Customer Service. Be on time.", 8);
+      notify("Messages", "Akio Sotiyama", "First day. Welcome to SOTI. 3F Customer Service — and don't be late.", 9);
+      story.flags.akioText = true;
       storyClearBlips();
-      if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower", { letter: "A", noRoute: true });
-      storyObjective("Start the next mission: go to Ⓐ on the map", "SOTI Tower. Take your time today — the day is yours until you walk in.");
+      if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower · First Day", { letter: "A" });
+      storyObjective("First Day: go to Ⓐ at SOTI Tower", "Follow the route on the map to start the next mission.");
       saveGame("Saved.", true);
     }, 2400);
   }, 900);
@@ -41773,12 +41789,13 @@ function storyLoad(d) {
   story.m = d.m; story.step = d.step || ""; story.flags = d.flags || {}; story.owned = d.owned || {};
   // pick up at the objective the step belongs to (a scene that was playing is simply past)
   setTimeout(() => {
-    if (story.step === "intro" || story.step === "suit") { if (storyWearingSuit()) { story.step = "out"; storyObjective("Head out to the street", ""); } else storySuitObjective(); }
+    if (story.step === "intro" || story.step === "suit") { if (storyWearingSuit()) { story.step = "out"; const st = stationShop(); storyClearBlips(); if (st) storyBlip(st.door[0], st.door[1], "Out to the street"); storyObjective("Head out to the street", ""); } else storySuitObjective(); }
     else if (story.step === "out" || story.step === "late") storyLate();
     else if (story.step === "toSoti") storyToSoti();
     else if (story.step === "interview") storyRest();
     else if (story.step === "rest") storyRest();
-    else if (story.step === "m2wait") { const s = story.soti; if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower", { letter: "A", noRoute: true }); storyObjective("Start the next mission: go to Ⓐ on the map", ""); }
+    else if (story.step === "m2wait") { const s = story.soti; if (s) storyBlip(s.door[0], s.door[1], "SOTI Tower · First Day", { letter: "A" }); storyObjective("First Day: go to Ⓐ at SOTI Tower", "Follow the route on the map to start the next mission."); }
+    if (story.flags.hired && !mynet.contacts.some(c => c.name === "Akio Sotiyama")) mynet.contacts.unshift({ name: "Akio Sotiyama", handle: "@sotiyama", phone: "090-0001-1958", line: "This is Sotiyama. Leave a message. Briefly.", boss: true });
   }, 1500);
 }
 // keys during a cutscene: everything is swallowed, and Space, Enter or Escape held skips
