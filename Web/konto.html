@@ -6961,10 +6961,10 @@ function animePaint(img) {
   try {
     const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
     if (!w0 || !h0) return img;
-    const k = Math.min(1, 512 / Math.max(w0, h0)), w = Math.max(4, Math.round(w0 * k)), h = Math.max(4, Math.round(h0 * k));
+    const k = Math.min(1, 2048 / Math.max(w0, h0)), w = Math.max(4, Math.round(w0 * k)), h = Math.max(4, Math.round(h0 * k));
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     const g = c.getContext("2d");
-    g.filter = "blur(" + Math.max(0.8, w / 300).toFixed(1) + "px) saturate(1.35) contrast(1.05)";
+    g.filter = "blur(" + (w >= 1024 ? 0.5 : 0.3) + "px) saturate(1.3) contrast(1.06)";       // crisp: only the finest grain goes
     g.drawImage(img, 0, 0, w, h);
     g.filter = "none";
     const d = g.getImageData(0, 0, w, h), a = d.data, L = 7, st = 255 / (L - 1);
@@ -6972,7 +6972,7 @@ function animePaint(img) {
       const y = 0.2126 * a[i] + 0.7152 * a[i + 1] + 0.0722 * a[i + 2];
       for (let ch = 0; ch < 3; ch++) {
         let v = y + (a[i + ch] - y) * 1.15;
-        a[i + ch] = Math.max(0, Math.min(255, Math.round(Math.round(v / st) * st * 0.45 + v * 0.55)));
+        a[i + ch] = Math.max(0, Math.min(255, Math.round(Math.round(v / st) * st * 0.3 + v * 0.7)));
       }
     }
     g.putImageData(d, 0, 0);
@@ -11354,10 +11354,10 @@ vec3 animeLook(vec3 c, vec2 uv, vec2 px) {
   vec3 acc = c; float wsum = 1.0;
   for (int i = 0; i < 12; i++) {
     float a = float(i) * 0.5236 + (i >= 6 ? 0.26 : 0.0);
-    vec2 o = vec2(cos(a), sin(a)) * px * (i < 6 ? 2.5 : 5.5);
+    vec2 o = vec2(cos(a), sin(a)) * px * (i < 6 ? 1.3 : 2.6);
     vec3 q = texture2D(tColor, uv + o).rgb;
     vec3 dq = q - c;
-    float w = exp(-dot(dq, dq) * 14.0);
+    float w = exp(-dot(dq, dq) * 28.0);
     acc += q * w; wsum += w;
   }
   vec3 p = acc / wsum;
@@ -11384,6 +11384,9 @@ vec3 animeLook(vec3 c, vec2 uv, vec2 px) {
   float edgeC = smoothstep(0.45, 0.80, length(cx) + length(cy)) * 0.5;
   float fade = 1.0 - smoothstep(60.0, 420.0, d);
   float ink = clamp(max(edgeD, edgeC) * fade * uLine, 0.0, 1.0) * (1.0 - sky);
+  // and crisp: an unsharp mask from the four neighbours, so edges, faces and lettering stay sharp after the painting
+  vec3 nb = (texture2D(tColor, uv + vec2(px.x, 0.0)).rgb + texture2D(tColor, uv - vec2(px.x, 0.0)).rgb + texture2D(tColor, uv + vec2(0.0, px.y)).rgb + texture2D(tColor, uv - vec2(0.0, px.y)).rgb) * 0.25;
+  outc = clamp(outc + (c - nb) * 0.55 * (1.0 - sky), 0.0, 1.0);
   outc = mix(outc, outc * vec3(0.16, 0.15, 0.20), ink * 0.85);
   return outc;
 }
@@ -11813,9 +11816,9 @@ function tick(dt) {
 // looks the way it does on a screen that is not 4K. On a screen that is, the
 // pixel ratio does it instead and the same numbers give you 4K natively.
 const TIERS = {
-  low:    { renderScale: 0.60, maxPixelRatio: 1.0,  shadows: false, cars: 45,  far: 1100,
+  low:    { renderScale: 0.80, maxPixelRatio: 1.0,  shadows: false, cars: 45,  far: 1100,
             antialias: false, tex: 1, normals: false, shadowMap: 1024, post: false },
-  medium: { renderScale: 0.90, maxPixelRatio: 1.5,  shadows: true,  cars: 90,  far: 1800,
+  medium: { renderScale: 1.00, maxPixelRatio: 1.5,  shadows: true,  cars: 90,  far: 1800,
             antialias: true,  tex: 2, normals: true,  shadowMap: 2048, post: false, normalMax: 512 },
   high:   { renderScale: 1.00, maxPixelRatio: 2.0,  shadows: true,  cars: 130, far: 2600,
             antialias: true,  tex: 4, normals: true,  shadowMap: 4096, post: true, normalMax: 1024 },
@@ -17109,7 +17112,7 @@ function buildStreetFurniture(w, city, root, boxes) {
     // viaduct-height stair when the line is in the air.
     const conZ = concourseEnd(city, st, t), fz = conZ < 0 ? 1 : -1, face = fz > 0 ? "B" : "F";     // (its front always looks at the platform)
     // where the story finds it: the track frame (for a camera on the platform) and the street door of the concourse
-    { const zs = conZ - fz * 11.6; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
+    { const zs = conZ - fz * 15.5; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
       st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw }; }
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
     solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
@@ -40355,6 +40358,7 @@ function interiorLeave(quiet) {
   interiorUi();
   stepOutFrom(s.door, s.yaw);
   yaw = s.yaw + Math.PI; pitch = -0.18;
+  if (s.station && story.step === "out") setTimeout(() => { if (story.step === "out" && !interior.active) storyLate(); }, 400);
   camPos.copy(player.pos).add(new THREE.Vector3(0, 2, 4));
   if (!quiet) say(s.brand === "home" ? "Ittekimasu!" : "Arigato gozaimashita.", 2.5);
 }
