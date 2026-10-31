@@ -391,6 +391,13 @@ function createWindow() {
 app.commandLine.appendSwitch("force_high_performance_gpu");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 app.commandLine.appendSwitch("enable-gpu-rasterization");
+// A graphics driver reset must not cost the game its 3D: by default Chromium stops giving the page WebGL after a GPU crash or two, and the
+// game could only go back to its loading screen. Keep WebGL available, let the GPU process restart as often as it needs, and give the page
+// room for the people and the city.
+app.disableDomainBlockingFor3DAPIs();
+app.commandLine.appendSwitch("disable-gpu-process-crash-limit");
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096");
+app.on("child-process-gone", (_e, d) => { console.warn("[Salary Man] a child process went:", d && d.type, d && d.reason); });
 
 ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(paths.filter(p => typeof p === "string")); });
 

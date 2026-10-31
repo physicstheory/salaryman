@@ -6793,10 +6793,10 @@ function initThree() {
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
   let startTier = savedTier() || guessTier();
-  // back from a graphics reset: one step down, so the same thing does not happen again a minute later
-  try { if (sessionStorage.getItem("konto.glLost")) { sessionStorage.removeItem("konto.glLost"); const i = TIER_ORDER.indexOf(startTier);
-    if (i > 0) { startTier = TIER_ORDER[i - 1]; rememberTier(startTier); }
-    setTimeout(() => { try { say("The graphics driver reset. Your game was saved \u2014 press Continue. Graphics are now on " + startTier + ".", 8); } catch (x) {} }, 4000); } } catch (e) { /* none */ }
+  // back from a graphics reset the quality stays what it was (stepping it down each time left a good laptop looking like a bad one);
+  // only the picture's memory is held in for this session: the resolution at the window's own and the shadow map at 2048
+  try { if (sessionStorage.getItem("konto.glLost")) { sessionStorage.removeItem("konto.glLost"); gfx.lean = true;
+    setTimeout(() => { try { say("The graphics driver reset. Your game was saved \u2014 press Continue.", 8); } catch (x) {} }, 4000); } } catch (e) { /* none */ }
   renderer = new THREE.WebGLRenderer({
     antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
   });
@@ -6810,13 +6810,28 @@ function initThree() {
   stage.appendChild(renderer.domElement);
   // If the graphics driver drops the context (out of memory, a driver reset, the laptop waking from sleep) the picture would stay white for
   // good. Save where you are, say what happened, and start again from the save: Continue on the title picks up from that moment.
+  // It is first given the chance to come back by itself, in place, which a driver reset usually allows: the game carries on where it was with
+  // the picture's memory held in a little. Only if it does not come back within a few seconds is the page started again from the save
+  // (that was every time, before, and it was the game cutting back to the loading screen).
   renderer.domElement.addEventListener("webglcontextlost", e => {
     e.preventDefault();
     console.warn("[Konto] the graphics context was lost");
     try { saveGame(null, true); } catch (x) { /* nothing to save yet */ }
-    try { sessionStorage.setItem("konto.glLost", "1"); } catch (x) { /* none */ }
-    const f = document.getElementById("fade"); if (f) f.style.opacity = "1";
-    setTimeout(() => location.reload(), 1500);
+    gfx.lost = true;
+    try { say("Graphics driver reset \u2014 recovering\u2026", 5); } catch (x) { /* none */ }
+    clearTimeout(gfx.lostTimer);
+    gfx.lostTimer = setTimeout(() => {
+      if (!gfx.lost) return;
+      try { sessionStorage.setItem("konto.glLost", "1"); } catch (x) { /* none */ }
+      const f = document.getElementById("fade"); if (f) f.style.opacity = "1";
+      setTimeout(() => location.reload(), 800);
+    }, 6000);
+  }, false);
+  renderer.domElement.addEventListener("webglcontextrestored", () => {
+    console.warn("[Konto] the graphics context came back");
+    gfx.lost = false; clearTimeout(gfx.lostTimer); gfx.lean = true;
+    try { applyTier(gfx.tier, { quiet: true }); if (sunLight && sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; } } catch (x) { /* none */ }
+    try { say("Graphics back. Carry on.", 3); } catch (x) { /* none */ }
   }, false);
 
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
@@ -7651,7 +7666,7 @@ function initPause() {
   const syncSet = () => {
     const g = id => document.getElementById(id);
     if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
-    if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (lowers quality if the game is slow)" : "off (never changes by itself)");
+    if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (eases the resolution a little if the game is slow; never the quality)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
@@ -11656,8 +11671,10 @@ function say(text, seconds) {
 }
 
 const perfWatch = { frames: 0, time: 0, done: false, armed: false };
+// It used to turn the quality tier down (and keep it down) after four slow seconds at the start; the resolution now does that job on its own,
+// so this only measures.
 function watchFrameRate(dt) {
-  if (perfWatch.done || !player.placed) return;
+  perfWatch.done = true; return;
   if (!perfWatch.armed) {
     // The first second after Seiko lands is full of one-off work; ignore it.
     perfWatch.armed = true;
@@ -11888,12 +11905,13 @@ const gfx = { high: true, tier: "high", env: null, asphalt: null, paving: null, 
 // does not have to be told again today.
 function savedTier() {
   try {
+    // only a tier the player picked: the ones the game once saved for itself after turning the graphics down are forgotten
     const v = window.localStorage.getItem("konto.tier");
-    return TIERS[v] ? v : null;
+    return TIERS[v] && window.localStorage.getItem("konto.tierPicked") === "1" ? v : null;
   } catch (e) { return null; }
 }
 function rememberTier(name) {
-  try { window.localStorage.setItem("konto.tier", name); } catch (e) {}
+  try { window.localStorage.setItem("konto.tier", name); window.localStorage.setItem("konto.tierPicked", "1"); } catch (e) {}
 }
 
 function applyTier(name, opts) {
@@ -11905,8 +11923,9 @@ function applyTier(name, opts) {
   TEXQ.scale = t.tex;
   TEXQ.normals = t.normals;
   TEXQ.maxNormal = t.normalMax || 512;
-  if (sunLight && sunLight.shadow.mapSize.x !== t.shadowMap) {
-    sunLight.shadow.mapSize.set(t.shadowMap, t.shadowMap);
+  const smap = gfx.lean ? Math.min(2048, t.shadowMap) : t.shadowMap;
+  if (sunLight && sunLight.shadow.mapSize.x !== smap) {
+    sunLight.shadow.mapSize.set(smap, smap);
     if (sunLight.shadow.map) { sunLight.shadow.map.dispose(); sunLight.shadow.map = null; }
   }
   post.want = post.forced === null ? t.post : post.forced;
@@ -12155,7 +12174,7 @@ function detailTick() {
 // F3 shows what it is doing.
 const perf = { mult: 1, ceil: 1, acc: 0, n: 0, win: 0, hold: 3, up: 0, floorHits: 0, potato: 0,
                fps: 60, shown: false, el: null, calm: 0 };
-const PERF_FLOOR = 0.72;
+const PERF_FLOOR = 0.8;
 // Put back what automatic lowering took away: the tier, the resolution, the simplified world.
 function perfRestore() {
   if (perf.undo && perf.undo.tier && gfx.tier !== perf.undo.tier) applyTier(perf.undo.tier, { quiet: true });
@@ -12173,8 +12192,8 @@ function guessTier() {
     const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
     const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
     if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(name)) return "low";
-    if (/iris.? xe|arc|radeon\(tm\) (vega|graphics)|apple gpu|vega \d/i.test(name)) return "medium";
-    if (/intel|uhd|iris|hd graphics|mesa|adreno|mali|powervr/i.test(name)) return "low";
+    if (/iris.? xe|arc|radeon\(tm\) (vega|graphics)|radeon graphics|apple gpu|vega \d/i.test(name)) return "high";
+    if (/intel|uhd|iris|hd graphics|mesa|adreno|mali|powervr/i.test(name)) return "medium";
     // the newest cards get everything at full resolution
     if (/rtx [2-5]0[5-9]0|rtx [3-5]0[6-9]0|rtx a[2-6]000|rx [6-9][7-9]\d\d|apple m[2-9] (pro|max|ultra)/i.test(name)) return "ultra";
     if (/rtx|gtx 1[06]|gtx 9|rx [5-9]\d\d\d|radeon rx|radeon pro|apple m[1-9]/i.test(name)) return "high";
@@ -12212,7 +12231,7 @@ function perfFrame(rawMs) {
       if (!perf.undo) perf.undo = { tier: gfx.tier };
       perf.mult = Math.max(PERF_FLOOR, perf.mult * (avg > 40 ? 0.78 : 0.88));
       sizeRenderer(); perfHold(1.2);
-    } else if (++perf.floorHits >= 8) {
+    } else if (gameSet.adaptTier && ++perf.floorHits >= 8) {   // off: the tier and the world are the player's, not the frame counter's
       perf.floorHits = 0;
       const i = TIER_ORDER.indexOf(gfx.tier);
       if (i > 0) {
@@ -12254,7 +12273,7 @@ function sizeRenderer() {
   const stage = document.getElementById("stage");
   if (!stage || !renderer) return;
   const t = TIERS[gfx.tier] || TIERS.high;
-  const scale = Math.max(0.3, (gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult * (flight.lowres ? 0.58 : 1));
+  const scale = Math.max(0.3, Math.min(gfx.lean ? 1 : 9, gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult * (flight.lowres ? 0.58 : 1));
   const w = Math.max(16, stage.clientWidth), h = Math.max(16, stage.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, t.maxPixelRatio));
   renderer.setSize(Math.round(w * scale), Math.round(h * scale), false);
