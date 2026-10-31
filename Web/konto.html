@@ -7981,7 +7981,9 @@ function buildScene(w) {
   // ---- sea
   water.mats.length = 0;
   const sea = new THREE.Mesh(
-    new THREE.PlaneGeometry(WORLD_X * 2.4, WORLD_Z * 2.4, 1, 1),
+    // cut into a grid: as two triangles thirty kilometres across, its depth came out wrong close to a camera with a short near plane (the
+    // cutscenes' close-ups), and the sea showed through the streets thirty metres above it as a teal sheet
+    new THREE.PlaneGeometry(WORLD_X * 2.4, WORLD_Z * 2.4, 96, 96),
     waterMaterial(0, 0x082638, 0x2a9aa0, 0.95, { sea: true })
   );
   sea.geometry.rotateX(-Math.PI / 2);
@@ -41639,7 +41641,7 @@ function storyInterview() {
       lines: [[0.3, "Receptionist", "Good morning! You must be Seiko-san."], [2.4, "Receptionist", "Sotiyama-sama is expecting you. Top floor — the lift is on your right."]] },
     { dur: 1.4, from: { pos: L(1.6, 1.55, 2.2), look: L(0, 1.45, -2.6) }, overlay: "black lift", timeScale: 0, lines: [[0.3, "", "*ding*  58F"]],
       enter: () => { lob.group.visible = false; off.group.visible = true; seat(off.ox + 0, off.oz + 1.4, Math.PI); } },
-    { dur: 3.8, from: { pos: O(0, 1.7, 4.2), look: O(0, 1.5, -2.9) }, to: { pos: O(0, 1.65, 3.4), look: O(0, 1.6, -2.9) }, near: 0.05, timeScale: 0,
+    { dur: 3.8, from: { pos: O(2.2, 1.7, 4.2), look: O(0, 1.5, -2.9) }, to: { pos: O(1.9, 1.65, 3.4), look: O(0, 1.6, -2.9) }, near: 0.05, timeScale: 0,
       lines: [[0.4, "", "Akio Sotiyama — grandson of the founder"]] },
     { dur: 2.8, from: { pos: O(0.35, 1.72, -1.4), look: O(0, 1.62, -2.9) }, to: { pos: O(0.3, 1.7, -1.6), look: O(0, 1.64, -2.9) }, near: 0.05, timeScale: 0,
       lines: [[0.3, "Akio", late ? "You're late. Very late." : "You're late."]] },
@@ -41762,7 +41764,7 @@ function storyLobbyRoom() {
 function storyOfficeRoom() {
   return storyRoom("soti:office", 14, 12, 3.4, (root, box, room) => {
     const lit = (c, r, m) => new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? 0.6 : r, metalness: m || 0 });
-    box(14, 0.1, 12, 0, -0.05, 0, inPhotoMat("parquet", 0.45, [4, 3.4], 0x8a6a52, 0.7) || lit(0x5a4030, 0.5));
+    box(14, 0.1, 12, 0, -0.05, 0, lit(0x2a2d33, 0.9));                // a dark carpet (the parquet photo came out orange in the anime light)
     box(14, 0.12, 12, 0, 3.46, 0, lit(0x1a1d22, 0.7));
     const wall = inPhotoMat("plaster", 0.9, [4, 1], 0x3a3f46, 0.4) || lit(0x3a3f46, 0.8);
     box(0.2, 3.4, 12, 7, 1.7, 0, wall); box(14, 3.4, 0.2, 0, 1.7, 6, wall);

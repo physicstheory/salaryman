@@ -290,7 +290,7 @@ PEOPLE = [
     ("salaryman_01", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["black"], "tops": {"dark": CHARCOAL}, "bottoms": {"all": CHARCOAL}}),
     ("salaryman_02", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["dark"], "tops": {"dark": NAVY, "vivid": (130, 30, 40)}, "bottoms": {"all": NAVY}}),
     ("salaryman_03", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["grey"], "tops": {"dark": GREY, "vivid": (40, 60, 120)}, "bottoms": {"all": (70, 72, 78)}}),
-    ("salaryman_04", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["brown"], "tops": {"dark": BLACK, "vivid": (60, 60, 64)}, "bottoms": {"all": BLACK}}),
+    ("salaryman_04", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["black"], "tops": {"dark": CHARCOAL, "vivid": (40, 40, 46)}, "bottoms": {"all": CHARCOAL}}),   # Akio Sotiyama's look
     ("salaryman_05", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["black"], "tops": {"dark": (60, 50, 44), "vivid": (40, 110, 70)}, "bottoms": {"all": (60, 50, 44)}}),
     ("salaryman_06", "Sakurada_Fumiriya", None, False, True, {"hair": HAIR["chestnut"], "tops": {"dark": (40, 48, 70)}, "bottoms": {"all": GREY}}),
     # off duty: smart-casual jackets on the salarymen's body, so nobody on the street wears Seiko's hoodie body (or his face and hair)
