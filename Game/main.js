@@ -286,7 +286,7 @@ async function updateGame() {
     const old = updateManifest();
     if (old && old.commit === head.sha) { await dialog.showMessageBox(win, { type: "info", message: "You already have the latest version.", detail: head.sha.slice(0, 7) + ": " + head.commit.message.split("\n")[0] }); return; }
     const tree = await gh(cfg, "/git/trees/" + head.commit.tree.sha + "?recursive=1");
-    const files = (tree.tree || []).filter(e => e.type === "blob" && /^Web\/(konto\.html|seiko\.glb|art\/|cars\/[^/]+\.(glb|json)$|kenney\/|people\/|props\/)/.test(e.path) && !/\.md$/i.test(e.path));
+    const files = (tree.tree || []).filter(e => e.type === "blob" && /^Web\/(konto\.html|seiko\.glb|art\/|cars\/[^/]+\.(glb|json)$|kenney\/|people\/|props\/|loading\/)/.test(e.path) && !/\.md$/i.test(e.path));
     let base = ""; try { base = blobSha(fs.readFileSync(path.join(APP_DIR, "index.html"))); } catch (e) { /* none */ }
     const next = { commit: head.sha, message: head.commit.message.split("\n")[0], base: base, at: Date.now(), files: {} };
     fs.mkdirSync(UPDATE_APP, { recursive: true });

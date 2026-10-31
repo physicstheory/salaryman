@@ -24,7 +24,7 @@
     --indigo: #274a6d;
     --shadow: 0 10px 30px rgba(20, 18, 12, 0.18);
     --ui: "Konto Sans", "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN", system-ui, sans-serif;
-    --data: "M PLUS 1 Code", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --data: "M PLUS 1 Code", "Konto Sans", ui-monospace, "SFMono-Regular", Menlo, monospace;
     --serif: "Playfair Display", "Times New Roman", Georgia, serif;
   }
   @media (prefers-color-scheme: dark) {
@@ -9280,7 +9280,7 @@ function runner(g, x, groundY, h, phase, fill, opacity, caseColour) {
 // strip along the bottom. The green is the game's own colour, and it is what
 // the waypoint route is drawn in.
 const SIGN = { green: "#15894f", ink: "#14213a", paper: "#fbfbf6" };
-const SIGNF = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif';
+const SIGNF = '"Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif';
 function drawStationSign(g, x, y, W, H, opt) {
   opt = opt || {};
   g.save();
@@ -41907,7 +41907,17 @@ window.addEventListener("beforeunload", () => { saveGame("", true); });
 window.addEventListener("blur", () => { saveGame("", true); });
 window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed && title.started) { e.preventDefault(); saveGame("Game saved."); } });
 
-generate(19640101);
+// The game's typeface is waited for (a few seconds at most) before the world is built: the signs, the shop fronts, the adverts and the phone
+// are painted onto canvases once, and painted before Konto Sans had arrived they kept the system face for good.
+(function startWhenTheFontIsIn() {
+  let go = false; const start = () => { if (go) return; go = true; generate(19640101); };
+  try {
+    if (document.fonts && document.fonts.load) {
+      Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))).then(start, start);
+      setTimeout(start, 4000);
+    } else start();
+  } catch (e) { start(); }
+})();
 offerSaveOnTitle();
 radioLoadMusic();
 (function heistMouse() {
