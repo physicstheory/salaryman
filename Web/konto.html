@@ -680,6 +680,15 @@
   #cutover.white { background: rgba(255,255,255,0.0); animation: cutwhite 4.2s ease-in forwards; }
   @keyframes cutwhite { 60% { background: rgba(255,255,255,0.25); } 100% { background: rgba(255,255,255,1); } }
   #cutover.black { background: #000; }
+  body.cutscene canvas { filter: saturate(1.3) contrast(1.07) brightness(1.03); }
+  #cutover.glow { background: radial-gradient(ellipse 70% 60% at 82% 18%, rgba(255,196,120,0.38), rgba(255,140,90,0.12) 45%, rgba(0,0,0,0) 70%),
+    linear-gradient(180deg, rgba(255,170,110,0.10), rgba(0,0,0,0) 40%, rgba(40,20,60,0.12)); mix-blend-mode: screen; animation: cutleak 6s ease-in-out infinite alternate; }
+  @keyframes cutleak { from { background-position: 0 0; filter: hue-rotate(0deg); } to { filter: hue-rotate(-14deg) brightness(1.1); } }
+  #cutover .ttl { position: absolute; left: 0; right: 0; top: 34vh; text-align: center; color: #fff; animation: cuttitle 5.2s ease-out both; mix-blend-mode: normal; }
+  #cutover .t1 { font: 900 clamp(48px, 9vw, 150px)/1 var(--ui); letter-spacing: 0.14em; text-shadow: 0 6px 30px rgba(0,0,0,0.55), 0 0 2px #000; }
+  #cutover .t2 { font: 700 clamp(18px, 2.4vw, 36px) var(--ui); letter-spacing: 0.6em; color: #f2c230; margin-top: 10px; text-shadow: 0 2px 10px rgba(0,0,0,0.7); }
+  #cutover .t3 { font: 600 clamp(14px, 1.3vw, 20px) var(--ui); letter-spacing: 0.3em; text-transform: uppercase; margin-top: 18px; opacity: 0.9; text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+  @keyframes cuttitle { 0% { opacity: 0; transform: scale(1.08); } 20% { opacity: 1; } 88% { opacity: 1; } 100% { opacity: 0; transform: scale(1); } }
   #cutover.blink { animation: cutblink 3.6s ease-out forwards; background: #000; }
   @keyframes cutblink { 0% { opacity: 1; } 25% { opacity: 0.85; } 35% { opacity: 1; } 60% { opacity: 0.4; } 70% { opacity: 0.75; } 100% { opacity: 0; } }
   #objective { position: fixed; left: 24px; top: 24px; z-index: 15; max-width: 440px; pointer-events: none; opacity: 0; transform: translateX(-12px); transition: opacity 0.4s, transform 0.4s;
@@ -6984,13 +6993,15 @@ function animeFlatNormal() {
   const c = document.createElement("canvas"); c.width = c.height = 4; const g = c.getContext("2d"); g.fillStyle = "rgb(128,128,255)"; g.fillRect(0, 0, 4, 4);
   return (animeFlatNormal.c = c);
 }
+// a loading manager whose textures are left as they are (the anime people, drawn in the style already)
+function animeRawManager() { return animeRawManager.m || (animeRawManager.m = new THREE.LoadingManager()); }
 (function animeLoaders() {
   if (!animeArt() || typeof THREE === "undefined") return;
   const skip = url => /\/sky\/|water|fonts?\/|icon|logo|splash|\.hdr/i.test(url || "");
   const isNormal = url => /_nor|nrm|normal/i.test(url || "");
   const TL = THREE.TextureLoader.prototype.load;
   THREE.TextureLoader.prototype.load = function (url, onLoad, onProgress, onError) {
-    if (skip(url)) return TL.call(this, url, onLoad, onProgress, onError);
+    if (skip(url) || (animeRawManager.m && this.manager === animeRawManager.m)) return TL.call(this, url, onLoad, onProgress, onError);
     const tex = TL.call(this, url, t => {
       try { t.image = isNormal(url) ? animeFlatNormal() : animePaint(t.image); t.needsUpdate = true; } catch (e) { /* keep the original */ }
       if (onLoad) onLoad(t);
@@ -7000,6 +7011,7 @@ function animeFlatNormal() {
   if (THREE.ImageBitmapLoader) {
     const BL = THREE.ImageBitmapLoader.prototype.load;
     THREE.ImageBitmapLoader.prototype.load = function (url, onLoad, onProgress, onError) {
+      if (animeRawManager.m && this.manager === animeRawManager.m) return BL.call(this, url, onLoad, onProgress, onError);
       return BL.call(this, url, bmp => { let out = bmp; try { if (!skip(url)) out = animePaint(bmp); } catch (e) { /* keep it */ } if (onLoad) onLoad(out); }, onProgress, onError);
     };
   }
@@ -7343,7 +7355,7 @@ function useRide() {
   }
   const r = findRide();
   if (!r) return;
-  if (r.what === "car") { if (!rydePassengerTry(r.car)) enterCar(r.car); }
+  if (r.what === "car") { if (!rydePassengerTry(traffic.cars[r.car])) enterCar(r.car); }
   else if (r.what === "parked") enterParked(r.parked);
   else if (r.what === "steal") heistStart(r.parked);
   else if (r.what === "train") boardTrain(r.train);
@@ -34123,6 +34135,8 @@ function trainAtPlatform(x, z) {
 function boardTrain(t) {
   drive.train = { set: t.set, car: t.car };
   player.obj.visible = false;
+  // looking out of the window, not down the length of the carriage
+  { const set = rail.sets[t.set], line = rail.lines[set.line], k = TRAIN_KINDS[set.kind], p = sampleLane(line, set.s - t.car * (k.L + k.gap)); yaw = p.yaw + Math.PI / 2; pitch = -0.04; }
   document.body.classList.add("driving");
 }
 
@@ -37218,11 +37232,11 @@ function pedMaterial(k, base) {
   return (peds.mats[key] = m);
 }
 // ---- real-looking people -------------------------------------------------------------------------------------------------------------------
-// The people in Web/people are Microsoft's Rocketbox avatars (MIT licence; Game/tools/build-people.py makes them): office workers and people
-// in their own clothes, men and women, each a scanned-looking body with its own face, hair and clothes. They come with a skeleton (3ds Max
-// Biped) but no animation, so Seiko's own Idle, Walk and Run, and the hands-up, cowering and phone poses, are retargeted onto them when they
-// load: each bone is given the turn Seiko's matching bone makes away from its rest pose, measured in the world, after lining the two rest
-// poses up bone by bone. Until they have loaded (or if the folder is missing) the street is walked by Seiko's own body in other shirts.
+// The people in Web/people are anime characters: pixiv's CC0 VRoid samples, converted by Tools/anime/build_anime_people.py (office workers in
+// shirt, tie and waistcoat, people in their own clothes, men and women, recoloured and with their heads swapped round so that nobody shares
+// Seiko's face). Their skeleton is renamed to the Biped names on the way in. They come with no animation, so Seiko's own Idle, Walk and Run,
+// and the hands-up, cowering and phone poses, are retargeted onto them when they load: each bone is given the turn Seiko's matching bone makes
+// away from its rest pose, measured in the world, after lining the two rest poses up bone by bone. Until they have loaded nobody is out.
 const pplLib = { loading: false, ready: [] };
 const PPL_MAP = {
   Bip01_Pelvis: "Hips", Bip01_Spine: "Spine", Bip01_Spine1: "Chest", Bip01_Neck: "Neck", Bip01_Head: "Head",
@@ -37246,11 +37260,18 @@ function pplLoad() {
   pplLib.loading = true;
   fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
     if (!ix || !ix.people) return;
-    const loader = new THREE.GLTFLoader();
+    // the anime people are painted already: their textures skip the anime repaint, and their heads are their own size
+    pplLib.anime = !!ix.anime;
+    const loader = new THREE.GLTFLoader(ix.anime ? animeRawManager() : undefined);
     wardrobe.list = ix.outfits || null;
     const wantO = player.outfitWant && ix.outfits && ix.outfits.find(o => o.id === player.outfitWant);
     if (wantO) player.outfit = wantO.id;
-    if (ix.player && !gameSet.classicSeiko) loader.load("people/" + (wantO ? wantO.file : ix.player), g => { try { pplPlayer(g); } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); } }, undefined, () => {});
+    if (ix.player && !gameSet.classicSeiko) { wardrobe.loading = true; loader.load("people/" + (wantO ? wantO.file : ix.player), g => {
+      wardrobe.loading = false;
+      try { pplPlayer(g); player.outfit = wantO ? wantO.id : (ix.outfits.find(o => o.file === ix.player) || {}).id; } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); }
+      if (player.outfitWant && player.outfitWant !== player.outfit && !wardrobe.next) wardrobe.next = player.outfitWant;
+      wardrobeNext();
+    }, undefined, () => { wardrobe.loading = false; wardrobeNext(); }); }
     ix.people.forEach((e, i) => setTimeout(() => loader.load("people/" + e.file, g => {
       try { pplAdopt(e, g); } catch (err) { console.warn("[Konto] " + e.file + " could not be used:", err); }
     }, undefined, () => {}), 300 + i * 250));
@@ -37267,7 +37288,7 @@ function pplAdopt(e, gltf) {
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
   });
   if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
-  toonify(root); animeHead(bones);
+  toonify(root); if (!pplLib.anime) animeHead(bones);
   // face +Z, the way everything that walks here faces
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
@@ -37369,9 +37390,9 @@ function pplPlayer(gltf) {
   const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
   const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
   if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
-  toonify(root); animeHead(bones);
+  toonify(root); if (!pplLib.anime) animeHead(bones);
   root.updateMatrixWorld(true);
-  const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
+  const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_REye || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
   Object.keys(PPL_MAP).forEach(n => { if (bones[n]) bones[n].userData.alias = PPL_MAP[n]; });
   // his original moves are kept the first time, so a change of clothes retargets from them and not from the last body
@@ -37399,6 +37420,8 @@ function pplFigure(e, height) {
 }
 function pedFigure(shirt, height) {
   if (pplLib.ready.length) return pplFigure(pplLib.ready[(Math.random() * pplLib.ready.length) | 0], height);
+  // Seiko's own body dressed in another shirt was the stand-in once, and a street of Seikos is what it looked like
+  if (pplLib.anime !== false) return null;
   const body = cloneSkinned(peds.tpl), wrap = new THREE.Group(), holder = new THREE.Group();
   body.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(m => pedMaterial(shirt, m)) : pedMaterial(shirt, o.material); });
   wrap.scale.setScalar(peds.scale * height); wrap.position.copy(peds.off).multiplyScalar(height);
@@ -37455,6 +37478,7 @@ function pedSpawn() {
     if (insideBuilding(tmp.x, tmp.z, 0.4) || world.sampleHeight(tmp.x, tmp.z) < 0.35) continue;
     if (peds.list.some(q => Math.hypot(q.x - tmp.x, q.z - tmp.z) < 3)) continue;
     const shirt = (Math.random() * PED_SHIRTS.length) | 0, h = 0.9 + Math.random() * 0.14, f = pedFigure(shirt, h);
+    if (!f) return false;
     Object.assign(p, f, { x: tmp.x, z: tmp.z, y: world.surfaceY(tmp.x, tmp.z), yaw: tmp.yaw, sp: 1.15 + Math.random() * 0.5, state: "walk", t: 0, hp: 100, idleIn: 12 + Math.random() * 30, h: h, said: 0 });
     if (Math.random() < 0.35 && p.hand) { const bc = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.3, 0.1), new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2a1e16 : 0x18191c, roughness: 0.6 })); p.holder.updateMatrixWorld(true); bc.scale.setScalar(1 / (p.hand.getWorldScale(new THREE.Vector3()).x || 1)); p.hand.add(bc); }
     p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
@@ -38040,13 +38064,21 @@ function propLight(root) {
 // retargeted to it the first time it is worn.
 const wardrobe = { list: null, loading: false, cache: {} };
 function seikoOutfit(id, quiet) {
-  const L = wardrobe.list || [], o = L.find(x => x.id === id); if (!o || wardrobe.loading) return;
+  const L = wardrobe.list || [], o = L.find(x => x.id === id); if (!o) return;
+  player.outfitWant = id;
+  if (wardrobe.loading) { wardrobe.next = id; return; }
   if (player.outfit === id && player.hq) { if (!quiet) say("You are already wearing that.", 2); return; }
   wardrobe.loading = true; if (!quiet) say("Changing…", 2);
-  new THREE.GLTFLoader().load("people/" + o.file, g => {
+  new THREE.GLTFLoader(pplLib.anime ? animeRawManager() : undefined).load("people/" + o.file, g => {
     wardrobe.loading = false;
     try { pplPlayer(g); player.outfit = id; if (!quiet) say(o.name + ".", 2.5); } catch (e) { console.warn("[Konto] could not change:", e); }
-  }, undefined, () => { wardrobe.loading = false; if (!quiet) say("That outfit is not here.", 2); });
+    wardrobeNext();
+  }, undefined, () => { wardrobe.loading = false; if (!quiet) say("That outfit is not here.", 2); wardrobeNext(); });
+}
+// whatever was asked for last wins, once the body before it has loaded
+function wardrobeNext() {
+  const id = wardrobe.next; wardrobe.next = null;
+  if (id && (id !== player.outfit || !player.hq)) seikoOutfit(id, true);
 }
 function wardrobeOpen() {
   const L = wardrobe.list || [];
@@ -38148,7 +38180,7 @@ function interiorHomeRoom() {
   // the family: Mum in the kitchen, Dad at the table with the paper
   room.family = [
     { key: "mum", look: ["woman_05", "officelady_01"], x: W / 2 - 1.05, z: -3.2, yaw: Math.PI / 2, lines: ["Okaeri. There's rice in the cooker.", "Are you eating properly in the city?", "Your father won't say it, but he's proud of you.", "Take an umbrella tomorrow. It'll rain."] },
-    { key: "dad", look: ["man_02", "salaryman_03"], x: 4.8, z: 3.05, yaw: Math.PI, sit: true, lines: ["Hm. Working late again?", "The shop had a good week. Don't tell your mother I said so.", "When I was your age I walked to work. Uphill.", "Sit down a minute. The news is on."] }
+    { key: "dad", look: ["salaryman_03", "man_02"], x: 4.8, z: 3.05, yaw: Math.PI, sit: true, lines: ["Hm. Working late again?", "The shop had a good week. Don't tell your mother I said so.", "When I was your age I walked to work. Uphill.", "Sit down a minute. The news is on."] }
   ];
   room.family[0].sx = W / 2 - 2.1; room.family[0].sz = -3.2; room.family[1].sx = 5.4; room.family[1].sz = 3.6;
   room.family.forEach(f => { solid(f.x, f.z, 0.5, 0.5); spots.push({ x: f.sx, z: f.sz, label: "talk to " + (f.key === "mum" ? "Mum" : "Dad"), act: "family", who: f.key }); });
@@ -39047,6 +39079,7 @@ function interiorSpotAct(sp) {
   if (sp.act === "sit") { interiorSit(sp); return; }
   if (sp.act === "police") { interior.modal = { kind: "desk", sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw(); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
+  if (sp.act === "platforms") { sp.cool = clock + 3; railTicketOpen(); return; }
   if (sp.act === "store") { interiorEnterStore(sp); return; }
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
   if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorPodDraw(); }
@@ -39799,7 +39832,7 @@ function interiorRoom(s, opts) {
   propPut(root, "potted_plant_02", -IN_W / 2 + 0.6, 0, IN_D / 2 - 0.7, 0, { h: 0.9 }); room.colliders.push({ x0: -IN_W / 2, x1: -IN_W / 2 + 1.1, z0: IN_D / 2 - 1.2, z1: IN_D / 2 });
   if (rnd(slot, 3, 9011) < 0.4) propPut(root, "wetfloorsign_01", -1.9, 0, IN_D / 2 - 1.6, 0.5, { h: 0.6 });
   // a real person behind the counter when the body is to hand, in the shop's colour
-  if (peds.tpl) { try { const f = pedFigure(th.trim, 0.97); clerk.children.forEach(c => { c.visible = false; }); clerk.add(f.holder); pedPlay(f, "idle", 0); room.clerkFig = f; } catch (e) { console.warn("[Konto] the clerk stays a cut-out:", e); } }
+  if (peds.tpl && pplLib.ready.length) { try { const f = pedFigure(th.trim, 0.97); clerk.children.forEach(c => { c.visible = false; }); clerk.add(f.holder); pedPlay(f, "idle", 0); room.clerkFig = f; } catch (e) { console.warn("[Konto] the clerk stays a cut-out:", e); } }
   room.colliders.push({ x0: cx + 0.7, x1: cx + 1.4, z0: cz - 0.8, z1: cz - 0.0 });
   }
   // a door mat
@@ -40697,8 +40730,11 @@ const actors = { list: [] };
 function actorAdd(o) {
   const want = pplLib.ready.filter(e => (o.female === undefined || !!e.female === o.female) && (o.business === undefined || !!e.business === o.business));
   const pool = want.length ? want : pplLib.ready;
-  const e = pool.length ? pool[(o.pick || 0) % pool.length] : null;
+  // a part that is someone in particular (his mother, the receptionist) asks for them by name
+  const named = o.look && pplLib.ready.find(e => o.look.indexOf(e.name) >= 0);
+  const e = named || (pool.length ? pool[(o.pick || 0) % pool.length] : null);
   const f = e ? pplFigure(e, o.h || 1) : pedFigure(o.shirt || 0, o.h || 1);
+  if (!f) return { holder: new THREE.Group(), mixer: new THREE.AnimationMixer(new THREE.Group()), acts: {}, x: o.x, y: o.y || 0, z: o.z, yaw: 0, pose: "idle", missing: true };
   const a = Object.assign(f, { x: o.x, y: o.y, z: o.z, yaw: o.yaw || 0, pose: o.pose || "idle", path: o.path || null, pi: 0, sp: o.sp || 1.35, tag: o.tag || "", fixedY: o.y !== undefined, wait: o.wait || 0, vanish: !!o.vanish });
   if (a.y === undefined) a.y = world.surfaceY(a.x, a.z);
   a.holder.position.set(a.x, a.y, a.z); a.holder.rotation.y = a.yaw;
@@ -40914,6 +40950,7 @@ function stationExtra(def) {
     bm.position.set(-IN_W / 2 + 0.14, 2.6, -0.4); bm.rotation.y = Math.PI / 2; root.add(bm);
     const sg = inLabel("改札口  TICKET GATES  ← Platforms", 4.6, 0.36, "#15894f", "#ffffff"); sg.position.set(-IN_W / 2 + 0.14, 3.45, -0.4); sg.rotation.y = Math.PI / 2; root.add(sg);
     room.bench = { x: 2.8, z: 1.2 };
+    room.spots = (room.spots || []).concat([{ x: -IN_W / 2 + 3.7, z: -0.4, label: "go through the gates to the platforms", act: "platforms" }]);
   };
 }
 function interiorStationLevel(s, idx) {
@@ -40931,6 +40968,111 @@ function stationShop() {
   const s = { brand: "station", station: true, name: st.name || "Tōkonto Central", at: st.centre.slice(), door: door, yaw: yawO, groundY: world.surfaceY(door[0], door[1]), size: [26, 20], city: city.name, built: true };
   shops.list.push(s);
   return (story.station = s);
+}
+
+// ---- the trains, from the concourse -------------------------------------------------------------------------------------------------------
+// Through the ticket gates to the platform: pick where you are going, tap the IC card (or pay at the machine), and you are on the platform as
+// your train pulls in. You ride it by the window; the dull middle of the journey passes in a fade, and you step off at your station.
+const railTrip = { on: false, dest: null, t: 0, jumped: false };
+function railHome() {
+  const city = world.cities[0], st = city && (city.stations.find(q => q.terminus) || city.stations[0]);
+  return st || null;
+}
+// every station a train from here goes to: the lines that stop at the terminus, and the stops after it on each
+function railDestinations() {
+  const st = railHome(); if (!st || !rail.ready) return [];
+  const out = [], seen = {};
+  rail.lines.forEach((line, li) => {
+    if (!line.stops || !line.stops.length) return;
+    const o = line.stops.find(q => q.name === st.name); if (!o) return;
+    line.stops.forEach(q => {
+      if (q.name === st.name || seen[q.name]) return;
+      const ahead = line.loop ? ((q.s - o.s) % line.length + line.length) % line.length : q.s - o.s;
+      if (ahead <= 30) return;
+      seen[q.name] = true;
+      out.push({ li: li, from: o, to: q, ahead: ahead, name: q.name, at: q.at, kind: line.kindName });
+    });
+  });
+  const so = story.soti;
+  out.forEach(d => { d.soti = so ? Math.hypot(d.at[0] - so.at[0], d.at[1] - so.at[1]) : 1e9; d.fare = Math.round((160 + d.ahead / 1000 * 30) / 10) * 10 * (d.kind === "shinkansen" ? 4 : 1); });
+  out.sort((a, b) => a.ahead - b.ahead);
+  if (so) { const n = out.slice().sort((a, b) => a.soti - b.soti)[0]; if (n && n.soti < 700) { n.forSoti = true; out.splice(out.indexOf(n), 1); out.unshift(n); } }
+  return out.slice(0, 7);
+}
+function railTicketOpen() {
+  const list = railDestinations();
+  if (!list.length) { say("No trains from here right now.", 3); return; }
+  const close = () => { interior.modal = null; interior.cardEl.classList.remove("on"); };
+  player.speed = 0; interior.prompt.classList.remove("on");
+  interior.modal = { kind: "custom", head: "改札 · Platforms", sel: 0,
+    body: "Where to? " + (wallet.ic ? "Your IC card pays at the gate (" + yenText(wallet.ic.bal) + " on it)." : "No IC card: you buy a ticket at the machine.") + " Trains every few minutes.",
+    opts: list.map((d, i) => ["t" + i, d.name + (d.forSoti ? "  ·  for SOTI Tower" : "") + "  ·  " + (d.kind === "shinkansen" ? "Shinkansen  ·  " : "") + yenText(d.fare), () => { close(); railTripStart(d); }])
+      .concat([["close", "Not now", close]]) };
+  interiorModalDraw();
+}
+function railTripStart(d) {
+  if (wallet.ic && wallet.ic.bal >= d.fare) wallet.ic.bal -= d.fare;
+  else if (purse.yen >= d.fare) purse.yen -= d.fare;
+  else { say("Not enough for the fare: " + yenText(d.fare) + ".", 4); return; }
+  const line = rail.lines[d.li];
+  const ki = TRAIN_KINDS.findIndex(k => k.name === line.kindName);
+  let si = rail.sets.findIndex(q => q.kind === ki && !q.live);
+  if (si < 0) si = rail.sets.findIndex(q => q.kind === ki && !(drive.train && drive.train.set === rail.sets.indexOf(q)));
+  if (si < 0) { say("The platform is closed.", 3); return; }
+  const set = rail.sets[si], kind = TRAIN_KINDS[ki], pitch = kind.L + kind.gap;
+  if (interior.active) interiorLeave(true);
+  // nothing else on the line near the platform
+  rail.sets.forEach(o => { if (o !== set && o.live && o.line === d.li && Math.abs(((o.s - d.from.s) % line.length + line.length * 1.5) % line.length - line.length / 2) < 900) o.live = false; });
+  const stopS = d.from.s + kind.cars * pitch * 0.5;                    // the middle of the train at the middle of the platform
+  set.line = d.li; set.live = true; set.s = stopS - 140; set.v = 15; set.dwell = 0; set.stop = { s: stopS, name: d.from.name, at: d.from.at };
+  set.uv = adVOffset((Math.random() * ADS.length) | 0);
+  // where Seiko waits: on the platform, beside the third car
+  const car = 2, at = sampleLane(line, stopS - car * pitch), side = 6.7;
+  const px = at.x - Math.cos(at.yaw) * side, pz = at.z + Math.sin(at.yaw) * side;
+  placeSeiko(new THREE.Vector3(px, at.y + 1.15, pz)); player.placed = true; player.onWalk = true;
+  player.yaw = player.targetYaw = at.yaw - Math.PI / 2; player.obj.rotation.y = player.yaw; player.obj.visible = true; player.forceClip = null; playSeikoClip("idle", 0);
+  railTrip.on = true; railTrip.dest = d; railTrip.t = 0; railTrip.jumped = false; railTrip.set = si;
+  const f = { x: px, y: at.y + 1.15, z: pz, yaw: player.yaw };
+  const up = (q, r) => [q.x - Math.cos(at.yaw) * r, at.y + 1.15 + 1.6, q.z + Math.sin(at.yaw) * r];
+  const head = () => { const h = sampleLane(line, set.s); return [h.x, h.y + 2.2, h.z]; };
+  cutPlay([
+    { dur: 4.2, from: { pos: framePt(f, -2.2, 1.7, 3.4), look: framePt(f, 0.4, 1.5, -2) }, to: { pos: framePt(f, -1.8, 1.65, 2.6), look: framePt(f, 0.3, 1.5, -2) }, near: 0.05,
+      lines: [[0.3, "", "♪ まもなく、電車が参ります。 The train is now arriving."], [2.4, "", "Please stand behind the yellow line."]] },
+    { dur: 4.4, from: () => ({ pos: up(sampleLane(line, stopS + 40), 3.2), look: head() }), to: () => ({ pos: up(sampleLane(line, stopS + 20), 3.4), look: head() }), linear: true,
+      lines: [[0.5, "", d.kind === "shinkansen" ? "Shinkansen · for " + d.name : "Rapid · for " + d.name]] },
+    { dur: 3.0, from: { pos: framePt(f, 1.4, 1.6, 2.4), look: framePt(f, -0.2, 1.3, -3) }, to: { pos: framePt(f, 1.2, 1.55, 2.0), look: framePt(f, -0.2, 1.3, -3) }, near: 0.05,
+      enter: () => { if (set.s < stopS - 1) { set.s = stopS; set.v = 0; } set.dwell = 9; }, lines: [[0.4, "Seiko", d.forSoti ? "SOTI Tower, here I come." : "Here we go."]] }
+  ], () => {
+    if (set.s < stopS - 1) { set.s = stopS; set.v = 0; }
+    set.dwell = Math.max(set.dwell, 3);
+    boardTrain({ set: si, car: car });
+    drive.train.trip = d;
+    say("On the train for " + d.name + ". Look around with the mouse · F gets off at a stop.", 5);
+  });
+}
+// riding: after a while by the window the rest of the way goes by in a fade, and at the station you step off
+function railTripTick(dt) {
+  if (!railTrip.on) return;
+  if (!drive.train || !drive.train.trip) { if (!cut.active) railTrip.on = false; return; }
+  const d = drive.train.trip, set = rail.sets[drive.train.set], line = rail.lines[set.line];
+  railTrip.t += dt;
+  const L = line.length, ahead = line.loop ? ((d.to.s - set.s) % L + L) % L : d.to.s - set.s;
+  if (!railTrip.jumped && railTrip.t > 18 && ahead > 400 && set.dwell <= 0) {
+    railTrip.jumped = true;
+    const fade = document.getElementById("fade"); if (fade) fade.style.opacity = "1";
+    setTimeout(() => {
+      if (!drive.train) return;
+      set.s += ahead - 260; set.v = 14; set.dwell = 0; set.stop = { s: set.s + 260, name: d.to.name, at: d.to.at };
+      rail.sets.forEach(o => { if (o !== set && o.live && o.line === set.line && Math.abs(o.s - set.s) < 1200) o.live = false; });
+      advanceGameMinutes(Math.max(2, ahead / (TRAIN_KINDS[set.kind].speed * 0.7) / 60));
+      if (fade) setTimeout(() => { fade.style.opacity = "0"; }, 300);
+    }, 700);
+  }
+  if (set.dwell > 0 && Math.abs(ahead) < 30 || (line.loop && ahead > L - 30 && set.dwell > 0)) {
+    leaveTrain(); railTrip.on = false;
+    say(d.name + ". Arigatou gozaimashita.", 4);
+    if (story.step === "toSoti" && story.soti) say("SOTI Tower is marked on your map.", 4);
+  }
 }
 
 // ---- SOTI Tower -----------------------------------------------------------------------------------------------------------------------------
@@ -40998,12 +41140,14 @@ function storyWearingSuit() { return SUIT_IDS.indexOf(player.outfit) >= 0 || SUI
 
 // ---- Ryde, as a passenger ---------------------------------------------------------------------------------------------------------------------
 // Get into the Ryde you booked and you are driven: you sit in the back, say where, and the city goes by. Where to is the mission's destination
-// if there is one, or the marker you put on the map; with neither, the car is yours to drive the old way.
+// if there is one, or the marker you put on the map; with neither, the driver waits while you put one down. (It was handed the car's number
+// in the traffic list rather than the car, so it never matched the booking and getting in was taking the car and driving it yourself.)
 function rydePassengerTry(car) {
+  if (!car) return false;
   const u = dispatch.units.find(q => q.svc === "ryde" && q.car === car);
   if (!u) return false;
   const dest = story.blips.length ? story.blips[0] : nav.waypoint;
-  if (!dest) return false;
+  if (!dest) { say("Driver: “Where to? Put a marker on your map (M) and I'll take you.”", 5); u.t = Math.min(u.t, 10); return true; }
   rydeBoarded(u);
   const kind = CAR_KINDS[car.kind];
   const dist = Math.hypot(dest.x - player.pos.x, dest.z - player.pos.z);
@@ -41070,40 +41214,93 @@ const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
 function storyNewGame() {
   story.m = 1; story.step = "intro"; story.flags = {}; story.owned = { village: true }; storyClearBlips(); storyClearObjective();
   purse.yen = 2400;
-  player.outfitWant = "village"; if (player.hq && wardrobe.list) seikoOutfit("village", true);
+  // He leaves home in his village clothes. The story does not start until he is wearing them and the people are on the street
+  // (the family and the crowd are real people; begun any earlier it was the old stand-in body in a white shirt, and a station of copies of it).
+  player.outfitWant = "village"; if (wardrobe.list) seikoOutfit("village", true);
+  const fade = document.getElementById("fade"); if (fade) { fade.style.transition = "none"; fade.style.opacity = "1"; }
   const go = () => { try { storyOpening(); } catch (e) { console.warn("[Konto] the opening could not play:", e); storyWake(true); } };
-  // the family are real people, so wait (a few seconds at most) for the people to have loaded
-  let n = 0; const wait = () => { if (pplLib.ready.length >= 6 || n++ > 40) go(); else setTimeout(wait, 150); };
+  let n = 0; const wait = () => {
+    if (wardrobe.list && player.outfit !== "village" && !wardrobe.loading) seikoOutfit("village", true);
+    const cast = ["woman_05", "woman_03", "salaryman_03"].every(k => pplLib.ready.some(e => e.name === k));
+    const ready = (cast || pplLib.ready.length >= 16) && player.hq && player.outfit === "village" && !wardrobe.loading;
+    if (ready || n++ > 400) go();                    // a minute at the very most
+    else { if (n % 20 === 1) say("Loading…", 3); setTimeout(wait, 150); }
+  };
   wait();
 }
-// The dream. Through the window of the train as it pulls out of Mizuho: his mother, his father and his little sister on the platform, waving,
-// getting smaller. Soft and bright, the way a memory is.
+// The opening. Dawn breaking over Mizuho's valley, the title, Seiko stepping out of the family home in his village clothes with his bag, the
+// farewell at the halt (his mother, his little sister, his father, each in close), the window as the train pulls away and the family gets small,
+// the climb over the mountains, and the capital waking up: Tōkonto's towers, SOTI Tower among them, gold in the low sun. Played in the real world
+// through the cinema camera, warm and saturated, with a light leak over the dawn shots.
 function storyOpening() {
   if (interior.active) interiorLeave(true);
   // Mizuho's station is a halt with one platform; where its rails are not modelled the scene is played at the halt itself, on the ground
   const miz = world.cities.find(c => c.name === "Mizuho"), st = miz && miz.stations[0];
   const F = st && st.frame ? st.frame : st ? { x: st.centre[0], y: 0, z: st.centre[1], yaw: (st.yaw || 0) * Math.PI / 180 } : { x: home.door[0], y: 0, z: home.door[1], yaw: home.yaw || 0 };
   const onRail = !!(st && st.frame), pf = onRail ? 1.1 : 0;
-  placeSeiko(new THREE.Vector3(F.x, world.surfaceY(F.x, F.z), F.z)); player.placed = true;
-  if (player.obj) player.obj.visible = false;
-  setGameTime(6 * 60 + 40);
+  setGameTime(5 * 60 + 38);
   const fam = [];
   // a point in the scene: on the platform when there is one, otherwise on the ground wherever it falls
   const at = (r, fw) => { const q = framePt(F, r, pf, fw); if (!onRail) q[1] = world.surfaceY(q[0], q[2]); return q; };
+  const lift = (q, h) => [q[0], q[1] + h, q[2]];
   const famAdd = (o, r, fw) => { const p = at(r, fw); const a = actorAdd(Object.assign({ x: p[0], y: p[1], z: p[2], tag: "family" }, o)); const c = at(1.6, fw); actorLook(a, c[0], c[2]); fam.push(a); return a; };
-  famAdd({ female: true, business: false, pose: "wave", pick: 1 }, 6.2, -1.2);
-  famAdd({ female: false, business: false, pose: "idle", pick: 2 }, 6.4, 0.0);
-  famAdd({ female: true, business: false, pose: "wave", pick: 4, h: 0.45 }, 6.0, 1.0);
-  const win = (fw, look) => ({ pos: at(1.7, fw).map((v, i) => i === 1 ? v + 1.25 : v), look: at(6.2, look).map((v, i) => i === 1 ? v + 1.3 : v) });
+  const mum = famAdd({ female: true, business: false, pose: "wave", pick: 1, look: ["woman_05", "woman_03"] }, 5.0, -1.4);
+  const dad = famAdd({ female: false, business: true, pose: "idle", pick: 2, look: ["salaryman_03"] }, 5.4, 0.2);
+  const sis = famAdd({ female: true, business: false, pose: "wave", pick: 4, h: 0.5, look: ["woman_02", "woman_03"] }, 4.6, 1.5);   // h 0.5 is a child's height: a figure grows half as fast as h
+  const head = (a, h) => [a.x, a.y + (h || 1.5) * (a === sis ? 0.74 : 1), a.z];
+  const front = (a, d, side, up) => [a.x + Math.sin(a.yaw) * d + Math.cos(a.yaw) * side, a.y + up, a.z + Math.cos(a.yaw) * d - Math.sin(a.yaw) * side];
+  // Seiko on the platform, facing his family, until the train takes him
+  const me = at(1.6, 0);
+  const hd = home.door ? [home.door[0], world.surfaceY(home.door[0], home.door[1]), home.door[1]] : at(30, -30);
+  const homeYaw = home.yaw || 0, out = [hd[0] + Math.sin(homeYaw) * 1.5, hd[1], hd[2] + Math.cos(homeYaw) * 1.5];
+  const walkClip = () => (player.clips && player.clips.walk ? "walk" : null);
+  const toPlatform = () => { placeSeiko(new THREE.Vector3(me[0], me[1], me[2])); player.yaw = player.targetYaw = Math.atan2(mum.x - me[0], mum.z - me[2]); player.obj.rotation.y = player.yaw; player.obj.visible = true; player.forceClip = null; playSeikoClip("idle", 0.2); };
+  // the capital, for the last shot: the camera flies in over the bay toward SOTI Tower
+  const so = story.soti, cap = world.cities[0];
+  const tgt = so ? [so.at[0], so.groundY, so.at[1]] : cap ? [cap.scramble.at[0], cap.scramble.groundY, cap.scramble.at[1]] : at(0, 0);
+  const term = railHome(), fromSea = term ? Math.atan2(tgt[0] - term.centre[0], tgt[2] - term.centre[1]) : 0;   // in over the terminus, toward the tower
+  const capPt = (d, h) => [tgt[0] - Math.sin(fromSea) * d, tgt[1] + h, tgt[2] - Math.cos(fromSea) * d];
+  placeSeiko(new THREE.Vector3(out[0], out[1], out[2])); player.placed = true;
+  if (player.obj) player.obj.visible = false;
+  const title = "<div class='ttl'><div class='t1'>SALARY MAN</div><div class='t2'>サラリーマン</div><div class='t3'>Chapter 1 · The Interview</div></div>";
+  const win = (fw, look) => ({ pos: lift(at(1.7, fw), 1.25), look: lift(at(6.2, look), 1.3) });
   cutPlay([
-    { dur: 5.5, from: win(-1.5, 0), to: win(3.5, 0.4), overlay: "dream window", fadeIn: 2.5, timeScale: 0,
-      lines: [[1.2, "", "Mizuho."], [3.4, "Mother", "Eat properly! And call us!"]] },
-    { dur: 5.0, from: win(3.5, 0.4), to: win(26, 1), overlay: "dream window", timeScale: 0,
-      lines: [[0.6, "Sister", "Onii-chan! Bring me something from the city!"], [3.0, "Father", "…Make us proud, Seiko."]],
-      tick: (dt, t) => { if (t > 2.2) fam[1].pose = "wave"; } },
-    { dur: 4.2, from: () => ({ pos: at(-60, -120).map((v, i) => i === 1 ? v + 70 : v), look: at(0, 30) }), to: () => ({ pos: at(-90, -260).map((v, i) => i === 1 ? v + 110 : v), look: at(0, 120) }),
-      overlay: "dream white", timeScale: 0, lines: [[0.8, "", "Seiko watched the village until the mountains took it."]] }
-  ], skipped => { actorsClear("family"); storyWake(skipped); });
+    // 1. dawn over the valley
+    { dur: 6.0, from: () => ({ pos: lift(at(-180, -260), 140), look: lift(at(0, 0), 10) }), to: () => ({ pos: lift(at(-120, -170), 95), look: lift(at(0, 0), 5) }), overlay: "glow", fadeIn: 2.0, timeScale: 8,
+      lines: [[1.4, "", "Mizuho. Rice terraces, one road, and a train twice a day."]] },
+    // 2. the title, over the paddies
+    { dur: 5.2, from: () => ({ pos: lift(at(-60, -80), 22), look: lift(at(40, 60), 30) }), to: () => ({ pos: lift(at(-50, -70), 26), look: lift(at(40, 60), 40) }), overlay: "glow title", overlayHtml: title, timeScale: 8 },
+    // 3. out of the house with his bag, in his village clothes
+    { dur: 4.6, from: () => ({ pos: [out[0] + Math.sin(homeYaw) * 8.5 + Math.cos(homeYaw) * 2.0, out[1] + 3.0, out[2] + Math.cos(homeYaw) * 8.5 - Math.sin(homeYaw) * 2.0], look: [player.pos.x, player.pos.y + 1.2, player.pos.z] }),
+      to: () => ({ pos: [out[0] + Math.sin(homeYaw) * 7.0 + Math.cos(homeYaw) * 2.4, out[1] + 2.4, out[2] + Math.cos(homeYaw) * 7.0 - Math.sin(homeYaw) * 2.4], look: [player.pos.x, player.pos.y + 1.3, player.pos.z] }),
+      near: 0.05, overlay: "glow", timeScale: 4,
+      enter: () => { placeSeiko(new THREE.Vector3(hd[0], hd[1], hd[2])); player.yaw = player.targetYaw = homeYaw; player.obj.rotation.y = homeYaw; player.obj.visible = true; player.forceClip = walkClip(); },
+      tick: dt => { player.pos.x += Math.sin(homeYaw) * 1.3 * dt; player.pos.z += Math.cos(homeYaw) * 1.3 * dt; player.pos.y = world.surfaceY(player.pos.x, player.pos.z); player.obj.position.copy(player.pos); },
+      always: () => toPlatform(),
+      lines: [[0.6, "Seiko", "Today's the day."], [2.5, "Mother", "Seiko! The train won't wait!"]] },
+    // 4. the halt: the family, wide, the sun behind them
+    { dur: 4.2, from: () => ({ pos: lift(at(-2.5, -6.5), 1.7), look: lift(at(4.2, 0.8), 1.2) }), to: () => ({ pos: lift(at(-2.0, -5.2), 1.6), look: lift(at(4.2, 0.6), 1.25) }), overlay: "glow", timeScale: 2,
+      enter: () => toPlatform(), lines: [[0.4, "Mother", "Eat properly! And call us every Sunday!"]] },
+    // 5. his sister, close
+    { dur: 3.4, from: () => ({ pos: front(sis, 1.6, 0.35, 1.0), look: head(sis, 1.45) }), to: () => ({ pos: front(sis, 1.3, 0.3, 1.02), look: head(sis, 1.45) }), near: 0.05, timeScale: 2,
+      lines: [[0.2, "Sister", "Onii-chan! Bring me something from the city!"]] },
+    // 6. his father, close: a man who does not say much
+    { dur: 3.6, from: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 1.1 - 0.25, dad.y + 1.55, dad.z + Math.cos(dad.yaw) * 1.1], look: head(dad, 1.55) }), to: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 0.9 - 0.2, dad.y + 1.56, dad.z + Math.cos(dad.yaw) * 0.9], look: head(dad, 1.56) }), near: 0.05, timeScale: 2,
+      enter: () => { dad.pose = "idle"; }, lines: [[0.5, "Father", "…Make us proud, Seiko."]] },
+    // 7. Seiko, close, the sun on his face
+    { dur: 3.4, from: () => ({ pos: [me[0] + Math.sin(player.yaw) * 1.0 + 0.3, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 1.0], look: [me[0], me[1] + 1.55, me[2]] }), to: () => ({ pos: [me[0] + Math.sin(player.yaw) * 0.8 + 0.25, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 0.8], look: [me[0], me[1] + 1.56, me[2]] }), near: 0.05, overlay: "glow", timeScale: 2,
+      enter: () => toPlatform(), lines: [[0.3, "Seiko", "I will. I promise."]] },
+    // 8. through the train window as it pulls away: the family waving, getting smaller
+    { dur: 5.0, from: win(-1.5, 0), to: win(24, 1), overlay: "dream window", timeScale: 0,
+      enter: () => { player.obj.visible = false; dad.pose = "wave"; }, lines: [[0.8, "", "Mizuho."], [2.6, "Sister", "Bye bye! Byeee!"]] },
+    // 9. over the mountains
+    { dur: 4.4, from: () => ({ pos: lift(at(-60, -120), 70), look: lift(at(0, 30), 0) }), to: () => ({ pos: lift(at(-90, -300), 160), look: lift(at(0, 200), 60) }), overlay: "glow", timeScale: 0,
+      lines: [[0.8, "", "Seiko watched the village until the mountains took it."]] },
+    // 10. the capital, waking up
+    { dur: 6.4, from: () => ({ pos: capPt(1500, 160), look: [tgt[0], tgt[1] + 120, tgt[2]] }), to: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), linear: true, timeScale: 0,
+      enter: () => setGameTime(7 * 60 + 15), lines: [[0.8, "", "Tōkonto."], [3.0, "", "Fourteen million people. And somewhere in it, a job with his name on it."]] },
+    { dur: 3.0, from: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), to: () => ({ pos: capPt(880, 116), look: [tgt[0], tgt[1] + 152, tgt[2]] }), overlay: "white", timeScale: 0 }
+  ], skipped => { actorsClear("family"); player.forceClip = null; storyWake(skipped); });
 }
 // He wakes on a bench on the concourse at Tōkonto Central, to his phone buzzing.
 function storyWake(quick) {
@@ -41173,7 +41370,7 @@ function storyToSoti() {
   if (gameMinutes() < 8 * 60 + 30 || gameMinutes() > 8 * 60 + 50) setGameTime(8 * 60 + 42);
   story.timer = { rateWas: TIME.rate, deadline: 9 * 60 };
   TIME.rate = (story.timer.deadline - gameMinutes()) / realSecs;
-  storyObjective("Get to SOTI Tower by 9:00", "Follow the salarymen heading to work, or book a Ryde on your phone (P) and ride.");
+  storyObjective("Get to SOTI Tower by 9:00", "Follow the salarymen heading to work, or book a Ryde on your phone (P): walk up to it, press Y and you are driven.");
   // the morning crowd, walking to the same tower
   const route = routeSolve({ x: player.pos.x, z: player.pos.z }, { x: s.door[0], z: s.door[1] }) || [[s.door[0], s.door[1]]];
   const path = pavementPath(route, 5.5).concat([[s.door[0], s.door[1]], [s.at[0], s.at[1]]]);
@@ -41205,8 +41402,8 @@ function storyInterview() {
   const lob = storyLobbyRoom(), off = storyOfficeRoom(), fy = interior.floorY;
   const L = (x, y, z) => [lob.ox + x, fy + y, lob.oz + z], O = (x, y, z) => [off.ox + x, fy + y, off.oz + z];
   const s = story.soti;
-  const rec = actorAdd({ x: lob.ox + 0, y: fy, z: lob.oz - 2.6, yaw: 0, female: true, business: true, pick: 1, tag: "soti", pose: "idle" });
-  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "idle", h: 1.04 });
+  const rec = actorAdd({ x: lob.ox + 0, y: fy, z: lob.oz - 2.6, yaw: 0, female: true, business: true, pick: 1, tag: "soti", pose: "idle", look: ["officelady_02"] });
+  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "idle", h: 1.04, look: ["salaryman_04"] });
   const seat = (x, z, yw) => { player.pos.set(x, fy, z); player.yaw = player.targetYaw = yw; player.obj.position.copy(player.pos); player.obj.rotation.y = yw; };
   lob.group.visible = true; off.group.visible = false;
   cutPlay([
@@ -41364,14 +41561,15 @@ function storyOfficeRoom() {
 
 // ---- every frame, outside the cutscenes ---------------------------------------------------------------------------------------------------
 function storyTick(dt) {
+  railTripTick(dt);
   if (actors.list.length) actorsTick(dt);
   story.blips.forEach(b => { if (b.beam) { b.beam.rotation.y += dt * 0.6; if (b.beam.userData.letter) b.beam.userData.letter.position.y = 4.2 + Math.sin(clock * 2) * 0.25; } });
   if (!story.m || cut.active) return;
   const el = document.getElementById("objective");
   if (story.step === "suit" && storyWearingSuit() && story.obj && !story.obj.done) {
-    storyTick_done(() => { story.step = "out"; storyObjective("Head out to the street", "The street door is on the concourse, 1F."); });
+    storyTick_done(() => { story.step = "out"; storyObjective("Head out to the street", "The street door is on the concourse, 1F — or take the train from the ticket gates, beside the departure board."); });
   }
-  if (story.step === "out" && !interior.active && player.placed && !home.inside) storyLate();
+  if (story.step === "out" && !interior.active && player.placed && !home.inside && !railTrip.on && !drive.train) storyLate();
   if (story.step === "toSoti") {
     const s = story.soti, m = gameMinutes(), left = Math.max(0, 9 * 60 - m);
     if (m >= 9 * 60 && story.timer) { TIME.rate = story.timer.rateWas || 0.4; story.timer = null; }
