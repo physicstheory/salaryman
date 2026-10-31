@@ -39060,7 +39060,7 @@ function interiorPodDraw() {
   el.classList.add("on");
   el.querySelectorAll("button").forEach(b => b.addEventListener("click", () => interiorPodAction(b.dataset.a)));
 }
-function interiorPodClose() { interior.pod = null; if (!interior.card) interior.cardEl.classList.remove("on"); }
+function interiorPodClose() { interior.pod = null; if (!interior.card && interior.cardEl) interior.cardEl.classList.remove("on"); }
 function interiorPodAction(a) {
   if (!interior.pod) return;
   if (a === "back") { interiorPodClose(); return; }
@@ -41206,7 +41206,7 @@ function storyInterview() {
   const L = (x, y, z) => [lob.ox + x, fy + y, lob.oz + z], O = (x, y, z) => [off.ox + x, fy + y, off.oz + z];
   const s = story.soti;
   const rec = actorAdd({ x: lob.ox + 0, y: fy, z: lob.oz - 2.6, yaw: 0, female: true, business: true, pick: 1, tag: "soti", pose: "idle" });
-  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "folded", h: 1.04 });
+  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "idle", h: 1.04 });
   const seat = (x, z, yw) => { player.pos.set(x, fy, z); player.yaw = player.targetYaw = yw; player.obj.position.copy(player.pos); player.obj.rotation.y = yw; };
   lob.group.visible = true; off.group.visible = false;
   cutPlay([
