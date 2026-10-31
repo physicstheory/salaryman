@@ -275,6 +275,94 @@ def crowd(s, n, y0, y1, h0, h1, seed, cols, dark=False, xr=(0, W)):
                             "flip": r.random() < 0.5})
 
 
+
+# ---- a close-up: head and shoulders, drawn larger and in more detail than a figure (the way the anime posters put their people) -------------
+def bust(s, cx, cy, size, o, look=0.0):
+    """Head and shoulders, chin at about (cx, cy), the head `size` pixels tall. look: -1..1, eyes turned left/right."""
+    k = size / 120.0
+    hair, hs, hl = o.get("hair", "#1e1a2a"), shade(o.get("hair", "#1e1a2a"), 0.62), shade(o.get("hair", "#1e1a2a"), 2.6)
+    top, ec = o.get("top", "#1d2236"), o.get("eyes", "#3a3060")
+    s.add('<g transform="translate(%.1f %.1f) scale(%.4f)">' % (cx, cy, k))
+    sw = 2.6
+    # shoulders, jacket, collar and tie
+    path(s, "M -150 200 Q -140 95 -40 78 L 40 78 Q 140 95 150 200 Z", top, INK, sw)
+    path(s, "M 40 78 Q 140 95 150 200 L 70 200 Q 60 120 40 78 Z", shade(top, 0.78), None, 0)
+    if o.get("shirt"):
+        path(s, "M -34 76 L 0 140 L 34 76 L 20 72 L 0 100 L -20 72 Z", o["shirt"], INK, sw)
+        path(s, "M -34 76 L -48 120 L 0 150 L 48 120 L 34 76 L 0 140 Z", "none", INK, sw * 0.8)
+    if o.get("tie"):
+        path(s, "M -9 98 L 9 98 L 13 168 L 0 186 L -13 168 Z", o["tie"], INK, sw)
+        path(s, "M -9 98 L 9 98 L 6 110 L -6 110 Z", shade(o["tie"], 0.8), INK, sw * 0.6)
+    if o.get("hood"):
+        path(s, "M -70 84 Q 0 120 70 84 Q 60 66 0 70 Q -60 66 -70 84 Z", shade(top, 0.85), INK, sw)
+    # neck
+    path(s, "M -18 30 L -18 84 Q 0 94 18 84 L 18 30 Z", SKIN_SH, INK, sw)
+    # back hair, behind the face
+    st = o.get("style", "spiky")
+    if st == "bob":
+        path(s, "M -66 -30 Q -74 50 -52 70 L 52 70 Q 74 50 66 -30 Z", hair, INK, sw)
+    elif st == "long":
+        path(s, "M -64 -30 Q -80 90 -60 150 L 60 150 Q 80 90 64 -30 Z", hair, INK, sw)
+    elif st == "bun":
+        circ(s, 0, -96, 30, hair, INK, sw)
+    # the face: wide at the cheekbones, a small pointed chin
+    path(s, "M -56 -24 Q -58 22 -30 46 Q -10 62 0 64 Q 10 62 30 46 Q 58 22 56 -24 Q 50 -82 0 -84 Q -50 -82 -56 -24 Z", SKIN, INK, sw)
+    path(s, "M -56 -24 Q -55 -6 -50 4 Q -30 -16 0 -14 Q 30 -16 50 4 Q 55 -6 56 -24 Z", SKIN_SH, None, 0, 'opacity="0.55"')
+    # eyes
+    for side in (-1, 1):
+        ex, ey = side * 25 + look * 3, 0
+        path(s, "M %.1f %.1f Q %.1f %.1f %.1f %.1f Q %.1f %.1f %.1f %.1f Z" % (ex - 15, ey - 2, ex, ey - 22, ex + 15, ey - 3, ex + 2, ey + 22, ex - 15, ey - 2), "#ffffff", INK, 1.6)
+        ell(s, ex + look * 3, ey + 1, 10.5, 15, ec)
+        ell(s, ex + look * 3, ey - 6, 10.5, 8, shade(ec, 0.5))
+        ell(s, ex + look * 3, ey + 9, 6.5, 4, shade(ec, 1.6), None, 0, 'opacity="0.8"')
+        ell(s, ex + look * 3, ey + 1, 4.5, 7, "#100c18")
+        circ(s, ex + look * 3 - 4.5, ey - 6, 3.6, "#ffffff")
+        circ(s, ex + look * 3 + 4, ey + 6, 1.8, "#ffffff")
+        # the lash line, thick, with a flick at the outer corner
+        o_x = ex + side * 16
+        path(s, "M %.1f %.1f Q %.1f %.1f %.1f %.1f L %.1f %.1f" % (ex - side * 16, ey - 1, ex, ey - 24, o_x, ey - 4, o_x + side * 4, ey - 8), "none", INK, 5.5)
+        path(s, "M %.1f %.1f Q %.1f %.1f %.1f %.1f" % (ex - 10, ey + 19, ex, ey + 21, ex + 10, ey + 18), "none", shade(INK, 2.5), 1.6)
+        # the brow
+        path(s, "M %.1f -26 Q %.1f %.1f %.1f %.1f" % (ex - side * 15, ex, -33 - o.get("brow", 0), ex + side * 16, -28 + o.get("brow", 0) * side * 0), "none", shade(hair, 0.8), 4.5)
+        ell(s, side * 34, 28, 9, 4, "#ff9fa6", None, 0, 'opacity="0.45"')
+    path(s, "M 2 20 L -1 30 L 3 31", "none", shade(SKIN_SH, 0.8), 2)
+    mouth = o.get("mouth", "smile")
+    if mouth == "open":
+        path(s, "M -10 42 Q 0 54 10 42 Q 0 46 -10 42 Z", "#9a3a3a", INK, 2)
+    elif mouth == "flat":
+        path(s, "M -8 44 L 8 44", "none", "#7a3a3a", 2.4)
+    else:
+        path(s, "M -9 42 Q 0 48 9 42", "none", "#7a3a3a", 2.4)
+    # front hair
+    if st == "spiky":
+        s.add('<g transform="translate(0 -4) scale(0.94 0.78)">')
+        path(s, "M -62 -10 L -66 -46 L -84 -60 L -60 -66 L -70 -96 L -40 -84 L -34 -118 L -10 -94 L 4 -126 L 16 -96 L 40 -118 L 42 -86 L 72 -94 L 60 -62 L 82 -56 L 64 -40 L 66 -6 "
+                "L 50 -30 L 44 -6 L 30 -36 L 20 -10 L 8 -40 L -6 -12 L -16 -40 L -28 -10 L -36 -38 L -48 -6 Z", hair, INK, sw)
+        path(s, "M -4 -126 L 2 -150 L 10 -124", hair, INK, sw)          # the strand that will not lie down
+        path(s, "M -46 -70 L -30 -78 L -14 -70 L 4 -80 L 22 -70 L 40 -78 L 50 -66 L 36 -70 L 22 -62 L 4 -72 L -14 -62 L -30 -70 Z", hl, None, 0, 'opacity="0.55"')
+        path(s, "M 40 -86 L 72 -94 L 60 -62 L 82 -56 L 64 -40 L 66 -6 L 50 -30 Z", hs, None, 0, 'opacity="0.7"')
+        s.add("</g>")
+    elif st == "swept":
+        path(s, "M -60 -14 Q -66 -76 -20 -92 Q 30 -106 62 -66 Q 70 -40 60 -12 Q 54 -46 30 -58 Q 0 -70 -30 -56 Q -52 -44 -60 -14 Z", hair, INK, sw)
+        path(s, "M -30 -56 Q -10 -40 -4 -14 Q -12 -36 -30 -48 Z", hair, INK, 2)
+        path(s, "M -40 -76 Q 0 -94 40 -80", "none", hl, 5, 'opacity="0.6"')
+        path(s, "M -34 -66 Q 4 -84 46 -64", "none", hl, 3, 'opacity="0.4"')
+    elif st == "bob":
+        path(s, "M -66 -20 Q -70 -90 0 -92 Q 70 -90 66 -20 L 54 -16 L 46 -40 L 30 -18 L 22 -44 L 4 -16 L -10 -44 L -24 -16 L -36 -42 L -54 -16 Z", hair, INK, sw)
+        path(s, "M -44 -70 Q 0 -86 44 -70", "none", hl, 5, 'opacity="0.55"')
+        if o.get("clip"):
+            rect(s, 30, -64, 24, 9, o["clip"], INK, 2, 3)
+    elif st == "long":
+        path(s, "M -64 -10 Q -70 -90 0 -92 Q 70 -90 64 -10 L 50 -40 Q 30 -30 10 -50 Q -10 -30 -50 -38 Z", hair, INK, sw)
+        path(s, "M -44 -70 Q 0 -86 44 -70", "none", hl, 5, 'opacity="0.55"')
+    elif st == "bun":
+        path(s, "M -60 -10 Q -66 -88 0 -90 Q 66 -88 60 -10 Q 50 -56 10 -56 Q 20 -40 0 -36 Q -30 -60 -60 -10 Z", hair, INK, sw)
+        path(s, "M -40 -72 Q 0 -86 40 -72", "none", hl, 5, 'opacity="0.55"')
+    else:
+        path(s, "M -60 -14 Q -66 -92 0 -92 Q 66 -92 60 -14 L 48 -40 L 30 -24 L 16 -48 L 0 -26 L -16 -48 L -30 -24 L -48 -40 Z", hair, INK, sw)
+        path(s, "M -40 -74 Q 0 -88 40 -74", "none", hl, 5, 'opacity="0.55"')
+    s.add("</g>")
+
 # ---- the cast -----------------------------------------------------------------------------------------------------------------------------
 SEIKO_VILLAGE = {"hair": "#211a33", "style": "spiky", "top": "#7a5a3c", "bottom": "#4a3c2e", "eyes": "#2a3a80", "bag": "#b08a5a"}
 SEIKO_SUIT = {"hair": "#211a33", "style": "spiky", "top": "#1d2236", "bottom": "#1d2236", "shirt": "#ffffff", "tie": "#ee7a1e", "eyes": "#2a3a80"}
@@ -369,7 +457,7 @@ def slide_train():
     rect(s, 0, 640, W, 90, "#2a55a6", INK, 4, 14)
     rect(s, 0, 730, W, 70, "#1d3e7a", INK, 3)
     rect(s, 0, 800, W, 280, "#8a8f98")
-    person(s, 1060, 1070, 640, dict(SEIKO_VILLAGE, view="front", wave="r"))
+    bust(s, 1300, 760, 420, dict(SEIKO_VILLAGE, hood=True), look=-0.6)
     return s
 
 
@@ -456,8 +544,8 @@ def slide_platform():
     poly(s, [(0, 800), (W, 780), (W, H), (0, H)], "#b8b2a6", INK, 3)
     poly(s, [(0, 806), (W, 786), (W, 806), (0, 826)], "#e8c03a", None, 0)
     crowd(s, 10, 880, 1000, 240, 320, 91, ["#262a33", "#2c3550", "#3a3d44"], xr=(100, 700))
-    person(s, 1420, 1080, 600, dict(SEIKO_SUIT, view="front"))
-    person(s, 1700, 1040, 470, dict(OL, flip=True))
+    person(s, 1760, 1040, 470, dict(OL, flip=True))
+    bust(s, 1380, 800, 400, dict(SEIKO_SUIT, mouth="open"), look=-0.8)
     return s
 
 
@@ -479,7 +567,7 @@ def slide_office():
     # the red clock, one second past nine
     rect(s, 1540, 120, 280, 100, "#0b0d10", INK, 3, 6)
     text(s, 1680, 190, "09:00:01", 60, "#ff3b30", 700)
-    person(s, 960, 880, 560, dict(AKIO, view="front"))
+    bust(s, 960, 520, 330, dict(AKIO, mouth="flat"))
     # his desk across the front, long and black, and his name on it
     poly(s, [(420, 760), (1500, 760), (1560, 830), (360, 830)], "#111316", INK, 4)
     rect(s, 380, 830, 1160, 220, "#16181c", INK, 4)
