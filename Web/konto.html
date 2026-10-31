@@ -41467,7 +41467,7 @@ function storyOpening() {
   const train = storyTrain(), bed = train.userData.bed, tr = { s: -TRAIN_SET.L * 0.2, v: 0, a: 0 };
   const trainPlace = () => { const q = framePt(F, TR, 0, tr.s); train.position.set(q[0], floorY, q[2]); train.rotation.y = F.yaw; train.updateMatrixWorld(true); };
   { const q = framePt(F, TR, 0, 0); bed.position.set(q[0], floorY, q[2]); bed.rotation.y = F.yaw; }
-  scene.add(train); scene.add(bed); trainPlace(); train.visible = false;
+  scene.add(train); scene.add(bed); trainPlace(); train.visible = false; bed.visible = false;
   const trainGo = (dt) => { tr.v = Math.min(tr.v + tr.a * dt, 22); tr.s += tr.v * dt; trainPlace(); };
   // a point in the middle car, in its own frame, in the world
   const inCar = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(train.children[1].matrixWorld).toArray();
@@ -41502,7 +41502,7 @@ function storyOpening() {
       enter: () => toPlatform(), lines: [[0.3, "Seiko", "I will. I promise."]] },
     // 8. inside: Seiko on the bench, the doors shut, the family out of the window across the aisle
     { dur: 4.6, from: () => ({ pos: inCar(0.55, 1.35, -1.6), look: inCar(-1.0, 1.1, 0.6) }), to: () => ({ pos: inCar(0.45, 1.32, -1.2), look: inCar(-1.0, 1.12, 0.6) }), near: 0.03, timeScale: 1,
-      enter: () => { train.visible = true; tr.v = 0; tr.a = 0; seatSeiko(); }, tick: dt => { if (cut.t > 2.6) tr.a = 0.55; trainGo(dt); seatSeiko(); },
+      enter: () => { train.visible = true; bed.visible = true; tr.v = 0; tr.a = 0; seatSeiko(); }, tick: dt => { if (cut.t > 2.6) tr.a = 0.55; trainGo(dt); seatSeiko(); },
       lines: [[0.3, "", "♪ ドアが閉まります。 Doors closing."], [2.4, "Mother", "Seiko! Call us when you get there!"]] },
     // 9. over his shoulder, out of the window: the platform sliding away, the family waving, getting smaller
     { dur: 5.4, from: () => ({ pos: inCar(-0.75, 1.45, 0.35), look: inCar(3.0, 1.0, -1.6) }), to: () => ({ pos: inCar(-0.7, 1.45, 0.3), look: inCar(3.0, 1.0, -2.6) }), near: 0.03, timeScale: 1,
