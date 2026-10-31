@@ -1267,8 +1267,9 @@
 <script>
 /* The loading slideshow runs before anything else has loaded, so it is plain script with no help from the game. */
 (function () {
-  var S = ["loading/01_home.jpg", "loading/02_halt.jpg", "loading/03_train.jpg", "loading/04_concourse.jpg", "loading/05_street.jpg",
-           "loading/06_platform.jpg", "loading/07_office.jpg", "loading/08_akio.jpg", "loading/09_suit.jpg"];
+  // the pictures are listed in loading/index.json, so new ones can be dropped in without touching the page
+  var S = ["loading/01_mizuho.jpg", "loading/02_farewell.jpg", "loading/03_train.jpg", "loading/04_tokonto.jpg", "loading/05_scramble.jpg", "loading/06_platform.jpg", "loading/07_office.jpg", "loading/08_night.jpg"];
+  try { fetch("loading/index.json").then(function (r) { return r.json(); }).then(function (j) { if (j && j.slides && j.slides.length) S = j.slides.map(function (f) { return "loading/" + f; }); }).catch(function () {}); } catch (e) { /* the built-in list */ }
   var box = document.getElementById("bootshow"), boot = document.getElementById("boot"), i = 0, k = 0, timer = 0;
   function next() {
     if (boot.hidden) { timer = 0; return; }

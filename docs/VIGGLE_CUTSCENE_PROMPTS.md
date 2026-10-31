@@ -106,3 +106,18 @@ Anime style. A minimalist top-floor CEO office with floor-to-ceiling windows ove
 - If Viggle adds a 3D look, add "flat cel-shaded anime, no 3D render, no realism" to the scene prompt.
 - Plain backgrounds in the character image give the cleanest cut-outs. The in-game Ultra screenshots of Seiko against the sky work well.
 - Export at 1080p and upscale to 4K afterwards (Topaz or CapCut) if Viggle caps the resolution.
+
+---
+
+## Loading-screen slides (for an image generator)
+
+The loading screen shows the pictures in `Web/loading/`, in the order `Web/loading/index.json` lists them. The ones there now are drawn in code (`Tools/loading/draw_slides.py`). To swap in AI-made art, generate 1920x1080 images from these prompts, save them in that folder and list their names in `index.json`. Add this to every prompt: *"modern TV anime key visual, clean ink lines, two-tone cel shading, saturated, painted background, 16:9, 4K, no text"*.
+
+1. **Mizuho dawn.** Seiko (character sheet above, outfit A, bag on his shoulder) on a path between flooded rice terraces at sunrise, his family's wooden farmhouse behind him, layered blue mountains, pink-gold sky.
+2. **The farewell.** Seiko from behind on a one-platform country halt; his mother waving, his father with folded arms, his little sister jumping and waving; a small green-striped train arriving; cherry petals.
+3. **The train.** Seiko standing in a Japanese commuter car holding a hand strap, blue bench seats, rice paddies and mountains streaking past the windows.
+4. **Tōkonto.** The city skyline at sunrise from the bay, SOTI Tower tallest with a crown of light, a train crossing a viaduct in front.
+5. **The scramble.** Seiko in his suit and orange tie sprinting across a giant crossing through a crowd of salarymen, neon signs, speed lines, a sweat drop.
+6. **The platform.** Seiko and an office lady on a busy platform as a stainless train with a green stripe arrives, a departure board above.
+7. **The office.** Akio Sotiyama standing behind a long black desk in front of floor-to-ceiling windows over the city; Seiko seen from behind in the foreground; a red clock reading 09:00:01.
+8. **Night.** Seiko from behind walking down a narrow street of neon signs (capsule hotel, izakaya, bar) under a starry sky.
