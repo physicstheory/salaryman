@@ -1199,7 +1199,6 @@
         <button class="menu-btn" id="mfinish" type="button">Finish: on</button>
         <button class="menu-btn" id="mshadows" type="button">Shadows: on</button>
         <button class="menu-btn" id="mpcmode" type="button">PC mode: off</button>
-        <button class="menu-btn" id="mart" type="button">Art style: Anime</button>
         <button class="menu-btn" id="madapt" type="button">Adaptive graphics: on</button>
         <button class="menu-btn" id="mundo" type="button">Undo automatic graphics changes</button>
         <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
@@ -6957,7 +6956,7 @@ function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.s
 // few tones the way a background painter lays them in. Relief maps (the bumps in tarmac and plaster) are flattened, because a painted
 // world is smooth. The people, Seiko, the cars and the furniture are drawn with toon materials: one hard shadow edge, no glossy
 // reflections, which is also lighter work for the graphics card. The realistic style (Settings) loads everything as it was.
-function animeArt() { return gameSet.art !== "real"; }
+function animeArt() { return true; }           // the game's look; there is no other
 function animePaint(img) {
   try {
     const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
@@ -7605,14 +7604,12 @@ function initPause() {
   const syncSet = () => {
     const g = id => document.getElementById(id);
     if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
-    if (g("mart")) g("mart").textContent = "Art style: " + (animeOn() ? "Anime (cel shading, ink lines, painted colour)" : "Realistic");
     if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (lowers quality if the game is slow)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
-  on("mart", () => { gameSet.art = animeOn() ? "real" : "anime"; saveSettings(); syncSet(); say((animeOn() ? "Art style: anime." : "Art style: realistic.") + " The shading changes now; textures and models change the next time the game starts.", 6); });
   on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
   on("mpcmode", () => { pcModeApply(gameSet.pcMode === "low" ? "high" : gameSet.pcMode === "high" ? null : "low"); syncSet(); });
   on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
@@ -11506,7 +11503,7 @@ function postFlat(v) {
   return post.flat[v];
 }
 // The art style. Anime is the game's look; the realistic render is kept as an option in Settings.
-function animeOn() { return gameSet.art !== "real"; }
+function animeOn() { return true; }
 function runPass(mat, target) {
   post.quad.material = mat;
   renderer.setRenderTarget(target || null);
@@ -40784,7 +40781,8 @@ const _cutA = new THREE.Vector3(), _cutB = new THREE.Vector3(), _cutL = new THRE
 function cutTick(dt) {
   const s = cut.shots[cut.i];
   if (!s) { cutFinish(false); return; }
-  cut.t += dt;
+  // (a recording steps the scene to exact times; otherwise it runs on the clock)
+  if (cut.manual !== undefined) cut.t = cut.manual; else cut.t += dt;
   // skipping: held for most of a second, so a tap meant for something else does not throw the scene away
   const holding = cut.padHold || cut.keyHold;
   cut.hold = holding ? cut.hold + dt : 0;
@@ -40816,7 +40814,7 @@ function cutTick(dt) {
   updateTraffic(dt, camPos);
   updateRail(dt, camPos);
   present();
-  if (cut.t >= s.dur) cutNext();
+  if (cut.t >= s.dur && cut.manual === undefined) cutNext();
 }
 // the camera, looking from a place to a place, in a frame turned by yaw around a point: [right, up, forward] offsets
 function framePt(f, r, up, fw) { const sy = Math.sin(f.yaw), cy = Math.cos(f.yaw); return [f.x + cy * r + sy * fw, f.y + up, f.z - sy * r + cy * fw]; }
