@@ -11265,20 +11265,22 @@ vec3 animeLook(vec3 c, vec2 uv, vec2 px) {
   float d = linDepth(uv);
   float sky = step(uFar * 0.92, d);
   // painted: an edge-preserving average of the ring around the pixel, so grain and photo noise go and outlines stay
+  // two rings, near and wide, with a loose colour tolerance: texture grain (tarmac, plaster, grass) melts into one colour, while a real
+  // edge between two different colours is left alone
   vec3 acc = c; float wsum = 1.0;
-  for (int i = 0; i < 8; i++) {
-    float a = float(i) * 0.785398;
-    vec2 o = vec2(cos(a), sin(a)) * px * 2.2;
+  for (int i = 0; i < 12; i++) {
+    float a = float(i) * 0.5236 + (i >= 6 ? 0.26 : 0.0);
+    vec2 o = vec2(cos(a), sin(a)) * px * (i < 6 ? 2.5 : 5.5);
     vec3 q = texture2D(tColor, uv + o).rgb;
     vec3 dq = q - c;
-    float w = exp(-dot(dq, dq) * 38.0);
+    float w = exp(-dot(dq, dq) * 14.0);
     acc += q * w; wsum += w;
   }
   vec3 p = acc / wsum;
   // cel bands: the light in three soft steps, the colour kept
   float l = max(dot(p, vec3(0.2126, 0.7152, 0.0722)), 1e-4);
   float b = 0.10 + 0.30 * smoothstep(0.14, 0.20, l) + 0.30 * smoothstep(0.38, 0.45, l) + 0.32 * smoothstep(0.66, 0.74, l);
-  float lb = mix(l, b, 0.62);
+  float lb = mix(l, b, 0.5);
   vec3 cel = p * (lb / l);
   // colour: more of it, warm in the lights and a cool violet in the shade, which is the palette of the genre
   float lc = dot(cel, vec3(0.2126, 0.7152, 0.0722));
@@ -11295,7 +11297,7 @@ vec3 animeLook(vec3 c, vec2 uv, vec2 px) {
   float edgeD = smoothstep(0.06, 0.16, jump);
   vec3 cx = texture2D(tColor, uv + vec2(px.x, 0.0)).rgb - texture2D(tColor, uv - vec2(px.x, 0.0)).rgb;
   vec3 cy = texture2D(tColor, uv + vec2(0.0, px.y)).rgb - texture2D(tColor, uv - vec2(0.0, px.y)).rgb;
-  float edgeC = smoothstep(0.30, 0.55, length(cx) + length(cy)) * 0.55;
+  float edgeC = smoothstep(0.45, 0.80, length(cx) + length(cy)) * 0.5;
   float fade = 1.0 - smoothstep(60.0, 420.0, d);
   float ink = clamp(max(edgeD, edgeC) * fade * uLine, 0.0, 1.0) * (1.0 - sky);
   outc = mix(outc, outc * vec3(0.16, 0.15, 0.20), ink * 0.85);
