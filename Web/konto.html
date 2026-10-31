@@ -7982,7 +7982,7 @@ function buildScene(w) {
       shader.fragmentShader = shader.fragmentShader
         .replace("#include <common>", "#include <common>\nuniform vec2 ovSize;\nuniform vec2 ovOrigin;\n" + GDETAIL_GLSL)
         .replace("#include <map_fragment>",
-          "#include <map_fragment>\n  vec2 gp = ovOrigin + vec2(vUv.x, 1.0 - vUv.y) * ovSize;\n  diffuseColor.rgb *= gdLuma(gp, diffuseColor.rgb, 0.0, 1.0);");
+          "#include <map_fragment>\n  vec2 gp = ovOrigin + vec2(vUv.x, 1.0 - vUv.y) * ovSize;\n  diffuseColor.rgb *= mix(1.0, gdLuma(gp, diffuseColor.rgb, 0.0, 1.0), " + (animeArt() ? "0.25" : "1.0") + ");");
     };
     overlayMat.customProgramCacheKey = () => "konto-ground";
     const overlay = new THREE.Mesh(og, overlayMat);
@@ -36098,7 +36098,7 @@ function destGroundMat() {
   m.onBeforeCompile = shader => {
     shader.uniforms.gdetail = { value: groundDetail() };
     shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;").replace("#include <begin_vertex>", "#include <begin_vertex>\n  vTPos = position.xz;\n  vTSlope = 1.0 - clamp(normal.y, 0.0, 1.0);");
-    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;\n" + GDETAIL_GLSL).replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.rgb *= gdLuma(vTPos, diffuseColor.rgb, vTSlope * 1.6, 0.0);");
+    shader.fragmentShader = shader.fragmentShader.replace("#include <common>", "#include <common>\nvarying vec2 vTPos;\nvarying float vTSlope;\n" + GDETAIL_GLSL).replace("#include <color_fragment>", "#include <color_fragment>\n  diffuseColor.rgb *= mix(1.0, gdLuma(vTPos, diffuseColor.rgb, vTSlope * 1.6, 0.0), " + (animeArt() ? "0.25" : "1.0") + ");");
   };
   m.customProgramCacheKey = () => "konto-terrain";
   return m;
@@ -39126,6 +39126,7 @@ function inPhotoFill(g, kind, w, h, tint, n) {
 }
 // The surface of a painted wall: the plaster's texture laid into the paint without changing its colour.
 function inPhotoDetail(g, kind, w, h, a) {
+  if (animeArt()) return;                                 // painted walls are flat colour
   const im = inPhoto.img[kind]; if (!im) return;
   g.save(); g.globalCompositeOperation = "overlay"; g.globalAlpha = a || 0.55; g.drawImage(im, 0, 0, w, h); g.restore();
 }
@@ -39139,6 +39140,7 @@ function inPhotoSrc(kind) {
   return inPhoto.small[kind];
 }
 function inPhotoMat(kind, rough, rep, tint, bump) {
+  if (animeArt() && kind === "plaster") return null;     // the painted look has flat walls and ceilings
   const im = inPhotoSrc(kind); if (!im) return null;
   const t = new THREE.Texture(im); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); sharpTex(t); t.needsUpdate = true;
   const m = new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0 });
