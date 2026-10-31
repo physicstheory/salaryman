@@ -218,49 +218,53 @@
   .sw i { width: 11px; height: 11px; border: 1px solid rgba(0, 0, 0, 0.25); display: inline-block; }
 
   /* ---- loading ---- */
-  /* The splash is the game's own front, not a build report: the title at the
-     top, the island's name over it, and the progress reduced to a thin line
-     near the bottom where it belongs. */
-  #boot {
-    position: fixed;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background: #0a0b0d;
-    z-index: 20;
+  /* A slideshow of the story's people in their places, each picture drifting slowly across the screen and
+     dissolving into the next, with the progress tucked into the bottom right corner. */
+  #boot { position: fixed; inset: 0; background: #07080a; z-index: 40; overflow: hidden; }
+  #boot[hidden] { display: none; }
+  #bootshow { position: absolute; inset: 0; }
+  #bootshow .slide {
+    position: absolute; inset: -4%; background: center / cover no-repeat; opacity: 0;
+    transition: opacity 1.6s ease; will-change: transform, opacity;
   }
-  #boot .inner { text-align: center; padding: 0 16px; }
-  #boot h2 {
-    font: 800 clamp(40px, 7.4vw, 86px)/0.98 var(--ui);
-    letter-spacing: 0.02em;
-    margin: 0 0 clamp(18px, 3vh, 38px);
-    color: #f4f6f8;
+  #bootshow .slide.on { opacity: 1; }
+  #bootshow .k0 { animation: kb0 11s linear forwards; }
+  #bootshow .k1 { animation: kb1 11s linear forwards; }
+  #bootshow .k2 { animation: kb2 11s linear forwards; }
+  #bootshow .k3 { animation: kb3 11s linear forwards; }
+  @keyframes kb0 { from { transform: scale(1.02) translate(-2.2%, 0.6%); } to { transform: scale(1.10) translate(2.2%, -0.6%); } }
+  @keyframes kb1 { from { transform: scale(1.12) translate(2%, -1%); } to { transform: scale(1.03) translate(-1.6%, 0.8%); } }
+  @keyframes kb2 { from { transform: scale(1.04) translate(1.8%, 1.2%); } to { transform: scale(1.11) translate(-2%, -0.8%); } }
+  @keyframes kb3 { from { transform: scale(1.10) translate(-1.6%, -1.2%); } to { transform: scale(1.02) translate(1.8%, 1%); } }
+  #boot::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.38) 100%),
+                linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0) 22%);
   }
-  /* The artwork sits under the title and above the bar, sized off the
-     viewport height so it never pushes the bar off a short window. */
-  #bootsign { display: block; width: min(640px, 80vw); height: auto; margin: 0 auto; }
-  #bootart {
-    display: block;
-    width: min(760px, 78vw);
-    max-height: 46vh;
-    object-fit: contain;
-    margin: 0 auto;
-    filter: drop-shadow(0 18px 40px rgba(0,0,0,0.55));
+  #bootload {
+    position: absolute; right: clamp(22px, 3.2vw, 56px); bottom: clamp(20px, 4.2vh, 52px); z-index: 2;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 9px;
   }
-  #bootbar {
-    width: min(340px, 64vw); height: 3px; border-radius: 2px;
-    background: rgba(255,255,255,0.12); margin: clamp(20px, 4vh, 44px) auto 0;
-    overflow: hidden;
-  }
-  #bootbar i { display: block; height: 100%; width: 0; background: #e7ebee; transition: width 0.2s linear; }
+  #bootload .row { display: flex; align-items: center; gap: 12px; }
   #bootstage {
-    font-family: var(--data);
-    font-size: 10px;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: #5d646c;
-    margin-top: 12px;
-    min-height: 1.4em;
+    font: 700 clamp(12px, 1.05vw, 15px)/1 var(--ui); letter-spacing: 0.06em; color: #f2f4f6;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8); margin: 0; min-height: 0;
+  }
+  #bootspin {
+    width: 20px; height: 20px; border-radius: 50%; box-sizing: border-box;
+    border: 3px solid rgba(255,255,255,0.25); border-top-color: #fff; animation: bootspin 0.9s linear infinite;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
+  }
+  @keyframes bootspin { to { transform: rotate(360deg); } }
+  #bootbar {
+    width: clamp(180px, 19vw, 300px); height: 5px; border-radius: 3px; overflow: hidden;
+    background: rgba(255,255,255,0.22); box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+  }
+  #bootbar i { display: block; height: 100%; width: 0; background: #ffffff; transition: width 0.3s linear; }
+  #bootname {
+    position: absolute; left: clamp(22px, 3.2vw, 56px); bottom: clamp(18px, 4vh, 48px); z-index: 2;
+    font: 900 clamp(16px, 1.6vw, 24px)/1 var(--ui); letter-spacing: 0.14em; color: rgba(255,255,255,0.86);
+    text-shadow: 0 2px 6px rgba(0,0,0,0.8);
   }
 
   @media (max-width: 760px) {
@@ -1253,12 +1257,42 @@
 </div>
 
 <div id="boot">
-  <div class="inner">
-    <canvas id="bootsign" width="760" height="330"></canvas>
+  <div id="bootshow"></div>
+  <div id="bootname">SALARY MAN</div>
+  <div id="bootload">
+    <div class="row"><p id="bootstage">Loading</p><b id="bootspin"></b></div>
     <div id="bootbar"><i></i></div>
-    <p id="bootstage">starting</p>
   </div>
 </div>
+<script>
+/* The loading slideshow runs before anything else has loaded, so it is plain script with no help from the game. */
+(function () {
+  var S = ["loading/01_home.jpg", "loading/02_halt.jpg", "loading/03_train.jpg", "loading/04_concourse.jpg", "loading/05_street.jpg",
+           "loading/06_platform.jpg", "loading/07_office.jpg", "loading/08_akio.jpg", "loading/09_suit.jpg"];
+  var box = document.getElementById("bootshow"), boot = document.getElementById("boot"), i = 0, k = 0, timer = 0;
+  function next() {
+    if (boot.hidden) { timer = 0; return; }
+    var src = S[i++ % S.length], img = new Image();
+    img.onload = function () {
+      var d = document.createElement("div"); d.className = "slide k" + (k++ % 4); d.style.backgroundImage = "url('" + src + "')";
+      box.appendChild(d); void d.offsetWidth; d.classList.add("on");
+      while (box.children.length > 2) box.removeChild(box.firstChild);
+      timer = setTimeout(next, 7000);
+    };
+    img.onerror = function () { timer = setTimeout(next, 400); };
+    img.src = src;
+  }
+  window.loadShow = function (on, text, t) {
+    boot.hidden = !on;
+    if (on) {
+      if (text != null) document.getElementById("bootstage").textContent = text;
+      if (t != null) document.querySelector("#bootbar i").style.width = Math.round(Math.max(0, Math.min(1, t)) * 100) + "%";
+      if (!timer) next();
+    }
+  };
+  i = (Math.random() * S.length) | 0; next();
+})();
+</script>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -6751,7 +6785,7 @@ function boot(stageText, t) {
   const bar = document.querySelector("#bootbar i");
   const label = document.getElementById("bootstage");
   if (bar) bar.style.width = Math.round(clamp01(t) * 100) + "%";
-  if (label) label.textContent = stageText;
+  if (label) label.textContent = t >= 1 ? "Loading" : "Loading Tōkonto";
 }
 
 function initThree() {
@@ -38685,7 +38719,7 @@ function frameLoop() {
 function generate(seed) {
   const btn = document.getElementById("regen");
   btn.disabled = true;
-  document.getElementById("boot").hidden = false;
+  loadShow(true, "Loading Tōkonto", 0);
   const stages = [];
   const report = (text, t) => stages.push([text, t]);
 
@@ -38930,6 +38964,7 @@ function interiorEnterStore(sp) {
   interior.shop = S;
   interiorShowRoom(room, { x: 0, z: IN_D / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
   say("Irasshaimase!", 2.5);
+  if (brand === "clothes") setTimeout(() => { if (interior.active && interior.shop === S) suitTradeOffer(); }, 1200);
 }
 function interiorReturnToConcourse() {
   const st = interior.stack; if (!st) return;
@@ -40554,17 +40589,18 @@ function interiorCardDraw() {
   const it = c.e.it, el = interior.cardEl;
   const info = (typeof ITEM !== "undefined" && ITEM[it.id]) ? ITEM[it.id] : {};
   const note = it.note || info.note || "";
-  const can = purse.yen >= it.price;
+  const pr = it.outfit ? outfitPrice(it) : { cost: it.price, credit: 0 }, can = purse.yen >= pr.cost;
+  const priceTxt = pr.credit ? yenText(pr.cost) + " with trade-in" : yenText(it.price);
   let btns = "";
   if (c.ask) {
     btns = "<button data-a='ask0'" + (c.ask.choice === 0 ? " class='on'" : "") + ">" + askVerb(it) + "</button><button data-a='ask1'" + (c.ask.choice === 1 ? " class='on'" : "") + ">Keep it for later</button>";
   } else if (c.mode === "wear") {
-    btns = "<button data-a='buy' class='" + (can ? "on" : "dim") + "'>Buy it  " + yenText(it.price) + "</button><button data-a='try'>Take it off</button><button data-a='back'>Back</button>";
+    btns = "<button data-a='buy' class='" + (can ? "on" : "dim") + "'>Buy it  " + priceTxt + "</button><button data-a='try'>Take it off</button><button data-a='back'>Back</button>";
   } else {
-    btns = "<button data-a='buy' class='" + (can ? "on" : "dim") + "'>Buy  " + yenText(it.price) + "</button>" + (inTryable(it) ? "<button data-a='try'>" + inTryLabel(it) + "</button>" : "") + "<button data-a='back'>Back</button>";
+    btns = "<button data-a='buy' class='" + (can ? "on" : "dim") + "'>Buy  " + priceTxt + "</button>" + (inTryable(it) ? "<button data-a='try'>" + inTryLabel(it) + "</button>" : "") + "<button data-a='back'>Back</button>";
   }
   const keys = c.ask ? "◀ ▶ choose   Enter confirm   Esc back" : "Enter buy" + (inTryable(it) ? "   T " + inTryLabel(it).toLowerCase() : "") + "   ◀ ▶ next item   Esc back";
-  el.innerHTML = "<div class='ih'><b>" + it.name + "</b><i>" + yenText(it.price) + "</i></div><div class='in'>" + (note || "&nbsp;") + "</div><div class='ib'>" + btns + "</div><div class='ik'>" + keys + "   ·   You have " + yenText(purse.yen) + "</div>";
+  el.innerHTML = "<div class='ih'><b>" + it.name + "</b><i>" + yenText(it.price) + "</i></div><div class='in'>" + (pr.credit ? "Trade in the clothes you came in: −" + yenText(pr.credit) + ". " : "") + (note || "&nbsp;") + "</div><div class='ib'>" + btns + "</div><div class='ik'>" + keys + "   ·   You have " + yenText(purse.yen) + "</div>";
   el.classList.add("on");
   el.querySelectorAll("button").forEach(b => b.addEventListener("click", () => interiorAction(b.dataset.a)));
 }
@@ -41121,13 +41157,29 @@ STORE_SHELVES.street = [{ name: "Streetwear", items: [
 [IN_THEME, IN_SKIN, IN_ADS, IN_FONT, IN_PROP_SETS].forEach(T => { if (T && T.clothes && !T.street) T.street = T.clothes; });
 if (typeof IN_ACCENT === "object") IN_ACCENT.street = "#14171b";
 if (INTERIOR_BRANDS.indexOf("street") < 0) INTERIOR_BRANDS.push("street");
+// The trade-in goes by what he came in wearing, not what is on him this minute: trying a suit on in front of the mirror put the suit on him,
+// and the shop then thought he had nothing to trade.
+function inSuitShop() { return !!(shops.inside && shops.inside.brand === "clothes" || (interior.active && interior.shop && interior.shop.brand === "clothes")); }
+function tradeInOK() { return !story.flags.tradedIn && !SUIT_IDS.some(id => story.owned && story.owned[id]) && /^village/.test(story.wearing || "village"); }
+function outfitPrice(it) {
+  const credit = inSuitShop() && SUIT_IDS.indexOf(it.outfit) >= 0 && tradeInOK() && !story.owned[it.outfit] ? TRADE_IN : 0;
+  return { credit: credit, cost: Math.max(0, it.price - credit) };
+}
+// Walking into Suit Select in the clothes from home, the assistant makes the offer, with the suits at the trade-in price.
+function suitTradeOffer() {
+  if (!tradeInOK() || !inSuitShop() || interior.modal) return;
+  const sh = (STORE_SHELVES.clothes || []).find(x => x.name === "Suits"); if (!sh) return;
+  interior.modal = { kind: "custom", head: "Suit Select · Trade-in", sel: 0,
+    body: "Assistant: “Welcome! Interview today? We'll take the clothes you're wearing for " + yenText(TRADE_IN) + " off any suit, and you can change here.” You have " + yenText(purse.yen) + ".",
+    opts: sh.items.map(it => { const c = Math.max(0, it.price - TRADE_IN); return [it.id, it.name + "  ·  " + yenText(c) + (purse.yen < c ? "  (not enough)" : ""), () => { interior.modal = null; interior.cardEl.classList.remove("on"); outfitBuy(it); }]; })
+      .concat([["look", "Just looking, thanks", () => { interior.modal = null; interior.cardEl.classList.remove("on"); }]]) };
+  interiorModalDraw();
+}
 function outfitBuy(it) {
-  const inSuitShop = shops.inside && shops.inside.brand === "clothes" || (interior.shop && interior.shop.brand === "clothes");
-  const credit = inSuitShop && SUIT_IDS.indexOf(it.outfit) >= 0 && player.outfit === "village" && !story.flags.tradedIn ? TRADE_IN : 0;
-  const cost = Math.max(0, it.price - credit);
+  const shop = inSuitShop(), pr = outfitPrice(it), credit = pr.credit, cost = pr.cost;
   if (story.owned[it.outfit]) { seikoOutfit(it.outfit); return true; }
-  if (purse.yen < cost) { say("Not enough for that. " + yenText(cost) + (credit ? " after the trade-in" : "") + "; you have " + yenText(purse.yen) + "." + (!credit && player.outfit === "village" && SUIT_IDS.indexOf(it.outfit) >= 0 ? " Suit Select will take your village clothes against a suit." : ""), 6); return true; }
-  purse.yen -= cost; noteBuy(inSuitShop ? "clothes" : "street", cost);
+  if (purse.yen < cost) { say("Not enough for that. " + yenText(cost) + (credit ? " after the trade-in" : "") + "; you have " + yenText(purse.yen) + "." + (!credit && tradeInOK() && SUIT_IDS.indexOf(it.outfit) >= 0 ? " Suit Select will take your village clothes against a suit." : ""), 6); return true; }
+  purse.yen -= cost; noteBuy(shop ? "clothes" : "street", cost);
   story.owned[it.outfit] = true;
   if (credit) { story.flags.tradedIn = true; say("Traded in your village clothes for " + yenText(TRADE_IN) + " · " + it.name + " " + yenText(it.price) + " · you pay " + yenText(cost) + ". Changing…", 6); }
   else say(it.name + " · " + yenText(cost) + ". Changing…", 4);
@@ -41212,21 +41264,138 @@ function hhmm(m) { m = ((m % 1440) + 1440) % 1440; return two(Math.floor(m / 60)
 const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
 // New game: the dream on the train out of Mizuho, then Tōkonto Central.
 function storyNewGame() {
-  story.m = 1; story.step = "intro"; story.flags = {}; story.owned = { village: true }; storyClearBlips(); storyClearObjective();
+  story.m = 1; story.step = "intro"; story.flags = {}; story.owned = { village: true }; story.wearing = "village"; storyClearBlips(); storyClearObjective();
   purse.yen = 2400;
   // He leaves home in his village clothes. The story does not start until he is wearing them and the people are on the street
   // (the family and the crowd are real people; begun any earlier it was the old stand-in body in a white shirt, and a station of copies of it).
   player.outfitWant = "village"; if (wardrobe.list) seikoOutfit("village", true);
   const fade = document.getElementById("fade"); if (fade) { fade.style.transition = "none"; fade.style.opacity = "1"; }
-  const go = () => { try { storyOpening(); } catch (e) { console.warn("[Konto] the opening could not play:", e); storyWake(true); } };
+  const go = () => { loadShow(false); try { storyOpening(); } catch (e) { console.warn("[Konto] the opening could not play:", e); storyWake(true); } };
   let n = 0; const wait = () => {
     if (wardrobe.list && player.outfit !== "village" && !wardrobe.loading) seikoOutfit("village", true);
     const cast = ["woman_05", "woman_03", "salaryman_03"].every(k => pplLib.ready.some(e => e.name === k));
     const ready = (cast || pplLib.ready.length >= 16) && player.hq && player.outfit === "village" && !wardrobe.loading;
     if (ready || n++ > 400) go();                    // a minute at the very most
-    else { if (n % 20 === 1) say("Loading…", 3); setTimeout(wait, 150); }
+    else { loadShow(true, "Loading story", Math.min(0.98, 0.15 + Math.min(1, pplLib.ready.length / 19) * 0.6 + (player.hq ? 0.15 : 0) + (player.outfit === "village" ? 0.1 : 0))); setTimeout(wait, 150); }
   };
   wait();
+}
+// ---- the train out of Mizuho: a carriage built for the opening ----------------------------------------------------------------------------
+// Mizuho's halt has no rails in the world, so the opening brings its own: a three-car local on a short length of track, and the middle car
+// fitted out inside the way a Japanese commuter car is: long blue bench seats under the windows, hand straps on a rail, poles by the doors,
+// adverts over the windows, light strips in a white ceiling. Seiko sits on the far bench and his family are out of the window opposite.
+// Local frame: +z along the track, +x to the platform side, y up from the floor.
+const TRAIN_SET = { L: 20, W: 2.9, H: 2.4, gap: 0.6 };
+// Some hundreds of boxes become one mesh per material (the adverts and the glass stay as they are): a car was 250 draw calls, twice over
+// with the outlines, and the opening crawled on a weak machine.
+function mergeByMaterial(root) {
+  root.updateMatrixWorld(true);
+  const inv = root.matrixWorld.clone().invert(), buckets = new Map(), done = [];
+  root.traverse(o => {
+    if (!o.isMesh || o.isInstancedMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    if (mats.some(m => m.map || m.transparent)) return;
+    const g = o.geometry.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld)), gi = g.index ? g.toNonIndexed() : g;
+    const p = gi.getAttribute("position"), nr = gi.getAttribute("normal");
+    const groups = g.groups.length ? g.groups : [{ start: 0, count: g.index ? g.index.count : p.count, materialIndex: 0 }];
+    groups.forEach(gr => {
+      const m = mats[gr.materialIndex || 0] || mats[0];
+      if (!buckets.has(m)) buckets.set(m, { pos: [], nor: [] });
+      const b = buckets.get(m);
+      for (let i = gr.start; i < gr.start + gr.count; i++) { b.pos.push(p.getX(i), p.getY(i), p.getZ(i)); b.nor.push(nr.getX(i), nr.getY(i), nr.getZ(i)); }
+    });
+    g.dispose(); if (gi !== g) gi.dispose();
+    done.push(o);
+  });
+  done.forEach(o => o.parent.remove(o));
+  buckets.forEach((b, m) => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.Float32BufferAttribute(b.pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(b.nor, 3));
+    root.add(new THREE.Mesh(g, m));
+  });
+  return root;
+}
+function storyTrain() {
+  if (storyTrain.g) return storyTrain.g;
+  const g = new THREE.Group(), { L, W, H } = TRAIN_SET;
+  const M = (c, o) => new THREE.MeshStandardMaterial(Object.assign({ color: c, roughness: 0.7, metalness: 0 }, o || {}));
+  const silver = M(0xc9ced4, { roughness: 0.4, metalness: 0.3 }), cream = M(0xe9e5da), floorM = M(0x5f6670), ceil = M(0xf4f3ef),
+    seatM = M(0x2a55a6, { roughness: 0.95 }), seatEdge = M(0x7d8590), green = M(0x18a058), steel = M(0xb8bec6, { roughness: 0.3, metalness: 0.6 }),
+    strap = M(0xf2f2f2), glow = new THREE.MeshBasicMaterial({ color: 0xfffbea }), dark = M(0x1d232b), glass = new THREE.MeshBasicMaterial({ color: 0x9fc4d8, transparent: true, opacity: 0.12, depthWrite: false });
+  // a box whose faces can differ: [+x, -x, +y, -y, +z, -z]
+  const box = (root, w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); root.add(m); return m; };
+  const car = (lead) => {
+    const c = new THREE.Group();
+    box(c, W, 0.12, L, 0, -0.06, 0, [silver, silver, floorM, silver, silver, silver]);
+    box(c, W, 0.1, L, 0, H + 0.05, 0, [silver, silver, silver, ceil, silver, silver]);
+    box(c, W + 0.06, 0.28, L, 0, H + 0.24, 0, silver);                                   // the roof, with its curve suggested
+    [-0.55, 0.55].forEach(x => box(c, 0.16, 0.03, L - 1, x, H - 0.01, 0, glow));          // light strips
+    // the sides: the faces outside are stainless with a green line, inside they are cream
+    [-1, 1].forEach(sd => {
+      const out = [silver, cream], wall = sd > 0 ? out : [cream, silver];
+      const mats = [wall[0], wall[1], silver, silver, silver, silver], x = sd * W / 2;
+      box(c, 0.06, 0.88, L, x, 0.44, 0, mats);
+      box(c, 0.07, 0.12, L, x + sd * 0.005, 0.72, 0, [sd > 0 ? green : cream, sd > 0 ? cream : green, green, green, green, green]);
+      box(c, 0.06, H - 2.0, L, x, 2.0 + (H - 2.0) / 2, 0, mats);
+      // doors at three places, windows between, pillars between the windows
+      const doors = [-6.6, 0, 6.6], dw = 1.3;
+      doors.forEach(z => {
+        box(c, 0.07, 1.0, dw, x, 1.38, z, mats); box(c, 0.065, 0.95, 0.04, x, 1.38, z, dark);   // the door's lower glass and the seam
+        box(c, 0.04, 2.0, 0.04, x - sd * 0.25, 1.0, z - dw / 2 - 0.05, steel); box(c, 0.04, 2.0, 0.04, x - sd * 0.25, 1.0, z + dw / 2 + 0.05, steel);
+      });
+      const edges = [-L / 2, doors[0] - dw / 2, doors[0] + dw / 2, doors[1] - dw / 2, doors[1] + dw / 2, doors[2] - dw / 2, doors[2] + dw / 2, L / 2];
+      for (let k = 0; k < edges.length; k += 2) {
+        const a = edges[k], b = edges[k + 1], len = b - a, n = Math.max(1, Math.floor(len / 1.75)), pil = 0.28, ww = (len - (n + 1) * pil) / n;
+        for (let i = 0; i <= n; i++) box(c, 0.07, 1.12, pil, x, 1.44, a + pil / 2 + i * (ww + pil), mats);
+        const gl = new THREE.Mesh(new THREE.PlaneGeometry(len, 1.12), glass); gl.position.set(x, 1.44, (a + b) / 2); gl.rotation.y = Math.PI / 2; c.add(gl);
+        // the long seat under these windows, and its back
+        if (len > 2) {
+          box(c, 0.5, 0.12, len - 0.3, x - sd * 0.32, 0.43, (a + b) / 2, seatM);
+          box(c, 0.1, 0.36, len - 0.3, x - sd * 0.06, 0.66, (a + b) / 2, seatM);
+          box(c, 0.46, 0.36, len - 0.3, x - sd * 0.32, 0.18, (a + b) / 2, seatEdge);
+        }
+      }
+      // the strap rail, and the straps
+      box(c, 0.03, 0.03, L - 1.2, x - sd * 0.55, 1.95, 0, steel);
+      for (let z = -L / 2 + 0.9; z < L / 2 - 0.8; z += 0.55) {
+        box(c, 0.025, 0.2, 0.012, x - sd * 0.55, 1.83, z, strap);
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 14), strap); ring.position.set(x - sd * 0.55, 1.69, z); ring.rotation.y = Math.PI / 2; c.add(ring);
+      }
+      // adverts over the windows
+      [["SOTI — Make it yours.", "#0d1117", "#ffffff"], ["Noodle — ask it anything", "#ffffff", "#d23a2a"], ["11 Eleven  ·  open all night", "#0a6b42", "#ffffff"], ["Expedio — fly for less", "#1b2b6b", "#ffd21c"]].forEach((ad, i) => {
+        const lb = inLabel(ad[0], 1.6, 0.26, ad[1], ad[2]); lb.position.set(x - sd * 0.04, 2.18, -7.8 + i * 4.6); lb.rotation.y = -sd * Math.PI / 2; c.add(lb);
+      });
+    });
+    // the ends: a bulkhead with a door and its window
+    [-1, 1].forEach(e => {
+      const z = e * L / 2;
+      box(c, (W - 0.9) / 2, H, 0.06, -W / 2 + (W - 0.9) / 4, H / 2, z, [cream, cream, cream, cream, e > 0 ? silver : cream, e > 0 ? cream : silver]);
+      box(c, (W - 0.9) / 2, H, 0.06, W / 2 - (W - 0.9) / 4, H / 2, z, [cream, cream, cream, cream, e > 0 ? silver : cream, e > 0 ? cream : silver]);
+      box(c, 0.9, 1.0, 0.05, 0, 0.5, z, dark); box(c, 0.9, H - 1.9, 0.05, 0, 1.9 + (H - 1.9) / 2, z, cream);
+    });
+    if (lead) {
+      // a driving cab: a raked face with a black windscreen and the headlights
+      box(c, W, 1.3, 0.5, 0, 0.65, L / 2 + 0.25, silver);
+      const ws = box(c, W - 0.1, 1.0, 0.08, 0, 1.75, L / 2 + 0.32, dark); ws.rotation.x = -0.25;
+      box(c, W, 0.14, 0.52, 0, 0.9, L / 2 + 0.26, green);
+      [-1, 1].forEach(sd => box(c, 0.3, 0.12, 0.05, sd * 1.0, 0.45, L / 2 + 0.52, glow));
+    }
+    // the bogies, so it stands on something
+    [-L / 2 + 3, L / 2 - 3].forEach(z => box(c, W - 0.5, 0.55, 2.6, 0, -0.4, z, dark));
+    return mergeByMaterial(c);
+  };
+  const pitch = L + TRAIN_SET.gap;
+  [-1, 0, 1].forEach(k => { const c = car(k === 1); c.position.z = k * pitch; g.add(c); });
+  // the track it stands on: a ballast bed with sleepers and two rails, long enough for it to pull away along
+  const bed = new THREE.Group(), len = 700;
+  box(bed, 3.4, 0.3, len, 0, -1.0, len / 2 - 60, M(0x8a8478, { roughness: 1 }));
+  [-0.76, 0.76].forEach(x => box(bed, 0.08, 0.14, len, x, -0.8, len / 2 - 60, steel));
+  const sl = new THREE.InstancedMesh(new THREE.BoxGeometry(2.4, 0.1, 0.22), M(0x5a4a3a), Math.floor(len / 0.65));
+  const mtx = new THREE.Matrix4(); for (let i = 0; i < sl.count; i++) { mtx.makeTranslation(0, -0.86, -60 + i * 0.65); sl.setMatrixAt(i, mtx); }
+  bed.add(sl);
+  g.userData.bed = bed;
+  toonify(g); toonify(bed);
+  return (storyTrain.g = g);
 }
 // The opening. Dawn breaking over Mizuho's valley, the title, Seiko stepping out of the family home in his village clothes with his bag, the
 // farewell at the halt (his mother, his little sister, his father, each in close), the window as the train pulls away and the family gets small,
@@ -41262,6 +41431,16 @@ function storyOpening() {
   const capPt = (d, h) => [tgt[0] - Math.sin(fromSea) * d, tgt[1] + h, tgt[2] - Math.cos(fromSea) * d];
   placeSeiko(new THREE.Vector3(out[0], out[1], out[2])); player.placed = true;
   if (player.obj) player.obj.visible = false;
+  // the train: its track beside the platform, on the far side of Seiko from his family; it pulls away along +fw
+  const TR = -1.75, floorY = (onRail ? F.y + pf : world.surfaceY(at(TR, 0)[0], at(TR, 0)[2])) + (onRail ? 0 : 1.1);
+  const train = storyTrain(), bed = train.userData.bed, tr = { s: -TRAIN_SET.L * 0.2, v: 0, a: 0 };
+  const trainPlace = () => { const q = framePt(F, TR, 0, tr.s); train.position.set(q[0], floorY, q[2]); train.rotation.y = F.yaw; train.updateMatrixWorld(true); };
+  { const q = framePt(F, TR, 0, 0); bed.position.set(q[0], floorY, q[2]); bed.rotation.y = F.yaw; }
+  scene.add(train); scene.add(bed); trainPlace();
+  const trainGo = (dt) => { tr.v = Math.min(tr.v + tr.a * dt, 22); tr.s += tr.v * dt; trainPlace(); };
+  // a point in the middle car, in its own frame, in the world
+  const inCar = (x, y, z) => new THREE.Vector3(x, y, z).applyMatrix4(train.children[1].matrixWorld).toArray();
+  const seatSeiko = () => { const p = inCar(-TRAIN_SET.W / 2 + 0.42, 0, 0.6); placeSeiko(new THREE.Vector3(p[0], p[1], p[2])); player.yaw = player.targetYaw = F.yaw + Math.PI / 2; player.obj.rotation.y = player.yaw; player.obj.visible = true; player.forceClip = "sit"; };
   const title = "<div class='ttl'><div class='t1'>SALARY MAN</div><div class='t2'>サラリーマン</div><div class='t3'>Chapter 1 · The Interview</div></div>";
   const win = (fw, look) => ({ pos: lift(at(1.7, fw), 1.25), look: lift(at(6.2, look), 1.3) });
   cutPlay([
@@ -41290,17 +41469,26 @@ function storyOpening() {
     // 7. Seiko, close, the sun on his face
     { dur: 3.4, from: () => ({ pos: [me[0] + Math.sin(player.yaw) * 1.0 + 0.3, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 1.0], look: [me[0], me[1] + 1.55, me[2]] }), to: () => ({ pos: [me[0] + Math.sin(player.yaw) * 0.8 + 0.25, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 0.8], look: [me[0], me[1] + 1.56, me[2]] }), near: 0.05, overlay: "glow", timeScale: 2,
       enter: () => toPlatform(), lines: [[0.3, "Seiko", "I will. I promise."]] },
-    // 8. through the train window as it pulls away: the family waving, getting smaller
-    { dur: 5.0, from: win(-1.5, 0), to: win(24, 1), overlay: "dream window", timeScale: 0,
-      enter: () => { player.obj.visible = false; dad.pose = "wave"; }, lines: [[0.8, "", "Mizuho."], [2.6, "Sister", "Bye bye! Byeee!"]] },
-    // 9. over the mountains
-    { dur: 4.4, from: () => ({ pos: lift(at(-60, -120), 70), look: lift(at(0, 30), 0) }), to: () => ({ pos: lift(at(-90, -300), 160), look: lift(at(0, 200), 60) }), overlay: "glow", timeScale: 0,
-      lines: [[0.8, "", "Seiko watched the village until the mountains took it."]] },
+    // 8. inside: Seiko on the bench, the doors shut, the family out of the window across the aisle
+    { dur: 4.6, from: () => ({ pos: inCar(0.55, 1.35, -1.6), look: inCar(-1.0, 1.1, 0.6) }), to: () => ({ pos: inCar(0.45, 1.32, -1.2), look: inCar(-1.0, 1.12, 0.6) }), near: 0.03, timeScale: 1,
+      enter: () => { tr.v = 0; tr.a = 0; seatSeiko(); }, tick: dt => { if (cut.t > 2.6) tr.a = 0.55; trainGo(dt); seatSeiko(); },
+      lines: [[0.3, "", "♪ ドアが閉まります。 Doors closing."], [2.4, "Mother", "Seiko! Call us when you get there!"]] },
+    // 9. over his shoulder, out of the window: the platform sliding away, the family waving, getting smaller
+    { dur: 5.4, from: () => ({ pos: inCar(-0.75, 1.45, 0.35), look: inCar(3.0, 1.0, -1.6) }), to: () => ({ pos: inCar(-0.7, 1.45, 0.3), look: inCar(3.0, 1.0, -2.6) }), near: 0.03, timeScale: 1,
+      enter: () => { dad.pose = "wave"; }, tick: dt => { tr.a = 0.7; trainGo(dt); seatSeiko(); },
+      lines: [[0.4, "Sister", "Bye bye, Onii-chan! Byeee!"], [3.0, "", "Mizuho."]] },
+    // 10. Seiko, close, by the window, the morning flickering over him
+    { dur: 4.4, from: () => ({ pos: inCar(-0.2, 1.22, 1.35), look: inCar(-1.0, 1.18, 0.6) }), to: () => ({ pos: inCar(-0.25, 1.22, 1.2), look: inCar(-1.0, 1.18, 0.6) }), near: 0.03, overlay: "glow", timeScale: 1,
+      tick: dt => { tr.a = 0.9; trainGo(dt); seatSeiko(); }, lines: [[0.5, "", "Seiko watched the village until the mountains took it."]] },
+    // 11. outside: the little train running out of the valley in the low sun
+    { dur: 4.6, from: () => ({ pos: lift(framePt(F, TR - 40, 0, tr.s - 30), floorY - F.y + 22), look: framePt(F, TR, floorY - F.y, tr.s + 10) }),
+      to: () => ({ pos: lift(framePt(F, TR - 55, 0, tr.s - 60), floorY - F.y + 45), look: framePt(F, TR, floorY - F.y, tr.s + 40) }), overlay: "glow", timeScale: 0,
+      enter: () => { player.obj.visible = false; player.forceClip = null; tr.v = Math.max(tr.v, 12); actorsClear("family"); }, tick: dt => { tr.a = 1.2; trainGo(dt); } },
     // 10. the capital, waking up
     { dur: 6.4, from: () => ({ pos: capPt(1500, 160), look: [tgt[0], tgt[1] + 120, tgt[2]] }), to: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), linear: true, timeScale: 0,
       enter: () => setGameTime(7 * 60 + 15), lines: [[0.8, "", "Tōkonto."], [3.0, "", "Fourteen million people. And somewhere in it, a job with his name on it."]] },
     { dur: 3.0, from: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), to: () => ({ pos: capPt(880, 116), look: [tgt[0], tgt[1] + 152, tgt[2]] }), overlay: "white", timeScale: 0 }
-  ], skipped => { actorsClear("family"); player.forceClip = null; storyWake(skipped); });
+  ], skipped => { actorsClear("family"); scene.remove(train); scene.remove(bed); player.forceClip = null; storyWake(skipped); });
 }
 // He wakes on a bench on the concourse at Tōkonto Central, to his phone buzzing.
 function storyWake(quick) {
