@@ -82,7 +82,9 @@
     // indoors (the shop rooms sit far outside the island): no rain in the room
     const inside = typeof interior !== "undefined" && interior.active;
     e.weather.rain.visible = e.weather.rain.visible && !inside;
-    e.update(paused ? 0 : dt, _focus);
+    if (typeof cut !== "undefined" && cut.active && typeof story !== "undefined" && story.step === "intro") {
+      if (!paused && dt > 0) { e.env.update(dt,camPos); e.weather.update(dt,camPos); e.surfaces.update(dt); }
+    } else e.update(paused ? 0 : dt, _focus);
     if (inside) { e.weather.rain.visible = false; e.weather.splash.visible = false; }
     dimLights(e.weather.cur.cloud, e.env.flash);
   };

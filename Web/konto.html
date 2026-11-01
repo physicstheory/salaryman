@@ -1260,40 +1260,11 @@
   <div id="bootshow"></div>
   <div id="bootname"><img src="art/logo.png" alt="Salary Man"></div>
   <div id="bootload">
-    <div class="row"><p id="bootstage">Loading</p><b id="bootspin"></b></div>
-    <div id="bootbar"><i></i></div>
+    <div class="row"><p id="bootstage" role="status" aria-live="polite">Loading</p><b id="bootspin"></b></div>
+    <div id="bootbar" role="progressbar" aria-label="Loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
   </div>
 </div>
-<script>
-/* The loading slideshow runs before anything else has loaded, so it is plain script with no help from the game. */
-(function () {
-  // the pictures are listed in loading/index.json, so new ones can be dropped in without touching the page
-  var S = ["loading/city-cast.jpg", "loading/family-cast.jpg"];
-  try { fetch("loading/index.json").then(function (r) { return r.json(); }).then(function (j) { if (j && j.slides && j.slides.length) S = j.slides.map(function (f) { return "loading/" + f; }); }).catch(function () {}); } catch (e) { /* the built-in list */ }
-  var box = document.getElementById("bootshow"), boot = document.getElementById("boot"), i = 0, k = 0, timer = 0;
-  function next() {
-    if (boot.hidden) { timer = 0; return; }
-    var src = S[i++ % S.length], img = new Image();
-    img.onload = function () {
-      var d = document.createElement("div"); d.className = "slide k" + (k++ % 4); d.style.backgroundImage = "url('" + src + "')";
-      box.appendChild(d); void d.offsetWidth; d.classList.add("on");
-      while (box.children.length > 2) box.removeChild(box.firstChild);
-      timer = setTimeout(next, 8000);
-    };
-    img.onerror = function () { timer = setTimeout(next, 400); };
-    img.src = src;
-  }
-  window.loadShow = function (on, text, t) {
-    boot.hidden = !on;
-    if (on) {
-      if (text != null) document.getElementById("bootstage").textContent = text;
-      if (t != null) document.querySelector("#bootbar i").style.width = Math.round(Math.max(0, Math.min(1, t)) * 100) + "%";
-      if (!timer) next();
-    }
-  };
-  i = (Math.random() * S.length) | 0; next();
-})();
-</script>
+<script src="art/loading-slideshow.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
@@ -8360,7 +8331,7 @@ let flyTo = null;
 function boot(stageText, t) {
   const bar = document.querySelector("#bootbar i");
   const label = document.getElementById("bootstage");
-  if (bar) bar.style.width = Math.round(clamp01(t) * 100) + "%";
+  if (bar) { const value = Math.round(clamp01(t) * 100); bar.style.width = value + "%"; bar.parentNode.setAttribute("aria-valuenow",String(value)); }
   if (label) label.textContent = t >= 1 ? "Loading" : "Loading Tōkonto";
 }
 
@@ -13466,7 +13437,7 @@ function present() {
   applyCameraFull(1 / 60);
   if (world && veg.group) {
     const at = drive.car ? drive.car.pos : (player.placed && player.mode === "walk" ? player.pos : camera.position);
-    vegUpdate(at.x, at.z, 2);
+    vegUpdate(at.x, at.z, gfx.cinematic ? 1 : 2);
   }
   if (fxUsable()) {
     try { fxRender(); fx.on = true; post.on = true; if (wantFrame() || frameGrab.want) { grabFrame(); frameGrab.want = false; } return; }
@@ -13760,6 +13731,8 @@ function tick(dt) {
   impostorLightTick();
   pollPad(dt);
   if (title.on) { updateTitle(dt); return; }
+  // Scripted actors own the opening; do not run an entire city's simulation before every cinematic frame.
+  if (cut.active && story.step === "intro") { if (paused || nav.mapOpen) { updatePhone(); present(); } else cutTick(dt); return; }
   if (ski.mode === "run") { updateSkiRun(dt); return; }
   updateTreeLod(dt);
   updateParking(dt);
@@ -14338,7 +14311,7 @@ function sizeRenderer() {
   const ratio = Math.min(window.devicePixelRatio || 1, t.maxPixelRatio);
   // Automatic presets have a total pixel budget, including HiDPI and supersampling.
   // Manual resolution choices remain explicit overrides. Keep CSS/UI at native size.
-  const budget = { low: 1280 * 720, medium: 1920 * 1080, high: 2560 * 1440, ultra: 3840 * 2160 }[gfx.tier];
+  const budget = Math.min({ low: 1280 * 720, medium: 1920 * 1080, high: 2560 * 1440, ultra: 3840 * 2160 }[gfx.tier], gfx.cinematic ? 1920 * 1080 : Infinity);
   const automatic = gfx.scale === null || !!gameSet.pcMode;
   const fit = automatic ? Math.min(1, Math.sqrt(budget / (w * h * scale * scale * ratio * ratio))) : 1;
   renderer.setPixelRatio(ratio);
@@ -39337,9 +39310,21 @@ function pplLoad() {
       if (player.outfitWant && player.outfitWant !== player.outfit && !wardrobe.next) wardrobe.next = player.outfitWant;
       wardrobeNext();
     }, undefined, () => { wardrobe.loading = false; wardrobeNext(); }); }
-    ix.people.forEach((e, i) => setTimeout(() => loader.load("people/" + e.file, g => {
-      try { pplAdopt(e, g); } catch (err) { console.warn("[Konto] " + e.file + " could not be used:", err); }
-    }, undefined, () => {}), 300 + i * 250));
+    // The family is needed by the first scene. Decode one person at a time; background NPCs can wait until it ends.
+    const principal = ["woman_05","salaryman_03","woman_02"];
+    const people = ix.people.slice().sort((a,b) => {
+      const ai=principal.indexOf(a.name),bi=principal.indexOf(b.name);return (ai<0?99:ai)-(bi<0?99:bi);
+    });
+    let nextPerson=0;
+    const loadNextPerson=()=>{
+      if(nextPerson>=people.length)return;
+      const e=people[nextPerson];
+      if(principal.indexOf(e.name)<0 && typeof story!=="undefined" && story.step==="intro") { setTimeout(loadNextPerson,250);return; }
+      nextPerson++;
+      const advance=()=>setTimeout(loadNextPerson,80);
+      loader.load("people/"+e.file,g=>{try{pplAdopt(e,g);}catch(err){console.warn("[Konto] "+e.file+" could not be used:",err);}advance();},undefined,advance);
+    };
+    setTimeout(loadNextPerson,100);
   }).catch(() => {});
 }
 function pplAdopt(e, gltf) {
@@ -40745,7 +40730,7 @@ function frameLoop() {
     const bootScreen = document.getElementById("boot");
     if (world && scene && (!bootScreen || bootScreen.hidden)) {
       tick(dt);
-      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
+      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden && !cut.active) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
     } else perfHold(1.5);
     requestAnimationFrame(loop);
   }
@@ -42862,7 +42847,9 @@ function cutPlay(shots, onEnd) {
   if (phone.open) setPhone(false);
   if (nav.mapOpen && typeof setMap === "function") setMap(false);
   player.speed = 0;
-  cut.nearWas = camera.near;
+  cut.nearWas = camera.near; cut.fovWas = camera.fov;
+  gfx.cinematic = true; cut.worldTick = 0;
+  sizeRenderer();
   document.body.classList.add("cutscene");
   cutEl("cutbars").innerHTML = "<i></i><i></i>";
   cutEl("cutsub"); cutEl("cutskip").textContent = "Hold " + (pad.index >= 0 ? "A" : "Space") + " to skip";
@@ -42877,6 +42864,7 @@ function cutNext() {
   const ov = cutEl("cutover"); ov.className = s.overlay || ""; ov.innerHTML = s.overlayHtml || "";
   document.getElementById("cutsub").innerHTML = "";
   camera.near = s.near || cut.nearWas;
+  camera.fov = s.fov || cut.fovWas;
   camera.updateProjectionMatrix();
   if (s.fadeIn) { const f = document.getElementById("fade"); if (f) { f.style.transition = "none"; f.style.opacity = "1"; void f.offsetWidth; f.style.transition = "opacity " + s.fadeIn + "s"; f.style.opacity = "0"; } }
   try { if (s.enter) s.enter(s); } catch (e) { console.warn("[Konto] cutscene shot:", e); }
@@ -42888,7 +42876,8 @@ function cutFinish(skipped) {
   cut.active = false; cut.shots = []; cut.i = -1;
   document.body.classList.remove("cutscene");
   ["cutsub", "cutover"].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML = ""; el.className = ""; } });
-  camera.near = cut.nearWas || camera.near; camera.updateProjectionMatrix();
+  camera.near = cut.nearWas || camera.near; camera.fov = cut.fovWas || camera.fov; camera.updateProjectionMatrix();
+  gfx.cinematic = false; sizeRenderer();
   player.forceClip = null;
   if (player.obj) player.obj.visible = true;
   const f = document.getElementById("fade"); if (f) { f.style.transition = ""; f.style.opacity = "0"; }
@@ -42928,10 +42917,15 @@ function cutTick(dt) {
   streamFrame();
   updateSeikoClip(dt);
   actorsTick(dt);
-  pedsTick(dt);
-  updateTraffic(dt, camPos);
-  updateRail(dt, camPos);
-  present();
+  if (story.step === "intro") {
+    updateWater(dt);
+    // Background vehicles need not be resimulated at the frame rate of a close-up.
+    cut.worldTick += dt;
+    if (cut.worldTick >= 0.12) { const step = Math.min(cut.worldTick,0.2); cut.worldTick = 0; updateTraffic(step,camPos); updateRail(step,camPos); }
+  } else { pedsTick(dt); updateTraffic(dt,camPos); updateRail(dt,camPos); }
+  const exposure = renderer.toneMappingExposure;
+  try { renderer.toneMappingExposure = Math.min(1.4, exposure * 1.06); present(); }
+  finally { renderer.toneMappingExposure = exposure; }
   if (cut.t >= s.dur && cut.manual === undefined) cutNext();
 }
 // the camera, looking from a place to a place, in a frame turned by yaw around a point: [right, up, forward] offsets
@@ -43326,11 +43320,17 @@ function storyNewGame() {
   // (the family and the crowd are real people; begun any earlier it was the old stand-in body in a white shirt, and a station of copies of it).
   player.outfitWant = "village"; if (wardrobe.list) seikoOutfit("village", true);
   const fade = document.getElementById("fade"); if (fade) { fade.style.transition = "none"; fade.style.opacity = "1"; }
-  const go = () => { loadShow(false); try { storyOpening(); } catch (e) { console.warn("[Konto] the opening could not play:", e); storyWake(true); } };
+  const go = () => {
+    loadShow(true,"Preparing opening",1);
+    // Build the cast/train and draw the first real frame behind the opaque artwork, before the timeline advances.
+    setTimeout(() => { try { storyOpening(); if (cut.active) cutTick(0); }
+      catch (e) { console.warn("[Konto] the opening could not play:",e); storyWake(true); }
+      finally { loadShow(false); } },32);
+  };
   let n = 0; const wait = () => {
     if (wardrobe.list && player.outfit !== "village" && !wardrobe.loading) seikoOutfit("village", true);
-    const cast = ["woman_05", "woman_03", "salaryman_03"].every(k => pplLib.ready.some(e => e.name === k));
-    const ready = (cast || pplLib.ready.length >= 16) && player.hq && player.outfit === "village" && !wardrobe.loading;
+    const cast = ["woman_05", "woman_02", "salaryman_03"].every(k => pplLib.ready.some(e => e.name === k));
+    const ready = cast && player.hq && player.outfit === "village" && !wardrobe.loading;
     if (ready || n++ > 400) go();                    // a minute at the very most
     else { loadShow(true, "Loading story", Math.min(0.98, 0.15 + Math.min(1, pplLib.ready.length / 19) * 0.6 + (player.hq ? 0.15 : 0) + (player.outfit === "village" ? 0.1 : 0))); setTimeout(wait, 150); }
   };
@@ -43502,12 +43502,12 @@ function storyOpening() {
   const win = (fw, look) => ({ pos: lift(at(1.7, fw), 1.25), look: lift(at(6.2, look), 1.3) });
   cutPlay([
     // 1. dawn over the valley
-    { dur: 6.0, from: () => ({ pos: lift(at(-180, -260), 140), look: lift(at(0, 0), 10) }), to: () => ({ pos: lift(at(-120, -170), 95), look: lift(at(0, 0), 5) }), overlay: "glow", fadeIn: 2.0, timeScale: 8,
+    { dur: 4.0, fov: 52, from: () => ({ pos: lift(at(-180, -260), 140), look: lift(at(0, 0), 10) }), to: () => ({ pos: lift(at(-120, -170), 95), look: lift(at(0, 0), 5) }), overlay: "glow", fadeIn: 2.0, timeScale: 8,
       lines: [[1.4, "", "Mizuho. Rice terraces, one road, and a train twice a day."]] },
     // 2. the title, over the paddies
-    { dur: 5.2, from: () => ({ pos: lift(at(-60, -80), 22), look: lift(at(40, 60), 30) }), to: () => ({ pos: lift(at(-50, -70), 26), look: lift(at(40, 60), 40) }), overlay: "glow title", overlayHtml: title, timeScale: 8 },
+    { dur: 3.2, fov: 48, from: () => ({ pos: lift(at(-60, -80), 22), look: lift(at(40, 60), 30) }), to: () => ({ pos: lift(at(-50, -70), 26), look: lift(at(40, 60), 40) }), overlay: "glow title", overlayHtml: title, timeScale: 8 },
     // 3. out of the house with his bag, in his village clothes
-    { dur: 4.6, from: () => ({ pos: [out[0] + Math.sin(homeYaw) * 8.5 + Math.cos(homeYaw) * 2.0, out[1] + 3.0, out[2] + Math.cos(homeYaw) * 8.5 - Math.sin(homeYaw) * 2.0], look: [player.pos.x, player.pos.y + 1.2, player.pos.z] }),
+    { dur: 3.5, fov: 48, from: () => ({ pos: [out[0] + Math.sin(homeYaw) * 8.5 + Math.cos(homeYaw) * 2.0, out[1] + 3.0, out[2] + Math.cos(homeYaw) * 8.5 - Math.sin(homeYaw) * 2.0], look: [player.pos.x, player.pos.y + 1.2, player.pos.z] }),
       to: () => ({ pos: [out[0] + Math.sin(homeYaw) * 7.0 + Math.cos(homeYaw) * 2.4, out[1] + 2.4, out[2] + Math.cos(homeYaw) * 7.0 - Math.sin(homeYaw) * 2.4], look: [player.pos.x, player.pos.y + 1.3, player.pos.z] }),
       near: 0.05, overlay: "glow", timeScale: 4,
       enter: () => { placeSeiko(new THREE.Vector3(hd[0], hd[1], hd[2])); player.yaw = player.targetYaw = homeYaw; player.obj.rotation.y = homeYaw; player.obj.visible = true; player.forceClip = walkClip(); },
@@ -43515,36 +43515,36 @@ function storyOpening() {
       always: () => toPlatform(),
       lines: [[0.6, "Seiko", "Today's the day."], [2.5, "Mother", "Seiko! The train won't wait!"]] },
     // 4. the halt: the family, wide, the sun behind them
-    { dur: 4.2, from: () => ({ pos: lift(at(-2.5, -6.5), 1.7), look: lift(at(4.2, 0.8), 1.2) }), to: () => ({ pos: lift(at(-2.0, -5.2), 1.6), look: lift(at(4.2, 0.6), 1.25) }), overlay: "glow", timeScale: 2,
+    { dur: 3.4, fov: 45, from: () => ({ pos: lift(at(-2.5, -6.5), 1.7), look: lift(at(4.2, 0.8), 1.2) }), to: () => ({ pos: lift(at(-2.0, -5.2), 1.6), look: lift(at(4.2, 0.6), 1.25) }), overlay: "glow", timeScale: 2,
       enter: () => toPlatform(), lines: [[0.4, "Mother", "Eat properly! And call us every Sunday!"]] },
     // 5. his sister, close
-    { dur: 3.4, from: () => ({ pos: front(sis, 1.6, 0.35, 1.0), look: head(sis, 1.45) }), to: () => ({ pos: front(sis, 1.3, 0.3, 1.02), look: head(sis, 1.45) }), near: 0.05, timeScale: 2,
+    { dur: 2.6, fov: 38, from: () => ({ pos: front(sis, 1.6, 0.35, 1.0), look: head(sis, 1.45) }), to: () => ({ pos: front(sis, 1.3, 0.3, 1.02), look: head(sis, 1.45) }), near: 0.05, timeScale: 2,
       lines: [[0.2, "Sister", "Onii-chan! Bring me something from the city!"]] },
     // 6. his father, close: a man who does not say much
-    { dur: 3.6, from: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 1.1 - 0.25, dad.y + 1.55, dad.z + Math.cos(dad.yaw) * 1.1], look: head(dad, 1.55) }), to: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 0.9 - 0.2, dad.y + 1.56, dad.z + Math.cos(dad.yaw) * 0.9], look: head(dad, 1.56) }), near: 0.05, timeScale: 2,
+    { dur: 2.6, fov: 38, from: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 1.1 - 0.25, dad.y + 1.55, dad.z + Math.cos(dad.yaw) * 1.1], look: head(dad, 1.55) }), to: () => ({ pos: [dad.x + Math.sin(dad.yaw) * 0.9 - 0.2, dad.y + 1.56, dad.z + Math.cos(dad.yaw) * 0.9], look: head(dad, 1.56) }), near: 0.05, timeScale: 2,
       enter: () => { dad.pose = "idle"; }, lines: [[0.5, "Father", "…Make us proud, Seiko."]] },
     // 7. Seiko, close, the sun on his face
-    { dur: 3.4, from: () => ({ pos: [me[0] + Math.sin(player.yaw) * 1.0 + 0.3, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 1.0], look: [me[0], me[1] + 1.55, me[2]] }), to: () => ({ pos: [me[0] + Math.sin(player.yaw) * 0.8 + 0.25, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 0.8], look: [me[0], me[1] + 1.56, me[2]] }), near: 0.05, overlay: "glow", timeScale: 2,
+    { dur: 2.8, fov: 40, from: () => ({ pos: [me[0] + Math.sin(player.yaw) * 1.0 + 0.3, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 1.0], look: [me[0], me[1] + 1.55, me[2]] }), to: () => ({ pos: [me[0] + Math.sin(player.yaw) * 0.8 + 0.25, me[1] + 1.58, me[2] + Math.cos(player.yaw) * 0.8], look: [me[0], me[1] + 1.56, me[2]] }), near: 0.05, overlay: "glow", timeScale: 2,
       enter: () => toPlatform(), lines: [[0.3, "Seiko", "I will. I promise."]] },
     // 8. inside: Seiko on the bench, the doors shut, the family out of the window across the aisle
-    { dur: 4.6, from: () => ({ pos: inCar(0.55, 1.35, -1.6), look: inCar(-1.0, 1.1, 0.6) }), to: () => ({ pos: inCar(0.45, 1.32, -1.2), look: inCar(-1.0, 1.12, 0.6) }), near: 0.03, timeScale: 1,
+    { dur: 4.0, fov: 54, from: () => ({ pos: inCar(0.55, 1.35, -1.6), look: inCar(-1.0, 1.1, 0.6) }), to: () => ({ pos: inCar(0.45, 1.32, -1.2), look: inCar(-1.0, 1.12, 0.6) }), near: 0.03, timeScale: 1,
       enter: () => { train.visible = true; bed.visible = true; tr.v = 0; tr.a = 0; seatSeiko(); }, tick: dt => { if (cut.t > 2.6) tr.a = 0.55; trainGo(dt); seatSeiko(); },
       lines: [[0.3, "", "♪ ドアが閉まります。 Doors closing."], [2.4, "Mother", "Seiko! Call us when you get there!"]] },
     // 9. over his shoulder, out of the window: the platform sliding away, the family waving, getting smaller
-    { dur: 5.4, from: () => ({ pos: inCar(-0.75, 1.45, 0.35), look: inCar(3.0, 1.0, -1.6) }), to: () => ({ pos: inCar(-0.7, 1.45, 0.3), look: inCar(3.0, 1.0, -2.6) }), near: 0.03, timeScale: 1,
+    { dur: 4.2, fov: 52, from: () => ({ pos: inCar(-0.75, 1.45, 0.35), look: inCar(3.0, 1.0, -1.6) }), to: () => ({ pos: inCar(-0.7, 1.45, 0.3), look: inCar(3.0, 1.0, -2.6) }), near: 0.03, timeScale: 1,
       enter: () => { dad.pose = "wave"; }, tick: dt => { tr.a = 0.7; trainGo(dt); seatSeiko(); },
       lines: [[0.4, "Sister", "Bye bye, Onii-chan! Byeee!"], [3.0, "", "Mizuho."]] },
     // 10. Seiko, close, by the window, the morning flickering over him
-    { dur: 4.4, from: () => ({ pos: inCar(-0.2, 1.22, 1.35), look: inCar(-1.0, 1.18, 0.6) }), to: () => ({ pos: inCar(-0.25, 1.22, 1.2), look: inCar(-1.0, 1.18, 0.6) }), near: 0.03, overlay: "glow", timeScale: 1,
+    { dur: 3.5, fov: 42, from: () => ({ pos: inCar(-0.2, 1.22, 1.35), look: inCar(-1.0, 1.18, 0.6) }), to: () => ({ pos: inCar(-0.25, 1.22, 1.2), look: inCar(-1.0, 1.18, 0.6) }), near: 0.03, overlay: "glow", timeScale: 1,
       tick: dt => { tr.a = 0.9; trainGo(dt); seatSeiko(); }, lines: [[0.5, "", "Seiko watched the village until the mountains took it."]] },
     // 11. outside: the little train running out of the valley in the low sun
-    { dur: 4.6, from: () => ({ pos: lift(framePt(F, TR - 40, 0, tr.s - 30), floorY - F.y + 22), look: framePt(F, TR, floorY - F.y, tr.s + 10) }),
+    { dur: 4.0, fov: 50, from: () => ({ pos: lift(framePt(F, TR - 40, 0, tr.s - 30), floorY - F.y + 22), look: framePt(F, TR, floorY - F.y, tr.s + 10) }),
       to: () => ({ pos: lift(framePt(F, TR - 55, 0, tr.s - 60), floorY - F.y + 45), look: framePt(F, TR, floorY - F.y, tr.s + 40) }), overlay: "glow", timeScale: 0,
       enter: () => { player.obj.visible = false; player.forceClip = null; tr.v = Math.max(tr.v, 12); actorsClear("family"); }, tick: dt => { tr.a = 1.2; trainGo(dt); } },
     // 10. the capital, waking up
-    { dur: 6.4, from: () => ({ pos: capPt(1500, 160), look: [tgt[0], tgt[1] + 120, tgt[2]] }), to: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), linear: true, timeScale: 0,
-      enter: () => setGameTime(7 * 60 + 15), lines: [[0.8, "", "Tōkonto."], [3.0, "", "Fourteen million people. And somewhere in it, a job with his name on it."]] },
-    { dur: 3.0, from: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), to: () => ({ pos: capPt(880, 116), look: [tgt[0], tgt[1] + 152, tgt[2]] }), overlay: "white", timeScale: 0 }
+    { dur: 5.6, fov: 52, from: () => ({ pos: capPt(1500, 160), look: [tgt[0], tgt[1] + 120, tgt[2]] }), to: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), linear: true, timeScale: 0,
+      enter: () => setGameTime(7 * 60 + 15), lines: [[0.8, "", "Tōkonto."], [1.5, "", "Fourteen million people. And somewhere in it, a job with his name on it."]] },
+    { dur: 2.2, fov: 48, from: () => ({ pos: capPt(950, 120), look: [tgt[0], tgt[1] + 150, tgt[2]] }), to: () => ({ pos: capPt(880, 116), look: [tgt[0], tgt[1] + 152, tgt[2]] }), overlay: "white", timeScale: 0 }
   ], skipped => { actorsClear("family"); scene.remove(train); scene.remove(bed); player.forceClip = null; storyWake(skipped); });
 }
 // He wakes on a bench on the concourse at Tōkonto Central, to his phone buzzing.

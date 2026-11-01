@@ -8,9 +8,9 @@ const html = fs.readFileSync(path.resolve(__dirname, '../../Web/konto.html'), 'u
 function declaration(start, end) { return html.slice(html.indexOf(start), html.indexOf(end, html.indexOf(start))); }
 const tiers = declaration('const TIERS =', 'const TIER_ORDER');
 const sizing = declaration('function sizeRenderer()', '// The shader patch:');
-function render(tier, width, height, dpr, scale = null, pcMode = null) {
+function render(tier, width, height, dpr, scale = null, pcMode = null, cinematic = false) {
   const context = { document: { getElementById: () => ({ clientWidth: width, clientHeight: height }) }, window: { devicePixelRatio: dpr },
-    gfx: { tier, scale }, perf: { mult: 1 }, flight: { lowres: false }, gameSet: { pcMode }, camera: { updateProjectionMatrix() {} },
+    gfx: { tier, scale, cinematic }, perf: { mult: 1 }, flight: { lowres: false }, gameSet: { pcMode }, camera: { updateProjectionMatrix() {} },
     renderer: { domElement: { style: {} }, setPixelRatio(n) { this.ratio = n; }, setSize(w,h) { this.width = w; this.height = h; } } };
   vm.runInNewContext(tiers + sizing + 'sizeRenderer();', context);
   return context;
@@ -31,6 +31,14 @@ test('explicit resolution remains available, PC preset retains budget', () => {
   assert.equal(manual.width,3840);
   const preset = render('ultra',3840,2160,2,1.35,'high').renderer;
   assert.ok(preset.width*preset.height*preset.ratio**2<=3840*2160*1.003);
+});
+test('cinematic rendering bounds automatic resolution and restores gameplay quality',()=>{
+  const film=render('ultra',3840,2160,2,null,null,true).renderer;
+  assert.ok(film.width*film.height*film.ratio**2<=1920*1080*1.003);
+  const game=render('ultra',3840,2160,2).renderer;
+  assert.ok(game.width*game.height*game.ratio**2>1920*1080*1.01);
+  const manual=render('high',1920,1080,1,2,null,true).renderer;
+  assert.equal(manual.width,3840,'Explicit user resolution remains explicit');
 });
 test('phone calendar follows game days and ignores host timezone', () => {
   const c = { TIME: { startMin: 17*60+10, rate: 0.4 }, clock: 0 };

@@ -93,3 +93,22 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 /* A parent grayscale filter cannot be undone by its map/logo children. */
 #pause { filter: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
 #pause .pside, #pause .pside .pausehint { color: #bdcfc4; font-size: 15px; line-height: 1.7; }
+
+/* Full-screen character key art and restrained corner furniture. */
+#boot { background:#050607; }
+#bootshow .slide { inset:-2%; transform-origin:50% 50%; transition:opacity 1.5s ease-in-out; animation:none; }
+#bootshow .slide.drift-left { animation:salary-load-left 10s linear forwards; }
+#bootshow .slide.drift-right { animation:salary-load-right 10s linear forwards; }
+@keyframes salary-load-left { from{transform:scale(1.10) translateX(2.4%)}to{transform:scale(1.14) translateX(-2.4%)} }
+@keyframes salary-load-right { from{transform:scale(1.10) translateX(-2.4%)}to{transform:scale(1.14) translateX(2.4%)} }
+#bootshow.still .slide { animation-play-state:paused; }
+#boot::after { background:linear-gradient(0deg,rgba(0,0,0,.64),transparent 24%),radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.18)); }
+#bootname { left:clamp(20px,3vw,60px);bottom:clamp(24px,4.5vh,54px); }
+#bootname img { width:min(285px,35vw);filter:drop-shadow(0 2px 4px #000); }
+#bootload { right:clamp(20px,3vw,60px);bottom:clamp(25px,4.5vh,54px);padding:0;border:0;border-radius:0;background:none;box-shadow:none;gap:0;max-width:52vw; }
+#bootstage { font-size:clamp(12px,1vw,15px);font-weight:500;letter-spacing:.015em;text-align:right;line-height:1.4; }
+#bootspin { flex:0 0 19px;width:19px;height:19px;border:2px solid rgba(255,255,255,.24);border-top-color:#fff;border-right-color:#fff; }
+#bootbar { position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap; }
+#boot.reduce-motion .slide,body[data-reduced-motion="true"] #bootshow .slide { animation:none!important;transition:none!important;transform:scale(1.02); }
+#boot.reduce-motion #bootspin,body[data-reduced-motion="true"] #bootspin { animation:none; }
+@media(prefers-reduced-motion:reduce){#bootshow .slide{animation:none!important;transition:none!important;transform:scale(1.02)}#bootspin{animation:none}}
