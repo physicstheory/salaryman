@@ -8,6 +8,12 @@ name: Build the game
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag for this review build (latest-build preserves the rolling release)'
+        required: false
+        default: 'latest-build'
+        type: string
   push:
     tags: ["v*"]
 
@@ -68,8 +74,8 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest-build
-          name: Latest build
+          tag_name: ${{ inputs.release_tag || 'latest-build' }}
+          name: Salary Man review build
           target_commitish: ${{ github.sha }}
           prerelease: true
           make_latest: false

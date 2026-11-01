@@ -41564,7 +41564,7 @@ function interiorDecor(room, root, th, brand, opts) {
   // ---- painted surfaces over the plain boxes
   const floor = inPlaneTex(SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
   const wt = inWallTex(brand);
-  root.add(inPlaneTex(IN_ACCENT[brand] ? inWallTex(brand, true) : wt, W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  root.add(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
   const side = (W - 2.4) / 2;
@@ -41796,7 +41796,8 @@ function interiorRoom(s, opts) {
   if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x") + ":" + (s.term || 1); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
-  const th = IN_THEME[brand] || IN_THEME.eleven;
+  const th = Object.assign({}, IN_THEME[brand] || IN_THEME.eleven);
+  if (brand === "dokoto") { th.trim = SalaryRetail.identity(brand,key).accent; th.floor = "#deded3"; }
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
   const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: (RESTAURANT[brand] || brand === "police") ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };

@@ -67,6 +67,7 @@
   const floors={0:['ACCESSORY LAB','#c68451'],1:['SOTI / PEAR STUDIO','#286d68'],2:['SOUND & TIME','#555f89'],3:['PLAYBOX / PEAR CUBE','#7256a0'],4:['CINEMA GALLERY','#36576c']};
   function identity(brand,key){if(brand==='dokoto'){const f=floors[Number(String(key).split(':')[1]||1)]||floors[1];return {name:f[0],accent:f[1],wood:'#c2b5a0'};}const lookup={books:1,ramen:2,clothes:3,plaza:4,eleven:0,petmart:5};return themes[lookup[brand]??4];}
   function floorTexture(brand,key){if(!['dokoto','books','clothes','plaza'].includes(brand))return null;const th=identity(brand,key);return tex('floor:'+brand+':'+key,256,256,(g,w,h)=>{g.fillStyle=brand==='books'?'#a38a68':'#deded3';g.fillRect(0,0,w,h);g.strokeStyle='rgba(30,50,45,.12)';g.lineWidth=1;for(let n=0;n<256;n+=64){g.strokeRect(n,0,64,256);g.strokeRect(0,n,256,64);}g.fillStyle=th.accent;g.globalAlpha=.22;g.fillRect(0,0,8,256);g.fillRect(248,0,8,256);});}
+  function wallTexture(brand,key){if(brand!=='dokoto')return null;const th=identity(brand,key);return tex('wall:'+key,512,256,(g,w,h)=>{g.fillStyle='#e8e5dc';g.fillRect(0,0,w,h);g.fillStyle=th.accent;g.fillRect(0,25,w,60);text(g,th.name,w/2,66,22,'#fff',w-40);g.fillStyle='rgba(20,40,40,.09)';for(let x=0;x<w;x+=32)g.fillRect(x,90,1,h);g.fillStyle=th.wood;g.fillRect(0,h-16,w,16);});}
   function campaign(device){return tex('campaign:'+device.id,512,768,(g,w,h)=>{const pear=device.maker==='pear',accent=pear?'#675b84':'#286d68';g.fillStyle=pear?'#eee8ef':'#e5eee7';g.fillRect(0,0,w,h);text(g,pear?'PEAR':'SOTI',w/2,66,22,accent,w-70);text(g,'Your everyday.',w/2,127,42,'#18333b',w-70);text(g,'A little extraordinary.',w/2,177,27,accent,w-70);g.save();g.translate(125,235);g.rotate(-.1);phone(g,0,0,155,302,accent);g.restore();g.save();g.translate(260,253);g.rotate(.12);phone(g,0,0,145,283,accent);g.restore();text(g,device.name,w/2,610,30,'#18333b',w-70);text(g,device.screen+'  /  '+device.chip,w/2,650,20,accent,w-70);text(g,'¥'+device.price.toLocaleString('en-US'),w/2,697,27,'#18333b',w-70);text(g,'Available at Dokoto Camera',w/2,738,16,accent,w-70);});}
   function refurbish(room,root,api){if(!['dokoto','plaza','books','clothes','eleven','petmart'].includes(room.brand))return;const th=identity(room.brand,room.key),add=api.add;
     // Fixtures stay above head height or flush against walls: no changes to exits, stock or lift navigation.
@@ -79,5 +80,5 @@
     }
     room.retailIdentity=th.name;root.userData.salaryRetailRefurbished=true;
   }
-  window.SalaryRetail={themes,installWindows,floorTexture,refurbish,campaign,atlas,identity};
+  window.SalaryRetail={themes,installWindows,floorTexture,wallTexture,refurbish,campaign,atlas,identity};
 })();
