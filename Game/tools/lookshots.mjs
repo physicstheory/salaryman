@@ -44,7 +44,7 @@ async function pair(name, settle) {
   if (process.env.COMPARE) { await ev(() => { fx.broken = true; }); await wait(3000); await snap(name + "_old"); await ev(() => { fx.broken = false; }); }
 }
 
-await page.goto(`http://localhost:${port}/konto.html?look=${LOOK}`);
+await page.goto(`http://localhost:${port}/konto.html`);
 for (let i = 0; i < 120; i++) { if (/titleup/.test(await ev(() => document.body.className))) break; await wait(5000); }
 await wait(3000);
 await ev(() => { window.storyOpening = function () { storyWake(true); }; });

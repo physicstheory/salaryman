@@ -8585,12 +8585,9 @@ function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.s
 // few tones the way a background painter lays them in. Relief maps (the bumps in tarmac and plaster) are flattened, because a painted
 // world is smooth. The people, Seiko, the cars and the furniture are drawn with toon materials: one hard shadow edge, no glossy
 // reflections, which is also lighter work for the graphics card. The realistic style (Settings) loads everything as it was.
-// The look. "anime" (the default): the whole frame painted, ink lines, toon shading on everything. "real": a hyper-real world (photo
-// textures left as photographed, physically shaded buildings, cars and props, a film grade with no ink) with the people still anime,
-// toon-shaded with their scattering skin - the Makoto Shinkai approach. Picked with ?look=real or the REALWORLD cheat (saved).
-const LOOK = (() => { try { const q = /[?&]look=(real|anime)/.exec(location.search); if (q) return q[1]; return localStorage.getItem("konto.look") === "real" ? "real" : "anime"; } catch (e) { return "anime"; } })();
-function worldReal() { return LOOK === "real"; }
-function setLook(v) { try { localStorage.setItem("konto.look", v); } catch (e) { /* none */ } try { saveGame(null, true); } catch (e) { /* none */ } location.reload(); }
+// The look: a hyper-real world (photo textures left as photographed, physically shaded buildings, cars and props, a film grade with no
+// ink lines) with anime people, toon-shaded with scattering skin - the Makoto Shinkai approach. It is the game's only look.
+function worldReal() { return true; }
 function animeArt() { return true; }           // the people are always anime
 function animePaint(img) {
   try {
@@ -27259,7 +27256,6 @@ const CHEAT_ACTIONS = {
   MONEYBAGS: { dial: "5550130", note: "\u00a51,000,000", fn: () => { purse.yen += 1000000; } },
   HEALTHY:   { dial: "5550131", note: "Health and nerves restored", fn: () => { vitals.health = 1; vitals.stress = 0.05; } },
   MIDDAY:    { dial: "5550132", note: "It is noon", fn: () => cheatHour(12) },
-  REALWORLD: { dial: "5550300", note: "Hyper-real world with anime people, or back to all-anime (reloads from a save)", fn: () => setLook(worldReal() ? "anime" : "real") },
   MIDNIGHT:  { dial: "5550133", note: "It is midnight", fn: () => cheatHour(0) },
   SUNRISE:   { dial: "5550134", note: "Sunrise", fn: () => cheatHour(6) },
   SUNSET:    { dial: "5550135", note: "Sunset", fn: () => cheatHour(18) },
