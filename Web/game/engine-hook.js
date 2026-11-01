@@ -32,6 +32,8 @@
         return { x: c.pos.x, y: c.pos.y + 0.75, z: c.pos.z, yaw: c.yaw };
       });
       engine.weather.groundAt = (x, z) => (player.placed ? player.pos.y : world.surfaceY(x, z, 999)) + 0.02;
+      // the game's post chain (fx) draws the scene into a linear HDR target and tone maps at the end
+      engine.weather.linearOut = () => typeof FX_LIN !== "undefined" && FX_LIN.on.value === 1;
       engine.weather.auto = true;
       engine.weather.set(savedWeather() || "clear", true);
       engine.surfaces.autoAdopt(scene, 2);

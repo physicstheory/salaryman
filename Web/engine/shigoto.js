@@ -5702,6 +5702,7 @@ var SHIGOTO = (() => {
       this._autoT = 240;
       this._strikeT = 6;
       this.groundAt = null;
+      this.linearOut = null;
       this.drops = 12e3;
       this._buildRain();
       this._buildSplashes();
@@ -5902,6 +5903,7 @@ var SHIGOTO = (() => {
       R2.uFlash.value = env.flash;
       const day = Math.max(0.12, Math.min(1, env.sunDir.y * 2 + 0.3)) * (1 - c2.cloud * 0.4);
       R2.uLight.value.setRGB(0.55 * day + 0.08, 0.6 * day + 0.09, 0.68 * day + 0.11);
+      if (this.linearOut && this.linearOut()) R2.uLight.value.convertSRGBToLinear();
       this.rain.visible = c2.rain > 0.01;
       this.splash.visible = c2.rain > 0.05;
       const gy = this.groundAt ? this.groundAt(focus.x, focus.z) : this.groundY != null ? this.groundY : 0;

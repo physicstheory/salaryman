@@ -28,6 +28,7 @@ export class Weather {
     this._autoT = 240;
     this._strikeT = 6;
     this.groundAt = null;    // host may supply (x, z) => y for splash placement
+    this.linearOut = null;   // host may supply () => true when it renders into a linear target
     this.drops = 12000;
     this._buildRain();
     this._buildSplashes();
@@ -188,6 +189,8 @@ export class Weather {
     R.uFlash.value = env.flash;
     const day = Math.max(0.12, Math.min(1, env.sunDir.y * 2 + 0.3)) * (1 - c.cloud * 0.4);
     R.uLight.value.setRGB(0.55 * day + 0.08, 0.6 * day + 0.09, 0.68 * day + 0.11);
+    // a host that draws into a linear HDR target (the game's post chain) wants linear colour, not display colour
+    if (this.linearOut && this.linearOut()) R.uLight.value.convertSRGBToLinear();
     this.rain.visible = c.rain > 0.01;
     this.splash.visible = c.rain > 0.05;
     const gy = this.groundAt ? this.groundAt(focus.x, focus.z) : (this.groundY != null ? this.groundY : 0);
