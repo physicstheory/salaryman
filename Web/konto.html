@@ -8646,37 +8646,80 @@ function animeGradient() {
   t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return (animeGradient.t = t);
 }
-// ---- skin: subsurface scattering ----------------------------------------------------------------------------------------------------------
-// Light goes into skin, travels under it and comes out somewhere else, red travelling furthest. Three things a renderer has to fake for
-// that, done here on the toon shading: (1) the terminator, where light that went in on the lit side comes out just past the edge of the
-// shadow as a warm red band instead of the hard grey line plastic has; (2) translucency, the light through an ear, the edge of the nose,
-// fingers held against the sun; (3) a warm bleed in the shade, because the light that fills a face is light that has been through skin.
-const SKIN = { U: { uSSSColor: { value: new THREE.Color(1.0, 0.38, 0.26) }, uSSSWrap: { value: 0.32 }, uSSSTrans: { value: 0.55 } } };
-function skinSSS(m) {
-  m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, SKIN.U);
+// ---- the characters' shader: all four PBR maps, and subsurface scattering, under the anime shading ---------------------------------------
+// A character material samples four maps, not one picture:
+//   1. albedo (map): the colour, with no light or shadow painted into it
+//   2. normal (normalMap): the wrinkles, pores, seams and folds a low-poly body cannot carry in its triangles
+//   3. roughness (roughnessMap, glTF's metallicRoughness green): where it is glossy and where matte - wet lips and eyes catch a hard
+//      highlight, skin a broad soft one, cloth almost none
+//   4. ambient occlusion (aoMap, glTF's occlusion): the soft shadow baked into nostrils, the corners of the mouth, under the collar
+// A model that ships them (Tripo, Meshy, a full VRoid export) uses its own. A model without a roughness map gets the value its material's
+// kind calls for (eyes, lips, skin, hair, cloth, leather), and the console lists every character material missing a map, so a model that
+// arrives with only a colour picture is caught.
+// Subsurface scattering (skin): light enters skin, travels under it and leaves somewhere else, red travelling furthest. Modelled with
+// (a) a scattering profile across the terminator: the lit side's light reappears past the shadow line as a warm band, wider where the
+// surface curves more (ears, nose, fingers; the curvature comes from the screen-space change of the normal), (b) transmission: light
+// through thin parts held against the sun, scaled by a thickness map when the model has one, (c) a warm bleed in the shade.
+const CHAR = { U: { uSSSColor: { value: new THREE.Color(1.0, 0.36, 0.24) }, uSSSWrap: { value: 0.34 }, uSSSTrans: { value: 0.6 }, uSSSCurv: { value: 1.6 } },
+  kinds: [[/eye(?!lash|line|brow)/i, 0.06, "eye"], [/mouth|lip/i, 0.32, "lip"], [/_SKIN\b|(^|_)skin($|_)|face(?!brow|mouth|eyel)|body/i, 0.58, "skin"], [/hair/i, 0.42, "hair"],
+          [/shoe|boot|leather|belt/i, 0.35, "leather"], [/cloth|top|bottom|shirt|suit|jacket|skirt|pant/i, 0.86, "cloth"]],
+  missing: new Set() };
+function charKind(name) { for (const k of CHAR.kinds) if (k[0].test(name || "")) return k; return [null, 0.7, "other"]; }
+function charShader(t, src) {
+  const k = charKind(src.name), skin = k[2] === "skin";
+  // the glTF default roughness (1) and the VRoid conversion's flat 0.9 say nothing; the material's kind does
+  const given = src.roughness !== undefined && src.roughness < 0.89 ? src.roughness : null;
+  const rough = src.roughnessMap ? 1 : (given !== null ? given : k[1]);
+  const U = { tRough: { value: src.roughnessMap || null }, uRough: { value: rough }, uHasRough: { value: src.roughnessMap ? 1 : 0 },
+    tThick: { value: src.thicknessMap || null }, uHasThick: { value: src.thicknessMap ? 1 : 0 } };
+  if (k[2] !== "other" && !/highlight|eyeline|lash|brow|extra/i.test(src.name || "")) ["map", "normalMap", "roughnessMap", "aoMap"].forEach(m => { if (!src[m]) CHAR.missing.add((src.name || "?") + ": " + m); });
+  t.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, CHAR.U, U);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 uSSSColor; uniform float uSSSWrap, uSSSTrans;")
+      .replace("#include <common>", "#include <common>\nuniform vec3 uSSSColor; uniform float uSSSWrap, uSSSTrans, uSSSCurv, uRough, uHasRough, uHasThick;\nuniform sampler2D tRough, tThick;")
       .replace("#include <lights_fragment_end>", [
         "#include <lights_fragment_end>",
-        "#if NUM_DIR_LIGHTS > 0",
         "  {",
-        "    vec3 sV = normalize(vViewPosition);",
-        "    for (int i = 0; i < NUM_DIR_LIGHTS; i++) {",
-        "      vec3 sL = directionalLights[i].direction;",
-        "      float ndl = dot(normal, sL);",
-        "      float term = smoothstep(-0.45, 0.0, ndl) * (1.0 - smoothstep(0.0, 0.5, ndl));",
-        "      float thin = pow(clamp(dot(sV, -normalize(sL + normal * 0.4)), 0.0, 1.0), 3.0) * (1.0 - abs(dot(normal, sV)));",
-        "      reflectedLight.directDiffuse += directionalLights[i].color * diffuseColor.rgb * uSSSColor * (term * uSSSWrap + thin * uSSSTrans);",
-        "    }",
-        "  }",
+        "    vec3 cV = normalize(vViewPosition);",
+        "    float r = uRough;",
+        "#ifdef USE_UV",
+        "    if (uHasRough > 0.5) r = texture2D(tRough, vUv).g;",
         "#endif",
-        "  reflectedLight.indirectDiffuse *= vec3(1.07, 0.97, 0.94);"].join("\n"));
+        "    r = clamp(r, 0.04, 1.0);",
+        "    float ao = 1.0;",
+        "#ifdef USE_AOMAP",
+        "    ao = (texture2D(aoMap, vUv2).r - 1.0) * aoMapIntensity + 1.0;",
+        "#endif",
+        skin ? "    float curv = clamp(length(fwidth(normal)) / max(length(fwidth(vViewPosition)), 1e-4) * 0.02 * uSSSCurv, 0.0, 1.0);" : "",
+        skin ? "    float thin = 1.0;" : "",
+        skin ? "#ifdef USE_UV\n    if (uHasThick > 0.5) thin = 1.0 - texture2D(tThick, vUv).r;\n#endif" : "",
+        "#if NUM_DIR_LIGHTS > 0",
+        "    for (int i = 0; i < NUM_DIR_LIGHTS; i++) {",
+        "      vec3 L = directionalLights[i].direction, C = directionalLights[i].color;",
+        "      vec3 H = normalize(L + cV);",
+        "      float ndl = dot(normal, L), ndh = max(dot(normal, H), 0.0);",
+        "      float shin = mix(600.0, 6.0, r);",
+        "      float sp = pow(ndh, shin) * step(0.0, ndl);",
+        "      float band = smoothstep(0.42, 0.58, sp) * (1.0 - r) * (1.0 - r);",
+        "      reflectedLight.directDiffuse += C * band * mix(0.35, 1.2, 1.0 - r) * ao;",          // (the toon shading adds only the diffuse terms)
+        skin ? [
+        "      float w = uSSSWrap * (1.0 + curv * 1.5);",
+        "      float term = smoothstep(-w, 0.0, ndl) * (1.0 - smoothstep(0.0, w * 1.4, ndl));",
+        "      float trans = pow(clamp(dot(cV, -normalize(L + normal * 0.4)), 0.0, 1.0), 3.0) * (1.0 - abs(dot(normal, cV))) * thin;",
+        "      reflectedLight.directDiffuse += C * diffuseColor.rgb * uSSSColor * (term * (0.6 + curv) + trans * uSSSTrans) * ao;"].join("\n") : "",
+        "    }",
+        "#endif",
+        skin ? "    reflectedLight.indirectDiffuse *= vec3(1.07, 0.97, 0.94);" : "",
+        "  }"].join("\n"));
   };
-  m.customProgramCacheKey = () => "konto-skin-sss";
-  m.userData.sss = true;
-  return m;
+  t.customProgramCacheKey = () => "konto-char-" + k[2] + (src.roughnessMap ? "-r" : "") + (src.thicknessMap ? "-t" : "");
+  t.extensions = Object.assign({}, t.extensions, { derivatives: true });
+  t.userData.sss = skin; t.userData.charKind = k[2];
+  return t;
 }
+function skinSSS(m) { return charShader(m, { name: m.name || "skin" }); }
+// once loading settles, list every character material missing one of the four maps
+setTimeout(function charMapReport() { if (CHAR.missing.size) console.warn("[Konto] character materials without all four PBR maps (" + CHAR.missing.size + "): " + [...CHAR.missing].slice(0, 40).join("; ")); }, 120000);
 const _toonCache = new Map();
 function toonMat(m, skinned) {
   if (!m || m.isMeshToonMaterial || m.isShaderMaterial || m.isMeshBasicMaterial || m.isPointsMaterial || m.isLineBasicMaterial || m.isSpriteMaterial) return m;
@@ -8685,10 +8728,13 @@ function toonMat(m, skinned) {
   const t = new THREE.MeshToonMaterial({ color: m.color ? m.color.clone() : 0xffffff, map: m.map || null, gradientMap: animeGradient(),
     emissive: m.emissive ? m.emissive.clone() : 0x000000, emissiveMap: m.emissiveMap || null, emissiveIntensity: m.emissiveIntensity === undefined ? 1 : m.emissiveIntensity,
     alphaMap: m.alphaMap || null, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest || 0, side: m.side, vertexColors: m.vertexColors,
-    depthWrite: m.depthWrite });
+    depthWrite: m.depthWrite,
+    // the other three PBR maps come across with the colour (the toon material draws normal and occlusion itself; roughness is ours)
+    normalMap: m.normalMap || null, normalMapType: m.normalMapType || THREE.TangentSpaceNormalMap, normalScale: m.normalScale ? m.normalScale.clone() : new THREE.Vector2(1, 1),
+    aoMap: m.aoMap || null, aoMapIntensity: m.aoMapIntensity === undefined ? 1 : m.aoMapIntensity });
   if (skinned) t.skinning = true;
   t.name = m.name;
-  if (/_SKIN\b|(^|_)skin($|_)/i.test(m.name || "")) skinSSS(t);
+  if (skinned || m.normalMap || m.roughnessMap || m.aoMap || /_(SKIN|FACE|EYE|HAIR|CLOTH)\b/i.test(m.name || "")) charShader(t, m);
   _toonCache.set(key, t);
   return t;
 }
@@ -8699,6 +8745,9 @@ function toonify(root, keep) {
     if (!o.isMesh || (o.material && o.material.isShaderMaterial)) return;
     const sk = !!o.isSkinnedMesh;
     const tm = m => keep && m && keep(m) ? m : toonMat(m, sk);
+    // three draws an occlusion map from the second UV set; a model with one set (every Tripo and Meshy export) shares it
+    const mats0 = Array.isArray(o.material) ? o.material : [o.material];
+    if (o.geometry && o.geometry.attributes.uv && !o.geometry.attributes.uv2 && mats0.some(m => m && m.aoMap)) o.geometry.setAttribute("uv2", o.geometry.attributes.uv);
     o.material = Array.isArray(o.material) ? o.material.map(tm) : tm(o.material);
   });
   return root;
