@@ -8518,7 +8518,8 @@ function initThree() {
       if (e.code === "Enter" || e.code === "Space") { setWheel(false); e.preventDefault(); return; }
     }
     if (e.code === "KeyP") setPhone(!phone.open);
-    if (e.code === "KeyH") toggleSiren();
+    // H: on foot it is an arm out for a taxi, in a car it is the horn and the siren
+    if (e.code === "KeyH" && !e.repeat) { if (!drive.car && player.mode === "walk" && !phone.open && !paused) hailTaxi(); else toggleSiren(); }
     if (e.code === "KeyL" && drive.car && !e.repeat) toggleHeadlights();
     if (paused) {
       if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
@@ -9025,8 +9026,10 @@ function pollPad(dt) {
     if (pressed(PAD.DOWN)) toggleWalk();
     // D-pad right: headlights, while you are driving.
     if (pressed(PAD.RIGHT) && drive.car) toggleHeadlights();
+    // and on foot it hails a taxi
+    else if (pressed(PAD.RIGHT) && !drive.car && player.mode === "walk") hailTaxi();
     // D-pad left is the radio: tap for the next station, hold for the wheel.
-    // (Taxis are on the phone, in Ryde.)
+    // (A taxi is D-pad right on foot; a Ryde is booked on the phone.)
   }
 
   radioPadFrame(!phone.open && held(PAD.LEFT), deadzone(gp.axes[2] || 0, 0.30), deadzone(gp.axes[3] || 0, 0.30), 1 / 60);
@@ -9280,7 +9283,7 @@ function fillPause(name) {
       '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
       '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
       '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
-      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
       '<div><h3>The island</h3>' + towns + '</div>' +
       '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
       '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
@@ -16496,6 +16499,20 @@ function liveryRoof(kind, livery) {
   return g;
 }
 
+// The box round the vertices themselves. Box3.setFromObject in this three.js turns each part's own box and boxes that, which for a
+// part modelled at an angle (the Carry van's body was authored diagonally) comes out far too big: the car was scaled down to fit a
+// length it never had, and looked small and wrongly placed in its lane.
+function carTightBox(root) {
+  const box = new THREE.Box3(), v = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+    const pos = o.geometry.attributes.position, step = pos.count > 60000 ? 3 : 1;
+    for (let i = 0; i < pos.count; i += step) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); box.expandByPoint(v); }
+  });
+  if (box.isEmpty()) box.setFromObject(root);
+  return box;
+}
 function fitCarModel(object3d, kind, entry) {
   // Whatever it was authored at: stand it on the ground, centre it, point it
   // down +Z and scale it to the length in the catalogue. The meshes are already
@@ -16503,14 +16520,24 @@ function fitCarModel(object3d, kind, entry) {
   const holder = new THREE.Group();
   const inner = new THREE.Group();
   inner.add(object3d);
-  inner.rotation.y = entry.yaw || 0;
-  inner.updateMatrixWorld(true);
-  let box = new THREE.Box3().setFromObject(inner);
-  // A model dropped in by the player may lie along X rather than Z; turn it a quarter so its length runs the way the game expects.
-  if (entry.user) {
-    const s0 = box.getSize(new THREE.Vector3());
-    if (s0.x > s0.z * 1.15) { inner.rotation.y += Math.PI / 2; inner.updateMatrixWorld(true); box = new THREE.Box3().setFromObject(inner); }
+  // Every copy of a model is the same shape, so it is measured once and the copies reuse the numbers.
+  const key = (entry.url || entry.proc && kind.name) + "|" + (entry.yaw || 0);
+  if (!entry._fit || entry._fit.key !== key) entry._fit = { key: key };
+  const fit = entry._fit;
+  if (fit.yaw === undefined) {
+    inner.rotation.y = entry.yaw || 0;
+    inner.updateMatrixWorld(true);
+    let b = carTightBox(inner);
+    // A model dropped in by the player may lie along X rather than Z; turn it a quarter so its length runs the way the game expects.
+    if (entry.user) {
+      const s0 = b.getSize(new THREE.Vector3());
+      if (s0.x > s0.z * 1.15) { inner.rotation.y += Math.PI / 2; inner.updateMatrixWorld(true); b = carTightBox(inner); }
+    }
+    fit.yaw = inner.rotation.y; fit.box = b;
   }
+  inner.rotation.y = fit.yaw;
+  inner.updateMatrixWorld(true);
+  const box = fit.box;
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
   const scale = kind.L / Math.max(1e-4, size.z);      // some arrive in centimetres or less, so no floor that would shrink them
@@ -34545,6 +34572,7 @@ const DISPATCH_WHO = {
   ambulance: { name: "ambulance", stay: 70, blip: ["#ffffff", "#d8483c"],
                meet: "The crew look you over, and it costs nothing. You are fit to go." },
   ryde:      { name: "Ryde car", stay: 110, blip: ["#12b36b", "#ffffff"], meet: "" },
+  taxi:      { name: "taxi", stay: 90, blip: ["#f2c230", "#202020"], meet: "" },
   fire:      { name: "fire engine", stay: 50, blip: ["#ffb02e", "#d8483c"],
                meet: "“Where is the fire? None? Good. Keep it that way.”" }
 };
@@ -34772,14 +34800,17 @@ function updateDispatch(dt) {
       const v = u.free ? u.v : u.car.v;
       if (remain < (u.free ? 3 : 4) && v < 1.5) {
         u.state = "waiting"; u.t = 0;
-        if (u.svc === "ryde") notify("Ryde", "Your driver is here", "Walk up to the car and press Y.", 6); else notify("Emergency", who.name, "has arrived.", 6);
-        if (u.svc === "ryde") { u.car.stopped = true; phone.dirty = true; }
+        if (u.svc === "ryde") notify("Ryde", "Your driver is here", "Walk up to the car and press Y.", 6);
+        else if (u.svc === "taxi") say("Your taxi has pulled in. Get in with F or Y.", 5);
+        else notify("Emergency", who.name, "has arrived.", 6);
+        if (u.svc === "ryde" || u.svc === "taxi") { u.car.stopped = true; phone.dirty = true; }
       }
     } else if (u.state === "waiting") {
       u.t += dt;
       if (!u.met && Math.hypot(x - px, z - pz) < 14) { u.met = true; meetDispatch(u, who); }
       if (u.t > who.stay) {
         u.state = "leaving"; u.t2 = 0;
+        if (u.svc === "taxi") { if (u.car) { u.car.hailed = false; u.car.stopped = false; } say("The taxi gave up waiting and drove on.", 4); }
         if (u.svc === "ryde") {
           if (u.car) { u.car.hailed = false; u.car.stopped = false; }
           if (phone.ryde && phone.ryde.unit === u) { phone.ryde = null; phone.dirty = true; notify("Ryde", "Ride cancelled", "Your driver gave up waiting.", 5); }
@@ -35330,40 +35361,55 @@ function star(g, cx, cy, r, fill, glow) {
 }
 
 // ---- hailing ---------------------------------------------------------------
-// D-pad left puts a hand out. No prompt on screen: you either know or you
-// learn. The nearest taxi on a lane near you takes the fare, pulls in and
-// waits, and getting in is the usual Y.
+// H on the keyboard, D-pad right on the pad, while you are on foot: an arm goes
+// out at the kerb. A taxi already coming down the street you are standing on
+// takes the fare, and if none is, the next one along turns into it; either way
+// it drives up the lane beside you, pulls in at the kerb and waits. Get in with
+// F or Y and the driver takes you to the marker on your map, on the meter.
 function hailTaxi() {
-  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
-  if (drive.hailed && drive.hailed.live) { say("One is already pulling in.", 3); return; }
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train || !traffic.ready) return false;
+  const pending = dispatch.units.find(u => u.svc === "taxi" && u.state !== "leaving");
+  if (pending) { say(pending.state === "waiting" ? "Your taxi is waiting at the kerb." : "A taxi is already pulling in for you.", 3); return true; }
   const ki = CAR_KINDS.findIndex(k => k.name === "taxi");
-  if (ki < 0) return;
-  const px = player.pos.x, pz = player.pos.z;
-  let best = null, bestD = 180;
-  traffic.cars.forEach(c => {
-    if (!c.live || c.kind !== ki) return;
-    if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;
-    const d = Math.hypot(c.at.x - px, c.at.z - pz);
-    if (d < bestD) { bestD = d; best = c; }
+  if (ki < 0) return false;
+  // the lane beside you: the nearest one, and a taxi sent up it starts only a block or so back, so it is not a long wait
+  const rp = dispatchRoadPoint(90);
+  if (!rp || rp.d > 26) { say("No taxi will stop here. Stand at the kerb of a street.", 3.5); return true; }
+  const lane = traffic.lanes[rp.li];
+  const u = { svc: "taxi", kind: ki, state: "coming", t: 0, stuck: 0, met: true, vmax: Math.min(14, CAR_KINDS[ki].top + 1) };
+  // A taxi already on that lane and still behind you is the one you are waving at.
+  const stop = rp.s - 3;
+  let best = null, bestGap = 170;
+  traffic.byLane[rp.li].forEach(ci => {
+    const c = traffic.cars[ci];
+    if (!c.live || c.kind !== ki || c.dispatch || c.hailed || c.stopped) return;
+    let gap = stop - c.s;
+    if (lane.loop) gap = ((gap % lane.length) + lane.length) % lane.length;
+    if (gap >= 6 && gap < bestGap) { bestGap = gap; best = c; }
   });
-  if (!best) { say("No taxi in sight.", 3); return; }
-  drive.hailed = best;
-  best.hailed = true;
-  say("Taxi flagged down \u00b7 " + Math.round(bestD) + " m", 4);
+  if (best) {
+    u.car = best; u.lane = rp.li;
+    u.target = best.s + bestGap;
+    best.dispatch = u; best.top = Math.min(u.vmax, best.v + 2);
+    best.hailed = true;
+  } else {
+    const car = dispatchPickCar(ki);
+    if (!car) { say("No taxi in sight.", 3); return true; }
+    dispatchOnLane(u, car, rp);
+    car.hailed = true;
+  }
+  dispatch.units.push(u);
+  drive.hailed = u.car;
+  say(best ? "Taxi! It is pulling in." : "Taxi! One is coming down the street.", 3.5);
+  return true;
 }
 
 // A hailed taxi slows and stops beside you; a Ryde booked on the phone counts
 // down and then turns up as one.
 function updateHail(dt) {
+  // the hailed taxi is driven by the dispatcher (updateDispatch); this only forgets it once it is gone
   const h = drive.hailed;
-  if (h) {
-    if (!h.live) { drive.hailed = null; }
-    else {
-      const d = Math.hypot(h.at.x - player.pos.x, h.at.z - player.pos.z);
-      if (d < 22) { h.v = Math.max(0, h.v - 9 * dt); h.stopped = true; }
-      if (d > 200) { h.hailed = false; drive.hailed = null; say("It drove on.", 3); }
-    }
-  }
+  if (h && (!h.live || !h.dispatch)) drive.hailed = null;
   if (phone.ryde && phone.ryde.unit) {
     // a real car: the phone just reports on it, about four times a second
     const st = rydeStatus();
@@ -35582,6 +35628,13 @@ function carsNear(x, z, radius, fn) {
 function findRide() {
   if (!player.placed || player.mode !== "walk" || player.down > 0) return null;
   const px = player.pos.x, pz = player.pos.z;
+  // A taxi you flagged down, or the Ryde you booked, standing at the kerb for you comes before anything else in reach.
+  for (const u of dispatch.units) {
+    if ((u.svc !== "taxi" && u.svc !== "ryde") || !u.car || !u.car.live || !u.car.at || u.state === "leaving") continue;
+    const c = u.car;
+    if (c.v < 3.5 && Math.abs(c.at.y - player.pos.y) < 2.4 && Math.hypot(c.at.x - px, c.at.z - pz) - CAR_KINDS[c.kind].L * 0.4 < 5.0)
+      return { what: "car", car: traffic.cars.indexOf(c) };
+  }
   // A parked car you left is the first thing you would reach for.
   for (let i = 0; i < drive.parked.length; i++) {
     const p = drive.parked[i];
@@ -43344,13 +43397,20 @@ function storyWearingSuit() { return SUIT_IDS.indexOf(player.outfit) >= 0 || SUI
 // in the traffic list rather than the car, so it never matched the booking and getting in was taking the car and driving it yourself.)
 function rydePassengerTry(car) {
   if (!car) return false;
-  const u = dispatch.units.find(q => q.svc === "ryde" && q.car === car);
+  // a Ryde you booked, or a taxi you flagged down at the kerb: either way there is a driver and you ride in the back
+  const u = dispatch.units.find(q => (q.svc === "ryde" || q.svc === "taxi") && q.car === car);
   if (!u) return false;
   const dest = story.blips.length ? story.blips[0] : nav.waypoint;
   if (!dest) { say("Driver: “Where to? Put a marker on your map (M) and I'll take you.”", 5); u.t = Math.min(u.t, 10); return true; }
-  rydeBoarded(u);
   const kind = CAR_KINDS[car.kind];
   const dist = Math.hypot(dest.x - player.pos.x, dest.z - player.pos.z);
+  if (u.svc === "taxi") {
+    // the meter: ¥500 for the flag, then ¥100 every 250 m, which is a Tokyo cab
+    const fare = 500 + Math.ceil(Math.max(0, dist * 1.25 - 1000) / 250) * 100;
+    if (purse.yen < fare) { say("Driver: “That's about " + yenText(fare) + ". You don't have it.”", 4); return true; }
+    purse.yen -= fare;
+    notify("Taxi", "Fare", yenText(fare) + " on the meter.", 5);
+  } else rydeBoarded(u);
   const going = dest.label ? dest.label : "the marker on your map";
   u.state = "leaving"; u.t2 = 0; car.hailed = false; car.stopped = false;
   if (player.obj) player.obj.visible = false;
