@@ -3202,8 +3202,10 @@ const RING3 = ["Suburb", "House", "Suburb", "Park", "Works", "Suburb", "House", 
 // they are most of the pool, and the first ward is one whatever happens.
 const VILLAGE_RING = ["House", "Retail", "House", "Shrine", "House", "Park", "House", "Works"];
 
-// =====================================================================// GENERATION
-// =====================================================================function makeWorld(seed, report) {
+// =====================================================================
+// GENERATION
+// =====================================================================
+function makeWorld(seed, report) {
   const arc = buildArc();
   const n = GRID_X * GRID_Z;
   const height = new Float32Array(n);
@@ -4092,8 +4094,10 @@ function buildLinkRoads(root) {
   emit(road, { pos: 3, nrm: 3, uv: 2 }, asphalt); emit(verge, { pos: 3, nrm: 3, uv: 2 }, gravel); emit(paint, { pos: 3 }, white);
 }
 
-// =====================================================================// THE COASTAL EXPRESSWAY
-// =====================================================================// One road all the way round the island. It is found by asking the terrain, not
+// =====================================================================
+// THE COASTAL EXPRESSWAY
+// =====================================================================
+// One road all the way round the island. It is found by asking the terrain, not
 // drawn by hand: a cheapest-path search over the heightfield that prefers flat
 // ground a few hundred metres inside the shore, shies from towns and rivers,
 // and pays dearly to cross open water (which is where the bridges come from).
@@ -4437,18 +4441,22 @@ function planHighway(world) {
   world.bridgeY = (px, pz, refY) => { const y = hwy.yAt(px, pz); if (y !== null && (refY === undefined || y <= refY + 1.6)) { const o = refY === undefined ? null : prevBridgeY(px, pz, refY); return o !== null && o > y ? o : y; } return prevBridgeY(px, pz, refY); };
 }
 
-// =====================================================================// SKI RESORTS
-// =====================================================================// Every real summit gets one: a chairlift from a base station on the lower
+// =====================================================================
+// SKI RESORTS
+// =====================================================================
+// Every real summit gets one: a chairlift from a base station on the lower
 // slope to a top station on the peak, cut into the mountain as a flat platform
 // at each end. The line is found, not drawn - the compass is swept for the
 // straightest, steadiest, most downhill run from the top.
-// =====================================================================// AIRPORTS
+// =====================================================================
+// AIRPORTS
 // ----------------------------------------------------------------------------
 // One large international airport beside the capital and four smaller fields out in the country. Each is sited on the flattest open ground the
 // island has (not under a city, not across the expressway), and the terrain is graded flat under it before the mesh is made. An airport is laid
 // out in its own frame: x along the runway, z toward the terminal side. Runway, taxiway and apron are surfaces; the terminal, tower, hangars and
 // the aircraft on the stands are built from solids, and the international airport has an airliner landing and another taking off every few minutes.
-// =====================================================================const AIRPORT_SPECS = [
+// =====================================================================
+const AIRPORT_SPECS = [
   { name: "Tōkonto International Airport", code: "TKO", len: 3200, wid: 60, big: true, near: "Tōkonto", dmin: 3500, dmax: 11000 },
   { name: "Nagisa Airport", code: "NGS", len: 1900, wid: 45, near: "Nagisa", dmin: 1800, dmax: 6500 },
   { name: "Kaido Airfield", code: "KDO", len: 1300, wid: 32, near: "Kaido", dmin: 1500, dmax: 6000 },
@@ -5010,8 +5018,10 @@ function planSki(world) {
   world.ski = { resorts: resorts };
 }
 
-// =====================================================================// CITY
-// =====================================================================function planCity(world, F, seed, report, progressBase) {
+// =====================================================================
+// CITY
+// =====================================================================
+function planCity(world, F, seed, report, progressBase) {
   const site = F.site;
   const arc = world.arc;
   const citySeed = seed + 611 + site.code.charCodeAt(0) * 37;
@@ -6293,8 +6303,10 @@ function fromRectLocal(lx, lz, cx, cz, yaw) {
   return [cx + lx * cs + lz * sn, cz - lx * sn + lz * cs];
 }
 
-// =====================================================================// RENDERING
-// =====================================================================const SURFACE = {
+// =====================================================================
+// RENDERING
+// =====================================================================
+const SURFACE = {
   sea: [0.09, 0.20, 0.26], shallow: [0.16, 0.31, 0.34],
   sand: [0.70, 0.67, 0.58], gravel: [0.45, 0.44, 0.41],
   paddy: [0.30, 0.40, 0.17], meadow: [0.36, 0.48, 0.20],
@@ -6618,12 +6630,14 @@ function voronoiCells(seeds, bounds) {
 }
 
 
-// =====================================================================// FACADES
+// =====================================================================
+// FACADES
 // Every building style gets its own tiling texture, drawn at a fixed number of
 // metres per window bay so the windows come out the same size on a tower and on
 // a shophouse. The per instance tile counts are rounded to whole bays, which is
 // what keeps a window from being sliced in half at the corner of a block.
-// =====================================================================const FACADE_STYLES = {
+// =====================================================================
+const FACADE_STYLES = {
   // metres of real facade one repeat of the texture covers: width, height
   glass:  { cell: [12.8, 14.4], roof: "plant" },
   office: { cell: [12.8, 14.4], roof: "plant" },
@@ -6645,7 +6659,8 @@ function voronoiCells(seeds, bounds) {
   coast:   { cell: [8.0, 5.6], roof: "tin" }
 };
 
-// =====================================================================// THE FINISH PASS
+// =====================================================================
+// THE FINISH PASS
 // ----------------------------------------------------------------------------
 // Everything in this section is a mask laid over the world rather than work
 // done on any one asset. Nothing below knows what a machiya is, or a kei van,
@@ -6672,7 +6687,8 @@ function voronoiCells(seeds, bounds) {
 //                single cheapest thing on this list
 //
 // The fifth and biggest - the post chain - is further down, next to present().
-// =====================================================================const TEXQ = { scale: 2, normals: true, maxNormal: 512 };
+// =====================================================================
+const TEXQ = { scale: 2, normals: true, maxNormal: 512 };
 
 // Multiplier on every procedural texture. The generators draw in fractions of
 // their own size, so this is the only number that has to change.
@@ -7773,7 +7789,8 @@ function addGableRoofs(root, boxes) {
   });
 }
 
-// =====================================================================// SOTI TOWER
+// =====================================================================
+// SOTI TOWER
 // 248 m, which is Midtown Tower in Akasaka, because that is what the tallest
 // building in a Tokyo district actually measures. It used to be the Ping An
 // Finance Centre from Shenzhen - 592 m, eight mega-columns closing over the
@@ -7789,7 +7806,8 @@ function addGableRoofs(root, boxes) {
 //                  the pavement as solid bands in a glass wall
 //   the podium     five storeys of stone meeting the footway under a deep
 //                  canopy, rather than glass running into the ground
-// =====================================================================const SOTI = {
+// =====================================================================
+const SOTI = {
   height: 248,          // metres, architectural
   mastTop: 262,
   floors: 54,
@@ -8022,12 +8040,14 @@ function facadeStyleFor(kind, region) {
 }
 
 
-// =====================================================================// SEIKO SHIGU
+// =====================================================================
+// SEIKO SHIGU
 // The player character. If a glTF of him sits next to this file (or is dropped
 // on the page) it is used; otherwise he is built here out of boxes, in the
 // clothes he wears for the whole first act: white collared shirt, black tie,
 // black suit trousers, black shoes.
-// =====================================================================const SEIKO_HEIGHT = 1.74;      // metres, so everything else has a sense of scale
+// =====================================================================
+const SEIKO_HEIGHT = 1.74;      // metres, so everything else has a sense of scale
 
 function makeSeiko() {
   const skin = new THREE.MeshLambertMaterial({ color: 0xe8c4a2 });
@@ -8184,8 +8204,10 @@ function insideBuilding(px, pz, radius, y) {
   return false;
 }
 
-// =====================================================================// SCENE
-// =====================================================================const STREET_GEOMETRY = true;   // the local streets are real geometry (buildRoadSurfaces), not paint in the city texture
+// =====================================================================
+// SCENE
+// =====================================================================
+const STREET_GEOMETRY = true;   // the local streets are real geometry (buildRoadSurfaces), not paint in the city texture
 const CITY_LIFT = 0.7;        // metres the painted city ground sits over the terrain
 let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
 let sunLight = null, skyDome = null;
@@ -10993,7 +11015,8 @@ function grabFrame() {
     frameGrab.ok = true;
   } catch (e) { frameGrab.ok = false; }
 }
-// =====================================================================// TREES
+// =====================================================================
+// TREES
 // ----------------------------------------------------------------------------
 // Four species, because four is how many you need before a hillside stops
 // looking like one tree copied out. They are the four you actually see:
@@ -11520,7 +11543,8 @@ function parkTrunks(root, list) {
 }
 
 
-// =====================================================================// STREET LIGHTS
+// =====================================================================
+// STREET LIGHTS
 // ----------------------------------------------------------------------------
 // A pole at the kerb every thirty-odd metres down every road in every town,
 // alternating sides, and one every fifty-five along the coastal expressway. Each
@@ -11528,7 +11552,8 @@ function parkTrunks(root, list) {
 // a pool of light laid on the road), so only the squares in front of the camera
 // are drawn and the far ones are skipped. After dusk the heads turn warm and the
 // pools come up; in daytime they are grey fittings on a pole.
-// =====================================================================const lampCells = [];
+// =====================================================================
+const lampCells = [];
 const LAMP_CULL = { low: 380, medium: 600, high: 900, ultra: 1300 };
 // Soft light, drawn once: a round glow for lamps and pools, and a long cone for
 // headlight beams. Alpha only falls away smoothly, so nothing has an edge.
@@ -11652,8 +11677,10 @@ function buildStreetLights(root, w) {
 }
 
 
-// =====================================================================// STREET LIFE: PARKING BAYS, SHOP DECORATION, VENDING MACHINES
-// =====================================================================// Painted bays along the kerb of every street that is not the expressway, with
+// =====================================================================
+// STREET LIFE: PARKING BAYS, SHOP DECORATION, VENDING MACHINES
+// =====================================================================
+// Painted bays along the kerb of every street that is not the expressway, with
 // parked cars in some of them, brought in as you approach and put away as you
 // leave. Paper lanterns, noren, nobori flags, awnings and pot plants on the
 // shopfronts, as many as the kind of shop wants. And a jihanki on the pavement
@@ -12698,14 +12725,16 @@ function updateParking(dt) {
   }
 }
 
-// =====================================================================// THE COUNTRYSIDE
+// =====================================================================
+// THE COUNTRYSIDE
 // ----------------------------------------------------------------------------
 // Woods, scattered trees and grass over every part of the island that is not a
 // town or a road. Forty thousand hectares cannot be planted up front, so the
 // ground is cut into tiles and a tile is planted only when you are near it, and
 // forgotten when you leave. Every plant comes from a hash of where it stands,
 // so a tile planted twice is the same tile twice.
-// =====================================================================const veg = { cell: 4, w: 0, h: 0, mask: null, trees: new Map(), grass: new Map(), root: null, group: null, mats: null, geo: null, t: 0 };
+// =====================================================================
+const veg = { cell: 4, w: 0, h: 0, mask: null, trees: new Map(), grass: new Map(), root: null, group: null, mats: null, geo: null, t: 0 };
 const VEG_TILE = 500, GRASS_TILE = 80;
 
 function vegDisc(x, z, r) {
@@ -13026,7 +13055,8 @@ function vegFill(px, pz) {
   }
 }
 
-// =====================================================================// THE POST CHAIN
+// =====================================================================
+// THE POST CHAIN
 // ----------------------------------------------------------------------------
 // The scene is drawn into a buffer instead of onto the screen, and the screen
 // gets the buffer back after four things have happened to it. None of them
@@ -13048,7 +13078,8 @@ function vegFill(px, pz) {
 //                       trick there is for making flat shading look shot
 //
 // It costs about a third of the frame at 1080p. Low and medium turn it off.
-// =====================================================================const post = {
+// =====================================================================
+const post = {
   want: true, on: false, ready: false,
   rt: null, aoRT: null, blurA: null, blurB: null,
   cam: null, quad: null, scenes: {}, mats: {},
@@ -13440,7 +13471,8 @@ function present() {
   if (wantFrame() || frameGrab.want) { grabFrame(); frameGrab.want = false; }
 }
 
-// =====================================================================// THE AAA CHAIN (high and ultra)
+// =====================================================================
+// THE AAA CHAIN (high and ultra)
 // ----------------------------------------------------------------------------
 // three's EffectComposer, kept in linear HDR from the scene to the tone map, which is the order a console renderer works in:
 //   scene    the world into a half-float target with its depth texture, and no tone mapping yet, so the sun on a window is 6.0 and not 1.0
@@ -13453,7 +13485,8 @@ function present() {
 //   grade    the game's own anime look (COMPOSITE_FRAG: painted colour, ink lines, the grade, vignette, sharpening)
 //   SMAA     last, so the ink lines are anti-aliased with everything else
 // If anything in it fails, the chain is dropped for the session and the older one (renderPost) takes over.
-// =====================================================================const fx = { composer: null, sceneRT: null, w: 0, h: 0, broken: false, on: false, p: {},
+// =====================================================================
+const fx = { composer: null, sceneRT: null, w: 0, h: 0, broken: false, on: false, p: {},
   // tuned on the streets of Tōkonto at noon, at dusk and at night
   ssao: { radius: 1.1, intensity: 1.15, bias: 0.035, strength: 0.85 },
   bloom: { strength: 0.5, radius: 0.5, threshold: 4.0 } };   // linear scene light: sunlit white plaster is ~3, a sun glint 20+
@@ -21733,7 +21766,8 @@ function phoneIcon(g, x, y, s, colour, glyph) {
 
 // Tōkonto at dusk from across the bay. Drawn, not photographed, because the
 // city on the wallpaper should be the city out of the window.
-// ======================================================================// DEVICES
+// ======================================================================
+// DEVICES
 // -----------------------------------------------------------------------------
 // A phone is a catalogue entry. Everything that differs between one and the
 // next - the cut-out in the glass, what runs along the bottom, how good the
@@ -21755,7 +21789,8 @@ function phoneIcon(g, x, y, s, colour, glyph) {
 // Cameras are scored out of ten and the SOTIs are better, on purpose: the Pears
 // have the nicer software and the SOTIs take the nicer photographs, which is
 // the argument anyone who owns either will make.
-// ======================================================================const SO_COLOURS = [["Titan Grey", "#6a6f77"], ["Obsidian", "#1b1d21"], ["Lavender", "#8d83b8"], ["Jade", "#3f7d6b"], ["Amber", "#b9803a"]];
+// ======================================================================
+const SO_COLOURS = [["Titan Grey", "#6a6f77"], ["Obsidian", "#1b1d21"], ["Lavender", "#8d83b8"], ["Jade", "#3f7d6b"], ["Amber", "#b9803a"]];
 const PEAR_COLOURS = [["Graphite", "#4b4e54"], ["Silver", "#d6d8da"], ["Gold", "#d7bfa0"], ["Pacific", "#37556f"], ["Violet", "#6b5a86"], ["Alpine", "#4f6f58"]];
 const PEAR_PRO_COLOURS = [["Space Black", "#2a2b2e"], ["Natural Titanium", "#b9b2a6"], ["Blue Titanium", "#4a5568"], ["White Titanium", "#e8e6e1"], ["Desert Titanium", "#b79a82"]];
 
@@ -22303,7 +22338,8 @@ function drawPearHome(g, W, H) {
   phoneNavBar(g, W, H);
 }
 
-// ======================================================================// THE BASIC PHONES
+// ======================================================================
+// THE BASIC PHONES
 // -----------------------------------------------------------------------------
 // The two you can buy at a till. 11 Eleven's is green with an orange and red
 // stripe through it; Pet Mart's is blue and has paws. Each is a small screen and
@@ -22314,7 +22350,8 @@ function drawPearHome(g, W, H) {
 // walk down to: the D-pad moves round the screen as it does on any phone, and
 // pressing down at the bottom of whatever is on it steps onto the keypad, where
 // A presses the key under the cursor.
-// ======================================================================const PAD_KEYS = [
+// ======================================================================
+const PAD_KEYS = [
   ["MENU", "menu"],  ["OK", "ok"],       ["BACK", "back"],
   ["CALL", "call"],  ["C", "clear"],     ["END", "end"],
   ["1", "1", ""],    ["2", "2", "ABC"],  ["3", "3", "DEF"],
@@ -29972,14 +30009,16 @@ function buildFamilyHome(root) {
   bikeParks.clear.push([homeReserve.cx, homeReserve.cz, 13]);
 }
 
-// =====================================================================// ONSEN
+// =====================================================================
+// ONSEN
 // ----------------------------------------------------------------------------
 // A bathhouse in the mountain countryside: a wooden house under a tiled roof with
 // a steaming chimney, an indigo curtain with the ゆ mark, paper lanterns, and
 // behind it an outdoor pool among rocks with steam drifting off it. Walk up and
 // press Y. A soak costs a little and takes real time off the clock; it is the
 // strongest cure for stress in the game.
-// =====================================================================const onsens = { list: [], steam: null, active: null };
+// =====================================================================
+const onsens = { list: [], steam: null, active: null };
 const ONSEN_NAMES = ["Yukemuri Onsen", "Shirakawa no Yu", "Tsukimi Onsen", "Hoshi no Yu", "Kamikaze Onsen", "Momiji no Yu"];
 function buildOnsens(root) {
   onsens.list.length = 0; onsens.steam = null;
@@ -36562,12 +36601,14 @@ function updateTitle(dt) {
 }
 
 // ---------------------------------------------------------------- run
-// =====================================================================// SKI
+// =====================================================================
+// SKI
 // ----------------------------------------------------------------------------
 // Each summit has a chairlift. At the bottom a station takes you to the top;
 // at the top a hut rents skis; and the run itself is its own little first
 // person game (see skiRunStart), which ends back at the chairlift.
-// =====================================================================const ski = { mode: null, list: [], cur: null, course: "blue", rented: false, best: {}, ride: null, menu: null, group: null, lastNear: null };
+// =====================================================================
+const ski = { mode: null, list: [], cur: null, course: "blue", rented: false, best: {}, ride: null, menu: null, group: null, lastNear: null };
 const SKI_RENTAL = 1200;
 const SKI_COURSES = {
   blue:  { id: "blue",  name: "Blue",  level: "Easy",         sym: "●", col: "#2a7de1", len: 1900, width: 40, slope: [0.14, 0.20], bend: 0.0014, trees: 7,  rocks: 3,  jumps: 2, moguls: 0.0,  jump: 0.9 },
@@ -36618,7 +36659,8 @@ function skiSignTexture(title, sub) {
   return tex;
 }
 
-// =====================================================================// MOUNTAIN BIKE PARKS
+// =====================================================================
+// MOUNTAIN BIKE PARKS
 // ----------------------------------------------------------------------------
 // One beside each chairlift. A downhill run follows the fall line a hundred and
 // fifty metres off the lift: rollers, tabletops, a gap and a big gap, whoops,
@@ -36627,7 +36669,8 @@ function skiSignTexture(title, sub) {
 // quarter pipe. Rental dirt bikes and mountain bikes stand at the top, and
 // bikes of any kind work: the ground you ride on is made of decks that the
 // bike physics ask the height of (world.walkY), so every ramp is a real ramp.
-// =====================================================================const bikeParks = { list: [], rentals: [], clear: [] };
+// =====================================================================
+const bikeParks = { list: [], rentals: [], clear: [] };
 function buildBikeParks(root) {
   bikeParks.list.length = 0; bikeParks.rentals.length = 0; bikeParks.clear.length = 0;
   world.walk = world.walk.filter(d => !d.park);
@@ -37589,14 +37632,16 @@ function updateSki(dt) {
 }
 
 
-// =====================================================================// AIR TRAVEL
+// =====================================================================
+// AIR TRAVEL
 // ----------------------------------------------------------------------------
 // The big airport is a place you can use. A highway runs to it from the capital. The terminal is walked through: a landside hall with check-in,
 // a ticket office, self-service kiosks, pop-up branches of Konto's shops and a security checkpoint; an airside concourse with more shops and the
 // gates; and the cabin, where you sit down to an in-flight screen. Tickets are bought at the office or on the Expedio app (a parody). Flights go to
 // Seoul and to two island groups, each a small explorable region of its own, and back. Or: drive through the airport gate, up to a parked airliner
 // and take it, with four stars and helicopters behind you.
-// =====================================================================const AIR_DESTS = {
+// =====================================================================
+const AIR_DESTS = {
   seoul:   { id: "seoul",   name: "Seoul",           code: "SEL", fare: 48000, hours: 2.6, blurb: "Hangang, neon, fried chicken at 2 a.m." },
   kohana:  { id: "kohana",  name: "Kohana Islands",  code: "KHN", fare: 72000, hours: 4.1, blurb: "White sand, one road, no deadlines." },
   ryujima: { id: "ryujima", name: "Ryūjima",         code: "RYJ", fare: 64000, hours: 3.4, blurb: "A volcano with a hot spring and a ferry." },
@@ -38014,12 +38059,14 @@ function airLand(to) {
 function airDepartDest() { enterThrough(() => { ifeStart(air.at, "konto"); }); }
 
 
-// =====================================================================// PLACES TO FLY TO
+// =====================================================================
+// PLACES TO FLY TO
 // ----------------------------------------------------------------------------
 // Seoul and two island groups are small regions of their own. Each sits in deep open sea off the edge of Konto's map, where the terrain height is
 // replaced by a function of its own, so the walking, the camera and the collision work there exactly as they do at home; and each is walled in by water.
 // They are built the first time you arrive, and only drawn while you are near.
-// =====================================================================let worldRoot = null;
+// =====================================================================
+let worldRoot = null;
 const DEST = { sites: [], by: {}, active: null };
 // ---- the holiday areas on the map: each is drawn from its own heights, streets and buildings, and sits out at sea on the island's map as well ----
 function destMapCanvas(s) {
@@ -38305,8 +38352,10 @@ function destFrame(dt) {
 }
 
 
-// =====================================================================// THE AIRFIELD GATE, STEALING A PLANE, FLYING IT, AND WHO COMES AFTER YOU
-// =====================================================================const AIR_CRIMES = { breach: { stars: 2, what: "Smashing through an airport gate" }, theft: { stars: 4, what: "Stealing an aircraft" } };
+// =====================================================================
+// THE AIRFIELD GATE, STEALING A PLANE, FLYING IT, AND WHO COMES AFTER YOU
+// =====================================================================
+const AIR_CRIMES = { breach: { stars: 2, what: "Smashing through an airport gate" }, theft: { stars: 4, what: "Stealing an aircraft" } };
 function airportExtras(ap, G, ctx) {
   const L = ctx.L, big = ap.big, M = c => new THREE.MeshLambertMaterial({ color: c });
   const wp = (x, z) => fromRectLocal(x, z, ap.cx, ap.cz, ap.yaw);
@@ -38437,8 +38486,10 @@ function updateAirportGates(dt) {
   aps.forEach(ap => { const g = ap.gate; if (g && g.fly) { g.t += dt; g.fly.position.y -= 3 * dt * (g.t < 0.6 ? 0 : 1); g.fly.position.x += 2 * dt; g.fly.rotation.z += dt * 3; if (g.t > 4) { scene.remove(g.fly); g.fly = null; } } });
 }
 // ---- the planes you can take --------------------------------------------------------------------------------------------------------------------
-// =====================================================================// FLYING: a flight model with lift, drag, thrust and a stall; instruments; three cameras; and jumping out with a parachute
-// =====================================================================const flight = { active: false, mesh: null, en: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, gamma: 0, air: false, len: 40, span: 36, off: 0, hud: null, pfd: null, cam: 0, P: null, parked: [], lowres: false, lastCrash: null, xWas: false, brake: false, stall: false };
+// =====================================================================
+// FLYING: a flight model with lift, drag, thrust and a stall; instruments; three cameras; and jumping out with a parachute
+// =====================================================================
+const flight = { active: false, mesh: null, en: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, gamma: 0, air: false, len: 40, span: 36, off: 0, hud: null, pfd: null, cam: 0, P: null, parked: [], lowres: false, lastCrash: null, xWas: false, brake: false, stall: false };
 const FP_JET = { vs: 44, vr: 55, vmax: 150, thr: 6.5, c0: 3.6e-4, ci: 34, pitchRate: 0.42, rollRate: 0.95, rudRate: 0.3, crashV: 7 };
 const FP_PROP = { vs: 24, vr: 30, vmax: 80, thr: 4.6, c0: 7.5e-4, ci: 20, pitchRate: 0.85, rollRate: 1.6, rudRate: 0.55, crashV: 4.5 };
 const ghosts = [];
@@ -38926,12 +38977,14 @@ function updateHelis(dt) {
 }
 function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
 
-// =====================================================================// FIREARMS
+// =====================================================================
+// FIREARMS
 // ----------------------------------------------------------------------------
 // Bought behind the shutter at Kanamono, picked from the equipment wheel (hold Q or LB), carried in the right hand with the arm brought up, aimed over
 // the shoulder, fired, reloaded. The gun is a real model: the same one is on the shelf in the shop. Every shot in the street is a crime.
 //   aim: right mouse button, V, or LT      fire: left mouse button (while aiming), Enter, or RT      reload: R, or X on a pad
-// =====================================================================const GUNS = {
+// =====================================================================
+const GUNS = {
   pistol:  { name: "Compact pistol", mag: 15, rate: 0.26, auto: false, spread: 0.010, pellets: 1, reload: 1.3, range: 95, kick: 0.022, vol: 0.9, tone: 1700 },
   smg:     { name: "Machine pistol", mag: 30, rate: 0.075, auto: true, spread: 0.032, pellets: 1, reload: 1.7, range: 75, kick: 0.011, vol: 0.75, tone: 2400 },
   shotgun: { name: "Short shotgun", mag: 6, rate: 0.85, auto: false, spread: 0.075, pellets: 8, reload: 2.4, range: 45, kick: 0.07, vol: 1.0, tone: 900 }
@@ -39134,11 +39187,13 @@ function gunFx(dt) {
 }
 addEventListener("keydown", e => { if (e.repeat) return; if (e.code === "KeyR" && gunArmed()) gunReload(); });
 
-// =====================================================================// People on the street. Each one is Seiko's own rigged, animated body (cloned, with its own skeleton and its own shirt), walking the
+// =====================================================================
+// People on the street. Each one is Seiko's own rigged, animated body (cloned, with its own skeleton and its own shirt), walking the
 // pavements of the city around you: a few dozen metres out they appear, beyond a hundred they go. They react to you. Point a gun at one and
 // the hands go up; fire, run someone over, or shoot someone and the people who saw it scatter screaming, duck, or stand still with a phone to
 // the ear - and if nobody stops the call, the police are on their way. With no police and no witnesses, nobody knows.
-// =====================================================================const peds = { list: [], tpl: null, anims: null, poses: null, scale: 1, off: null, mats: [], grid: null, gridFor: null, spawnT: 0, sayT: 0, phoneTex: null, poolTex: null, lockEl: null };
+// =====================================================================
+const peds = { list: [], tpl: null, anims: null, poses: null, scale: 1, off: null, mats: [], grid: null, gridFor: null, spawnT: 0, sayT: 0, phoneTex: null, poolTex: null, lockEl: null };
 const PED_SHIRTS = ["#f7f7f5", "#bcd3ea", "#e9c9d2", "#9aa3ad", "#2f4a6b", "#c9b48a", "#3d6b4f", "#7a3b3b", "#e6e0cf", "#55606e"];
 const PED_LINES = { flee: ["Help!", "Run!", "He's got a gun!", "Somebody help!", "Tasukete!", "Get down!"], call: ["Police? There's a man with a gun…", "Hello, police? Come quickly!", "I'm calling the police!"], hands: ["Don't shoot!", "Please, take what you want!", "I didn't see anything!"] };
 CRIMES.shooting = { stars: 3, what: "Shooting somebody" };
@@ -40007,10 +40062,12 @@ function robKeyDown(e) {
   return k !== "KeyP";
 }
 
-// =====================================================================// Props (Web/props: Poly Haven furniture, CC0, built by Game/tools/build-props.mjs). A prop is placed at once as an empty holder and filled
+// =====================================================================
+// Props (Web/props: Poly Haven furniture, CC0, built by Game/tools/build-props.mjs). A prop is placed at once as an empty holder and filled
 // when its model arrives; every copy after the first is a clone of the one loaded. Each is stood on the floor (its lowest point at the
 // holder) and centred over it, and can be scaled to a height or a width.
-// =====================================================================const propLib = { cache: {}, wait: {}, loader: null };
+// =====================================================================
+const propLib = { cache: {}, wait: {}, loader: null };
 function propLoad(id, cb) {
   if (propLib.cache[id]) { cb(propLib.cache[id]); return; }
   if (propLib.wait[id]) { propLib.wait[id].push(cb); return; }
@@ -43228,8 +43285,10 @@ function storyPeoplePoses(make) {
 function setGameTime(min) { const d = ((min - gameMinutes()) % 1440 + 1440) % 1440; clock += d / TIME.rate; updateWorldSky(0, true); }
 function hhmm(m) { m = ((m % 1440) + 1440) % 1440; return two(Math.floor(m / 60)) + ":" + two(Math.floor(m % 60)); }
 
-// ==============================================================================================================================================// MISSION 1 - THE INTERVIEW
-// ==============================================================================================================================================const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
+// ==============================================================================================================================================
+// MISSION 1 - THE INTERVIEW
+// ==============================================================================================================================================
+const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
 // New game: the dream on the train out of Mizuho, then Tōkonto Central.
 function storyNewGame() {
   story.m = 1; story.step = "intro"; story.flags = {}; story.owned = { village: true }; story.wearing = "village"; storyClearBlips(); storyClearObjective();

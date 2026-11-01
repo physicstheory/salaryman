@@ -90,9 +90,9 @@ test('NHRail lists actual nearby world stations by distance', () => {
   c.world=null;assert.equal(c.nearbyRailStations().length,0);
 });
 test('opaque pause pages skip GPU rendering and still permit camera capture', () => {
-  const c={paused:true,capture:false,frameGrab:{want:false},post:{time:0,on:false},world:null,scene:{},camera:{},renders:0,grabs:0,applyCameraFull(){},postUsable:()=>false};
+  const c={paused:true,capture:false,frameGrab:{want:false},post:{time:0,on:false},world:null,scene:{},camera:{},renders:0,grabs:0,applyCameraFull(){},fxUsable:()=>false,fx:{on:false},postUsable:()=>false};
   c.wantFrame=()=>c.capture;c.grabFrame=()=>c.grabs++;c.renderer={render:()=>c.renders++};vm.createContext(c);
-  vm.runInContext(declaration('function present()', 'let noticeTimer'),c);c.present();assert.equal(c.renders,0);
+  vm.runInContext(declaration('function present()', '// THE AAA CHAIN').replace(/\n\/\/ =+\s*$/, ''),c);c.present();assert.equal(c.renders,0);
   c.capture=true;c.present();assert.equal(c.renders,1);assert.equal(c.grabs,1);
   c.capture=false;c.paused=false;c.present();assert.equal(c.renders,2);
 });
