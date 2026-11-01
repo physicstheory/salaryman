@@ -9688,9 +9688,13 @@ function buildScene(w) {
     og.computeVertexNormals();
     { const ys = new Float32Array(op.count); for (let i = 0; i < op.count; i++) ys[i] = op.getY(i);
       w.overlays.push({ x0: paint.x0, z0: paint.z0, w: paint.w, h: paint.h, sx: segX, sz: segZ, y: ys }); }
-    const overlayMat = new THREE.MeshLambertMaterial({
-      map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
-    });
+    // Standard on high, not Lambert: Lambert has no specular and no roughness, so the engine's rain could only darken the
+    // streets, and its puddles came out as dark blotches with nothing in them. Standard lets a wet road go glossy and a
+    // puddle hold the sky.
+    const overlayMat = gfx.high
+      ? new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.08, depthWrite: true, roughness: 0.92, metalness: 0, envMapIntensity: 0.55 })
+      : new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.08, depthWrite: true });
+    if (gfx.high && gfx.env) overlayMat.envMap = gfx.env;
     w.overlays[w.overlays.length - 1].mat = overlayMat;
     // The plan is painted at metres to the pixel, which is a flat wash once you
     // are standing on it. A grain texture at eight metres a repeat gives the
