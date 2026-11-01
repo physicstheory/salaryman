@@ -224,18 +224,15 @@
   #boot[hidden] { display: none; }
   #bootshow { position: absolute; inset: 0; }
   #bootshow .slide {
-    position: absolute; inset: -4%; background: center / cover no-repeat; opacity: 0;
+    position: absolute; inset: 0; background: center / cover no-repeat; opacity: 0; transform-origin: 50% 30%;
     transition: opacity 1.6s ease; will-change: transform, opacity;
   }
   #bootshow .slide.on { opacity: 1; }
-  #bootshow .k0 { animation: kb0 11s linear forwards; }
-  #bootshow .k1 { animation: kb1 11s linear forwards; }
-  #bootshow .k2 { animation: kb2 11s linear forwards; }
-  #bootshow .k3 { animation: kb3 11s linear forwards; }
-  @keyframes kb0 { from { transform: scale(1.02) translate(-2.2%, 0.6%); } to { transform: scale(1.10) translate(2.2%, -0.6%); } }
-  @keyframes kb1 { from { transform: scale(1.12) translate(2%, -1%); } to { transform: scale(1.03) translate(-1.6%, 0.8%); } }
-  @keyframes kb2 { from { transform: scale(1.04) translate(1.8%, 1.2%); } to { transform: scale(1.11) translate(-2%, -0.8%); } }
-  @keyframes kb3 { from { transform: scale(1.10) translate(-1.6%, -1.2%); } to { transform: scale(1.02) translate(1.8%, 1%); } }
+  /* GTA V's loading pictures slide slowly sideways across the screen, the next one going the other way */
+  #bootshow .k0, #bootshow .k2 { animation: panL 12s linear forwards; }
+  #bootshow .k1, #bootshow .k3 { animation: panR 12s linear forwards; }
+  @keyframes panL { from { transform: scale(1.1) translateX(4.3%); } to { transform: scale(1.1) translateX(-4.3%); } }
+  @keyframes panR { from { transform: scale(1.1) translateX(-4.3%); } to { transform: scale(1.1) translateX(4.3%); } }
   #boot::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background: radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.38) 100%),
@@ -1268,7 +1265,7 @@
 /* The loading slideshow runs before anything else has loaded, so it is plain script with no help from the game. */
 (function () {
   // the pictures are listed in loading/index.json, so new ones can be dropped in without touching the page
-  var S = ["loading/seiko_mizuho.jpg", "loading/akio.jpg", "loading/mother.jpg"];
+  var S = ["loading/yakuza_crew.jpg", "loading/seiko_mizuho.jpg", "loading/oyabun.jpg", "loading/akio.jpg", "loading/yakuza_enforcer.jpg", "loading/mother.jpg", "loading/receptionist.jpg"];
   try { fetch("loading/index.json").then(function (r) { return r.json(); }).then(function (j) { if (j && j.slides && j.slides.length) S = j.slides.map(function (f) { return "loading/" + f; }); }).catch(function () {}); } catch (e) { /* the built-in list */ }
   var box = document.getElementById("bootshow"), boot = document.getElementById("boot"), i = 0, k = 0, timer = 0;
   function next() {
@@ -1278,7 +1275,7 @@
       var d = document.createElement("div"); d.className = "slide k" + (k++ % 4); d.style.backgroundImage = "url('" + src + "')";
       box.appendChild(d); void d.offsetWidth; d.classList.add("on");
       while (box.children.length > 2) box.removeChild(box.firstChild);
-      timer = setTimeout(next, 7000);
+      timer = setTimeout(next, 8000);
     };
     img.onerror = function () { timer = setTimeout(next, 400); };
     img.src = src;
