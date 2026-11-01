@@ -7,6 +7,7 @@ const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const game = path.resolve(__dirname, '..');
 const output = path.resolve(process.argv[2] || '/tmp/salaryman-retail');
+const capture=process.env.SCREENSHOTS==='1';
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.woff2':'font/woff2' };
 const server = http.createServer((request, response) => {
   const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
@@ -37,7 +38,7 @@ async function main() {
     }));
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('pause')).filter),'none','Shared color theme must load without parent grayscale');
-    assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('mres')).borderRadius),'9px','Redesigned controls stylesheet must load');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('mres')).borderRadius),'0px','Redesigned controls stylesheet must load');
     const state = () => page.evaluate(() => ({ mode: player.mode, cities: world?.cities.length,
       hq: !!player.hq, outfit: player.outfit, cast: pplLib.ready.length,
       boot: document.getElementById('bootstage').textContent, loading: !document.getElementById('boot').hidden,
@@ -71,11 +72,11 @@ async function main() {
         },brand);
         for(let i=0;i<rooms.length;i++){
           await page.evaluate(i=>proofRender(proofRooms[i],false),i);
-          await page.screenshot({path:path.join(output,'interior-'+rooms[i].key.replace(':','-')+'.png'),timeout:120000});
+          if(capture) await page.screenshot({path:path.join(output,'interior-'+rooms[i].key.replace(':','-')+'.png'),timeout:120000});
         }
         if(brand==='dokoto'){
           await page.evaluate(()=>proofRender(proofRooms.find(r=>r.key==='dokoto:1'),true));
-          await page.screenshot({path:path.join(output,'device-campaigns.png'),timeout:120000});
+          if(capture) await page.screenshot({path:path.join(output,'device-campaigns.png'),timeout:120000});
         }
         await page.evaluate(rows=>retailProof.rooms.push(...rows),rooms);
       }
@@ -89,9 +90,12 @@ async function main() {
           const gl=renderer.getContext();if(gl.getError()!==gl.NO_ERROR)throw Error('Retail shader WebGL error');
           if(renderer.info.programs.some(p=>p.diagnostics&&p.diagnostics.runnable===false))throw Error('Retail shader failed compilation');
         },side);
-        await page.screenshot({path:path.join(output,'windows-'+side+'.png'),timeout:120000});
+        if(capture) await page.screenshot({path:path.join(output,'windows-'+side+'.png'),timeout:120000});
       }
-      const result=await page.evaluate(()=>({...retailProof,art:SalaryArt.state}));
+      await page.waitForFunction(()=>SalaryRetail.photoState.loaded,null,{timeout:30000});
+      await page.waitForFunction(()=>proofRooms.every(r=>{let n=0;r.group.traverse(o=>{if(o.userData.salaryScannedFixture)n++;});return n>0;}),null,{timeout:30000});
+      const result=await page.evaluate(()=>({...retailProof,art:SalaryArt.state,photos:SalaryRetail.photoState,architecture:SalaryRealism.state}));
+      assert.equal(result.photos.failed,false);assert.equal(result.architecture.failed.length,0);
       assert.ok(result.art.coated>0,'Fixtures must use the generated material surfaces');
       assert.equal(result.art.failed.length,0,'All generated art must load locally');
       assert.ok(result.windows>0,'Mapped shop windows must exist in the actual world');

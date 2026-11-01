@@ -1272,6 +1272,8 @@
 <script src="art/interface.js"></script>
 <script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
+<script src="art/realism.js"></script>
+<script src="art/brands.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
 <script>
@@ -7405,7 +7407,7 @@ const FACADE_PHOTOS = { office: { size: [18, 29] }, glass: { size: [24, 24] }, f
 function facadePhoto(side, style, spec) {
   const P = FACADE_PHOTOS[style]; if (!P || gameSet.drawnFacades) return;
   const L = new THREE.TextureLoader(), base = "art/facades/" + style;
-  const prep = (t, srgb) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(spec.cell[0] / P.size[0], spec.cell[1] / P.size[1]); if (srgb) t.encoding = THREE.sRGBEncoding; sharpTex(t); return t; };
+  const prep = (t, srgb) => { if(window.SalaryRealism) SalaryRealism.cap(t); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(spec.cell[0] / P.size[0], spec.cell[1] / P.size[1]); if (srgb) t.encoding = THREE.sRGBEncoding; sharpTex(t); return t; };
   L.load(base + "_color.jpg", t => {
     side.map = prep(t, true);
     if (side.isMeshStandardMaterial) L.load(base + "_normal.jpg", n => { side.normalMap = prep(n, false); side.normalMap.repeat = side.map.repeat; side.normalScale = new THREE.Vector2(1, 1); side.needsUpdate = true; });
@@ -7449,6 +7451,7 @@ function facadeMaterials(style) {
   // a curtain wall is flat, and relief on it reads as a dented building.
   if (!glassy) addRelief(side, style === "machiya" || style === "coast" ? 2.6 : 1.9);
   facadePhoto(side, style, spec);
+  if(!gameSet.drawnFacades && window.SalaryRealism) SalaryRealism.facade(side,style,spec);
   const roof = gfx.high
     ? new THREE.MeshStandardMaterial({ map: roofTexture(spec.roof), roughness: 0.86, metalness: 0.06,
                                        envMap: gfx.env || null, envMapIntensity: 0.3 })
@@ -8674,7 +8677,7 @@ function toonMat(m, skinned) {
 }
 function toonify(root, keep) {
   if (!animeArt() || !root) return root;
-  if (worldReal()) { let person = false; root.traverse(o => { if (o.isSkinnedMesh) person = true; }); if (!person) return root; }
+  if (worldReal()) { let person = false; root.traverse(o => { if (o.isSkinnedMesh) person = true; }); if (!person || window.SalaryRealism?.realisticPeople) return root; }
   root.traverse(o => {
     if (!o.isMesh || (o.material && o.material.isShaderMaterial)) return;
     const sk = !!o.isSkinnedMesh;
@@ -16454,7 +16457,7 @@ function fitCarModel(object3d, kind, entry) {
   // On high and ultra the paint, the glass and the chrome stay physically shaded under the anime look, so a car carries the sky and the
   // city on its clear coat the way the cars in a modern anime film do; everything else on it is toon-shaded as before.
   const gloss = (gfx.tier === "high" || gfx.tier === "ultra") ? (m => m === paint || m === carMatCache.glass || (m.isMeshStandardMaterial && m.metalness >= 0.6)) : null;
-  if (animeArt()) { toonify(holder, gloss); if (paint && !gloss) paint = toonMat(paint, false); holder.userData.paint = paint; }
+  if (animeArt() && !worldReal()) { toonify(holder, gloss); if (paint && !gloss) paint = toonMat(paint, false); holder.userData.paint = paint; }
   else holder.userData.paint = paint;
   // a modelled beacon pair flashes like the built light bar does
   const bA = [], bB = []; holder.traverse(o => { if (o.isMesh && o.material && o.material.name === "beaconA") bA.push(o.material); if (o.isMesh && o.material && o.material.name === "beaconB") bB.push(o.material); });
@@ -16474,6 +16477,7 @@ function fitCarModel(object3d, kind, entry) {
     holder.add(extra);
     holder.userData.lamps = extra.userData.lamps || null;
   }
+  if(window.SalaryBrands){const wrap=SalaryBrands.livery({L:kind.L,W:size.x*scale*.94,H:size.y*scale});wrap.visible=kind.name==="ryde";holder.add(wrap);holder.userData.rydeLivery=wrap;}
   return holder;
 }
 
@@ -16838,20 +16842,21 @@ function loadCarModels(root) {
     });
     // the kinds modelled here rather than loaded
     PROC_KINDS.forEach(k => { if (!CAR_MODELS[k] && CAR_KINDS.some(kd => kd.name === k)) CAR_MODELS[k] = { proc: true, user: true, yaw: 0 }; });
-    loadCarModelsNow(root);
+    if(gfx.tier==="low"||gfx.tier==="medium")Object.values(CAR_MODELS).forEach(e=>{if(e.url)e.url=e.url.replace("cars/","cars/low/");});
+    return loadCarModelsNow(root);
   };
-  fetch("cars/user.json").then(r => (r.ok ? r.json() : {})).catch(() => ({})).then(go);
+  traffic.modelsReady=fetch("cars/user.json").then(r => (r.ok ? r.json() : {})).catch(() => ({})).then(go);
 }
 function loadCarModelsNow(root) {
   Object.keys(carMatCache).forEach(k => delete carMatCache[k]);
   const loader = new THREE.GLTFLoader();
-  const cache = {};
+  const cache = {}, jobs=[];
   CAR_KINDS.forEach((kind, ki) => {
     const entry = CAR_MODELS[kind.name];
     if (!entry) return;
     const cap = traffic.paint[ki] ? traffic.paint[ki].instanceMatrix.count : 8;
     const build = gltf => {
-      const pool = { items: [] };
+      const pool = { items: [], detailed:true };
       // a detailed car the player supplied is drawn a few times, not once per space in traffic
       let tris = 0;
       if (entry.user) gltf.scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
@@ -16863,8 +16868,7 @@ function loadCarModelsNow(root) {
         pool.items.push(clone);
       }
       traffic.pool[ki] = pool;
-      // The built body stays for the far distance: past a few dozen metres a car is drawn as its instanced box body, and only the
-      // ones near you are the modelled car (the built slot under a model is written empty, so the two never overlap).
+      // Legacy instance bookkeeping is kept hidden; detailed meshes are the only visible vehicles.
       if (!entry.user) [traffic.paint[ki], traffic.trim[ki], traffic.deco[ki]].forEach(m => { if (m) m.visible = false; });
     };
     if (entry.proc) { try { build({ scene: procVehicle(kind) }); } catch (e) { console.warn("[Konto] the " + kind.name + " could not be modelled:", e); } return; }
@@ -16875,15 +16879,18 @@ function loadCarModelsNow(root) {
       return;
     }
     cache[entry.url] = { gltf: null, waiting: [build] };
-    loader.load(entry.url, gltf => {
+    jobs.push(new Promise(resolve=>{ loader.load(entry.url, gltf => {
       cache[entry.url].gltf = gltf;
       cache[entry.url].waiting.forEach(fn => fn(gltf));
       cache[entry.url].waiting.length = 0;
       console.log("[Konto] " + entry.url + " loaded");
+      resolve(true);
     }, undefined, () => {
-      console.warn("[Konto] " + entry.url + " did not load; keeping the built bodies");
-    });
+      console.warn("[Konto] " + entry.url + " did not load; vehicle remains hidden");
+      resolve(false);
+    });}));
   });
+  return Promise.all(jobs);
 }
 
 // ---- the bodies -------------------------------------------------------
@@ -17624,7 +17631,7 @@ function buildTraffic(w, root) {
   const badges = badgeAtlas();
   const ads = adAtlas();
   CAR_KINDS.forEach((kind, ki) => {
-    const body = buildVehicle(kind);
+    const body = {paint:new THREE.BufferGeometry(),trim:new THREE.BufferGeometry(),deco:null};
     // Three spare slots a kind, so the car you are driving and the ones you
     // parked always have somewhere to be drawn.
     const cap = kind.exotic ? 4 : Math.max(2, Math.round(traffic.max * kind.share / total * 1.25)) + 3;
@@ -17645,6 +17652,7 @@ function buildTraffic(w, root) {
     }
     meshes.forEach(m => {
       m.castShadow = true;
+      m.visible = false; // Detailed models only: never show the legacy block bodies.
       m.count = 0;
       m.frustumCulled = false;
       m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -17975,11 +17983,10 @@ function updateTraffic(dt, at) {
 
   // The car you are driving and the ones you parked are instances of the same
   // meshes, written first so a full pool can never crowd them out.
-  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV, rollV, dmg) {
+  function writeCar(kindIdx, pos, yawV, colour, uv, pitchV, rollV, dmg, service) {
     const paint = traffic.paint[kindIdx];
     const i = counts[kindIdx];
     if (i >= paint.instanceMatrix.count) return;
-    counts[kindIdx]++;
     const pool = traffic.pool[kindIdx];
     // A bike pitches about its rear axle, not its middle, so a wheelie lifts
     // the front and keeps the back wheel on the road; and it leans into a turn.
@@ -17998,7 +18005,9 @@ function updateTraffic(dt, at) {
       (drive.car && drive.car.pos === pos) || Math.hypot(px - at.x, pz - at.z) < lodR);
     if (pool && pool.items[i] && !near) pool.items[i].visible = false;
     if (near) {
+      counts[kindIdx]++;
       const o = pool.items[i];
+      if(o.userData.rydeLivery)o.userData.rydeLivery.visible=service==="ryde"||CAR_KINDS[kindIdx].name==="ryde";
       if (o.userData.driver) o.userData.driver.visible = _carManned;
       if (CAR_MODELS[CAR_KINDS[kindIdx].name] && CAR_MODELS[CAR_KINDS[kindIdx].name].user) {
         paint.setMatrixAt(i, _carZero); traffic.trim[kindIdx].setMatrixAt(i, _carZero);
@@ -18023,28 +18032,22 @@ function updateTraffic(dt, at) {
       }
       return;
     }
-    _carEuler.set(pitchV || 0, yawV, two ? rollA : 0, "YXZ");
-    _carQuat.setFromEuler(_carEuler);
-    _carPos.set(px, py, pz);
-    _carMat.compose(_carPos, _carQuat, _carScale);
-    paint.setMatrixAt(i, _carMat);
-    traffic.trim[kindIdx].setMatrixAt(i, _carMat);
-    const dl2 = dmg ? 1 - 0.3 * dmg.total : 1;
-    _carCol.setRGB(colour[0] * dl2, colour[1] * dl2, colour[2] * dl2);
-    paint.setColorAt(i, _carCol);
-    const deco = traffic.deco[kindIdx];
-    if (deco) { deco.setMatrixAt(i, _carMat); deco.geometry.attributes.aUvOff.setXY(i, uv[0], uv[1]); }
+    // Loading, distant and capacity-limited vehicles stay culled.
   }
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
-                          drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), drive.car.slide || 0, drive.car.dmg);
+                          drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), drive.car.slide || 0, drive.car.dmg, drive.car.livery);
   _carManned = false;
-  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg));
+  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg, p.livery));
   _carManned = true;
-  dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
-  police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0); });
+  dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
+  police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
 
   // Recycle what has fallen behind, and write the transforms for what has not.
-  for (let c = 0; c < traffic.cars.length; c++) {
+  const order=traffic.renderOrder||(traffic.renderOrder=[]);order.length=0;
+  for(let i=0;i<traffic.cars.length;i++)if(traffic.cars[i].live)order.push(i);
+  const distance=i=>{const c=traffic.cars[i];return c.dispatch?-1:c.at?(c.at.x-at.x)**2+(c.at.z-at.z)**2:1e12;};
+  order.sort((a,b)=>distance(a)-distance(b));
+  for (const c of order) {
     const car = traffic.cars[c];
     if (!car.live) continue;
     const lane = traffic.lanes[car.lane];
@@ -18057,7 +18060,7 @@ function updateTraffic(dt, at) {
       car.live = false;
       continue;
     }
-    writeCar(car.kind, p, car.yawNow === undefined ? p.yaw : car.yawNow, car.colour, car.uv, p.pitch, 0);
+    writeCar(car.kind, p, car.yawNow === undefined ? p.yaw : car.yawNow, car.colour, car.uv, p.pitch, 0, null, car.livery||(car.dispatch&&car.dispatch.svc));
     // an exotic going by is worth a word, once
     if (CAR_KINDS[car.kind].exotic && !car.spotted && !drive.car && Math.hypot(p.x - at.x, p.z - at.z) < 30) {
       car.spotted = true; say("Is that a " + CAR_KINDS[car.kind].exotic + "?", 3);
@@ -21604,6 +21607,9 @@ function mnLogo(g, x, y, s, tile) {
 }
 
 function phoneIcon(g, x, y, s, colour, glyph) {
+  const branded=window.SalaryBrands && SalaryBrands.icon(g,x,y,s,glyph);
+  if(branded && glyph!=="mynet") return;
+  if(branded && glyph==="mynet"){if(mynet.ready){const n=mynetBadge();if(n>0){g.save();g.fillStyle="#df3f42";g.beginPath();g.arc(x+s*.92,y+s*.08,s*.17,0,7);g.fill();g.fillStyle="#fff";g.textAlign="center";g.textBaseline="middle";g.font="700 "+Math.round(s*.18)+"px "+UI;g.fillText(n>9?"9+":String(n),x+s*.92,y+s*.08);g.restore();}}return;}
   const r = s * 0.235;
   g.save();
   g.beginPath();
@@ -23317,7 +23323,8 @@ function phoneChrome(g, W, H, title, sub) {
   const by = H * PL.titleY;
   g.beginPath(); g.moveTo(W * 0.054, by - W * 0.018); g.lineTo(W * 0.034, by); g.lineTo(W * 0.054, by + W * 0.018); g.stroke();
   g.fillStyle = p.paper; g.font = "700 " + Math.round(W * 0.077) + "px " + UI;
-  clipText(g, title, W * 0.095, by, W * 0.82);
+  clipText(g, title, W * 0.095, by, W * 0.67);
+  const brandApp=PHONE_APPS.find(a=>a[0]===phone.app);if(brandApp&&window.SalaryBrands)SalaryBrands.icon(g,W*.835,H*.062,W*.10,brandApp[2]);
   if (sub) { g.fillStyle = p.muted; g.font = "500 " + Math.round(W * 0.036) + "px " + UI; clipText(g, sub, W * 0.095, H * PL.subY, W * 0.82); }
   g.restore(); phoneNavBar(g, W, H);
 }
@@ -23355,137 +23362,36 @@ const RYDE_CLASSES = [
 function rydeFare(mult) { return Math.round((620 + 280 * mult * 3) * mult); }
 
 function appRyde(g, W, H) {
-  phoneChrome(g, W, H, "Ryde", phone.ryde ? "On the way" : "Where to?");
-  // The wordmark: a green R with a full stop, which is the whole logo.
-  g.fillStyle = "#12b36b";
-  g.font = "800 " + Math.round(W * 0.115) + "px " + UI;
-  g.textAlign = "right";
-  g.fillText("R.", W * 0.93, H * 0.082);
-  g.textAlign = "left";
-
-  if (phone.ryde) {
-    const r = phone.ryde;
-    // The map is the real one, centred between you and the car, with the road it is
-    // coming along drawn in. Where there is no real map (the phone lab) the old
-    // little diagram stands in.
-    const mx = W * 0.075, my = H * 0.16, mw = W * 0.85, mh = H * 0.34;
-    const st = typeof rydeStatus === "function" ? rydeStatus() : null;
-    const real = st && typeof drawMapView === "function" && nav.ready;
-    g.fillStyle = "#15181d";
-    roundRect(g, mx, my, mw, mh, W * 0.04); g.fill();
-    g.save(); roundRect(g, mx, my, mw, mh, W * 0.04); g.clip();
-    if (real) {
-      const ex = player.pos.x, ez = player.pos.z;
-      const cx = (ex + st.x) / 2, cz = (ez + st.z) / 2;
-      const across = Math.max(320, 2.6 * Math.abs(ex - st.x), 2.6 * Math.abs(ez - st.z) * mw / mh);
-      g.save(); g.translate(mx, my);
-      drawMapView(g, mw, mh, cx, cz, across, 0, {});
-      g.restore();
-      const S = mw / across, X = x => mx + mw / 2 + (x - cx) * S, Y = z => my + mh / 2 + (z - cz) * S;
-      // the road still to drive
-      g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012; g.lineCap = "round"; g.lineJoin = "round";
-      g.beginPath();
-      for (let q = st.s0, k = 0; k < 80; k++) {
-        const p = sampleLane(st.lane, Math.min(q, st.s1));
-        if (k === 0) g.moveTo(X(p.x), Y(p.z)); else g.lineTo(X(p.x), Y(p.z));
-        if (q >= st.s1) break;
-        q += 12;
-      }
-      g.stroke();
-      // you
-      g.fillStyle = "rgba(60,140,255,0.28)"; g.beginPath(); g.arc(X(ex), Y(ez), W * 0.05, 0, Math.PI * 2); g.fill();
-      g.fillStyle = "#3c8cff"; g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.008;
-      g.beginPath(); g.arc(X(ex), Y(ez), W * 0.020, 0, Math.PI * 2); g.fill(); g.stroke();
-      // the car
-      g.fillStyle = "#12b36b"; g.strokeStyle = "#ffffff"; g.lineWidth = W * 0.010;
-      g.beginPath(); g.arc(X(st.x), Y(st.z), W * 0.032, 0, Math.PI * 2); g.fill(); g.stroke();
-      g.fillStyle = "#04140c"; g.font = "800 " + Math.round(W * 0.036) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText("R", X(st.x), Y(st.z) + 1); g.textBaseline = "alphabetic"; g.textAlign = "left";
-    } else {
-      g.strokeStyle = "rgba(255,255,255,0.09)";
-      g.lineWidth = W * 0.010;
-      for (let i = 1; i < 6; i++) {
-        g.beginPath(); g.moveTo(mx, my + mh * i / 6); g.lineTo(mx + mw, my + mh * i / 6); g.stroke();
-        g.beginPath(); g.moveTo(mx + mw * i / 6, my); g.lineTo(mx + mw * i / 6, my + mh); g.stroke();
-      }
-      const px = mx + mw * 0.5, py = my + mh * 0.62;
-      const k = clamp01(1 - r.eta / r.eta0);
-      const cx = lerp(mx + mw * 0.14, px, k), cy = lerp(my + mh * 0.18, py, k);
-      g.strokeStyle = "#12b36b"; g.lineWidth = W * 0.012;
-      g.setLineDash([W * 0.03, W * 0.02]);
-      g.beginPath(); g.moveTo(cx, cy); g.lineTo(px, py); g.stroke();
-      g.setLineDash([]);
-      g.fillStyle = "#12b36b";
-      g.beginPath(); g.arc(cx, cy, W * 0.028, 0, Math.PI * 2); g.fill();
-      g.fillStyle = "#ffffff";
-      g.beginPath(); g.arc(px, py, W * 0.022, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = "rgba(255,255,255,0.45)"; g.lineWidth = W * 0.008;
-      g.beginPath(); g.arc(px, py, W * 0.045, 0, Math.PI * 2); g.stroke();
-    }
-    g.restore();
-
-    g.fillStyle = "#ffffff";
-    g.font = "700 " + Math.round(W * 0.095) + "px " + UI;
-    const rs = typeof rydeStatus === "function" ? rydeStatus() : null;
-    if (rs) {
-      const secs = Math.ceil(rs.secs);
-      g.fillText(rs.arrived ? "Here" : (secs >= 60 ? Math.floor(secs / 60) + ":" + two(secs % 60) : secs + " sec"), W * 0.075, H * 0.565);
-    } else g.fillText(Math.max(1, Math.ceil(r.eta)) + " min", W * 0.075, H * 0.565);
-    g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText(r.cls + "  \u00b7  " + r.plate + "  \u00b7  " + yenText(r.fare), W * 0.075, H * 0.605);
-    if (rs) {
-      g.fillStyle = rs.arrived ? "#12b36b" : "#79818b"; g.font = "600 " + Math.round(W * 0.040) + "px " + UI;
-      g.fillText(rs.arrived ? "Your car is at the kerb. Walk up and press Y. Waiting " + Math.ceil(rs.wait) + " s" : Math.round(rs.left) + " m away, along the road shown",
-        W * 0.075, H * 0.640);
-    }
-    phoneRow(g, W, W * 0.075, H * 0.68, W * 0.85, H * 0.075, phone.sub === 0);
-    g.fillStyle = "#e7ebee";
-    g.font = "600 " + Math.round(W * 0.048) + "px " + UI;
-    g.textAlign = "center";
-    g.fillText("Cancel", W * 0.5, H * 0.7175);
-    g.textAlign = "left";
-    return;
+  if(phone.sub<RYDE_CLASSES.length) phone.rydeClass=phone.sub;
+  const ink='#151718',muted='#64706d',green='#b6f16b',pad=W*.065;
+  const label=(text,x,y,size,color=ink,weight=600)=>{g.fillStyle=color;g.font=weight+' '+Math.round(W*size)+'px '+UI;g.textAlign='left';clipText(g,text,x,y,W-pad-x);};
+  const card=(x,y,w,h,fill,r=W*.035)=>{g.fillStyle=fill;roundRect(g,x,y,w,h,r);g.fill();};
+  g.fillStyle='#f7f8f5';g.fillRect(0,0,W,H);phoneStatusBar(g,W,H,{ink});
+  SalaryBrands.wordmark(g,pad,H*.060,W*.43,W*.09);label('KONTO',W*.76,H*.088,.026,muted,700);
+  const my=H*.13,mh=H*.30,st=phone.ryde?rydeStatus():null;
+  g.save();g.beginPath();g.rect(0,my,W,mh);g.clip();g.fillStyle='#dfe6dc';g.fillRect(0,my,W,mh);
+  if(nav.ready&&typeof drawMapView==='function'){
+    g.translate(0,my);const ex=player.pos.x,ez=player.pos.z,cx=st?(ex+st.x)/2:ex,cz=st?(ez+st.z)/2:ez;
+    const across=st?Math.max(360,Math.abs(ex-st.x)*2.6,Math.abs(ez-st.z)*2.6*W/mh):650;
+    drawMapView(g,W,mh,cx,cz,across,0,{});
+    const X=x=>W/2+(x-cx)*W/across,Y=z=>mh/2+(z-cz)*W/across;
+    if(st){g.strokeStyle=ink;g.lineWidth=W*.012;g.lineJoin='round';g.beginPath();for(let q=st.s0,k=0;k<100;k++){const p=sampleLane(st.lane,Math.min(q,st.s1));if(k===0)g.moveTo(X(p.x),Y(p.z));else g.lineTo(X(p.x),Y(p.z));if(q>=st.s1)break;q+=12;}g.stroke();card(X(st.x)-W*.035,Y(st.z)-W*.035,W*.07,W*.07,ink,W*.015);}
+    g.fillStyle=green;g.strokeStyle=ink;g.lineWidth=3;g.beginPath();g.arc(X(ex),Y(ez),W*.022,0,7);g.fill();g.stroke();
+  }else{g.strokeStyle='#c4d0c5';g.lineWidth=W*.025;for(let i=0;i<7;i++){g.beginPath();g.moveTo(i*W/6,my);g.lineTo(i*W/6+W*.18,my+mh);g.stroke();g.beginPath();g.moveTo(0,my+i*mh/6);g.lineTo(W,my+i*mh/6);g.stroke();}}
+  g.restore();
+  card(pad,H*.36,W-2*pad,H*.095,'#fff');label('PICKUP',pad*1.35,H*.389,.026,muted,700);label(nav.place?.street||'Your current location',pad*1.35,H*.421,.042);
+  if(phone.ryde){const r=phone.ryde;label(st?.arrived?'Your RYDE is here':'Your driver is on the way',pad,H*.505,.059);
+    label(st?.arrived?'Meet your driver at the kerb':st?Math.max(1,Math.ceil(st.secs/60))+' min · '+Math.round(st.left)+' m away':Math.max(1,Math.ceil(r.eta))+' min to pickup',pad,H*.551,.043,muted,500);
+    card(pad,H*.585,W-2*pad,H*.15,'#e9ede6');SalaryBrands.icon(g,pad*1.3,H*.608,W*.13,'ryde');label(r.cls+' · '+r.plate,W*.25,H*.633,.039);label(yenText(r.fare)+' · Paid when you board',W*.25,H*.679,.035,muted,500);
+    label(st?.arrived?'Walk to the car and press Y to board.':'Your car follows the live route above.',pad,H*.779,.033,muted,500);
+    card(pad,H*.81,W-2*pad,H*.065,phone.sub===0?ink:'#e0e5dc');label('Cancel ride',W*.35,H*.851,.042,phone.sub===0?'#fff':ink);
+  }else{
+    label('Choose your RYDE',pad,H*.499,.058);label('Upfront fares · No charge until you board',pad,H*.535,.031,muted,500);
+    RYDE_CLASSES.forEach((c,i)=>{const y=H*(.563+i*.084),on=phone.sub===i;card(pad,y,W-2*pad,H*.075,on?'#e3f3d0':'#fff',W*.025);if(on){g.strokeStyle=ink;g.lineWidth=2;roundRect(g,pad,y,W-2*pad,H*.075,W*.025);g.stroke();}
+      const col=[.15,.18,.20];drawCarSide(g,pad*1.25,y+H*.049,W*.16,c.kind,col);label(c.name,W*.27,y+H*.027,.041);label(c.note,W*.27,y+H*.054,.027,muted,500);g.fillStyle=ink;g.font='700 '+Math.round(W*.042)+'px '+UI;g.textAlign='right';g.fillText(yenText(rydeFare(c.mult)),W-pad*1.4,y+H*.041);g.textAlign='left';});
+    const cls=RYDE_CLASSES[phone.rydeClass||0];card(pad,H*.827,W-2*pad,H*.065,ink);label('Request '+cls.name,W*.29,H*.868,.044,'#fff');
   }
-
-  g.fillStyle = "#79818b";
-  g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-  g.fillText("Picking you up at", W * 0.075, H * 0.165);
-  g.fillStyle = "#e7ebee";
-  g.font = "600 " + Math.round(W * 0.052) + "px " + UI;
-  g.fillText(nav.place && nav.place.street ? nav.place.street : "Tōkonto", W * 0.075, H * 0.205);
-
-  RYDE_CLASSES.forEach((c, i) => {
-    const rowH = H * 0.104;
-    const y = H * 0.265 + i * (rowH + H * 0.016);
-    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
-    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
-    const fare = yenText(rydeFare(c.mult));
-    const fareW = g.measureText(fare).width;
-    g.fillStyle = "#e7ebee";
-    g.textAlign = "right";
-    g.fillText(fare, W * (1 - PL.pad) - W * 0.035, y + rowH * 0.58);
-    g.textAlign = "left";
-    const textX = W * (PL.pad + 0.055);
-    const textW = W * (1 - PL.pad) - W * 0.06 - fareW - textX;
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
-    clipText(g, c.name, textX, y + rowH * 0.38, textW);
-    g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-    clipText(g, c.note, textX, y + rowH * 0.74, textW);
-  });
-
-  // The big green button.
-  const by = H * 0.655, bh = H * 0.082;
-  const armed = phone.sub === RYDE_CLASSES.length;
-  g.fillStyle = armed ? "#17d07e" : "#12b36b";
-  roundRect(g, W * 0.075, by, W * 0.85, bh, W * 0.04); g.fill();
-  g.fillStyle = "#06240f";
-  g.font = "800 " + Math.round(W * 0.062) + "px " + UI;
-  g.textAlign = "center";
-  g.fillText("RYDE", W * 0.5, by + bh * 0.54);
-  g.textAlign = "left";
+  phoneNavBar(g,W,H);
 }
 
 // ---- Soti Wallet
@@ -25727,6 +25633,8 @@ function notify(app, title, body, secs) {
   const el = document.createElement("div"); el.className = "notif";
   el.innerHTML = '<i style="background:' + a[0] + '">' + a[1] + '</i><div><b></b><span></span></div><em>now</em>';
   el.querySelector("b").textContent = title || app; el.querySelector("span").textContent = body || "";
+  const glyph={Ryde:'ryde',MyGram:'mynet',Wallet:'card',Nihon:'rail',Noodle:'noodle'}[app];
+  if(glyph&&window.SalaryBrands){const c=document.createElement('canvas');c.width=c.height=128;if(SalaryBrands.icon(c.getContext('2d'),0,0,128,glyph)){c.style.cssText='width:100%;height:100%;display:block';el.querySelector('i').replaceChildren(c);}}
   host.appendChild(el);
   while (host.children.length > 4) host.removeChild(host.firstChild);
   requestAnimationFrame(() => el.classList.add("in"));
@@ -27255,6 +27163,11 @@ function cheatSpawn(kindName) {
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
   if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
   const kind = CAR_KINDS[ki];
+  if(!traffic.pool[ki]){
+    if(traffic.modelsReady){say("Loading the detailed vehicle…",2);traffic.modelsReady.then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
+    else say("The vehicle catalogue is still loading.",3);
+    return true;
+  }
   const base = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
   let d = 4 + kind.L * 0.5, x = base.x + Math.sin(yaw) * d, z = base.z + Math.cos(yaw) * d;
   for (let t = 0; t < 8 && (insideBuilding(x, z, kind.W * 0.5) || world.sampleHeight(x, z) < 0.5); t++) { d += 3; x = base.x + Math.sin(yaw) * d; z = base.z + Math.cos(yaw) * d; }
@@ -27928,7 +27841,7 @@ function phoneAct() {
   } else if (app === "Ryde") {
     if (phone.ryde) { rydeCancel(); say("Ryde cancelled.", 3); }
     else {
-      const cls = RYDE_CLASSES[Math.min(phone.sub, RYDE_CLASSES.length - 1)];
+      const cls = RYDE_CLASSES[phone.sub<RYDE_CLASSES.length?phone.sub:(phone.rydeClass||0)];
       const fare = rydeFare(cls.mult);
       if (purse.yen < fare) { say("Not enough for that. " + yenText(purse.yen) + " left.", 4); }
       else {
@@ -34582,6 +34495,7 @@ function rydeSend(cls) {
   if (!car) return { ok: false, msg: "No drivers free right now. Try again in a moment." };
   const u = { svc: "ryde", kind: ki, state: "coming", t: 0, stuck: 0, met: true, vmax: Math.min(15.5, CAR_KINDS[ki].top + 2) };
   const eta = dispatchOnLane(u, car, rp);
+  car.livery="ryde";
   car.hailed = true;                       // the car is yours, so getting in is not a theft
   dispatch.units.push(u);
   return { ok: true, unit: u, eta: eta };
@@ -35569,7 +35483,7 @@ function enterCar(index, jacked) {
     kind: c.kind,
     pos: new THREE.Vector3(p.x, p.y, p.z),
     yaw: p.yaw, speed: c.v, steer: 0,
-    pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: c.v,
+    pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: c.v, livery:c.livery||(c.dispatch&&c.dispatch.svc),
     colour: c.colour.slice(), uv: c.uv.slice(), lights: nightState.lit > 0.3
   };
   document.body.classList.add("driving");
@@ -35583,7 +35497,7 @@ function enterParked(i) {
   drive.car = { kind: p.kind, pos: p.pos.clone(), yaw: p.yaw, speed: 0, steer: 0,
                 pitch: 0, lean: 0, slide: 0, accelPitch: 0, lastSpeed: 0, lights: nightState.lit > 0.3,
                 colour: p.colour.slice(), uv: p.uv.slice(), dmg: p.dmg || null,
-                rec: p.owned ? p : null };
+                rec: p.owned ? p : null, livery:p.livery||null };
   document.body.classList.add("driving");
   if (player.obj) player.obj.visible = false;
   bikeHint(p.kind);
@@ -35610,7 +35524,7 @@ function leaveCar() {
     garageSave();
   } else {
     drive.parked.push({ kind: c.kind, pos: c.pos.clone(), yaw: c.yaw,
-                        colour: c.colour.slice(), uv: c.uv.slice(), dmg: c.dmg || null });
+                        colour: c.colour.slice(), uv: c.uv.slice(), dmg: c.dmg || null, livery:c.livery||null });
   }
   // Only strangers' cars are forgotten, oldest first.
   let strangers = drive.parked.filter(q => !q.owned && !q.scenery && !q.rental).length;
@@ -39300,6 +39214,8 @@ function pplLoad() {
     if (!ix || !ix.people) return;
     // the anime people are painted already: their textures skip the anime repaint, and their heads are their own size
     pplLib.anime = !!ix.anime;
+    pplLib.realistic=!!ix.realistic;
+    if(window.SalaryRealism) SalaryRealism.realisticPeople=!!ix.realistic;
     const loader = new THREE.GLTFLoader(ix.anime ? animeRawManager() : undefined);
     wardrobe.list = ix.outfits || null;
     const wantO = player.outfitWant && ix.outfits && ix.outfits.find(o => o.id === player.outfitWant);
@@ -39338,7 +39254,8 @@ function pplAdopt(e, gltf) {
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
   });
   if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
-  toonify(root); if (!pplLib.anime) animeHead(bones);
+  if(pplLib.realistic&&window.SalaryRealism)SalaryRealism.person(root);
+  toonify(root); if (!pplLib.anime && !pplLib.realistic) animeHead(bones);
   // face +Z, the way everything that walks here faces
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
@@ -39360,7 +39277,7 @@ function pplAdopt(e, gltf) {
 // Seiko's body at rest, to play his clips on and measure
 function pplSource() {
   if (pplLib.src) return pplLib.src;
-  const body = cloneSkinned(peds.tpl), root = new THREE.Group(); root.add(body); root.updateMatrixWorld(true);
+  const body = cloneSkinned(peds.tpl), root = new THREE.Group(); root.add(body); root.rotation.y=Math.PI; root.updateMatrixWorld(true);
   const bones = {}; body.traverse(o => { if (o.isBone) bones[o.name] = o; });
   const bindQ = {}, bindP = {};
   Object.keys(bones).forEach(n => { bindQ[n] = bones[n].getWorldQuaternion(new THREE.Quaternion()); bindP[n] = bones[n].getWorldPosition(new THREE.Vector3()); });
@@ -39440,7 +39357,8 @@ function pplPlayer(gltf) {
   const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
   const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
   if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
-  toonify(root); if (!pplLib.anime) animeHead(bones);
+  if(pplLib.realistic&&window.SalaryRealism)SalaryRealism.person(root);
+  toonify(root); if (!pplLib.anime && !pplLib.realistic) animeHead(bones);
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_REye || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
@@ -39461,7 +39379,8 @@ function pplPlayer(gltf) {
 }
 function pplFigure(e, height) {
   const body = cloneSkinned(e.root), wrap = new THREE.Group(), holder = new THREE.Group();
-  const s = e.fit * (0.97 + (height - 0.97) * 0.5);       // real people vary less than a stretched Seiko wrap.scale.setScalar(s); wrap.position.y = -e.minY * s;
+  const s = e.fit * (0.97 + (height - 0.97) * 0.5);       // Preserve natural proportions while fitting the actor height.
+  wrap.scale.setScalar(s); wrap.position.y = -e.minY * s;
   wrap.add(body); holder.add(wrap);
   const mixer = new THREE.AnimationMixer(body), acts = {};
   Object.keys(e.clips).forEach(k => { acts[k] = mixer.clipAction(e.clips[k]); });
@@ -41852,7 +41771,14 @@ function interiorRoom(s, opts) {
     const unit = new THREE.Group();
     unit.position.set(sl.x, 0, sl.z); unit.rotation.y = sl.face;
     root.add(unit);
-    inAdd(unit, sl.len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c");
+    const backing=inAdd(unit, sl.len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c");
+    // Use the licensed scanned display case in modular bays. Keep the original
+    // backing until it loads; stock shelves and collision remain at their exact heights.
+    propLoad(brand==='books'?"wooden_bookshelf_worn":"wooden_display_shelves_01",tpl=>{
+      const bays=Math.ceil(sl.len/1.8),width=sl.len/bays,sz=tpl.userData.size;
+      for(let b=0;b<bays;b++){const rack=tpl.clone(true);rack.scale.set((width-.025)/sz.x,1.7/sz.y,.48/sz.z);rack.position.set(-sl.len/2+width*(b+.5),0,-.12);rack.userData.salaryScannedFixture=true;unit.add(rack);}
+      backing.visible=false;
+    });
     inAdd(unit, sl.len + 0.06, 0.06, 0.62, 0, 1.73, -0.0, th.trim);
     const lab = inLabel(shelf.name, Math.min(2.8, sl.len), 0.34, "#22262d", "#ffffff"); lab.position.set(0, 2.05, 0.3); unit.add(lab);
     inAdd(unit, 0.05, 0.4, 0.05, -sl.len / 2 + 0.2, 1.9, 0.0, "#22262d"); inAdd(unit, 0.05, 0.4, 0.05, sl.len / 2 - 0.2, 1.9, 0.0, "#22262d");

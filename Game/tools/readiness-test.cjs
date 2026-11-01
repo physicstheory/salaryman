@@ -37,7 +37,7 @@ async function main() {
     }));
     await page.goto(`http://127.0.0.1:${server.address().port}/`);
     assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('pause')).filter),'none','Shared color theme must load without parent grayscale');
-    assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('mres')).borderRadius),'9px','Redesigned controls stylesheet must load');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('mres')).borderRadius),'0px','Redesigned controls stylesheet must load');
     const state = () => page.evaluate(() => ({ mode: player.mode, cities: world?.cities.length,
       hq: !!player.hq, outfit: player.outfit, cast: pplLib.ready.length,
       boot: document.getElementById('bootstage').textContent, loading: !document.getElementById('boot').hidden,
@@ -63,10 +63,10 @@ async function main() {
       assert.equal(result.mode, 'walk');
       assert.equal(result.hq, true);
       assert.ok(result.signAtlasSize && result.signAtlasSize.every(n=>n<=4096),'Station atlas must fit conservative GPU texture limits');
-      await page.screenshot({ path: path.join(output, 'gameplay.png'), timeout: 240000 });
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({ path: path.join(output, 'gameplay.png'), timeout: 240000 });
       await page.evaluate(() => setPhone(true));
       await page.waitForFunction(() => { const box = document.getElementById('phone').getBoundingClientRect(); return phone.open && box.top < innerHeight - 100 && box.bottom <= innerHeight; }, null, { timeout: 15000 });
-      await page.screenshot({ path: path.join(output, 'phone.png'), animations: 'disabled', timeout: 240000 });
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({ path: path.join(output, 'phone.png'), animations: 'disabled', timeout: 240000 });
       console.log('PASS phone visible on screen');
       // The 3D scene can stay paused while the native-resolution app canvases are checked.
       await page.evaluate(() => setPaused(true, 'phone'));
@@ -96,7 +96,7 @@ async function main() {
       });
       console.log('PASS real station directions');
       await page.evaluate(() => { setPhone(false);expedioOpen('app','konto'); });
-      await page.screenshot({path:path.join(output,'expedio.png'),timeout:240000,animations:'disabled'});
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({path:path.join(output,'expedio.png'),timeout:240000,animations:'disabled'});
       await page.evaluate(() => { expedioClose();setPaused(true,'settings'); });
       await page.locator('#muidensity').click();
       assert.equal(await page.evaluate(() => document.body.dataset.uiDensity),'compact');
@@ -109,9 +109,9 @@ async function main() {
         const element=document.getElementById(pauseRows()[pause.row]);const view=element.closest('.ppage').getBoundingClientRect();const box=element.getBoundingClientRect();return box.top>=view.top&&box.bottom<=view.bottom;
       });
       assert.equal(selectedInView,true,'Selected settings row must stay visible');
-      await page.screenshot({path:path.join(output,'settings.png'),timeout:240000,animations:'disabled'});
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({path:path.join(output,'settings.png'),timeout:240000,animations:'disabled'});
       await page.evaluate(() => setMapOpen(true));
-      await page.screenshot({path:path.join(output,'map.png'),timeout:240000,animations:'disabled'});
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({path:path.join(output,'map.png'),timeout:240000,animations:'disabled'});
       console.log('PASS settings, interface preferences, scrolling and map');
       await page.evaluate(()=>{
         setMapOpen(false);setPhone(false);setPaused(true,'phone');
@@ -135,15 +135,15 @@ async function main() {
         streamFrame();frameGrab.want=true;present();
         window.reviewCamera={city:c.name,player:player.pos.toArray(),camera:camera.position.toArray(),insideBuilding:insideBuilding(player.pos.x,player.pos.z,1)};
       });
-      await page.screenshot({path:path.join(output,'city-high.png'),timeout:240000});
+      if(process.env.SCREENSHOTS==="1") await page.screenshot({path:path.join(output,'city-high.png'),timeout:240000});
       const engine=await page.evaluate(()=>({running:!!shigoto.engine,physicsReady:shigoto.engine.physics.ready,failed:shigoto.failed,realWorld:worldReal(),tier:gfx.tier,post:fx.on,art:SalaryArt.state,capture:reviewCamera}));
       assert.equal(engine.running,true);assert.equal(engine.failed,false);assert.equal(engine.realWorld,true);assert.equal(engine.post,true);assert.equal(engine.capture.insideBuilding,false);
-      console.log('PASS high-quality scene capture',JSON.stringify(engine));
+      console.log('PASS high-quality scene render check',JSON.stringify(engine));
       const atlas = await page.evaluate(() => adAtlas().image.toDataURL('image/png'));
       fs.writeFileSync(path.join(output, 'adverts.png'), Buffer.from(atlas.split(',')[1], 'base64'));
       fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({status:'passed',startedAt,completedAt:new Date().toISOString(),result,engine,appScreens,errors,warnings,warningCounts},null,2));
       assert.deepEqual(errors, [], 'Uncaught JavaScript errors');
-      console.log('PASS gameplay, phone and advert capture', JSON.stringify(result));
+      console.log('PASS gameplay, phone and adverts', JSON.stringify(result));
     } catch (error) {
       const failedState=await state();
       fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({status:'failed',startedAt,failedState,error:String(error),errors,warnings,warningCounts},null,2));

@@ -112,3 +112,25 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 #boot.reduce-motion .slide,body[data-reduced-motion="true"] #bootshow .slide { animation:none!important;transition:none!important;transform:scale(1.02); }
 #boot.reduce-motion #bootspin,body[data-reduced-motion="true"] #bootspin { animation:none; }
 @media(prefers-reduced-motion:reduce){#bootshow .slide{animation:none!important;transition:none!important;transform:scale(1.02)}#bootspin{animation:none}}
+
+/* Editorial pause shell: horizontal chapter tabs and high-contrast list selection. */
+#pause { background:rgba(8,9,11,.88);color:#f5f5f3; }
+#pausetabs { padding:34px 5vw 0;gap:22px;border-bottom:1px solid #686a6b; }
+#pausetablist { gap:2px; }
+.ptab { border-radius:0;padding:15px 20px;color:#b7b9bb;background:rgba(0,0,0,.35);font-size:14px;font-weight:700;letter-spacing:.09em;text-transform:uppercase; }
+.ptab.sel { background:#f1f2ef;color:#111315; }
+#pausebar { background:#b6f16b;height:3px; }
+#pausesign { height:65px; }
+#pausestrip .ppage { padding-top:32px; }
+#pause .menu-btn { border:0;border-bottom:1px solid #343638;border-radius:0;background:rgba(20,22,24,.84);color:#d7d9db;box-shadow:none; }
+#pause .menu-btn.sel,#pause .menu-btn:hover,#pause .menu-btn:focus-visible { background:#f1f2ef;color:#111315; }
+#pause .menu-btn.sel::before { color:#111315; }
+#pause .pside,#pause .pside .pausehint { color:#bec1c3; }
+#pause h2,#pause h3 { color:#f5f5f3;letter-spacing:.06em;text-transform:uppercase; }
+.statrow { border-radius:0;background:rgba(20,22,24,.8);border-bottom:1px solid #414446;color:#bec1c3; }
+#pausefoot { background:#101214;border-color:#45484a;color:#d8dadd; }
+#mapside,#mapwhere,#maplegend { border-radius:0;background:rgba(12,14,16,.96);border-color:#575a5c;box-shadow:none; }
+#mapside .menu-btn { border-radius:0; }
+#titlemenu .title-btn { border-radius:0;background:rgba(10,12,14,.82);border:0;border-left:3px solid transparent;font-weight:700;letter-spacing:.07em; }
+#titlemenu .title-btn.sel,#titlemenu .title-btn:hover { background:#eff1ed;color:#101214;border-left-color:#b6f16b; }
+@media(max-width:760px){#pausetabs{padding:14px 12px 0;gap:8px}.ptab{padding:13px 11px;font-size:12px}#pausesign{height:44px}}
