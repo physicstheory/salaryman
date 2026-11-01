@@ -1,0 +1,62 @@
+# Salary Man visual redesign and development handoff
+
+The active game is `Web/konto.html`, staged into the Electron shell by `Game/tools/stage.js`. Use the existing isolated checkout. `Godot` and `WebGPU` are reference experiments.
+
+## Art direction and delivered changes
+
+The identity combines charcoal teal, warm ivory, vermilion and muted jade with Japanese commuter wayfinding. The game keeps a consistent stylized anime cast. The UI remains at native CSS/canvas resolution while the 3D scene scales independently.
+
+- **Brand:** a new transparent Salary Man wordmark in `Web/art/logo.png`, used by the title, loading and pause screens; a matching briefcase/rising-sun favicon and 512px desktop icon. `Web/art/interface.js` contains the shared canvas identity and product illustrations; `interface.css` contains the interface theme.
+- **Characters:** all 30 GLBs have new authored palette/proportion profiles in `Tools/anime/cast-design.json`. Seiko has consistent black hair and a coordinated wardrobe; Akio, the receptionist and the Shigu family have distinct treatments. Suit variants have new skinned sleeve/lapel geometry, and Akio/father have head-bound eyewear placed from the actual skinned eye positions. These are substantial adaptations of the licensed CC0 VRoid bases, not a claim that the underlying bodies were sculpted from scratch. Bone names, original weights and inverse bind matrices are retained for the existing retargeter.
+- **Asset cost:** 3,082 original primitives become 492 after the redesign, including the new garments/accessories: 84.0% fewer potential base-pass submissions across the asset set. GLB bytes drop from 77,578,824 to 70,685,144 (8.9%). These are asset metrics, not measured FPS gains. The rebuild compacts superseded buffers rather than shipping edit history.
+- **Accurate imagery:** loading cards and named-character avatars use renders of the actual new rigs. MyGram keeps authored in-world illustrations instead of replacing posts with search results showing real-world cities and products. Player photographs and user-selected wallpapers are preserved.
+- **Apps:** shared phone navigation, headers, card surfaces, selection states, typography and icons have been restyled. The default wallpaper illustrates the bay, mountains and SOTI skyline. MyGram, Wallet, Camera, Music, Photos, Mail, Contacts, Health and the remaining screens retain their individual functions. Noodle receives warmer browser chrome; Expedio receives a matching travel/boarding-pass treatment. Long contact lists now keep selection visible; empty Photos text fits the screen.
+- **NHRail:** the old invented departure countdowns/fallback stations are replaced by the actual nearest world stations and real distances. Select a station to mark directions on the map.
+- **Settings/HUD:** new density and reduced-interface-motion preferences persist through the existing settings store. Every visible graphics/interface/controller setting is reachable by controller, including options previously omitted from navigation. The selected row scrolls into view. The HUD, notices, prompts, minimap, menu pages, map controls and legends share the new visual language. The old parent grayscale filter is removed.
+- **Advertisements and signs:** shared bus/train/street ads have actual product illustrations and fitted campaign typography; the convenience-store ad uses the game's 11 Eleven brand. Rooftop business signs, interior labels and station signs have a new hierarchy and fitted text. The atlas now registers every station instead of reusing the first row after 16 names. The default world has 25 unique station names, fitting a 1024×2048 atlas. Multi-column layouts keep larger registries within a 4096px texture dimension.
+- **Performance behavior:** the opaque loading screen suspends hidden world simulation/rendering while loaders/timers continue. Opaque pause pages retain the last 3D frame, with explicit camera captures still permitted. Automatic 3D pixel budgets include HiDPI/supersampling: low 720p, medium 1080p, high 1440p, ultra 2160p equivalent. Explicit manual resolution overrides remain available. Iris Xe/Vega start at medium; saved user choices win.
+- **Calendar:** phone dates follow the game clock, including day/month rollover, instead of displaying a fixed Monday. The fictional calendar starts on Monday 6 April 2026.
+
+## Reproduce the character and brand assets
+
+Python 3.12 with NumPy 2.3.5/Pillow 12.3.0 is pinned in `Tools/anime/requirements.txt`. The cloud environment has an isolated installation at `/workspace/salaryman-setup/cast-venv`.
+
+```sh
+# From /workspace/salaryman. Source GLBs come from the exact commit in cast-design.json.
+/workspace/salaryman-setup/cast-venv/bin/python Tools/anime/redesign_cast.py
+
+# Exercise the actual Three.js r128 GLTF loader and the game's retargeter;
+# render the seven named-character portraits from the resulting rigs.
+PLAYWRIGHT=/opt/codex/cua_node/lib/node_modules/playwright CHROME=/usr/bin/chromium \
+  node Game/tools/cast-test.cjs /tmp/salaryman-cast
+
+# Update the desktop icon, in-game portraits and accurate loading cards.
+PLAYWRIGHT=/opt/codex/cua_node/lib/node_modules/playwright CHROME=/usr/bin/chromium \
+  node Game/tools/build-presentation.cjs /tmp/salaryman-cast
+npm run stage --prefix Game
+```
+
+The source commit must remain available in Git history; do not reset or replace it. Rebuilding always reads that immutable source, so edits do not accumulate. To rebuild selected characters, append their file stems to `redesign_cast.py`. Keep `Web/people/index.json`, portraits and loading cards in sync with profile changes. Original CC0 attribution remains in `Web/people/LICENSE-anime.md`. No proprietary AAA-library assets were acquired.
+
+## Validation
+
+```sh
+/workspace/salaryman-setup/cast-venv/bin/python -m unittest discover -s Tools/anime -p 'test_*.py' -v
+node Game/tools/presentation-test.cjs
+npm run stage --prefix Game
+PLAYWRIGHT=/opt/codex/cua_node/lib/node_modules/playwright CHROME=/usr/bin/chromium \
+  node Game/tools/readiness-test.cjs /tmp/salaryman-readiness
+```
+
+Five Python tests and eleven Node tests cover primitive batching, transparent order, skinning/bind preservation, geometry/index validity, deterministic character regeneration, pixel budgets, manual overrides, calendar rollover, offline social imagery, loading/pause rendering, settings navigation/preferences, actual station data and station-atlas uniqueness beyond 16 rows and legend/render color consistency.
+
+The cast test passes for all 30 GLBs and retargets Idle/Walk/Run onto every one. The complete functional runner passed with zero uncaught JavaScript errors, all 14 phone apps, station directions, Expedio, interface settings and map interactions. The default world registered all 25 station names in a 1024×2048 atlas. The functional runner checks title/world generation, the rigged player/story assets, cinematic skip and playable walking state; renders all 14 phone app canvases; exercises station directions, Expedio, both interface preferences, settings scrolling and the map. It writes screenshots plus a timestamped `result.json`. A running/failed report must not be treated as a pass. Inspect both exit status and current-run results. Screenshots use the repository's longer software-renderer timeout.
+
+The renderer still emits existing warnings about non-indexed conversion, textures awaiting images and unsupported second UV sets for normal maps. These are retained in the report. Core startup does not require external credentials; Spotify/YouTube and other online integrations were not authenticated or validated. Desktop GUI launch and installer builds were not exercised in this display-less cloud machine.
+
+## Remaining release checks
+
+- Benchmark actual integrated/dedicated GPUs: median/p95/p99 frame times, stalls and memory in Mizuho, the capital, rush hour, airports, interiors, driving and flight. Cloud software rendering cannot establish low-end laptop FPS or universal visual/performance quality.
+- Review the new garments in the full animation set: sitting, phone use, vehicle entry, weapons and parachuting, beyond the validated Idle/Walk/Run clips. New faces are profile-based CC0 adaptations; more bespoke topology/sculpting and distance LODs remain possible art-production work.
+- Check every app's populated, loading, empty and error states, localization, touch/controller input and narrow viewports; rendering the default states is not exhaustive interaction testing. Purchases, external services and every mission were not regression-tested in this pass.
+- Run relevant existing `Game/tools/*test.mjs` gameplay scenarios. Several log failures without a failing process exit code, so inspect assertions rather than trusting the exit code alone.

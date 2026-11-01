@@ -1,12 +1,7 @@
 {
-  "note": "The loading screen's slides, shown in this order. Put 1920x1080 character pictures in this folder and list them here.",
+  "note": "Salary Man cast cards. These images show the actual rigged game models rendered by Game/tools/cast-test.cjs, composed by Game/tools/build-presentation.cjs.",
   "slides": [
-    "yakuza_crew.jpg",
-    "seiko_mizuho.jpg",
-    "oyabun.jpg",
-    "akio.jpg",
-    "yakuza_enforcer.jpg",
-    "mother.jpg",
-    "receptionist.jpg"
+    "city-cast.jpg",
+    "family-cast.jpg"
   ]
 }
