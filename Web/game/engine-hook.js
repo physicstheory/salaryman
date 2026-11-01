@@ -87,6 +87,8 @@
     } else e.update(paused ? 0 : dt, _focus);
     if (inside) { e.weather.rain.visible = false; e.weather.splash.visible = false; }
     dimLights(e.weather.cur.cloud, e.env.flash);
+    // the people get wet in the rain too (darker clothes, glossy hair and skin), but not indoors
+    if (SHIGOTO.characters) SHIGOTO.characters(THREE).setWet(inside ? 0 : e.surfaces.uniforms.shWet.value);
   };
 
   addEventListener("keydown", ev => {
@@ -97,7 +99,8 @@
     ev.preventDefault();
   });
 
-  // for the console and cheats: shigoto.weather("storm"), shigoto.cones(), shigoto.shove()
+  // for the console and cheats: shigoto.weather("storm"), shigoto.cones(), shigoto.shove(), shigoto.characters()
+  S.characters = () => SHIGOTO.characters ? SHIGOTO.characters(THREE).report() : null;
   S.weather = (w, now) => S.engine && S.engine.weather.set(w, now);
   S.cones = (type, n) => { if (!S.bridge) return; const a = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
     return S.bridge.scatter(type || "cone", a.x + Math.sin(yaw) * 9, a.z + Math.cos(yaw) * 9, n || 10, 5); };

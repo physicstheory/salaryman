@@ -8572,7 +8572,19 @@ function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.s
 // The look: a hyper-real world (photo textures left as photographed, physically shaded buildings, cars and props, a film grade with no
 // ink lines) with anime people, toon-shaded with scattering skin - the Makoto Shinkai approach. It is the game's only look.
 function worldReal() { return true; }
-function animeArt() { return true; }           // the people are always anime
+function animeArt() { return true; }           // the world's anime paint pass (off while worldReal(); the people are drawn by Shigoto, below)
+// The people are hyper-realistic (Duncan, 2026-11-01): Microsoft Rocketbox's rigged, game-ready people (MIT) in people/real, drawn by the
+// Shigoto engine's character layer (Engine/src/characters): four PBR maps, scattering skin, cloth sheen, hair, curved subdivision.
+// people/ still holds the anime VRoid cast; ?cast=anime brings it back for comparison.
+function peopleReal() { return !/[?&]cast=anime\b/.test(location.search); }
+function charsLib() { return window.SHIGOTO && SHIGOTO.characters ? SHIGOTO.characters(THREE, { quality: gfx.tier || "high", msaa: false }) : null; }
+// a person's materials and shape: Shigoto's realistic character shading, or the toon look for the anime cast
+function charLook(root, bones, hero, model) {
+  const C = pplLib.real && charsLib();
+  if (C) { C.setQuality(gfx.tier || "high"); return C.upgrade(root, { hero: !!hero, model: model }); }
+  toonify(root); if (!pplLib.anime) animeHead(bones);
+  return root;
+}
 function animePaint(img) {
   try {
     const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
@@ -39415,12 +39427,14 @@ function pedMaterial(k, base) {
   return (peds.mats[key] = m);
 }
 // ---- real-looking people -------------------------------------------------------------------------------------------------------------------
+// The people are realistic: people/real (Microsoft Rocketbox, MIT; Tools/characters/build_real_people.py adds the roughness, occlusion and
+// skin-mask maps), shaded by the Shigoto character layer through charLook(). With ?cast=anime the older set below is used instead.
 // The people in Web/people are anime characters: pixiv's CC0 VRoid samples, converted by Tools/anime/build_anime_people.py (office workers in
 // shirt, tie and waistcoat, people in their own clothes, men and women, recoloured and with their heads swapped round so that nobody shares
 // Seiko's face). Their skeleton is renamed to the Biped names on the way in. They come with no animation, so Seiko's own Idle, Walk and Run,
 // and the hands-up, cowering and phone poses, are retargeted onto them when they load: each bone is given the turn Seiko's matching bone makes
 // away from its rest pose, measured in the world, after lining the two rest poses up bone by bone. Until they have loaded nobody is out.
-const pplLib = { loading: false, ready: [] };
+const pplLib = { loading: false, ready: [], dir: "people/", real: false };
 const PPL_MAP = {
   Bip01_Pelvis: "Hips", Bip01_Spine: "Spine", Bip01_Spine1: "Chest", Bip01_Neck: "Neck", Bip01_Head: "Head",
   Bip01_L_Clavicle: "ShoulderL", Bip01_L_UpperArm: "UpperArmL", Bip01_L_Forearm: "ForearmL", Bip01_L_Hand: "HandL",
@@ -39441,15 +39455,17 @@ const PPL_NEXT = {
 function pplLoad() {
   if (pplLib.loading || !peds.tpl || typeof THREE.GLTFLoader !== "function") return;
   pplLib.loading = true;
-  fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
+  const tryIx = dir => fetch(dir + "index.json").then(r => r.ok ? r.json() : null).then(ix => ix && ix.people ? (pplLib.dir = dir, ix) : null).catch(() => null);
+  (peopleReal() ? tryIx("people/real/").then(ix => ix || tryIx("people/")) : tryIx("people/")).then(ix => {
     if (!ix || !ix.people) return;
+    pplLib.real = !!ix.real;
     // the anime people are painted already: their textures skip the anime repaint, and their heads are their own size
     pplLib.anime = !!ix.anime;
     const loader = new THREE.GLTFLoader(ix.anime ? animeRawManager() : undefined);
     wardrobe.list = ix.outfits || null;
     const wantO = player.outfitWant && ix.outfits && ix.outfits.find(o => o.id === player.outfitWant);
     if (wantO) player.outfit = wantO.id;
-    if (ix.player && !gameSet.classicSeiko) { wardrobe.loading = true; loader.load("people/" + (wantO ? wantO.file : ix.player), g => {
+    if (ix.player && !gameSet.classicSeiko) { wardrobe.loading = true; loader.load(pplLib.dir + (wantO ? wantO.file : ix.player), g => {
       wardrobe.loading = false;
       try { pplPlayer(g); player.outfit = wantO ? wantO.id : (ix.outfits.find(o => o.file === ix.player) || {}).id; } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); }
       if (player.outfitWant && player.outfitWant !== player.outfit && !wardrobe.next) wardrobe.next = player.outfitWant;
@@ -39467,7 +39483,7 @@ function pplLoad() {
       if(principal.indexOf(e.name)<0 && typeof story!=="undefined" && story.step==="intro") { setTimeout(loadNextPerson,250);return; }
       nextPerson++;
       const advance=()=>setTimeout(loadNextPerson,80);
-      loader.load("people/"+e.file,g=>{try{pplAdopt(e,g);}catch(err){console.warn("[Konto] "+e.file+" could not be used:",err);}advance();},undefined,advance);
+      loader.load(pplLib.dir+e.file,g=>{try{pplAdopt(e,g);}catch(err){console.warn("[Konto] "+e.file+" could not be used:",err);}advance();},undefined,advance);
     };
     setTimeout(loadNextPerson,100);
   }).catch(() => {});
@@ -39475,6 +39491,7 @@ function pplLoad() {
 function pplAdopt(e, gltf) {
   const root = new THREE.Group(), scene = gltf.scene;
   root.add(scene);
+  if (window.SHIGOTO && SHIGOTO.bipedNames) SHIGOTO.bipedNames(scene);     // Mixamo / Meshy / Tripo / VRM rigs drop straight in
   const bones = {};
   scene.traverse(o => {
     if (o.isBone) bones[o.name] = o;
@@ -39483,7 +39500,7 @@ function pplAdopt(e, gltf) {
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
   });
   if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
-  toonify(root); if (!pplLib.anime) animeHead(bones);
+  charLook(root, bones, false, e.name);
   // face +Z, the way everything that walks here faces
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
@@ -39583,9 +39600,10 @@ function pplPlayer(gltf) {
   if (!player.clips) return;
   const e = { name: "seiko", female: false };
   const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
+  if (window.SHIGOTO && SHIGOTO.bipedNames) SHIGOTO.bipedNames(scene);
   const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
   if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
-  toonify(root); if (!pplLib.anime) animeHead(bones);
+  charLook(root, bones, true, "seiko");
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_REye || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
@@ -39616,7 +39634,7 @@ function pplFigure(e, height) {
 function pedFigure(shirt, height) {
   if (pplLib.ready.length) return pplFigure(pplLib.ready[(Math.random() * pplLib.ready.length) | 0], height);
   // Seiko's own body dressed in another shirt was the stand-in once, and a street of Seikos is what it looked like
-  if (pplLib.anime !== false) return null;
+  if (pplLib.anime !== false || pplLib.real || peopleReal()) return null;
   const body = cloneSkinned(peds.tpl), wrap = new THREE.Group(), holder = new THREE.Group();
   body.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(m => pedMaterial(shirt, m)) : pedMaterial(shirt, o.material); });
   wrap.scale.setScalar(peds.scale * height); wrap.position.copy(peds.off).multiplyScalar(height);
@@ -40264,7 +40282,7 @@ function seikoOutfit(id, quiet) {
   if (wardrobe.loading) { wardrobe.next = id; return; }
   if (player.outfit === id && player.hq) { if (!quiet) say("You are already wearing that.", 2); return; }
   wardrobe.loading = true; if (!quiet) say("Changing…", 2);
-  new THREE.GLTFLoader(pplLib.anime ? animeRawManager() : undefined).load("people/" + o.file, g => {
+  new THREE.GLTFLoader(pplLib.anime ? animeRawManager() : undefined).load((pplLib.dir || "people/") + o.file, g => {
     wardrobe.loading = false;
     try { pplPlayer(g); player.outfit = id; if (!quiet) say(o.name + ".", 2.5); } catch (e) { console.warn("[Konto] could not change:", e); }
     wardrobeNext();

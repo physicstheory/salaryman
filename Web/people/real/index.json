@@ -1,0 +1,537 @@
+{
+ "people": [
+  {
+   "file": "salaryman_01.glb",
+   "name": "salaryman_01",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_02",
+   "head": "Business_Male_02",
+   "tris": 7448,
+   "bytes": 1807172,
+   "identity": "Salaryman 01",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_02.glb",
+   "name": "salaryman_02",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_01",
+   "head": "Male_Adult_09",
+   "tris": 7736,
+   "bytes": 2059112,
+   "identity": "Salaryman 02",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_03.glb",
+   "name": "salaryman_03",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_03",
+   "head": "Male_Adult_10",
+   "tris": 7646,
+   "bytes": 2017624,
+   "identity": "Father Shigu",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_04.glb",
+   "name": "salaryman_04",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_04",
+   "head": "Business_Male_02",
+   "tris": 7462,
+   "bytes": 2073132,
+   "identity": "Akio / SOTI colleague",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_05.glb",
+   "name": "salaryman_05",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_05",
+   "head": "Male_Adult_09",
+   "tris": 7796,
+   "bytes": 2097112,
+   "identity": "Salaryman 05",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_06.glb",
+   "name": "salaryman_06",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_06",
+   "head": "Male_Adult_10",
+   "tris": 7152,
+   "bytes": 2019776,
+   "identity": "Salaryman 06",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_07.glb",
+   "name": "salaryman_07",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_07",
+   "head": "Male_Adult_09",
+   "tris": 7312,
+   "bytes": 2343652,
+   "identity": "Salaryman 07",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_08.glb",
+   "name": "salaryman_08",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_03",
+   "head": "Business_Male_02",
+   "tris": 7626,
+   "bytes": 1966416,
+   "identity": "Salaryman 08",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_09.glb",
+   "name": "salaryman_09",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_05",
+   "head": "Male_Adult_10",
+   "tris": 7414,
+   "bytes": 1964600,
+   "identity": "Salaryman 09",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "salaryman_10.glb",
+   "name": "salaryman_10",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_06",
+   "head": "Male_Adult_09",
+   "tris": 7534,
+   "bytes": 2136728,
+   "identity": "Salaryman 10",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "man_01.glb",
+   "name": "man_01",
+   "female": false,
+   "business": false,
+   "japanese": true,
+   "body": "Male_Adult_09",
+   "head": "Male_Adult_09",
+   "tris": 7428,
+   "bytes": 2296216,
+   "identity": "Man 01",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "man_02.glb",
+   "name": "man_02",
+   "female": false,
+   "business": false,
+   "japanese": true,
+   "body": "Male_Adult_10",
+   "head": "Male_Adult_10",
+   "tris": 6732,
+   "bytes": 1912956,
+   "identity": "Man 02",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "man_03.glb",
+   "name": "man_03",
+   "female": false,
+   "business": false,
+   "japanese": true,
+   "body": "Male_Adult_05",
+   "head": "Male_Adult_09",
+   "tris": 7988,
+   "bytes": 2393676,
+   "identity": "Man 03",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "man_04.glb",
+   "name": "man_04",
+   "female": false,
+   "business": false,
+   "japanese": true,
+   "body": "Male_Adult_08",
+   "head": "Male_Adult_10",
+   "tris": 7254,
+   "bytes": 2085788,
+   "identity": "Man 04",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "man_05.glb",
+   "name": "man_05",
+   "female": false,
+   "business": false,
+   "japanese": true,
+   "body": "Male_Adult_01",
+   "head": "Business_Male_02",
+   "tris": 7151,
+   "bytes": 2222656,
+   "identity": "Man 05",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "officelady_01.glb",
+   "name": "officelady_01",
+   "female": true,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Female_03",
+   "head": "Business_Female_03",
+   "tris": 8438,
+   "bytes": 1992560,
+   "identity": "Officelady 01",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "officelady_02.glb",
+   "name": "officelady_02",
+   "female": true,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Female_01",
+   "head": "Female_Adult_11",
+   "tris": 9122,
+   "bytes": 2356752,
+   "identity": "SOTI receptionist",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "officelady_03.glb",
+   "name": "officelady_03",
+   "female": true,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Female_02",
+   "head": "Female_Adult_03",
+   "tris": 8550,
+   "bytes": 3526876,
+   "identity": "Officelady 03",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "officelady_04.glb",
+   "name": "officelady_04",
+   "female": true,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Female_04",
+   "head": "Sports_Female_02",
+   "tris": 8150,
+   "bytes": 2103052,
+   "identity": "Officelady 04",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "officelady_05.glb",
+   "name": "officelady_05",
+   "female": true,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Female_01",
+   "head": "Female_Adult_03",
+   "tris": 9036,
+   "bytes": 2436296,
+   "identity": "Officelady 05",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_01.glb",
+   "name": "woman_01",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Female_Adult_03",
+   "head": "Female_Adult_03",
+   "tris": 9208,
+   "bytes": 2375700,
+   "identity": "Woman 01",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_02.glb",
+   "name": "woman_02",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Female_Adult_11",
+   "head": "Female_Adult_11",
+   "tris": 8896,
+   "bytes": 2480012,
+   "identity": "Seiko's sister",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_03.glb",
+   "name": "woman_03",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Sports_Female_02",
+   "head": "Sports_Female_02",
+   "tris": 8580,
+   "bytes": 2008072,
+   "identity": "Woman 03",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_04.glb",
+   "name": "woman_04",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Female_Adult_01",
+   "head": "Business_Female_03",
+   "tris": 7886,
+   "bytes": 2537108,
+   "identity": "Woman 04",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_05.glb",
+   "name": "woman_05",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Female_Adult_05",
+   "head": "Female_Adult_11",
+   "tris": 8610,
+   "bytes": 2910972,
+   "identity": "Mother Shigu",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  },
+  {
+   "file": "woman_06.glb",
+   "name": "woman_06",
+   "female": true,
+   "business": false,
+   "japanese": true,
+   "body": "Female_Adult_08",
+   "head": "Sports_Female_02",
+   "tris": 8092,
+   "bytes": 2374628,
+   "identity": "Woman 06",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ]
+  }
+ ],
+ "player": "seiko_player.glb",
+ "outfits": [
+  {
+   "id": "village",
+   "name": "Village work clothes",
+   "file": "seiko_village.glb"
+  },
+  {
+   "id": "village_denim",
+   "name": "Village shirt and jeans",
+   "file": "seiko_village_denim.glb"
+  },
+  {
+   "id": "office",
+   "name": "Office shirt",
+   "file": "seiko_player.glb"
+  },
+  {
+   "id": "suit_black",
+   "name": "Black suit, red tie",
+   "file": "seiko_suit_black.glb"
+  },
+  {
+   "id": "suit_charcoal",
+   "name": "Charcoal suit",
+   "file": "seiko_suit_charcoal.glb"
+  },
+  {
+   "id": "waistcoat",
+   "name": "Waistcoat",
+   "file": "seiko_waistcoat.glb"
+  },
+  {
+   "id": "suit_check",
+   "name": "Check suit",
+   "file": "seiko_suit_check.glb"
+  },
+  {
+   "id": "polo",
+   "name": "Polo and shorts",
+   "file": "seiko_polo.glb"
+  },
+  {
+   "id": "blue_shirt",
+   "name": "Blue shirt and jeans",
+   "file": "seiko_blue_shirt.glb"
+  },
+  {
+   "id": "tshirt",
+   "name": "T-shirt and jeans",
+   "file": "seiko_tshirt.glb"
+  },
+  {
+   "id": "track",
+   "name": "Track jacket",
+   "file": "seiko_track.glb"
+  }
+ ],
+ "anime": false,
+ "real": true,
+ "shigoto": {
+  "characters": 1,
+  "orm": "R=occlusion G=roughness B=skinMask"
+ },
+ "source": "Microsoft Rocketbox avatar library (MIT), see LICENSE-Rocketbox.md"
+}
