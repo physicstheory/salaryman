@@ -8585,7 +8585,13 @@ function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.s
 // few tones the way a background painter lays them in. Relief maps (the bumps in tarmac and plaster) are flattened, because a painted
 // world is smooth. The people, Seiko, the cars and the furniture are drawn with toon materials: one hard shadow edge, no glossy
 // reflections, which is also lighter work for the graphics card. The realistic style (Settings) loads everything as it was.
-function animeArt() { return true; }           // the game's look; there is no other
+// The look. "anime" (the default): the whole frame painted, ink lines, toon shading on everything. "real": a hyper-real world (photo
+// textures left as photographed, physically shaded buildings, cars and props, a film grade with no ink) with the people still anime,
+// toon-shaded with their scattering skin - the Makoto Shinkai approach. Picked with ?look=real or the REALWORLD cheat (saved).
+const LOOK = (() => { try { const q = /[?&]look=(real|anime)/.exec(location.search); if (q) return q[1]; return localStorage.getItem("konto.look") === "real" ? "real" : "anime"; } catch (e) { return "anime"; } })();
+function worldReal() { return LOOK === "real"; }
+function setLook(v) { try { localStorage.setItem("konto.look", v); } catch (e) { /* none */ } try { saveGame(null, true); } catch (e) { /* none */ } location.reload(); }
+function animeArt() { return true; }           // the people are always anime
 function animePaint(img) {
   try {
     const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
@@ -8616,7 +8622,7 @@ function animeFlatNormal() {
 // a loading manager whose textures are left as they are (the anime people, drawn in the style already)
 function animeRawManager() { return animeRawManager.m || (animeRawManager.m = new THREE.LoadingManager()); }
 (function animeLoaders() {
-  if (!animeArt() || typeof THREE === "undefined") return;
+  if (!animeArt() || worldReal() || typeof THREE === "undefined") return;
   const skip = url => /\/sky\/|water|fonts?\/|icon|logo|splash|\.hdr/i.test(url || "");
   const isNormal = url => /_nor|nrm|normal/i.test(url || "");
   const TL = THREE.TextureLoader.prototype.load;
@@ -8691,6 +8697,7 @@ function toonMat(m, skinned) {
 }
 function toonify(root, keep) {
   if (!animeArt() || !root) return root;
+  if (worldReal()) { let person = false; root.traverse(o => { if (o.isSkinnedMesh) person = true; }); if (!person) return root; }
   root.traverse(o => {
     if (!o.isMesh || (o.material && o.material.isShaderMaterial)) return;
     const sk = !!o.isSkinnedMesh;
@@ -13347,7 +13354,7 @@ function postFlat(v) {
   return post.flat[v];
 }
 // The art style. Anime is the game's look; the realistic render is kept as an option in Settings.
-function animeOn() { return true; }
+function animeOn() { return !worldReal(); }
 function runPass(mat, target) {
   post.quad.material = mat;
   renderer.setRenderTarget(target || null);
@@ -13668,6 +13675,7 @@ function fxRender() {
   b.strength = fx.bloom.strength * (1 + 0.5 * night); b.radius = fx.bloom.radius; b.threshold = fx.bloom.threshold * (1 - 0.72 * night);
   fx.p.tone.uniforms.uExposure.value = renderer.toneMappingExposure;
   fx.p.ssao.enabled = gfx.tier === "high" || gfx.tier === "ultra";
+  if (worldReal()) { fx.ssao.strength = 1.0; fx.ssao.intensity = 1.35; b.strength *= 1.25; }
   fx.composer.render(1 / 60);
 }
 
@@ -27251,6 +27259,7 @@ const CHEAT_ACTIONS = {
   MONEYBAGS: { dial: "5550130", note: "\u00a51,000,000", fn: () => { purse.yen += 1000000; } },
   HEALTHY:   { dial: "5550131", note: "Health and nerves restored", fn: () => { vitals.health = 1; vitals.stress = 0.05; } },
   MIDDAY:    { dial: "5550132", note: "It is noon", fn: () => cheatHour(12) },
+  REALWORLD: { dial: "5550300", note: "Hyper-real world with anime people, or back to all-anime (reloads from a save)", fn: () => setLook(worldReal() ? "anime" : "real") },
   MIDNIGHT:  { dial: "5550133", note: "It is midnight", fn: () => cheatHour(0) },
   SUNRISE:   { dial: "5550134", note: "Sunrise", fn: () => cheatHour(6) },
   SUNSET:    { dial: "5550135", note: "Sunset", fn: () => cheatHour(18) },
@@ -41277,8 +41286,8 @@ const inPhoto = { img: {}, nor: {}, timer: 0 };
 const inTexAll = [];
 function inPhotoLoad() {
   Object.keys(IN_PHOTO_FILES).forEach(k => {
-    const im = new Image(); im.onload = () => { inPhoto.img[k] = animeArt() ? animePaint(im) : im; inPhotoRefresh(); }; im.src = "art/" + IN_PHOTO_FILES[k] + ".jpg";
-    if (k !== "concrete" && !animeArt()) { const nm = new Image(); nm.onload = () => { inPhoto.nor[k] = nm; }; nm.src = "art/" + IN_PHOTO_FILES[k] + "_nor.jpg"; }
+    const im = new Image(); im.onload = () => { inPhoto.img[k] = animeArt() && !worldReal() ? animePaint(im) : im; inPhotoRefresh(); }; im.src = "art/" + IN_PHOTO_FILES[k] + ".jpg";
+    if (k !== "concrete" && (!animeArt() || worldReal())) { const nm = new Image(); nm.onload = () => { inPhoto.nor[k] = nm; }; nm.src = "art/" + IN_PHOTO_FILES[k] + "_nor.jpg"; }
   });
 }
 // a picture arrived: paint every room surface again over it (once, after the last of a burst)
@@ -41305,7 +41314,7 @@ function inPhotoFill(g, kind, w, h, tint, n) {
 }
 // The surface of a painted wall: the plaster's texture laid into the paint without changing its colour.
 function inPhotoDetail(g, kind, w, h, a) {
-  if (animeArt()) return;                                 // painted walls are flat colour
+  if (animeArt() && !worldReal()) return;                 // painted walls are flat colour
   const im = inPhoto.img[kind]; if (!im) return;
   g.save(); g.globalCompositeOperation = "overlay"; g.globalAlpha = a || 0.55; g.drawImage(im, 0, 0, w, h); g.restore();
 }
@@ -41319,7 +41328,7 @@ function inPhotoSrc(kind) {
   return inPhoto.small[kind];
 }
 function inPhotoMat(kind, rough, rep, tint, bump) {
-  if (animeArt() && kind === "plaster") return null;     // the painted look has flat walls and ceilings
+  if (animeArt() && !worldReal() && kind === "plaster") return null;     // the painted look has flat walls and ceilings
   const im = inPhotoSrc(kind); if (!im) return null;
   const t = new THREE.Texture(im); t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); sharpTex(t); t.needsUpdate = true;
   const m = new THREE.MeshStandardMaterial({ map: t, roughness: rough, metalness: 0 });
