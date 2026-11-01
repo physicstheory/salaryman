@@ -45,6 +45,7 @@ async function main() {
     try {
       await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 240000 });
       console.log('PASS title and world generation', JSON.stringify(await state()));
+      await page.evaluate(async()=>{await SalaryArt.ready;if(SalaryArt.state.failed.length)throw Error('Missing generated art');});
       await page.evaluate(() => {
         setPaused(true,'settings');
         document.head.insertAdjacentHTML('beforeend','<style>body>*:not(#stage):not(script):not(style){display:none!important}#stage{filter:none!important;opacity:1!important;transform:none!important}</style>');
@@ -90,7 +91,9 @@ async function main() {
         },side);
         await page.screenshot({path:path.join(output,'windows-'+side+'.png'),timeout:120000});
       }
-      const result=await page.evaluate(()=>retailProof);
+      const result=await page.evaluate(()=>({...retailProof,art:SalaryArt.state}));
+      assert.ok(result.art.coated>0,'Fixtures must use the generated material surfaces');
+      assert.equal(result.art.failed.length,0,'All generated art must load locally');
       assert.ok(result.windows>0,'Mapped shop windows must exist in the actual world');
       assert.equal(new Set(result.rooms.filter(r=>r.key.startsWith('dokoto:')).map(r=>r.identity)).size,5);
       assert.deepEqual(errors,[]);

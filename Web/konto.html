@@ -1299,6 +1299,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
 <script src="art/interface.js"></script>
+<script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
@@ -12132,7 +12133,26 @@ function waterHeightTexture() {
 }
 function waterMaterial(level, deep, shallow, opacity, opts) {
   opts = opts || {};
-  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
+  if (!gfx.high) {
+    // Low still respects the coast and palace island. A broad transparent sheet must never cover reclaimed land.
+    const m = new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
+    const U = { lowWaterHeight:{value:waterHeightTexture()},lowWaterSea:{value:opts.sea?1:0},
+      lowWaterGrid:{value:new THREE.Vector2(GRID_X,GRID_Z)},lowWaterCell:{value:CELL},
+      lowWaterRing:{value:opts.ring?new THREE.Vector4(opts.ring.cx,opts.ring.cz,Math.cos(opts.ring.rot),Math.sin(opts.ring.rot)):new THREE.Vector4(0,0,1,0)},
+      lowWaterInner:{value:opts.ring?opts.ring.inner:0} };
+    m.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms,U);
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos;')
+        .replace('#include <project_vertex>','#include <project_vertex>\nvLowWaterPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos; uniform sampler2D lowWaterHeight; uniform float lowWaterSea,lowWaterCell,lowWaterInner; uniform vec2 lowWaterGrid; uniform vec4 lowWaterRing;')
+        .replace('#include <color_fragment>',`#include <color_fragment>
+          vec2 lowUV=(vLowWaterPos.xz/lowWaterCell+0.5)/lowWaterGrid;
+          if(lowWaterSea>0.5 && lowUV.x>0.0 && lowUV.y>0.0 && lowUV.x<1.0 && lowUV.y<1.0 && texture2D(lowWaterHeight,lowUV).g<0.5)discard;
+          if(lowWaterInner>0.0){vec2 d=vLowWaterPos.xz-lowWaterRing.xy;vec2 q=vec2(d.x*lowWaterRing.z-d.y*lowWaterRing.w,d.x*lowWaterRing.w+d.y*lowWaterRing.z);if(max(abs(q.x),abs(q.y))<lowWaterInner)discard;}`);
+    };
+    m.customProgramCacheKey=()=> 'konto-low-water-mask-v1';
+    return m;
+  }
   if (!water.normTex) { water.normTex = new THREE.TextureLoader().load("art/terrain/water_nor.jpg"); water.normTex.wrapS = water.normTex.wrapT = THREE.RepeatWrapping; }
   const m = new THREE.MeshStandardMaterial({ color: deep, roughness: opts.rough || 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: opts.env || 0.55 });
   const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
@@ -13086,7 +13106,7 @@ const post = {
   w: 0, h: 0, time: 0, forced: null,     // null: whatever the tier says
   // Tuned against the picture, not against taste: strong enough that turning
   // the chain off looks flat, weak enough that nothing announces itself.
-  ao: 0.55, bloom: 0.42, sharp: 0.50, grain: 0.028, vignette: 0.16, ca: 0.45,
+  ao: 0.55, bloom: 0.42, sharp: 0.50, grain: 0.004, vignette: 0.16, ca: 0.08,
   exposure: 1.05
 };
 
@@ -15756,7 +15776,10 @@ const ADS = [
     sub: "Nine hours. One song. Nobody is judging you.", glyph: "mic" },
   { bg: "#f0b21c", ink: "#1d2630", tint: "#1c4f94",
     jp: "整列ご協力", head: "QUEUE WITH PRIDE",
-    sub: "Please form an orderly line for our orderly lines.", glyph: "queue" }
+    sub: "Please form an orderly line for our orderly lines.", glyph: "queue" },
+  {bg:"#dcece3",ink:"#18343b",tint:"#286d68",jp:"毎日の、その先へ",head:"SOTI So26",sub:"Make every day extraordinary.",glyph:"phone",art:"soti"},
+  {bg:"#eee8ef",ink:"#343049",tint:"#786589",jp:"新しい可能性",head:"Pear P17",sub:"A little more possibility.",glyph:"phone",art:"pear"},
+  {bg:"#162338",ink:"#f2eee2",tint:"#aabfe6",jp:"仕事のあとに",head:"PLAYBOX 5",sub:"Clock out. Play on.",glyph:"game",art:"playbox"}
 ];
 
 let adTex = null;
@@ -15830,6 +15853,7 @@ function adAtlas() {
   adTex = new THREE.CanvasTexture(cv);
   adTex.encoding = THREE.sRGBEncoding;
   adTex.anisotropy = 4;
+  SalaryArt.bindAtlas(cv, ADS, AD_W, AD_H, adTex);
   return adTex;
 }
 
@@ -40806,6 +40830,7 @@ function inShade(hex, k) { return "#" + new THREE.Color(hex).multiplyScalar(k).g
 function inAdd(parent, w, h, d, x, y, z, hex) {
   const m = new THREE.Mesh(inBox, inMat(hex));
   m.scale.set(w, h, d); m.position.set(x, y, z);
+  m.userData.salaryFinish = hex;
   parent.add(m);
   return m;
 }
@@ -40863,6 +40888,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "pill") { inAdd(g, 0.14, 0.2, 0.08, 0, 0.1, 0, "#f4f4f2"); inAdd(g, 0.14, 0.05, 0.085, 0, 0.1, 0, col); top = 0.2; }
   else if (kind === "umbrella") { inAdd(g, 0.04, 0.5, 0.04, 0, 0.25, 0, "#e8eef2"); inAdd(g, 0.2, 0.08, 0.2, 0, 0.5, 0, "#cfe0ea"); top = 0.55; }
   else { inAdd(g, 0.2, 0.22, 0.14, 0, 0.11, 0, col); inAdd(g, 0.2, 0.06, 0.145, 0, 0.13, 0, "#f4f4f2"); top = 0.22; }
+  SalaryArt.stock(it,kind,g,gfx.tier);
   // a yellow shell round it, shown when it is the one you are looking at
   if (!noGlow) {
     const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
@@ -41332,7 +41358,7 @@ const IN_ADS = {
   pharmacy: [["VITAMINS ¥980", "For the tired", "pill", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "pill", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
   books:   [["BESTSELLER", "The Quiet Platform", "book", "#2c4a3a"], ["MANGA OUT NOW", "Shonen Salaryman 12", "book", "#d9534f"], ["NAP BETTER", "Business ¥1,400", "book", "#3f6fb5"], ["NEW ARRIVALS", "Novels · Manga · Business", "book", "#8a4a1a"], ["A YEAR IN MIZUHO", "¥1,300", "book", "#4a7a4a"], ["READ MORE", "Stress less", "book", "#6a3fb5"]],
   clothes: [["DRESS SHIRTS", "¥3,900 · all colours", "tie", "#2a2d33"], ["NEW SEASON", "Wear it on the train", "tie", "#4a90d9", "#1d3b5a"], ["SALE 30% OFF", "Socks · Towels", "sale", "#c8372d"], ["TRY IT ON", "Ask at the counter", "tie", "#9b6bd3", "#e8c24a"], ["BUSINESS CASUAL", "Fridays only", "tie", "#3fb8af", "#c8372d"], ["CLEAR UMBRELLAS", "¥550", "sale", "#1272d6"]],
-  dokoto:  [["PEAR P17", "Pro Max · now in store", "phone", "#6a3fb5", "#8a6aff"], ["SOTI So25 ULTRA", "The best camera on the island", "phone", "#1d3b5a", "#2a9ad6"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a", "#f0a31c"]],
+  dokoto:  [["PEAR P17", "Try it in store", "phone", "#6a3fb5", "#8a6aff"], ["SOTI So26", "50 MP + ultrawide · 3x zoom", "phone", "#1d3b5a", "#2a9ad6"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a", "#f0a31c"]],
   capsule: [["QUIET HOURS", "22:00 – 06:00", "moon", "#2a8fb8"], ["SHOES OFF", "靴を脱いでください", "shoe", "#2a2d33"], ["WI-FI: KAPUSERU", "Password at the desk", "wifi", "#1a9ad6"], ["CHECK-OUT 10:00", "Thank you for staying", "clock", "#4a5260"], ["NO SMOKING", "", "warning", "#c8372d"], ["TOWELS ¥200", "At the desk", "sale", "#2a8fb8"]],
   plaza:   [["PLAZA SALE", "Everything must go", "sale", "#c8372d"], ["FOOD HALL B1", "Ramen · Sushi", "ramen", "#7a1f1a"], ["FASHION 2F", "New season", "tie", "#2a2d33"], ["BOOKS 3F", "Bestsellers", "book", "#2c4a3a"], ["EVERYDAY 1F", "Open until late", "clock", "#0a6b42"], ["WELCOME", "Please mind the lift", "wifi", "#2a8fb8"]]
 };
@@ -41465,6 +41491,7 @@ function inSticker(g, text, x, y, r, bg, fg, font) {
 }
 function inFit(g, text, weight, maxW, size, font) { let fs = size; g.font = weight + " " + fs + "px " + font; while (g.measureText(text).width > maxW && fs > 10) { fs -= 2; g.font = weight + " " + fs + "px " + font; } return fs; }
 function inPosterTex(brand, i) {
+  const generated = SalaryArt.interiorPoster(brand,i); if (generated) return generated;
   const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length], fonts = inFontsOf(brand);
   return inCanvasTex("poster2:" + brand + ":" + (i % ads.length), 256, 340, (g, w, h) => {
     const base = ad[3], v = (inHash(brand) + i) % 3, price = (ad[1].match(/¥[\d,]+/) || [""])[0];
@@ -41895,6 +41922,7 @@ function interiorRoom(s, opts) {
   try { interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
 
   SalaryRetail.refurbish(room, root, {add:inAdd,label:inLabel,devices:DEVICES});
+  SalaryArt.coat(root);
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));

@@ -52,7 +52,11 @@ async function main() {
       await page.evaluate(() => cutFinish(true));
       await page.waitForFunction(() => !cut.active && player.placed, null, { timeout: 60000 });
       console.log('PASS intro skip and playable state');
-      await page.evaluate(() => { if (interior.active) interiorLeave(true); cheat('MIDDAY'); });
+      await page.waitForFunction(() => window.shigoto?.engine?.physics?.ready, null, {timeout:60000});
+      await page.evaluate(async()=>{await SalaryArt.ready;if(SalaryArt.state.failed.length)throw Error('Missing generated art');if(!worldReal())throw Error('Claude realistic-world mode is not enabled');const w=shigoto.engine.weather,wet=w.wetness,puddles=w.puddles;shigoto.weather('rain',true);if(w.state!=='rain')throw Error('Weather integration failed');shigoto.weather('clear',true);w.wetness=wet;w.puddles=puddles;shigoto.engine.surfaces.uniforms.shWet.value=wet;shigoto.engine.surfaces.uniforms.shPuddles.value=puddles;});
+      console.log('PASS Claude engine, physics, weather and generated art loading');
+
+      await page.evaluate(() => { let n=0;while(cut.active&&n++<20)cutFinish(true);if(home.inside)leaveHome();if(interior.active)interiorLeave(true);cheat('GOTOKONTO');cheat('MIDDAY');loadShow(false);document.getElementById('fade').style.opacity='0'; });
       await page.waitForTimeout(3000);
       const result = await state();
       assert.ok(result.cities > 0 && Number.isFinite(result.x) && Number.isFinite(result.z));
@@ -109,9 +113,35 @@ async function main() {
       await page.evaluate(() => setMapOpen(true));
       await page.screenshot({path:path.join(output,'map.png'),timeout:240000,animations:'disabled'});
       console.log('PASS settings, interface preferences, scrolling and map');
+      await page.evaluate(()=>{
+        setMapOpen(false);setPhone(false);setPaused(true,'phone');
+        document.getElementById('pause').style.visibility='hidden';
+        if(home.inside)leaveHome();if(interior.active)interiorLeave(true);
+        applyTier('high',{quiet:true});
+        const c=world.cities.find(c=>c.name==='Tōkonto')||world.cities[0],target=c.scramble?.at||c.centre,spots=[];
+        for(const road of c.roads){if(road.elevated||!road.pts)continue;for(let i=1;i<road.pts.length;i++){
+          const a=road.pts[i-1],b=road.pts[i],dx=b[0]-a[0],dz=b[2]-a[2],len=Math.hypot(dx,dz);if(len<10)continue;
+          const vx=dx/len,vz=dz/len;
+          for(const t of [.2,.5,.8]){const x=a[0]+dx*t,z=a[2]+dz*t,y=world.surfaceY(x,z);
+            if(insideBuilding(x,z,2)||insideBuilding(x-vx*6,z-vz*6,2)||world.bridgeY(x,z)!==null)continue;
+            if(Math.abs(world.surfaceY(x-vx*6,z-vz*6)-y)>1)continue;
+            spots.push({x,z,y,vx,vz,score:Math.hypot(x-target[0],z-target[1])});
+          }
+        }}
+        spots.sort((a,b)=>a.score-b.score);const at=spots[0];if(!at)throw Error('No unobstructed city camera position');
+        placeSeiko(new THREE.Vector3(at.x,at.y,at.z));player.pos.y=world.walkY(at.x,at.z,player.pos.y);player.obj.position.copy(player.pos);at.y=player.pos.y;player.yaw=player.targetYaw=Math.atan2(at.vx,at.vz);player.obj.rotation.y=player.yaw;player.obj.visible=true;
+        yaw=Math.atan2(-at.vx,-at.vz);pitch=-.12;
+        camPos.set(at.x-at.vx*6,at.y+2.6,at.z-at.vz*6);camera.position.copy(camPos);camera.near=2;camera.fov=60;camera.updateProjectionMatrix();camera.lookAt(at.x,at.y+1.5,at.z);camera.updateMatrixWorld(true);
+        streamFrame();frameGrab.want=true;present();
+        window.reviewCamera={city:c.name,player:player.pos.toArray(),camera:camera.position.toArray(),insideBuilding:insideBuilding(player.pos.x,player.pos.z,1)};
+      });
+      await page.screenshot({path:path.join(output,'city-high.png'),timeout:240000});
+      const engine=await page.evaluate(()=>({running:!!shigoto.engine,physicsReady:shigoto.engine.physics.ready,failed:shigoto.failed,realWorld:worldReal(),tier:gfx.tier,post:fx.on,art:SalaryArt.state,capture:reviewCamera}));
+      assert.equal(engine.running,true);assert.equal(engine.failed,false);assert.equal(engine.realWorld,true);assert.equal(engine.post,true);assert.equal(engine.capture.insideBuilding,false);
+      console.log('PASS high-quality scene capture',JSON.stringify(engine));
       const atlas = await page.evaluate(() => adAtlas().image.toDataURL('image/png'));
       fs.writeFileSync(path.join(output, 'adverts.png'), Buffer.from(atlas.split(',')[1], 'base64'));
-      fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({status:'passed',startedAt,completedAt:new Date().toISOString(),result,appScreens,errors,warnings,warningCounts},null,2));
+      fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({status:'passed',startedAt,completedAt:new Date().toISOString(),result,engine,appScreens,errors,warnings,warningCounts},null,2));
       assert.deepEqual(errors, [], 'Uncaught JavaScript errors');
       console.log('PASS gameplay, phone and advert capture', JSON.stringify(result));
     } catch (error) {

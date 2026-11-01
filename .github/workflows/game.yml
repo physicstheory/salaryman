@@ -78,6 +78,7 @@ jobs:
           name: Salary Man review build
           target_commitish: ${{ github.sha }}
           prerelease: true
+          draft: ${{ inputs.release_tag != 'latest-build' }}
           make_latest: false
           overwrite_files: true
           body: "The newest hand-run build of Salary Man (commit ${{ github.sha }}). Windows: download SalaryMan-windows.zip, unzip it and run Salary Man.exe. Linux: download SalaryMan-linux.AppImage and run it."

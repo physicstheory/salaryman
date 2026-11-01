@@ -202,7 +202,7 @@ def accessories(model, profile):
 
 
 def tailored_jacket(model, profile):
-    if not profile.get('jacket'): return
+    if not (profile.get('jacket') or profile.get('coverSleeves')): return
     body=next(m for m in model.j['meshes'] if m.get('name','').lower().startswith('body'))
     mesh_i=model.j['meshes'].index(body);node=next(n for n in model.j['nodes'] if n.get('mesh')==mesh_i)
     skin=model.j['skins'][node['skin']];names=[model.j['nodes'][j].get('name','') for j in skin['joints']]
@@ -228,6 +228,7 @@ def tailored_jacket(model, profile):
         pos=model.read(attributes['POSITION']);norm=model.read(attributes['NORMAL']);pos=pos+norm*.008
         a=dict(attributes);a['POSITION']=model.accessor(pos,'VEC3')
         body['primitives'].append({'attributes':a,'indices':model.accessor(selected,'SCALAR',5123),'material':material,'mode':4})
+    if not profile.get('jacket'): return
     # A pair of notched lapels, bound to the chest, gives the suit its silhouette.
     chest=names.index('Bip01_Spine1');points=[];indices=[]
     for side in [-1,1]:

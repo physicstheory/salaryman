@@ -35,7 +35,7 @@ const server = http.createServer((q, r) => {
       html.slice(html.indexOf(a), html.indexOf(z, html.indexOf(a)));
     await p.addScriptTag({
       content:
-        "const peds={tpl:null};function animeArt(){return true;}" +
+        "const peds={tpl:null};function animeArt(){return true;}function worldReal(){return true;}" +
         part("function cloneSkinned(", "// Called when Seiko") +
         part("const pplLib =", "function pplLoad()") +
         part("function pplSource()", "// Seiko's own new body") +
@@ -86,7 +86,7 @@ const server = http.createServer((q, r) => {
           bones: Object.keys(bones).length,
         });
       }
-      window.portrait = (name) => {
+      window.portrait = (name, full, back) => {
         const c = document.getElementById("portrait");
         const renderer = new THREE.WebGLRenderer({
           canvas: c,
@@ -110,6 +110,7 @@ const server = http.createServer((q, r) => {
         const camera = new THREE.PerspectiveCamera(38, 640 / 768, 0.01, 20);
         camera.position.set(head.x - 0.05, head.y + 0.045, head.z - 1.03);
         camera.lookAt(head.x, head.y - 0.04, head.z);
+        if(full){camera.position.set(head.x+.28,head.y-.4,head.z+(back?3.9:-3.9));camera.lookAt(head.x,head.y-.7,head.z);}
         renderer.render(scene, camera);
         return { head: head.toArray(), name };
       };
@@ -128,15 +129,17 @@ const server = http.createServer((q, r) => {
       "woman_05",
       "salaryman_03",
       "woman_02",
+      "seiko_village",
+      "seiko_village_denim",
     ]) {
-      console.log(await p.evaluate((n) => portrait(n), name));
+      console.log(await p.evaluate((n) => portrait(n,n.startsWith("seiko_village"),n.startsWith("seiko_village")), name));
       await p.screenshot({
         path: path.join(output, name + ".png"),
         timeout: 120000,
       });
     }
     console.log(
-      "PASS 30 redesigned rigs, Idle/Walk/Run retargeting and seven portraits",
+      "PASS 30 redesigned rigs, Idle/Walk/Run retargeting and nine portrait/garment captures",
     );
   } finally {
     await b.close();
