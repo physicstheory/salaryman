@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Konto Generator</title>
+<title>Salary Man · A life in Tōkonto</title>
 <!-- the game's own typeface, Konto Sans (M PLUS 1, OFL), shipped with it so it is the same offline and in the desktop build -->
 <link rel="stylesheet" href="art/fonts/konto-sans.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1056,6 +1056,7 @@
   #mapwhere small { display: block; font-family: var(--data); font-size: 11px; color: #9fa7ad; font-weight: 400; }
 </style>
 
+<link rel="stylesheet" href="art/interface.css">
 </head>
 <body>
 <div id="stage"></div>
@@ -1158,10 +1159,10 @@
     <p id="maphint"></p>
   </div>
   <div id="maplegend">
-    <span><i style="background:#f0b72a"></i>Highway</span>
-    <span><i style="background:#3fae76"></i>Rail (overlay)</span>
-    <span><i style="background:#f08a2c"></i>Bus (overlay)</span>
-    <span><i style="background:#15894f"></i>Waypoint and route</span>
+    <span><i style="background:#e8b96e"></i>Highway</span>
+    <span><i style="background:#82baaa"></i>Rail (overlay)</span>
+    <span><i style="background:#d4a46a"></i>Bus (overlay)</span>
+    <span><i style="background:#f18360"></i>Waypoint and route</span>
   </div>
 </div>
 
@@ -1211,6 +1212,8 @@
         <button class="menu-btn" id="mpcmode" type="button">PC mode: off</button>
         <button class="menu-btn" id="madapt" type="button">Adaptive graphics: on</button>
         <button class="menu-btn" id="mundo" type="button">Undo automatic graphics changes</button>
+        <button class="menu-btn" id="muidensity" type="button">Interface layout: comfortable</button>
+        <button class="menu-btn" id="muimotion" type="button">Interface motion: system</button>
         <button class="menu-btn" id="mrumble" type="button">Controller vibration: on</button>
         <button class="menu-btn" id="mlook" type="button">Look speed: 100%</button>
         <button class="menu-btn" id="minvert" type="button">Invert look: off</button>
@@ -1255,7 +1258,7 @@
 
 <div id="boot">
   <div id="bootshow"></div>
-  <div id="bootname">SALARY MAN</div>
+  <div id="bootname"><img src="art/logo.png" alt="Salary Man"></div>
   <div id="bootload">
     <div class="row"><p id="bootstage">Loading</p><b id="bootspin"></b></div>
     <div id="bootbar"><i></i></div>
@@ -1265,7 +1268,7 @@
 /* The loading slideshow runs before anything else has loaded, so it is plain script with no help from the game. */
 (function () {
   // the pictures are listed in loading/index.json, so new ones can be dropped in without touching the page
-  var S = ["loading/yakuza_crew.jpg", "loading/seiko_mizuho.jpg", "loading/oyabun.jpg", "loading/akio.jpg", "loading/yakuza_enforcer.jpg", "loading/mother.jpg", "loading/receptionist.jpg"];
+  var S = ["loading/city-cast.jpg", "loading/family-cast.jpg"];
   try { fetch("loading/index.json").then(function (r) { return r.json(); }).then(function (j) { if (j && j.slides && j.slides.length) S = j.slides.map(function (f) { return "loading/" + f; }); }).catch(function () {}); } catch (e) { /* the built-in list */ }
   var box = document.getElementById("bootshow"), boot = document.getElementById("boot"), i = 0, k = 0, timer = 0;
   function next() {
@@ -1295,6 +1298,9 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script src="art/interface.js"></script>
+<script src="art/product-art.js"></script>
+<script src="art/retail.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
 <script>
@@ -2851,8 +2857,7 @@
 </script>
 <script>
 "use strict";
-/* ============================================================================
-   KONTO — the whole world generator, in one file.
+/* =====================================================================   KONTO — the whole world generator, in one file.
 
    A condensed port of the Unity/C# generator in this project. Same design, lower
    fidelity: island arc, mountain ranges, a volcanic front, intermontane basins,
@@ -3201,9 +3206,9 @@ const RING3 = ["Suburb", "House", "Suburb", "Park", "Works", "Suburb", "House", 
 // they are most of the pool, and the first ward is one whatever happens.
 const VILLAGE_RING = ["House", "Retail", "House", "Shrine", "House", "Park", "House", "Works"];
 
-// ============================================================================
+// =====================================================================
 // GENERATION
-// ============================================================================
+// =====================================================================
 function makeWorld(seed, report) {
   const arc = buildArc();
   const n = GRID_X * GRID_Z;
@@ -4093,9 +4098,9 @@ function buildLinkRoads(root) {
   emit(road, { pos: 3, nrm: 3, uv: 2 }, asphalt); emit(verge, { pos: 3, nrm: 3, uv: 2 }, gravel); emit(paint, { pos: 3 }, white);
 }
 
-// ============================================================================
+// =====================================================================
 // THE COASTAL EXPRESSWAY
-// ============================================================================
+// =====================================================================
 // One road all the way round the island. It is found by asking the terrain, not
 // drawn by hand: a cheapest-path search over the heightfield that prefers flat
 // ground a few hundred metres inside the shore, shies from towns and rivers,
@@ -4440,21 +4445,21 @@ function planHighway(world) {
   world.bridgeY = (px, pz, refY) => { const y = hwy.yAt(px, pz); if (y !== null && (refY === undefined || y <= refY + 1.6)) { const o = refY === undefined ? null : prevBridgeY(px, pz, refY); return o !== null && o > y ? o : y; } return prevBridgeY(px, pz, refY); };
 }
 
-// ============================================================================
+// =====================================================================
 // SKI RESORTS
-// ============================================================================
+// =====================================================================
 // Every real summit gets one: a chairlift from a base station on the lower
 // slope to a top station on the peak, cut into the mountain as a flat platform
 // at each end. The line is found, not drawn - the compass is swept for the
 // straightest, steadiest, most downhill run from the top.
-// ============================================================================
+// =====================================================================
 // AIRPORTS
 // ----------------------------------------------------------------------------
 // One large international airport beside the capital and four smaller fields out in the country. Each is sited on the flattest open ground the
 // island has (not under a city, not across the expressway), and the terrain is graded flat under it before the mesh is made. An airport is laid
 // out in its own frame: x along the runway, z toward the terminal side. Runway, taxiway and apron are surfaces; the terminal, tower, hangars and
 // the aircraft on the stands are built from solids, and the international airport has an airliner landing and another taking off every few minutes.
-// ============================================================================
+// =====================================================================
 const AIRPORT_SPECS = [
   { name: "Tōkonto International Airport", code: "TKO", len: 3200, wid: 60, big: true, near: "Tōkonto", dmin: 3500, dmax: 11000 },
   { name: "Nagisa Airport", code: "NGS", len: 1900, wid: 45, near: "Nagisa", dmin: 1800, dmax: 6500 },
@@ -5017,9 +5022,9 @@ function planSki(world) {
   world.ski = { resorts: resorts };
 }
 
-// ============================================================================
+// =====================================================================
 // CITY
-// ============================================================================
+// =====================================================================
 function planCity(world, F, seed, report, progressBase) {
   const site = F.site;
   const arc = world.arc;
@@ -6302,9 +6307,9 @@ function fromRectLocal(lx, lz, cx, cz, yaw) {
   return [cx + lx * cs + lz * sn, cz - lx * sn + lz * cs];
 }
 
-// ============================================================================
+// =====================================================================
 // RENDERING
-// ============================================================================
+// =====================================================================
 const SURFACE = {
   sea: [0.09, 0.20, 0.26], shallow: [0.16, 0.31, 0.34],
   sand: [0.70, 0.67, 0.58], gravel: [0.45, 0.44, 0.41],
@@ -6629,13 +6634,13 @@ function voronoiCells(seeds, bounds) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // FACADES
 // Every building style gets its own tiling texture, drawn at a fixed number of
 // metres per window bay so the windows come out the same size on a tower and on
 // a shophouse. The per instance tile counts are rounded to whole bays, which is
 // what keeps a window from being sliced in half at the corner of a block.
-// ============================================================================
+// =====================================================================
 const FACADE_STYLES = {
   // metres of real facade one repeat of the texture covers: width, height
   glass:  { cell: [12.8, 14.4], roof: "plant" },
@@ -6658,7 +6663,7 @@ const FACADE_STYLES = {
   coast:   { cell: [8.0, 5.6], roof: "tin" }
 };
 
-// ============================================================================
+// =====================================================================
 // THE FINISH PASS
 // ----------------------------------------------------------------------------
 // Everything in this section is a mask laid over the world rather than work
@@ -6686,7 +6691,7 @@ const FACADE_STYLES = {
 //                single cheapest thing on this list
 //
 // The fifth and biggest - the post chain - is further down, next to present().
-// ============================================================================
+// =====================================================================
 const TEXQ = { scale: 2, normals: true, maxNormal: 512 };
 
 // Multiplier on every procedural texture. The generators draw in fractions of
@@ -7788,7 +7793,7 @@ function addGableRoofs(root, boxes) {
   });
 }
 
-// ============================================================================
+// =====================================================================
 // SOTI TOWER
 // 248 m, which is Midtown Tower in Akasaka, because that is what the tallest
 // building in a Tokyo district actually measures. It used to be the Ping An
@@ -7805,7 +7810,7 @@ function addGableRoofs(root, boxes) {
 //                  the pavement as solid bands in a glass wall
 //   the podium     five storeys of stone meeting the footway under a deep
 //                  canopy, rather than glass running into the ground
-// ============================================================================
+// =====================================================================
 const SOTI = {
   height: 248,          // metres, architectural
   mastTop: 262,
@@ -8039,13 +8044,13 @@ function facadeStyleFor(kind, region) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // SEIKO SHIGU
 // The player character. If a glTF of him sits next to this file (or is dropped
 // on the page) it is used; otherwise he is built here out of boxes, in the
 // clothes he wears for the whole first act: white collared shirt, black tie,
 // black suit trousers, black shoes.
-// ============================================================================
+// =====================================================================
 const SEIKO_HEIGHT = 1.74;      // metres, so everything else has a sense of scale
 
 function makeSeiko() {
@@ -8203,9 +8208,9 @@ function insideBuilding(px, pz, radius, y) {
   return false;
 }
 
-// ============================================================================
+// =====================================================================
 // SCENE
-// ============================================================================
+// =====================================================================
 const STREET_GEOMETRY = true;   // the local streets are real geometry (buildRoadSurfaces), not paint in the city texture
 const CITY_LIFT = 0.7;        // metres the painted city ground sits over the terrain
 let renderer, scene, camera, world, groups = [], tour = true, tourAngle = 0;
@@ -8580,10 +8585,14 @@ const PAD = {
 // ---- the player's own settings, kept between sessions --------------------------------------------------------------------------------------
 const gameSet = { rumble: true, invertY: false, lookSens: 1.0, adapt: true };
 try { Object.assign(gameSet, JSON.parse(localStorage.getItem("konto.settings.v1") || "{}")); } catch (e) { /* defaults */ }
+function applyInterfaceSettings() {
+  document.body.dataset.uiDensity = gameSet.uiDensity === "compact" ? "compact" : "comfortable";
+  if (gameSet.reduceMotion) document.body.dataset.reducedMotion = "true"; else delete document.body.dataset.reducedMotion;
+}
+applyInterfaceSettings();
 function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.stringify(gameSet)); } catch (e) { /* not kept */ } }
 
-// ==== THE ANIME LOOK, AT THE SOURCE ===================================================================================================
-// In the anime art style every picture the game loads is repainted as it arrives - the terrain, the roads, the shopfronts, the rooms, the
+// ==== THE ANIME LOOK, AT THE SOURCE ============================================================================================// In the anime art style every picture the game loads is repainted as it arrives - the terrain, the roads, the shopfronts, the rooms, the
 // trees and every texture inside the cars, the people and the furniture: smoothed into flat colour, its colour pushed up, and stepped into a
 // few tones the way a background painter lays them in. Relief maps (the bumps in tarmac and plaster) are flattened, because a painted
 // world is smooth. The people, Seiko, the cars and the furniture are drawn with toon materials: one hard shadow edge, no glossy
@@ -9168,7 +9177,7 @@ function setPaused(on, tabName) {
 
 // ---- the tabs --------------------------------------------------------------
 const PAUSE_TABS = ["map", "game", "info", "stats", "items", "phone", "radio", "settings"];
-const PAUSE_ROWS = { game: ["mresume", "mupdate", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows", "mrumble", "mlook", "minvert"] };
+const PAUSE_ROWS = { game: ["mresume", "mupdate", "mtitle"], settings: ["mquality", "mres", "mfinish", "mshadows", "mpcmode", "madapt", "mundo", "muidensity", "muimotion", "mrumble", "mlook", "minvert"] };
 const pause = { tab: 0, row: 0 };
 const PAUSE_HINT = {
   map: "Stick pans · triggers zoom · A waypoint · Y clear · X transport · LB RB pages · B resume",
@@ -9212,7 +9221,8 @@ function setPauseTab(i, instant) {
 function pauseRows() {
   const name = PAUSE_TABS[pause.tab];
   if (name === "radio") return RADIO_STATIONS.map((_, i) => "prad" + i);
-  return PAUSE_ROWS[name];
+  const rows = PAUSE_ROWS[name];
+  return rows && rows.filter(id => { const el = document.getElementById(id); return el && !el.hidden && el.style.display !== "none"; });
 }
 function syncPauseRows() {
   const rows = pauseRows();
@@ -9220,7 +9230,16 @@ function syncPauseRows() {
   pause.row = clamp(pause.row, 0, rows.length - 1);
   rows.forEach((id, i) => {
     const el = document.getElementById(id);
-    if (el) el.classList.toggle("sel", i === pause.row);
+    if (el) {
+      el.classList.toggle("sel", i === pause.row);
+      if (i === pause.row) {
+        const page = el.closest(".ppage");
+        if (page) { const box = el.getBoundingClientRect(), view = page.getBoundingClientRect();
+          if (box.top < view.top + 16) page.scrollTop -= view.top + 16 - box.top;
+          else if (box.bottom > view.bottom - 16) page.scrollTop += box.bottom - view.bottom + 16;
+        }
+      }
+    }
   });
 }
 function pauseMove(dx, dy) {
@@ -9325,6 +9344,9 @@ function initPause() {
   on("mupdate", () => { setPaused(false); refreshGame(); });
   const syncSet = () => {
     const g = id => document.getElementById(id);
+    applyInterfaceSettings();
+    if (g("muidensity")) g("muidensity").textContent = "Interface layout: " + (gameSet.uiDensity === "compact" ? "compact" : "comfortable");
+    if (g("muimotion")) g("muimotion").textContent = "Interface motion: " + (gameSet.reduceMotion ? "reduced" : "system");
     if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
     if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (eases the resolution a little if the game is slow; never the quality)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
@@ -9332,6 +9354,8 @@ function initPause() {
     if (g("mlook")) g("mlook").textContent = "Look speed: " + Math.round(gameSet.lookSens * 100) + "%";
     if (g("minvert")) g("minvert").textContent = "Invert look: " + (gameSet.invertY ? "on" : "off");
   };
+  on("muidensity", () => { gameSet.uiDensity = gameSet.uiDensity === "compact" ? "comfortable" : "compact"; saveSettings(); syncSet(); });
+  on("muimotion", () => { gameSet.reduceMotion = !gameSet.reduceMotion; saveSettings(); syncSet(); });
   on("madapt", () => { gameSet.adapt = !gameSet.adapt; saveSettings(); if (!gameSet.adapt) perfRestore(); syncSet(); say(gameSet.adapt ? "Adaptive graphics on." : "Adaptive graphics off: the game keeps the quality you chose.", 4); });
   on("mpcmode", () => { pcModeApply(gameSet.pcMode === "low" ? "high" : gameSet.pcMode === "high" ? null : "low"); syncSet(); });
   on("mundo", () => { perfRestore(); gameSet.adapt = false; saveSettings(); syncSet(); say("Graphics put back. Adaptive graphics is now off.", 5); });
@@ -10948,7 +10972,7 @@ function runner(g, x, groundY, h, phase, fill, opacity, caseColour) {
 // in katakana with the romaji under it, and the neighbouring stops on a dark
 // strip along the bottom. The green is the game's own colour, and it is what
 // the waypoint route is drawn in.
-const SIGN = { green: "#15894f", ink: "#14213a", paper: "#fbfbf6" };
+const SIGN = { green: "#2e7166", ink: "#142f38", paper: "#f3eddf" };
 const SIGNF = '"Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif';
 function drawStationSign(g, x, y, W, H, opt) {
   opt = opt || {};
@@ -10999,7 +11023,7 @@ function drawTitleLogo() {
   const g = c.getContext("2d");
   g.clearRect(0, 0, c.width, c.height);
   const m = c.width * 0.03;
-  drawStationSign(g, m, m, c.width - m * 2, c.height - m * 2);
+  SalaryDesign.brand(g, m, m, c.width - m * 2, c.height - m * 2);
 }
 function drawLogoElements() {
   drawTitleLogo();
@@ -11008,19 +11032,18 @@ function drawLogoElements() {
     if (!c) return;
     const g = c.getContext("2d"); g.clearRect(0, 0, c.width, c.height);
     const m = c.width * p[1];
-    drawStationSign(g, m, m, c.width - m * 2, c.height - m * 2);
+    SalaryDesign.brand(g, m, m, c.width - m * 2, c.height - m * 2);
   });
   // the tab icon: the sign's green and its ring
   try {
     const f = document.createElement("canvas"); f.width = f.height = 64;
     const g = f.getContext("2d");
-    g.fillStyle = SIGN.green; roundRect(g, 0, 0, 64, 64, 14); g.fill();
-    g.fillStyle = "#fff"; g.beginPath(); g.arc(32, 32, 22, 0, 7); g.fill();
-    g.fillStyle = SIGN.ink; g.font = "900 22px " + SIGNF; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText("SM", 32, 34);
+    SalaryDesign.monogram(g, 0, 0, 64);
     let l = document.querySelector("link[rel=icon]"); if (!l) { l = document.createElement("link"); l.rel = "icon"; document.head.appendChild(l); }
     l.href = f.toDataURL("image/png");
   } catch (e) { /* no icon */ }
 }
+window.addEventListener("salarybrandready", drawLogoElements);
 window.addEventListener("DOMContentLoaded", drawLogoElements);
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawLogoElements);
 
@@ -11051,7 +11074,7 @@ function grabFrame() {
     frameGrab.ok = true;
   } catch (e) { frameGrab.ok = false; }
 }
-// ============================================================================
+// =====================================================================
 // TREES
 // ----------------------------------------------------------------------------
 // Four species, because four is how many you need before a hillside stops
@@ -11070,8 +11093,7 @@ function grabFrame() {
 //
 // Each is built once as a merged geometry and drawn as one instanced mesh per
 // species, so the whole island's planting is eight draw calls.
-// ============================================================================
-
+// =====================================================================
 // Concatenate a list of {geo, m} into one buffer. applyMatrix4 carries the
 // normals through, so the parts keep their shading.
 // A part may carry reg: [u0, v0, u1, v1], the rectangle of a texture sheet its own 0-1 UVs are fitted into (the trees use it to put bark, a
@@ -11580,7 +11602,7 @@ function parkTrunks(root, list) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // STREET LIGHTS
 // ----------------------------------------------------------------------------
 // A pole at the kerb every thirty-odd metres down every road in every town,
@@ -11589,7 +11611,7 @@ function parkTrunks(root, list) {
 // a pool of light laid on the road), so only the squares in front of the camera
 // are drawn and the far ones are skipped. After dusk the heads turn warm and the
 // pools come up; in daytime they are grey fittings on a pole.
-// ============================================================================
+// =====================================================================
 const lampCells = [];
 const LAMP_CULL = { low: 380, medium: 600, high: 900, ultra: 1300 };
 // Soft light, drawn once: a round glow for lamps and pools, and a long cone for
@@ -11714,9 +11736,9 @@ function buildStreetLights(root, w) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // STREET LIFE: PARKING BAYS, SHOP DECORATION, VENDING MACHINES
-// ============================================================================
+// =====================================================================
 // Painted bays along the kerb of every street that is not the expressway, with
 // parked cars in some of them, brought in as you approach and put away as you
 // leave. Paper lanterns, noren, nobori flags, awnings and pot plants on the
@@ -12167,12 +12189,44 @@ function waterHeightTexture() {
   water.heightTex = t; water.heightFor = world;
   return t;
 }
+// The ground's real height for the water shaders. The byte texture above stores -25..+25 m, which is all the sea needs, but the moat
+// stands at about 32 m: there every sample read as 25, the water thought it was seven metres deep everywhere, and it lay over the
+// streets beside the moat as a teal sheet. Full float, so a moat or a lake at any height knows where its banks are.
+function waterHeightTextureF() {
+  if (water.heightTexF && water.heightForF === world) return water.heightTexF;
+  const H = world.height, data = new Float32Array(GRID_X * GRID_Z * 4);
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = H[world.idx ? world.idx(x, z) : i]; data[i * 4 + 3] = 1; }
+  const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat, THREE.FloatType);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+  water.heightTexF = t; water.heightForF = world;
+  return t;
+}
 function waterMaterial(level, deep, shallow, opacity, opts) {
   opts = opts || {};
-  if (!gfx.high) return new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
+  if (!gfx.high) {
+    // Low still respects the coast and palace island. A broad transparent sheet must never cover reclaimed land.
+    const m = new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 });
+    const U = { lowWaterHeight:{value:waterHeightTexture()},lowWaterSea:{value:opts.sea?1:0},
+      lowWaterGrid:{value:new THREE.Vector2(GRID_X,GRID_Z)},lowWaterCell:{value:CELL},
+      lowWaterRing:{value:opts.ring?new THREE.Vector4(opts.ring.cx,opts.ring.cz,Math.cos(opts.ring.rot),Math.sin(opts.ring.rot)):new THREE.Vector4(0,0,1,0)},
+      lowWaterInner:{value:opts.ring?opts.ring.inner:0},lowWaterLevel:{value:level||0},lowWaterHeightF:{value:waterHeightTextureF()} };
+    m.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms,U);
+      sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos;')
+        .replace('#include <project_vertex>','#include <project_vertex>\nvLowWaterPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos; uniform sampler2D lowWaterHeight; uniform float lowWaterSea,lowWaterCell,lowWaterInner,lowWaterLevel; uniform sampler2D lowWaterHeightF; uniform vec2 lowWaterGrid; uniform vec4 lowWaterRing;')
+        .replace('#include <color_fragment>',`#include <color_fragment>
+          vec2 lowUV=(vLowWaterPos.xz/lowWaterCell+0.5)/lowWaterGrid;
+          if(lowWaterSea>0.5 && lowUV.x>0.0 && lowUV.y>0.0 && lowUV.x<1.0 && lowUV.y<1.0 && texture2D(lowWaterHeight,lowUV).g<0.5)discard;
+          if(lowWaterInner>0.0){vec2 d=vLowWaterPos.xz-lowWaterRing.xy;vec2 q=vec2(d.x*lowWaterRing.z-d.y*lowWaterRing.w,d.x*lowWaterRing.w+d.y*lowWaterRing.z);if(max(abs(q.x),abs(q.y))<lowWaterInner)discard;
+            if(texture2D(lowWaterHeightF,lowUV).r>lowWaterLevel-0.6)discard;}`);
+    };
+    m.customProgramCacheKey=()=> 'konto-low-water-mask-v2';
+    return m;
+  }
   if (!water.normTex) { water.normTex = new THREE.TextureLoader().load("art/terrain/water_nor.jpg"); water.normTex.wrapS = water.normTex.wrapT = THREE.RepeatWrapping; }
   const m = new THREE.MeshStandardMaterial({ color: deep, roughness: opts.rough || 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: opts.env || 0.55 });
-  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
+  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, tHeightF: { value: waterHeightTextureF() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
               cDeep: { value: new THREE.Color(deep) }, cShallow: { value: new THREE.Color(shallow) }, gridK: { value: new THREE.Vector2(1 / CELL, 1 / CELL) }, gridN: { value: new THREE.Vector2(GRID_X, GRID_Z) },
               // the Gerstner swell (only the near, finely cut patch has it: see waterPatch) and the hole the flat sea leaves for that patch
               wRing: { value: opts.ring ? new THREE.Vector4(opts.ring.cx, opts.ring.cz, Math.cos(opts.ring.rot), Math.sin(opts.ring.rot)) : new THREE.Vector4(0, 0, 1, 0) }, wInner: { value: opts.ring ? opts.ring.inner : 0 },
@@ -12196,13 +12250,13 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
       .replace("#include <begin_vertex>", "vec3 transformed = vec3(position) + gOff;")
       .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nvarying float vCrest;\nuniform sampler2D tWaterN, tHeight; uniform float wTime, wLevel, seaOnly, wAmp; uniform vec3 cDeep, cShallow, wHole; uniform vec4 wRing; uniform float wInner; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nvarying float vCrest;\nuniform sampler2D tWaterN, tHeight, tHeightF; uniform float wTime, wLevel, seaOnly, wAmp; uniform vec3 cDeep, cShallow, wHole; uniform vec4 wRing; uniform float wInner; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
       .replace("#include <color_fragment>", [
         "#include <color_fragment>",
         "  {",
         "    vec2 huv = (vWP.xz * gridK + 0.5) / gridN;",
         "    vec2 hs = texture2D(tHeight, huv).rg;",
-        "    float h = hs.r * 50.0 - 25.0;",
+        "    float h = texture2D(tHeightF, huv).r;",
         "    if (seaOnly > 0.5 && hs.g < 0.5 && huv.x > 0.0 && huv.y > 0.0 && huv.x < 1.0 && huv.y < 1.0) discard;",
         "    if (wHole.z > 0.0 && distance(vWP.xz, wHole.xy) < wHole.z) discard;",
         // a moat is a ring: nothing on the island it goes round (the palace grounds are built lower than the water stands)
@@ -12228,6 +12282,10 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
         // between them, so the two disagree by a little near the line - clear water there, and the line itself never shows
         "    float edge = smoothstep(0.45, 1.6, wDepth);",
         "    diffuseColor.a *= clamp(edge * (0.6 + 0.4 * smoothstep(1.0, 5.0, wDepth)) + foam * 0.55 * smoothstep(0.35, 0.55, wDepth), 0.0, 1.0);",
+        // An invisible fragment still writes depth, and the street overlay (transparent too, drawn after) vanished behind it, leaving a
+        // teal band where the streets run beside the moat and the sea. Drop them, and keep a moat off any ground that is not dug below it.
+        "    if (diffuseColor.a < 0.03) discard;",
+        "    if (wInner > 0.0 && wDepth < 0.6) discard;",
         "  }"].join("\n"))
       .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n  normal = normalize(normal + (viewMatrix * vec4(wN.x, 0.0, wN.y, 0.0)).xyz);")
       // Subsurface scattering in the swell: looking towards the sun, the light comes through the thin top of each wave and it glows
@@ -12244,7 +12302,7 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
         "  }",
         "#endif"].join("\n"));
   };
-  m.customProgramCacheKey = () => opts.waves ? "konto-water-waves" : "konto-water";
+  m.customProgramCacheKey = () => opts.waves ? "konto-water-waves2" : "konto-water2";
   m.userData.shDry = true;           // (the Shigoto engine's wet-surface patch leaves water alone)
   water.mats.push(U);
   return m;
@@ -12762,7 +12820,7 @@ function updateParking(dt) {
   }
 }
 
-// ============================================================================
+// =====================================================================
 // THE COUNTRYSIDE
 // ----------------------------------------------------------------------------
 // Woods, scattered trees and grass over every part of the island that is not a
@@ -12770,7 +12828,7 @@ function updateParking(dt) {
 // ground is cut into tiles and a tile is planted only when you are near it, and
 // forgotten when you leave. Every plant comes from a hash of where it stands,
 // so a tile planted twice is the same tile twice.
-// ============================================================================
+// =====================================================================
 const veg = { cell: 4, w: 0, h: 0, mask: null, trees: new Map(), grass: new Map(), root: null, group: null, mats: null, geo: null, t: 0 };
 const VEG_TILE = 500, GRASS_TILE = 80;
 
@@ -13092,7 +13150,7 @@ function vegFill(px, pz) {
   }
 }
 
-// ============================================================================
+// =====================================================================
 // THE POST CHAIN
 // ----------------------------------------------------------------------------
 // The scene is drawn into a buffer instead of onto the screen, and the screen
@@ -13115,7 +13173,7 @@ function vegFill(px, pz) {
 //                       trick there is for making flat shading look shot
 //
 // It costs about a third of the frame at 1080p. Low and medium turn it off.
-// ============================================================================
+// =====================================================================
 const post = {
   want: true, on: false, ready: false,
   rt: null, aoRT: null, blurA: null, blurB: null,
@@ -13123,7 +13181,7 @@ const post = {
   w: 0, h: 0, time: 0, forced: null,     // null: whatever the tier says
   // Tuned against the picture, not against taste: strong enough that turning
   // the chain off looks flat, weak enough that nothing announces itself.
-  ao: 0.55, bloom: 0.42, sharp: 0.50, grain: 0.028, vignette: 0.16, ca: 0.45,
+  ao: 0.55, bloom: 0.42, sharp: 0.50, grain: 0.004, vignette: 0.16, ca: 0.08,
   exposure: 1.05
 };
 
@@ -13477,6 +13535,8 @@ function renderPost() {
 // Every render in the frame loop goes through here, so the copy always happens
 // while the buffer is still there.
 function present() {
+  // Opaque pause pages keep the last world frame; the camera may still request one.
+  if (paused && !wantFrame() && !frameGrab.want) return;
   post.time += 0.016;
   applyCameraFull(1 / 60);
   if (world && veg.group) {
@@ -13506,7 +13566,7 @@ function present() {
   if (wantFrame() || frameGrab.want) { grabFrame(); frameGrab.want = false; }
 }
 
-// ============================================================================
+// =====================================================================
 // THE AAA CHAIN (high and ultra)
 // ----------------------------------------------------------------------------
 // three's EffectComposer, kept in linear HDR from the scene to the tone map, which is the order a console renderer works in:
@@ -13520,7 +13580,7 @@ function present() {
 //   grade    the game's own anime look (COMPOSITE_FRAG: painted colour, ink lines, the grade, vignette, sharpening)
 //   SMAA     last, so the ink lines are anti-aliased with everything else
 // If anything in it fails, the chain is dropped for the session and the older one (renderPost) takes over.
-// ============================================================================
+// =====================================================================
 const fx = { composer: null, sceneRT: null, w: 0, h: 0, broken: false, on: false, p: {},
   // tuned on the streets of Tōkonto at noon, at dusk and at night
   ssao: { radius: 1.1, intensity: 1.15, bias: 0.035, strength: 0.85 },
@@ -14266,7 +14326,8 @@ function guessTier() {
     const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
     const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext();
     if (/swiftshader|llvmpipe|software|basic render|microsoft basic/i.test(name)) return "low";
-    if (/iris.? xe|arc|radeon\(tm\) (vega|graphics)|radeon graphics|apple gpu|vega \d/i.test(name)) return "high";
+    if (/iris.? xe|radeon\(tm\) (vega|graphics)|radeon graphics|vega \d/i.test(name)) return "medium";
+    if (/arc|apple gpu/i.test(name)) return "high";
     if (/intel|uhd|iris|hd graphics|mesa|adreno|mali|powervr/i.test(name)) return "medium";
     // the newest cards get everything at full resolution
     if (/rtx [2-5]0[5-9]0|rtx [3-5]0[6-9]0|rtx a[2-6]000|rx [6-9][7-9]\d\d|apple m[2-9] (pro|max|ultra)/i.test(name)) return "ultra";
@@ -14349,8 +14410,14 @@ function sizeRenderer() {
   const t = TIERS[gfx.tier] || TIERS.high;
   const scale = Math.max(0.3, Math.min(gfx.lean ? 1 : 9, gfx.scale === null ? t.renderScale : gfx.scale) * perf.mult * (flight.lowres ? 0.58 : 1));
   const w = Math.max(16, stage.clientWidth), h = Math.max(16, stage.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, t.maxPixelRatio));
-  renderer.setSize(Math.round(w * scale), Math.round(h * scale), false);
+  const ratio = Math.min(window.devicePixelRatio || 1, t.maxPixelRatio);
+  // Automatic presets have a total pixel budget, including HiDPI and supersampling.
+  // Manual resolution choices remain explicit overrides. Keep CSS/UI at native size.
+  const budget = { low: 1280 * 720, medium: 1920 * 1080, high: 2560 * 1440, ultra: 3840 * 2160 }[gfx.tier];
+  const automatic = gfx.scale === null || !!gameSet.pcMode;
+  const fit = automatic ? Math.min(1, Math.sqrt(budget / (w * h * scale * scale * ratio * ratio))) : 1;
+  renderer.setPixelRatio(ratio);
+  renderer.setSize(Math.max(16, Math.round(w * scale * fit)), Math.max(16, Math.round(h * scale * fit)), false);
   const c = renderer.domElement;
   c.style.width = "100%";
   c.style.height = "100%";
@@ -15762,8 +15829,8 @@ function badgeAtlas() {
 // at itself, which is the only kind of advertisement worth putting on a bus.
 const ADS = [
   { bg: "#1c4f94", ink: "#f6f7f4", tint: "#f0b21c",
-    jp: "コンビニ二四", head: "KOMBINI 24",
-    sub: "Open 26 hours. Egg sandwich, umbrella, regret.", glyph: "store" },
+    jp: "イレブン", head: "11 ELEVEN",
+    sub: "Your neighbourhood. Open all night.", glyph: "store" },
   { bg: "#111318", ink: "#f6f7f4", tint: "#2fe08a",
     jp: "強炭酸", head: "GANBARE ENERGY",
     sub: "Your third wind, in a can. Apology included.", glyph: "can" },
@@ -15784,7 +15851,10 @@ const ADS = [
     sub: "Nine hours. One song. Nobody is judging you.", glyph: "mic" },
   { bg: "#f0b21c", ink: "#1d2630", tint: "#1c4f94",
     jp: "整列ご協力", head: "QUEUE WITH PRIDE",
-    sub: "Please form an orderly line for our orderly lines.", glyph: "queue" }
+    sub: "Please form an orderly line for our orderly lines.", glyph: "queue" },
+  {bg:"#dcece3",ink:"#18343b",tint:"#286d68",jp:"毎日の、その先へ",head:"SOTI So26",sub:"Make every day extraordinary.",glyph:"phone",art:"soti"},
+  {bg:"#eee8ef",ink:"#343049",tint:"#786589",jp:"新しい可能性",head:"Pear P17",sub:"A little more possibility.",glyph:"phone",art:"pear"},
+  {bg:"#162338",ink:"#f2eee2",tint:"#aabfe6",jp:"仕事のあとに",head:"PLAYBOX 5",sub:"Clock out. Play on.",glyph:"game",art:"playbox"}
 ];
 
 let adTex = null;
@@ -15819,55 +15889,38 @@ function adAtlas() {
     g.fillRect(0, 0, 330, AD_H);
     g.globalAlpha = 1;
 
-    g.save();
-    g.translate(165, AD_H * 0.5);
-    g.fillStyle = ad.tint;
-    g.strokeStyle = ad.tint;
-    g.lineWidth = 9;
-    if (ad.glyph === "store") {
-      g.fillRect(-82, -20, 164, 70);
-      g.beginPath(); g.moveTo(-96, -20); g.lineTo(0, -74); g.lineTo(96, -20); g.closePath(); g.fill();
-    } else if (ad.glyph === "can") {
-      g.fillRect(-36, -70, 72, 140);
-      g.fillStyle = ad.bg; g.fillRect(-36, -18, 72, 30);
-    } else if (ad.glyph === "nh") {
-      g.beginPath();
-      g.moveTo(-54, -66); g.lineTo(-54, 66); g.moveTo(54, -66); g.lineTo(54, 66);
-      g.stroke();
-      g.lineWidth = 11;
-      g.beginPath(); g.moveTo(-54, 30); g.lineTo(54, -30); g.stroke();
-    } else if (ad.glyph === "cone") {
-      g.beginPath(); g.moveTo(-46, -6); g.lineTo(46, -6); g.lineTo(0, 78); g.closePath(); g.fill();
-      g.beginPath(); g.arc(0, -26, 48, 0, 6.2832); g.fill();
-    } else if (ad.glyph === "card") {
-      g.save(); g.rotate(-0.12); g.fillRect(-84, -50, 168, 100); g.restore();
-      g.fillStyle = ad.bg;
-      for (let r = 0; r < 3; r++) g.fillRect(-56, -24 + r * 22, 112 - r * 26, 9);
-    } else if (ad.glyph === "pod") {
-      g.beginPath(); g.arc(0, 0, 70, 1.5708, 4.7124); g.lineTo(78, -70); g.lineTo(78, 70); g.closePath(); g.fill();
-      g.fillStyle = ad.bg; g.beginPath(); g.arc(14, 0, 34, 0, 6.2832); g.fill();
-    } else if (ad.glyph === "mic") {
-      g.beginPath(); g.arc(0, -28, 40, 0, 6.2832); g.fill();
-      g.fillRect(-13, -4, 26, 86);
-    } else {
-      for (let k = 0; k < 4; k++) {
-        g.beginPath(); g.arc(-72 + k * 48, -22, 19, 0, 6.2832); g.fill();
-        g.fillRect(-84 + k * 48, 4, 24, 54);
-      }
-    }
-    g.restore();
+    g.save(); g.translate(165, AD_H * 0.5);
+    SalaryAdProduct(g, ad); g.restore();
 
+    // A campaign hierarchy: brand, message, supporting copy, and a separate
+    // service panel. Fit real text metrics so long names never run off the atlas.
+    const fitText = (text, weight, size, width, family) => {
+      g.font = weight + " " + size + "px " + family;
+      while (size > 18 && g.measureText(text).width > width) {
+        size--; g.font = weight + " " + size + "px " + family;
+      }
+    };
     g.textAlign = "left";
     g.textBaseline = "alphabetic";
     g.fillStyle = ad.tint;
-    g.font = "700 46px " + JP;
-    g.fillText(ad.jp, 370, 78);
+    fitText(ad.jp, "700", 38, 1190, JP);
+    g.fillText(ad.jp, 370, 60);
     g.fillStyle = ad.ink;
-    g.font = "800 92px " + UI;
-    g.fillText(ad.head, 368, 166);
-    g.font = "500 40px " + UI;
+    fitText(ad.head, "800", 84, 1190, UI);
+    g.fillText(ad.head, 368, 150);
+    fitText(ad.sub, "500", 34, 1190, UI);
     g.globalAlpha = 0.85;
-    g.fillText(ad.sub, 372, 216);
+    g.fillText(ad.sub, 372, 207);
+    g.globalAlpha = 1;
+    g.fillStyle = ad.ink; g.globalAlpha = 0.25;
+    g.fillRect(1610, 36, 2, 184); g.globalAlpha = 1;
+    g.textAlign = "center";
+    g.fillStyle = ad.tint; g.font = "700 22px " + UI;
+    g.fillText("TŌKONTO", 1820, 76);
+    g.fillStyle = ad.ink; g.font = "600 30px " + JP;
+    g.fillText(ad.glyph === "nh" || ad.glyph === "queue" ? "ご協力ありがとう" : "暮らしのそばに", 1820, 127, 360);
+    g.font = "500 20px " + UI; g.globalAlpha = 0.8;
+    g.fillText(ad.glyph === "nh" || ad.glyph === "queue" ? "THANK YOU FOR RIDING" : "PART OF YOUR EVERYDAY", 1820, 166, 360);
     g.globalAlpha = 1;
     g.restore();
   });
@@ -15875,6 +15928,7 @@ function adAtlas() {
   adTex = new THREE.CanvasTexture(cv);
   adTex.encoding = THREE.sRGBEncoding;
   adTex.anisotropy = 4;
+  SalaryArt.bindAtlas(cv, ADS, AD_W, AD_H, adTex);
   return adTex;
 }
 
@@ -15883,65 +15937,48 @@ function adAtlas() {
 // kanji large, the romaji under it, and the neighbouring stations with arrows
 // at the ends. Every station in the city needs its own, so they share one
 // atlas of sixteen rows and one draw call.
-const SIGN_ROWS = 16, SIGN_W = 1024, SIGN_H = 64;
-let signTex = null, signCanvas = null;
+const SIGN_W = 1024, SIGN_H = 64;
+let SIGN_ROWS = 16, signTex = null, signCanvas = null, signsForWorld = null;
 const signNames = [];
-
+function prepareStationSigns() {
+  if (signsForWorld === world) return;
+  signsForWorld = world; signNames.length = 0;
+  if (world && world.cities) world.cities.forEach(city => (city.stations || []).forEach(st => {
+    if (!signNames.includes(st.name)) signNames.push(st.name);
+  }));
+  SIGN_ROWS = Math.max(16, 2 ** Math.ceil(Math.log2(Math.max(1,signNames.length))));
+  if (signTex) signTex.dispose(); signTex = null; signCanvas = null;
+}
 function signRow(name) {
-  let at = signNames.indexOf(name);
-  if (at < 0) {
-    if (signNames.length >= SIGN_ROWS) at = signNames.length % SIGN_ROWS;
-    else { signNames.push(name); at = signNames.length - 1; }
-  }
-  return at;
+  prepareStationSigns();
+  const index = signNames.indexOf(name);
+  if (index < 0) throw new Error("Station not registered in the world: " + name);
+  return index;
 }
-
 function signUV(row) {
-  const r = ((row % SIGN_ROWS) + SIGN_ROWS) % SIGN_ROWS;
-  return { u0: 0, v0: 1 - (r + 1) / SIGN_ROWS, u1: 1, v1: 1 - r / SIGN_ROWS };
+  prepareStationSigns();
+  const rowsPerColumn = Math.min(64,SIGN_ROWS), columns = Math.ceil(SIGN_ROWS / rowsPerColumn);
+  const column = Math.floor(row / rowsPerColumn), r = row % rowsPerColumn;
+  return { u0: column/columns, v0: 1-(r+1)/rowsPerColumn, u1: (column+1)/columns, v1: 1-r/rowsPerColumn };
 }
-
 function buildSignAtlas() {
-  // One canvas and one texture for the whole world. Each city adds its station
-  // names and asks for the atlas again, so making a new texture here would
-  // leave the city built before it pointing at a disposed one - which is what
-  // a blank name board on every platform in the capital turned out to be.
-  if (!signCanvas) {
-    signCanvas = document.createElement("canvas");
-    signCanvas.width = SIGN_W; signCanvas.height = SIGN_H * SIGN_ROWS;
-  }
-  const cv = signCanvas;
-  const g = cv.getContext("2d");
-  g.fillStyle = "#f4f5f2";
-  g.fillRect(0, 0, cv.width, cv.height);
-  signNames.forEach((name, i) => {
-    const y = i * SIGN_H;
-    g.fillStyle = "#f4f5f2"; g.fillRect(0, y, SIGN_W, SIGN_H);
-    g.fillStyle = "#1f8a4c"; g.fillRect(0, y, SIGN_W, 7);
-    g.fillRect(0, y + SIGN_H - 7, SIGN_W, 7);
-    g.fillStyle = "#1f8a4c"; g.fillRect(14, y + 14, 74, SIGN_H - 28);
-    g.fillStyle = "#f4f5f2";
-    g.font = "800 22px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("NH", 51, y + SIGN_H * 0.5);
-    g.fillStyle = "#1d2630";
-    g.font = "700 30px " + UI; g.textAlign = "left";
-    const label = name.replace(/ Station$/, "");
-    g.fillText(label, 108, y + SIGN_H * 0.44);
-    g.fillStyle = "#5a6068";
-    g.font = "500 16px " + UI;
-    g.fillText("NHRail · 日本鉄道", 108, y + SIGN_H * 0.78);
-    g.textAlign = "right";
-    g.fillStyle = "#3a3f47";
-    g.font = "500 17px " + UI;
-    g.fillText("←  ·  →", SIGN_W - 22, y + SIGN_H * 0.5);
+  prepareStationSigns();
+  const rowsPerColumn = Math.min(64,SIGN_ROWS), columns = Math.ceil(SIGN_ROWS / rowsPerColumn);
+  const scale=Math.min(1,4096/(SIGN_W*columns));
+  if (!signCanvas) { signCanvas=document.createElement("canvas"); signCanvas.width=SIGN_W*columns*scale;signCanvas.height=SIGN_H*rowsPerColumn*scale; }
+  const cv=signCanvas,g=cv.getContext("2d");g.setTransform(scale,0,0,scale,0,0);g.fillStyle="#f3eddf";g.fillRect(0,0,SIGN_W*columns,SIGN_H*rowsPerColumn);
+  signNames.forEach((name,i)=>{
+    g.save();g.translate(Math.floor(i/rowsPerColumn)*SIGN_W,0);
+    const y=(i%rowsPerColumn)*SIGN_H;
+    g.fillStyle="#f3eddf";g.fillRect(0,y,SIGN_W,SIGN_H);
+    g.fillStyle="#2e7166";g.fillRect(0,y,SIGN_W,5);g.fillRect(0,y+SIGN_H-5,SIGN_W,5);
+    g.fillRect(14,y+13,74,SIGN_H-26);g.fillStyle="#f3eddf";g.font="800 22px "+UI;g.textAlign="center";g.textBaseline="middle";g.fillText("NH",51,y+SIGN_H*.5);
+    g.fillStyle="#173740";g.font="700 30px "+UI;g.textAlign="left";clipText(g,name.replace(/ Station$/,""),108,y+SIGN_H*.43,SIGN_W-310);
+    g.fillStyle="#526d6b";g.font="500 16px "+UI;g.fillText("NHRail · 日本鉄道",108,y+SIGN_H*.79);
+    g.textAlign="right";g.fillStyle="#2e7166";g.font="600 17px "+UI;g.fillText("PLATFORMS →",SIGN_W-22,y+SIGN_H*.5);g.restore();
   });
-  if (!signTex) {
-    signTex = new THREE.CanvasTexture(cv);
-    signTex.encoding = THREE.sRGBEncoding;
-    signTex.anisotropy = 4;
-  }
-  signTex.needsUpdate = true;
-  return signTex;
+  if (!signTex) { signTex=new THREE.CanvasTexture(cv);signTex.encoding=THREE.sRGBEncoding;signTex.anisotropy=4; }
+  signTex.needsUpdate=true;return signTex;
 }
 
 // ---------------------------------------------------------------- vehicles
@@ -19128,17 +19165,23 @@ const BILLBOARDS = [["サクラ生命", "あなたの明日に、安心を。", 
 function billboardTexture(v) {
   const key = "b" + v; if (dressTex[key]) return dressTex[key];
   const [big, small, bg, fg] = BILLBOARDS[v % BILLBOARDS.length];
-  const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 384; const g = cv.getContext("2d");
-  g.fillStyle = bg; g.fillRect(0, 0, 1024, 384);
-  g.fillStyle = fg; g.fillRect(0, 300, 1024, 12);
-  g.font = "900 150px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(big, 512, 150);
-  g.font = "700 56px " + UI; g.fillText(small, 512, 260);
+  const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 384;
+  const g = cv.getContext("2d"); g.fillStyle = bg; g.fillRect(0, 0, 1024, 384);
+  g.strokeStyle = fg; g.globalAlpha = 0.3; g.lineWidth = 2; g.strokeRect(18, 18, 988, 348); g.globalAlpha = 1;
+  g.fillStyle = fg; g.font = "700 20px " + UI; g.textAlign = "left"; g.fillText("TŌKONTO · LOCAL BUSINESS", 52, 59);
+  g.fillRect(52, 83, 62, 5);
+  let size = 126; g.font = "800 " + size + "px " + JP;
+  while (g.measureText(big).width > 920 && size > 24) { size--; g.font = "800 " + size + "px " + JP; }
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(big, 512, 174);
+  g.font = "500 42px " + JP; g.fillText(small, 512, 272, 900);
+  g.globalAlpha = .3; g.fillRect(52, 321, 920, 1); g.globalAlpha = 1;
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (dressTex[key] = t);
 }
+
 function buildFacadeDressing(city, root, boxes) {
   const lean = gfx.tier === "low";
-  const signs = [], decks = [], rails = [], acs = [], futons = [], tanks = [], stands = [], boards = [], pipes = [];
+  const signs = [], decks = [], rails = [], acs = [], futons = [], tanks = [], stands = [], boards = [], pipes = [], retailWindows = [];
   const NSIGN = 10, NBOARD = BILLBOARDS.length;
   // which faces of a box open onto somewhere (a street, a square): the outward point is not inside anything
   const openFaces = b => {
@@ -19160,6 +19203,13 @@ function buildFacadeDressing(city, root, boxes) {
     const W = f[0] ? b.size[1] : b.size[0], half = (f[0] ? b.size[0] : b.size[1]) / 2;     // along the face, and out to it
     const L = (u, v) => f[0] ? fromRectLocal(f[0] * v, u, b.c[0], b.c[1], b.yaw) : fromRectLocal(u, f[1] * v, b.c[0], b.c[1], b.yaw);
     const ryFace = yr(b) + (f[0] ? (f[0] > 0 ? Math.PI / 2 : -Math.PI / 2) : (f[1] > 0 ? 0 : Math.PI));   // a plane facing out of this face
+    // Solid, non-enterable buildings only. Real shop entrances retain their original facade.
+    if ((st === "shop" || st === "office") && W > 7 && !b.shop && !b.mall && !b.plaza &&
+        retailWindows.length < (lean ? 24 : 64) && r(90) < 0.48 &&
+        !shops.list.some(s => Math.hypot(s.at[0]-b.c[0], s.at[1]-b.c[1]) < Math.hypot(b.size[0],b.size[1])*.6+8)) {
+      const q = L(0, half + 0.09);
+      retailWindows.push({x:q[0],y:b.y+1.85,z:q[1],ry:ryFace,w:Math.min(6.6,W-2),h:2.7,theme:Math.floor(r(91)*6)});
+    }
     // a vertical signboard at a corner of the face, standing out from it
     if ((st === "office" || st === "shop" || st === "flats") && b.h >= 11 && b.h <= 70 && W > 7 && r(2) < (lean ? 0.36 : 0.8)) {
       const hS = Math.min(b.h - 4.5, 15), u = (r(3) < 0.5 ? -1 : 1) * (W / 2 - 0.9), q = L(u, half + 0.75);
@@ -19244,6 +19294,8 @@ function buildFacadeDressing(city, root, boxes) {
     inst(new THREE.BoxGeometry(1, 3.6, 0.3), mat, list, o => new THREE.Vector3(o.w, 1, 1));
     inst(new THREE.BoxGeometry(1, 2.0, 0.12), std(0x3d4248, 0.6), list.map(o => Object.assign({}, o, { y: o.y - 2.8 })), o => new THREE.Vector3(o.w * 0.9, 1, 1));
   }
+  city.retailWindows = retailWindows;
+  SalaryRetail.installWindows(root, retailWindows, streamAdd, lean);
   console.log("[Konto] " + city.name + ": " + signs.length + " signboards, " + decks.length + " balconies, " + acs.length + " outdoor units, " + tanks.length + " water tanks, " + boards.length + " rooftop billboards");
 }
 
@@ -19988,24 +20040,14 @@ function toggleSiren(on) {
 // grid at sixty frames a second.
 
 const MAPC = {
-  sea: "#122630",
-  land: "#2d333a", block: "#3c434b",
-  street: "#79838d", alley: "#5e6771",
-  arterial: "#222830", express: "#f0b72a", rail: "#3fae76", bus: "#f08a2c",
-  plot: "#4d555e", park: "#32492b",
-  ink: "#f2f4f0", shadow: "rgba(0,0,0,0.8)", waypoint: "#15894f",
-  player: "#55b9ff"
+  sea: "#173e4a", land: "#c7c9b0", block: "#aab59f", street: "#f6f0df", alley: "#e0dfcb",
+  arterial: "#647c77", express: "#d6a261", rail: "#326f65", bus: "#c27c4b", plot: "#b9bfaa", park: "#8cae8a",
+  ink: "#16323b", shadow: "rgba(245,240,222,0.9)", waypoint: "#bd452f", player: "#163e4a"
 };
-
-// The radar's own colours, after GTA V's: grey land, light grey roads (the bigger the road the lighter), a muted blue sea, dark green
-// parks, a white arrow, and a purple route.
 const MAPC_GTA = {
-  sea: "#3f5b6e", land: "#3b3f42", block: "#44484b",
-  street: "#8e9295", alley: "#73777a",
-  arterial: "#adb1b4", express: "#c6c9cb", rail: "#5d6266", bus: "#f08a2c",
-  plot: "#474b4e", park: "#47643a",
-  ink: "#ffffff", shadow: "rgba(0,0,0,0.8)", waypoint: "#a35bd6",
-  player: "#f4f4f4"
+  sea: "#173e4a", land: "#2d4b51", block: "#3e5d60", street: "#c4cabc", alley: "#839b91",
+  arterial: "#ede9d8", express: "#e8b96e", rail: "#82baaa", bus: "#d4a46a", plot: "#456660", park: "#577d65",
+  ink: "#f3eddf", shadow: "rgba(10,32,38,0.9)", waypoint: "#f18360", player: "#fff5d9"
 };
 
 const nav = {
@@ -20081,7 +20123,8 @@ function bakeRadarBase(w) {
   const k = 4, cv = document.createElement("canvas");
   cv.width = GRID_X * k; cv.height = GRID_Z * k;
   const g = cv.getContext("2d"), img = g.createImageData(cv.width, cv.height), rgb = [0, 0, 0];
-  const land = [0x3b, 0x3f, 0x42], sea = [0x3f, 0x5b, 0x6e];
+  const bytes = hex => [1,3,5].map(i => parseInt(hex.slice(i,i+2),16));
+  const land = bytes(MAPC_GTA.land), sea = bytes(MAPC_GTA.sea);
   // each cell's shade, once
   const tint = new Float32Array(GRID_X * GRID_Z * 3);
   for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
@@ -21390,8 +21433,8 @@ const phone = {
 const PHONE_APPS = [
   ["Ryde",      "#12b36b", "ryde"],
   ["Noodle",    "#fff6ea", "noodle"],
-  ["Wallet",    "#1d2026", "card"],
-  ["Camera",    "#4a5058", "cam"],
+  ["Wallet",    "#28504d", "card"],
+  ["Camera",    "#355b63", "cam"],
   ["MyGram",     "#101014", "mynet"],
   ["Nihon",     "#157a46", "rail"],
   ["Phone",     "#2f8a4c", "call"],
@@ -21399,7 +21442,7 @@ const PHONE_APPS = [
   ["Contacts",  "#8a6f3c", "people"],
   ["Music",     "#b4365c", "note"],
   ["Photos",    "#d99a1c", "photo"],
-  ["Settings",  "#6b7076", "gear"],
+  ["Settings",  "#44616c", "gear"],
   ["Numbers",   "#c8372d", "sos"],
   ["Expedio",   "#ffb400", "plane"]
 ];
@@ -21652,6 +21695,11 @@ function phoneTime() {
   const mins = Math.floor(gameMinutes());
   return { h: Math.floor(mins / 60), m: mins % 60, mins: mins };
 }
+function phoneDate(short) {
+  const days = Math.floor((TIME.startMin + clock * TIME.rate) / (24 * 60));
+  const date = new Date(Date.UTC(2026, 3, 6 + days));
+  return date.toLocaleDateString("en-GB", { weekday: short ? "short" : "long", day: "numeric", month: "long", timeZone: "UTC" });
+}
 function two(n) { return (n < 10 ? "0" : "") + n; }
 
 // The logo: a paper plane drawn in white on a warm-to-cool wash.
@@ -21686,7 +21734,7 @@ function phoneIcon(g, x, y, s, colour, glyph) {
   g.closePath();
   const grd = g.createLinearGradient(x, y, x, y + s);
   grd.addColorStop(0, colour);
-  grd.addColorStop(1, "rgba(0,0,0,0.35)");
+  grd.addColorStop(1, "rgba(0,0,0,0.12)");
   g.fillStyle = colour;
   g.fill();
   g.fillStyle = grd;
@@ -21698,7 +21746,7 @@ function phoneIcon(g, x, y, s, colour, glyph) {
   const c = x + s / 2, m = y + s / 2, u = s * 0.5;
   g.strokeStyle = "#f4f6f8";
   g.fillStyle = "#f4f6f8";
-  g.lineWidth = s * 0.075;
+  g.lineWidth = s * 0.055;
   g.lineCap = "round";
   g.lineJoin = "round";
   if (glyph === "call") {
@@ -21834,7 +21882,7 @@ function phoneIcon(g, x, y, s, colour, glyph) {
 
 // Tōkonto at dusk from across the bay. Drawn, not photographed, because the
 // city on the wallpaper should be the city out of the window.
-// =============================================================================
+// ======================================================================
 // DEVICES
 // -----------------------------------------------------------------------------
 // A phone is a catalogue entry. Everything that differs between one and the
@@ -21857,7 +21905,7 @@ function phoneIcon(g, x, y, s, colour, glyph) {
 // Cameras are scored out of ten and the SOTIs are better, on purpose: the Pears
 // have the nicer software and the SOTIs take the nicer photographs, which is
 // the argument anyone who owns either will make.
-// =============================================================================
+// ======================================================================
 const SO_COLOURS = [["Titan Grey", "#6a6f77"], ["Obsidian", "#1b1d21"], ["Lavender", "#8d83b8"], ["Jade", "#3f7d6b"], ["Amber", "#b9803a"]];
 const PEAR_COLOURS = [["Graphite", "#4b4e54"], ["Silver", "#d6d8da"], ["Gold", "#d7bfa0"], ["Pacific", "#37556f"], ["Violet", "#6b5a86"], ["Alpine", "#4f6f58"]];
 const PEAR_PRO_COLOURS = [["Space Black", "#2a2b2e"], ["Natural Titanium", "#b9b2a6"], ["Blue Titanium", "#4a5568"], ["White Titanium", "#e8e6e1"], ["Desert Titanium", "#b79a82"]];
@@ -22339,7 +22387,7 @@ function drawPearHome(g, W, H) {
   g.fillStyle = "#fff"; g.font = "300 " + Math.round(W * 0.150) + "px " + UI;
   g.fillText(t.h + ":" + two(t.m), wx0 + W * 0.035, wy + H * 0.093);
   g.fillStyle = "rgba(255,255,255,0.80)"; g.font = "500 " + Math.round(W * 0.034) + "px " + UI;
-  g.fillText("Mon 6 April", wx0 + W * 0.04, wy + H * 0.130);
+  g.fillText(phoneDate(true), wx0 + W * 0.04, wy + H * 0.130);
 
   glass(wx1, wy, ww, wh, W * 0.065, 0.17);
   if (phone.health) {
@@ -22406,7 +22454,7 @@ function drawPearHome(g, W, H) {
   phoneNavBar(g, W, H);
 }
 
-// =============================================================================
+// ======================================================================
 // THE BASIC PHONES
 // -----------------------------------------------------------------------------
 // The two you can buy at a till. 11 Eleven's is green with an orange and red
@@ -22418,7 +22466,7 @@ function drawPearHome(g, W, H) {
 // walk down to: the D-pad moves round the screen as it does on any phone, and
 // pressing down at the bottom of whatever is on it steps onto the keypad, where
 // A presses the key under the cursor.
-// =============================================================================
+// ======================================================================
 const PAD_KEYS = [
   ["MENU", "menu"],  ["OK", "ok"],       ["BACK", "back"],
   ["CALL", "call"],  ["C", "clear"],     ["END", "end"],
@@ -22695,68 +22743,21 @@ function phoneEntryKey(e) {
 
 function phoneWallpaper(g, W, H) {
   if (drawWallBase(g, W, H)) return;
-  const sky = g.createLinearGradient(0, 0, 0, H * 0.72);
-  sky.addColorStop(0, "#131a2e");
-  sky.addColorStop(0.42, "#2d3356");
-  sky.addColorStop(0.72, "#7a4e63");
-  sky.addColorStop(1, "#d98a5e");
-  g.fillStyle = sky;
-  g.fillRect(0, 0, W, H);
-  // the mountain behind it
-  g.fillStyle = "#1b2038";
-  g.beginPath();
-  g.moveTo(0, H * 0.66);
-  g.lineTo(W * 0.24, H * 0.49);
-  g.lineTo(W * 0.38, H * 0.56);
-  g.lineTo(W * 0.56, H * 0.41);
-  g.lineTo(W * 0.78, H * 0.58);
-  g.lineTo(W, H * 0.52);
-  g.lineTo(W, H * 0.72);
-  g.lineTo(0, H * 0.72);
-  g.closePath();
-  g.fill();
-  // the skyline, with Soti Tower standing a head above it
-  g.fillStyle = "#0e1424";
-  let x = 0;
-  let i = 0;
-  while (x < W) {
-    const w = 14 + rnd(i, 3, 5501) * 34;
-    const isSoti = i === 11;
-    const h = isSoti ? H * 0.30 : H * (0.07 + rnd(i, 7, 5503) * 0.12);
-    g.fillRect(x, H * 0.70 - h, w, h + 4);
-    if (isSoti) {
-      g.fillRect(x + w * 0.44, H * 0.70 - h - H * 0.022, w * 0.12, H * 0.022);
-    }
-    // lit windows
-    g.fillStyle = "rgba(255, 206, 140, 0.55)";
-    for (let k = 0; k < 10; k++) {
-      if (rnd(i * 11 + k, 2, 5507) > 0.62) {
-        g.fillRect(x + 3 + (k % 3) * (w / 3), H * 0.70 - h + 6 + ((k / 3) | 0) * 11, 4, 6);
-      }
-    }
-    g.fillStyle = "#0e1424";
-    x += w + 2 + rnd(i, 9, 5509) * 5;
-    i++;
-  }
-  // the bay, and the city upside down in it
-  const sea = g.createLinearGradient(0, H * 0.70, 0, H);
-  sea.addColorStop(0, "#131a2c");
-  sea.addColorStop(1, "#242b44");
-  g.fillStyle = sea;
-  g.fillRect(0, H * 0.70, W, H * 0.30);
-  g.globalAlpha = 0.22;
-  g.save();
-  g.translate(0, H * 1.4);
-  g.scale(1, -1);
-  g.fillStyle = "#0e1424";
-  g.fillRect(0, H * 0.70, W, 2);
-  g.restore();
-  g.globalAlpha = 1;
-  for (let k = 0; k < 90; k++) {
-    const sx = rnd(k, 1, 5511) * W, sy = H * 0.71 + rnd(k, 2, 5513) * H * 0.28;
-    g.fillStyle = "rgba(255, 196, 130, " + (0.05 + rnd(k, 3, 5515) * 0.16).toFixed(3) + ")";
-    g.fillRect(sx, sy, 2 + rnd(k, 4, 5517) * 7, 1.6);
-  }
+  // An authored illustration of the actual bay, mountain range and SOTI skyline.
+  // No photograph or network request is needed to draw the phone's home screen.
+  const sky = g.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,"#173b45"); sky.addColorStop(.58,"#427572"); sky.addColorStop(1,"#17343e");
+  g.fillStyle=sky;g.fillRect(0,0,W,H);
+  g.fillStyle="#df8a65";g.beginPath();g.arc(W*.77,H*.40,W*.28,0,Math.PI*2);g.fill();
+  g.fillStyle="#315c62";g.beginPath();g.moveTo(0,H*.64);g.lineTo(W*.2,H*.49);g.lineTo(W*.36,H*.57);g.lineTo(W*.56,H*.45);g.lineTo(W*.83,H*.60);g.lineTo(W,H*.54);g.lineTo(W,H);g.lineTo(0,H);g.closePath();g.fill();
+  g.fillStyle="#183a43";
+  for(let i=0;i<18;i++){const x=i*W/17,w=W*.046,h=H*(.035+rnd(i,7,5503)*.12);g.fillRect(x,H*.74-h,w,h);}
+  const tx=W*.64,ty=H*.48,tw=W*.065;
+  g.fillStyle="#14313a";g.fillRect(tx,ty,tw,H*.27);g.fillRect(tx+tw*.12,ty-H*.014,tw*.76,H*.02);
+  g.fillStyle="#89b3a3";g.fillRect(tx+tw*.2,ty+H*.017,tw*.13,H*.20);
+  g.fillStyle="#16333e";g.fillRect(0,H*.74,W,H*.26);
+  g.strokeStyle="rgba(225,190,139,.16)";g.lineWidth=1;
+  for(let i=0;i<12;i++){const y=H*(.76+i*.018);g.beginPath();g.moveTo(W*.35,y);g.lineTo(W*.91,y);g.stroke();}
 }
 
 function drawPhone() {
@@ -23158,31 +23159,31 @@ function webPageText(g, W, site) {
 
 // The browser chrome along the top: the tab, the toolbar with back and reload, the address bar, and a bookmarks bar.
 function webChrome(g, W, site) {
-  wRect(g, 0, 0, W, WEB_TOP, 0, "#dfe3e8");
-  wRect(g, 12, 8, 400, 42, 10, "#ffffff");
+  wRect(g, 0, 0, W, WEB_TOP, 0, "#ced9ce");
+  wRect(g, 12, 8, 400, 42, 10, "#f6f1e5");
   if (site) { g.fillStyle = NOODLE_TILE[Math.max(0, WEB.indexOf(site)) % NOODLE_TILE.length]; g.beginPath(); g.arc(36, 29, 9, 0, 7); g.fill(); }
   else noodleMark(g, W, 36, 33, 6);
-  wText(g, site ? site.title : searchUI.on ? "Noodle Search" : "New tab", 56, 35, "600 17px " + UI, "#2a2f35", "left", 330);
+  wText(g, site ? site.title : searchUI.on ? "Noodle Search" : "New tab", 56, 35, "600 17px " + UI, "#173740", "left", 330);
   wText(g, "×", 392, 35, "500 20px " + UI, "#6a717a", "center");
   wText(g, "+", 440, 36, "500 26px " + UI, "#4a5058", "center");
   wHit(426, 12, 30, 36, { act: "home" });
-  wRect(g, 0, 50, W, 46, 0, "#ffffff");
-  [["←", "back", 32], ["→", "fwd", 78], ["↻", "reload", 124], ["⌂", "home", 170]].forEach(b => { wText(g, b[0], b[2], 82, "500 26px " + UI, "#3c434b", "center"); wHit(b[2] - 20, 52, 40, 42, { act: b[1] }); });
-  wRect(g, 210, 56, W - 420, 34, 17, "#f1f3f5");
+  wRect(g, 0, 50, W, 46, 0, "#f6f1e5");
+  [["←", "back", 32], ["→", "fwd", 78], ["↻", "reload", 124], ["⌂", "home", 170]].forEach(b => { wText(g, b[0], b[2], 82, "500 26px " + UI, "#315b61", "center"); wHit(b[2] - 20, 52, 40, 42, { act: b[1] }); });
+  wRect(g, 210, 56, W - 420, 34, 17, "#e5eadd");
   const scam = site && site.kind === "scam";
   wText(g, scam ? "⚠ Not secure" : "\u{1F512}", 232, 79, "600 15px " + UI, scam ? "#d0601c" : "#3a8a52");
-  wText(g, site ? "https://www." + site.host : searchUI.on ? "noodle.co.kn/search?q=" + encodeURIComponent(searchUI.q || "") : "noodle.co.kn", scam ? 356 : 262, 79, "500 17px " + UI, "#2a2f35");
+  wText(g, site ? "https://www." + site.host : searchUI.on ? "noodle.co.kn/search?q=" + encodeURIComponent(searchUI.q || "") : "noodle.co.kn", scam ? 356 : 262, 79, "500 17px " + UI, "#173740");
   wHit(210, 56, W - 420, 34, { act: "search" });
-  wText(g, "Balance " + yenText(purse.yen), W - 24, 79, "700 16px " + UI, "#2a2f35", "right");
+  wText(g, "Balance " + yenText(purse.yen), W - 24, 79, "700 16px " + UI, "#173740", "right");
   // bookmarks: every main site, a click away
-  wRect(g, 0, 96, W, WEB_TOP - 96, 0, "#ffffff"); wRect(g, 0, WEB_TOP - 1, W, 1, 0, "#d5dae0");
+  wRect(g, 0, 96, W, WEB_TOP - 96, 0, "#f6f1e5"); wRect(g, 0, WEB_TOP - 1, W, 1, 0, "#b3c5ba");
   let x = 20;
   WEB.forEach((w, i) => {
     if (w.kind === "page" || w.kind === "scam") return;
     g.font = "500 15px " + UI; const tw = g.measureText(w.title).width + 34;
     if (x + tw > W - 20) return;
     g.fillStyle = NOODLE_TILE[i % NOODLE_TILE.length]; g.beginPath(); g.arc(x + 9, 115, 6, 0, 7); g.fill();
-    wText(g, w.title, x + 22, 120, "500 15px " + UI, "#3c434b");
+    wText(g, w.title, x + 22, 120, "500 15px " + UI, "#315b61");
     wHit(x - 4, 100, tw, 30, { site: i });
     x += tw + 10;
   });
@@ -23308,7 +23309,7 @@ function drawPhoneScreen() {
   g.fillText(t.h + ":" + two(t.m), W / 2, H * 0.135);
   g.font = "500 " + Math.round(W * 0.05) + "px " + UI;
   g.fillStyle = "rgba(255,255,255,0.84)";
-  g.fillText("Monday 6 April · Tōkonto", W / 2, H * 0.195);
+  g.fillText(phoneDate(false) + " · Tōkonto", W / 2, H * 0.195);
 
   // ---- the grid
   const cols = 4, rows = 4;
@@ -23425,61 +23426,19 @@ function appAccent() {
 }
 
 function phoneChrome(g, W, H, title, sub) {
-  g.fillStyle = "#0d0f12";
-  g.fillRect(0, 0, W, H);
-  // A wash of the app's colour behind the header, the way every phone OS has
-  // done it since about 2014.
-  const accent = appAccent();
-  const wash = g.createLinearGradient(0, 0, 0, H * 0.20);
-  wash.addColorStop(0, accent);
-  wash.addColorStop(1, "rgba(0,0,0,0)");
-  g.globalAlpha = 0.20;
-  g.fillStyle = wash;
-  g.fillRect(0, 0, W, H * 0.20);
-  g.globalAlpha = 1;
-  phoneStatusBar(g, W, H);
-
-  if (isPear()) {
-    // A Pear's header: a back label in the accent, then a large title. Nothing
-    // is drawn behind it, because the glass is what is behind it.
-    g.textAlign = "left"; g.textBaseline = "middle";
-    g.fillStyle = accent;
-    g.font = "600 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText("\u2039 " + (phone.app === "Noodle" && phone.site != null ? "Noodle" : "Home"), W * 0.055, H * 0.070);
-    g.fillStyle = "#ffffff";
-    g.font = "800 " + Math.round(W * 0.090) + "px " + UI;
-    clipText(g, title, W * 0.055, H * 0.109, W * 0.80);
-    if (sub) {
-      g.fillStyle = "#8d96a0";
-      g.font = "500 " + Math.round(W * 0.038) + "px " + UI;
-      clipText(g, sub, W * 0.058, H * 0.141, W * 0.80);
-    }
-    phoneNavBar(g, W, H);
-    return;
-  }
-  // A back chevron, so it is obvious there is somewhere to go back to.
-  g.strokeStyle = "rgba(255,255,255,0.80)";
-  g.lineWidth = W * 0.009;
-  g.lineCap = "round";
-  const by = H * PL.titleY - H * 0.001;
-  g.beginPath();
-  g.moveTo(W * 0.058, by - W * 0.020);
-  g.lineTo(W * 0.034, by);
-  g.lineTo(W * 0.058, by + W * 0.020);
-  g.stroke();
-  g.lineCap = "butt";
-
-  g.textAlign = "left";
-  g.fillStyle = "#ffffff";
-  g.font = "700 " + Math.round(W * PL.title) + "px " + UI;
-  clipText(g, title, W * (PL.pad + 0.035), H * PL.titleY, W * 0.58);
-  if (sub) {
-    g.fillStyle = "#9aa3ac";
-    g.font = "500 " + Math.round(W * PL.body) + "px " + UI;
-    clipText(g, sub, W * (PL.pad + 0.035), H * PL.subY, W * 0.58);
-  }
-  g.fillStyle = "rgba(255,255,255,0.55)";
-  phoneNavBar(g, W, H);
+  const p = SalaryDesign.palette, accent = appAccent();
+  g.fillStyle = p.ink; g.fillRect(0, 0, W, H);
+  g.fillStyle = p.panel; g.fillRect(0, 0, W, H * 0.153);
+  g.fillStyle = accent; g.fillRect(W * PL.pad, H * 0.145, W * 0.12, Math.max(2, W * 0.008));
+  phoneStatusBar(g, W, H, { ink: p.paper });
+  g.save(); g.textBaseline = "middle"; g.textAlign = "left";
+  g.strokeStyle = p.muted; g.lineWidth = W * 0.007; g.lineCap = "round";
+  const by = H * PL.titleY;
+  g.beginPath(); g.moveTo(W * 0.054, by - W * 0.018); g.lineTo(W * 0.034, by); g.lineTo(W * 0.054, by + W * 0.018); g.stroke();
+  g.fillStyle = p.paper; g.font = "700 " + Math.round(W * 0.077) + "px " + UI;
+  clipText(g, title, W * 0.095, by, W * 0.82);
+  if (sub) { g.fillStyle = p.muted; g.font = "500 " + Math.round(W * 0.036) + "px " + UI; clipText(g, sub, W * 0.095, H * PL.subY, W * 0.82); }
+  g.restore(); phoneNavBar(g, W, H);
 }
 
 function roundRect(g, x, y, w, h, r) {
@@ -23496,39 +23455,14 @@ function roundRect(g, x, y, w, h, r) {
 // selected one is painted in the app's own colour with a bar down its leading
 // edge, rather than a slightly lighter grey you have to hunt for.
 function phoneRow(g, W, x, y, w, h, on, fill) {
-  if (isPear()) {
-    const acc = appAccent(), rr = W * 0.05;
-    g.fillStyle = on ? acc + "38" : (fill || "rgba(255,255,255,0.075)");
-    roundRect(g, x, y, w, h, rr); g.fill();
-    if (on) { g.strokeStyle = acc; g.lineWidth = W * 0.008; roundRect(g, x, y, w, h, rr); g.stroke(); }
-    return;
-  }
-  const r = W * 0.035;
-  const dark = !fill || fill.indexOf("255") >= 0;
-  g.fillStyle = on ? (dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.10)")
-                   : (fill || "rgba(255,255,255,0.045)");
-  roundRect(g, x, y, w, h, r);
-  g.fill();
-  if (!on) return;
-  const accent = appAccent();
-  g.save();
-  roundRect(g, x, y, w, h, r);
-  g.clip();
-  // a wash of the colour across the row, strongest at the leading edge
-  const grd = g.createLinearGradient(x, y, x + w * 0.85, y);
-  grd.addColorStop(0, accent);
-  grd.addColorStop(1, "rgba(0,0,0,0)");
-  g.globalAlpha = 0.34;
-  g.fillStyle = grd;
-  g.fillRect(x, y, w, h);
-  g.globalAlpha = 1;
-  g.fillStyle = accent;
-  g.fillRect(x, y, W * 0.011, h);
+  const p = SalaryDesign.palette, accent = appAccent(), r = W * 0.028;
+  g.save(); g.fillStyle = fill || (on ? p.raised : p.panel);
+  roundRect(g, x, y, w, h, r); g.fill();
+  g.strokeStyle = on ? accent : "rgba(170,201,189,0.15)";
+  g.lineWidth = on ? Math.max(2, W * 0.006) : Math.max(1, W * 0.002);
+  roundRect(g, x, y, w, h, r); g.stroke();
+  if (on) { g.fillStyle = accent; roundRect(g, x + W * 0.012, y + h * 0.24, W * 0.008, h * 0.52, W * 0.004); g.fill(); }
   g.restore();
-  g.strokeStyle = accent;
-  g.lineWidth = W * 0.005;
-  roundRect(g, x, y, w, h, r);
-  g.stroke();
 }
 
 // ---- Ryde
@@ -25095,7 +25029,7 @@ function appPhotos(g, W, H) {
   if (!phone.gallery.length) {
     g.fillStyle = "#6b727a";
     g.font = "500 " + Math.round(W * 0.044) + "px " + UI;
-    g.fillText("Nothing yet. Open Camera and press A.", W * 0.075, H * 0.22);
+    clipText(g, "Open Camera to take your first photo.", W * 0.075, H * 0.22, W * .85);
     return;
   }
   const items = phone.gallery.slice().reverse(), cols = 3, s = W * 0.28, gap = W * 0.03, vis = 5;
@@ -25630,16 +25564,15 @@ function mnFeedPost(ageMin, contact) {
 }
 const MN_FEED_COMMENTS = ["so good", "I need this", "wow 😍", "which shop is this?", "this is why I live here", "ok I'm going tomorrow", "the light!!", "saved", "same", "lol", "Seiko should see this", "okay that's nice", "please do more of these", "🔥🔥🔥", "I was there!!"];
 // ---- real photographs
-// Other people's pictures are real ones, found on Wikimedia Commons (free to
-// use, credited on the post) by a search for what the post is about. They load
-// as you scroll. The drawn scene stands in until a photo arrives, and for good
-// if there is no network.
+// The anime game uses its authored scene illustrations: an unrelated real-world
+// skyline or branded car must not stand in for Tōkonto. The photograph loader
+// remains available to a future realistic art mode, with attribution retained.
 const MN_PHOTO_TERMS = { ramen: "ramen bowl", sushi: "sushi nigiri", train: "Japan commuter train", cat: "tabby cat", kei: "kei car Japan", sakura: "cherry blossoms Japan",
   peak: "Japanese Alps snow mountain", sunset: "Tokyo Bay sunset", vending: "Japan vending machine", konbini: "Japan convenience store", ski: "ski slope Japan",
   sea: "Japan coast road sea", bridge: "Rainbow Bridge Tokyo night", rain: "rainy street Japan night", lantern: "shrine lanterns night Japan", desk: "office laptop desk coffee",
   bento: "ekiben bento box", skyline: "Tokyo skyline night", onsen: "onsen Japan hot spring", tea: "matcha green tea"
 };
-const mnPhotos = { lists: {}, wait: {}, off: false, fails: 0 };
+const mnPhotos = { lists: {}, wait: {}, off: animeArt(), fails: 0 };
 function mnPhotoList(scene) {
   if (mnPhotos.lists[scene]) return Promise.resolve(mnPhotos.lists[scene]);
   if (mnPhotos.wait[scene]) return mnPhotos.wait[scene];
@@ -26050,7 +25983,7 @@ function updateMyNet(dt) {
 }
 
 // ---- drawing
-const MN_BG = "#0b0c10", MN_INK = "#f2f3f5", MN_DIM = "#8b9099", MN_LINE = "#22252c", MN_RED = "#ff3b5c", MN_GOOD = "#3ddc84", MN_BAD = "#ff5a5a";
+const MN_BG = "#142c34", MN_INK = "#f3eddf", MN_DIM = "#b0c1b7", MN_LINE = "#36535a", MN_RED = "#ed795e", MN_GOOD = "#91c1ad", MN_BAD = "#f38c78";
 function mnIcon(g, k, cx, cy, s, col, fill) {
   g.save(); g.strokeStyle = col; g.fillStyle = col; g.lineWidth = s * 0.10; g.lineCap = "round"; g.lineJoin = "round"; g.beginPath();
   const h = s / 2;
@@ -26082,11 +26015,16 @@ function mnIcon(g, k, cx, cy, s, col, fill) {
   }
   g.restore();
 }
+window.addEventListener("salaryportraitready", () => { phone.dirty = true; });
 function mnAvatar(g, x, y, r, who, ring) {
   g.save();
   if (ring) { const q = g.createLinearGradient(x - r, y + r, x + r, y - r); q.addColorStop(0, "#8a3ab9"); q.addColorStop(0.5, "#e95950"); q.addColorStop(1, "#fccc63"); g.fillStyle = q; g.beginPath(); g.arc(x, y, r + r * 0.12, 0, 7); g.fill(); g.fillStyle = MN_BG; g.beginPath(); g.arc(x, y, r + r * 0.02, 0, 7); g.fill(); }
   g.beginPath(); g.arc(x, y, r - (ring ? r * 0.06 : 0), 0, 7); g.clip();
-  if (who && who.me && mynet.portrait) {
+  const castPortrait = SalaryPortrait(who);
+  if (castPortrait && !(who && who.me && mynet.portrait)) {
+    const crop = Math.min(castPortrait.width, castPortrait.height);
+    g.drawImage(castPortrait, (castPortrait.width-crop)/2, 0, crop, crop, x-r, y-r, r*2, r*2);
+  } else if (who && who.me && mynet.portrait) {
     g.fillStyle = "#3a7bd5"; g.fillRect(x - r, y - r, r * 2, r * 2); g.drawImage(mynet.portrait, x - r * 1.08, y - r * 1.04, r * 2.16, r * 2.16);
   } else {
     g.fillStyle = (who && who.col) || "#555"; g.fillRect(x - r, y - r, r * 2, r * 2);
@@ -26749,39 +26687,29 @@ function mynetKey(e) {
 }
 
 // ---- Nihon Services
+function nearbyRailStations() {
+  if (!world || !world.cities) return [];
+  return world.cities.flatMap(city => (city.stations || []).map(st => ({ name: st.name, city: city.name,
+    x: st.centre[0], z: st.centre[1], distance: Math.hypot(st.centre[0]-player.pos.x, st.centre[1]-player.pos.z) })))
+    .sort((a,b) => a.distance-b.distance).slice(0,5);
+}
 function appNihon(g, W, H) {
-  phoneChrome(g, W, H, "Nihon Services", "Departures near you");
-  const stops = (drive.stops && drive.stops.length) ? drive.stops.slice(0, 5) : [];
-  const t = phoneTime();
-  const names = stops.length ? stops.map(s => s.name)
-    : ["Hinodechō", "Mizuho", "Tōkonto Central", "Gosho Gardens", "Shinmei"];
-  names.forEach((n, i) => {
-    const rowH = H * 0.112;
-    const y = H * PL.listY + i * (rowH + H * 0.014);
-    phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
-    const mins = (2 + (i * 7 + t.m) % 11);
-    g.font = "700 " + Math.round(W * PL.head) + "px " + UI;
-    const minsText = mins + " min";
-    const minsW = g.measureText(minsText).width;
-    g.fillStyle = mins <= 2 ? "#f0c020" : "#e7ebee";
-    g.textAlign = "right";
-    g.fillText(minsText, W * (1 - PL.pad) - W * 0.035, y + rowH * 0.58);
-    g.textAlign = "left";
-
-    g.fillStyle = "#17a05e";
-    roundRect(g, W * (PL.pad + 0.03), y + rowH * 0.22, W * 0.015, rowH * 0.56, W * 0.0075); g.fill();
-    const textX = W * (PL.pad + 0.07);
-    const textW = W * (1 - PL.pad) - W * 0.06 - minsW - textX;
-    g.fillStyle = "#ffffff";
-    g.font = "600 " + Math.round(W * PL.head) + "px " + UI;
-    clipText(g, String(n).replace(" Station", ""), textX, y + rowH * 0.40, textW);
-    g.fillStyle = "#79818b";
-    g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-    clipText(g, "NHRail Kanjō Loop \u00b7 platform " + (1 + i % 2), textX, y + rowH * 0.74, textW);
+  const stations=nearbyRailStations();
+  phoneChrome(g,W,H,"NHRail","Nearby stations · select for directions");
+  if (!stations.length) { g.fillStyle=SalaryDesign.palette.muted;g.font="500 "+Math.round(W*PL.body)+"px "+UI;clipText(g,"No stations in this area.",W*PL.pad,H*.24,W*.85);return; }
+  phone.sub=clamp(phone.sub,0,stations.length-1);
+  stations.forEach((st,i)=>{
+    const rowH=H*.115,y=H*PL.listY+i*(rowH+H*.014);
+    phoneRow(g,W,W*PL.pad,y,W*(1-PL.pad*2),rowH,phone.sub===i);
+    g.textAlign="left";g.fillStyle=SalaryDesign.palette.jade;g.font="700 "+Math.round(W*.03)+"px "+UI;
+    g.fillText("NH · "+String(i+1).padStart(2,"0"),W*(PL.pad+.035),y+rowH*.25);
+    g.fillStyle=SalaryDesign.palette.paper;g.font="600 "+Math.round(W*PL.head)+"px "+UI;
+    clipText(g,st.name.replace(/ Station$/,""),W*(PL.pad+.035),y+rowH*.57,W*.74);
+    g.fillStyle=SalaryDesign.palette.muted;g.font="500 "+Math.round(W*PL.small)+"px "+UI;
+    const distance=st.distance<1000?Math.round(st.distance)+" m":(st.distance/1000).toFixed(1)+" km";
+    clipText(g,st.city+" · "+distance+" away",W*(PL.pad+.035),y+rowH*.83,W*.74);
   });
-  g.fillStyle = "#6b727a";
-  g.font = "500 " + Math.round(W * PL.small) + "px " + UI;
-  g.fillText("Stations are marked on the map.", W * PL.pad, H * 0.90);
+  g.fillStyle=SalaryDesign.palette.muted;g.font="500 "+Math.round(W*PL.small)+"px "+UI;g.fillText("A / Enter  directions",W*PL.pad,H*.90);
 }
 
 // ---- Phone, Mail, Contacts, Music, Settings
@@ -26863,7 +26791,7 @@ const SCAM_MAIL = [
   ["Prince of Somewhere", "A business proposal of mutual benefit", "I require only your account number."]
 ];
 function appMail(g, W, H) {
-  phoneChrome(g, W, H, "Mail", SCAM_MAIL.length + " unread");
+  phoneChrome(g, W, H, "Mail", "Inbox · " + SCAM_MAIL.length + " messages");
   const mailW = W * (1 - PL.pad * 2) - W * 0.08;
   SCAM_MAIL.forEach((m, i) => {
     const rowH = H * 0.112;
@@ -26901,11 +26829,12 @@ function appContacts(g, W, H) {
     return;
   }
   phone.sub = clamp(phone.sub, 0, list.length - 1);
+  const first = clamp(phone.sub - 4, 0, Math.max(0, list.length - 7));
   list.forEach((c, i) => {
-    const rowH = H * 0.10, y = H * PL.listY + i * (rowH + H * 0.012);
+    const visible = i - first; if (visible < 0 || visible >= 7) return;
+    const rowH = H * 0.085, y = H * PL.listY + visible * (rowH + H * 0.012);
     phoneRow(g, W, W * PL.pad, y, W * (1 - PL.pad * 2), rowH, phone.sub === i);
-    g.fillStyle = "#a0652d"; g.beginPath(); g.arc(W * 0.17, y + rowH / 2, W * 0.05, 0, 7); g.fill();
-    g.fillStyle = "#fff"; g.font = "800 " + Math.round(W * 0.05) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(c.name.charAt(0), W * 0.17, y + rowH / 2 + 1); g.textBaseline = "alphabetic";
+    mnAvatar(g, W * .17, y + rowH/2, W * .05, c, false);
     g.textAlign = "left"; g.fillStyle = "#ffffff"; g.font = "600 " + Math.round(W * PL.head) + "px " + UI; clipText(g, c.name, W * 0.26, y + rowH * 0.42, W * 0.62);
     g.fillStyle = "#79818b"; g.font = "500 " + Math.round(W * PL.small) + "px " + UI; clipText(g, c.phone + (c.called ? "  \u00b7  called" : ""), W * 0.26, y + rowH * 0.74, W * 0.62);
   });
@@ -27946,7 +27875,7 @@ function settingsRows() {
     ["Audio device", wheel.wearing ? audioLabel(wheel.wearing) + " (on)" : audioOwned() ? "In the bag" : "None"],
     ["IC card", wallet.ic ? yenText(wallet.ic.bal) : "Not added"],
     ["Photographs", String(phone.gallery.length)],
-    ["Storage", "126 GB of 256 GB"],
+    ["Storage", "Photos saved on this device"],
     ["Radio source  A", (ytSourceFor(radioStation(radio.st)) ? "Live video" : "Built-in band") + " \u00b7 " + radioStation(radio.st).name],
     ["Spotify", spotify.state === "ready" ? "Signed in"
       : spotify.clientId ? "Client id set \u00b7 not signed in" : "Not set up"]
@@ -28013,7 +27942,7 @@ function phoneCount() {
   if (phone.app === "Contacts") return mynet.contacts.length;
   if (phone.app === "Camera") return 1;
   if (phone.app === "MyGram") return 1;
-  if (phone.app === "Nihon") return 5;
+  if (phone.app === "Nihon") return Math.max(1, nearbyRailStations().length);
   if (phone.app === "Phone") return phone.vmail ? 0 : 13;
   if (phone.app === "Mail") return SCAM_MAIL.length;
   if (phone.app === "Photos") return phone.gallery.length;
@@ -28112,7 +28041,10 @@ function phoneAct() {
     return;
   }
   const app = phone.app;
-  if (app === "Ryde") {
+  if (app === "Nihon") {
+    const station = nearbyRailStations()[phone.sub];
+    if (station) { nav.mapCx=station.x; nav.mapCz=station.z; setWaypointHere(); nav.route=null; setPhone(false); say("Directions to " + station.name + " marked on your map.",5); }
+  } else if (app === "Ryde") {
     if (phone.ryde) { rydeCancel(); say("Ryde cancelled.", 3); }
     else {
       const cls = RYDE_CLASSES[Math.min(phone.sub, RYDE_CLASSES.length - 1)];
@@ -30193,7 +30125,7 @@ function buildFamilyHome(root) {
   bikeParks.clear.push([homeReserve.cx, homeReserve.cz, 13]);
 }
 
-// ============================================================================
+// =====================================================================
 // ONSEN
 // ----------------------------------------------------------------------------
 // A bathhouse in the mountain countryside: a wooden house under a tiled roof with
@@ -30201,7 +30133,7 @@ function buildFamilyHome(root) {
 // behind it an outdoor pool among rocks with steam drifting off it. Walk up and
 // press Y. A soak costs a little and takes real time off the clock; it is the
 // strongest cure for stress in the game.
-// ============================================================================
+// =====================================================================
 const onsens = { list: [], steam: null, active: null };
 const ONSEN_NAMES = ["Yukemuri Onsen", "Shirakawa no Yu", "Tsukimi Onsen", "Hoshi no Yu", "Kamikaze Onsen", "Momiji no Yu"];
 function buildOnsens(root) {
@@ -36785,13 +36717,13 @@ function updateTitle(dt) {
 }
 
 // ---------------------------------------------------------------- run
-// ============================================================================
+// =====================================================================
 // SKI
 // ----------------------------------------------------------------------------
 // Each summit has a chairlift. At the bottom a station takes you to the top;
 // at the top a hut rents skis; and the run itself is its own little first
 // person game (see skiRunStart), which ends back at the chairlift.
-// ============================================================================
+// =====================================================================
 const ski = { mode: null, list: [], cur: null, course: "blue", rented: false, best: {}, ride: null, menu: null, group: null, lastNear: null };
 const SKI_RENTAL = 1200;
 const SKI_COURSES = {
@@ -36843,7 +36775,7 @@ function skiSignTexture(title, sub) {
   return tex;
 }
 
-// ============================================================================
+// =====================================================================
 // MOUNTAIN BIKE PARKS
 // ----------------------------------------------------------------------------
 // One beside each chairlift. A downhill run follows the fall line a hundred and
@@ -36853,7 +36785,7 @@ function skiSignTexture(title, sub) {
 // quarter pipe. Rental dirt bikes and mountain bikes stand at the top, and
 // bikes of any kind work: the ground you ride on is made of decks that the
 // bike physics ask the height of (world.walkY), so every ramp is a real ramp.
-// ============================================================================
+// =====================================================================
 const bikeParks = { list: [], rentals: [], clear: [] };
 function buildBikeParks(root) {
   bikeParks.list.length = 0; bikeParks.rentals.length = 0; bikeParks.clear.length = 0;
@@ -37816,7 +37748,7 @@ function updateSki(dt) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // AIR TRAVEL
 // ----------------------------------------------------------------------------
 // The big airport is a place you can use. A highway runs to it from the capital. The terminal is walked through: a landside hall with check-in,
@@ -37824,7 +37756,7 @@ function updateSki(dt) {
 // gates; and the cabin, where you sit down to an in-flight screen. Tickets are bought at the office or on the Expedio app (a parody). Flights go to
 // Seoul and to two island groups, each a small explorable region of its own, and back. Or: drive through the airport gate, up to a parked airliner
 // and take it, with four stars and helicopters behind you.
-// ============================================================================
+// =====================================================================
 const AIR_DESTS = {
   seoul:   { id: "seoul",   name: "Seoul",           code: "SEL", fare: 48000, hours: 2.6, blurb: "Hangang, neon, fried chicken at 2 a.m." },
   kohana:  { id: "kohana",  name: "Kohana Islands",  code: "KHN", fare: 72000, hours: 4.1, blurb: "White sand, one road, no deadlines." },
@@ -38243,13 +38175,13 @@ function airLand(to) {
 function airDepartDest() { enterThrough(() => { ifeStart(air.at, "konto"); }); }
 
 
-// ============================================================================
+// =====================================================================
 // PLACES TO FLY TO
 // ----------------------------------------------------------------------------
 // Seoul and two island groups are small regions of their own. Each sits in deep open sea off the edge of Konto's map, where the terrain height is
 // replaced by a function of its own, so the walking, the camera and the collision work there exactly as they do at home; and each is walled in by water.
 // They are built the first time you arrive, and only drawn while you are near.
-// ============================================================================
+// =====================================================================
 let worldRoot = null;
 const DEST = { sites: [], by: {}, active: null };
 // ---- the holiday areas on the map: each is drawn from its own heights, streets and buildings, and sits out at sea on the island's map as well ----
@@ -38536,9 +38468,9 @@ function destFrame(dt) {
 }
 
 
-// ============================================================================
+// =====================================================================
 // THE AIRFIELD GATE, STEALING A PLANE, FLYING IT, AND WHO COMES AFTER YOU
-// ============================================================================
+// =====================================================================
 const AIR_CRIMES = { breach: { stars: 2, what: "Smashing through an airport gate" }, theft: { stars: 4, what: "Stealing an aircraft" } };
 function airportExtras(ap, G, ctx) {
   const L = ctx.L, big = ap.big, M = c => new THREE.MeshLambertMaterial({ color: c });
@@ -38670,9 +38602,9 @@ function updateAirportGates(dt) {
   aps.forEach(ap => { const g = ap.gate; if (g && g.fly) { g.t += dt; g.fly.position.y -= 3 * dt * (g.t < 0.6 ? 0 : 1); g.fly.position.x += 2 * dt; g.fly.rotation.z += dt * 3; if (g.t > 4) { scene.remove(g.fly); g.fly = null; } } });
 }
 // ---- the planes you can take --------------------------------------------------------------------------------------------------------------------
-// ============================================================================
+// =====================================================================
 // FLYING: a flight model with lift, drag, thrust and a stall; instruments; three cameras; and jumping out with a parachute
-// ============================================================================
+// =====================================================================
 const flight = { active: false, mesh: null, en: null, ap: null, pos: new THREE.Vector3(), h: 0, pitch: 0, roll: 0, v: 0, thr: 0, gamma: 0, air: false, len: 40, span: 36, off: 0, hud: null, pfd: null, cam: 0, P: null, parked: [], lowres: false, lastCrash: null, xWas: false, brake: false, stall: false };
 const FP_JET = { vs: 44, vr: 55, vmax: 150, thr: 6.5, c0: 3.6e-4, ci: 34, pitchRate: 0.42, rollRate: 0.95, rudRate: 0.3, crashV: 7 };
 const FP_PROP = { vs: 24, vr: 30, vmax: 80, thr: 4.6, c0: 7.5e-4, ci: 20, pitchRate: 0.85, rollRate: 1.6, rudRate: 0.55, crashV: 4.5 };
@@ -39161,13 +39093,13 @@ function updateHelis(dt) {
 }
 function policeHeliSees() { return heli.list.some(h => Math.hypot(h.pos.x - player.pos.x, h.pos.z - player.pos.z) < 260 && h.pos.y > player.pos.y); }
 
-// ============================================================================
+// =====================================================================
 // FIREARMS
 // ----------------------------------------------------------------------------
 // Bought behind the shutter at Kanamono, picked from the equipment wheel (hold Q or LB), carried in the right hand with the arm brought up, aimed over
 // the shoulder, fired, reloaded. The gun is a real model: the same one is on the shelf in the shop. Every shot in the street is a crime.
 //   aim: right mouse button, V, or LT      fire: left mouse button (while aiming), Enter, or RT      reload: R, or X on a pad
-// ============================================================================
+// =====================================================================
 const GUNS = {
   pistol:  { name: "Compact pistol", mag: 15, rate: 0.26, auto: false, spread: 0.010, pellets: 1, reload: 1.3, range: 95, kick: 0.022, vol: 0.9, tone: 1700 },
   smg:     { name: "Machine pistol", mag: 30, rate: 0.075, auto: true, spread: 0.032, pellets: 1, reload: 1.7, range: 75, kick: 0.011, vol: 0.75, tone: 2400 },
@@ -39371,12 +39303,12 @@ function gunFx(dt) {
 }
 addEventListener("keydown", e => { if (e.repeat) return; if (e.code === "KeyR" && gunArmed()) gunReload(); });
 
-// ============================================================================
+// =====================================================================
 // People on the street. Each one is Seiko's own rigged, animated body (cloned, with its own skeleton and its own shirt), walking the
 // pavements of the city around you: a few dozen metres out they appear, beyond a hundred they go. They react to you. Point a gun at one and
 // the hands go up; fire, run someone over, or shoot someone and the people who saw it scatter screaming, duck, or stand still with a phone to
 // the ear - and if nobody stops the call, the police are on their way. With no police and no witnesses, nobody knows.
-// ============================================================================
+// =====================================================================
 const peds = { list: [], tpl: null, anims: null, poses: null, scale: 1, off: null, mats: [], grid: null, gridFor: null, spawnT: 0, sayT: 0, phoneTex: null, poolTex: null, lockEl: null };
 const PED_SHIRTS = ["#f7f7f5", "#bcd3ea", "#e9c9d2", "#9aa3ad", "#2f4a6b", "#c9b48a", "#3d6b4f", "#7a3b3b", "#e6e0cf", "#55606e"];
 const PED_LINES = { flee: ["Help!", "Run!", "He's got a gun!", "Somebody help!", "Tasukete!", "Get down!"], call: ["Police? There's a man with a gun…", "Hello, police? Come quickly!", "I'm calling the police!"], hands: ["Don't shoot!", "Please, take what you want!", "I didn't see anything!"] };
@@ -40246,11 +40178,11 @@ function robKeyDown(e) {
   return k !== "KeyP";
 }
 
-// ============================================================================
+// =====================================================================
 // Props (Web/props: Poly Haven furniture, CC0, built by Game/tools/build-props.mjs). A prop is placed at once as an empty holder and filled
 // when its model arrives; every copy after the first is a clone of the one loaded. Each is stood on the floor (its lowest point at the
 // holder) and centred over it, and can be scaled to a height or a width.
-// ============================================================================
+// =====================================================================
 const propLib = { cache: {}, wait: {}, loader: null };
 function propLoad(id, cb) {
   if (propLib.cache[id]) { cb(propLib.cache[id]); return; }
@@ -40898,10 +40830,15 @@ function frameLoop() {
     slow += (want - slow) * Math.min(1, raw / 1000 * 12);
     const dt = Math.min(raw / 1000, 0.1) * slow;
     last = now;
-    if (world && scene) {
+    // The opaque loading slideshow covers the entire world. Leave the main
+    // thread and GPU available for model decoding/retargeting until it goes away.
+    // Timers and loader callbacks continue; last is updated above, so resuming
+    // never advances the simulation by the time spent loading.
+    const bootScreen = document.getElementById("boot");
+    if (world && scene && (!bootScreen || bootScreen.hidden)) {
       tick(dt);
       if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
-    }
+    } else perfHold(1.5);
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
@@ -40985,19 +40922,21 @@ function inShade(hex, k) { return "#" + new THREE.Color(hex).multiplyScalar(k).g
 function inAdd(parent, w, h, d, x, y, z, hex) {
   const m = new THREE.Mesh(inBox, inMat(hex));
   m.scale.set(w, h, d); m.position.set(x, y, z);
+  m.userData.salaryFinish = hex;
   parent.add(m);
   return m;
 }
 function inLabel(text, w, h, bg, fg) {
   const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w));
-  const g = c.getContext("2d");
-  g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = fg; g.font = "800 " + Math.round(c.height * 0.52) + "px 'Konto Sans','Segoe UI', system-ui, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
-  g.fillText(text, c.width / 2, c.height / 2 + 2, c.width - 24);
+  const g = c.getContext("2d"); g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = fg; g.globalAlpha = .45; g.fillRect(16, 10, c.width - 32, 2); g.globalAlpha = 1;
+  let size = Math.round(c.height * .43); g.font = "700 " + size + "px " + UI;
+  while (g.measureText(text).width > c.width - 48 && size > 10) { size--; g.font = "700 " + size + "px " + UI; }
+  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width / 2, c.height * .54);
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
-  return m;
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
 }
+
 function inHash(s) { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
 const IN_PALETTE = ["#d9534f", "#e8a33d", "#4a90d9", "#5fb36b", "#9b6bd3", "#e8d84a", "#3fb8af", "#c97b5a"];
 
@@ -41041,6 +40980,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "pill") { inAdd(g, 0.14, 0.2, 0.08, 0, 0.1, 0, "#f4f4f2"); inAdd(g, 0.14, 0.05, 0.085, 0, 0.1, 0, col); top = 0.2; }
   else if (kind === "umbrella") { inAdd(g, 0.04, 0.5, 0.04, 0, 0.25, 0, "#e8eef2"); inAdd(g, 0.2, 0.08, 0.2, 0, 0.5, 0, "#cfe0ea"); top = 0.55; }
   else { inAdd(g, 0.2, 0.22, 0.14, 0, 0.11, 0, col); inAdd(g, 0.2, 0.06, 0.145, 0, 0.13, 0, "#f4f4f2"); top = 0.22; }
+  SalaryArt.stock(it,kind,g,gfx.tier);
   // a yellow shell round it, shown when it is the one you are looking at
   if (!noGlow) {
     const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
@@ -41510,7 +41450,7 @@ const IN_ADS = {
   pharmacy: [["VITAMINS ¥980", "For the tired", "pill", "#2e9b5a"], ["SLEEP AID", "Ask the pharmacist", "pill", "#3f6fb5"], ["FACE MASKS", "30 pack ¥400", "cross", "#2e9b5a"], ["EYE DROPS", "For the screen-weary", "cross", "#1a9ad6"], ["HAND CREAM", "¥520", "cross", "#d96a8a"], ["HEALTH CHECK", "Free blood pressure", "cross", "#c8372d"]],
   books:   [["BESTSELLER", "The Quiet Platform", "book", "#2c4a3a"], ["MANGA OUT NOW", "Shonen Salaryman 12", "book", "#d9534f"], ["NAP BETTER", "Business ¥1,400", "book", "#3f6fb5"], ["NEW ARRIVALS", "Novels · Manga · Business", "book", "#8a4a1a"], ["A YEAR IN MIZUHO", "¥1,300", "book", "#4a7a4a"], ["READ MORE", "Stress less", "book", "#6a3fb5"]],
   clothes: [["DRESS SHIRTS", "¥3,900 · all colours", "tie", "#2a2d33"], ["NEW SEASON", "Wear it on the train", "tie", "#4a90d9", "#1d3b5a"], ["SALE 30% OFF", "Socks · Towels", "sale", "#c8372d"], ["TRY IT ON", "Ask at the counter", "tie", "#9b6bd3", "#e8c24a"], ["BUSINESS CASUAL", "Fridays only", "tie", "#3fb8af", "#c8372d"], ["CLEAR UMBRELLAS", "¥550", "sale", "#1272d6"]],
-  dokoto:  [["PEAR P17", "Pro Max · now in store", "phone", "#6a3fb5", "#8a6aff"], ["SOTI So25 ULTRA", "The best camera on the island", "phone", "#1d3b5a", "#2a9ad6"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a", "#f0a31c"]],
+  dokoto:  [["PEAR P17", "Try it in store", "phone", "#6a3fb5", "#8a6aff"], ["SOTI So26", "50 MP + ultrawide · 3x zoom", "phone", "#1d3b5a", "#2a9ad6"], ["DOKOTO POINT CARD", "Three purchases to start", "card", "#d4152c"], ["PLAYBOX 5", "Drift King · Blockfall", "game", "#14171b"], ["TV SALE", "4K · 60 Hz", "tv", "#2a6fb0"], ["TRADE IN", "Bring your old handset", "phone", "#e8711a", "#f0a31c"]],
   capsule: [["QUIET HOURS", "22:00 – 06:00", "moon", "#2a8fb8"], ["SHOES OFF", "靴を脱いでください", "shoe", "#2a2d33"], ["WI-FI: KAPUSERU", "Password at the desk", "wifi", "#1a9ad6"], ["CHECK-OUT 10:00", "Thank you for staying", "clock", "#4a5260"], ["NO SMOKING", "", "warning", "#c8372d"], ["TOWELS ¥200", "At the desk", "sale", "#2a8fb8"]],
   plaza:   [["PLAZA SALE", "Everything must go", "sale", "#c8372d"], ["FOOD HALL B1", "Ramen · Sushi", "ramen", "#7a1f1a"], ["FASHION 2F", "New season", "tie", "#2a2d33"], ["BOOKS 3F", "Bestsellers", "book", "#2c4a3a"], ["EVERYDAY 1F", "Open until late", "clock", "#0a6b42"], ["WELCOME", "Please mind the lift", "wifi", "#2a8fb8"]]
 };
@@ -41643,6 +41583,7 @@ function inSticker(g, text, x, y, r, bg, fg, font) {
 }
 function inFit(g, text, weight, maxW, size, font) { let fs = size; g.font = weight + " " + fs + "px " + font; while (g.measureText(text).width > maxW && fs > 10) { fs -= 2; g.font = weight + " " + fs + "px " + font; } return fs; }
 function inPosterTex(brand, i) {
+  const generated = SalaryArt.interiorPoster(brand,i); if (generated) return generated;
   const ads = IN_ADS[brand] || IN_ADS.eleven, ad = ads[i % ads.length], fonts = inFontsOf(brand);
   return inCanvasTex("poster2:" + brand + ":" + (i % ads.length), 256, 340, (g, w, h) => {
     const base = ad[3], v = (inHash(brand) + i) % 3, price = (ad[1].match(/¥[\d,]+/) || [""])[0];
@@ -41740,9 +41681,9 @@ function interiorDecor(room, root, th, brand, opts) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
   const W = IN_W, D = IN_D, H = IN_H;
   // ---- painted surfaces over the plain boxes
-  const floor = inPlaneTex(inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
+  const floor = inPlaneTex(SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
   const wt = inWallTex(brand);
-  root.add(inPlaneTex(IN_ACCENT[brand] ? inWallTex(brand, true) : wt, W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  root.add(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
   root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
   const side = (W - 2.4) / 2;
@@ -41974,7 +41915,8 @@ function interiorRoom(s, opts) {
   if (brand === "airport") { const ak = "airport:" + (s.ap ? s.ap.code : "x") + ":" + (s.term || 1); return interior.rooms[ak] || (interior.rooms[ak] = airLandside(s, ak)); }
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
-  const th = IN_THEME[brand] || IN_THEME.eleven;
+  const th = Object.assign({}, IN_THEME[brand] || IN_THEME.eleven);
+  if (brand === "dokoto") { th.trim = SalaryRetail.identity(brand,key).accent; th.floor = "#deded3"; }
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
   const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: (RESTAURANT[brand] || brand === "police") ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
@@ -42071,6 +42013,8 @@ function interiorRoom(s, opts) {
   if (opts.extra) opts.extra(room, root, th);
   try { interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
 
+  SalaryRetail.refurbish(room, root, {add:inAdd,label:inLabel,devices:DEVICES});
+  SalaryArt.coat(root);
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));
@@ -42937,8 +42881,7 @@ function interiorPad(pressed) {
 //    while playing, when the window loses focus or closes, and when you go back to the title.
 // Continue on the title screen loads it. Starting a new game keeps the last save as a backup under konto.save.v1.prev.
 const SAVE_KEY = "konto.save.v1";
-// ==== THE STORY ==================================================================================================================================
-// Seiko's story is told in missions, and a mission is told in two ways: cutscenes - the real game, through a cinema camera, with the black bars,
+// ==== THE STORY ===========================================================================================================================// Seiko's story is told in missions, and a mission is told in two ways: cutscenes - the real game, through a cinema camera, with the black bars,
 // subtitles and the people in it - and objectives you play, which tick off as you do them. Between them the island is yours.
 //
 //   story.m       the mission you are on (1 = The Interview)
@@ -43463,9 +43406,9 @@ function storyPeoplePoses(make) {
 function setGameTime(min) { const d = ((min - gameMinutes()) % 1440 + 1440) % 1440; clock += d / TIME.rate; updateWorldSky(0, true); }
 function hhmm(m) { m = ((m % 1440) + 1440) % 1440; return two(Math.floor(m / 60)) + ":" + two(Math.floor(m % 60)); }
 
-// =====================================================================================================================================================
+// ==============================================================================================================================================
 // MISSION 1 - THE INTERVIEW
-// =====================================================================================================================================================
+// ==============================================================================================================================================
 const STORY_TITLES = { 1: "The Interview", 2: "First Day" };
 // New game: the dream on the train out of Mizuho, then Tōkonto Central.
 function storyNewGame() {

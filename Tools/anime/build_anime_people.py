@@ -25,6 +25,7 @@ import sys
 
 import numpy as np
 from PIL import Image
+from optimize_people import batch_primitives
 
 # roughness by material kind, for a material that has no roughness map (eyes wet and glossy, cloth matte)
 ROUGH = {"eye": 0.06, "face": 0.58, "body": 0.58, "hair": 0.42, "tops": 0.86, "bottoms": 0.86, "onepiece": 0.86, "shoes": 0.35, "accessory": 0.5}
@@ -160,6 +161,10 @@ class Out:
         return len(self.j["textures"]) - 1
 
     def save(self, path):
+        # VRoid hair may contain over a hundred groups sharing one material.
+        # Keep the rig and vertices; submit each compatible material only once.
+        self.j, binary, _, _ = batch_primitives(self.j, self.bin)
+        self.bin = bytearray(binary)
         while len(self.bin) % 4: self.bin.append(0)
         self.j["buffers"][0]["byteLength"] = len(self.bin)
         js = json.dumps(self.j, separators=(",", ":")).encode()
