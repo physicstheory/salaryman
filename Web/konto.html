@@ -1295,6 +1295,8 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
+<script src="engine/shigoto.js"></script>
 <script>
 "use strict";
 /* ============================================================================
@@ -41961,5 +41963,6 @@ radioLoadMusic();
 </script>
 <script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window<br><b>F9</b> get the latest version of the game'; }</script>
 
+<script src="game/engine-hook.js"></script>
 </body>
 </html>

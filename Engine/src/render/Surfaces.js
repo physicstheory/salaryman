@@ -102,7 +102,7 @@ export class Surfaces {
       fs = fs.replace("#include <color_fragment>", `#include <color_fragment>
   shWetAmt = 0.0; shPuddle = 0.0;
   if (shWet > 0.001) {
-    shSurface(vShWorldPos, normalize(vShWorldN));
+    shSurface(vShWorldPos, dot(vShWorldN, vShWorldN) > 1e-8 ? normalize(vShWorldN) : vec3(0.0, 1.0, 0.0));
     diffuseColor.rgb *= mix(1.0, 0.52, shWetAmt);
     diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.55 + vec3(0.004, 0.006, 0.008), shPuddle);
   }`);
