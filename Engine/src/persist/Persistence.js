@@ -180,11 +180,14 @@ export function warmGPU(renderer, scene, camera, opts) {
     if (T && T.WebGLRenderTarget) {
       const rt = new T.WebGLRenderTarget(16, 16);
       const was = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate;
-      renderer.setRenderTarget(rt);
-      renderer.render(scene, camera);
-      renderer.setRenderTarget(was);
-      renderer.shadowMap.autoUpdate = auto;
-      rt.dispose();
+      try {
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, camera);
+      } finally {
+        renderer.setRenderTarget(was);
+        renderer.shadowMap.autoUpdate = auto;
+        rt.dispose();
+      }
     }
     programs1 = (renderer.info.programs || []).length;
   } catch (e) { error = e; }

@@ -24,13 +24,22 @@ var SHIGOTO = (() => {
     CHAR_QUALITY: () => CHAR_QUALITY,
     Characters: () => Characters,
     Engine: () => Engine,
+    HONOR_TIERS: () => HONOR_TIERS,
+    Honor: () => Honor,
     HostBridge: () => HostBridge,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
     Persistence: () => Persistence,
+    RAIN_QUALITY: () => RAIN_QUALITY,
+    RESPECT_TIERS: () => RESPECT_TIERS,
+    RainEngine: () => RainEngine,
     ResidentSet: () => ResidentSet,
+    Respect: () => Respect,
     SLOT_MATERIALS: () => SLOT_MATERIALS,
+    STANDING_ICONS: () => STANDING_ICONS,
+    StandingHud: () => StandingHud,
+    TEMPERS: () => TEMPERS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
     bipedNames: () => bipedNames,
@@ -178,27 +187,27 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S3, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -213,43 +222,43 @@ var SHIGOTO = (() => {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
       }
     }
-    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S3) {
+    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S3));
+        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
         return 0 === G2 ? void 0 : yA.__wrap(G2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2, M2, N2) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2, M2, N2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S3, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -1538,9 +1547,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S3) ? 4294967297 : Math.fround(S3), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
       } finally {
         I[K++] = void 0;
       }
@@ -1748,8 +1757,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S3, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2197,9 +2206,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
-      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S3, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -2416,8 +2425,8 @@ var SHIGOTO = (() => {
     }
     castShape(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, HA), k(C2, WA), k(B2, _OA), k(Q2, WA), k(E2, HA), k(i2, WA);
-      const S3 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
-      return 0 === S3 ? void 0 : dA.__wrap(S3);
+      const S4 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
+      return 0 === S4 ? void 0 : dA.__wrap(S4);
     }
     intersectsShape(I2, g2, C2, B2, Q2) {
       k(I2, WA), k(g2, HA), k(C2, _OA), k(B2, WA), k(Q2, HA);
@@ -3690,24 +3699,24 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S3.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G2.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S3.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G2.free(), k2;
     }
-    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S3), G2.free(), k2.free();
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G2.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S3, G2, k2, E2, i2, D2, o2, w2);
-      return S3.free(), G2.free(), k2.free(), K2;
+      let S4 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G2, k2, E2, i2, D2, o2, w2);
+      return S4.free(), G2.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(C2), S3 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
-      return w2.free(), S3;
+      let w2 = mA.intoRaw(C2), S4 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
+      return w2.free(), S4;
     }
     projectPointAndGetFeature(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       let o2 = mA.intoRaw(C2), w2 = WI.fromRaw(g2, this.raw.projectPointAndGetFeature(A2.raw, I2.raw, g2.raw, o2, B2, Q2, E2, i2, D2));
@@ -3717,13 +3726,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S3, G2, k2, K2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S4, G2, k2, K2));
       return h2.free(), U2.free(), J2.free(), y2.free(), M2;
     }
-    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S3), G2.free(), k2.free(), K2.free();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S4), G2.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3858,8 +3867,8 @@ var SHIGOTO = (() => {
         case l.HalfSpace:
           return o2 = mA.fromRaw(A2.coHalfspaceNormal(I2)), new _I(o2);
         case l.Voxels:
-          const w2 = A2.coVoxelData(I2), S3 = A2.coVoxelSize(I2);
-          return new Qg(w2, S3);
+          const w2 = A2.coVoxelData(I2), S4 = A2.coVoxelSize(I2);
+          return new Qg(w2, S4);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
           const G2 = A2.coTriMeshFlags(I2);
@@ -3884,16 +3893,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S3 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S3, G2, J2, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S3.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G2, J2, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
-      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S3 = o2.intersectsShape(Q2, E2, w2, i2, D2);
-      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3;
+      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
+      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S3 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S3, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3.free(), G2;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G2;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4080,9 +4089,9 @@ var SHIGOTO = (() => {
     free() {
       this.raw && this.raw.free(), this.raw = void 0;
     }
-    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S3, S3 ? S3.filterContactPair : null, S3 ? S3.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
+      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
     }
   };
   var hg = class {
@@ -4428,8 +4437,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S3), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4571,8 +4580,8 @@ var SHIGOTO = (() => {
     intersectionsWithPoint(A2, I2, g2, C2, B2, Q2, E2) {
       this.broadPhase.intersectionsWithPoint(this.narrowPhase, this.bodies, this.colliders, A2, this.colliders.castClosure(I2), g2, C2, B2 ? B2.handle : null, Q2 ? Q2.handle : null, this.colliders.castClosure(E2));
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
-      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S3));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
+      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S4));
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       this.broadPhase.intersectionsWithShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, this.colliders.castClosure(C2), B2, Q2, E2 ? E2.handle : null, i2 ? i2.handle : null, this.colliders.castClosure(D2));
@@ -4918,8 +4927,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S3 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S3, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S3.free(), G2.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S4, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S4.free(), G2.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5104,7 +5113,7 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S3 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S3, I2.shape);
+      let S4 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S4, I2.shape);
       return this.map.set(w2, G2), G2;
     }
     remove(A2, I2, g2, C2) {
@@ -5698,6 +5707,1024 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
+  // src/rain/Occlusion.js
+  var CLEAR = -1e3;
+  var RainOcclusion = class {
+    constructor(engine, uniforms, opts) {
+      this.engine = engine;
+      const T2 = this.T = engine.THREE;
+      this.U = uniforms;
+      this.size = opts.size || 80;
+      this.res = opts.res || 512;
+      this.every = opts.every || 1;
+      this.moveRefresh = opts.moveRefresh || 6;
+      this.height = 320;
+      this.supported = false;
+      this.skipMinRadius = 400;
+      this._t = 0;
+      this._at = new T2.Vector3(1e9, 0, 1e9);
+      this._list = null;
+      this._listAt = -1e9;
+      this.passes = 0;
+      this.lastMs = 0;
+      this.excluded = /* @__PURE__ */ new Set();
+      const r2 = engine.renderer;
+      const caps = r2 && r2.capabilities;
+      const gl = r2 && r2.getContext && r2.getContext();
+      if (!caps || !gl) return;
+      const vtf = caps.vertexTextures !== false && (caps.maxVertexTextures == null || caps.maxVertexTextures > 0);
+      let type = null;
+      if (caps.isWebGL2 && r2.extensions.get("EXT_color_buffer_float")) type = T2.FloatType;
+      else if (caps.isWebGL2 || r2.extensions.get("OES_texture_half_float")) type = T2.HalfFloatType;
+      if (!vtf || !type) return;
+      this.target = new T2.WebGLRenderTarget(this.res, this.res, {
+        type,
+        format: T2.RGBAFormat,
+        minFilter: T2.NearestFilter,
+        magFilter: T2.NearestFilter,
+        depthBuffer: true,
+        stencilBuffer: false,
+        generateMipmaps: false
+      });
+      this.target.texture.name = "shigoto-rain-occlusion";
+      this.cam = new T2.OrthographicCamera(-this.size / 2, this.size / 2, this.size / 2, -this.size / 2, 0.5, this.height * 2);
+      this.cam.up.set(0, 0, -1);
+      this.cam.layers.enableAll();
+      this.refU = { value: 0 };
+      this.mat = new T2.ShaderMaterial({
+        uniforms: { uRef: this.refU },
+        side: T2.DoubleSide,
+        vertexShader: `
+        varying float vY;
+        void main() {
+          vec4 p = vec4(position, 1.0);
+          #ifdef USE_INSTANCING
+            p = instanceMatrix * p;
+          #endif
+          vec4 w = modelMatrix * p;
+          vY = w.y;
+          gl_Position = projectionMatrix * viewMatrix * w;
+        }`,
+        fragmentShader: `
+        uniform float uRef; varying float vY;
+        void main() { gl_FragColor = vec4(vY - uRef, 0.0, 0.0, 1.0); }`
+      });
+      this.mat.toneMapped = false;
+      this.supported = true;
+      this.U.rOcc.value = this.target.texture;
+    }
+    // Objects that must not count as cover: anything see-through, drawn without depth, sky-sized, skinned people
+    // (their pose changes faster than the map), and anything the host or the rain engine marks.
+    _skip(o2) {
+      if (this.excluded.has(o2)) return true;
+      const ud = o2.userData;
+      if (ud && (ud.shDry || ud.rainSkip)) return true;
+      if (o2.isPoints || o2.isLine || o2.isSprite || o2.isSkinnedMesh) return true;
+      if (!o2.isMesh) return false;
+      const m2 = Array.isArray(o2.material) ? o2.material[0] : o2.material;
+      if (!m2) return true;
+      if (m2.depthWrite === false || m2.transparent && m2.opacity < 0.85 && !m2.alphaTest || m2.side === this.T.BackSide) return true;
+      const g2 = o2.geometry;
+      if (g2) {
+        if (!g2.boundingSphere && g2.computeBoundingSphere && g2.attributes && g2.attributes.position) g2.computeBoundingSphere();
+        const s2 = g2.boundingSphere;
+        if (s2) {
+          const e2 = o2.matrixWorld.elements;
+          const sc = Math.sqrt(Math.max(e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2], e2[8] * e2[8] + e2[9] * e2[9] + e2[10] * e2[10]));
+          if (s2.radius * sc > this.skipMinRadius) return true;
+        }
+      }
+      return false;
+    }
+    // The skip list is rebuilt now and then (walking a resident open world is not free), not every pass.
+    _skipList(scene, force) {
+      const now2 = this.engine.time;
+      if (!force && this._list && now2 - this._listAt < 8) return this._list;
+      const list = [];
+      scene.traverse((o2) => {
+        if (o2.visible && o2 !== scene && this._skip(o2)) list.push(o2);
+      });
+      this._list = list;
+      this._listAt = now2;
+      return list;
+    }
+    needs(dt, center) {
+      if (!this.supported) return false;
+      this._t -= dt;
+      if (this._t > this.every - 0.35) return false;
+      const dx = center.x - this._at.x, dz = center.z - this._at.z;
+      return this._t <= 0 || dx * dx + dz * dz > this.moveRefresh * this.moveRefresh;
+    }
+    render(center, force) {
+      if (!this.supported) return false;
+      const t0 = performance.now();
+      const T2 = this.T, r2 = this.engine.renderer, scene = this.engine.scene;
+      this._t = this.every;
+      const texel = this.size / this.res;
+      const cx = Math.round(center.x / texel) * texel, cz = Math.round(center.z / texel) * texel;
+      const ref = Math.round(center.y);
+      this._at.set(cx, ref, cz);
+      this.cam.position.set(cx, ref + this.height, cz);
+      this.cam.lookAt(cx, ref, cz);
+      this.cam.updateMatrixWorld(true);
+      this.refU.value = ref;
+      const hidden = this._skipList(scene, force);
+      const vis = new Array(hidden.length);
+      for (let i2 = 0; i2 < hidden.length; i2++) {
+        vis[i2] = hidden[i2].visible;
+        hidden[i2].visible = false;
+      }
+      const was = {
+        target: r2.getRenderTarget(),
+        auto: r2.autoClear,
+        override: scene.overrideMaterial,
+        bg: scene.background,
+        fog: scene.fog,
+        shadowAuto: r2.shadowMap.autoUpdate,
+        shadowNeeds: r2.shadowMap.needsUpdate,
+        alpha: r2.getClearAlpha(),
+        color: r2.getClearColor(new T2.Color()),
+        xr: r2.xr && r2.xr.enabled
+      };
+      let ok = true;
+      try {
+        r2.shadowMap.autoUpdate = false;
+        r2.shadowMap.needsUpdate = false;
+        if (r2.xr) r2.xr.enabled = false;
+        scene.overrideMaterial = this.mat;
+        scene.background = null;
+        scene.fog = null;
+        r2.setRenderTarget(this.target);
+        r2.setClearColor(new T2.Color(CLEAR, 0, 0), 1);
+        r2.autoClear = true;
+        r2.clear(true, true, false);
+        r2.render(scene, this.cam);
+      } catch (e2) {
+        ok = false;
+        if (!this._warned) {
+          this._warned = true;
+          console.warn("[Shigoto] rain occlusion pass failed; rain falls everywhere", e2);
+        }
+      }
+      r2.setRenderTarget(was.target);
+      r2.setClearColor(was.color, was.alpha);
+      r2.autoClear = was.auto;
+      scene.overrideMaterial = was.override;
+      scene.background = was.bg;
+      scene.fog = was.fog;
+      r2.shadowMap.autoUpdate = was.shadowAuto;
+      r2.shadowMap.needsUpdate = was.shadowNeeds;
+      if (r2.xr) r2.xr.enabled = was.xr;
+      for (let i2 = 0; i2 < hidden.length; i2++) hidden[i2].visible = vis[i2];
+      this.U.rOccInfo.value.set(cx, cz, this.size, ref);
+      this.U.rOccOn.value = ok ? 1 : 0;
+      if (!ok) this.supported = false;
+      this.passes++;
+      this.lastMs = performance.now() - t0;
+      return ok;
+    }
+    dispose() {
+      if (this.target) this.target.dispose();
+      if (this.mat) this.mat.dispose();
+    }
+  };
+
+  // src/rain/RainShaders.js
+  var MAX_RAIN_LIGHTS = 8;
+  var RAIN_COMMON = (
+    /* glsl */
+    `
+uniform sampler2D rOcc;
+uniform vec4 rOccInfo;   // x, z of the map's centre, its size in metres, the height everything in it is stored against
+uniform float rOccOn;
+uniform vec3 rAmb;       // light a drop refracts from all around (sky, overcast, city glow), linear
+uniform vec3 rSun;       // direct sun or moon colour, linear
+uniform vec3 rSunDir;    // towards the sun
+uniform float rFlash;    // lightning 0..1
+uniform vec4 rLP[${MAX_RAIN_LIGHTS}];  // lamp position and reach
+uniform vec3 rLC[${MAX_RAIN_LIGHTS}];  // lamp colour * intensity, linear
+uniform vec4 rLD[${MAX_RAIN_LIGHTS}];  // spotlight direction and cosine of its cone (-2 for a lamp that shines all round)
+uniform int rLN;
+uniform float rDisplay;
+
+float rHash(float n) { return fract(sin(n) * 43758.5453123); }
+float rHash2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+
+// The highest surface above (x, z): roofs, awnings, bridges, car tops, the ground itself. -1e5 when unknown.
+float rOccH(vec2 xz) {
+  if (rOccOn < 0.5) return -1e5;
+  vec2 uv = vec2(xz.x - rOccInfo.x, -(xz.y - rOccInfo.y)) / rOccInfo.z + 0.5;
+  if (uv.x < 0.002 || uv.y < 0.002 || uv.x > 0.998 || uv.y > 0.998) return -1e5;
+  float h = texture2D(rOcc, uv).r;
+  return h < -900.0 ? -1e5 : h + rOccInfo.w;
+}
+
+// What a drop at p shows the viewer: forward-scattered lamp light, sun glint, the refracted surroundings.
+vec3 rDropLight(vec3 p, vec3 V, float glint) {
+  vec3 col = rAmb * 1.6;
+  float fs = max(dot(V, rSunDir), 0.0);
+  col += rSun * (0.05 + glint * (pow(fs, 10.0) * 1.6 + pow(fs, 2.0) * 0.12));
+  for (int i = 0; i < ${MAX_RAIN_LIGHTS}; i++) {
+    if (i >= rLN) break;
+    vec3 L = rLP[i].xyz - p;
+    float d = length(L);
+    float reach = rLP[i].w;
+    float cone = rLD[i].w > -1.5 ? smoothstep(rLD[i].w, mix(rLD[i].w, 1.0, 0.25), dot(-L / max(d, 1e-3), rLD[i].xyz)) : 1.0;
+    if (d < reach && cone > 0.0) {
+      float att = (1.0 - d / reach); att *= att;
+      att /= 1.0 + d * d * 0.08;
+      // lamp behind the drop (in line with the eye): bright; beside or in front: a faint sparkle
+      float ph = 0.22 + glint * 3.2 * pow(max(dot(V, L / max(d, 1e-3)), 0.0), 5.0);
+      col += rLC[i] * att * ph * cone;
+    }
+  }
+  col += vec3(0.75, 0.82, 1.0) * rFlash * 2.4;
+  return col;
+}
+
+vec3 rOut(vec3 c) {
+  if (rDisplay > 0.5) { c = c / (1.0 + c * 0.55); c = pow(max(c, vec3(0.0)), vec3(1.0 / 2.2)); }
+  return c;
+}
+`
+  );
+  var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
+
+  // src/rain/Streaks.js
+  var STREAK_LAYERS = {
+    //       box (m)          size  alpha  glint
+    near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
+    mid: { box: [26, 18, 26], k: 1, a: 0.7, glint: 0.85 },
+    far: { box: [64, 34, 64], k: 1, a: 0.5, glint: 0.6 }
+  };
+  function makeStreakLayer(T2, name, count, shared) {
+    const L3 = STREAK_LAYERS[name];
+    const g2 = new T2.InstancedBufferGeometry();
+    g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
+    g2.setIndex([0, 1, 2, 0, 2, 3]);
+    const seeds = new Float32Array(count * 4);
+    for (let i2 = 0; i2 < seeds.length; i2++) seeds[i2] = Math.random();
+    g2.setAttribute("aSeed", new T2.InstancedBufferAttribute(seeds, 4));
+    g2.instanceCount = count;
+    const U2 = Object.assign({}, shared, {
+      uBox: { value: new T2.Vector3().fromArray(L3.box) },
+      uSizeK: { value: L3.k },
+      uLayerA: { value: L3.a },
+      uGlint: { value: L3.glint }
+    });
+    const mat = new T2.ShaderMaterial({
+      uniforms: U2,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: T2.DoubleSide,
+      vertexShader: RAIN_COMMON + `
+      uniform float uTime; uniform vec3 uBox; uniform vec3 uCenter; uniform vec2 uWind; uniform vec2 uWindOff;
+      uniform vec3 uCamVel; uniform float uShutter; uniform float uAmount; uniform float uLambda; uniform float uPix;
+      uniform float uSizeK; uniform float uLayerA; uniform float uGlint; uniform float uIntensity;
+      attribute vec4 aSeed;
+      varying vec2 vQ; varying vec3 vCol; varying float vA;
+      void main() {
+        if (aSeed.w > uAmount) { ${COLLAPSE} return; }
+        // drop size (mm), Marshall-Palmer: N(D) ~ exp(-Lambda D); only drops big enough to see are drawn
+        float u = fract(aSeed.x * 7.13 + aSeed.y * 3.71 + aSeed.z * 1.37);
+        float dmm = clamp(0.9 - log(max(u, 1e-4)) / uLambda, 0.9, 5.5) * uSizeK;
+        // terminal velocity (Atlas et al.)
+        float vt = max(9.65 - 10.3 * exp(-0.6 * dmm), 1.4);
+        // small drops ride the gusts and wander in the turbulence; big ones cut straight through
+        float follow = mix(0.8, 0.5, smoothstep(1.0, 4.0, dmm));
+        float wob = 0.35 / (dmm + 0.5);
+        vec3 p = aSeed.xyz * uBox;
+        p.y -= vt * uTime;
+        p.xz += uWindOff * follow;
+        p.xz += wob * vec2(sin(uTime * 1.9 + aSeed.y * 40.0), cos(uTime * 1.4 + aSeed.z * 40.0));
+        vec3 lo = uCenter - uBox * 0.5;
+        p = lo + mod(p - lo, uBox);
+        // under cover: trace back along the fall line to whatever is overhead
+        float h0 = rOccH(p.xz);
+        vec3 vel = vec3(uWind.x * follow + wob * 1.9 * cos(uTime * 1.9 + aSeed.y * 40.0), -vt, uWind.y * follow - wob * 1.4 * sin(uTime * 1.4 + aSeed.z * 40.0));
+        float dy = max(h0 - p.y, 0.0);
+        float h1 = dy > 0.0 ? rOccH(p.xz - vel.xz / vt * dy) : h0;
+        if (p.y < max(h0, h1) - 0.03) { ${COLLAPSE} return; }
+        // motion blur: the drop smeared along its velocity relative to the camera over the shutter time
+        vec3 vr = vel - uCamVel;
+        float sp = max(length(vr), 0.5);
+        vec3 axis = vr / sp;
+        float len = max(sp * uShutter, dmm * 0.004);
+        vec3 toCam = cameraPosition - p;
+        float d = length(toCam);
+        toCam /= max(d, 1e-4);
+        vec3 side = cross(axis, toCam);
+        float sl = length(side);
+        side = sl > 1e-3 ? side / sl : vec3(1.0, 0.0, 0.0);
+        // a drop reads wider than it is (it refracts a bright halo); thinner than a pixel it is widened and faded
+        float wPhys = dmm * 0.0025;
+        float wPix = uPix * d * 1.1;
+        float w = max(wPhys, wPix);
+        vec3 wp = p + side * position.x * w - axis * position.y * len;
+        // energy: a drop's light is spread over its streak (a faster or wider streak is fainter per pixel)
+        float cover = sqrt(wPhys / w);
+        float spread = clamp(sqrt(wPhys * 18.0 / len), 0.3, 1.0);
+        float fade = smoothstep(0.25, 1.1, d) * (1.0 - smoothstep(uBox.x * 0.36, uBox.x * 0.5, d));
+        vA = uLayerA * uIntensity * cover * spread * fade * (0.55 + 0.45 * smoothstep(0.5, 3.0, dmm));
+        vQ = vec2(position.x, position.y);
+        vCol = rDropLight(p, -toCam, uGlint);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }`,
+      fragmentShader: RAIN_COMMON + `
+      varying vec2 vQ; varying vec3 vCol; varying float vA;
+      void main() {
+        float across = exp(-vQ.x * vQ.x * 3.5);
+        // the leading end (the drop now) is brightest; the tail is where it was a shutter ago
+        float along = smoothstep(0.0, 0.06, vQ.y) * (1.0 - 0.55 * vQ.y) * smoothstep(1.0, 0.72, vQ.y);
+        float a = vA * across * along;
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(rOut(vCol), a);
+      }`
+    });
+    mat.toneMapped = false;
+    const mesh = new T2.Mesh(g2, mat);
+    mesh.name = "rain-" + name;
+    mesh.frustumCulled = false;
+    mesh.renderOrder = name === "far" ? 8 : name === "mid" ? 9 : 10;
+    mesh.userData.shDry = true;
+    mesh.userData.rainSkip = true;
+    return mesh;
+  }
+
+  // src/rain/Splashes.js
+  function cardGeometry(T2, count) {
+    const g2 = new T2.InstancedBufferGeometry();
+    g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
+    g2.setIndex([0, 1, 2, 0, 2, 3]);
+    const s2 = new Float32Array(count * 4);
+    for (let i2 = 0; i2 < s2.length; i2++) s2[i2] = Math.random();
+    g2.setAttribute("aSeed", new T2.InstancedBufferAttribute(s2, 4));
+    g2.instanceCount = count;
+    return g2;
+  }
+  function makeSplashes(T2, count, shared) {
+    const U2 = Object.assign({}, shared, { uR: { value: 18 } });
+    const mat = new T2.ShaderMaterial({
+      uniforms: U2,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: T2.DoubleSide,
+      vertexShader: RAIN_COMMON + `
+      uniform float uTime; uniform vec3 uCenter; uniform float uAmount; uniform float uR; uniform float uPix;
+      uniform float uGround; uniform float uIntensity; uniform float uSplashK;
+      attribute vec4 aSeed;
+      varying vec2 vUv; varying float vPh; varying float vId; varying vec3 vCol; varying float vA;
+      void main() {
+        if (aSeed.w > uAmount) { ${COLLAPSE} return; }
+        float period = 0.22 + aSeed.z * 0.5;
+        float cyc = uTime / period + aSeed.w * 17.0;
+        float id = floor(cyc);
+        float life = 0.42;          // the visible part of each cycle
+        vPh = fract(cyc) / life;
+        if (vPh > 1.0) { ${COLLAPSE} return; }
+        vId = id + aSeed.x * 113.0;
+        // dense near the camera, thinning out with distance
+        float r = uR * pow(rHash(vId * 1.31 + 0.7), 0.85);
+        float th = rHash(vId * 2.17 + 3.1) * 6.2831853;
+        vec2 xz = uCenter.xz + vec2(cos(th), sin(th)) * r;
+        float h = rOccH(xz);
+        float y = h > -1e4 ? h : uGround;
+        vec3 c = vec3(xz.x, y + 0.004, xz.y);
+        vec3 toCam = cameraPosition - c;
+        float d = length(toCam);
+        // a card standing upright, turned to face the viewer
+        vec3 fwd = normalize(vec3(toCam.x, 0.0, toCam.z) + vec3(1e-4, 0.0, 0.0));
+        vec3 side = vec3(fwd.z, 0.0, -fwd.x);
+        float dmm = 0.8 + 2.2 * rHash(vId * 5.3);
+        float s = (0.022 + 0.05 * sqrt(clamp(vPh, 0.0, 1.0))) * (0.6 + 0.25 * dmm) * uSplashK;
+        float sPix = uPix * d * 2.5;
+        float cover = s / max(s, sPix);
+        s = max(s, sPix);
+        vUv = position.xy * vec2(1.0, 1.4);
+        vec3 wp = c + side * position.x * s + vec3(0.0, 1.0, 0.0) * position.y * s * 1.4;
+        vA = uIntensity * cover * (1.0 - smoothstep(uR * 0.55, uR, d)) * smoothstep(0.3, 1.0, d);
+        vCol = rDropLight(c + vec3(0.0, 0.05, 0.0), -toCam / max(d, 1e-4), 1.0);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }`,
+      fragmentShader: RAIN_COMMON + `
+      varying vec2 vUv; varying float vPh; varying float vId; varying vec3 vCol; varying float vA;
+      void main() {
+        float ph = clamp(vPh, 0.0, 1.0);
+        float x = abs(vUv.x), y = vUv.y;
+        // the crown: a thin flared sheet of water, brightest along its rim
+        float grow = min(ph * 1.6, 1.0);
+        float hgt = 0.95 * sin(3.14159 * min(ph * 1.15, 1.0)) * (0.6 + 0.4 * rHash(vId));
+        float rim = 0.25 + 0.55 * grow;
+        float yy = clamp(y / max(hgt, 1e-3), 0.0, 1.0);
+        float cupX = mix(rim * 0.55, rim, yy * yy);
+        float wall = smoothstep(0.07, 0.0, abs(x - cupX)) * step(y, hgt) * (0.25 + 0.75 * yy);
+        // spikes along the rim that pinch off into droplets
+        float spikes = smoothstep(0.06, 0.0, abs(y - hgt)) * step(x, rim + 0.04) * (0.5 + 0.5 * sin(vUv.x * 40.0 + vId));
+        // the flat spray sheet skimming outwards at the base
+        float base = smoothstep(0.06, 0.0, y) * smoothstep(rim + 0.35, rim, x) * (1.0 - ph);
+        // secondary droplets thrown up and out on ballistic paths
+        float drops = 0.0;
+        for (int i = 0; i < 6; i++) {
+          float fi = float(i);
+          float ang = rHash(vId * 3.7 + fi * 1.9) * 6.2831853;
+          float spd = 0.6 + 0.6 * rHash(vId * 1.3 + fi * 7.1);
+          vec2 dp = vec2(cos(ang) * spd * ph * 1.3, (1.7 * spd * ph - 1.9 * ph * ph) * 1.1 + 0.15 * ph);
+          float dd = length(vUv - dp);
+          drops += smoothstep(0.075, 0.02, dd) * step(0.0, dp.y);
+        }
+        float a = (wall * 1.2 + spikes * 0.8 + base * 0.6 + drops * 1.4) * pow(1.0 - ph, 1.2) * vA;
+        if (a < 0.003) discard;
+        gl_FragColor = vec4(rOut(vCol * 1.2), min(a, 1.0));
+      }`
+    });
+    mat.toneMapped = false;
+    const mesh = new T2.Mesh(cardGeometry(T2, count), mat);
+    mesh.name = "rain-splashes";
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 11;
+    mesh.userData.shDry = true;
+    mesh.userData.rainSkip = true;
+    return mesh;
+  }
+  function makeDrips(T2, count, shared) {
+    const U2 = Object.assign({}, shared, { uDripR: { value: 20 }, uTexel: { value: 0.16 } });
+    const mat = new T2.ShaderMaterial({
+      uniforms: U2,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: T2.DoubleSide,
+      vertexShader: RAIN_COMMON + `
+      uniform float uTime; uniform vec3 uCenter; uniform float uDrip; uniform float uDripR; uniform float uPix;
+      uniform float uTexel; uniform vec3 uCamVel; uniform float uShutter; uniform float uIntensity;
+      attribute vec4 aSeed;
+      varying vec2 vQ; varying vec3 vCol; varying float vA;
+      void main() {
+        if (aSeed.w > uDrip || rOccOn < 0.5) { ${COLLAPSE} return; }
+        float period = 1.1 + aSeed.z * 1.4;
+        float cyc = uTime / period + aSeed.y * 31.0;
+        float id = floor(cyc) + aSeed.x * 977.0;
+        float t = fract(cyc) * period;
+        // look for an edge: a point that is low next to one that is high (the drip hangs just off the high edge)
+        vec2 found = vec2(0.0); float top = 0.0, bottom = 0.0; float ok = 0.0;
+        for (int k = 0; k < 4; k++) {
+          if (ok > 0.5) break;
+          float fk = float(k);
+          float r = uDripR * sqrt(rHash(id * 1.7 + fk * 3.3));
+          float th = rHash(id * 2.9 + fk * 5.1) * 6.2831853;
+          vec2 c = uCenter.xz + vec2(cos(th), sin(th)) * r;
+          float hc = rOccH(c);
+          if (hc < -1e4) continue;
+          float st = uTexel * 2.0;
+          vec2 dirs[4];
+          dirs[0] = vec2(st, 0.0); dirs[1] = vec2(-st, 0.0); dirs[2] = vec2(0.0, st); dirs[3] = vec2(0.0, -st);
+          for (int j = 0; j < 4; j++) {
+            float hn = rOccH(c + dirs[j]);
+            if (hn - hc > 0.9 && hn - hc < 40.0) { found = c + dirs[j] * 0.35; top = hn - 0.02; bottom = hc; ok = 1.0; break; }
+          }
+        }
+        if (ok < 0.5) { ${COLLAPSE} return; }
+        // hang for a moment, then fall under gravity
+        float hang = 0.25 + 0.3 * rHash(id * 4.1);
+        float tf = max(t - hang, 0.0);
+        float y = top - 4.9 * tf * tf;
+        if (y < bottom) { ${COLLAPSE} return; }
+        vec3 p = vec3(found.x, y, found.y);
+        vec3 vel = vec3(0.0, -9.8 * tf - 0.05, 0.0);
+        vec3 vr = vel - uCamVel;
+        float sp = max(length(vr), 0.2);
+        vec3 axis = vr / sp;
+        float len = max(sp * uShutter, 0.006);
+        vec3 toCam = cameraPosition - p;
+        float d = length(toCam);
+        toCam /= max(d, 1e-4);
+        vec3 side = cross(axis, toCam); float sl = length(side); side = sl > 1e-3 ? side / sl : vec3(1.0, 0.0, 0.0);
+        float wPhys = 0.0035;
+        float w = max(wPhys, uPix * d * 0.9);
+        vec3 wp = p + side * position.x * w - axis * position.y * len;
+        vA = uIntensity * (wPhys / w) * clamp(sqrt(wPhys * 40.0 / len), 0.25, 1.0) * 0.7 * smoothstep(0.3, 1.0, d) * (1.0 - smoothstep(uDripR * 0.7, uDripR, d));
+        vQ = position.xy;
+        vCol = rDropLight(p, -toCam, 1.0);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }`,
+      fragmentShader: RAIN_COMMON + `
+      varying vec2 vQ; varying vec3 vCol; varying float vA;
+      void main() {
+        float a = vA * exp(-vQ.x * vQ.x * 3.0) * smoothstep(0.0, 0.1, vQ.y) * smoothstep(1.0, 0.6, vQ.y);
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(rOut(vCol * 1.3), a);
+      }`
+    });
+    mat.toneMapped = false;
+    const mesh = new T2.Mesh(cardGeometry(T2, count), mat);
+    mesh.name = "rain-drips";
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 11;
+    mesh.userData.shDry = true;
+    mesh.userData.rainSkip = true;
+    return mesh;
+  }
+
+  // src/rain/Atmosphere.js
+  function makeSheets(T2, rings, shared) {
+    const radii = [25, 55, 110].slice(0, Math.max(1, rings));
+    const seg = 72, rows = 6;
+    const pos = [], ring = [], idx = [];
+    radii.forEach((R2, k2) => {
+      const base = pos.length / 3;
+      for (let j2 = 0; j2 <= rows; j2++) for (let i2 = 0; i2 <= seg; i2++) {
+        const a2 = i2 / seg * Math.PI * 2;
+        pos.push(Math.cos(a2), j2 / rows, Math.sin(a2));
+        ring.push(R2, k2, a2);
+      }
+      for (let j2 = 0; j2 < rows; j2++) for (let i2 = 0; i2 < seg; i2++) {
+        const a2 = base + j2 * (seg + 1) + i2, b2 = a2 + 1, c2 = a2 + seg + 1, d2 = c2 + 1;
+        idx.push(a2, c2, b2, b2, c2, d2);
+      }
+    });
+    const g2 = new T2.BufferGeometry();
+    g2.setAttribute("position", new T2.Float32BufferAttribute(pos, 3));
+    g2.setAttribute("aRing", new T2.Float32BufferAttribute(ring, 3));
+    g2.setIndex(idx);
+    const U2 = Object.assign({}, shared, { uSheetH: { value: 48 } });
+    const mat = new T2.ShaderMaterial({
+      uniforms: U2,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      side: T2.DoubleSide,
+      vertexShader: RAIN_COMMON + `
+      uniform vec3 uCenter; uniform float uGround; uniform float uSheetH;
+      attribute vec3 aRing;
+      varying vec3 vW; varying float vH; varying float vR; varying float vTh; varying vec3 vCol;
+      void main() {
+        float R = aRing.x;
+        vec3 w = vec3(uCenter.x + position.x * R, uGround - 3.0 + position.y * uSheetH, uCenter.z + position.z * R);
+        vW = w; vH = position.y; vR = R; vTh = aRing.z;
+        vCol = rDropLight(w, normalize(w - cameraPosition), 0.4);
+        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+      }`,
+      fragmentShader: RAIN_COMMON + `
+      uniform float uTime; uniform vec2 uWind; uniform vec2 uWindOff; uniform float uSheets; uniform float uFallV;
+      varying vec3 vW; varying float vH; varying float vR; varying float vTh; varying vec3 vCol;
+      float n2(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(rHash2(i), rHash2(i + vec2(1.0, 0.0)), f.x), mix(rHash2(i + vec2(0.0, 1.0)), rHash2(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      void main() {
+        float u = vTh * vR;                       // arc length around the ring (m)
+        vec2 tang = vec2(-sin(vTh), cos(vTh));
+        float wt = dot(uWind, tang);
+        float wAlong = dot(uWindOff, tang);
+        float y = vW.y;
+        // slant with the wind: what lands here started upwind
+        float us = u - wAlong - wt / max(uFallV, 1.0) * y;
+        float fallY = y + uFallV * uTime;
+        float streak = n2(vec2(us * 2.2, fallY * 0.09)) * 0.6 + n2(vec2(us * 5.3 + 13.0, fallY * 0.21)) * 0.4;
+        streak = smoothstep(0.25, 0.95, streak);
+        // gust bands: broad curtains of heavier rain rolling through
+        float gust = n2(vec2(us * 0.035, uTime * 0.07 + float(vR) * 0.01)) * 0.7 + n2(vec2(us * 0.09 + 5.0, uTime * 0.13)) * 0.3;
+        gust = smoothstep(0.32, 0.8, gust);
+        float vfade = smoothstep(0.0, 0.08, vH) * (1.0 - smoothstep(0.55, 1.0, vH));
+        float near = smoothstep(4.0, 20.0, distance(cameraPosition.xz, vW.xz));
+        float a = uSheets * vfade * near * (0.18 + 0.55 * gust) * (0.45 + 0.55 * streak) * (vR > 80.0 ? 1.25 : vR > 40.0 ? 1.0 : 0.7);
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(rOut(vCol * 0.95), min(a, 0.6));
+      }`
+    });
+    mat.toneMapped = false;
+    const mesh = new T2.Mesh(g2, mat);
+    mesh.name = "rain-sheets";
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 7;
+    mesh.userData.shDry = true;
+    mesh.userData.rainSkip = true;
+    return mesh;
+  }
+  function makeMist(T2, count, shared) {
+    const g2 = new T2.InstancedBufferGeometry();
+    g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
+    g2.setIndex([0, 1, 2, 0, 2, 3]);
+    const s2 = new Float32Array(count * 4);
+    for (let i2 = 0; i2 < s2.length; i2++) s2[i2] = Math.random();
+    g2.setAttribute("aSeed", new T2.InstancedBufferAttribute(s2, 4));
+    g2.instanceCount = count;
+    const mat = new T2.ShaderMaterial({
+      uniforms: shared,
+      transparent: true,
+      depthWrite: false,
+      fog: false,
+      vertexShader: RAIN_COMMON + `
+      uniform float uTime; uniform vec3 uCenter; uniform vec2 uWind; uniform float uGround; uniform float uMist;
+      attribute vec4 aSeed;
+      varying vec2 vUv; varying float vA; varying vec3 vCol; varying float vSeed;
+      void main() {
+        if (uMist < 0.003) { ${COLLAPSE} return; }
+        float life = 9.0 + aSeed.z * 7.0;
+        float cyc = uTime / life + aSeed.w * 11.0;
+        float id = floor(cyc) + aSeed.x * 71.0;
+        float ph = fract(cyc);
+        float r = 6.0 + 38.0 * sqrt(rHash(id * 1.9));
+        float th = rHash(id * 3.3) * 6.2831853;
+        vec2 xz = uCenter.xz + vec2(cos(th), sin(th)) * r + uWind * (ph - 0.5) * life * 0.8;
+        float h = rOccH(xz);
+        float y = h > -1e4 ? h : uGround;
+        vec3 c = vec3(xz.x, y - 0.3, xz.y);
+        vec3 toCam = cameraPosition - c;
+        float d = length(toCam);
+        vec3 fwd = normalize(vec3(toCam.x, 0.0, toCam.z) + vec3(1e-4, 0.0, 0.0));
+        vec3 side = vec3(fwd.z, 0.0, -fwd.x);
+        float wdt = 3.0 + 4.0 * aSeed.y, hgt = 1.4 + 1.6 * aSeed.z;
+        vec3 wp = c + side * position.x * wdt + vec3(0.0, position.y * hgt, 0.0);
+        vUv = position.xy; vSeed = id;
+        vA = uMist * sin(3.14159 * ph) * smoothstep(4.0, 9.0, d) * (1.0 - smoothstep(38.0, 48.0, d));
+        vCol = rDropLight(c + vec3(0.0, 1.0, 0.0), -toCam / max(d, 1e-4), 0.5);
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
+      }`,
+      fragmentShader: RAIN_COMMON + `
+      uniform float uTime;
+      varying vec2 vUv; varying float vA; varying vec3 vCol; varying float vSeed;
+      float n2(vec2 p) {
+        vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        return mix(mix(rHash2(i), rHash2(i + vec2(1.0, 0.0)), f.x), mix(rHash2(i + vec2(0.0, 1.0)), rHash2(i + vec2(1.0, 1.0)), f.x), f.y);
+      }
+      void main() {
+        vec2 q = vUv * vec2(2.0, 1.4) + vec2(vSeed * 3.1, -uTime * 0.05);
+        float n = n2(q) * 0.6 + n2(q * 2.3 + 7.0) * 0.4;
+        float shape = (1.0 - smoothstep(0.4, 1.0, abs(vUv.x))) * smoothstep(0.0, 0.3, vUv.y) * (1.0 - smoothstep(0.35, 1.0, vUv.y));
+        float a = vA * shape * smoothstep(0.25, 0.85, n);
+        if (a < 0.002) discard;
+        gl_FragColor = vec4(rOut(vCol), a);
+      }`
+    });
+    mat.toneMapped = false;
+    const mesh = new T2.Mesh(g2, mat);
+    mesh.name = "rain-mist";
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 6;
+    mesh.userData.shDry = true;
+    mesh.userData.rainSkip = true;
+    return mesh;
+  }
+
+  // src/rain/RainEngine.js
+  var RAIN_QUALITY = {
+    low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
+    medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
+    high: { near: 2800, mid: 14e3, far: 8e3, splash: 1100, drips: 420, mist: 36, rings: 3, occRes: 512, occEvery: 1 },
+    ultra: { near: 4e3, mid: 2e4, far: 12e3, splash: 1800, drips: 640, mist: 48, rings: 3, occRes: 768, occEvery: 0.7 }
+  };
+  var RainEngine = class _RainEngine {
+    constructor(engine, opts) {
+      opts = opts || {};
+      this.engine = engine;
+      const T2 = this.T = engine.THREE;
+      const S4 = engine.surfaces.uniforms;
+      this.quality = RAIN_QUALITY[opts.quality] ? opts.quality : "high";
+      this.indoors = false;
+      this.linearOut = null;
+      this.groundAt = null;
+      this.shutter = 1 / 40;
+      this.sheltered = false;
+      this.lampScale = 0.55;
+      this._camPrev = new T2.Vector3();
+      this._camVel = new T2.Vector3();
+      this._camInit = false;
+      this._lights = [];
+      this._lightScanAt = -1e9;
+      this._pickAt = 0;
+      this._gustT = Math.random() * 100;
+      this._v3 = new T2.Vector3();
+      this._px = null;
+      const LP = [], LC = [], LD = [];
+      for (let i2 = 0; i2 < MAX_RAIN_LIGHTS; i2++) {
+        LP.push(new T2.Vector4(0, -1e4, 0, 1));
+        LC.push(new T2.Vector3());
+        LD.push(new T2.Vector4(0, -1, 0, -2));
+      }
+      this.U = {
+        rOcc: S4.rOcc,
+        rOccInfo: S4.rOccInfo,
+        rOccOn: S4.rOccOn,
+        rAmb: { value: new T2.Vector3(0.2, 0.22, 0.25) },
+        rSun: { value: new T2.Vector3() },
+        rSunDir: { value: new T2.Vector3(0, 1, 0) },
+        rFlash: { value: 0 },
+        rLP: { value: LP },
+        rLC: { value: LC },
+        rLD: { value: LD },
+        rLN: { value: 0 },
+        rDisplay: { value: 1 },
+        uTime: { value: 0 },
+        uCenter: { value: new T2.Vector3() },
+        uWind: { value: new T2.Vector2() },
+        uWindOff: { value: new T2.Vector2() },
+        uCamVel: { value: new T2.Vector3() },
+        uShutter: { value: this.shutter },
+        uAmount: { value: 0 },
+        uLambda: { value: 3 },
+        uPix: { value: 1e-3 },
+        uIntensity: { value: 1 },
+        uGround: { value: 0 },
+        uSplashK: { value: 1 },
+        uDrip: { value: 0 },
+        uSheets: { value: 0 },
+        uFallV: { value: 7 },
+        uMist: { value: 0 }
+      };
+      this.group = new T2.Group();
+      this.group.name = "shigoto-rain";
+      this.group.userData.shDry = true;
+      this.ground = new T2.Group();
+      this.ground.name = "shigoto-rain-ground";
+      this.ground.userData.shDry = true;
+      engine.scene.add(this.group);
+      engine.scene.add(this.ground);
+      this._build();
+    }
+    _build() {
+      const T2 = this.T, Q2 = RAIN_QUALITY[this.quality];
+      this._disposeMeshes();
+      this.layers = {};
+      for (const name of ["far", "mid", "near"]) {
+        if (!Q2[name]) continue;
+        const m2 = makeStreakLayer(T2, name, Q2[name], this.U);
+        this.layers[name] = m2;
+        this.group.add(m2);
+      }
+      this.sheets = makeSheets(T2, Q2.rings, this.U);
+      this.group.add(this.sheets);
+      this.mist = makeMist(T2, Q2.mist, this.U);
+      this.group.add(this.mist);
+      this.splashes = makeSplashes(T2, Q2.splash, this.U);
+      this.ground.add(this.splashes);
+      this.drips = makeDrips(T2, Q2.drips, this.U);
+      this.ground.add(this.drips);
+      if (this.occ) this.occ.dispose();
+      this.occ = new RainOcclusion(this.engine, this.U, { size: 80, res: Q2.occRes, every: Q2.occEvery });
+      this.drips.material.uniforms.uTexel.value = this.occ.size / this.occ.res;
+      this.drops = (Q2.near || 0) + (Q2.mid || 0) + (Q2.far || 0);
+    }
+    _disposeMeshes() {
+      for (const g2 of [this.group, this.ground]) {
+        for (let i2 = g2.children.length - 1; i2 >= 0; i2--) {
+          const m2 = g2.children[i2];
+          g2.remove(m2);
+          if (m2.geometry) m2.geometry.dispose();
+          if (m2.material) m2.material.dispose();
+        }
+      }
+    }
+    setQuality(q2) {
+      if (q2 === "potato") q2 = "low";
+      if (!RAIN_QUALITY[q2] || q2 === this.quality) return;
+      this.quality = q2;
+      this._build();
+    }
+    // The car you are driving, a held umbrella, anything moving that should not count as a roof.
+    ignore(obj) {
+      if (this.occ && obj) this.occ.excluded.add(obj);
+    }
+    // Behind the loading screen: draw the first occlusion map and compile every rain shader, so the first shower in
+    // play costs nothing.
+    prepare(center) {
+      const e2 = this.engine, T2 = this.T, r2 = e2.renderer;
+      const c2 = center || e2.camera.position;
+      let occ = false, compiled = false, error = null;
+      try {
+        occ = this.occ.render(c2, true);
+        this._readShelter();
+      } catch (err) {
+        error = err;
+      }
+      try {
+        const tmp = new T2.Scene();
+        const vis = [this.group.visible, this.ground.visible];
+        tmp.add(this.group);
+        tmp.add(this.ground);
+        this.group.visible = this.ground.visible = true;
+        this.group.children.concat(this.ground.children).forEach((m2) => {
+          m2.userData._v = m2.visible;
+          m2.visible = true;
+        });
+        r2.compile(tmp, e2.camera);
+        this.group.children.concat(this.ground.children).forEach((m2) => {
+          m2.visible = m2.userData._v;
+        });
+        this.group.visible = vis[0];
+        this.ground.visible = vis[1];
+        e2.scene.add(this.group);
+        e2.scene.add(this.ground);
+        compiled = true;
+      } catch (err) {
+        error = error || err;
+        e2.scene.add(this.group);
+        e2.scene.add(this.ground);
+      }
+      return { quality: this.quality, drops: this.drops, occlusion: occ, occlusionSupported: this.occ.supported, compiled, error: error ? String(error.message || error) : null };
+    }
+    report() {
+      return {
+        quality: this.quality,
+        drops: this.drops,
+        occlusion: this.occ.supported,
+        passes: this.occ.passes,
+        occlusionMs: Math.round(this.occ.lastMs * 10) / 10,
+        lights: this.U.rLN.value,
+        sheltered: this.sheltered,
+        wind: this.U.uWind.value.length().toFixed(1) + " m/s"
+      };
+    }
+    // ---- the scene's lights: lamps, neon, headlights; the sun and sky for the ambient a drop refracts -------------
+    _scanLights(scene) {
+      const lamps = [];
+      let sun = null, hemi = null, amb = null;
+      scene.traverse((o2) => {
+        if (!o2.isLight) return;
+        if (o2.isPointLight || o2.isSpotLight) lamps.push(o2);
+        else if (o2.isDirectionalLight) {
+          if (!sun || o2.intensity > sun.intensity) sun = o2;
+        } else if (o2.isHemisphereLight) {
+          if (!hemi || o2.intensity > hemi.intensity) hemi = o2;
+        } else if (o2.isAmbientLight) {
+          if (!amb || o2.intensity > amb.intensity) amb = o2;
+        }
+      });
+      this._lights = lamps;
+      this._sun = sun;
+      this._hemi = hemi;
+      this._amb = amb;
+    }
+    static _shown(o2) {
+      for (let p2 = o2; p2; p2 = p2.parent) if (!p2.visible) return false;
+      return true;
+    }
+    _pickLights(cam, linear) {
+      const U2 = this.U, cand = [];
+      for (const l2 of this._lights) {
+        if (!(l2.intensity > 0) || !_RainEngine._shown(l2)) continue;
+        const e2 = l2.matrixWorld.elements;
+        const dx = e2[12] - cam.x, dy = e2[13] - cam.y, dz = e2[14] - cam.z;
+        const d2 = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const reach = l2.distance > 0 ? Math.min(l2.distance, 45) : 28;
+        if (d2 - reach > 34) continue;
+        cand.push([d2 - reach * 0.4, l2, e2, reach]);
+      }
+      cand.sort((a2, b2) => a2[0] - b2[0]);
+      const n2 = Math.min(MAX_RAIN_LIGHTS, cand.length);
+      const v2 = this._v3;
+      for (let i2 = 0; i2 < n2; i2++) {
+        const [, l2, e2, reach] = cand[i2];
+        U2.rLP.value[i2].set(e2[12], e2[13], e2[14], reach);
+        const k2 = Math.min(l2.intensity, 8) * this.lampScale;
+        U2.rLC.value[i2].set(l2.color.r * k2, l2.color.g * k2, l2.color.b * k2);
+        if (l2.isSpotLight && l2.target) {
+          l2.target.updateMatrixWorld();
+          const t2 = l2.target.matrixWorld.elements;
+          v2.set(t2[12] - e2[12], t2[13] - e2[13], t2[14] - e2[14]).normalize();
+          U2.rLD.value[i2].set(v2.x, v2.y, v2.z, Math.cos(Math.min(l2.angle * 1.15, Math.PI / 2)));
+        } else U2.rLD.value[i2].set(0, -1, 0, -2);
+      }
+      U2.rLN.value = n2;
+    }
+    _skyLight(env, cloud, linear) {
+      const U2 = this.U, a2 = U2.rAmb.value, s2 = U2.rSun.value;
+      a2.set(0, 0, 0);
+      s2.set(0, 0, 0);
+      if (this._hemi) {
+        const h2 = this._hemi, k2 = h2.intensity;
+        a2.x += (h2.color.r * 0.34 + h2.groundColor.r * 0.1) * k2;
+        a2.y += (h2.color.g * 0.34 + h2.groundColor.g * 0.1) * k2;
+        a2.z += (h2.color.b * 0.34 + h2.groundColor.b * 0.1) * k2;
+      }
+      if (this._amb) {
+        const m2 = this._amb, k2 = m2.intensity * 0.3;
+        a2.x += m2.color.r * k2;
+        a2.y += m2.color.g * k2;
+        a2.z += m2.color.b * k2;
+      }
+      if (this._sun) {
+        const d2 = this._sun, k2 = d2.intensity;
+        a2.x += d2.color.r * k2 * 0.06;
+        a2.y += d2.color.g * k2 * 0.06;
+        a2.z += d2.color.b * k2 * 0.06;
+        const sk = k2 * 0.5 * (1 - cloud * 0.85);
+        s2.set(d2.color.r * sk, d2.color.g * sk, d2.color.b * sk);
+        const p2 = d2.matrixWorld.elements, t2 = d2.target ? d2.target.matrixWorld.elements : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        U2.rSunDir.value.set(p2[12] - t2[12], p2[13] - t2[13], p2[14] - t2[14]).normalize();
+      }
+      this._day = Math.max(0, Math.min(1, ((this._sun ? U2.rSunDir.value.y : env.sunDir.y) + 0.05) * 4));
+      if (!this._hemi && !this._amb && !this._sun) {
+        const day = Math.max(0.08, Math.min(1, env.sunDir.y * 2 + 0.3)) * (1 - cloud * 0.4);
+        a2.set(0.16 * day + 0.01, 0.18 * day + 0.012, 0.21 * day + 0.016);
+        U2.rSunDir.value.copy(env.sunDir);
+      }
+      a2.x = Math.max(a2.x, 0.014);
+      a2.y = Math.max(a2.y, 0.016);
+      a2.z = Math.max(a2.z, 0.021);
+      U2.rDisplay.value = linear ? 0 : 1;
+    }
+    // Is there a roof over the camera? One pixel read back after each occlusion pass (float maps only), for the
+    // muffled sound of rain on an awning overhead.
+    _readShelter() {
+      const occ = this.occ, r2 = this.engine.renderer, T2 = this.T;
+      if (!occ.supported || occ.target.texture.type !== T2.FloatType) {
+        this.sheltered = false;
+        return;
+      }
+      try {
+        if (!this._px) this._px = new Float32Array(4);
+        const c2 = occ.res >> 1;
+        r2.readRenderTargetPixels(occ.target, c2, c2, 1, 1, this._px);
+        const h2 = this._px[0];
+        this.sheltered = h2 > -900 && h2 + occ.U.rOccInfo.value.w > this.engine.camera.position.y + 0.4;
+      } catch (e2) {
+        this.sheltered = false;
+      }
+    }
+    update(dt, focus, cur, wetness) {
+      const e2 = this.engine, U2 = this.U, T2 = this.T;
+      const cam = e2.camera.position;
+      const rain = cur.rain;
+      const env = e2.env;
+      U2.uTime.value += dt;
+      this._gustT += dt;
+      const g2 = this._gustT;
+      const base = e2.surfaces.uniforms.shWind.value;
+      const gust = 1 + 0.35 * Math.sin(g2 * 0.83) * Math.sin(g2 * 0.37 + 1.7) + 0.12 * Math.sin(g2 * 2.3);
+      const veer = 0.18 * Math.sin(g2 * 0.21) * Math.sin(g2 * 0.13 + 0.4);
+      const cs = Math.cos(veer), sn = Math.sin(veer);
+      U2.uWind.value.set((base.x * cs - base.y * sn) * gust, (base.x * sn + base.y * cs) * gust);
+      U2.uWindOff.value.addScaledVector(U2.uWind.value, dt);
+      if (U2.uTime.value > 1200) {
+        U2.uTime.value = 0;
+        U2.uWindOff.value.set(0, 0);
+      }
+      if (!this._camInit) {
+        this._camPrev.copy(cam);
+        this._camInit = true;
+      }
+      if (dt > 0) {
+        this._v3.subVectors(cam, this._camPrev).divideScalar(dt);
+        if (this._v3.lengthSq() > 90 * 90) this._v3.set(0, 0, 0);
+        this._camVel.lerp(this._v3, Math.min(1, dt * 10));
+      }
+      this._camPrev.copy(cam);
+      U2.uCamVel.value.copy(this._camVel);
+      U2.uCenter.value.copy(cam);
+      const cv = e2.renderer.domElement;
+      const hpx = Math.max(240, cv && cv.height || 1080);
+      U2.uPix.value = 2 * Math.tan((e2.camera.fov || 60) * Math.PI / 360) / hpx;
+      const rate = 0.3 + 45 * Math.pow(Math.max(rain, 0), 2.5);
+      U2.uLambda.value = 4.1 * Math.pow(rate, -0.21);
+      U2.uAmount.value = Math.min(1, Math.pow(Math.max(rain, 0), 0.8) * 1.05);
+      U2.uIntensity.value = 0.75 + 0.5 * rain;
+      U2.uSplashK.value = 0.8 + 0.5 * rain;
+      U2.uFallV.value = 4 + 4.5 * rain;
+      U2.uSheets.value = Math.max(0, rain - 0.15) * 0.4;
+      U2.uMist.value = Math.max(0, rain - 0.45) * 0.08;
+      U2.uDrip.value = Math.min(1, (wetness || 0) * 0.5 + rain * 0.6) * ((wetness || 0) > 0.2 ? 1 : 0);
+      U2.rFlash.value = (env.flash || 0) * (0.12 + 0.88 * (1 - (this._day != null ? this._day : 0.5)));
+      const gy = this.groundAt ? this.groundAt(focus.x, focus.z) : 0;
+      if (isFinite(gy)) U2.uGround.value = gy;
+      const raining = rain > 0.01 && !this.indoors;
+      const dripping = U2.uDrip.value > 0.01 && !this.indoors;
+      this.group.visible = raining;
+      this.ground.visible = raining || dripping;
+      this.splashes.visible = rain > 0.04;
+      this.drips.visible = dripping;
+      this.mist.visible = U2.uMist.value > 2e-3;
+      this.sheets.visible = U2.uSheets.value > 2e-3;
+      if (this.indoors) return;
+      const linear = !!(this.linearOut && this.linearOut());
+      if (raining || dripping || (wetness || 0) > 0.05) {
+        const now2 = performance.now();
+        if (now2 - this._lightScanAt > (this._lights.length ? 4e3 : 1e3)) {
+          this._lightScanAt = now2;
+          this._scanLights(e2.scene);
+        }
+        this._pickAt -= dt;
+        if (this._pickAt <= 0) {
+          this._pickAt = 0.2;
+          this._pickLights(cam, linear);
+        }
+        this._skyLight(env, cur.cloud || 0, linear);
+        if (this.occ.needs(raining ? dt : dt * 0.5, cam)) {
+          this.occ.render(cam);
+          this._readShelter();
+        }
+      }
+    }
+    dispose() {
+      this._disposeMeshes();
+      this.engine.scene.remove(this.group);
+      this.engine.scene.remove(this.ground);
+      if (this.occ) this.occ.dispose();
+    }
+  };
+
   // src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
@@ -5722,9 +6749,11 @@ var SHIGOTO = (() => {
       this._strikeT = 6;
       this.groundAt = null;
       this.linearOut = null;
-      this.drops = 12e3;
-      this._buildRain();
-      this._buildSplashes();
+      this.indoors = false;
+      this.rainEngine = new RainEngine(engine, { quality: engine.opts.rainQuality || "high" });
+      this.rain = this.rainEngine.group;
+      this.splash = this.rainEngine.ground;
+      this.drops = this.rainEngine.drops;
       this.audio = null;
     }
     set(state, instant) {
@@ -5739,108 +6768,6 @@ var SHIGOTO = (() => {
         }
       }
       this.engine.events.emit("weather", state);
-    }
-    _buildRain() {
-      const T2 = this.T;
-      const quad = new T2.InstancedBufferGeometry();
-      quad.setAttribute("position", new T2.BufferAttribute(new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), 3));
-      quad.setIndex([0, 1, 2, 0, 2, 3]);
-      const seeds = new Float32Array(this.drops * 4);
-      for (let i2 = 0; i2 < seeds.length; i2++) seeds[i2] = Math.random();
-      quad.setAttribute("aSeed", new T2.InstancedBufferAttribute(seeds, 4));
-      quad.instanceCount = this.drops;
-      this.rainU = {
-        uTime: { value: 0 },
-        uBox: { value: new T2.Vector3(46, 26, 46) },
-        uCenter: { value: new T2.Vector3() },
-        uFall: { value: 9.5 },
-        uWind: { value: new T2.Vector2() },
-        uLen: { value: 0.75 },
-        uWidth: { value: 0.012 },
-        uAmount: { value: 0 },
-        uLight: { value: new T2.Color(0.7, 0.75, 0.82) },
-        uFlash: { value: 0 }
-      };
-      const mat = new T2.ShaderMaterial({
-        uniforms: this.rainU,
-        transparent: true,
-        depthWrite: false,
-        fog: false,
-        vertexShader: `
-        uniform float uTime; uniform vec3 uBox; uniform vec3 uCenter; uniform float uFall; uniform vec2 uWind;
-        uniform float uLen; uniform float uWidth; uniform float uAmount;
-        attribute vec4 aSeed; varying float vA; varying float vY; varying float vX;
-        void main(){
-          if (aSeed.w > uAmount) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-          float sp = uFall * (0.85 + 0.3 * aSeed.w);
-          vec3 vel = vec3(uWind.x, -sp, uWind.y);
-          vec3 p = aSeed.xyz * uBox + vel * uTime;
-          vec3 lo = uCenter - uBox * 0.5;
-          p = lo + mod(p - lo, uBox);
-          vec3 axis = normalize(vel);
-          vec3 toCam = normalize(cameraPosition - p);
-          vec3 side = normalize(cross(axis, toCam));
-          float d = length(cameraPosition - p);
-          float w = uWidth * (1.0 + d * 0.06);
-          vec3 wp = p + side * position.x * w - axis * position.y * uLen * (0.7 + 0.6 * aSeed.y);
-          vA = smoothstep(0.4, 2.0, d) * (1.0 - smoothstep(uBox.x * 0.35, uBox.x * 0.5, d));
-          vY = position.y; vX = position.x;
-          gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
-        }`,
-        fragmentShader: `
-        uniform vec3 uLight; uniform float uFlash; varying float vA; varying float vY; varying float vX;
-        void main(){
-          float a = vA * (1.0 - abs(vX) * 2.0) * smoothstep(0.0, 0.3, vY) * smoothstep(1.0, 0.6, vY) * 0.38;
-          gl_FragColor = vec4(uLight + vec3(uFlash * 1.5), a);
-        }`
-      });
-      this.rain = new T2.Mesh(quad, mat);
-      this.rain.frustumCulled = false;
-      this.rain.renderOrder = 10;
-      this.rain.userData.shDry = true;
-      this.engine.scene.add(this.rain);
-    }
-    _buildSplashes() {
-      const T2 = this.T, N2 = 900;
-      const g2 = new T2.InstancedBufferGeometry();
-      g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1]), 3));
-      g2.setIndex([0, 2, 1, 0, 3, 2]);
-      const s2 = new Float32Array(N2 * 4);
-      for (let i2 = 0; i2 < s2.length; i2++) s2[i2] = Math.random();
-      g2.setAttribute("aSeed", new T2.InstancedBufferAttribute(s2, 4));
-      g2.instanceCount = N2;
-      this.splashU = { uTime: this.rainU.uTime, uCenter: { value: new T2.Vector3() }, uAmount: this.rainU.uAmount, uLight: this.rainU.uLight, uR: { value: 16 } };
-      const mat = new T2.ShaderMaterial({
-        uniforms: this.splashU,
-        transparent: true,
-        depthWrite: false,
-        fog: false,
-        vertexShader: `
-        uniform float uTime; uniform vec3 uCenter; uniform float uAmount; uniform float uR;
-        attribute vec4 aSeed; varying vec2 vUv; varying float vPh;
-        void main(){
-          if (aSeed.w > uAmount) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-          float rate = 2.2 + aSeed.z * 1.5;
-          float cyc = uTime * rate + aSeed.w * 13.0;
-          float id = floor(cyc); vPh = fract(cyc);
-          vec2 r = fract(vec2(sin(id * 12.9898 + aSeed.x * 78.2), sin(id * 39.346 + aSeed.y * 11.1)) * 43758.5453) * 2.0 - 1.0;
-          vec3 c = vec3(uCenter.x + r.x * uR, uCenter.y + 0.03, uCenter.z + r.y * uR);
-          float size = 0.05 + vPh * 0.16;
-          vUv = position.xz;
-          gl_Position = projectionMatrix * viewMatrix * vec4(c + position * size, 1.0);
-        }`,
-        fragmentShader: `
-        uniform vec3 uLight; varying vec2 vUv; varying float vPh;
-        void main(){
-          float r = length(vUv);
-          float ring = smoothstep(0.25, 0.0, abs(r - 0.75)) * (1.0 - vPh);
-          gl_FragColor = vec4(uLight * 1.2, ring * 0.5);
-        }`
-      });
-      this.splash = new T2.Mesh(g2, mat);
-      this.splash.frustumCulled = false;
-      this.splash.userData.shDry = true;
-      this.engine.scene.add(this.splash);
     }
     strike(dist) {
       const env = this.engine.env;
@@ -5864,13 +6791,28 @@ var SHIGOTO = (() => {
       const lp = ctx.createBiquadFilter();
       lp.type = "lowpass";
       lp.frequency.value = 7e3;
+      this._hissLP = lp;
       this._hiss = ctx.createGain();
       this._hiss.gain.value = 0;
       src.connect(hp);
       hp.connect(lp);
       lp.connect(this._hiss);
       this._hiss.connect(destination || ctx.destination);
+      const src2 = ctx.createBufferSource();
+      src2.buffer = buf;
+      src2.loop = true;
+      src2.playbackRate.value = 0.37;
+      const bp = ctx.createBiquadFilter();
+      bp.type = "bandpass";
+      bp.frequency.value = 420;
+      bp.Q.value = 0.7;
+      this._roar = ctx.createGain();
+      this._roar.gain.value = 0;
+      src2.connect(bp);
+      bp.connect(this._roar);
+      this._roar.connect(destination || ctx.destination);
       src.start();
+      src2.start();
       this._dest = destination || ctx.destination;
     }
     _thunder(d2) {
@@ -5895,10 +6837,13 @@ var SHIGOTO = (() => {
       src.start(t2);
       src.stop(t2 + 6);
     }
+    dispose() {
+      if (this.rainEngine) this.rainEngine.dispose();
+    }
     update(dt, focus) {
       const c2 = this.cur, t2 = this.target, k2 = Math.min(1, this.blend * dt * 3);
       for (const key in t2) c2[key] += (t2[key] - c2[key]) * k2;
-      const env = this.engine.env, S3 = this.engine.surfaces.uniforms;
+      const env = this.engine.env, S4 = this.engine.surfaces.uniforms;
       env.cloud = c2.cloud;
       env.fogBoost = c2.fog;
       env.wind.setLength(Math.max(0.1, c2.wind));
@@ -5910,24 +6855,22 @@ var SHIGOTO = (() => {
         this.wetness = Math.max(0, this.wetness - dt * dry);
         this.puddles = Math.max(0.2, this.puddles - dt * dry * 0.4);
       }
-      S3.shWet.value = this.wetness;
-      S3.shRain.value = c2.rain;
-      S3.shPuddles.value = this.puddles;
-      const cam = this.engine.camera.position;
-      const R2 = this.rainU;
-      R2.uTime.value += dt;
-      R2.uCenter.value.copy(cam);
-      R2.uWind.value.copy(S3.shWind.value);
-      R2.uAmount.value = c2.rain;
-      R2.uFlash.value = env.flash;
-      const day = Math.max(0.12, Math.min(1, env.sunDir.y * 2 + 0.3)) * (1 - c2.cloud * 0.4);
-      R2.uLight.value.setRGB(0.55 * day + 0.08, 0.6 * day + 0.09, 0.68 * day + 0.11);
-      if (this.linearOut && this.linearOut()) R2.uLight.value.convertSRGBToLinear();
-      this.rain.visible = c2.rain > 0.01;
-      this.splash.visible = c2.rain > 0.05;
-      const gy = this.groundAt ? this.groundAt(focus.x, focus.z) : this.groundY != null ? this.groundY : 0;
-      this.splashU.uCenter.value.set(focus.x, gy, focus.z);
-      if (this._hiss) this._hiss.gain.value += (c2.rain * 0.22 - this._hiss.gain.value) * Math.min(1, dt * 2);
+      S4.shWet.value = this.wetness;
+      S4.shRain.value = c2.rain;
+      S4.shPuddles.value = this.puddles;
+      const RE = this.rainEngine;
+      RE.indoors = this.indoors;
+      if (this.linearOut) RE.linearOut = this.linearOut;
+      if (this.groundAt) RE.groundAt = this.groundAt;
+      else if (this.groundY != null) RE.groundAt = () => this.groundY;
+      RE.update(dt, focus, c2, this.wetness);
+      this.drops = RE.drops;
+      if (this._hiss) {
+        const k3 = Math.min(1, dt * 2), roof = RE.sheltered, out = this.indoors ? 0.25 : 1;
+        this._hiss.gain.value += (c2.rain * (roof ? 0.15 : 0.22) * out - this._hiss.gain.value) * k3;
+        this._hissLP.frequency.value += ((roof || this.indoors ? 1600 : 7e3) - this._hissLP.frequency.value) * k3;
+        this._roar.gain.value += (Math.max(0, c2.rain - 0.3) * (roof ? 0.5 : 0.28) * out - this._roar.gain.value) * k3;
+      }
       if (c2.storm > 0.5) {
         this._strikeT -= dt;
         if (this._strikeT <= 0) {
@@ -6008,12 +6951,12 @@ var SHIGOTO = (() => {
       return null;
     }
     _material(b2) {
-      const T2 = this.T, S3 = this.engine.surfaces.uniforms, U2 = this.u;
+      const T2 = this.T, S4 = this.engine.surfaces.uniforms, U2 = this.u;
       const m2 = new T2.MeshStandardMaterial({ color: new T2.Color(b2.colour), roughness: 0.05, metalness: 0, transparent: true, opacity: 0.9 });
       m2.userData.shDry = true;
       const swell = b2.swell;
       m2.onBeforeCompile = (sh) => {
-        Object.assign(sh.uniforms, U2, { shRain: S3.shRain, shWind: S3.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
+        Object.assign(sh.uniforms, U2, { shRain: S4.shRain, shWind: S4.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float wTime; uniform float wSwell; varying vec3 vWWorld;").replace("#include <begin_vertex>", `#include <begin_vertex>
           vec3 wwp = (modelMatrix * vec4(transformed, 1.0)).xyz;
           transformed.y += wSwell * 0.5 * (sin(wwp.x * 0.12 + wTime * 1.1) * 0.6 + sin(wwp.z * 0.09 - wTime * 0.8) * 0.4);
@@ -6090,6 +7033,9 @@ uniform float shWet;
 uniform float shRain;
 uniform float shTime;
 uniform float shPuddles;
+uniform sampler2D rOcc;
+uniform vec4 rOccInfo;
+uniform float rOccOn;
 varying vec3 vShWorldPos;
 varying vec3 vShWorldN;
 float shHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -6120,6 +7066,22 @@ vec2 shRipples(vec2 p, float t) {
 }
 float shWetAmt;
 float shPuddle;
+float shShel;
+// Under cover? The rain engine's occlusion map holds the highest surface around the camera; a floor below it is
+// sheltered. Four taps soften the edge so the dry patch under an awning fades out where rain blows in.
+float shShelter(vec3 wp) {
+  if (rOccOn < 0.5) return 0.0;
+  float s = 0.0;
+  for (int k = 0; k < 4; k++) {
+    vec2 o = vec2(k == 0 ? 0.35 : k == 1 ? -0.35 : 0.0, k == 2 ? 0.35 : k == 3 ? -0.35 : 0.0);
+    vec2 xz = wp.xz + o;
+    vec2 uv = vec2(xz.x - rOccInfo.x, -(xz.y - rOccInfo.y)) / rOccInfo.z + 0.5;
+    if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) continue;
+    float h = texture2D(rOcc, uv).r;
+    if (h > -900.0) s += step(wp.y + 0.3, h + rOccInfo.w);
+  }
+  return s * 0.25;
+}
 void shSurface(vec3 wp, vec3 wn) {
   float up = clamp(wn.y, 0.0, 1.0);
   // walls take less water and in streaks running down them; anything facing the sky soaks fully
@@ -6127,6 +7089,10 @@ void shSurface(vec3 wp, vec3 wn) {
   shWetAmt = shWet * mix(streak * 0.75, 1.0, smoothstep(0.3, 0.9, up));
   float n = shFbm(wp.xz * 0.11) * 0.7 + shFbm(wp.xz * 0.5) * 0.3;
   shPuddle = smoothstep(0.66 - shPuddles * 0.12, 0.71 - shPuddles * 0.12, n) * smoothstep(0.93, 0.99, up) * smoothstep(0.35, 0.9, shWet);
+  // floors under awnings, arcades and bridges stay (mostly) dry, with no puddles or ripples
+  shShel = up > 0.35 ? shShelter(wp) : 0.0;
+  shWetAmt *= 1.0 - 0.85 * shShel;
+  shPuddle *= 1.0 - shShel;
 }
 `
   );
@@ -6141,7 +7107,11 @@ void shSurface(vec3 wp, vec3 wn) {
         shPuddles: { value: 0.5 },
         shWind: { value: new T2.Vector2(1, 0) },
         shLightning: { value: 0 },
-        shNight: { value: 0 }
+        shNight: { value: 0 },
+        // the rain engine's occlusion height map (a 1x1 "nothing overhead" until the first pass)
+        rOcc: { value: _Surfaces._emptyOcc(T2) },
+        rOccInfo: { value: new T2.Vector4(0, 0, 1, 0) },
+        rOccOn: { value: 0 }
       };
       this.adopted = /* @__PURE__ */ new WeakSet();
       this.count = 0;
@@ -6178,7 +7148,7 @@ void shSurface(vec3 wp, vec3 wn) {
         let fs = shader.fragmentShader;
         fs = fs.replace("#include <common>", "#include <common>\n" + RIPPLE_GLSL);
         fs = fs.replace("#include <color_fragment>", `#include <color_fragment>
-  shWetAmt = 0.0; shPuddle = 0.0;
+  shWetAmt = 0.0; shPuddle = 0.0; shShel = 0.0;
   if (shWet > 0.001) {
     shSurface(vShWorldPos, dot(vShWorldN, vShWorldN) > 1e-8 ? normalize(vShWorldN) : vec3(0.0, 1.0, 0.0));
     diffuseColor.rgb *= mix(1.0, 0.52, shWetAmt);
@@ -6187,7 +7157,16 @@ void shSurface(vec3 wp, vec3 wn) {
         if (kind === "std") {
           fs = fs.replace("#include <roughnessmap_fragment>", `#include <roughnessmap_fragment>
   roughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.16), shWetAmt);
-  roughnessFactor = mix(roughnessFactor, 0.025, shPuddle);`);
+  roughnessFactor = mix(roughnessFactor, 0.025, shPuddle);
+  // water running down walls in thin rivulets while it rains
+  {
+    float wall = 1.0 - smoothstep(0.2, 0.5, abs(vShWorldN.y));
+    if (wall > 0.01 && shRain > 0.05 && shWetAmt > 0.1) {
+      float riv = shNoise(vec2((vShWorldPos.x + vShWorldPos.z) * 7.0, vShWorldPos.y * 0.7 + shTime * 1.4));
+      riv = smoothstep(0.7, 0.9, riv) * wall * shRain * shWetAmt;
+      roughnessFactor = mix(roughnessFactor, 0.04, riv);
+    }
+  }`);
         } else if (kind === "phong") {
           fs = fs.replace("#include <specularmap_fragment>", `#include <specularmap_fragment>
   specularStrength = mix(specularStrength, 1.0, max(shWetAmt * 0.6, shPuddle));`);
@@ -6195,16 +7174,16 @@ void shSurface(vec3 wp, vec3 wn) {
         if (kind !== "lambert") {
           fs = fs.replace("#include <normal_fragment_maps>", `#include <normal_fragment_maps>
   if (shRain > 0.01 && (shPuddle > 0.01 || shWetAmt > 0.5)) {
-    vec2 rg = shRipples(vShWorldPos.xz, shTime) * shRain * mix(0.05, 0.35, shPuddle);
+    vec2 rg = shRipples(vShWorldPos.xz, shTime) * shRain * mix(0.03, 0.15, shPuddle);
     vec3 nw = normalize(vec3(-rg.x, 1.0, -rg.y));
-    float k = max(shPuddle, (shWetAmt - 0.5) * 0.4) * smoothstep(0.9, 0.98, vShWorldN.y);
+    float k = max(shPuddle, (shWetAmt - 0.5) * 0.4) * smoothstep(0.9, 0.98, vShWorldN.y) * (1.0 - shShel);
     normal = normalize(mix(normal, normalize((viewMatrix * vec4(nw, 0.0)).xyz), k));
   }`);
         }
         shader.fragmentShader = fs;
       };
       mat.customProgramCacheKey = function() {
-        return (prevKey ? prevKey.call(this) : "") + "|shigoto-wet1";
+        return (prevKey ? prevKey.call(this) : "") + "|shigoto-wet2";
       };
       mat.needsUpdate = true;
       return true;
@@ -6241,6 +7220,12 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
   Surfaces._noop = function() {
+  };
+  Surfaces._emptyOcc = function(T2) {
+    const t2 = new T2.DataTexture(new Float32Array([-1e3, 0, 0, 1]), 1, 1, T2.RGBAFormat, T2.FloatType);
+    t2.minFilter = t2.magFilter = T2.NearestFilter;
+    t2.needsUpdate = true;
+    return t2;
   };
 
   // src/world/Batcher.js
@@ -6435,7 +7420,7 @@ void shSurface(vec3 wp, vec3 wn) {
   function makeParts(T2, add) {
     const E2 = new T2.Euler(), Q2 = new T2.Quaternion(), V2 = new T2.Vector3(), Sc = new T2.Vector3(1, 1, 1);
     const M2 = (x2, y2, z2, rx, ry, rz) => new T2.Matrix4().compose(V2.set(x2, y2, z2), Q2.setFromEuler(E2.set(rx || 0, ry || 0, rz || 0)), Sc);
-    const P2 = {
+    const P3 = {
       M: M2,
       // a box; tiling slots get metre UVs on every face
       box(slot, w2, h2, d2, x2, y2, z2, col, ry, rx, rz) {
@@ -6543,163 +7528,163 @@ void shSurface(vec3 wp, vec3 wn) {
         add(slot, g2, M2(x2, y2, z2), col);
       }
     };
-    return P2;
+    return P3;
   }
   var W2 = [1, 1, 1];
   function drawProp(T2, type, add, rng, opts) {
-    const P2 = makeParts(T2, add), tint = opts && opts.tint;
+    const P3 = makeParts(T2, add), tint = opts && opts.tint;
     switch (type) {
       case "cone": {
-        P2.lathe("cone_body", [[0.17, 0.05], [0.165, 0.07], [0.04, 0.7], [0.028, 0.72], [0, 0.725]], 20, 0, 0, 0, W2);
-        P2.rbox("cone_base", 0.4, 0.05, 0.4, 0.04, 0, 0.025, 0, W2);
-        P2.cyl("cone_base", 0.19, 0.19, 0.012, 20, 0, 0.056, 0, W2);
+        P3.lathe("cone_body", [[0.17, 0.05], [0.165, 0.07], [0.04, 0.7], [0.028, 0.72], [0, 0.725]], 20, 0, 0, 0, W2);
+        P3.rbox("cone_base", 0.4, 0.05, 0.4, 0.04, 0, 0.025, 0, W2);
+        P3.cyl("cone_base", 0.19, 0.19, 0.012, 20, 0, 0.056, 0, W2);
         break;
       }
       case "bin": {
         const c2 = tint || (rng() < 0.5 ? [0.32, 0.55, 0.36] : [0.34, 0.42, 0.68]);
-        P2.lathe("bin_body", [[0.24, 0], [0.25, 0.04], [0.27, 0.78], [0.28, 0.8], [0.28, 0.82]], 24, 0, 0, 0, c2);
-        P2.lathe("bin_lid", [[0.3, 0.82], [0.3, 0.86], [0.25, 0.9], [0.12, 0.92], [0.12, 0.9], [0, 0.9]], 24, 0, 0, 0, W2);
-        P2.cyl("bin_lid", 0.12, 0.12, 0.08, 18, 0, 0.88, 0, [0.05, 0.05, 0.05], 0, 0, 0, true);
-        P2.face("bin_label", 0.21, 0.28, 0, 0.5, 0.268, W2, 0, -0.025);
-        P2.torus("bin_lid", 0.245, 0.012, 0, 0.03, 0, W2, 0, Math.PI / 2, 20);
+        P3.lathe("bin_body", [[0.24, 0], [0.25, 0.04], [0.27, 0.78], [0.28, 0.8], [0.28, 0.82]], 24, 0, 0, 0, c2);
+        P3.lathe("bin_lid", [[0.3, 0.82], [0.3, 0.86], [0.25, 0.9], [0.12, 0.92], [0.12, 0.9], [0, 0.9]], 24, 0, 0, 0, W2);
+        P3.cyl("bin_lid", 0.12, 0.12, 0.08, 18, 0, 0.88, 0, [0.05, 0.05, 0.05], 0, 0, 0, true);
+        P3.face("bin_label", 0.21, 0.28, 0, 0.5, 0.268, W2, 0, -0.025);
+        P3.torus("bin_lid", 0.245, 0.012, 0, 0.03, 0, W2, 0, Math.PI / 2, 20);
         break;
       }
       case "crate": {
         for (const y2 of [0.075, 0.225, 0.375, 0.525]) {
-          P2.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, 0.29, W2);
-          P2.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, -0.29, W2);
-          P2.box("crate_wood", 0.02, 0.12, 0.56, 0.29, y2, 0, W2);
-          P2.box("crate_wood", 0.02, 0.12, 0.56, -0.29, y2, 0, W2);
+          P3.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, 0.29, W2);
+          P3.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, -0.29, W2);
+          P3.box("crate_wood", 0.02, 0.12, 0.56, 0.29, y2, 0, W2);
+          P3.box("crate_wood", 0.02, 0.12, 0.56, -0.29, y2, 0, W2);
         }
-        for (const x2 of [-0.27, 0.27]) for (const z2 of [-0.27, 0.27]) P2.box("crate_wood", 0.05, 0.6, 0.05, x2, 0.3, z2, [0.85, 0.82, 0.78]);
-        P2.box("crate_wood", 0.56, 0.02, 0.56, 0, 0.012, 0, W2);
+        for (const x2 of [-0.27, 0.27]) for (const z2 of [-0.27, 0.27]) P3.box("crate_wood", 0.05, 0.6, 0.05, x2, 0.3, z2, [0.85, 0.82, 0.78]);
+        P3.box("crate_wood", 0.56, 0.02, 0.56, 0, 0.012, 0, W2);
         break;
       }
       case "pallet": {
-        for (let i2 = 0; i2 < 7; i2++) P2.box("pallet_wood", 0.14, 0.022, 1, -0.53 + i2 * 0.177, 0.139, 0, W2);
+        for (let i2 = 0; i2 < 7; i2++) P3.box("pallet_wood", 0.14, 0.022, 1, -0.53 + i2 * 0.177, 0.139, 0, W2);
         for (const x2 of [-0.53, 0, 0.53]) {
-          P2.box("pallet_wood", 0.1, 0.022, 1, x2, 0.011, 0, W2);
-          for (const z2 of [-0.44, 0, 0.44]) P2.box("pallet_wood", 0.1, 0.085, 0.12, x2, 0.065, z2, [0.9, 0.86, 0.82]);
+          P3.box("pallet_wood", 0.1, 0.022, 1, x2, 0.011, 0, W2);
+          for (const z2 of [-0.44, 0, 0.44]) P3.box("pallet_wood", 0.1, 0.085, 0.12, x2, 0.065, z2, [0.9, 0.86, 0.82]);
         }
-        for (const z2 of [-0.44, 0, 0.44]) P2.box("pallet_wood", 1.2, 0.022, 0.1, 0, 0.117, z2, W2);
+        for (const z2 of [-0.44, 0, 0.44]) P3.box("pallet_wood", 1.2, 0.022, 0.1, 0, 0.117, z2, W2);
         break;
       }
       case "barrier": {
-        P2.face("barrier_panel", 1.3, 0.31, 0, 0.62, 0.021, W2);
-        P2.face("barrier_panel", 1.3, 0.31, 0, 0.62, -0.021, W2, Math.PI);
-        P2.box("barrier_frame", 1.32, 0.33, 0.04, 0, 0.62, 0, [0.95, 0.95, 0.95]);
+        P3.face("barrier_panel", 1.3, 0.31, 0, 0.62, 0.021, W2);
+        P3.face("barrier_panel", 1.3, 0.31, 0, 0.62, -0.021, W2, Math.PI);
+        P3.box("barrier_frame", 1.32, 0.33, 0.04, 0, 0.62, 0, [0.95, 0.95, 0.95]);
         for (const x2 of [-0.62, 0.62]) {
-          P2.cyl("barrier_frame", 0.022, 0.022, 0.8, 10, x2, 0.42, 0, W2);
-          P2.tube("barrier_frame", [[x2, 0.06, -0.16], [x2, 0.3, -0.05], [x2, 0.5, 0]], 0.016, W2);
-          P2.tube("barrier_frame", [[x2, 0.06, 0.16], [x2, 0.3, 0.05], [x2, 0.5, 0]], 0.016, W2);
-          P2.rbox("barrier_foot", 0.12, 0.07, 0.36, 0.03, x2, 0.035, 0, W2);
+          P3.cyl("barrier_frame", 0.022, 0.022, 0.8, 10, x2, 0.42, 0, W2);
+          P3.tube("barrier_frame", [[x2, 0.06, -0.16], [x2, 0.3, -0.05], [x2, 0.5, 0]], 0.016, W2);
+          P3.tube("barrier_frame", [[x2, 0.06, 0.16], [x2, 0.3, 0.05], [x2, 0.5, 0]], 0.016, W2);
+          P3.rbox("barrier_foot", 0.12, 0.07, 0.36, 0.03, x2, 0.035, 0, W2);
         }
-        P2.box("barrier_frame", 1.24, 0.03, 0.03, 0, 0.82, 0, W2);
+        P3.box("barrier_frame", 1.24, 0.03, 0.03, 0, 0.82, 0, W2);
         break;
       }
       case "bicycle": {
         const c2 = tint || [[0.8, 0.2, 0.18], [0.24, 0.36, 0.7], [0.94, 0.94, 0.94], [0.25, 0.25, 0.26]][rng() * 4 | 0];
         for (const z2 of [-0.55, 0.55]) {
-          P2.torus("bicycle_tyre", 0.33, 0.024, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
-          P2.torus("bicycle_steel", 0.3, 8e-3, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
-          P2.cyl("bicycle_steel", 0.03, 0.03, 0.1, 10, 0, 0.35, z2, W2, 0, Math.PI / 2);
+          P3.torus("bicycle_tyre", 0.33, 0.024, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
+          P3.torus("bicycle_steel", 0.3, 8e-3, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
+          P3.cyl("bicycle_steel", 0.03, 0.03, 0.1, 10, 0, 0.35, z2, W2, 0, Math.PI / 2);
           for (let k2 = 0; k2 < 12; k2++) {
             const a2 = k2 / 12 * Math.PI * 2;
-            P2.cyl("bicycle_steel", 2e-3, 2e-3, 0.29, 3, 0, 0.35 + Math.sin(a2) * 0.15, z2 + Math.cos(a2) * 0.15, W2, Math.PI / 2 - a2);
+            P3.cyl("bicycle_steel", 2e-3, 2e-3, 0.29, 3, 0, 0.35 + Math.sin(a2) * 0.15, z2 + Math.cos(a2) * 0.15, W2, Math.PI / 2 - a2);
           }
           const guard = [];
           for (let k2 = 0; k2 <= 6; k2++) {
             const a2 = Math.PI * (0.22 + k2 * 0.1);
             guard.push([0, 0.35 + Math.sin(a2) * 0.37, z2 + Math.cos(a2) * 0.37]);
           }
-          P2.tube("bicycle_frame", guard, 0.014, c2, 16);
+          P3.tube("bicycle_frame", guard, 0.014, c2, 16);
         }
-        P2.tube("bicycle_frame", [[0, 0.88, 0.42], [0, 0.6, 0.25], [0, 0.32, 0], [0, 0.3, -0.12]], 0.022, c2);
-        P2.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.6, -0.2], [0, 0.82, -0.24]], 0.02, c2);
-        P2.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.35, -0.55]], 0.012, c2);
-        P2.tube("bicycle_frame", [[0, 0.75, -0.22], [0, 0.35, -0.55]], 0.01, c2);
-        P2.tube("bicycle_frame", [[0, 0.95, 0.45], [0, 0.6, 0.52], [0, 0.35, 0.55]], 0.016, c2);
-        P2.cyl("bicycle_frame", 0.05, 0.05, 0.12, 12, 0, 0.32, -0.08, c2, 0, Math.PI / 2);
-        P2.box("bicycle_frame", 0.04, 0.12, 0.42, 0.04, 0.33, -0.3, c2);
-        P2.tube("bicycle_steel", [[-0.27, 1.02, 0.36], [-0.12, 1, 0.44], [0, 0.98, 0.46], [0.12, 1, 0.44], [0.27, 1.02, 0.36]], 0.011, W2);
-        for (const s2 of [-1, 1]) P2.cyl("bicycle_saddle", 0.017, 0.017, 0.11, 8, s2 * 0.24, 1.02, 0.37, W2, 0, Math.PI / 2);
-        P2.cyl("bicycle_steel", 0.012, 0.012, 0.22, 8, 0, 0.9, -0.24, W2);
-        P2.rbox("bicycle_saddle", 0.17, 0.06, 0.26, 0.06, 0, 1, -0.25, W2);
-        P2.box("bicycle_steel", 0.3, 0.012, 0.36, 0, 0.7, -0.55, W2);
-        P2.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.82, W2);
-        P2.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.56, W2, Math.PI);
-        for (const s2 of [-1, 1]) P2.face("bicycle_basket", 0.26, 0.26, s2 * 0.17, 0.84, 0.69, W2, s2 * Math.PI / 2);
-        P2.box("bicycle_steel", 0.34, 6e-3, 0.26, 0, 0.71, 0.69, W2);
-        P2.cyl("bicycle_steel", 0.035, 0.035, 0.05, 10, 0, 0.95, 0.5, [1, 0.95, 0.8], Math.PI / 2);
-        P2.box("bicycle_frame", 0.015, 0.25, 0.04, 0.1, 0.18, -0.15, c2, 0, 0, 0.5);
+        P3.tube("bicycle_frame", [[0, 0.88, 0.42], [0, 0.6, 0.25], [0, 0.32, 0], [0, 0.3, -0.12]], 0.022, c2);
+        P3.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.6, -0.2], [0, 0.82, -0.24]], 0.02, c2);
+        P3.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.35, -0.55]], 0.012, c2);
+        P3.tube("bicycle_frame", [[0, 0.75, -0.22], [0, 0.35, -0.55]], 0.01, c2);
+        P3.tube("bicycle_frame", [[0, 0.95, 0.45], [0, 0.6, 0.52], [0, 0.35, 0.55]], 0.016, c2);
+        P3.cyl("bicycle_frame", 0.05, 0.05, 0.12, 12, 0, 0.32, -0.08, c2, 0, Math.PI / 2);
+        P3.box("bicycle_frame", 0.04, 0.12, 0.42, 0.04, 0.33, -0.3, c2);
+        P3.tube("bicycle_steel", [[-0.27, 1.02, 0.36], [-0.12, 1, 0.44], [0, 0.98, 0.46], [0.12, 1, 0.44], [0.27, 1.02, 0.36]], 0.011, W2);
+        for (const s2 of [-1, 1]) P3.cyl("bicycle_saddle", 0.017, 0.017, 0.11, 8, s2 * 0.24, 1.02, 0.37, W2, 0, Math.PI / 2);
+        P3.cyl("bicycle_steel", 0.012, 0.012, 0.22, 8, 0, 0.9, -0.24, W2);
+        P3.rbox("bicycle_saddle", 0.17, 0.06, 0.26, 0.06, 0, 1, -0.25, W2);
+        P3.box("bicycle_steel", 0.3, 0.012, 0.36, 0, 0.7, -0.55, W2);
+        P3.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.82, W2);
+        P3.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.56, W2, Math.PI);
+        for (const s2 of [-1, 1]) P3.face("bicycle_basket", 0.26, 0.26, s2 * 0.17, 0.84, 0.69, W2, s2 * Math.PI / 2);
+        P3.box("bicycle_steel", 0.34, 6e-3, 0.26, 0, 0.71, 0.69, W2);
+        P3.cyl("bicycle_steel", 0.035, 0.035, 0.05, 10, 0, 0.95, 0.5, [1, 0.95, 0.8], Math.PI / 2);
+        P3.box("bicycle_frame", 0.015, 0.25, 0.04, 0.1, 0.18, -0.15, c2, 0, 0, 0.5);
         break;
       }
       case "vending": {
         const body = tint || [[0.9, 0.24, 0.22], [0.26, 0.48, 0.82], [0.95, 0.95, 0.95], [0.92, 0.62, 0.22]][rng() * 4 | 0];
-        P2.rbox("vending_body", 1, 1.78, 0.8, 0.03, 0, 0.96, -0, body);
-        P2.box("vending_body", 1.04, 0.12, 0.84, 0, 1.86, 0, body);
-        P2.box("vending_trim", 1, 0.08, 0.78, 0, 0.04, 0, W2);
-        P2.box("vending_body", 0.92, 1, 0.04, 0, 1.3, 0.41, body);
-        P2.face("vending_front", 0.84, 0.88, 0, 1.31, 0.431, W2);
-        P2.box("vending_trim", 0.86, 0.02, 0.03, 0, 0.86, 0.425, W2);
-        P2.face("vending_panel", 0.92, 0.48, 0, 0.56, 0.403, W2);
-        for (const s2 of [-1, 1]) P2.box("vending_trim", 0.02, 1.72, 0.03, s2 * 0.49, 0.96, 0.415, W2);
-        P2.cyl("vending_trim", 0.012, 0.012, 0.2, 8, 0.4, 0.62, 0.445, W2);
+        P3.rbox("vending_body", 1, 1.78, 0.8, 0.03, 0, 0.96, -0, body);
+        P3.box("vending_body", 1.04, 0.12, 0.84, 0, 1.86, 0, body);
+        P3.box("vending_trim", 1, 0.08, 0.78, 0, 0.04, 0, W2);
+        P3.box("vending_body", 0.92, 1, 0.04, 0, 1.3, 0.41, body);
+        P3.face("vending_front", 0.84, 0.88, 0, 1.31, 0.431, W2);
+        P3.box("vending_trim", 0.86, 0.02, 0.03, 0, 0.86, 0.425, W2);
+        P3.face("vending_panel", 0.92, 0.48, 0, 0.56, 0.403, W2);
+        for (const s2 of [-1, 1]) P3.box("vending_trim", 0.02, 1.72, 0.03, s2 * 0.49, 0.96, 0.415, W2);
+        P3.cyl("vending_trim", 0.012, 0.012, 0.2, 8, 0.4, 0.62, 0.445, W2);
         break;
       }
       case "bench": {
-        for (let i2 = 0; i2 < 4; i2++) P2.rbox("bench_wood", 1.8, 0.04, 0.09, 0.012, 0, 0.44, -0.18 + i2 * 0.105, W2);
-        for (let i2 = 0; i2 < 3; i2++) P2.rbox("bench_wood", 1.8, 0.085, 0.035, 0.01, 0, 0.6 + i2 * 0.11, -0.25 - i2 * 0.02, W2);
+        for (let i2 = 0; i2 < 4; i2++) P3.rbox("bench_wood", 1.8, 0.04, 0.09, 0.012, 0, 0.44, -0.18 + i2 * 0.105, W2);
+        for (let i2 = 0; i2 < 3; i2++) P3.rbox("bench_wood", 1.8, 0.085, 0.035, 0.01, 0, 0.6 + i2 * 0.11, -0.25 - i2 * 0.02, W2);
         for (const x2 of [-0.78, 0, 0.78]) {
-          P2.tube("bench_iron", [[x2, 0, 0.2], [x2, 0.4, 0.18], [x2, 0.42, -0.18], [x2, 0, -0.22]], 0.02, W2);
-          P2.tube("bench_iron", [[x2, 0.42, -0.2], [x2, 0.62, -0.25], [x2, 0.85, -0.3]], 0.018, W2);
-          if (x2) P2.tube("bench_iron", [[x2, 0.42, 0.18], [x2, 0.62, 0.17], [x2, 0.63, -0.05]], 0.016, W2);
+          P3.tube("bench_iron", [[x2, 0, 0.2], [x2, 0.4, 0.18], [x2, 0.42, -0.18], [x2, 0, -0.22]], 0.02, W2);
+          P3.tube("bench_iron", [[x2, 0.42, -0.2], [x2, 0.62, -0.25], [x2, 0.85, -0.3]], 0.018, W2);
+          if (x2) P3.tube("bench_iron", [[x2, 0.42, 0.18], [x2, 0.62, 0.17], [x2, 0.63, -0.05]], 0.016, W2);
         }
         break;
       }
       case "bollard": {
-        P2.lathe("bollard_body", [[0.12, 0], [0.12, 0.03], [0.1, 0.05], [0.095, 0.82], [0.09, 0.85]], 18, 0, 0, 0, W2);
-        P2.lathe("bollard_cap", [[0.095, 0.85], [0.097, 0.87], [0.07, 0.92], [0, 0.935]], 18, 0, 0, 0, W2);
-        P2.torus("bollard_body", 0.098, 8e-3, 0, 0.7, 0, W2, 0, Math.PI / 2, 18);
+        P3.lathe("bollard_body", [[0.12, 0], [0.12, 0.03], [0.1, 0.05], [0.095, 0.82], [0.09, 0.85]], 18, 0, 0, 0, W2);
+        P3.lathe("bollard_cap", [[0.095, 0.85], [0.097, 0.87], [0.07, 0.92], [0, 0.935]], 18, 0, 0, 0, W2);
+        P3.torus("bollard_body", 0.098, 8e-3, 0, 0.7, 0, W2, 0, Math.PI / 2, 18);
         break;
       }
       case "lamp": {
-        P2.lathe("lamp_pole", [[0.16, 0], [0.16, 0.25], [0.11, 0.3], [0.1, 0.5], [0.07, 6.3], [0.06, 6.45]], 14, 0, 0, 0, W2);
-        P2.box("lamp_pole", 0.18, 0.3, 0.12, 0, 1, 0.1, W2);
-        P2.tube("lamp_pole", [[0, 6.2, 0], [0, 6.45, 0.25], [0, 6.48, 0.9], [0, 6.42, 1.35]], 0.04, W2);
-        P2.rbox("lamp_head", 0.34, 0.12, 0.62, 0.08, 0, 6.38, 1.45, W2);
-        for (let k2 = 0; k2 < 5; k2++) P2.box("lamp_head", 0.26, 0.025, 0.02, 0, 6.455, 1.25 + k2 * 0.1, W2);
-        P2.face("lamp_lens", 0.26, 0.48, 0, 6.318, 1.45, W2, 0, Math.PI / 2);
-        P2.cyl("lamp_head", 0.03, 0.03, 0.05, 8, 0, 6.47, 1.6, W2);
+        P3.lathe("lamp_pole", [[0.16, 0], [0.16, 0.25], [0.11, 0.3], [0.1, 0.5], [0.07, 6.3], [0.06, 6.45]], 14, 0, 0, 0, W2);
+        P3.box("lamp_pole", 0.18, 0.3, 0.12, 0, 1, 0.1, W2);
+        P3.tube("lamp_pole", [[0, 6.2, 0], [0, 6.45, 0.25], [0, 6.48, 0.9], [0, 6.42, 1.35]], 0.04, W2);
+        P3.rbox("lamp_head", 0.34, 0.12, 0.62, 0.08, 0, 6.38, 1.45, W2);
+        for (let k2 = 0; k2 < 5; k2++) P3.box("lamp_head", 0.26, 0.025, 0.02, 0, 6.455, 1.25 + k2 * 0.1, W2);
+        P3.face("lamp_lens", 0.26, 0.48, 0, 6.318, 1.45, W2, 0, Math.PI / 2);
+        P3.cyl("lamp_head", 0.03, 0.03, 0.05, 8, 0, 6.47, 1.6, W2);
         break;
       }
       case "pole": {
-        P2.cyl("pole_concrete", 0.13, 0.17, 10, 16, 0, 5, 0, W2);
-        P2.cyl("pole_concrete", 0.135, 0.135, 0.02, 16, 0, 10, 0, [0.7, 0.7, 0.7]);
-        for (let k2 = 0; k2 < 7; k2++) P2.cyl("pole_metal", 0.012, 0.012, 0.5, 6, 0, 2.4 + k2 * 0.45, 0, W2, Math.PI / 2, 0, k2 % 2 * Math.PI / 2);
-        P2.box("pole_metal", 1.8, 0.09, 0.09, 0, 9.2, 0, W2);
-        P2.box("pole_metal", 1.2, 0.09, 0.09, 0, 8.4, 0, W2);
-        for (const x2 of [-0.8, -0.4, 0.4, 0.8]) P2.lathe("pole_metal", [[0.04, 0], [0.05, 0.03], [0.03, 0.05], [0.05, 0.08], [0.03, 0.1], [0.02, 0.14], [0, 0.14]], 10, x2, 9.245, 0, [0.95, 0.95, 0.92]);
-        P2.cyl("pole_metal", 0.25, 0.25, 0.7, 16, 0.38, 7.6, 0, W2);
-        P2.cyl("pole_metal", 0.26, 0.26, 0.04, 16, 0.38, 7.97, 0, W2);
-        P2.box("pole_metal", 0.06, 0.5, 0.06, 0.12, 7.6, 0, W2);
-        P2.face("pole_guard", 0.36, 0.84, 0, 0.62, 0.176, W2);
-        P2.face("pole_guard", 0.36, 0.84, 0, 0.62, -0.176, W2, Math.PI);
-        P2.face("pole_plate", 0.32, 0.96, 0, 2.4, 0.18, W2);
-        P2.box("pole_metal", 0.36, 0.02, 0.03, 0, 2.9, 0.165, W2);
-        P2.box("pole_metal", 0.36, 0.02, 0.03, 0, 1.9, 0.165, W2);
+        P3.cyl("pole_concrete", 0.13, 0.17, 10, 16, 0, 5, 0, W2);
+        P3.cyl("pole_concrete", 0.135, 0.135, 0.02, 16, 0, 10, 0, [0.7, 0.7, 0.7]);
+        for (let k2 = 0; k2 < 7; k2++) P3.cyl("pole_metal", 0.012, 0.012, 0.5, 6, 0, 2.4 + k2 * 0.45, 0, W2, Math.PI / 2, 0, k2 % 2 * Math.PI / 2);
+        P3.box("pole_metal", 1.8, 0.09, 0.09, 0, 9.2, 0, W2);
+        P3.box("pole_metal", 1.2, 0.09, 0.09, 0, 8.4, 0, W2);
+        for (const x2 of [-0.8, -0.4, 0.4, 0.8]) P3.lathe("pole_metal", [[0.04, 0], [0.05, 0.03], [0.03, 0.05], [0.05, 0.08], [0.03, 0.1], [0.02, 0.14], [0, 0.14]], 10, x2, 9.245, 0, [0.95, 0.95, 0.92]);
+        P3.cyl("pole_metal", 0.25, 0.25, 0.7, 16, 0.38, 7.6, 0, W2);
+        P3.cyl("pole_metal", 0.26, 0.26, 0.04, 16, 0.38, 7.97, 0, W2);
+        P3.box("pole_metal", 0.06, 0.5, 0.06, 0.12, 7.6, 0, W2);
+        P3.face("pole_guard", 0.36, 0.84, 0, 0.62, 0.176, W2);
+        P3.face("pole_guard", 0.36, 0.84, 0, 0.62, -0.176, W2, Math.PI);
+        P3.face("pole_plate", 0.32, 0.96, 0, 2.4, 0.18, W2);
+        P3.box("pole_metal", 0.36, 0.02, 0.03, 0, 2.9, 0.165, W2);
+        P3.box("pole_metal", 0.36, 0.02, 0.03, 0, 1.9, 0.165, W2);
         break;
       }
       case "tree": {
         const s2 = 0.8 + rng() * 0.5;
-        P2.lathe("tree_bark", [[0.22 * s2, 0], [0.18 * s2, 0.3 * s2], [0.14 * s2, 2 * s2], [0.12 * s2, 3 * s2], [0.06 * s2, 3.4 * s2]], 9, 0, 0, 0, W2);
+        P3.lathe("tree_bark", [[0.22 * s2, 0], [0.18 * s2, 0.3 * s2], [0.14 * s2, 2 * s2], [0.12 * s2, 3 * s2], [0.06 * s2, 3.4 * s2]], 9, 0, 0, 0, W2);
         for (let i2 = 0; i2 < 3; i2++) {
           const a2 = rng() * 6.28;
-          P2.tube("tree_bark", [[0, 2.4 * s2, 0], [Math.cos(a2) * 0.5 * s2, 3.1 * s2, Math.sin(a2) * 0.5 * s2], [Math.cos(a2) * 0.9 * s2, 3.6 * s2, Math.sin(a2) * 0.9 * s2]], 0.05 * s2, W2);
+          P3.tube("tree_bark", [[0, 2.4 * s2, 0], [Math.cos(a2) * 0.5 * s2, 3.1 * s2, Math.sin(a2) * 0.5 * s2], [Math.cos(a2) * 0.9 * s2, 3.6 * s2, Math.sin(a2) * 0.9 * s2]], 0.05 * s2, W2);
         }
         for (let i2 = 0; i2 < 18; i2++) {
           const a2 = rng() * 6.28, r2 = Math.sqrt(rng()) * 1.5 * s2, up = rng();
-          P2.blob(
+          P3.blob(
             "tree_leaves",
             (0.45 + rng() * 0.4) * s2 * (1.2 - up * 0.4),
             Math.cos(a2) * r2 * (1 - up * 0.5),
@@ -6711,41 +7696,41 @@ void shSurface(vec3 wp, vec3 wn) {
             rng() * 10
           );
         }
-        P2.face("tree_grate", 1.2, 1.2, 0, 0.024, 0, W2, 0, -Math.PI / 2);
-        P2.box("planter_box", 1.24, 0.03, 1.24, 0, 3e-3, 0, [0.6, 0.6, 0.6]);
+        P3.face("tree_grate", 1.2, 1.2, 0, 0.024, 0, W2, 0, -Math.PI / 2);
+        P3.box("planter_box", 1.24, 0.03, 1.24, 0, 3e-3, 0, [0.6, 0.6, 0.6]);
         break;
       }
       case "planter": {
-        P2.rbox("planter_box", 1.6, 0.5, 0.6, 0.04, 0, 0.25, 0, W2);
-        P2.box("planter_box", 1.66, 0.06, 0.66, 0, 0.5, 0, [0.92, 0.92, 0.9]);
-        P2.box("planter_shrub", 1.5, 0.02, 0.5, 0, 0.52, 0, [0.35, 0.28, 0.22]);
-        for (let i2 = 0; i2 < 8; i2++) P2.blob("planter_shrub", 0.2 + rng() * 0.08, -0.68 + i2 * 0.195, 0.62 + rng() * 0.06, (rng() - 0.5) * 0.18, W2, 2, 0.3, rng() * 10);
+        P3.rbox("planter_box", 1.6, 0.5, 0.6, 0.04, 0, 0.25, 0, W2);
+        P3.box("planter_box", 1.66, 0.06, 0.66, 0, 0.5, 0, [0.92, 0.92, 0.9]);
+        P3.box("planter_shrub", 1.5, 0.02, 0.5, 0, 0.52, 0, [0.35, 0.28, 0.22]);
+        for (let i2 = 0; i2 < 8; i2++) P3.blob("planter_shrub", 0.2 + rng() * 0.08, -0.68 + i2 * 0.195, 0.62 + rng() * 0.06, (rng() - 0.5) * 0.18, W2, 2, 0.3, rng() * 10);
         break;
       }
       case "signpost": {
-        P2.cyl("signpost_pole", 0.03, 0.03, 3, 10, 0, 1.5, 0, W2);
-        P2.cyl("signpost_pole", 0.032, 0.032, 0.02, 10, 0, 3, 0, W2);
-        P2.disc("sign_face", 0.3, 0, 2.7, 0.052, W2);
-        P2.cyl("sign_back", 0.305, 0.305, 0.012, 24, 0, 2.7, 0.043, W2, Math.PI / 2);
-        for (const y2 of [2.55, 2.85]) P2.box("signpost_pole", 0.08, 0.025, 0.05, 0, y2, 0.025, W2);
+        P3.cyl("signpost_pole", 0.03, 0.03, 3, 10, 0, 1.5, 0, W2);
+        P3.cyl("signpost_pole", 0.032, 0.032, 0.02, 10, 0, 3, 0, W2);
+        P3.disc("sign_face", 0.3, 0, 2.7, 0.052, W2);
+        P3.cyl("sign_back", 0.305, 0.305, 0.012, 24, 0, 2.7, 0.043, W2, Math.PI / 2);
+        for (const y2 of [2.55, 2.85]) P3.box("signpost_pole", 0.08, 0.025, 0.05, 0, y2, 0.025, W2);
         break;
       }
       case "ac": {
-        P2.rbox("ac_body", 0.8, 0.58, 0.28, 0.02, 0, 0.3, 0, W2);
-        P2.disc("ac_grille", 0.22, -0.12, 0.3, 0.142, W2);
-        P2.torus("ac_body", 0.225, 0.012, -0.12, 0.3, 0.142, W2, 0, 0, 16);
-        P2.face("ac_fins", 0.26, 0.5, 0.401, 0.3, 0, W2, Math.PI / 2);
-        P2.face("ac_fins", 0.76, 0.5, 0, 0.3, -0.141, W2, Math.PI);
-        P2.box("ac_body", 0.18, 0.12, 0.05, 0.27, 0.16, 0.15, [0.85, 0.85, 0.82]);
-        P2.tube("ac_fins", [[0.3, 0.12, 0.1], [0.42, 0.06, 0.1], [0.5, 0, 0.1]], 0.012, [0.9, 0.9, 0.85]);
-        for (const x2 of [-0.32, 0.32]) P2.box("ac_body", 0.06, 0.03, 0.32, x2, 0, 0, [0.6, 0.6, 0.6]);
+        P3.rbox("ac_body", 0.8, 0.58, 0.28, 0.02, 0, 0.3, 0, W2);
+        P3.disc("ac_grille", 0.22, -0.12, 0.3, 0.142, W2);
+        P3.torus("ac_body", 0.225, 0.012, -0.12, 0.3, 0.142, W2, 0, 0, 16);
+        P3.face("ac_fins", 0.26, 0.5, 0.401, 0.3, 0, W2, Math.PI / 2);
+        P3.face("ac_fins", 0.76, 0.5, 0, 0.3, -0.141, W2, Math.PI);
+        P3.box("ac_body", 0.18, 0.12, 0.05, 0.27, 0.16, 0.15, [0.85, 0.85, 0.82]);
+        P3.tube("ac_fins", [[0.3, 0.12, 0.1], [0.42, 0.06, 0.1], [0.5, 0, 0.1]], 0.012, [0.9, 0.9, 0.85]);
+        for (const x2 of [-0.32, 0.32]) P3.box("ac_body", 0.06, 0.03, 0.32, x2, 0, 0, [0.6, 0.6, 0.6]);
         break;
       }
       case "ball":
-        P2.sphere("ball_skin", 0.11, 0, 0, 0, W2);
+        P3.sphere("ball_skin", 0.11, 0, 0, 0, W2);
         break;
       default:
-        P2.box("crate_wood", 0.5, 0.5, 0.5, 0, 0.25, 0, W2);
+        P3.box("crate_wood", 0.5, 0.5, 0.5, 0, 0.25, 0, W2);
     }
   }
 
@@ -6775,7 +7760,7 @@ void shSurface(vec3 wp, vec3 wn) {
       group.position.set(ox, oy, oz);
       const B2 = new Batcher(T2);
       const add = (mname, geo, m2, colour, extra) => B2.add(mname, this.mat.get(mname), geo, m2, colour, extra);
-      const P2 = (x2, z2) => [x2 + ox, z2 + oz];
+      const P3 = (x2, z2) => [x2 + ox, z2 + oz];
       const rng = seeded(hashStr(key));
       const lights = [];
       const signs = new SignAtlas(T2, 1024);
@@ -7184,7 +8169,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
     _quad(slot, corners, n2) {
       if (!slot) return;
-      const S3 = this.size, u0 = slot.x / S3, u1 = (slot.x + slot.w) / S3, v1 = 1 - slot.y / S3, v0 = 1 - (slot.y + slot.h) / S3;
+      const S4 = this.size, u0 = slot.x / S4, u1 = (slot.x + slot.w) / S4, v1 = 1 - slot.y / S4, v0 = 1 - (slot.y + slot.h) / S4;
       const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       for (const k2 of [0, 1, 2, 0, 2, 3]) {
         this.pos.push(...corners[k2]);
@@ -7424,9 +8409,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       m2.userData.propSlot = name;
       if (base.glow) {
         m2.userData.shDry = true;
-        const S3 = this.engine.surfaces.uniforms;
+        const S4 = this.engine.surfaces.uniforms;
         m2.onBeforeCompile = (sh) => {
-          sh.uniforms.shNight = S3.shNight;
+          sh.uniforms.shNight = S4.shNight;
           sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor * mix(0.25, 2.4, shNight);");
         };
         m2.customProgramCacheKey = () => "shigoto-propglow";
@@ -7450,9 +8435,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     _glow() {
       const m2 = new this.T.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, emissive: 16777215, emissiveIntensity: 1 });
       m2.userData.shDry = true;
-      const S3 = this.engine.surfaces.uniforms;
+      const S4 = this.engine.surfaces.uniforms;
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S3.shNight;
+        sh.uniforms.shNight = S4.shNight;
         sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance = vColor * mix(0.25, 2.4, shNight);");
       };
       m2.customProgramCacheKey = () => "shigoto-glow";
@@ -7507,10 +8492,10 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       return m2;
     }
     _facade() {
-      const T2 = this.T, S3 = this.engine.surfaces.uniforms;
+      const T2 = this.T, S4 = this.engine.surfaces.uniforms;
       const m2 = new T2.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S3.shNight;
+        sh.uniforms.shNight = S4.shNight;
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\n" + FACADE_V).replace("#include <project_vertex>", `#include <project_vertex>
           vFTan = normalize(mat3(modelMatrix) * aTan); vFac = aFac; vFac2 = aFac2; vFUv = uv;
           vFPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFNor = normalize(mat3(modelMatrix) * objectNormal);`);
@@ -7775,7 +8760,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // src/core/Engine.js
-  var VERSION = "0.3.0";
+  var VERSION = "0.5.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -7931,7 +8916,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     scatter(type, x2, z2, n2, spread) {
       const st = this.engine.streamer;
       if (!st) return;
-      const P2 = st.builder;
+      const P3 = st.builder;
       const cell = { props: [] };
       for (let i2 = 0; i2 < n2; i2++) {
         const px = x2 + (Math.random() - 0.5) * spread, pz = z2 + (Math.random() - 0.5) * spread;
@@ -7939,7 +8924,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         cell.props.push({ type, pos: [px, y2 + 0.02, pz], yaw: Math.random() * 360, dynamic: true });
       }
       const key = "scatter:" + (this._sc = (this._sc || 0) + 1);
-      P2.build(cell, key, st.root, null);
+      P3.build(cell, key, st.root, null);
       this.props.push(key);
       while (this.props.length > Math.ceil(this.maxProps / Math.max(1, n2))) this.ph.removeOwner(this.props.shift());
       return key;
@@ -8848,11 +9833,14 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       if (T2 && T2.WebGLRenderTarget) {
         const rt = new T2.WebGLRenderTarget(16, 16);
         const was = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate;
-        renderer.setRenderTarget(rt);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(was);
-        renderer.shadowMap.autoUpdate = auto;
-        rt.dispose();
+        try {
+          renderer.setRenderTarget(rt);
+          renderer.render(scene, camera);
+        } finally {
+          renderer.setRenderTarget(was);
+          renderer.shadowMap.autoUpdate = auto;
+          rt.dispose();
+        }
       }
       programs1 = (renderer.info.programs || []).length;
     } catch (e2) {
@@ -8993,6 +9981,571 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       const lines = ["persistence: built + checked in " + (r2.ms / 1e3).toFixed(1) + " s, " + r2.residentMb + "/" + r2.budgetMb + " MB"];
       for (const c2 of r2.checks) lines.push((c2.ok ? c2.repaired ? "FIXED " : "ok    " : "FAIL  ") + c2.framework + " / " + c2.name + (c2.detail ? " - " + c2.detail : ""));
       return lines.join("\n");
+    }
+  };
+
+  // src/standing/Honor.js
+  var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var HONOR_TIERS = [
+    { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
+    { id: "dishonoured", at: -55, name: "Dishonoured", line: "Your name is said quietly, and not kindly." },
+    { id: "doubtful", at: -20, name: "Doubtful", line: "People are not sure what to make of you." },
+    { id: "decent", at: 20, name: "Decent", line: "An ordinary, decent man." },
+    { id: "upright", at: 55, name: "Upright", line: "Strangers trust you. Shopkeepers remember you." },
+    { id: "honourable", at: 85, name: "Honourable", line: "A man of his word. People stand a little straighter around you." }
+  ];
+  var Honor = class {
+    // deeds: { id: { delta, label, icon, group?, cooldown?, window? } }
+    constructor(opts) {
+      opts = opts || {};
+      this.deeds = Object.assign({}, opts.deeds || {});
+      this.value = clamp(opts.start != null ? opts.start : 0, -100, 100);
+      this.now = opts.now || (() => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1e3);
+      this.ledger = [];
+      this.lastById = /* @__PURE__ */ new Map();
+      this.groupHits = /* @__PURE__ */ new Map();
+      this.goodRun = /* @__PURE__ */ new Map();
+      this.listeners = [];
+      this.totals = { good: 0, bad: 0, deeds: 0 };
+    }
+    on(fn) {
+      this.listeners.push(fn);
+      return () => {
+        const i2 = this.listeners.indexOf(fn);
+        if (i2 >= 0) this.listeners.splice(i2, 1);
+      };
+    }
+    emit(ev) {
+      for (const fn of this.listeners) {
+        try {
+          fn(ev);
+        } catch (e2) {
+          console.error("[Shigoto] honor listener failed", e2);
+        }
+      }
+    }
+    define(id, def) {
+      this.deeds[id] = def;
+      return this;
+    }
+    tier(v2) {
+      v2 = v2 == null ? this.value : v2;
+      let t2 = HONOR_TIERS[0];
+      for (const x2 of HONOR_TIERS) if (v2 >= x2.at) t2 = x2;
+      return t2;
+    }
+    // 0..1 position on the bar, for meters
+    norm() {
+      return (this.value + 100) / 200;
+    }
+    // Report a deed. Returns the event (with the applied delta), or null when it was damped to nothing.
+    // opts: { scale (multiplies delta), label (overrides), note (shown under the label), silent, force (skip damping) }
+    deed(id, opts) {
+      opts = opts || {};
+      const d2 = this.deeds[id];
+      if (!d2) return null;
+      const t2 = this.now();
+      if (!opts.force && d2.cooldown) {
+        const last = this.lastById.get(id);
+        if (last != null && t2 - last < d2.cooldown) return null;
+      }
+      if (!opts.force && d2.same) {
+        for (const o2 of d2.same) {
+          const l2 = this.lastById.get(o2);
+          if (l2 != null && t2 - l2 < (d2.cooldown || 10)) return null;
+        }
+      }
+      let delta = d2.delta * (opts.scale != null ? opts.scale : 1);
+      if (!opts.force && d2.group && d2.window) {
+        const hits = (this.groupHits.get(d2.group) || []).filter((x2) => t2 - x2 < d2.window);
+        delta *= Math.max(0.2, Math.pow(0.6, hits.length));
+        hits.push(t2);
+        this.groupHits.set(d2.group, hits);
+      }
+      if (delta > 0 && !opts.force) {
+        const run = this.goodRun.get(id) || { n: 0, t: 0 };
+        const n2 = t2 - run.t > 600 ? 0 : run.n;
+        delta *= Math.max(0.35, 1 - n2 * 0.15);
+        this.goodRun.set(id, { n: n2 + 1, t: t2 });
+      }
+      if (delta > 0 && this.value > 60) delta *= 1 - (this.value - 60) / 80;
+      if (delta < 0 && this.value < -60) delta *= 1 - (-60 - this.value) / 80;
+      delta = Math.round(delta * 10) / 10;
+      this.lastById.set(id, t2);
+      if (!delta) return null;
+      return this.apply(delta, { id, label: opts.label || d2.label, icon: opts.icon || d2.icon || id, note: opts.note || "", silent: !!opts.silent });
+    }
+    // Move honor directly (story beats, scripted rewards). Returns the event.
+    apply(delta, info) {
+      info = info || {};
+      const before = this.value, tierBefore = this.tier().id;
+      this.value = clamp(Math.round((this.value + delta) * 10) / 10, -100, 100);
+      const applied = Math.round((this.value - before) * 10) / 10;
+      const ev = {
+        kind: "honor",
+        id: info.id || "story",
+        label: info.label || "",
+        icon: info.icon || info.id || "story",
+        note: info.note || "",
+        delta: applied,
+        raw: delta,
+        value: this.value,
+        at: this.now(),
+        tier: this.tier(),
+        tierChanged: this.tier().id !== tierBefore,
+        silent: !!info.silent
+      };
+      this.totals.deeds++;
+      if (delta > 0) this.totals.good++;
+      else this.totals.bad++;
+      this.ledger.push({ id: ev.id, label: ev.label, delta: applied, at: ev.at });
+      if (this.ledger.length > 60) this.ledger.splice(0, this.ledger.length - 60);
+      this.emit(ev);
+      return ev;
+    }
+    // What the tier does to the world, for the host to read. All multipliers are 1 at neutral.
+    effects() {
+      const v2 = this.value / 100;
+      return {
+        // how willing strangers are to ask you for help (a known thug does not get asked)
+        askRate: clamp(1 + v2 * 0.8, 0.15, 1.8),
+        // shop prices: a good name gets a little off, a bad one a little on
+        priceMul: clamp(1 - v2 * 0.08, 0.92, 1.1),
+        // how warmly people answer a greeting (added to the respect engine's warmth)
+        warmth: v2 * 0.35,
+        // how likely a witness is to look the other way for a minor offence
+        blindEye: clamp(v2 * 0.25, 0, 0.25)
+      };
+    }
+    save() {
+      return { v: 1, value: this.value, ledger: this.ledger.slice(-20), totals: this.totals };
+    }
+    load(s2) {
+      if (!s2 || typeof s2.value !== "number") return false;
+      this.value = clamp(s2.value, -100, 100);
+      this.ledger = Array.isArray(s2.ledger) ? s2.ledger.slice(-60) : [];
+      if (s2.totals) Object.assign(this.totals, s2.totals);
+      return true;
+    }
+  };
+
+  // src/standing/Respect.js
+  var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var RESPECT_TIERS = [
+    { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
+    { id: "familiar", at: 15, name: "A familiar face", line: "A few people nod when you pass." },
+    { id: "respected", at: 35, name: "Respected", line: "People make room for you." },
+    { id: "esteemed", at: 60, name: "Esteemed", line: "Strangers bow first." },
+    { id: "revered", at: 85, name: "Revered", line: "The street goes quiet when you walk down it." }
+  ];
+  var TEMPERS = ["meek", "polite", "proud", "hothead"];
+  var TEMPER_WARMTH = { meek: 0.12, polite: 0.1, proud: -0.15, hothead: -0.22 };
+  var Respect = class {
+    // opts: { ranks: [{ id, name, base }], rank, earned, now }
+    constructor(opts) {
+      opts = opts || {};
+      this.ranks = (opts.ranks || [{ id: "none", name: "", base: 0 }]).slice();
+      this.rankId = opts.rank || this.ranks[0].id;
+      this.earned = clamp2(opts.earned || 0, -40, 50);
+      this.now = opts.now || (() => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1e3);
+      this.courtesy = 0;
+      this.courtesyAt = this.now();
+      this.bowsTotal = 0;
+      this.antagTotal = 0;
+      this.bowedTo = 0;
+      this.people = /* @__PURE__ */ new Map();
+      this.recent = [];
+      this.listeners = [];
+      this.rand = opts.random || Math.random;
+    }
+    on(fn) {
+      this.listeners.push(fn);
+      return () => {
+        const i2 = this.listeners.indexOf(fn);
+        if (i2 >= 0) this.listeners.splice(i2, 1);
+      };
+    }
+    emit(ev) {
+      for (const fn of this.listeners) {
+        try {
+          fn(ev);
+        } catch (e2) {
+          console.error("[Shigoto] respect listener failed", e2);
+        }
+      }
+    }
+    rank() {
+      return this.ranks.find((r2) => r2.id === this.rankId) || this.ranks[0];
+    }
+    rankIndex() {
+      return Math.max(0, this.ranks.indexOf(this.rank()));
+    }
+    get value() {
+      return clamp2(Math.round((this.rank().base + this.earned) * 10) / 10, 0, 100);
+    }
+    tier(v2) {
+      v2 = v2 == null ? this.value : v2;
+      let t2 = RESPECT_TIERS[0];
+      for (const x2 of RESPECT_TIERS) if (v2 >= x2.at) t2 = x2;
+      return t2;
+    }
+    norm() {
+      return this.value / 100;
+    }
+    // Promotion (or demotion). Returns the event, or null if nothing changed.
+    setRank(id, info) {
+      const r2 = this.ranks.find((x2) => x2.id === id);
+      if (!r2 || r2.id === this.rankId) return null;
+      const before = this.value, tierBefore = this.tier().id, up = this.ranks.indexOf(r2) > this.rankIndex();
+      this.rankId = r2.id;
+      return this.event(this.value - before, Object.assign({ id: up ? "promotion" : "demotion", label: (up ? "Promoted: " : "Demoted: ") + r2.name, icon: up ? "promotion" : "demotion" }, info), tierBefore);
+    }
+    // Add earned respect from outside (a job done well, a story beat). Returns the event.
+    earn(delta, info) {
+      const before = this.value, tierBefore = this.tier().id;
+      this.earned = clamp2(this.earned + delta, -40, 50);
+      return this.event(this.value - before, Object.assign({ id: "earned", icon: delta >= 0 ? "respect" : "disrespect" }, info), tierBefore);
+    }
+    event(applied, info, tierBefore) {
+      applied = Math.round(applied * 10) / 10;
+      const ev = {
+        kind: "respect",
+        id: info.id,
+        label: info.label || "",
+        icon: info.icon || info.id,
+        note: info.note || "",
+        delta: applied,
+        value: this.value,
+        at: this.now(),
+        tier: this.tier(),
+        tierChanged: this.tier().id !== tierBefore,
+        silent: !!info.silent
+      };
+      this.emit(ev);
+      return ev;
+    }
+    decay() {
+      const t2 = this.now(), dt = t2 - this.courtesyAt;
+      if (dt > 0) {
+        this.courtesy *= Math.pow(0.5, dt / 300);
+        this.courtesyAt = t2;
+      }
+      this.recent = this.recent.filter((x2) => t2 - x2 < 60);
+      return t2;
+    }
+    memory(id) {
+      let m2 = this.people.get(id);
+      if (!m2) {
+        m2 = { bows: 0, antag: 0, last: -1e9, lastBow: -1e9, lastAntag: -1e9 };
+        this.people.set(id, m2);
+        if (this.people.size > 400) this.people.delete(this.people.keys().next().value);
+      }
+      return m2;
+    }
+    // The player greets someone. kind: "bow" | "antagonize".
+    // person: { id, temper, standing (0..1, how important they are), warmth (extra, e.g. from honor) }
+    // Returns { reply, delta, ev, harass } where reply is one of
+    //   bow: "deep" | "bow" | "nod" | "ignore" | "puzzled"      antagonize: "flinch" | "offended" | "glare" | "backsdown" | "squareup" | "flee"
+    greet(kind, person) {
+      person = person || {};
+      const t2 = this.decay(), m2 = this.memory(person.id != null ? person.id : "?"), temper = TEMPERS.includes(person.temper) ? person.temper : "polite";
+      const standing = clamp2(person.standing != null ? person.standing : 0.3, 0, 1), v2 = this.value;
+      const spam = this.recent.length;
+      this.recent.push(t2);
+      let reply, delta = 0, label = "", harass = false;
+      if (kind === "bow") {
+        this.bowsTotal++;
+        this.courtesy += 1;
+        if (t2 - m2.lastBow < 45 && m2.bows > 0) {
+          reply = "puzzled";
+          delta = m2.bows > 1 ? -0.5 : 0;
+          label = "Bowed too often";
+        } else {
+          let w2 = 0.45 + (person.warmth || 0) + (v2 - 30) / 150 + TEMPER_WARMTH[temper] - m2.antag * 0.25;
+          w2 -= Math.max(0, standing - v2 / 100) * 0.3;
+          const r2 = this.rand();
+          if (r2 < w2 * 0.45 + (v2 > 60 ? 0.15 : 0)) {
+            reply = "deep";
+            delta = 2.2;
+            label = "Bowed to deeply";
+          } else if (r2 < w2) {
+            reply = "bow";
+            delta = 1.4;
+            label = "Greeting returned";
+          } else if (r2 < w2 + 0.28) {
+            reply = "nod";
+            delta = 0.5;
+            label = "A nod back";
+          } else {
+            reply = "ignore";
+            delta = -0.4;
+            label = "Ignored";
+          }
+          if (delta > 0) delta *= (0.8 + standing * 0.6) * (m2.bows ? 0.5 : 1) * Math.max(0.3, 1 - Math.max(0, spam - 4) * 0.12);
+          if (delta > 0 && this.earned > 30) delta *= 0.5;
+        }
+        m2.bows++;
+        m2.lastBow = t2;
+      } else {
+        this.antagTotal++;
+        this.courtesy *= 0.6;
+        const again = t2 - m2.lastAntag < 40 && m2.antag > 0;
+        if (again && (temper === "meek" || temper === "polite")) {
+          reply = "flee";
+          delta = -2;
+          label = "Harassed a stranger";
+          harass = true;
+        } else if (temper === "meek") {
+          reply = "flinch";
+          delta = -1;
+          label = "Intimidated someone";
+        } else if (temper === "polite") {
+          reply = "offended";
+          delta = -2.5;
+          label = "Caused offence";
+        } else if (temper === "proud") {
+          if (v2 / 100 > standing + 0.25 && this.rand() < 0.6) {
+            reply = "backsdown";
+            delta = 1;
+            label = "Stared someone down";
+          } else {
+            reply = "glare";
+            delta = -1.5;
+            label = "Lost a staring match";
+          }
+        } else {
+          reply = again ? "squareup" : this.rand() < 0.5 ? "squareup" : "glare";
+          delta = -1.2;
+          label = reply === "squareup" ? "Picked a fight" : "Lost a staring match";
+        }
+        m2.antag++;
+        m2.lastAntag = t2;
+      }
+      m2.last = t2;
+      const ev = delta ? this.earn(delta, { id: kind === "bow" ? "greet" : "antagonize", label, icon: kind === "bow" ? delta > 0 ? "bow" : "ignored" : delta > 0 ? "stare" : "antagonize" }) : null;
+      return { reply, delta: ev ? ev.delta : 0, ev, harass, temper };
+    }
+    // Someone bowed to the player first and he bowed back: a little respect, a little courtesy.
+    returned(personId) {
+      this.decay();
+      const m2 = this.memory(personId);
+      if (m2.bows && this.now() - m2.lastBow < 120) return null;
+      m2.bows++;
+      m2.lastBow = this.now();
+      this.courtesy += 0.5;
+      this.bowedTo++;
+      return this.earn(0.4, { id: "returned", label: "Returned a bow", icon: "bow" });
+    }
+    // Probability that a passer-by bows to the player first. person: { temper, standing, warmth }.
+    bowChance(person) {
+      this.decay();
+      person = person || {};
+      const v2 = this.value, c2 = Math.min(1, this.courtesy / 12);
+      let p2 = Math.max(0, (v2 - 20) / 100) * 0.55 + c2 * 0.3 + (person.warmth || 0) * 0.3 + TEMPER_WARMTH[person.temper || "polite"] * 0.4;
+      p2 -= Math.max(0, (person.standing || 0.3) - v2 / 100) * 0.6;
+      return clamp2(p2, 0, 0.75);
+    }
+    save() {
+      return { v: 1, rank: this.rankId, earned: this.earned, courtesy: Math.round(this.courtesy * 10) / 10, bows: this.bowsTotal, antag: this.antagTotal, bowedTo: this.bowedTo };
+    }
+    load(s2) {
+      if (!s2 || typeof s2.earned !== "number") return false;
+      if (this.ranks.some((r2) => r2.id === s2.rank)) this.rankId = s2.rank;
+      this.earned = clamp2(s2.earned, -40, 50);
+      this.courtesy = s2.courtesy || 0;
+      this.courtesyAt = this.now();
+      this.bowsTotal = s2.bows || 0;
+      this.antagTotal = s2.antag || 0;
+      this.bowedTo = s2.bowedTo || 0;
+      return true;
+    }
+  };
+
+  // src/standing/StandingHud.js
+  var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
+  var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
+  var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  var STANDING_ICONS = {
+    gun: SVG(P2("M3 8h15l1-1h2v3h-3l-1 1h-4l-1 2h-2l-1 4H5l1.5-6H3z")),
+    shooting: SVG(S3("M12 3v4M12 17v4M3 12h4M17 12h4") + '<circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>'),
+    killing: SVG(P2("M12 3c-4.4 0-7.5 3-7.5 7 0 2.3 1 4 2.5 5v3h10v-3c1.5-1 2.5-2.7 2.5-5 0-4-3.1-7-7.5-7zM9 9.5a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zm6 0a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zM10 19h1.2v2H10zm2.8 0H14v2h-1.2z")),
+    car: SVG(P2("M5 11l1.8-4.2A2 2 0 018.6 5.6h6.8a2 2 0 011.8 1.2L19 11a2 2 0 011.5 2v4h-2v1.5h-2.5V17h-8v1.5H5.5V17h-2v-4A2 2 0 015 11zm2.2 0h9.6l-1.3-3.2H8.5zM6.5 13.2a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4zm11 0a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z")),
+    knockdown: SVG(P2("M3 13l1.5-3.5A2 2 0 016.3 8.3h5.4a2 2 0 011.8 1.2L15 13v4h-2v1.2h-2V17H6v1.2H4V17H3z") + S3("M18 6l3 3M21 6l-3 3", 1.8)),
+    alarm: SVG(P2("M12 3a1.4 1.4 0 011.4 1.4v.7A6 6 0 0118 11v4l2 2.5H4L6 15v-4a6 6 0 014.6-5.9v-.7A1.4 1.4 0 0112 3zm-2 16h4a2 2 0 01-4 0z")),
+    robbery: SVG('<text x="12" y="18.5" text-anchor="middle" font-size="17" font-weight="800" font-family="Arial,Helvetica,sans-serif" fill="currentColor">\xA5</text>'),
+    menace: SVG(P2("M12 2l10 18H2zm-1 6v6h2V8zm0 8v2h2v-2z")),
+    escape: SVG(P2("M13.5 5.5a2 2 0 110-4 2 2 0 010 4zM9.8 8.4l3.4-1.2c.7-.2 1.4.1 1.8.7l1.6 2.7 2.9.9-.6 1.9-3.6-1.1-.9-1.4-1.1 3.6 2.4 2.3V22h-2v-4.2l-2.7-2.4-1 3.9H6.5l1.9-7.6-1.6.6V15H4.8v-4.2z")),
+    harass: SVG(S3("M4 12h4l2-5 4 10 2-5h4", 2.2)),
+    help: SVG(P2("M12 20.5l-1.3-1.2C5.9 15 3 12.4 3 9.2 3 6.6 5 4.5 7.6 4.5c1.5 0 3 .7 4.4 2 1.4-1.3 2.9-2 4.4-2C19 4.5 21 6.6 21 9.2c0 3.2-2.9 5.8-7.7 10.1z")),
+    wallet: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2zm11 6.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM5 4h11v2H5z")),
+    keep: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z") + S3("M7 10l8 7M15 10l-8 7", 1.8)),
+    directions: SVG(P2("M11 2h2v3h6l2 2.5-2 2.5h-6v2h-2v-2H5L3 7.5 5 5h6zM11 14h2v8h-2z")),
+    fare: SVG(P2("M3 6h18v12H3zm2 2v8h14V8zm7 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z")),
+    shopping: SVG(P2("M6 8h12l-1 12H7zm3-1a3 3 0 016 0h-1.6a1.4 1.4 0 00-2.8 0z")),
+    escort: SVG(P2("M8 4.5a2 2 0 110 4 2 2 0 010-4zm8 0a2 2 0 110 4 2 2 0 010-4zM6 10h4l1 5-1.5.4V21H7.5v-5.6L6 15zm8 0h4l1 4.6-1.5.4.5 6h-2v-5.6L15 15z")),
+    service: SVG(P2("M5 4h14v4H5zm1 6h12v10H6zm3 2v6h2v-6zm4 0v6h2v-6z")),
+    broken: SVG(S3("M6 6l12 12M18 6L6 18", 2.4)),
+    story: SVG(P2("M6 3h12v18l-6-4-6 4z")),
+    bow: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S3("M14.5 9L8 12.5M9.2 11.8L9 21M9 16l3.5 5", 2.4)),
+    ignored: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S3("M14.5 9L8 12.5M9.2 11.8L9 21", 2.4) + S3("M18 13h4", 2)),
+    returned: SVG('<circle cx="7" cy="6" r="2" fill="currentColor"/><circle cx="17" cy="6" r="2" fill="currentColor"/>' + S3("M8 8.5l2.5 3.5M16 8.5l-2.5 3.5M10.2 12v8M13.8 12v8", 2.2)),
+    antagonize: SVG(P2("M13 2L5 13h5l-1 9 8-11h-5z")),
+    stare: SVG(P2("M12 6c5 0 8.5 4 9.5 6-1 2-4.5 6-9.5 6s-8.5-4-9.5-6c1-2 4.5-6 9.5-6zm0 2.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z")),
+    promotion: SVG(S3("M6 13l6-6 6 6M6 19l6-6 6 6", 2.4)),
+    demotion: SVG(S3("M6 5l6 6 6-6M6 11l6 6 6-6", 2.4)),
+    respect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z")),
+    disrespect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z", 'opacity=".45"') + S3("M5 19L19 5", 2))
+  };
+  var CSS = `
+#stndg { position: fixed; top: 122px; right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 31; width: 280px; pointer-events: none;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-family: 'Konto Sans', 'Segoe UI', Arial, sans-serif; }
+#stndg .mk { display: flex; align-items: center; gap: 9px; padding: 5px 12px 5px 6px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(8,9,12,0) 0%, rgba(8,9,12,0.62) 26%, rgba(8,9,12,0.78) 100%);
+  transform: translateX(26px); opacity: 0; transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 260ms; }
+#stndg .mk.in { transform: none; opacity: 1; }
+#stndg .mk.out { opacity: 0; transform: translateX(14px); transition-duration: 500ms; }
+#stndg .em { position: relative; width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
+#stndg .em i { width: 17px; height: 17px; display: block; position: relative; z-index: 1; }
+#stndg .em::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid currentColor; background: rgba(0,0,0,0.35); }
+#stndg .mk.resp .em::before { border-radius: 2px; transform: rotate(45deg) scale(0.78); }
+#stndg .amt { font-weight: 800; font-size: 19px; letter-spacing: 0.5px; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+#stndg .txt { display: flex; flex-direction: column; text-align: right; max-width: 170px; }
+#stndg .txt b { color: #f3f1ec; font-size: 13px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+#stndg .txt span { color: rgba(243,241,236,0.62); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 1px; }
+#stndg .mk.hl { color: #e3252d; } #stndg .mk.hl .em::before { background: rgba(120,6,10,0.55); }
+#stndg .mk.hg { color: #f0c76a; }
+#stndg .mk.rg { color: #b9d4ec; } #stndg .mk.rl { color: #8c96a3; }
+#stndg .tier { color: #f3f1ec; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border-radius: 2px;
+  background: rgba(8,9,12,0.78); border-right: 3px solid currentColor; opacity: 0; transition: opacity 300ms; }
+#stndg .tier.in { opacity: 1; }
+#stndgm { position: fixed; top: 78px; right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 31; width: 130px; pointer-events: none;
+  opacity: 0; transition: opacity 600ms; display: flex; flex-direction: column; gap: 4px; }
+#stndgm.on { opacity: 1; }
+#stndgm .bar { position: relative; height: 5px; background: rgba(0,0,0,0.58); box-shadow: 0 0 0 1px rgba(0,0,0,0.45); }
+#stndgm .bar b { position: absolute; top: 0; bottom: 0; transition: left 400ms, width 400ms, background 400ms; }
+#stndgm .bar.h::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,0.55); }
+#stndgm .bar.h b.pos { background: linear-gradient(90deg, #c99a3e, #f0c76a); }
+#stndgm .bar.h b.neg { background: linear-gradient(90deg, #e3252d, #9a1418); }
+#stndgm .bar.r b { left: 0; background: linear-gradient(90deg, #6f8fae, #b9d4ec); }
+#stndgm .lbl { display: flex; justify-content: space-between; font: 600 9px/1 'Konto Sans', Arial, sans-serif; letter-spacing: 1.5px; color: rgba(243,241,236,0.7);
+  text-transform: uppercase; text-shadow: 0 1px 2px #000; }
+#stndgc { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); top: 112px; z-index: 32; width: 300px; pointer-events: none;
+  background: rgba(8,9,12,0.86); border-left: 3px solid #f0c76a; padding: 14px 16px; color: #f3f1ec; font-family: 'Konto Sans', Arial, sans-serif;
+  opacity: 0; transform: translateY(-6px); transition: opacity 200ms, transform 200ms; }
+#stndgc.on { opacity: 1; transform: none; }
+#stndgc h4 { margin: 0 0 2px; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(243,241,236,0.6); font-weight: 600; }
+#stndgc .big { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+#stndgc .ln { font-size: 12px; color: rgba(243,241,236,0.72); margin-bottom: 10px; line-height: 1.3; }
+#stndgc .bar { position: relative; height: 6px; background: rgba(255,255,255,0.1); margin: 4px 0 12px; }
+#stndgc .bar b { position: absolute; top: 0; bottom: 0; }
+#stndgc .hist { border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; font-size: 12px; }
+#stndgc .hist div { display: flex; justify-content: space-between; padding: 2px 0; color: rgba(243,241,236,0.8); }
+#stndgc .hist em { font-style: normal; font-weight: 700; }
+#stndgc .keys { margin-top: 10px; font-size: 11px; color: rgba(243,241,236,0.6); }
+#stndgc .keys b { display: inline-block; min-width: 16px; padding: 1px 5px; margin-right: 4px; border: 1px solid rgba(255,255,255,0.4); border-radius: 3px; color: #fff; text-align: center; }
+body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stndgm, body.paused #stndgm, body.cutscene #stndgm, body.camfull #stndg, body.camfull #stndgm { visibility: hidden; }
+@media (max-width: 640px) { #stndg { width: 220px; top: 100px; } #stndg .txt { max-width: 120px; } }
+`;
+  var fmt = (d2) => (d2 > 0 ? "+" : "\u2212") + (Math.abs(d2) >= 10 || Math.abs(d2) % 1 === 0 ? Math.round(Math.abs(d2)) : Math.abs(d2).toFixed(1));
+  var esc = (s2) => String(s2 == null ? "" : s2).replace(/[&<>"]/g, (c2) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c2]);
+  var StandingHud = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.doc = opts.document || (typeof document !== "undefined" ? document : null);
+      this.icons = Object.assign({}, STANDING_ICONS, opts.icons || {});
+      this.max = opts.max || 4;
+      this.hold = opts.hold || 4.2;
+      this.root = this.meterEl = this.cardEl = null;
+      this.meterT = 0;
+    }
+    mount() {
+      const d2 = this.doc;
+      if (!d2 || this.root) return this;
+      const st = d2.createElement("style");
+      st.id = "stndgcss";
+      st.textContent = CSS;
+      d2.head.appendChild(st);
+      this.root = d2.createElement("div");
+      this.root.id = "stndg";
+      d2.body.appendChild(this.root);
+      this.meterEl = d2.createElement("div");
+      this.meterEl.id = "stndgm";
+      this.meterEl.innerHTML = '<div class="lbl"><span>Honor</span><span class="hv"></span></div><div class="bar h"><b></b></div><div class="lbl"><span>Respect</span><span class="rv"></span></div><div class="bar r"><b></b></div>';
+      d2.body.appendChild(this.meterEl);
+      this.cardEl = d2.createElement("div");
+      this.cardEl.id = "stndgc";
+      d2.body.appendChild(this.cardEl);
+      return this;
+    }
+    // Show one change. ev: an event from Honor or Respect.
+    push(ev) {
+      if (!this.root || !ev || ev.silent || !ev.delta) return null;
+      const d2 = this.doc, el = d2.createElement("div");
+      const honor = ev.kind === "honor", cls = honor ? ev.delta < 0 ? "hl" : "hg" : ev.delta < 0 ? "rl" : "rg";
+      el.className = "mk " + cls + (honor ? "" : " resp");
+      el.innerHTML = '<div class="em"><i>' + (this.icons[ev.icon] || this.icons[honor ? ev.delta < 0 ? "broken" : "help" : ev.delta < 0 ? "disrespect" : "respect"]) + '</i></div><div class="amt">' + fmt(ev.delta) + '</div><div class="txt"><b>' + esc(ev.label) + "</b><span>" + (honor ? "Honor" : "Respect") + (ev.note ? " \xB7 " + esc(ev.note) : "") + "</span></div>";
+      this.root.appendChild(el);
+      while (this.root.querySelectorAll(".mk").length > this.max) {
+        const f2 = this.root.querySelector(".mk");
+        f2.remove();
+      }
+      const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f2) => setTimeout(f2, 16);
+      raf(() => el.classList.add("in"));
+      setTimeout(() => {
+        el.classList.add("out");
+        el.classList.remove("in");
+        setTimeout(() => el.remove(), 520);
+      }, this.hold * 1e3 + (Math.abs(ev.delta) >= 10 ? 1500 : 0));
+      if (ev.tierChanged) this.tier(ev);
+      return el;
+    }
+    // A tier change gets its own line: "Honor · Dishonoured".
+    tier(ev) {
+      const d2 = this.doc, el = d2.createElement("div");
+      el.className = "tier";
+      el.style.color = ev.kind === "honor" ? ev.value < 0 ? "#e3252d" : "#f0c76a" : "#b9d4ec";
+      el.textContent = (ev.kind === "honor" ? "Honor" : "Respect") + " \xB7 " + ev.tier.name;
+      this.root.appendChild(el);
+      setTimeout(() => el.classList.add("in"), 30);
+      setTimeout(() => {
+        el.classList.remove("in");
+        setTimeout(() => el.remove(), 400);
+      }, 5200);
+    }
+    // The slim meter: honor centred on zero, respect from the left.
+    meter(honor, respect, secs) {
+      if (!this.meterEl) return;
+      const hb = this.meterEl.querySelector(".bar.h b"), rb = this.meterEl.querySelector(".bar.r b");
+      const h2 = Math.max(-100, Math.min(100, honor)), r2 = Math.max(0, Math.min(100, respect));
+      hb.className = h2 < 0 ? "neg" : "pos";
+      hb.style.left = (h2 < 0 ? 50 + h2 / 2 : 50) + "%";
+      hb.style.width = Math.abs(h2) / 2 + "%";
+      rb.style.width = r2 + "%";
+      this.meterEl.querySelector(".hv").textContent = Math.round(h2);
+      this.meterEl.querySelector(".rv").textContent = Math.round(r2);
+      this.meterEl.classList.add("on");
+      clearTimeout(this.meterT);
+      if (secs !== 0) this.meterT = setTimeout(() => this.meterEl.classList.remove("on"), (secs || 6) * 1e3);
+    }
+    // The full card. info: { honor, honorTier, respect, respectTier, rank, ledger: [{label, delta}], keys: [[key, what]] }; null hides it.
+    card(info) {
+      if (!this.cardEl) return;
+      if (!info) {
+        if (this.cardKey) {
+          this.cardEl.classList.remove("on");
+          this.cardKey = "";
+        }
+        return;
+      }
+      const key = JSON.stringify([info.honor, info.respect, info.rank, (info.ledger || []).length, info.keys]);
+      if (key === this.cardKey) return;
+      this.cardKey = key;
+      const h2 = info.honor, r2 = info.respect;
+      const hist = (info.ledger || []).slice(-4).reverse().map((x2) => "<div><span>" + esc(x2.label) + '</span><em style="color:' + (x2.delta < 0 ? "#e3252d" : "#f0c76a") + '">' + fmt(x2.delta) + "</em></div>").join("");
+      this.cardEl.style.borderLeftColor = h2 < 0 ? "#e3252d" : "#f0c76a";
+      this.cardEl.innerHTML = '<h4>Honor</h4><div class="big">' + esc(info.honorTier.name) + '</div><div class="ln">' + esc(info.honorTier.line) + '</div><div class="bar"><b style="background:' + (h2 < 0 ? "#e3252d" : "#f0c76a") + ";left:" + (h2 < 0 ? 50 + h2 / 2 : 50) + "%;width:" + Math.abs(h2) / 2 + '%"></b></div><h4>Respect' + (info.rank ? " \xB7 " + esc(info.rank) : "") + '</h4><div class="big">' + esc(info.respectTier.name) + '</div><div class="ln">' + esc(info.respectTier.line) + '</div><div class="bar"><b style="background:#b9d4ec;left:0;width:' + r2 + '%"></b></div>' + (hist ? '<div class="hist">' + hist + "</div>" : "") + (info.keys ? '<div class="keys">' + info.keys.map((k2) => "<b>" + esc(k2[0]) + "</b>" + esc(k2[1])).join(" &nbsp; ") + "</div>" : "");
+      this.cardEl.classList.add("on");
     }
   };
   return __toCommonJS(index_exports);

@@ -134,3 +134,11 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 #titlemenu .title-btn { border-radius:0;background:rgba(10,12,14,.82);border:0;border-left:3px solid transparent;font-weight:700;letter-spacing:.07em; }
 #titlemenu .title-btn.sel,#titlemenu .title-btn:hover { background:#eff1ed;color:#101214;border-left-color:#b6f16b; }
 @media(max-width:760px){#pausetabs{padding:14px 12px 0;gap:8px}.ptab{padding:13px 11px;font-size:12px}#pausesign{height:44px}}
+/* These opacity/transform timelines run on the compositor while world generation occupies JS. */
+#bootshow.compositor .slide { opacity:0;transform-origin:50% 50%;transition:none;animation-fill-mode:both; }
+#bootshow.compositor .slide:first-child { opacity:1; }
+@keyframes salary-load-pan { from{transform:scale(1.08) translate3d(-2%,0,0)}to{transform:scale(1.14) translate3d(2%,0,0)} }
+#bootshow.compositor.still .slide { animation-play-state:paused; }
+#boot.reduce-motion #bootshow.compositor .slide,body[data-reduced-motion="true"] #bootshow.compositor .slide { animation:none!important; }
+@media(prefers-reduced-motion:reduce){#bootshow.compositor .slide{animation:none!important}}
+#bootshow.compositor:not(.still) .slide { will-change:transform,opacity; }

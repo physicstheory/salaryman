@@ -463,6 +463,20 @@
   #rbHealth b { background: linear-gradient(#6fcf6a, #3f9a3b); }
   #rbHealth.low b { background: linear-gradient(#e0574b, #a8322a); }
   #rbStress b { background: linear-gradient(#5ea9ec, #2f74c0); }
+  /* Adrenaline: during a crime or a chase the stress bar freezes over (pale ice, frost stripes, no movement) and a thin orange
+     line along its bottom shows how much adrenaline is left. When the line runs out the ice cracks and stress moves again. */
+  #rbStress s { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: linear-gradient(90deg, #ff7a1a, #ffc23a);
+    box-shadow: 0 0 6px rgba(255, 150, 40, 0.9); opacity: 0; transition: opacity 0.3s; }
+  #rbStress.frozen { box-shadow: 0 0 0 1px rgba(190, 235, 255, 0.85), 0 0 9px rgba(150, 220, 255, 0.75); }
+  #rbStress.frozen b { transition: none; background: repeating-linear-gradient(115deg, rgba(255,255,255,0.55) 0 3px, rgba(255,255,255,0) 3px 9px),
+    linear-gradient(#e4f6ff, #8fd0f2); animation: frost 1.6s ease-in-out infinite; }
+  #rbStress.frozen s { opacity: 1; }
+  #rbStress.spent b { animation: thaw 0.35s steps(2) 4; }
+  @keyframes frost { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.18); } }
+  @keyframes thaw { 0% { filter: brightness(1.8) saturate(0); } 100% { filter: brightness(1); } }
+  #adrenTag { position: absolute; right: 0; bottom: 16px; font: 800 10px/1 var(--ui, sans-serif); letter-spacing: 0.14em; font-style: normal;
+    color: #ffb347; text-shadow: 0 1px 2px #000, 0 0 6px rgba(255, 140, 30, 0.8); opacity: 0; transition: opacity 0.3s; }
+  #adrenTag.on { opacity: 1; animation: frost 0.9s ease-in-out infinite; }
   @media (max-width: 640px) { #minimapwrap, #minimap { width: 240px; } #minimap { height: 150px; } }
   /* Phone notifications, as the phone would raise them, but over the picture and not on the handset. */
   #strainveil { position: fixed; inset: 0; z-index: 25; pointer-events: none; opacity: 0; transition: opacity 1.2s;
@@ -1081,7 +1095,8 @@
 <div id="hud">
   <div id="minimapwrap">
     <canvas id="minimap" width="680" height="400"></canvas>
-    <div id="radarbars"><i id="rbHealth"><b></b></i><i id="rbStress"><b></b></i></div>
+    <div id="radarbars"><i id="rbHealth"><b></b></i><i id="rbStress"><b></b><s></s></i></div>
+    <em id="adrenTag">ADRENALINE</em>
   </div>
   <div id="notifs"></div>
   <div id="prompt"><b>Y</b><span id="promptwhat">Enter</span></div>
@@ -9272,7 +9287,7 @@ function fillPause(name) {
       '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
       '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
       '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
-      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Regard someone (on foot)", "hold Z · hold LT, hands empty") + kvRow("Bow / antagonise", "B / N · B / RT while regarding") + kvRow("Help a stranger", "E · A") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
       '<div><h3>The island</h3>' + towns + '</div>' +
       '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
       '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
@@ -10827,6 +10842,13 @@ function drawVitals() {
   const hw = Math.round(clamp01(vitals.health) * 1000) / 10 + "%", sw = Math.round(clamp01(vitals.stress) * 1000) / 10 + "%";
   if (h.firstChild.style.width !== hw) h.firstChild.style.width = hw;
   if (st.firstChild.style.width !== sw) st.firstChild.style.width = sw;
+  const frozen = adrenalineHolding(), spent = vitals.spentT > 0;
+  if (st.classList.contains("frozen") !== frozen) st.classList.toggle("frozen", frozen);
+  if (st.classList.contains("spent") !== spent) st.classList.toggle("spent", spent);
+  const aw = Math.round(clamp01(vitals.adren) * 1000) / 10 + "%";
+  if (st.lastChild && st.lastChild.style.width !== aw) st.lastChild.style.width = aw;
+  const tag = document.getElementById("adrenTag");
+  if (tag && tag.classList.contains("on") !== frozen) tag.classList.toggle("on", frozen);
   const low = vitals.health < 0.25 && Math.floor(clock * 2.5) % 2 === 0;
   if (h.classList.contains("low") !== low) h.classList.toggle("low", low);
 }
@@ -10845,13 +10867,36 @@ function eatRelief(id, rel) {
 function retailRelief(yen) {
   if (vitals.stress > 0.3) vitals.stress = clamp01(vitals.stress - clamp(0.012 + yen / 60000, 0, 0.06));
 }
+// Adrenaline: on while wanted or just after a crime, it drains over about three minutes of chase (faster with more stars) and
+// refills over a minute and a half once the police have lost him.
+const ADRENALINE_SECS = 200;
+function updateAdrenaline(dt) {
+  const stars = (typeof wanted !== "undefined" && wanted.stars) || 0;
+  vitals.rushT = Math.max(0, (vitals.rushT || 0) - dt);
+  const on = stars > 0 || vitals.rushT > 0;
+  if (on && !vitals.adrenOn && vitals.adren > 0.05) notify("Health", "Adrenaline", "Your heart is pounding. Stress can't touch you, for now.", 4);
+  vitals.adrenOn = on;
+  if (on) {
+    if (vitals.adren > 0) {
+      vitals.adren = Math.max(0, vitals.adren - dt / ADRENALINE_SECS * (1 + 0.15 * Math.max(0, stars - 1)));
+      if (vitals.adren === 0) {
+        vitals.spentT = 1.4;
+        notify("Health", "Adrenaline gone", "The rush has worn off. The stress is catching up with you.", 6);
+      }
+    }
+  } else vitals.adren = Math.min(1, vitals.adren + dt / 90);
+  if (vitals.spentT > 0) vitals.spentT -= dt;
+}
 function updateVitals(dt) {
   if (!player.placed) return;
-  vitals.stress = clamp01(vitals.stress + dt * 0.0016);
+  updateAdrenaline(dt);
+  // The day wears on him slowly when he is rested (well over an hour of play to fill from nothing) and quickly once he has done
+  // mission after mission without sleeping.
+  stressAddRaw(dt * 0.00022 * (1 + 0.9 * (vitals.worked || 0)));
   // Time awake, in game minutes. A few days without a bed adds a little to the
   // stress that was going to arrive anyway; sleeping zeroes it.
   vitals.awake = (vitals.awake || 0) + dt * TIME.rate;
-  if (vitals.awake > 4320) vitals.stress = clamp01(vitals.stress + dt * 0.0004 * Math.min(2.5, (vitals.awake - 4320) / 2880));
+  if (vitals.awake > 4320) stressAddRaw(dt * 0.0004 * Math.min(2.5, (vitals.awake - 4320) / 2880));
   updateHealthData(dt);
   // Health does not mend itself. Food does it, and a bed does, and so does a hospital.
   // Out in the open air stress eases (the outdoors is the free cure); in a car on a
@@ -13664,9 +13709,21 @@ precision highp float;
 varying vec2 vUv;
 uniform sampler2D tColor, tAO;
 uniform float uStrength;
+// A pixel the scene could not shade properly must not reach the bloom. One NaN (a zero-length normal on a degenerate UV patch, the
+// half-vector when the eye looks exactly back down the sun) or one Inf (a sun glint on wet glass past half-float's 65,504) is spread by
+// the five bloom blurs over a block a quarter of the screen wide: an Inf flashes it white for a frame, a NaN turns it, buildings and
+// Seiko with it, black. So NaN becomes nothing, Inf and anything over the cap become the cap (still pure white after the tone map), and
+// the bloom only ever sees finite light. Checked on the bits, which no compiler can optimise away the way it may an isnan().
+float kontoSafe(float x) {
+  uint u = floatBitsToUint(x);
+  if ((u & 0x7f800000u) == 0x7f800000u) return (u & 0x007fffffu) != 0u ? 0.0 : (x > 0.0 ? 32.0 : 0.0);
+  return clamp(x, 0.0, 32.0);
+}
 void main() {
   vec4 c = texture2D(tColor, vUv);
+  c.rgb = vec3(kontoSafe(c.r), kontoSafe(c.g), kontoSafe(c.b));
   float ao = texture2D(tAO, vUv).r;
+  if (!(ao >= 0.0 && ao <= 1.0)) ao = 1.0;
   // occlusion darkens the light that comes from everywhere, not the sun: a pixel in full sunlight keeps more of itself
   float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
   float k = uStrength * (1.0 - 0.45 * smoothstep(0.5, 2.5, lum));
@@ -13721,7 +13778,7 @@ function fxBuild() {
   }
   class KontoSSAOPass extends P {
     constructor(src) {
-      super(); this.src = src; this.enabled = true;
+      super(); this.src = src; this.useAO = true;   // NOT this.enabled: the composer skips a disabled pass, and this one also copies the scene on
       this.ao = new FSQ(fsMaterial(FX_SSAO_FRAG, { tDepth: { value: null }, uProj: { value: new THREE.Matrix4() }, uProjInv: { value: new THREE.Matrix4() },
         uRes: { value: new THREE.Vector2(1, 1) }, uRadius: { value: fx.ssao.radius }, uIntensity: { value: fx.ssao.intensity }, uBias: { value: fx.ssao.bias } }));
       this.blur = new FSQ(fsMaterial(FX_BLUR_FRAG, { tAO: { value: null }, tDepth: { value: null }, uStep: { value: new THREE.Vector2() }, uNear: { value: 1 }, uFar: { value: 1000 } }));
@@ -13737,7 +13794,7 @@ function fxBuild() {
       const src = this.src.rt, dt = src.depthTexture;
       const ap = this.apply.material.uniforms;
       ap.tColor.value = src.texture;
-      if (this.enabled && fx.ssao.strength > 0) {
+      if (this.useAO && fx.ssao.strength > 0) {
         const u = this.ao.material.uniforms;
         u.tDepth.value = dt; u.uProj.value.copy(camera.projectionMatrix); u.uProjInv.value.copy(camera.projectionMatrixInverse);
         u.uRes.value.set(this.hw, this.hh); u.uRadius.value = fx.ssao.radius; u.uIntensity.value = fx.ssao.intensity; u.uBias.value = fx.ssao.bias;
@@ -13789,7 +13846,10 @@ function fxRender() {
   const b = fx.p.bloom;
   b.strength = fx.bloom.strength * (1 + 0.5 * night); b.radius = fx.bloom.radius; b.threshold = fx.bloom.threshold * (1 - 0.72 * night);
   fx.p.tone.uniforms.uExposure.value = renderer.toneMappingExposure;
-  fx.p.ssao.enabled = gfx.tier === "high" || gfx.tier === "ultra";
+  // occlusion on high and ultra only; the pass itself always runs, because it is what hands the (sanitised) scene to the bloom. Switched
+  // off with .enabled, as it was, the composer skipped it whenever "Finish" forced this chain on at low or medium, and the bloom fed on a
+  // stale buffer from earlier frames, which flickered.
+  fx.p.ssao.useAO = gfx.tier === "high" || gfx.tier === "ultra";
   if (worldReal()) { fx.ssao.strength = 1.0; fx.ssao.intensity = 1.35; b.strength *= 1.25; }
   fx.composer.render(1 / 60);
 }
@@ -21485,7 +21545,51 @@ function yenText(n) {
 // Health and stress, the two rings round the minimap. Stress is the one the
 // game is actually about: it climbs while he scrolls, and it has to be slept
 // off in a capsule hotel.
-const vitals = { health: 1, stress: 0.14 };
+//
+// Stress is meant to come from overwork: missions and shifts one after another without a bed in between. Everyday knocks (a crash,
+// MyGram, the boss) still add to it, but a rested man shrugs most of that off (stressLoad). During a crime or a police chase
+// adrenaline holds the bar where it is: every rise is ignored while it lasts. Adrenaline drains over the chase, and in a very long
+// one it runs out and stress starts climbing again. It refills once things are calm.
+const vitals = {
+  health: 1, _stress: 0.14, _awake: 0, worked: 0, adren: 1, adrenOn: false, rushT: 0, raw: false,
+  get stress() { return this._stress; },
+  set stress(v) {
+    v = +v;
+    if (v !== v) return;
+    const d = v - this._stress;
+    if (d > 0 && !this.raw) {
+      if (adrenalineHolding()) return;           // frozen: adrenaline swallows it
+      v = this._stress + d * stressLoad();
+    }
+    this._stress = v;
+  },
+  get awake() { return this._awake; },
+  set awake(v) {
+    v = +v || 0;
+    if (v < this._awake - 120) this.worked = 0;  // a real sleep clears the backlog of work
+    this._awake = v;
+  }
+};
+// Set stress exactly (saves, cheats that mean it), skipping the load scaling and the adrenaline freeze.
+function stressSetRaw(v) { vitals.raw = true; vitals.stress = v; vitals.raw = false; }
+// The stress that comes from the job itself, already sized: it is not scaled down, but adrenaline still holds it.
+function stressAddRaw(d) { if (d > 0 && adrenalineHolding()) return; stressSetRaw(clamp01(vitals.stress + d)); }
+// Call when a mission or a work shift is finished. Each one without sleep makes the next knocks land harder and the day wear faster.
+function stressWorked(n) { vitals.worked = Math.min(12, (vitals.worked || 0) + (n == null ? 1 : n)); }
+// How much of an everyday rise in stress actually lands: about a third when rested, all of it after three or four missions in a row,
+// more after that. Being awake for a full game day and night adds to it.
+function stressLoad() {
+  const w = vitals.worked || 0, aw = vitals._awake || 0;
+  return clamp(0.3 + w * 0.22 + Math.max(0, (aw - 1080) / 1440) * 0.25, 0.3, 1.6);
+}
+function adrenalineHolding() {
+  if (!(vitals.adren > 0)) return false;
+  if (vitals.adrenOn || vitals.rushT > 0) return true;
+  try { return wanted.stars > 0; } catch (e) { return false; }
+}
+// Something criminal just happened: adrenaline kicks in for a while even without stars.
+function adrenalineRush(sec) { vitals.rushT = Math.max(vitals.rushT || 0, sec || 15); }
+
 
 const phone = {
   open: false, sel: 0, dirty: true, minute: -1, ctx: null,
@@ -34857,6 +34961,7 @@ function commitCrime(id, at) {
   if (!c) return;
   wanted.lastCrime = c.what;
   const before = wanted.stars;
+  adrenalineRush(20);
   wanted.stars = Math.min(5, wanted.stars + c.stars);
   wanted.heat = 1;
   wanted.escape = 0;
@@ -35264,7 +35369,7 @@ function updateWanted(dt) {
   if (seen) {
     wanted.escape = 0;
     wanted.since = 0;
-    vitals.stress = clamp01(vitals.stress + dt * 0.03);
+    vitals.stress = clamp01(vitals.stress + dt * 0.02);
   } else {
     wanted.escape += dt;
     wanted.since += dt;
@@ -39513,7 +39618,10 @@ function pplAdopt(e, gltf) {
 // Seiko's body at rest, to play his clips on and measure
 function pplSource() {
   if (pplLib.src) return pplLib.src;
-  const body = cloneSkinned(peds.tpl), root = new THREE.Group(); root.add(body); root.rotation.y=Math.PI; root.updateMatrixWorld(true);
+  const body = cloneSkinned(peds.tpl), root = new THREE.Group();
+  // seikoLoaded already faces the template toward +Z. Normalize that node,
+  // rather than rotating its parent again and twisting the target body away from its head.
+  body.rotation.set(0,Math.PI,0); root.add(body); root.updateMatrixWorld(true);
   const bones = {}; body.traverse(o => { if (o.isBone) bones[o.name] = o; });
   const bindQ = {}, bindP = {};
   Object.keys(bones).forEach(n => { bindQ[n] = bones[n].getWorldQuaternion(new THREE.Quaternion()); bindP[n] = bones[n].getWorldPosition(new THREE.Vector3()); });
@@ -39778,6 +39886,7 @@ function policeNear(at, R) {
   return police.officers.some(o => Math.hypot(o.x - at.x, o.z - at.z) < R);
 }
 function witnessCrime(id, at, R, except) {
+  adrenalineRush(15);
   if (policeNear(at, 70)) { commitCrime(id, at); pedAlarm(at, R || 45, null, except); return true; }
   pedAlarm(at, R || 45, id, except);
   return false;
@@ -40940,7 +41049,7 @@ function generate(seed) {
     }
     setTimeout(next, 16);
   }
-  setTimeout(next, 30);
+  Promise.resolve(window.SalaryLoading&&SalaryLoading.ready).catch(()=>{}).then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))).then(()=>setTimeout(next,30));
 }
 
 spotifyLoad();
@@ -43140,6 +43249,7 @@ function storyTick_done(next) {
 }
 function storyClearObjective() { story.obj = null; const el = document.getElementById("objective"); if (el) el.classList.remove("on", "done"); }
 function storyPassed(title, sub) {
+  stressWorked(1);
   const el = cutEl("mpassed");
   el.innerHTML = "<div class='mp1'>MISSION PASSED</div><div class='mp2'>" + title + "</div>" + (sub ? "<div class='mp3'>" + sub + "</div>" : "");
   el.classList.remove("on"); void el.offsetWidth; el.classList.add("on");
@@ -44061,7 +44171,7 @@ function snapshotSave() {
   const wall = phone.wall && phone.wall.photo ? { kind: "default", g: 0, photo: null } : phone.wall;
   return {
     v: 1, t: Date.now(), clock: clock, yen: purse.yen,
-    vitals: { health: vitals.health, stress: vitals.stress, awake: vitals.awake || 0, slept: vitals.slept || 0 },
+    vitals: { health: vitals.health, stress: vitals.stress, awake: vitals.awake || 0, slept: vitals.slept || 0, worked: vitals.worked || 0 },
     bag: { counts: bag.counts, phones: bag.phones, games: bag.games, gear: bag.gear, heldGame: bag.heldGame, watchOn: bag.watchOn },
     phone: { device: phone.device, colourIdx: phone.colourIdx, pearWall: phone.pearWall, pearAccent: phone.pearAccent, wall: wall, watch: phone.watch, health: phone.health, owns: phone.owns, gallery: (phone.gallery || []).slice(-6) },
     wallet: { ic: wallet.ic, toll: wallet.toll, loyal: wallet.loyal, buys: wallet.buys, pts: wallet.pts },
@@ -44102,7 +44212,7 @@ function applySave(s) {
   try {
     if (s.story) storyLoad(s.story);
     purse.yen = s.yen;
-    Object.assign(vitals, s.vitals);
+    Object.assign(vitals, s.vitals); stressSetRaw(s.vitals.stress);
     bag.counts = s.bag.counts || {}; bag.phones = s.bag.phones || {}; bag.games = s.bag.games || {}; bag.gear = s.bag.gear || {};
     bag.heldGame = s.bag.heldGame || null; bag.watchOn = s.bag.watchOn || false;
     Object.assign(phone, s.phone); phone.dirty = true;
@@ -44188,5 +44298,6 @@ radioLoadMusic();
 
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
+<script src="game/standing-hook.js"></script>
 </body>
 </html>
