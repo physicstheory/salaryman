@@ -18251,7 +18251,7 @@ function updateTraffic(dt, at) {
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
                           drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), drive.car.slide || 0, drive.car.dmg, drive.car.livery);
   _carManned = false;
-  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg, p.livery));
+  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, p.pitch || 0, p.slide || 0, p.dmg, p.livery));   // a bike left lying after a crash has a slide (its lean)
   _carManned = true;
   dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
   police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
@@ -44263,5 +44263,6 @@ radioLoadMusic();
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
 <script src="game/standing-hook.js"></script>
+<script src="game/ragdoll-hook.js"></script>
 </body>
 </html>

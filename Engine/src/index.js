@@ -23,3 +23,5 @@ export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, war
 export { Honor, HONOR_TIERS } from "./standing/Honor.js";
 export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
+// Ragdoll: limp bodies that fall, tumble and slide under real physics on any rigged human, then get back up. Needs only THREE.
+export { RagdollSystem, RAGDOLL_JOINTS, findRagdollBones } from "./ragdoll/Ragdoll.js";
