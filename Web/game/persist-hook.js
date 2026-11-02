@@ -298,6 +298,9 @@
       return used <= P.budget ? { ok: true, detail: detailText } : "over budget: " + detailText;
     });
 
+    // stages and checks other parts of the game add (career-commute.js: the SOTI floor and Seiko's flat)
+    (window.PERSIST_EXTRA || []).forEach(f => { try { f(P, facts); } catch (e) { console.warn("[Konto] extra persistence stage:", e); } });
+
     const report = await P.run(onProgress);
     last = report;
     // the first frames of play: build the street round Seiko at once (it is mostly showing what is already built)

@@ -21304,6 +21304,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   }
 
   if (story.blips.length) storyMapBlips(ctx, toScreen, opts);
+  if (window.career && career.mapIcons) try { career.mapIcons(ctx, toScreen, opts); } catch (e) { /* the map draws without them */ }
   // ---- the waypoint, and the line to it
   if (nav.waypoint) {
     const p = toScreen(nav.waypoint.x, nav.waypoint.z);
@@ -36377,6 +36378,8 @@ function updateDrive(dt) {
     if (c.lapse > 0) { throttle = 0; brake = 0; steer = 0; }
     drive.shake = Math.max(drive.shake || 0, strain * 0.06);
   }
+  // an empty tank (the company car, career-commute.js): the engine has nothing to give
+  if (c.fuelOut) throttle = 0;
 
   if (TWO_WHEELERS[kind.body]) {
     updateBike(dt, c, kind, { throttle: throttle, brake: brake, steer: steer, hand: !!hand,
@@ -44591,5 +44594,9 @@ radioLoadMusic();
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
 <script src="game/standing-hook.js"></script>
+<script src="game/career.js"></script>
+<script src="game/career-office.js"></script>
+<script src="game/career-content.js"></script>
+<script src="game/career-commute.js"></script>
 </body>
 </html>
