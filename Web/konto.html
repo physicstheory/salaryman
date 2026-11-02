@@ -39478,7 +39478,10 @@ function pplAdopt(e, gltf) {
 // Seiko's body at rest, to play his clips on and measure
 function pplSource() {
   if (pplLib.src) return pplLib.src;
-  const body = cloneSkinned(peds.tpl), root = new THREE.Group(); root.add(body); root.rotation.y=Math.PI; root.updateMatrixWorld(true);
+  const body = cloneSkinned(peds.tpl), root = new THREE.Group();
+  // seikoLoaded already faces the template toward +Z. Normalize that node,
+  // rather than rotating its parent again and twisting the target body away from its head.
+  body.rotation.set(0,Math.PI,0); root.add(body); root.updateMatrixWorld(true);
   const bones = {}; body.traverse(o => { if (o.isBone) bones[o.name] = o; });
   const bindQ = {}, bindP = {};
   Object.keys(bones).forEach(n => { bindQ[n] = bones[n].getWorldQuaternion(new THREE.Quaternion()); bindP[n] = bones[n].getWorldPosition(new THREE.Vector3()); });
@@ -40905,7 +40908,7 @@ function generate(seed) {
     }
     setTimeout(next, 16);
   }
-  setTimeout(next, 30);
+  Promise.resolve(window.SalaryLoading&&SalaryLoading.ready).catch(()=>{}).then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))).then(()=>setTimeout(next,30));
 }
 
 spotifyLoad();

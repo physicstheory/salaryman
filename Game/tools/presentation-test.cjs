@@ -146,3 +146,10 @@ test('moat height texture retains terrain above the former 25 metre limit',()=>{
   const tex=c.waterHeightTextureF();assert.equal(tex.type,THREE.FloatType);assert.equal(tex.image.data[0],32);assert.equal(tex.image.data[4],40);
   assert.equal(c.waterHeightTextureF(),tex,'The world height texture is shared');
 });
+
+test('retargeting uses the same facing frame for raw and already-adopted animation templates',()=>{
+  const THREE=require('../vendor/three.min.js'),tpl=new THREE.Group(),hips=new THREE.Bone(),head=new THREE.Bone(),arm=new THREE.Bone();hips.name='Hips';head.name='Head';head.position.set(0,1.5,-.1);arm.name='UpperArmL';arm.position.set(-.4,1.2,.03);hips.add(head,arm);tpl.add(hips);
+  const c={THREE,peds:{tpl},pplLib:{}};vm.createContext(c);vm.runInContext(declaration('function cloneSkinned(', '// Called when Seiko')+declaration('function pplSource()', 'function pplTarget('),c);
+  const raw=c.pplSource();c.pplLib.src=null;tpl.rotation.y=Math.PI;const adopted=c.pplSource();
+  for(const name of Object.keys(raw.bindQ)){assert.ok(Math.abs(raw.bindQ[name].dot(adopted.bindQ[name]))>1-1e-6,name);assert.ok(raw.bindP[name].distanceTo(adopted.bindP[name])<1e-6,name);}
+});
