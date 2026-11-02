@@ -62,7 +62,13 @@ const r = await ev(() => {
   return { fonts: window.SignFonts ? SignFonts.loaded.size : -1, total: window.SignFonts ? SignFonts.list.length : -1, swapped, inst, tier: gfx.tier, vending: vending.list.length };
 });
 ok("sign fonts loaded", r.fonts > 55, r);
-ok("city props swapped for detailed ones", r.swapped > 0 || r.tier === "low", r);
+// a software GPU runs on the low tier, which keeps the cheap boxes: force the swap so the detailed path is exercised
+if (!r.swapped) {
+  const r2 = await ev(() => { const t = gfx.tier; gfx.tier = "high"; shigoto.dressProps(); gfx.tier = t;
+    let swapped = 0, inst = 0; scene.traverse(o => { if (o.userData && o.userData.propSwapped) swapped++; if (o.isInstancedMesh && /^(vending|ac):/.test(o.name)) inst += o.count; }); return { swapped, inst }; });
+  Object.assign(r, r2);
+}
+ok("city props swapped for detailed ones", r.swapped > 0 && r.inst > 0, r);
 await snap("title");
 await page.keyboard.press("Enter");
 for (let i = 0; i < 80; i++) { if (/walking/.test(await ev(() => document.body.className))) break; await ev(() => { if (typeof cut !== "undefined" && cut.active) cutFinish(true); }); await wait(3000); }
