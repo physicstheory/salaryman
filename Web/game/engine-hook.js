@@ -36,6 +36,8 @@
       // the game's post chain (fx) draws the scene into a linear HDR target and tone maps at the end
       engine.weather.linearOut = () => typeof FX_LIN !== "undefined" && FX_LIN.on.value === 1;
       engine.weather.auto = true;
+      // rain detail follows the game's graphics tier
+      try { engine.weather.rainEngine.setQuality(typeof gfx !== "undefined" && gfx.tier ? gfx.tier : "high"); } catch (e) { /* default */ }
       engine.weather.set(savedWeather() || "clear", true);
       engine.surfaces.autoAdopt(scene, 2);
       engine.events.on("weather", w => { try { localStorage.setItem("shigoto.weather", w); } catch (e) { /* private mode */ } });
@@ -108,7 +110,9 @@
     if (drive.car) _focus.copy(drive.car.pos); else if (player.placed) _focus.copy(player.pos); else _focus.copy(camera.position);
     // indoors (the shop rooms sit far outside the island): no rain in the room
     const inside = typeof interior !== "undefined" && interior.active;
-    e.weather.rain.visible = e.weather.rain.visible && !inside;
+    e.weather.indoors = !!inside;
+    const RE = e.weather.rainEngine;
+    if (RE && typeof gfx !== "undefined" && gfx.tier && RE.quality !== gfx.tier && gfx.tier !== "potato") RE.setQuality(gfx.tier);
     if (typeof cut !== "undefined" && cut.active && typeof story !== "undefined" && story.step === "intro") {
       if (!paused && dt > 0) { e.env.update(dt,camPos); e.weather.update(dt,camPos); e.surfaces.update(dt); }
     } else e.update(paused ? 0 : dt, _focus);
@@ -129,6 +133,7 @@
   // for the console and cheats: shigoto.weather("storm"), shigoto.cones(), shigoto.shove(), shigoto.characters()
   S.characters = () => SHIGOTO.characters ? SHIGOTO.characters(THREE).report() : null;
   S.weather = (w, now) => S.engine && S.engine.weather.set(w, now);
+  S.rain = () => S.engine && S.engine.weather.rainEngine.report();
   S.cones = (type, n) => { if (!S.bridge) return; const a = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
     return S.bridge.scatter(type || "cone", a.x + Math.sin(yaw) * 9, a.z + Math.cos(yaw) * 9, n || 10, 5); };
   S.shove = () => { if (!S.engine) return; const a = drive.car ? drive.car.pos : player.pos; S.engine.physics.blast([a.x, a.y, a.z], 12, 8); };

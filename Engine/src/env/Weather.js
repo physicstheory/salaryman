@@ -1,9 +1,12 @@
+import { RainEngine } from "../rain/RainEngine.js";
+
 // Weather: a state machine (clear, cloudy, drizzle, rain, storm, fog) that eases between presets, and the things a
 // state drives: cloud cover, rain falling around the camera, splashes, the world getting wet and drying out again,
 // puddles that grow the longer it rains, lightning with thunder a distance-delayed beat later, and the rain's hiss.
 //
-// The rain is entirely on the GPU: twelve thousand streaks in one instanced draw, positioned in the vertex shader in
-// a box that wraps around the camera, so it costs the same standing still as at 200 km/h.
+// The rain itself is the rain engine (rain/RainEngine.js): drops with real sizes and fall speeds in three depth
+// layers with motion blur, an occlusion map so it stops under cover, splashes, roof drips, sheets, mist, and drops
+// lit by the scene's lamps. All on the GPU around the camera, so it costs the same standing still as at 200 km/h.
 
 export const PRESETS = {
   clear:   { cloud: 0.10, rain: 0.00, fog: 0.0000, wind: 2.0, storm: 0 },
@@ -29,9 +32,12 @@ export class Weather {
     this._strikeT = 6;
     this.groundAt = null;    // host may supply (x, z) => y for splash placement
     this.linearOut = null;   // host may supply () => true when it renders into a linear target
-    this.drops = 12000;
-    this._buildRain();
-    this._buildSplashes();
+    this.indoors = false;    // host: true inside a building (no rain, no splashes, no occlusion passes)
+    this.rainEngine = new RainEngine(engine, { quality: engine.opts.rainQuality || "high" });
+    // older names the host already uses: the falling rain and the things on the ground
+    this.rain = this.rainEngine.group;
+    this.splash = this.rainEngine.ground;
+    this.drops = this.rainEngine.drops;
     this.audio = null;
   }
 
@@ -41,97 +47,6 @@ export class Weather {
     this.target = PRESETS[state];
     if (instant) { Object.assign(this.cur, this.target); if (this.target.rain > 0.3) { this.wetness = 1; this.puddles = 0.6 + 0.4 * this.target.rain; } }
     this.engine.events.emit("weather", state);
-  }
-
-  _buildRain() {
-    const T = this.T;
-    const quad = new T.InstancedBufferGeometry();
-    quad.setAttribute("position", new T.BufferAttribute(new Float32Array([-0.5, 0, 0, 0.5, 0, 0, 0.5, 1, 0, -0.5, 1, 0]), 3));
-    quad.setIndex([0, 1, 2, 0, 2, 3]);
-    const seeds = new Float32Array(this.drops * 4);
-    for (let i = 0; i < seeds.length; i++) seeds[i] = Math.random();
-    quad.setAttribute("aSeed", new T.InstancedBufferAttribute(seeds, 4));
-    quad.instanceCount = this.drops;
-    this.rainU = {
-      uTime: { value: 0 }, uBox: { value: new T.Vector3(46, 26, 46) }, uCenter: { value: new T.Vector3() },
-      uFall: { value: 9.5 }, uWind: { value: new T.Vector2() }, uLen: { value: 0.75 }, uWidth: { value: 0.012 },
-      uAmount: { value: 0 }, uLight: { value: new T.Color(0.7, 0.75, 0.82) }, uFlash: { value: 0 }
-    };
-    const mat = new T.ShaderMaterial({
-      uniforms: this.rainU, transparent: true, depthWrite: false, fog: false,
-      vertexShader: `
-        uniform float uTime; uniform vec3 uBox; uniform vec3 uCenter; uniform float uFall; uniform vec2 uWind;
-        uniform float uLen; uniform float uWidth; uniform float uAmount;
-        attribute vec4 aSeed; varying float vA; varying float vY; varying float vX;
-        void main(){
-          if (aSeed.w > uAmount) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-          float sp = uFall * (0.85 + 0.3 * aSeed.w);
-          vec3 vel = vec3(uWind.x, -sp, uWind.y);
-          vec3 p = aSeed.xyz * uBox + vel * uTime;
-          vec3 lo = uCenter - uBox * 0.5;
-          p = lo + mod(p - lo, uBox);
-          vec3 axis = normalize(vel);
-          vec3 toCam = normalize(cameraPosition - p);
-          vec3 side = normalize(cross(axis, toCam));
-          float d = length(cameraPosition - p);
-          float w = uWidth * (1.0 + d * 0.06);
-          vec3 wp = p + side * position.x * w - axis * position.y * uLen * (0.7 + 0.6 * aSeed.y);
-          vA = smoothstep(0.4, 2.0, d) * (1.0 - smoothstep(uBox.x * 0.35, uBox.x * 0.5, d));
-          vY = position.y; vX = position.x;
-          gl_Position = projectionMatrix * viewMatrix * vec4(wp, 1.0);
-        }`,
-      fragmentShader: `
-        uniform vec3 uLight; uniform float uFlash; varying float vA; varying float vY; varying float vX;
-        void main(){
-          float a = vA * (1.0 - abs(vX) * 2.0) * smoothstep(0.0, 0.3, vY) * smoothstep(1.0, 0.6, vY) * 0.38;
-          gl_FragColor = vec4(uLight + vec3(uFlash * 1.5), a);
-        }`
-    });
-    this.rain = new T.Mesh(quad, mat);
-    this.rain.frustumCulled = false;
-    this.rain.renderOrder = 10;
-    this.rain.userData.shDry = true;
-    this.engine.scene.add(this.rain);
-  }
-
-  _buildSplashes() {
-    const T = this.T, N = 900;
-    const g = new T.InstancedBufferGeometry();
-    g.setAttribute("position", new T.BufferAttribute(new Float32Array([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1]), 3));
-    g.setIndex([0, 2, 1, 0, 3, 2]);
-    const s = new Float32Array(N * 4);
-    for (let i = 0; i < s.length; i++) s[i] = Math.random();
-    g.setAttribute("aSeed", new T.InstancedBufferAttribute(s, 4));
-    g.instanceCount = N;
-    this.splashU = { uTime: this.rainU.uTime, uCenter: { value: new T.Vector3() }, uAmount: this.rainU.uAmount, uLight: this.rainU.uLight, uR: { value: 16 } };
-    const mat = new T.ShaderMaterial({
-      uniforms: this.splashU, transparent: true, depthWrite: false, fog: false,
-      vertexShader: `
-        uniform float uTime; uniform vec3 uCenter; uniform float uAmount; uniform float uR;
-        attribute vec4 aSeed; varying vec2 vUv; varying float vPh;
-        void main(){
-          if (aSeed.w > uAmount) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
-          float rate = 2.2 + aSeed.z * 1.5;
-          float cyc = uTime * rate + aSeed.w * 13.0;
-          float id = floor(cyc); vPh = fract(cyc);
-          vec2 r = fract(vec2(sin(id * 12.9898 + aSeed.x * 78.2), sin(id * 39.346 + aSeed.y * 11.1)) * 43758.5453) * 2.0 - 1.0;
-          vec3 c = vec3(uCenter.x + r.x * uR, uCenter.y + 0.03, uCenter.z + r.y * uR);
-          float size = 0.05 + vPh * 0.16;
-          vUv = position.xz;
-          gl_Position = projectionMatrix * viewMatrix * vec4(c + position * size, 1.0);
-        }`,
-      fragmentShader: `
-        uniform vec3 uLight; varying vec2 vUv; varying float vPh;
-        void main(){
-          float r = length(vUv);
-          float ring = smoothstep(0.25, 0.0, abs(r - 0.75)) * (1.0 - vPh);
-          gl_FragColor = vec4(uLight * 1.2, ring * 0.5);
-        }`
-    });
-    this.splash = new T.Mesh(g, mat);
-    this.splash.frustumCulled = false;
-    this.splash.userData.shDry = true;
-    this.engine.scene.add(this.splash);
   }
 
   strike(dist) {
@@ -151,9 +66,15 @@ export class Weather {
     const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
     const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 900;
     const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 7000;
+    this._hissLP = lp;
     this._hiss = ctx.createGain(); this._hiss.gain.value = 0;
     src.connect(hp); hp.connect(lp); lp.connect(this._hiss); this._hiss.connect(destination || ctx.destination);
-    src.start();
+    // the low body of heavy rain (the roar of a whole street of splashes), and drumming on a roof overhead
+    const src2 = ctx.createBufferSource(); src2.buffer = buf; src2.loop = true; src2.playbackRate.value = 0.37;
+    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 420; bp.Q.value = 0.7;
+    this._roar = ctx.createGain(); this._roar.gain.value = 0;
+    src2.connect(bp); bp.connect(this._roar); this._roar.connect(destination || ctx.destination);
+    src.start(); src2.start();
     this._dest = destination || ctx.destination;
   }
   _thunder(d) {
@@ -165,6 +86,8 @@ export class Weather {
     g.gain.linearRampToValueAtTime(vol * 0.55, t + 1.4); g.gain.exponentialRampToValueAtTime(0.001, t + 5.5);
     src.connect(lp); lp.connect(g); g.connect(this._dest); src.start(t); src.stop(t + 6);
   }
+
+  dispose() { if (this.rainEngine) this.rainEngine.dispose(); }
 
   update(dt, focus) {
     const c = this.cur, t = this.target, k = Math.min(1, this.blend * dt * 3);
@@ -179,23 +102,20 @@ export class Weather {
     S.shWet.value = this.wetness;
     S.shRain.value = c.rain;
     S.shPuddles.value = this.puddles;
-    // rain around the camera
-    const cam = this.engine.camera.position;
-    const R = this.rainU;
-    R.uTime.value += dt;
-    R.uCenter.value.copy(cam);
-    R.uWind.value.copy(S.shWind.value);
-    R.uAmount.value = c.rain;
-    R.uFlash.value = env.flash;
-    const day = Math.max(0.12, Math.min(1, env.sunDir.y * 2 + 0.3)) * (1 - c.cloud * 0.4);
-    R.uLight.value.setRGB(0.55 * day + 0.08, 0.6 * day + 0.09, 0.68 * day + 0.11);
-    // a host that draws into a linear HDR target (the game's post chain) wants linear colour, not display colour
-    if (this.linearOut && this.linearOut()) R.uLight.value.convertSRGBToLinear();
-    this.rain.visible = c.rain > 0.01;
-    this.splash.visible = c.rain > 0.05;
-    const gy = this.groundAt ? this.groundAt(focus.x, focus.z) : (this.groundY != null ? this.groundY : 0);
-    this.splashU.uCenter.value.set(focus.x, gy, focus.z);
-    if (this._hiss) this._hiss.gain.value += (c.rain * 0.22 - this._hiss.gain.value) * Math.min(1, dt * 2);
+    // the rain engine: drops, occlusion, splashes, drips, sheets, mist, lighting
+    const RE = this.rainEngine;
+    RE.indoors = this.indoors;
+    if (this.linearOut) RE.linearOut = this.linearOut;
+    if (this.groundAt) RE.groundAt = this.groundAt;
+    else if (this.groundY != null) RE.groundAt = () => this.groundY;
+    RE.update(dt, focus, c, this.wetness);
+    this.drops = RE.drops;
+    if (this._hiss) {
+      const k = Math.min(1, dt * 2), roof = RE.sheltered, out = this.indoors ? 0.25 : 1;
+      this._hiss.gain.value += (c.rain * (roof ? 0.15 : 0.22) * out - this._hiss.gain.value) * k;
+      this._hissLP.frequency.value += ((roof || this.indoors ? 1600 : 7000) - this._hissLP.frequency.value) * k;
+      this._roar.gain.value += (Math.max(0, c.rain - 0.3) * (roof ? 0.5 : 0.28) * out - this._roar.gain.value) * k;
+    }
     // lightning in storms
     if (c.storm > 0.5) {
       this._strikeT -= dt;

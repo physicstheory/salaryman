@@ -9,6 +9,8 @@
 
 export { Engine, createEngine, VERSION } from "./core/Engine.js";
 export { PRESETS as WEATHER } from "./env/Weather.js";
+// Rain: drops, occlusion, splashes, drips, sheets, mist and rain lighting, driven by the weather.
+export { RainEngine, RAIN_QUALITY } from "./rain/RainEngine.js";
 export { PROP_DEFS } from "./world/Props.js";
 export { HostBridge } from "./host/HostBridge.js";
 // Characters: hyper-realistic people (PBR maps, skin scattering, cloth sheen, hair, subdivision). Needs only THREE.

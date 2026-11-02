@@ -188,6 +188,17 @@
       return { adopted: e.surfaces.adoptTree(scene, 0) };
     }, { label: "Preparing the weather" });
 
+    P.stage("rain", 0.4, async () => {
+      // the rain engine: first occlusion map around Seiko (what is overhead, so rain stops under cover) and every rain
+      // shader compiled, so the first shower in play does not stutter
+      const e = window.shigoto && shigoto.engine;
+      if (!e || !e.weather || !e.weather.rainEngine) return { skipped: "no engine" };
+      const RE = e.weather.rainEngine;
+      try { if (typeof gfx !== "undefined" && gfx.tier) RE.setQuality(gfx.tier); } catch (err) { /* default */ }
+      facts.rain = RE.prepare(camera.position);
+      return facts.rain;
+    }, { label: "Preparing the rain" });
+
     P.stage("gpu", 3, async ctx => {
       await ctx.breathe();
       const r = SHIGOTO.warmGPU(renderer, scene, camera, { THREE });
@@ -271,6 +282,14 @@
       const e = window.shigoto && shigoto.engine;
       if (!e) return { ok: true, detail: "no engine" };
       return SHIGOTO.WEATHER[e.weather.state] ? { ok: true, detail: e.weather.state } : "unknown weather state " + e.weather.state;
+    });
+    P.check("rain", "rain engine ready", () => {
+      const e = window.shigoto && shigoto.engine;
+      if (!e || !e.weather || !e.weather.rainEngine) return { ok: true, detail: "no engine" };
+      const f = facts.rain;
+      if (!f) return { ok: true, detail: "not prepared" };
+      if (f.error) return "rain: " + f.error;
+      return { ok: true, detail: f.quality + ", " + f.drops + " drops, occlusion " + (f.occlusionSupported ? "on" : "off (rain falls everywhere)") };
     });
     P.check("memory", "within the memory budget", () => {
       const used = P.residentBytes(), m = renderer.info.memory;
