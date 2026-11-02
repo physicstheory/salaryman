@@ -1,0 +1,43 @@
+{
+  "name": "salaryman-konto",
+  "productName": "Salary Man",
+  "version": "0.2.0",
+  "description": "Salary Man: an open-world city game on a fictional Honshu. Three.js WebGPU inside Electron.",
+  "main": "main.js",
+  "private": true,
+  "license": "UNLICENSED",
+  "author": "Salary Man",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "postinstall": "node node_modules/electron/install.js",
+    "start": "electron .",
+    "start:safe": "electron . --safe",
+    "start:dev": "electron . --dev",
+    "serve": "node tools/serve.js",
+    "test": "node tools/physics_test.mjs",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.14.0",
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.physicstheory.salaryman",
+    "productName": "Salary Man",
+    "directories": { "output": "dist" },
+    "files": ["main.js", "index.html", "src/**/*", "assets/**/*", "package.json"],
+    "asar": true,
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true },
+    "mac": { "target": ["dmg"], "category": "public.app-category.games" },
+    "linux": { "target": ["AppImage"], "category": "Game" }
+  }
+}

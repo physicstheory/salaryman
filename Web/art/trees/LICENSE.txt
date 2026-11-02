@@ -1,0 +1,6 @@
+Tree textures built by Game/tools/build-trees.py from Poly Haven leaves (island_tree_01, fir_tree_01) and
+ambientCG bark (Bark004, Bark006, Bark012, Bark014). All CC0 1.0 (public domain).
+
+imp_*_col.webp, imp_*_nrm.webp (impostor atlases: 8 directions x 3 heights of eye, colour and normals) rendered by
+Game/tools/bake-trees.mjs from Poly Haven models, CC0 1.0: fir_tree_01 (sugi), island_tree_01 (keyaki, and recoloured
+for sakura and momiji), island_tree_02 (matsu, needles recoloured). Packed by Game/tools/pack-impostors.py.

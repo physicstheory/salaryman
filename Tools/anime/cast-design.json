@@ -1,0 +1,653 @@
+{
+  "version": 2,
+  "direction": "Contemporary Japanese anime; tailored navy officewear, earth-toned rural workwear, natural hair, unique face proportions and rigged eyewear. CC0 VRoid bases, retained Biped rigs.",
+  "sourceCommit": "b4c7a0946dd736ee78b9878a3dc1a29cfcdd6aee",
+  "characters": {
+    "man_01": {
+      "identity": "Man 01",
+      "hair": [
+        26,
+        31,
+        35
+      ],
+      "eyes": [
+        67,
+        56,
+        43
+      ],
+      "cloth": [
+        47,
+        65,
+        74
+      ],
+      "faceWidth": 0.96,
+      "faceDepth": 0.98,
+      "hairWidth": 0.97
+    },
+    "man_02": {
+      "identity": "Man 02",
+      "hair": [
+        40,
+        33,
+        29
+      ],
+      "eyes": [
+        70,
+        59,
+        43
+      ],
+      "cloth": [
+        62,
+        77,
+        76
+      ],
+      "faceWidth": 0.972,
+      "faceDepth": 0.992,
+      "hairWidth": 0.986
+    },
+    "man_03": {
+      "identity": "Man 03",
+      "hair": [
+        48,
+        36,
+        30
+      ],
+      "eyes": [
+        73,
+        62,
+        43
+      ],
+      "cloth": [
+        82,
+        76,
+        68
+      ],
+      "faceWidth": 0.984,
+      "faceDepth": 1.004,
+      "hairWidth": 1.002
+    },
+    "man_04": {
+      "identity": "Man 04",
+      "hair": [
+        32,
+        35,
+        42
+      ],
+      "eyes": [
+        76,
+        56,
+        43
+      ],
+      "cloth": [
+        60,
+        68,
+        85
+      ],
+      "faceWidth": 0.996,
+      "faceDepth": 1.016,
+      "hairWidth": 1.018
+    },
+    "officelady_01": {
+      "identity": "Officelady 01",
+      "hair": [
+        53,
+        48,
+        40
+      ],
+      "eyes": [
+        79,
+        59,
+        43
+      ],
+      "cloth": [
+        58,
+        81,
+        71
+      ],
+      "faceWidth": 1.008,
+      "faceDepth": 0.98,
+      "hairWidth": 0.97
+    },
+    "officelady_02": {
+      "identity": "SOTI receptionist",
+      "hair": [
+        39,
+        33,
+        41
+      ],
+      "eyes": [
+        67,
+        57,
+        70
+      ],
+      "cloth": [
+        54,
+        73,
+        91
+      ],
+      "faceWidth": 0.97,
+      "faceDepth": 0.992,
+      "hairWidth": 0.97
+    },
+    "officelady_03": {
+      "identity": "Officelady 03",
+      "hair": [
+        26,
+        31,
+        35
+      ],
+      "eyes": [
+        70,
+        56,
+        43
+      ],
+      "cloth": [
+        47,
+        65,
+        74
+      ],
+      "faceWidth": 1.032,
+      "faceDepth": 1.004,
+      "hairWidth": 1.002
+    },
+    "officelady_04": {
+      "identity": "Officelady 04",
+      "hair": [
+        40,
+        33,
+        29
+      ],
+      "eyes": [
+        73,
+        59,
+        43
+      ],
+      "cloth": [
+        62,
+        77,
+        76
+      ],
+      "faceWidth": 0.96,
+      "faceDepth": 1.016,
+      "hairWidth": 1.018
+    },
+    "officelady_05": {
+      "identity": "Officelady 05",
+      "hair": [
+        48,
+        36,
+        30
+      ],
+      "eyes": [
+        76,
+        62,
+        43
+      ],
+      "cloth": [
+        82,
+        76,
+        68
+      ],
+      "faceWidth": 0.972,
+      "faceDepth": 0.98,
+      "hairWidth": 0.97
+    },
+    "salaryman_01": {
+      "identity": "Salaryman 01",
+      "hair": [
+        32,
+        35,
+        42
+      ],
+      "eyes": [
+        79,
+        56,
+        43
+      ],
+      "cloth": [
+        60,
+        68,
+        85
+      ],
+      "faceWidth": 0.984,
+      "faceDepth": 0.992,
+      "hairWidth": 0.986,
+      "jacket": true
+    },
+    "salaryman_02": {
+      "identity": "Salaryman 02",
+      "hair": [
+        53,
+        48,
+        40
+      ],
+      "eyes": [
+        67,
+        59,
+        43
+      ],
+      "cloth": [
+        58,
+        81,
+        71
+      ],
+      "faceWidth": 0.996,
+      "faceDepth": 1.004,
+      "hairWidth": 1.002
+    },
+    "salaryman_03": {
+      "identity": "Father Shigu",
+      "hair": [
+        83,
+        82,
+        75
+      ],
+      "eyes": [
+        70,
+        62,
+        43
+      ],
+      "cloth": [
+        69,
+        74,
+        67
+      ],
+      "faceWidth": 1.055,
+      "faceDepth": 1.025,
+      "hairWidth": 1.018,
+      "glasses": true,
+      "jacket": true
+    },
+    "salaryman_04": {
+      "identity": "Akio / SOTI colleague",
+      "hair": [
+        39,
+        32,
+        28
+      ],
+      "eyes": [
+        76,
+        55,
+        39
+      ],
+      "cloth": [
+        48,
+        55,
+        64
+      ],
+      "faceWidth": 1.025,
+      "faceDepth": 0.98,
+      "hairWidth": 0.98,
+      "glasses": true,
+      "tie": [
+        48,
+        85,
+        89
+      ],
+      "jacket": true
+    },
+    "salaryman_05": {
+      "identity": "Salaryman 05",
+      "hair": [
+        40,
+        33,
+        29
+      ],
+      "eyes": [
+        76,
+        59,
+        43
+      ],
+      "cloth": [
+        62,
+        77,
+        76
+      ],
+      "faceWidth": 1.032,
+      "faceDepth": 0.992,
+      "hairWidth": 0.986
+    },
+    "salaryman_06": {
+      "identity": "Salaryman 06",
+      "hair": [
+        48,
+        36,
+        30
+      ],
+      "eyes": [
+        79,
+        62,
+        43
+      ],
+      "cloth": [
+        82,
+        76,
+        68
+      ],
+      "faceWidth": 0.96,
+      "faceDepth": 1.004,
+      "hairWidth": 1.002,
+      "jacket": true
+    },
+    "seiko_blue_shirt": {
+      "identity": "Seiko Shigu / blue shirt",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        77,
+        110,
+        133
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "seiko_office": {
+      "identity": "Seiko Shigu / office",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        46,
+        60,
+        73
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "seiko_polo": {
+      "identity": "Seiko Shigu / polo",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        47,
+        85,
+        78
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "seiko_suit_black": {
+      "identity": "Seiko Shigu / suit black",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        31,
+        39,
+        46
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955,
+      "jacket": true
+    },
+    "seiko_suit_charcoal": {
+      "identity": "Seiko Shigu / suit charcoal",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        56,
+        61,
+        65
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955,
+      "jacket": true
+    },
+    "seiko_suit_check": {
+      "identity": "Seiko Shigu / suit check",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        76,
+        71,
+        61
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955,
+      "jacket": true
+    },
+    "seiko_track": {
+      "identity": "Seiko Shigu / track",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        71,
+        83,
+        97
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "seiko_tshirt": {
+      "identity": "Seiko Shigu / tshirt",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        169,
+        153,
+        123
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "seiko_village": {
+      "identity": "Seiko Shigu / village",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        69,
+        88,
+        72
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955,
+      "coverSleeves": true
+    },
+    "seiko_village_denim": {
+      "identity": "Seiko Shigu / village denim",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        64,
+        87,
+        106
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955,
+      "coverSleeves": true
+    },
+    "seiko_waistcoat": {
+      "identity": "Seiko Shigu / waistcoat",
+      "hair": [
+        22,
+        29,
+        34
+      ],
+      "eyes": [
+        65,
+        59,
+        45
+      ],
+      "cloth": [
+        38,
+        58,
+        72
+      ],
+      "faceWidth": 0.975,
+      "faceDepth": 1.02,
+      "hairWidth": 0.955
+    },
+    "woman_02": {
+      "identity": "Seiko\u2019s sister",
+      "hair": [
+        62,
+        43,
+        32
+      ],
+      "eyes": [
+        91,
+        65,
+        42
+      ],
+      "cloth": [
+        169,
+        115,
+        92
+      ],
+      "faceWidth": 0.985,
+      "faceDepth": 0.98,
+      "hairWidth": 1.035
+    },
+    "woman_03": {
+      "identity": "Woman 03",
+      "hair": [
+        32,
+        35,
+        42
+      ],
+      "eyes": [
+        73,
+        56,
+        43
+      ],
+      "cloth": [
+        60,
+        68,
+        85
+      ],
+      "faceWidth": 1.032,
+      "faceDepth": 1.016,
+      "hairWidth": 1.018
+    },
+    "woman_04": {
+      "identity": "Woman 04",
+      "hair": [
+        53,
+        48,
+        40
+      ],
+      "eyes": [
+        76,
+        59,
+        43
+      ],
+      "cloth": [
+        58,
+        81,
+        71
+      ],
+      "faceWidth": 0.96,
+      "faceDepth": 0.98,
+      "hairWidth": 0.97
+    },
+    "woman_05": {
+      "identity": "Mother Shigu",
+      "hair": [
+        55,
+        42,
+        33
+      ],
+      "eyes": [
+        72,
+        60,
+        40
+      ],
+      "cloth": [
+        91,
+        112,
+        88
+      ],
+      "faceWidth": 1.035,
+      "faceDepth": 0.992,
+      "hairWidth": 1.025
+    }
+  }
+}

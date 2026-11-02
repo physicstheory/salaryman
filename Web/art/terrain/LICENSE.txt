@@ -1,0 +1,11 @@
+Terrain textures from Poly Haven (https://polyhaven.com), CC0 1.0 (public domain), at 2048 px.
+grass.jpg, grass_nor.jpg        - leafy_grass
+grass2.jpg                      - grass_ground
+rock_moss.jpg, rock_moss_nor.jpg - mossy_rock
+rock.jpg, rock_nor.jpg          - rock_face_03 (colour taken partly toward grey)
+snow.jpg                        - snow_02 (dark tracks removed)
+sand.jpg, sand_nor.jpg          - aerial_beach_01
+sand_wet.jpg                    - damp_beach_sand
+scree.jpg                       - gravel_ground_01
+water_nor.jpg                   - three.js examples/textures/waternormals.jpg (MIT licence, three.js authors)
+jumpdirt.jpg, jumpdirt_nor.jpg, jumpdirt_rough.jpg - derived from gravel_ground_01 (scree.jpg) by Tools/textures/make_jumpdirt.py (CC0)

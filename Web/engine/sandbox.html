@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shigoto Engine sandbox</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; color: #eee; }
+  #hud { position: fixed; left: 12px; top: 12px; background: rgba(10, 12, 16, 0.72); padding: 10px 12px; border-radius: 8px; min-width: 250px; }
+  #hud h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: 0.04em; }
+  #hud button { background: #2a3038; color: #eee; border: 1px solid #444c56; border-radius: 4px; padding: 3px 7px; margin: 2px 2px 2px 0; cursor: pointer; font-size: 12px; }
+  #hud button.on { background: #c8102e; border-color: #e0304a; }
+  #stats { font: 12px/1.45 ui-monospace, monospace; color: #b8c4d0; margin-top: 6px; white-space: pre; }
+  #help { position: fixed; right: 12px; bottom: 12px; background: rgba(10, 12, 16, 0.6); padding: 8px 10px; border-radius: 8px; color: #c9d1d9; font-size: 12px; }
+  body.shot #hud, body.shot #help { display: none; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <h1>SHIGOTO ENGINE · sandbox</h1>
+  <div id="weather"></div>
+  <div>Time <input id="hour" type="range" min="0" max="24" step="0.1" style="width:150px; vertical-align:middle"> <span id="hourv"></span></div>
+  <div id="cams"></div>
+  <div id="stats"></div>
+</div>
+<div id="help">Drag to look · WASD to move · Shift faster · Space up / jump · G walk/fly · F throw a crate · B shove · 1–6 weather</div>
+<script>
+// three.js: the same r128 the game uses; from the CDN, or the copy vendored in the repo when offline
+window.__three = function () {
+  if (window.THREE) return;
+  document.write('<script src="../../Game/vendor/three.min.js"><\/script>');
+};
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script src="shigoto.js"></script>
+<script src="../art/signfonts/fonts.js"></script>
+<script src="../art/signfonts.js"></script>
+<script>
+(async function () {
+  const Q = new URLSearchParams(location.search);
+  if (Q.has("shot")) document.body.classList.add("shot");
+  const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 5000);
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+  if (window.SignFonts) await Promise.race([SignFonts.ready, new Promise(r => setTimeout(r, 5000))]);
+  const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: true } });
+  window.engine = engine;
+  const level = Q.get("level") || "kanda";
+  const def = await engine.loadLevel("../levels/" + level);
+  if (Q.has("weather")) engine.weather.set(Q.get("weather"), true);
+  if (Q.has("hour")) engine.env.setHour(parseFloat(Q.get("hour")));
+  engine.weather.auto = Q.has("auto");
+
+  // camera: free fly, or walking with the engine's character controller
+  let yaw = Math.PI, pitch = 0, walking = false, ch = null;
+  const pos = new THREE.Vector3().fromArray(def.spawn ? def.spawn.pos : [0, 2, 0]); pos.y += 1.6;
+  function look(c) {
+    pos.fromArray(c.pos);
+    const d = new THREE.Vector3().fromArray(c.look).sub(pos).normalize();
+    yaw = Math.atan2(-d.x, -d.z); pitch = Math.asin(d.y);
+  }
+  const cams = def.cameras || {};
+  if (Q.has("cam") && cams[Q.get("cam")]) look(cams[Q.get("cam")]);
+  else if (def.spawn) yaw = (def.spawn.yaw || 0) * Math.PI / 180;
+
+  const keys = {};
+  addEventListener("keydown", e => {
+    keys[e.code] = true;
+    const ws = Object.keys(SHIGOTO.WEATHER);
+    if (/^Digit[1-6]$/.test(e.code)) setWeather(ws[+e.code.slice(5) - 1]);
+    if (e.code === "KeyG") toggleWalk();
+    if (e.code === "KeyF") throwCrate();
+    if (e.code === "KeyB") engine.physics.blast([pos.x, pos.y - 1, pos.z], 14, 7);
+    unlockAudio();
+  });
+  addEventListener("keyup", e => { keys[e.code] = false; });
+  let drag = null;
+  renderer.domElement.addEventListener("pointerdown", e => { drag = [e.clientX, e.clientY]; unlockAudio(); });
+  addEventListener("pointerup", () => { drag = null; });
+  addEventListener("pointermove", e => { if (!drag) return; yaw -= (e.clientX - drag[0]) * 0.004; pitch = Math.max(-1.5, Math.min(1.5, pitch - (e.clientY - drag[1]) * 0.004)); drag = [e.clientX, e.clientY]; });
+  function toggleWalk() {
+    walking = !walking;
+    if (walking) { if (!ch) ch = engine.physics.createCharacter("player", { pos: [pos.x, pos.y, pos.z] }); else ch.teleport(pos.x, pos.y, pos.z); }
+  }
+  let audioOn = false;
+  function unlockAudio() { if (audioOn) return; audioOn = true; try { const ctx = new AudioContext(); engine.weather.enableAudio(ctx); } catch (e) {} }
+  let thrown = 0;
+  function throwCrate() {
+    const dir = new THREE.Vector3(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+    const st = engine.streamer, key = "thrown" + (thrown++ % 30);
+    engine.physics.removeOwner(key);
+    st.builder.build({ props: [{ type: Math.random() < 0.3 ? "ball" : "crate", pos: [pos.x + dir.x * 1.5, pos.y + dir.y * 1.5 - 0.3, pos.z + dir.z * 1.5], dynamic: true }] }, key, st.root, null);
+    const rec = engine.physics.dynamics[engine.physics.dynamics.length - 1];
+    rec.body.wakeUp(); rec.body.setLinvel({ x: dir.x * 18, y: dir.y * 18 + 3, z: dir.z * 18 }, true);
+  }
+
+  // HUD
+  const wEl = document.getElementById("weather");
+  function setWeather(w) { engine.weather.set(w); [...wEl.children].forEach(b => b.classList.toggle("on", b.textContent === w)); }
+  Object.keys(SHIGOTO.WEATHER).forEach(w => { const b = document.createElement("button"); b.textContent = w; b.onclick = () => setWeather(w); wEl.appendChild(b); });
+  [...wEl.children].forEach(b => b.classList.toggle("on", b.textContent === engine.weather.state));
+  const hour = document.getElementById("hour"), hourv = document.getElementById("hourv");
+  hour.value = engine.env.hour; hour.oninput = () => engine.env.setHour(parseFloat(hour.value));
+  const cEl = document.getElementById("cams");
+  Object.keys(cams).forEach(k => { const b = document.createElement("button"); b.textContent = k; b.onclick = () => { walking = false; look(cams[k]); }; cEl.appendChild(b); });
+  const stats = document.getElementById("stats");
+  let fpsT = 0, fpsN = 0, fps = 0;
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw)), right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    const mv = new THREE.Vector3();
+    if (keys.KeyW) mv.add(fwd); if (keys.KeyS) mv.sub(fwd); if (keys.KeyD) mv.add(right); if (keys.KeyA) mv.sub(right);
+    if (mv.lengthSq()) mv.normalize();
+    if (walking && ch) {
+      const sp = keys.ShiftLeft ? 6.5 : 3.0;
+      const p = ch.move(dt, mv.x * sp, mv.z * sp, !!keys.Space);
+      pos.set(p.x, p.y + 0.7, p.z);
+    } else {
+      const sp = keys.ShiftLeft ? 40 : 10;
+      pos.addScaledVector(mv, sp * dt);
+      if (keys.Space) pos.y += sp * dt; if (keys.KeyC) pos.y -= sp * dt;
+    }
+    camera.position.copy(pos);
+    camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, "YXZ"));
+    engine.update(dt, pos);
+    renderer.render(scene, camera);
+    fpsN++; fpsT += dt;
+    if (fpsT > 0.5) {
+      fps = fpsN / fpsT; fpsN = 0; fpsT = 0;
+      const s = engine.stats, h = engine.env.hour;
+      hourv.textContent = String(Math.floor(h)).padStart(2, "0") + ":" + String(Math.floor((h % 1) * 60)).padStart(2, "0");
+      stats.textContent = `${fps.toFixed(0)} fps   ${renderer.info.render.calls} draws\ncells ${s.cells}   bodies ${s.bodies}   colliders ${s.colliders}\nphysics ${s.physicsMs.toFixed(2)} ms   stream ${s.streamMs.toFixed(2)} ms\nwet ${(engine.weather.wetness * 100).toFixed(0)}%   ${engine.weather.state}   ${walking ? "walking" : "flying"}`;
+    }
+    window.__frames = (window.__frames || 0) + 1;
+    window.__ready = engine.stats.cells >= Math.min(def.cells.length, 9);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})().catch(e => { document.body.innerHTML = "<pre style='color:#f88;padding:20px'>" + (e.stack || e) + "</pre>"; console.error(e); window.__error = String(e.stack || e); });
+</script>
+</body>
+</html>

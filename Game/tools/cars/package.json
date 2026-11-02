@@ -1,0 +1,13 @@
+{
+  "name": "konto-car-import",
+  "private": true,
+  "type": "module",
+  "description": "Fetches the CC-BY Japanese car models from Sketchfab and makes them game-ready (see fetch-cars.mjs).",
+  "dependencies": {
+    "@gltf-transform/core": "^4.1.0",
+    "@gltf-transform/extensions": "^4.1.0",
+    "@gltf-transform/functions": "^4.1.0",
+    "meshoptimizer": "^0.22.0",
+    "sharp": "^0.33.0"
+  }
+}

@@ -1,0 +1,107 @@
+# Build the desktop game and hand back something you can run.
+#
+# Pushing a tag like v0.5.0 builds Windows and Linux and attaches the installers
+# to a GitHub release. Running the workflow by hand (Actions -> Build the game ->
+# Run workflow) builds the same thing and leaves it as a downloadable artifact,
+# which is the quickest way to get a fresh build onto a laptop.
+name: Build the game
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag for this review build (latest-build preserves the rolling release)'
+        required: false
+        default: 'latest-build'
+        type: string
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  # Nothing ships unless the AAA gate passes (Tools/qa/aaa_gate.py, docs/AAA_GATE.md).
+  gate:
+    uses: ./.github/workflows/aaa-gate.yml
+
+  build:
+    needs: gate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows
+            out: "Game/dist/win-unpacked/**"
+          - os: ubuntu-latest
+            name: linux
+            out: "Game/dist/*.AppImage"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        working-directory: Game
+        run: npm install --no-audit --no-fund
+
+      - name: Stage the engine
+        working-directory: Game
+        run: npm run stage
+
+      - name: Build
+        working-directory: Game
+        env:
+          # electron-builder signs nothing here: these are unsigned builds, and
+          # Windows will say so the first time you run one.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run dist
+
+      # The Actions artifact store has a size cap that fills up after a few builds, and then
+      # every build fails at the end. So a hand-run build goes to a rolling "latest" release
+      # instead (release files don't count against that cap), under fixed names so the
+      # download links never change. The artifact is kept too, but only for a day, and a
+      # full store no longer fails the build.
+      - name: Pack it with a fixed name (Windows)
+        if: matrix.name == 'windows'
+        shell: pwsh
+        run: Compress-Archive -Path Game/dist/win-unpacked/* -DestinationPath SalaryMan-windows.zip -Force
+
+      - name: Pack it with a fixed name (Linux)
+        if: matrix.name == 'linux'
+        run: cp Game/dist/*.AppImage SalaryMan-linux.AppImage && chmod +x SalaryMan-linux.AppImage
+
+      - name: Put it on the latest-build release
+        if: github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || 'latest-build' }}
+          name: Salary Man review build
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          draft: ${{ inputs.release_tag != 'latest-build' }}
+          make_latest: false
+          overwrite_files: true
+          body: "The newest hand-run build of Salary Man (commit ${{ github.sha }}). Windows: download SalaryMan-windows.zip, unzip it and run Salary Man.exe. Linux: download SalaryMan-linux.AppImage and run it."
+          files: SalaryMan-${{ matrix.name }}.*
+
+      - name: Keep the build
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: SalaryMan-${{ matrix.name }}
+          path: ${{ matrix.out }}
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Attach it to the release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.out }}
+          draft: false
+          generate_release_notes: true

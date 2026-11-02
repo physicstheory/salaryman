@@ -1,0 +1,172 @@
+{
+  "license": "CC0-1.0",
+  "licenseUrl": "https://polyhaven.com/license",
+  "sources": [
+    {
+      "asset": "phone_shop",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/phone_shop.jpg",
+      "kind": "interior",
+      "tile": 0
+    },
+    {
+      "asset": "witsand_woolshop",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/witsand_woolshop.jpg",
+      "kind": "interior",
+      "tile": 1
+    },
+    {
+      "asset": "comfy_cafe",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/comfy_cafe.jpg",
+      "kind": "interior",
+      "tile": 2
+    },
+    {
+      "asset": "witsand_woolshop",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/witsand_woolshop.jpg",
+      "kind": "interior",
+      "tile": 3
+    },
+    {
+      "asset": "decor_shop",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/decor_shop.jpg",
+      "kind": "interior",
+      "tile": 4
+    },
+    {
+      "asset": "phone_shop",
+      "url": "https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/phone_shop.jpg",
+      "kind": "interior",
+      "tile": 5
+    },
+    {
+      "asset": "brick_wall_10",
+      "kind": "surface",
+      "name": "brick",
+      "url": "https://polyhaven.com/a/brick_wall_10"
+    },
+    {
+      "asset": "painted_plaster_wall",
+      "kind": "surface",
+      "name": "plaster",
+      "url": "https://polyhaven.com/a/painted_plaster_wall"
+    },
+    {
+      "asset": "concrete_wall_006",
+      "kind": "surface",
+      "name": "concrete",
+      "url": "https://polyhaven.com/a/concrete_wall_006"
+    },
+    {
+      "asset": "metal_plate",
+      "kind": "surface",
+      "name": "metal",
+      "url": "https://polyhaven.com/a/metal_plate"
+    }
+  ],
+  "files": {
+    "plaster-normal.jpg": {
+      "bytes": 1335620,
+      "sha256": "0e90c2deab31c3e47ec7cf872d9247671212487b9d9df973dad870c74515db9d"
+    },
+    "concrete-color.jpg": {
+      "bytes": 1044312,
+      "sha256": "81db1ce9820b76a32a0da1a9e946d4966d416152e029bb44e5338ea0de2462ba"
+    },
+    "concrete-roughness.jpg": {
+      "bytes": 218665,
+      "sha256": "13a7221c2f981bfe340d3bc521c9ec3799b08e8d6060a5f8fe2ec91d62dfa90d"
+    },
+    "plaster-roughness.jpg": {
+      "bytes": 394823,
+      "sha256": "a079aeee40e72b1191c4e8d29f2b352beafe2f39a0f1549f0fe0ea62b2972831"
+    },
+    "brick-roughness-low.jpg": {
+      "bytes": 24526,
+      "sha256": "bc9915bca69057b07470334d1449cc8ad3a919f3b9b6b38602afb2beda8729a4"
+    },
+    "metal-color-low.jpg": {
+      "bytes": 57103,
+      "sha256": "306f020d70bdac3a9b5452685b3b88cb650bb076666046bcab9e42f49d207a34"
+    },
+    "metal-roughness.jpg": {
+      "bytes": 1405210,
+      "sha256": "0a837a469ec532afdbd904c0749795383937ae1063a3ec4ef4e292d2fed5511c"
+    },
+    "concrete-normal.jpg": {
+      "bytes": 1908484,
+      "sha256": "33c96850a32439b27d522cbc96b9303adb59fa25f54df747df2359e4027fb8d7"
+    },
+    "plaster-normal-low.jpg": {
+      "bytes": 33473,
+      "sha256": "d1f0ed671d5c742760f0894533e187284bb54c1600ba18ede08596c272c9bd98"
+    },
+    "concrete-color-low.jpg": {
+      "bytes": 50863,
+      "sha256": "8d14aa3d2efe099540597b67f335aaab262ddfcee1f1376d5b090e2f375841b6"
+    },
+    "interiors-low.jpg": {
+      "bytes": 630301,
+      "sha256": "5ccc5d9aeab9b03d27ce4cfaa81f6c5040b4fb4fc3f41f8a603642199d12a925"
+    },
+    "brick-color-low.jpg": {
+      "bytes": 67373,
+      "sha256": "534f654b289544921b9d7fb601c64462346f4d2340044f2c89437e7b88f85ad6"
+    },
+    "metal-color.jpg": {
+      "bytes": 867721,
+      "sha256": "c18311b7826669de48914d524603ded64c5b4a95c9205bbd1a43b2db41e5af9d"
+    },
+    "interiors.jpg": {
+      "bytes": 2752192,
+      "sha256": "52d353ec5b159ed54c52c945052b801e8c81b61014dcf1a93d7d676e491763ee"
+    },
+    "brick-normal-low.jpg": {
+      "bytes": 71332,
+      "sha256": "57dd253aac197d7a2f1938872a13233988fc8d3ce899733e1b73f1dc144343c9"
+    },
+    "metal-normal-low.jpg": {
+      "bytes": 59241,
+      "sha256": "c7ba0b012e259446f185e77911a7290ba7eda2a4e2cc6dbabc9294b8d9d106f4"
+    },
+    "plaster-roughness-low.jpg": {
+      "bytes": 8190,
+      "sha256": "a59deab19ded3654dec3267d802c4ddc3a650c21cd24e73c70b0f47895dca0e5"
+    },
+    "brick-color.jpg": {
+      "bytes": 1005090,
+      "sha256": "6f4dc7fde0473f15d222d43a4128ecb692f6bc0a2ace3647eb6d8a6c15a97a5c"
+    },
+    "concrete-roughness-low.jpg": {
+      "bytes": 5599,
+      "sha256": "50566e0b1c7a8ecff749d038992666ef5769eadc6cb0eacc27f203cded729d18"
+    },
+    "metal-normal.jpg": {
+      "bytes": 794890,
+      "sha256": "fdfa12b97a7dcbb491a89c3462b9efbe225bc49ad85608ccf82a147499d2fdd7"
+    },
+    "plaster-color.jpg": {
+      "bytes": 1275608,
+      "sha256": "b84b476c83d39daef261fba84795dbfc939eb9e702c5da4750fdd7fad393698a"
+    },
+    "brick-normal.jpg": {
+      "bytes": 1188219,
+      "sha256": "2302189a025bdbcd2830a2b986e3090396500b7cce0dad562027b8be34453914"
+    },
+    "plaster-color-low.jpg": {
+      "bytes": 34785,
+      "sha256": "3587247c70afe61b05275a2f9901fa7292ffde880669437117f342133b37f89e"
+    },
+    "brick-roughness.jpg": {
+      "bytes": 416399,
+      "sha256": "aa98f1f66d5222bc8ef39f24ef10d8b4a25bc1503385ae910d49a20b9ce2194c"
+    },
+    "metal-roughness-low.jpg": {
+      "bytes": 89144,
+      "sha256": "7509d50d04280be0cd00c6db6a5c2867df51123b5b80e63f0c66e6a1551dc66b"
+    },
+    "concrete-normal-low.jpg": {
+      "bytes": 84566,
+      "sha256": "2c0982d6ad85dd05ab0ec7e77cf5e9e9f9cbbd8bcb78512f37bb0a2689ff6a8f"
+    }
+  }
+}

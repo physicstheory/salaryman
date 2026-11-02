@@ -1,0 +1,131 @@
+{
+ "_note": "Which model becomes which vehicle in the game. Every one is CC Attribution (credited in Web/cars/CREDITS.md). \"carros\" names a model in github.com/pedrosoandre/carros (no account needed); \"uid\" names one on Sketchfab (needs SKETCHFAB_TOKEN). paint names the body-paint material when the library guesses wrong. yaw turns the model so its nose points down +Z if it was authored facing another way; tris is the triangle budget after simplification; livery false drops the game's own roof lamp or light bar (the model has its own).",
+ "kei": {
+  "carros": "honda-fit",
+  "what": "Honda Fit (GK3)",
+  "tris": 24000
+ },
+ "keivan": {
+  "carros": "suzuki-carry",
+  "what": "Suzuki Carry / Every kei van",
+  "tris": 24000,
+  "yaw": 0.7854
+ },
+ "hatch": {
+  "carros": "toyota-prius",
+  "what": "Toyota Prius 2012",
+  "tris": 24000,
+  "paint": "Color.002",
+  "yaw": 3.14159
+ },
+ "sedan": {
+  "carros": "toyota-camry",
+  "what": "Toyota Camry (XV40)",
+  "tris": 24000
+ },
+ "saloon": {
+  "carros": "nissan-cefiro-a31",
+  "what": "Nissan Cefiro (A31)",
+  "tris": 30000,
+  "error": 0.03
+ },
+ "taxi": {
+  "carros": "toyota-corolla",
+  "what": "Toyota Corolla (KE80) taxi",
+  "tris": 24000
+ },
+ "police": {
+  "carros": "toyota-crown-athlete",
+  "what": "Toyota Crown Athlete S210 patrol car",
+  "tris": 26000,
+  "error": 0.03
+ },
+ "suv": {
+  "carros": "toyota-rav4",
+  "what": "Toyota RAV4 Hybrid 2021",
+  "tris": 26000,
+  "error": 0.03,
+  "paint": "Silver_Sky_Metallic"
+ },
+ "sports": {
+  "carros": "nissan-gt-r",
+  "what": "Nissan Skyline R34 GT-R",
+  "tris": 28000
+ },
+ "super": {
+  "carros": "honda-nsx",
+  "what": "Honda NSX 1990",
+  "tris": 30000
+ },
+ "bike": {
+  "carros": "suzuki-gsxr-750",
+  "what": "Suzuki GSX-R750",
+  "tris": 16000
+ },
+ "cruiser": {
+  "carros": "honda-cb-750",
+  "what": "Honda CB750 F",
+  "tris": 16000
+ },
+ "dirtbike": {
+  "carros": "honda-crf-450",
+  "what": "Honda CRF450",
+  "tris": 16000,
+  "error": 0.03
+ },
+ "f8": {
+  "carros": "ferrari-f8",
+  "what": "Ferrari F8 Tributo",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "aventador": {
+  "carros": "lamborghini-aventador-svj",
+  "what": "Lamborghini Aventador SVJ",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": [
+   "CARROSSERIE",
+   "Material.004"
+  ]
+ },
+ "mc720": {
+  "carros": "mclaren-720s",
+  "what": "McLaren 720S",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "chiron": {
+  "carros": "bugatti-chiron",
+  "what": "Bugatti Chiron Profilée",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "none"
+ },
+ "huayra": {
+  "carros": "pagani-huayra",
+  "what": "Pagani Huayra",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "none"
+ },
+ "p918": {
+  "carros": "porsche-918-spyder",
+  "what": "Porsche 918 Spyder",
+  "tris": 40000,
+  "error": 0.02
+ },
+ "lc500": {
+  "carros": "lexus-lc-500",
+  "what": "Lexus LC 500",
+  "tris": 40000,
+  "error": 0.05
+ },
+ "gtr35": {
+  "carros": "nissan-skyline-gtr",
+  "what": "Nissan GT-R (R35)",
+  "tris": 40000,
+  "error": 0.02,
+  "paint": "r35_paint"
+ }
+}

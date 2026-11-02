@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shigoto Skydive</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #9fb6cc; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; color: #eee; }
+  #hud { position: fixed; left: 12px; top: 12px; background: rgba(10, 12, 16, 0.72); padding: 10px 12px; border-radius: 8px; max-width: 360px; }
+  #hud h1 { font-size: 14px; margin: 0 0 6px; letter-spacing: 0.04em; }
+  #hud button, #hud select { background: #2a3038; color: #eee; border: 1px solid #444c56; border-radius: 4px; padding: 3px 7px; margin: 2px 2px 2px 0; font-size: 12px; }
+  #stats { font: 11px/1.45 ui-monospace, monospace; color: #b8c4d0; margin-top: 6px; white-space: pre-wrap; }
+  body.shot #hud { display: none; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <h1>SHIGOTO · skydive</h1>
+  <div><select id="spec"><option value="base">BASE 280 (7 cell)</option><option value="sport">Sport 230 (9 cell)</option></select>
+  <select id="scheme"><option>ink</option><option>sunrise</option><option>harbour</option><option>sakura</option></select></div>
+  <div><button data-k="open">Open</button><button data-k="deploy">Replay opening</button><button data-k="left">Left toggle</button><button data-k="right">Right toggle</button><button data-k="flare">Flare</button><button data-k="risers">Front risers</button></div>
+  <div id="stats"></div>
+</div>
+<script>
+window.__three = function () { if (!window.THREE) document.write('<script src="../../Game/vendor/three.min.js"><\/script>'); };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script src="shigoto.js"></script>
+<script>
+// The canopy rig on its own, under a sky, driven by the real flight model: open it, replay the opening, pull the toggles.
+// ?shot=open|deploy|left|flare&spec=sport for a still.
+const Q = new URLSearchParams(location.search);
+const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setSize(innerWidth, innerHeight); renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x9fb6cc); scene.fog = new THREE.Fog(0x9fb6cc, 60, 400);
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 1000);
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.2); sun.position.set(-20, 40, 25); sun.castShadow = true; scene.add(sun);
+let rig = null, sd = null, mode = Q.get("shot") || "open", t = 0;
+const S = SHIGOTO;
+function make() {
+  if (rig) { scene.remove(rig.group); rig.dispose(); }
+  const spec = S.CANOPY_SPECS[document.getElementById("spec").value];
+  rig = new S.CanopyRig(THREE, { spec, scheme: document.getElementById("scheme").value });
+  scene.add(rig.group);
+  const pack = rig.makeContainer(); pack.position.set(0, -0.3, -0.12); rig.group.add(pack);
+  sd = new S.Skydiver({ canopy: document.getElementById("spec").value, ground: () => -1e9 });
+  sd.wind.u10 = 0; sd.wind.gust = 0;
+}
+if (Q.get("spec")) document.getElementById("spec").value = Q.get("spec");
+make();
+function begin(k) {
+  mode = k; t = 0;
+  sd.exit({ pos: { x: 0, y: 1200, z: 0 }, vel: { x: 0, y: k === "deploy" ? -50 : -5, z: 10 }, yaw: 0, from: "aircraft" });
+  if (k === "deploy") sd.deploy(); else { sd.phase = "canopy"; sd.fill = 1; sd.canopyYaw = 0; sd.clDyn = sd.spec.cl; }
+}
+document.querySelectorAll("[data-k]").forEach(b => b.onclick = () => begin(b.dataset.k));
+document.getElementById("spec").onchange = document.getElementById("scheme").onchange = () => { make(); begin(mode); };
+begin(mode);
+const clock = new THREE.Clock();
+function frame() {
+  const dt = Math.min(0.05, clock.getDelta()); t += dt;
+  const inp = { brakeL: mode === "left" || mode === "flare" ? 1 : 0, brakeR: mode === "right" || mode === "flare" ? 1 : 0, risers: mode === "risers" ? 1 : 0 };
+  if (Q.get("shot") && t > 0.1) { const k = { open: 0.5, deploy: 0.5, left: 3, right: 3, flare: 0.6, risers: 2 }[mode] || 1; for (let i = 0; i < k * 60 && !window.__done; i++) sd.step(1 / 60, inp); window.__done = true; }
+  else if (!Q.get("shot")) sd.step(dt, inp);
+  const st = sd.state();
+  rig.update({ fill: st.fill, slider: sd.slider, brakeL: st.brakeL, brakeR: st.brakeR, risers: st.risers, pcOut: st.pcOut, linesOut: st.linesOut, phase: st.phase, t: t });
+  rig.group.rotation.set(-st.swing * 0.5, 0, -st.bank);
+  const H = sd.spec.lines;
+  const ang = Q.get("shot") ? 0.9 : t * 0.25;
+  camera.position.set(Math.sin(ang) * 15, H * 0.35, Math.cos(ang) * 15); camera.lookAt(0, H * 0.55, 0);
+  document.getElementById("stats").textContent = st.phase + "  fill " + (st.fill || 0).toFixed(2) + "  g " + st.g.toFixed(1) + "\n" + (st.airspeed * 3.6).toFixed(0) + " km/h air  " + st.sink.toFixed(1) + " m/s down  bank " + (st.bank * 57).toFixed(0) + "°";
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "shigoto-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Shigoto engine: the runtime Salary Man runs on (physics, streaming, levels, weather, water, environment).",
+  "scripts": {
+    "build": "node build.mjs",
+    "bake": "node tools/bake-level.mjs"
+  },
+  "dependencies": {
+    "@dimforge/rapier3d-compat": "0.19.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  },
+  "type": "module"
+}

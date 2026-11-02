@@ -1,0 +1,32 @@
+{
+  "generator": "OpenAI image generation",
+  "atlases": [
+    {
+      "file": "product-campaigns.png",
+      "width": 1536,
+      "height": 1024,
+      "layout": "2 columns, 2 rows",
+      "subjects": [
+        "SOTI So26",
+        "Pear P17",
+        "Playbox 5",
+        "11 Eleven"
+      ]
+    },
+    {
+      "file": "material-surfaces.png",
+      "width": 1536,
+      "height": 1024,
+      "layout": "3 columns, 2 rows",
+      "subjects": [
+        "honey oak",
+        "brushed aluminum",
+        "charcoal upholstery",
+        "painted plaster",
+        "ivory terrazzo",
+        "walnut"
+      ]
+    }
+  ],
+  "notes": "Original generated artwork for this fictional game. These are base-colour images; no Meshy or Tripo output is included."
+}

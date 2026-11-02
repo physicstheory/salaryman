@@ -1,0 +1,419 @@
+<title>Phone Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+/* Layout: a handset on a bare stage between two columns, the list of handsets on
+   the left and what you can do to the one in your hand on the right; on a phone
+   the stage comes first and both columns follow it. */
+:root {
+  --bg: #e8eaee;
+  --stage: #dde1e7;
+  --panel: #f5f6f8;
+  --ink: #13171e;
+  --muted: #566070;
+  --line: #ccd2da;
+  --accent: #1b5fc4;
+  --accent-ink: #ffffff;
+  --good: #1f8a4d;
+  --font-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", system-ui, sans-serif;
+  --font-mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1218; --stage: #0a0d12; --panel: #161b23; --ink: #e8ecf2; --muted: #9aa5b6;
+    --line: #28303c; --accent: #6ba6ff; --accent-ink: #07111f; --good: #52c283; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1218; --stage: #0a0d12; --panel: #161b23; --ink: #e8ecf2; --muted: #9aa5b6;
+  --line: #28303c; --accent: #6ba6ff; --accent-ink: #07111f; --good: #52c283; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin-bottom: 20px; }
+h1 { margin: 0; font-size: 30px; font-weight: 900; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); }
+h2 {
+  margin: 0 0 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);
+}
+.grid { display: grid; gap: 20px; grid-template-columns: 270px minmax(0, 1fr) 310px; align-items: start; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+.panel + .panel { margin-top: 16px; }
+
+/* ---- the handsets list ---- */
+.group { margin: 0 0 14px; }
+.group:last-child { margin-bottom: 0; }
+.group h3 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.group h3 small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+.dev {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.dev:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.dev[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.dev:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dev .n { font-weight: 500; min-width: 0; }
+.dev .p { font-family: var(--font-mono); font-size: 12px; opacity: 0.75; white-space: nowrap; }
+
+/* ---- the stage ---- */
+.stage {
+  min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 28px 12px 22px; border-radius: 18px; background: var(--stage);
+  background-image: radial-gradient(60% 46% at 50% 40%, color-mix(in srgb, var(--panel) 80%, transparent), transparent 70%);
+}
+.stage .cap { text-align: center; }
+.stage .cap b { display: block; font-size: 20px; font-weight: 900; }
+.stage .cap span { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+#phone { --k: 1.36; zoom: var(--k); }
+#phone:focus { outline: none; }
+#phone:focus-visible { outline: 2px solid var(--accent); outline-offset: 10px; border-radius: 44px; }
+.toast {
+  min-height: 22px; max-width: 100%; text-align: center; font-size: 13px; color: var(--ink);
+  opacity: 0; transition: opacity 160ms; font-family: var(--font-mono);
+}
+.toast.on { opacity: 1; }
+
+/* ---- the right-hand column ---- */
+.sw { display: flex; flex-wrap: wrap; gap: 10px; }
+.sw button {
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--line); padding: 0; cursor: pointer;
+}
+.sw button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: 2px; }
+.swname { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.pad { display: grid; grid-template-columns: repeat(3, 52px); grid-auto-rows: 52px; gap: 6px; }
+.pad button, .keys button, .scn button {
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 10px;
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.pad button:hover, .keys button:hover, .scn button:hover { border-color: var(--accent); }
+.pad button:active, .keys button:active { background: var(--accent); color: var(--accent-ink); }
+.row { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; }
+.keys { display: grid; grid-template-columns: repeat(2, 64px); gap: 6px; }
+.keys button { height: 52px; }
+.keys .a { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.hint { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.scn { display: grid; gap: 8px; }
+.scn button { padding: 10px 12px; text-align: left; display: flex; justify-content: space-between; gap: 10px; }
+.scn button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.scn small { font-weight: 500; opacity: 0.75; font-family: var(--font-mono); }
+.opts { display: grid; gap: 14px; }
+.opts .sw button { width: 26px; height: 26px; }
+dl.spec { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 13px; }
+dl.spec dt { color: var(--muted); }
+dl.spec dd { margin: 0; font-family: var(--font-mono); font-size: 12.5px; min-width: 0; overflow-wrap: anywhere; }
+.cam { display: inline-grid; grid-auto-flow: column; gap: 3px; vertical-align: middle; margin-right: 8px; }
+.cam i { width: 8px; height: 12px; border-radius: 2px; background: var(--line); }
+.cam i.on { background: var(--good); }
+.note { margin: 12px 0 0; font-size: 13px; color: var(--muted); font-style: normal; }
+
+@media (max-width: 1040px) {
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  /* the phone, then what you press, then everything else */
+  .stage { order: -2; }
+  .grid > aside[aria-label="Controls"] { order: -1; }
+  #phone { --k: 1.18; }
+}
+@media (max-width: 520px) { #phone { --k: 1.28; } h1 { font-size: 26px; } }
+@media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+/*__PHONE_CSS__*/
+
+/* the game slides the phone up from the bottom of the screen; here it simply sits on the stage */
+#phone { position: relative; right: auto; bottom: auto; width: auto; transform: none; transition: none; pointer-events: auto; margin: 0 auto; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Phone Lab</h1>
+    <p>Every handset in Salary Man, running the game's own phone code.</p>
+  </header>
+
+  <div class="grid">
+    <aside class="panel" aria-label="Handsets"><h2>Handsets</h2><div id="devlist"></div></aside>
+
+    <section class="stage" aria-label="The phone">
+      <div id="phone" tabindex="0" aria-label="Phone screen. Arrow keys move, Enter selects, Escape goes back.">
+        <div id="phonebody">
+          <div id="phonescreen">
+            <canvas id="phonecanvas" width="540" height="1170"></canvas>
+            <div id="phonehole"></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b id="capname">Pear P16 Pro</b><span id="capsub"></span></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </section>
+
+    <aside aria-label="Controls">
+      <div class="panel">
+        <h2>Colour</h2>
+        <div class="sw" id="swatches"></div>
+        <p class="swname" id="swname"></p>
+      </div>
+      <div class="panel">
+        <h2>Controls</h2>
+        <div class="row">
+          <div class="pad" role="group" aria-label="D-pad">
+            <span></span><button id="bUp" aria-label="Up">&#9650;</button><span></span>
+            <button id="bLeft" aria-label="Left">&#9664;</button><button id="bHome" aria-label="Home">&#8962;</button><button id="bRight" aria-label="Right">&#9654;</button>
+            <span></span><button id="bDown" aria-label="Down">&#9660;</button><span></span>
+          </div>
+          <div class="keys">
+            <button class="a" id="bA">A</button><button id="bB">B</button>
+          </div>
+        </div>
+        <p class="hint">Arrow keys, Enter and Escape work too. On the store phones, press down at the bottom of the screen to reach the keypad.</p>
+      </div>
+      <div class="panel" id="islandPanel">
+        <h2>Dynamic Island</h2>
+        <div class="scn">
+          <button id="sCall" aria-pressed="false">On a call <small>timer</small></button>
+          <button id="sMusic" aria-pressed="false">Music playing <small>art + bars</small></button>
+          <button id="sRyde" aria-pressed="false">Ryde on its way <small>route</small></button>
+        </div>
+        <p class="hint" id="islandHint"></p>
+      </div>
+      <div class="panel" id="pearPanel">
+        <h2>Pear personalise</h2>
+        <div class="opts">
+          <div><div class="swname" style="margin:0 0 6px">Wallpaper</div><div class="sw" id="wallpapers"></div></div>
+          <div><div class="swname" style="margin:0 0 6px">Accent</div><div class="sw" id="accents"></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h2>Specification</h2>
+        <dl class="spec">
+          <dt>Price</dt><dd id="spPrice"></dd>
+          <dt>Screen</dt><dd id="spScreen"></dd>
+          <dt>Chip</dt><dd id="spChip"></dd>
+          <dt>Camera</dt><dd id="spCam"></dd>
+          <dt>Cut-out</dt><dd id="spTop"></dd>
+        </dl>
+        <p class="note" id="spNote"></p>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* Stand-ins for the parts of the game the phone code reaches into: money, the
+   map, the camera feed, Spotify. They are here so the real phone code can run
+   without the world behind it. */
+let clock = 0;
+const nav = { place: { street: "Kikumachi 3-chōme", sub: "Mizuho", city: "Mizuho" }, waypoint: null };
+const garage = { built: true, cars: [], bays: [], spill: [], centre: [0, 0] };
+const drive = { car: null, parked: [], train: null };
+const home = { at: [0, 0], door: [0, 0], yaw: 0 };
+const vitals = { health: 0.9, stress: 0.22 };
+const deliveries = [];
+const purse = { yen: 480000 };
+const wheel = { wearing: "earbuds", open: false };
+const spotify = { clientId: "demo", token: "demo", expires: 0, state: "ready", me: { display_name: "Seiko" },
+  track: { name: "Midnight Drive", artists: [{ name: "Konto City" }], duration_ms: 214000 },
+  playing: false, device: "This phone", error: "" };
+const frameGrab = { canvas: null, ok: true, want: false };
+function say(text, seconds) { if (window.labToast) window.labToast(text, seconds); }
+function ownCar(spec, paintIdx) {
+  say(spec.name + " in " + PAINTS[paintIdx][0] + " would be waiting in your garage.", 4);
+  return { paint: paintIdx, atGarage: true };
+}
+function hailTaxi() {}
+function spotifyLogin() {}
+function spotifyTransport(a) { if (a === "play") { spotify.playing = !spotify.playing; phone.dirty = true; syncScenarios(); } }
+function spotifyLoad() {}
+const TIME = { rate: 0.4, startMin: 17 * 60 + 10 };
+function gameMinutes() { const d = new Date(); return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60; }
+const player = { glb: null, placed: false, mode: "walk" };
+const world = { cities: [] };
+function seikoPortrait() { return null; }
+// Ryde in the lab has no street network to send a car down
+function rydeSend() { return { ok: true, unit: null, eta: 200 }; }
+function rydeStatus() { return null; }
+function rydeCancel() { phone.ryde = null; }
+function drawMapView() {}
+// the emergency lines in the lab: there is no street to send anyone down
+function emergencyDispatch(svc) {
+  return { ok: true, msg: "Your phone puts you at Ch\u016b\u014d-d\u014dri, Marukane 1-ch\u014dme. A patrol car is on its way, about 20 seconds. Please stay where you are." };
+}
+function mnContext() {
+  return { shops: [], shopNames: [], landmarks: [], stations: [], has: {}, driving: false, place: nav.place.street, sub: nav.place.sub,
+           hour: gameMinutes() / 60, golden: false, night: false, resort: null };
+}
+// no world to point the camera at, so a photograph is a picture from a feed
+function takePhotograph() {
+  const kinds = ["ramen", "sushi", "train", "cat", "sakura", "peak", "sunset", "skyline", "konbini", "kei", "sea"];
+  const k = kinds[(Math.random() * kinds.length) | 0], c = mnScene(k, 400), ctx = mnContext();
+  if (k === "ramen" || k === "sushi") { ctx.shops = [k]; ctx.shopNames = [k === "ramen" ? "Menya Ippai" : "Sushi Gin"]; }
+  if (k === "train") ctx.has.station = true; if (k === "peak") { ctx.has.mountain = true; ctx.has.snow = true; } if (k === "sea") ctx.has.sea = true; if (k === "kei") ctx.has.car = true;
+  ctx.golden = k === "sunset";
+  c.meta = { phone: dev().name, zoom: 1, mp: 50, ctx: ctx, when: mnNow() };
+  phone.gallery.push(c); say("Click. Saved to Photos.", 2);
+}
+setInterval(() => { clock += 0.25; if (typeof updateMyNet === "function") updateMyNet(0.25); }, 250);
+function setMapOpen() {}
+function wantFrame() { return false; }
+function grabFrame() {}
+function placeAt() { return nav.place; }
+</script>
+
+<script>
+/*__GAME_JS__*/
+</script>
+
+<script>
+/* The lab itself. */
+(function () {
+  "use strict";
+  // The phone shows the viewer's own time, not the game's.
+  window.phoneTime = function () {
+    const d = new Date(), h = d.getHours(), m = d.getMinutes();
+    return { h: h, m: m, mins: h * 60 + m };
+  };
+  const $ = id => document.getElementById(id);
+  const yen = n => n ? "¥" + n.toLocaleString("en-US") : "Owned from the start";
+  const TOPS = { punch: "Punch-hole camera", notch: "Notch", island: "Dynamic Island", island2: "Dynamic Island, smaller", none: "None: a keypad instead" };
+
+  let toastT = 0;
+  window.labToast = function (t, s) {
+    const el = $("toast"); el.textContent = t; el.classList.add("on");
+    clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("on"), (s || 3) * 1000);
+  };
+
+  // ---- the list of handsets, grouped the way a shop would
+  const GROUPS = [
+    ["SOTI", "", ["so24", "so25", "so25u", "so26", "so26u"]],
+    ["Pear", "P15 · notch", ["p15", "p15p", "p15pm"]],
+    ["", "P16 · Dynamic Island", ["p16", "p16p", "p16pm"]],
+    ["", "P17 · newer island", ["p17", "p17p", "p17pm"]],
+    ["At the till", "convenience stores", ["eleven", "petmart"]]
+  ];
+  function buildList() {
+    const root = $("devlist"); root.innerHTML = "";
+    GROUPS.forEach(g => {
+      const box = document.createElement("div"); box.className = "group";
+      const h = document.createElement("h3"); h.textContent = g[0] || g[1];
+      if (g[0] && g[1]) { const s = document.createElement("small"); s.textContent = g[1]; h.appendChild(s); }
+      box.appendChild(h);
+      g[2].forEach(id => {
+        const d = DEVICES[id], b = document.createElement("button");
+        b.className = "dev"; b.type = "button"; b.dataset.id = id; b.setAttribute("aria-pressed", "false");
+        b.innerHTML = '<span class="n"></span><span class="p"></span>';
+        b.querySelector(".n").textContent = d.name.replace(/^(SOTI|Pear) /, "");
+        b.querySelector(".p").textContent = d.price ? "¥" + (d.price >= 1000 ? Math.round(d.price / 1000) + "k" : d.price) : "yours";
+        b.addEventListener("click", () => select(id, 0));
+        box.appendChild(b);
+      });
+      root.appendChild(box);
+    });
+  }
+
+  function select(id, colour) {
+    equipPhone(id, colour || 0);
+    phone.open = true;
+    render();
+    if (booted) $("phone").focus({ preventScroll: true });
+  }
+  let booted = false;
+
+  function swatch(parent, colours, current, onPick) {
+    parent.innerHTML = "";
+    colours.forEach((c, i) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.style.background = c[1]; b.title = c[0]; b.setAttribute("aria-label", c[0]);
+      b.setAttribute("aria-pressed", i === current ? "true" : "false");
+      b.addEventListener("click", () => onPick(i));
+      parent.appendChild(b);
+    });
+  }
+
+  function render() {
+    const d = dev();
+    document.querySelectorAll(".dev").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === phone.device ? "true" : "false"));
+    $("capname").textContent = d.name;
+    $("capsub").textContent = d.screen + " · " + d.chip;
+    const cols = d.colours.map(c => [c[0], c[1]]);
+    swatch($("swatches"), cols, phone.colourIdx || 0, i => { phone.colourIdx = i; applyDeviceSkin(); render(); });
+    $("swname").textContent = d.ui === "basic" ? d.colours[0][0] : d.colours[clamp(phone.colourIdx || 0, 0, d.colours.length - 1)][0];
+    $("spPrice").textContent = yen(d.price);
+    $("spScreen").textContent = d.screen;
+    $("spChip").textContent = d.chip;
+    const cam = document.createElement("span"); cam.className = "cam";
+    for (let i = 0; i < 10; i++) { const k = document.createElement("i"); if (i < d.cam) k.className = "on"; cam.appendChild(k); }
+    $("spCam").innerHTML = ""; $("spCam").appendChild(cam);
+    $("spCam").appendChild(document.createTextNode(d.cam + "/10 · " + d.camera));
+    $("spTop").textContent = TOPS[d.top] || d.top;
+    $("spNote").textContent = d.note;
+    const pear = d.ui === "pear";
+    $("pearPanel").hidden = !pear;
+    if (pear) {
+      swatch($("wallpapers"), PEAR_WALLPAPERS.map(w => [w.name, w.b]), phone.pearWall || 0, i => { phone.pearWall = i; phone.dirty = true; render(); });
+      swatch($("accents"), PEAR_ACCENTS, phone.pearAccent || 0, i => { phone.pearAccent = i; phone.dirty = true; render(); });
+    }
+    const isle = d.top.indexOf("island") === 0;
+    $("islandHint").textContent = isle ? "Each one grows to a card for a few seconds, then settles into the pill." : "Only the P16 and P17 have an island. Pick one to see these.";
+    syncScenarios();
+    phone.dirty = true;
+  }
+
+  // ---- the three things the Island shows
+  function syncScenarios() {
+    $("sCall").setAttribute("aria-pressed", phone.call ? "true" : "false");
+    $("sMusic").setAttribute("aria-pressed", spotify.playing ? "true" : "false");
+    $("sRyde").setAttribute("aria-pressed", phone.ryde ? "true" : "false");
+  }
+  $("sCall").addEventListener("click", () => {
+    phone.call = phone.call ? null : { number: "090-1234-5678", t0ms: performance.now() };
+    phone.dirty = true; syncScenarios();
+  });
+  $("sMusic").addEventListener("click", () => { spotify.playing = !spotify.playing; phone.dirty = true; syncScenarios(); });
+  $("sRyde").addEventListener("click", () => {
+    phone.ryde = phone.ryde ? null : { cls: "Sedan", kind: "sedan", fare: 2665, eta: 4.6, eta0: 5, plate: "品川 301 あ 4417" };
+    phone.dirty = true; syncScenarios();
+  });
+
+  // ---- controls
+  const press = fn => () => { fn(); phone.dirty = true; $("phone").focus({ preventScroll: true }); };
+  $("bUp").addEventListener("click", press(() => phoneMove(0, -1)));
+  $("bDown").addEventListener("click", press(() => phoneMove(0, 1)));
+  $("bLeft").addEventListener("click", press(() => phoneMove(-1, 0)));
+  $("bRight").addEventListener("click", press(() => phoneMove(1, 0)));
+  $("bA").addEventListener("click", press(() => phoneAct()));
+  $("bB").addEventListener("click", press(() => phoneBack()));
+  $("bHome").addEventListener("click", press(() => { phone.app = null; phone.site = null; phone.sub = 0; phone.pad.on = false; }));
+  window.addEventListener("keydown", e => {
+    if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    const k = e.key;
+    if (k === "ArrowUp") phoneMove(0, -1);
+    else if (k === "ArrowDown") phoneMove(0, 1);
+    else if (k === "ArrowLeft") phoneMove(-1, 0);
+    else if (k === "ArrowRight") phoneMove(1, 0);
+    else if (k === "Enter" || (k === " " && e.target === $("phone"))) phoneAct();
+    else if (k === "Escape" || k === "Backspace") phoneBack();
+    else return;
+    phone.dirty = true; e.preventDefault();
+  });
+
+  // ---- go
+  buildList();
+  phone.open = true;
+  phone.owns.earbuds = true;
+  select("p16p", 0);
+  booted = true;
+  spotify.playing = true; syncScenarios();
+  let last = performance.now();
+  (function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (phone.ryde) phone.ryde.eta = Math.max(0.3, phone.ryde.eta - dt / 60 * 4);
+    try { updatePhone(); } catch (err) { /* an app that needs the world: show nothing rather than stop */ }
+    requestAnimationFrame(frame);
+  })(last);
+})();
+</script>
