@@ -392,6 +392,17 @@
     }
     if (!chute.active) { wearPack(SK.have && player.mode === "walk" && !drive.car && !drive.train); placePack(); }
   }
+  // ---- built behind the loading screen: every canopy and the container, so the first jump does not build and upload them mid-air
+  (window.PERSIST_EXTRA = window.PERSIST_EXTRA || []).push(function (P, facts) {
+    P.stage("parachutes", 0.2, async () => {
+      const built = [];
+      try { Object.keys(SHIGOTO.CANOPY_SPECS || {}).forEach(k => { rigFor(k); built.push(k); }); kit(); if (!SK.pack) { SK.pack = kit().makeContainer(); SK.pack.visible = false; scene.add(SK.pack); } } catch (e) { facts.chuteFail = e.message; }
+      facts.chutes = built;
+      return { canopies: built };
+    }, { label: "Packing the parachutes" });
+    P.check("world", "parachutes packed", () => facts.chuteFail ? "parachutes would not build: " + facts.chuteFail : { ok: true, detail: (facts.chutes || []).join(", ") || "skipped" });
+  });
+
   // the old jump: Space at the edge facing out is a jump off (the step is what carries him over)
   const _present = window.present;
   window.present = function () {

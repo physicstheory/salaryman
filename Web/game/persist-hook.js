@@ -39,8 +39,74 @@
     PERSIST.keep = false; PERSIST.detail = PERSIST.trees = PERSIST.grass = null;
   }
 
+  // ---- the graphics card, warmed in small fenced batches (SHIGOTO.warmGPUChunked) -------------------------------------------
+  // Drawn exactly the way play draws the scene (the AAA chain's linear half-float pass, the older post chain, or straight to the screen),
+  // so the programs compiled here are the ones play uses. A driver that resets in the middle is waited for and the warm carries on with
+  // smaller batches; a machine that came back from a reset (gfx.lean) starts small.
+  function warmRender(proxy, cam) {
+    const T = THREE;
+    const fxOn = typeof fxUsable === "function" && fxUsable();
+    const rt = warmRender.rt || (warmRender.rt = new T.WebGLRenderTarget(16, 16, fxOn ? { type: T.HalfFloatType } : {}));
+    rt.texture.encoding = fxOn || (typeof postUsable === "function" && postUsable()) ? T.LinearEncoding : renderer.outputEncoding;
+    const was = renderer.getRenderTarget(), tm = renderer.toneMapping;
+    try {
+      if (fxOn) { renderer.toneMapping = T.NoToneMapping; if (typeof FX_LIN !== "undefined") FX_LIN.on.value = 1; }
+      renderer.setRenderTarget(rt); renderer.render(proxy, cam);
+    } finally {
+      renderer.toneMapping = tm; if (fxOn && typeof FX_LIN !== "undefined") FX_LIN.on.value = 0;
+      renderer.setRenderTarget(was);
+    }
+  }
+  const waitRestore = ms => new Promise(res => {
+    const c = renderer.domElement; let t = 0;
+    const done = ok => { clearTimeout(t); c.removeEventListener("webglcontextrestored", on); res(ok); };
+    const on = () => done(true);
+    c.addEventListener("webglcontextrestored", on); t = setTimeout(() => done(!renderer.getContext().isContextLost()), ms);
+  });
+  let warming = null;
+  window.gpuWarm = async function (opts) {
+    opts = opts || {};
+    if (!window.SHIGOTO || !SHIGOTO.warmGPUChunked || typeof renderer === "undefined" || !renderer) return { skipped: true };
+    while (warming) await warming;
+    let fin;
+    warming = new Promise(r => { fin = r; });
+    try {
+      const lean = typeof gfx !== "undefined" && (gfx.lean || gfx.tier === "low");
+      let limits = Object.assign(lean ? { programs: 3, texBytes: 24e6, tris: 150e3, items: 250 } : {}, opts.limits || {});
+      let r = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        // the scene, and the people's templates the street and the cutscenes clone from (they live outside it)
+        const roots = opts.roots || [scene].concat(typeof pplLib !== "undefined" ? pplLib.ready.map(e => e.root).filter(o => o && !o.parent) : []);
+        // video memory for textures, by tier (halved after a driver reset); the nearest things to where the story starts go first
+        const VRAM = { low: 450e6, medium: 800e6, high: 1300e6, ultra: 2000e6 };
+        const texBudget = opts.texBudget || (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1);
+        const A = anchors(), _w = new THREE.Vector3();
+        const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1;   // the shop rooms, the concourse, the office: small, and the story needs them early return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
+        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority });
+        if (!r.lost) break;
+        console.warn("[Konto] the graphics driver reset while warming up; waiting for it to come back");
+        const back = await waitRestore(5500);
+        if (!back) break;
+        // a restored context has nothing on it: everything is warmed again, in batches half the size
+        SHIGOTO.forgetWarm();
+        limits = { programs: Math.max(1, (limits.programs || 6) >> 1), texBytes: (limits.texBytes || 64e6) / 2, tris: (limits.tris || 400e3) / 2, items: Math.max(20, (limits.items || 600) >> 1) };
+      }
+      return r;
+    } finally { if (warmRender.rt) { warmRender.rt.dispose(); warmRender.rt = null; } warming = null; fin(); }
+  };
+  // After a driver reset in play, the game's own handler brings the picture back; everything is then warmed again behind it, in
+  // small batches, instead of being uploaded all at once by the first frame (which is what reset the driver a second time).
+  function hookRestore() {
+    if (typeof renderer === "undefined" || !renderer || hookRestore.done) return; hookRestore.done = true;
+    renderer.domElement.addEventListener("webglcontextrestored", () => {
+      if (!PERSIST.engine || !PERSIST.engine.done) return;   // during the load, the warm stage handles it
+      setTimeout(() => { try { SHIGOTO.forgetWarm(); window.gpuWarm({ limits: { programs: 2, texBytes: 16e6, tris: 100e3, items: 150 } }).then(r => console.log("[Konto] re-warmed after the driver reset", r)); } catch (e) { /* plain */ } }, 50);
+    });
+  }
+
   window.persistLoad = async function (seed, onProgress) {
     release();
+    hookRestore();
     const P = new SHIGOTO.Persistence({ tier: gfx.tier });
     PERSIST.engine = P;
     // the budget is shared out: most of it to buildings' detail, then grass, then trees (which are cheap)
@@ -221,13 +287,6 @@
       return facts.rain;
     }, { label: "Preparing the rain" });
 
-    P.stage("gpu", 3, async ctx => {
-      await ctx.breathe();
-      const r = SHIGOTO.warmGPU(renderer, scene, camera, { THREE });
-      facts.gpu = r;
-      return r;
-    }, { label: "Warming up the graphics card" });
-
     // ---- check ------------------------------------------------------------------------------------------------
     P.check("scene", "geometry and textures intact", () => {
       const r = SHIGOTO.scanScene(scene);
@@ -241,7 +300,13 @@
       const bad = SHIGOTO.shaderFailures(renderer);
       return bad.length ? "failed to link: " + bad.slice(0, 4).join(", ") : { ok: true, detail: (renderer.info.programs || []).length + " programs" };
     });
-    P.check("gpu", "world uploaded to the graphics card", () => facts.gpu && facts.gpu.error ? "warm-up render failed: " + facts.gpu.error : { ok: true, detail: facts.gpu ? facts.gpu.programs + " programs, " + facts.gpu.ms + " ms" : "skipped" });
+    P.check("gpu", "world uploaded to the graphics card", () => {
+      const g = facts.gpu;
+      if (!g) return { ok: true, detail: "skipped" };
+      if (g.error) return "warm-up failed: " + g.error;
+      if (g.lost) return "the graphics driver reset during the warm-up (" + g.objects + " of " + g.items + " meshes warmed); the rest warm in play";
+      return { ok: true, detail: g.objects + " meshes in " + g.batches + " batches (" + (g.skipped || 0) + " left to upload when first seen, over the video memory budget), " + g.programs + " programs, " + g.texMb + " MB of textures, slowest batch " + g.slowest + " ms, " + g.ms + " ms" };
+    });
     P.check("physics", "every building has a collider", () => {
       const b = window.shigoto && shigoto.bridge;
       if (!b) return window.shigoto && shigoto.failed ? "the engine did not start" : { ok: true, detail: "no engine in this build" };
@@ -337,6 +402,72 @@
 
     // stages and checks other parts of the game add (career-commute.js: the SOTI floor and Seiko's flat)
     (window.PERSIST_EXTRA || []).forEach(f => { try { f(P, facts); } catch (e) { console.warn("[Konto] extra persistence stage:", e); } });
+
+    // ---- the last builds, then the graphics card -----------------------------------------------------------------
+    // These run after every other part of the game has added its stages (the office, the flat, boats, after-hours venues,
+    // parachutes), so the warm-up below covers everything that was built, not just the city.
+    P.stage("vehicles", 1, async ctx => {
+      // every car, van, bike and police car model in memory before play (they used to pop in a few seconds after the title)
+      const jobs = typeof traffic !== "undefined" && traffic.modelJobs ? Object.values(traffic.modelJobs) : [];
+      if (!jobs.length) return { skipped: "no model jobs" };
+      let done = 0;
+      jobs.forEach(j => Promise.resolve(j).then(() => { done++; ctx.progress(done / jobs.length); }, () => { done++; }));
+      await Promise.race([Promise.allSettled(jobs), wait(60000)]);
+      facts.vehicles = { loaded: done, of: jobs.length };
+      return facts.vehicles;
+    }, { label: "Fuelling the cars" });
+
+    P.stage("wardrobe", 1, async ctx => {
+      // every outfit Seiko can wear, decoded into the wardrobe's cache: trying on a suit (or the village clothes the opening waits for)
+      // is then a clone, not a download
+      if (typeof wardrobe === "undefined" || !wardrobe.list || !THREE.GLTFLoader) return { skipped: "no wardrobe" };
+      const L = wardrobe.list.slice(), dir = pplLib.dir || "people/";
+      let done = 0, failed = [];
+      const one = o => new Promise(res => {
+        const url = dir + o.file, key = url + ":" + gfx.tier;
+        if (wardrobe.cache[key]) { res(); return; }
+        try {
+          new THREE.GLTFLoader(pplLib.anime && typeof animeRawManager === "function" ? animeRawManager() : undefined).load(url,
+            g => { try { if (!wardrobe.cache[key]) wardrobe.cache[key] = { scene: cloneSkinned(g.scene), animations: g.animations }; } catch (e) { failed.push(o.id); } res(); },
+            undefined, () => { failed.push(o.id); res(); });
+        } catch (e) { failed.push(o.id); res(); }
+      });
+      const t0 = performance.now();
+      for (let i = 0; i < L.length; i += 3) {
+        await Promise.all(L.slice(i, i + 3).map(one));
+        done = Math.min(L.length, i + 3); ctx.progress(done / L.length);
+        if (performance.now() - t0 > 90000) break;   // a slow disk: the rest load when tried on, as before
+      }
+      facts.wardrobe = { cached: Object.keys(wardrobe.cache).length, of: L.length, failed };
+      return facts.wardrobe;
+    }, { label: "Pressing the suits" });
+
+    P.stage("opening", 0.5, async ctx => {
+      // the opening's own set: the three-car local out of Mizuho and its track bed, built now and kept hidden, so pressing New Game
+      // does not build and upload a train in the same frame the first shot is drawn
+      const out = {};
+      try { if (typeof storyTrain === "function") { const t = storyTrain(); const bed = t.userData && t.userData.bed;
+        for (const o of [t, bed]) if (o) { o.visible = false; if (!o.parent) scene.add(o); }
+        out.train = true; } } catch (e) { out.train = "failed: " + e.message; }
+      await ctx.breathe();
+      facts.opening = out;
+      return out;
+    }, { label: "Setting the scene" });
+
+    P.stage("gpu", 4, async ctx => {
+      await ctx.breathe();
+      const r = await window.gpuWarm({ progress: t => ctx.progress(t * 0.95) });
+      // then one whole frame exactly as play draws it (the post chain's own shaders, the full shadow map), still behind the artwork,
+      // and wait for the card to finish it: the first frame after the loading screen is then an ordinary one
+      if (!r.lost && !(typeof gfx !== "undefined" && gfx.lost)) {
+        try { if (typeof present === "function") present(); } catch (e) { r.firstFrame = "failed: " + e.message; }
+        await SHIGOTO.gpuSettle(renderer.getContext(), 5000);
+        if (!r.firstFrame) r.firstFrame = "drawn";
+      }
+      ctx.progress(1);
+      facts.gpu = r;
+      return r;
+    }, { label: "Warming up the graphics card" });
 
     const report = await P.run(onProgress);
     last = report;

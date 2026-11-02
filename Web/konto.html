@@ -61,7 +61,8 @@
     font-family: var(--ui);
     overflow: hidden;
   }
-  #stage { position: fixed; inset: 0; }
+  /* dark behind the canvas: if the graphics driver resets, the moment without a picture is black, not a white page */
+  #stage { position: fixed; inset: 0; background: #07080a; }
   #stage canvas { display: block; width: 100%; height: 100%; }
 
   .slab {
@@ -20186,7 +20187,7 @@ function buildCastle(root, city) {
   });
   // petals and leaves: falling round whoever is in the park, and lying on the lawn
   castleFx.petals = makePetals(root, m, gv, plan);
-  city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, bc), gy: gy, parliament: W(PL.x, PL.z) };
+  city.castle = { keep: W(kx, kz), keepTop: y, gate: W(0, DB), bridge: W(0, (inner + outer) / 2), gy: gy, parliament: W(PL.x, PL.z) };
   // the audit: nothing laid across the grounds or the moat (roads, railways, the expressway)
   const crossing = [];
   world.cities.forEach(cc => cc.roads.concat(cc.rails || []).forEach(rd => { if ((rd.pts || []).some(q => { const l = toRectLocal(q[0], q[2], m.centre[0], m.centre[1], m.yaw); return Math.abs(l[0]) < outer && Math.abs(l[1]) < outer; })) crossing.push(rd.name || rd.cls); }));
@@ -39551,14 +39552,21 @@ function flatQuads(list, mat) {                  // [x0, z0, x1, z1, y] in local
 }
 function destAsphalt(repeat) { const t = asphaltTexture().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / (repeat || 13), 1 / (repeat || 13)); const m = gfx.high ? new THREE.MeshStandardMaterial({ map: t, roughness: 0.9, metalness: 0, envMapIntensity: 0.4 }) : new THREE.MeshLambertMaterial({ map: t }); if (gfx.high && gfx.env) m.envMap = gfx.env; if (gfx.high) roadHD(t, m); m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; return m; }
 function destPaving() { const t = pavingTexture().clone(); t.needsUpdate = true; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / 4.2, 1 / 4.2); const m = new THREE.MeshLambertMaterial({ map: t }); m.polygonOffset = true; m.polygonOffsetFactor = -3; m.polygonOffsetUnits = -3; return m; }
+// Signs with the same words and colours share one texture, and a narrow blade sign is drawn at 256 px across: Seoul's 360 neon blades were a
+// 512x1344 canvas each, a gigabyte of video memory for one holiday island, which on a 2-4 GB card was enough to reset the driver.
+const DEST_SIGN_MATS = new Map();
 function destSign(text, w, h, bg, fg, font) {
-  const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w)); const g = c.getContext("2d");
+  const key = [text, w, h, bg, fg, font || ""].join("|");
+  const shared = DEST_SIGN_MATS.get(key);
+  if (shared) return new THREE.Mesh(new THREE.PlaneGeometry(w, h), shared);
+  const cw = w < 3 ? 256 : 512, c = document.createElement("canvas"); c.width = cw; c.height = Math.max(64, Math.min(1024, Math.round(cw * h / w))); const g = c.getContext("2d");
   g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(5, 5, c.width - 10, c.height - 10);
   g.fillStyle = fg; g.textAlign = "center"; g.textBaseline = "middle"; let fs = c.height * 0.55; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Konto Sans','Segoe UI',sans-serif");
-  while (g.measureText(text).width > c.width - 28 && fs > 14) { fs -= 3; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Konto Sans','Segoe UI',sans-serif"); }
+  while (g.measureText(text).width > c.width - 28 * cw / 512 && fs > 14) { fs -= 3; g.font = "900 " + fs + "px " + (font || "'Malgun Gothic','Noto Sans KR','Apple SD Gothic Neo','Noto Sans CJK KR','Konto Sans','Segoe UI',sans-serif"); }
   g.fillText(text, c.width / 2, c.height / 2 + 2);
   const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
-  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false, side: THREE.DoubleSide }));
+  const mat = new THREE.MeshBasicMaterial({ map: t, fog: false, side: THREE.DoubleSide }); DEST_SIGN_MATS.set(key, mat);
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
 }
 function destKiosk(G, site, x, z, ry, label) {
   const g = new THREE.Group(); g.position.set(x, site.h(x - site.cx, z - site.cz), z); g.rotation.y = ry; G.add(g);
@@ -42545,7 +42553,7 @@ function interiorBridgeEnd() {
 function interiorCapsuleRoom() {
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
-  const th = IN_THEME.capsule;
+  const th = IN_THEME.capsule, wallH = IN_H;   // the shared room builder takes its wall height from the shop profile; this room is its own
   const root = new THREE.Group(); root.position.set(ox, fy, oz);
   const room = { brand: "capsule", group: root, ox: ox, oz: oz, colliders: [], items: [], spots: [], units: [] };
   inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
@@ -42771,7 +42779,7 @@ function inCanvasTex(key, w, h, draw) {
 function inPlaneTex(tex, w, h, repX, repY, x, y, z, ry, rx) {
   const t = tex.clone(); t.needsUpdate = true; t.repeat.set(repX, repY);
   if (tex._kon) tex._kon.clones.push(t);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,rx?'tile':'paint'));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,'paint'));
   m.position.set(x, y, z); if (ry) m.rotation.y = ry; if (rx) m.rotation.x = rx;
   return m;
 }
@@ -42882,7 +42890,7 @@ function inIcon(g, kind, cx, cy, s, ink) {
 }
 function inPoster(root, brand, i, x, y, z, ry, w, h) {
   const t = inPosterTex(brand, i);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,rx?'tile':'paint'));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,'paint'));
   m.position.set(x, y, z); m.rotation.y = ry; root.add(m);
   inAdd(root, w + 0.06, h + 0.06, 0.02, x, y, z + (ry === 0 ? -0.01 : ry === Math.PI ? 0.01 : 0), "#2a2d33").rotation.y = ry;
   return m;
@@ -44909,7 +44917,14 @@ function storyNewGame() {
   const go = () => {
     loadShow(true,"Preparing opening",1);
     // Build the cast/train and draw the first real frame behind the opaque artwork, before the timeline advances.
-    setTimeout(() => { try { storyOpening(); if (cut.active) cutTick(0); }
+    // Anything the opening added (its people, the train if it was not prebuilt) is warmed in small batches first, then the first shot is
+    // drawn twice behind the artwork, so the screen never lifts onto a frame that is still compiling (that frame reset the graphics driver
+    // on some Windows machines, and the opening came up white).
+    setTimeout(async () => { try { storyOpening(); if (cut.active) cutTick(0);
+        if (typeof window.gpuWarm === "function") { const r = await window.gpuWarm(); if (r && r.objects) console.log("[Konto] opening warmed:", r.objects, "meshes in", r.batches, "batches"); }
+        if (cut.active && !gfx.lost) for (let i = 0; i < 2; i++) { await new Promise(r => requestAnimationFrame(r)); try { present(); } catch (e) { /* drawn in play */ } }
+        if (gfx.lost) await new Promise(r => { const t0 = performance.now(); (function w() { if (!gfx.lost || performance.now() - t0 > 7000) r(); else setTimeout(w, 100); })(); });
+      }
       catch (e) { console.warn("[Konto] the opening could not play:",e); storyWake(true); }
       finally { loadShow(false); } },32);
   };

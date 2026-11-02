@@ -14,8 +14,14 @@ var ready=manifest.then(function(j){var files=Array.isArray(j.slides)?j.slides.f
  box.replaceChildren();box.classList.add('compositor');
  for(var i=0;i<n;i++){var file=files[(offset+i)%n],slide=document.createElement('div');slide.className='slide';slide.dataset.artwork=file;slide.setAttribute('aria-hidden','true');slide.style.backgroundImage='url("loading/'+file+'")';slide.style.backgroundPosition=/^\d{1,3}% \d{1,3}%$/.test(j.focus[file]||'')?j.focus[file]:'50% 45%';
   var move=['salary-load-pan','salary-load-pan-reverse','salary-load-dolly','salary-load-rise'][i%4],duration=14000+(i%3)*2000;
-  slide.dataset.motion=move;slide.style.transformOrigin=slide.style.backgroundPosition;
-  slide.style.animation=move+' '+duration+'ms linear infinite alternate'+(n===1?'':', salary-load-cycle '+period+'ms linear infinite');slide.style.animationDelay=n===1?'0ms':'0ms,'+(-fade-((n-i)%n)*dwell)+'ms';box.appendChild(slide);
+  // The crossfade lives on the slide and the camera move on the picture inside it, so a machine with Windows'
+  // animation effects turned off (prefers-reduced-motion) still gets every picture in turn, only without the drift.
+  // Before, reduced motion stopped both and the loading screen sat on one picture for the whole load.
+  var art=document.createElement('div');art.className='art';art.style.backgroundImage=slide.style.backgroundImage;art.style.backgroundPosition=slide.style.backgroundPosition;slide.style.backgroundImage='none';
+  slide.dataset.motion=move;art.style.transformOrigin=art.style.backgroundPosition;
+  art.style.animation=move+' '+duration+'ms linear infinite alternate';
+  if(n>1){slide.style.animation='salary-load-cycle '+period+'ms linear infinite';slide.style.setProperty('--cycle',period+'ms');slide.style.animationDelay=(-fade-((n-i)%n)*dwell)+'ms';}
+  slide.appendChild(art);box.appendChild(slide);
  }
  state.ready=true;state.slides=n;sync();
 });

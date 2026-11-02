@@ -18,7 +18,7 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // Engine/src/index.js
+  // src/index.js
   var index_exports = {};
   __export(index_exports, {
     BIKE_SPECS: () => BIKE_SPECS,
@@ -67,6 +67,8 @@ var SHIGOTO = (() => {
     estimateBytes: () => estimateBytes,
     fanDemand: () => fanDemand,
     findRagdollBones: () => findRagdollBones,
+    forgetWarm: () => forgetWarm,
+    gpuSettle: () => gpuSettle,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
@@ -78,10 +80,11 @@ var SHIGOTO = (() => {
     subdivideGeometry: () => subdivideGeometry,
     synthesizeMaps: () => synthesizeMaps,
     vehicleMass: () => vehicleMass,
-    warmGPU: () => warmGPU
+    warmGPU: () => warmGPU,
+    warmGPUChunked: () => warmGPUChunked
   });
 
-  // Engine/src/core/Events.js
+  // src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -112,7 +115,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5277,7 +5280,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // Engine/src/physics/Physics.js
+  // src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5576,7 +5579,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // Engine/src/env/Environment.js
+  // src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5731,7 +5734,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // Engine/src/rain/Occlusion.js
+  // src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5914,7 +5917,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/src/rain/RainShaders.js
+  // src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5975,7 +5978,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // Engine/src/rain/Streaks.js
+  // src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6077,7 +6080,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Splashes.js
+  // src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6252,7 +6255,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Atmosphere.js
+  // src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6394,7 +6397,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/RainEngine.js
+  // src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6750,7 +6753,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Weather.js
+  // src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6914,7 +6917,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Water.js
+  // src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7050,7 +7053,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // Engine/src/render/Surfaces.js
+  // src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7253,7 +7256,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // Engine/src/world/Batcher.js
+  // src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7339,7 +7342,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // Engine/src/world/PropSlots.js
+  // src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7414,7 +7417,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // Engine/src/world/Props.js
+  // src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7759,7 +7762,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // Engine/src/world/CellBuilder.js
+  // src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -8333,7 +8336,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // Engine/src/render/Materials.js
+  // src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8593,7 +8596,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/world/Streamer.js
+  // src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8784,7 +8787,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // Engine/src/core/Engine.js
+  // src/core/Engine.js
   var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
@@ -8842,7 +8845,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // Engine/src/host/HostBridge.js
+  // src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -9056,7 +9059,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/characters/CharacterShader.js
+  // src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9184,7 +9187,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // Engine/src/characters/Subdivide.js
+  // src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9303,7 +9306,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // Engine/src/characters/MapSynth.js
+  // src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9409,7 +9412,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // Engine/src/characters/Characters.js
+  // src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9710,7 +9713,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // Engine/src/persist/Persistence.js
+  // src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -9927,6 +9930,212 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
     return { ms: Math.round(now() - t0), objects: saved.length, programs: programs1, newPrograms: programs1 - programs0, error: error ? String(error.message || error) : null };
   }
+  var WARM_TEX_SLOTS = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "alphaMap", "bumpMap", "displacementMap", "lightMap", "specularMap", "envMap", "gradientMap", "clearcoatNormalMap", "matcap"];
+  function materialTextures(m2, out) {
+    for (const k2 of WARM_TEX_SLOTS) {
+      const t2 = m2[k2];
+      if (t2 && t2.isTexture) out.push(t2);
+    }
+    if (m2.uniforms) for (const k2 in m2.uniforms) {
+      const u2 = m2.uniforms[k2];
+      const v2 = u2 && u2.value;
+      if (v2 && v2.isTexture) out.push(v2);
+    }
+    return out;
+  }
+  function texCost(t2) {
+    if (t2.isRenderTargetTexture || t2.isDataTexture && !t2.image) return 0;
+    const im = t2.image;
+    if (!im) return 0;
+    if (Array.isArray(im)) {
+      let n2 = 0;
+      for (const f2 of im) n2 += (f2 && (f2.width || 0)) * (f2 && (f2.height || 0)) * 4;
+      return n2 * 1.34;
+    }
+    return (im.width || 0) * (im.height || 0) * 4 * (t2.generateMipmaps === false ? 1 : 1.34);
+  }
+  function triCost(o2) {
+    const g2 = o2.geometry;
+    if (!g2) return 0;
+    const n2 = g2.index ? g2.index.count : g2.attributes && g2.attributes.position ? g2.attributes.position.count : 0;
+    return n2 / 3 * (o2.isInstancedMesh ? Math.max(1, o2.count) : 1);
+  }
+  var sleep = (ms) => new Promise((r2) => setTimeout(r2, ms));
+  async function gpuSettle(gl, maxMs) {
+    if (!gl) return;
+    try {
+      if (typeof gl.fenceSync !== "function") {
+        gl.flush();
+        await breathe();
+        return;
+      }
+      const s2 = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      gl.flush();
+      if (!s2) {
+        await breathe();
+        return;
+      }
+      const t0 = now();
+      while (now() - t0 < (maxMs || 4e3)) {
+        await sleep(4);
+        if (gl.isContextLost()) break;
+        if (gl.getSyncParameter(s2, gl.SYNC_STATUS) === gl.SIGNALED) break;
+      }
+      gl.deleteSync(s2);
+    } catch (e2) {
+    }
+  }
+  var WARMED = /* @__PURE__ */ new WeakSet();
+  function forgetWarm() {
+    WARMED = /* @__PURE__ */ new WeakSet();
+  }
+  async function warmGPUChunked(renderer, scene, camera, opts) {
+    opts = opts || {};
+    const T2 = opts.THREE;
+    const gl = renderer.getContext();
+    const t0 = now();
+    const res = { ms: 0, batches: 0, objects: 0, programs: 0, newPrograms: 0, texMb: 0, lost: false, error: null, slowest: 0 };
+    if (gl.isContextLost()) {
+      res.lost = true;
+      return res;
+    }
+    const lim = Object.assign({ programs: 6, texBytes: 64e6, tris: 4e5, items: 600, targetMs: 120, maxMs: 450 }, opts.limits || {});
+    const cur = { programs: lim.programs, texBytes: lim.texBytes, tris: lim.tris, items: lim.items };
+    const roots = opts.roots || [scene];
+    const lights = [];
+    scene.traverseVisible((o2) => {
+      if (o2.isLight) lights.push(o2);
+    });
+    scene.updateMatrixWorld(true);
+    for (const root of roots) if (root !== scene && root.parent === null) root.updateMatrixWorld(true);
+    const items = [];
+    for (const root of roots) root.traverse((o2) => {
+      if (o2.userData && o2.userData.persistBroken) return;
+      if ((o2.isMesh || o2.isLine || o2.isPoints || o2.isSprite) && o2.material && !WARMED.has(o2)) items.push(o2);
+    });
+    const firstMat = (o2) => (Array.isArray(o2.material) ? o2.material[0] : o2.material) || {};
+    const pri = /* @__PURE__ */ new Map();
+    if (opts.priority) for (const o2 of items) {
+      let p2 = 0;
+      try {
+        p2 = +opts.priority(o2) || 0;
+      } catch (e2) {
+      }
+      pri.set(o2, p2);
+    }
+    items.sort((a2, b2) => (pri.get(a2) || 0) - (pri.get(b2) || 0) || (firstMat(a2).id || 0) - (firstMat(b2).id || 0));
+    const texBudget = opts.texBudget || Infinity;
+    let texTotal = 0;
+    res.skipped = 0;
+    const seenMat = /* @__PURE__ */ new Set(), seenTex = /* @__PURE__ */ new Set();
+    const proxy = Object.create(scene);
+    proxy.autoUpdate = false;
+    proxy.matrixAutoUpdate = false;
+    const render = opts.render || ((p2, cam) => {
+      const rt = render.rt || (render.rt = new T2.WebGLRenderTarget(16, 16));
+      if (opts.encoding !== void 0) rt.texture.encoding = opts.encoding;
+      const was = renderer.getRenderTarget();
+      try {
+        renderer.setRenderTarget(rt);
+        renderer.render(p2, cam);
+      } finally {
+        renderer.setRenderTarget(was);
+      }
+    });
+    const programs0 = (renderer.info.programs || []).length;
+    const autoShadow = renderer.shadowMap.autoUpdate;
+    let i2 = 0;
+    try {
+      while (i2 < items.length) {
+        const batch = [];
+        let progs = 0, texB = 0, tris = 0;
+        while (i2 < items.length && batch.length < cur.items) {
+          const o2 = items[i2];
+          const mats = Array.isArray(o2.material) ? o2.material : [o2.material];
+          let np = 0, nt = 0;
+          const texs = [];
+          for (const m2 of mats) if (m2) {
+            if (!seenMat.has(m2)) np++;
+            materialTextures(m2, texs);
+          }
+          for (const t2 of texs) if (!seenTex.has(t2)) nt += texCost(t2);
+          if (nt > 0 && texTotal + nt > texBudget) {
+            res.skipped++;
+            i2++;
+            continue;
+          }
+          const tr = triCost(o2);
+          if (batch.length && (progs + np > cur.programs || texB + nt > cur.texBytes || tris + tr > cur.tris)) break;
+          for (const m2 of mats) if (m2) seenMat.add(m2);
+          for (const t2 of texs) seenTex.add(t2);
+          progs += np;
+          texB += nt;
+          tris += tr;
+          texTotal += nt;
+          batch.push(o2);
+          i2++;
+        }
+        if (!batch.length) continue;
+        const saved = batch.map((o2) => [o2, o2.visible, o2.frustumCulled]);
+        for (const o2 of batch) {
+          o2.visible = true;
+          o2.frustumCulled = false;
+        }
+        proxy.children = lights.concat(batch);
+        const b0 = now();
+        try {
+          renderer.shadowMap.autoUpdate = true;
+          render(proxy, camera);
+        } finally {
+          renderer.shadowMap.autoUpdate = autoShadow;
+          for (const s2 of saved) {
+            s2[0].visible = s2[1];
+            s2[0].frustumCulled = s2[2];
+          }
+          proxy.children = [];
+        }
+        await gpuSettle(gl, 5e3);
+        const took = now() - b0;
+        res.slowest = Math.max(res.slowest, Math.round(took));
+        if (gl.isContextLost()) {
+          res.lost = true;
+          break;
+        }
+        for (const o2 of batch) WARMED.add(o2);
+        res.batches++;
+        res.objects += batch.length;
+        res.texMb += texB / 1e6;
+        const k2 = took > lim.maxMs ? 0.5 : took > lim.targetMs ? 0.8 : took < lim.targetMs * 0.4 ? 1.4 : 1;
+        cur.programs = Math.max(1, Math.min(lim.programs, Math.round(cur.programs * k2)));
+        cur.texBytes = Math.max(4e6, Math.min(lim.texBytes, cur.texBytes * k2));
+        cur.tris = Math.max(2e4, Math.min(lim.tris, cur.tris * k2));
+        cur.items = Math.max(8, Math.min(lim.items, Math.round(cur.items * k2)));
+        if (opts.progress) try {
+          opts.progress(i2 / items.length);
+        } catch (e2) {
+        }
+        await breathe();
+      }
+      if (!res.lost && opts.finalShadow !== false) {
+        renderer.shadowMap.needsUpdate = true;
+      }
+    } catch (e2) {
+      res.error = String(e2 && e2.message || e2);
+    } finally {
+      renderer.shadowMap.autoUpdate = autoShadow;
+      if (render.rt) {
+        render.rt.dispose();
+        render.rt = null;
+      }
+    }
+    const programs1 = (renderer.info.programs || []).length;
+    res.programs = programs1;
+    res.newPrograms = programs1 - programs0;
+    res.texMb = +res.texMb.toFixed(0);
+    res.ms = Math.round(now() - t0);
+    res.items = items.length;
+    return res;
+  }
   var Persistence = class {
     constructor(opts) {
       opts = opts || {};
@@ -10058,7 +10267,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Honor.js
+  // src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10203,7 +10412,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Respect.js
+  // src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10435,7 +10644,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/StandingHud.js
+  // src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10623,7 +10832,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/interior/Interiors.js
+  // src/interior/Interiors.js
   var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
   function retailTemperature(hour = 12, weather = {}) {
     if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
@@ -11049,7 +11258,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/physics/VehicleDynamics.js
+  // src/physics/VehicleDynamics.js
   var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
   var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
   function vehicleMass(kind = {}) {
@@ -11129,7 +11338,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return { steps, mass, grip, rate: state.rate, understeer: under };
   }
 
-  // Engine/src/cinematics/CinematicVideo.js
+  // src/cinematics/CinematicVideo.js
   var CinematicVideo = class {
     constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
       this.document = doc;
@@ -11237,7 +11446,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Motorcycle.js
+  // src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -11894,7 +12103,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Boat.js
+  // src/vehicles/Boat.js
   var RHO2 = 1025;
   var G3 = 9.81;
   var RHO_AIR = 1.2;
@@ -12424,7 +12633,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Ocean.js
+  // src/vehicles/Ocean.js
   var GERSTNER_WAVES = [
     // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
     [0.94, 0.342, 64, 0.13],
@@ -12504,7 +12713,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/ragdoll/Ragdoll.js
+  // src/ragdoll/Ragdoll.js
   var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
     t2 = clamp7(t2, 0, 1);
@@ -13272,7 +13481,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/Wind.js
+  // src/skydive/Wind.js
   var TAU = Math.PI * 2;
   var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
@@ -13406,7 +13615,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/Skydiver.js
+  // src/skydive/Skydiver.js
   var G4 = 9.81;
   var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
@@ -13770,7 +13979,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/CanopyModel.js
+  // src/skydive/CanopyModel.js
   var CANOPY_SCHEMES = {
     // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
     ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },

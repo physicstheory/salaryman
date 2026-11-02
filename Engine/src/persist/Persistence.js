@@ -9,8 +9,8 @@
 //   2. validate: every check the host and the engine register runs against the finished world before the screen
 //                lifts: scene integrity, shaders, textures, physics, characters, memory. A failure that can be
 //                repaired is repaired (and reported); nothing is left for the player to find.
-//   3. warm:     every shader program is compiled and every geometry and texture uploaded to the GPU in one pass, so
-//                the first look at anything is not a stall.
+//   3. warm:     every shader program is compiled and every geometry and texture uploaded to the GPU, in small
+//                fenced batches so no single GPU job trips the driver's watchdog, and the first look at anything is not a stall.
 //   4. keep:     built things are never disposed when you walk away. Far things are hidden, not destroyed; coming
 //                back just shows them again. The only exception is the memory budget: if the machine cannot hold
 //                something, the resident set evicts what is furthest away and least recently seen, and says so.
@@ -193,6 +193,160 @@ export function warmGPU(renderer, scene, camera, opts) {
   } catch (e) { error = e; }
   for (let i = saved.length - 1; i >= 0; i--) { const s = saved[i]; s[0].visible = s[1]; s[0].frustumCulled = s[2]; }
   return { ms: Math.round(now() - t0), objects: saved.length, programs: programs1, newPrograms: programs1 - programs0, error: error ? String(error.message || error) : null };
+}
+
+// --- warming the GPU in small pieces ---------------------------------------------------------------------------------
+// One render of the whole world is one enormous submission to the graphics driver: every program compiled, every
+// texture uploaded and mipmapped, every mesh drawn twice (colour and shadow) in a single go. On Windows a GPU job
+// that runs for more than about two seconds trips the driver's watchdog (TDR) and the driver is reset: the screen
+// flashes, WebGL loses its context, and the game came up white. Chromium's own GPU watchdog does the same to a GPU
+// process that stays busy too long. So the warm-up is cut into batches with a ceiling on what each one may ask of the
+// driver (new programs, new texture bytes, triangles), and after each batch the loader waits, without blocking, for
+// the GPU to report it finished (a WebGL2 fence) before it sends the next. A batch that took too long makes the next
+// ones smaller. If the context is lost anyway the warm stops at once and says so; the host re-runs it when the
+// context is restored, and only what was not yet warmed is done again.
+//
+// Each batch is drawn through a stand-in for the scene: an object whose prototype is the real scene (so the fog, the
+// environment and the background are the scene's own) whose children are the scene's visible lights and the batch.
+// The lights matter: a program is compiled for a number of lights, and the batch must get the same ones play will.
+const WARM_TEX_SLOTS = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "alphaMap", "bumpMap", "displacementMap", "lightMap", "specularMap", "envMap", "gradientMap", "clearcoatNormalMap", "matcap"];
+function materialTextures(m, out) {
+  for (const k of WARM_TEX_SLOTS) { const t = m[k]; if (t && t.isTexture) out.push(t); }
+  if (m.uniforms) for (const k in m.uniforms) { const u = m.uniforms[k]; const v = u && u.value; if (v && v.isTexture) out.push(v); }
+  return out;
+}
+function texCost(t) {
+  if (t.isRenderTargetTexture || (t.isDataTexture && !t.image)) return 0;
+  const im = t.image;
+  if (!im) return 0;
+  if (Array.isArray(im)) { let n = 0; for (const f of im) n += ((f && (f.width || 0)) * (f && (f.height || 0))) * 4; return n * 1.34; }
+  return (im.width || 0) * (im.height || 0) * 4 * (t.generateMipmaps === false ? 1 : 1.34);
+}
+function triCost(o) {
+  const g = o.geometry;
+  if (!g) return 0;
+  const n = g.index ? g.index.count : g.attributes && g.attributes.position ? g.attributes.position.count : 0;
+  return (n / 3) * (o.isInstancedMesh ? Math.max(1, o.count) : 1);
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Wait until the GPU has done everything sent so far, without blocking the page (the slideshow keeps moving).
+export async function gpuSettle(gl, maxMs) {
+  if (!gl) return;
+  try {
+    if (typeof gl.fenceSync !== "function") { gl.flush(); await breathe(); return; }
+    const s = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    if (!s) { await breathe(); return; }
+    const t0 = now();
+    while (now() - t0 < (maxMs || 4000)) {
+      await sleep(4);
+      if (gl.isContextLost()) break;
+      if (gl.getSyncParameter(s, gl.SYNC_STATUS) === gl.SIGNALED) break;
+    }
+    gl.deleteSync(s);
+  } catch (e) { /* context lost mid-wait: the caller checks */ }
+}
+// Meshes already warmed, so a second warm (after the opening adds its train, or after a driver reset) only does the rest.
+let WARMED = new WeakSet();
+export function forgetWarm() { WARMED = new WeakSet(); }
+export async function warmGPUChunked(renderer, scene, camera, opts) {
+  opts = opts || {};
+  const T = opts.THREE;
+  const gl = renderer.getContext();
+  const t0 = now();
+  const res = { ms: 0, batches: 0, objects: 0, programs: 0, newPrograms: 0, texMb: 0, lost: false, error: null, slowest: 0 };
+  if (gl.isContextLost()) { res.lost = true; return res; }
+  const lim = Object.assign({ programs: 6, texBytes: 64e6, tris: 400e3, items: 600, targetMs: 120, maxMs: 450 }, opts.limits || {});
+  const cur = { programs: lim.programs, texBytes: lim.texBytes, tris: lim.tris, items: lim.items };
+  const roots = opts.roots || [scene];
+  const lights = [];
+  scene.traverseVisible(o => { if (o.isLight) lights.push(o); });
+  scene.updateMatrixWorld(true);
+  for (const root of roots) if (root !== scene && root.parent === null) root.updateMatrixWorld(true);
+  const items = [];
+  for (const root of roots) root.traverse(o => {
+    if (o.userData && o.userData.persistBroken) return;
+    if ((o.isMesh || o.isLine || o.isPoints || o.isSprite) && o.material && !WARMED.has(o)) items.push(o);
+  });
+  // Order: what matters first (the host's priority, e.g. distance from where the story starts, in bands), and within a band by
+  // material, so a batch compiles few programs and shares what it uploads.
+  const firstMat = o => (Array.isArray(o.material) ? o.material[0] : o.material) || {};
+  const pri = new Map();
+  if (opts.priority) for (const o of items) { let p = 0; try { p = +opts.priority(o) || 0; } catch (e) { /* 0 */ } pri.set(o, p); }
+  items.sort((a, b) => ((pri.get(a) || 0) - (pri.get(b) || 0)) || ((firstMat(a).id || 0) - (firstMat(b).id || 0)));
+  // Video memory: uploading every texture in the world at once can ask a 2-4 GB card for more than it has, and an over-committed card
+  // is the other way a driver resets. Past the budget, meshes that would bring new textures are left to upload when first seen.
+  const texBudget = opts.texBudget || Infinity;
+  let texTotal = 0;
+  res.skipped = 0;
+  const seenMat = new Set(), seenTex = new Set();
+  const proxy = Object.create(scene);
+  proxy.autoUpdate = false;
+  proxy.matrixAutoUpdate = false;
+  const render = opts.render || ((p, cam) => {
+    const rt = render.rt || (render.rt = new T.WebGLRenderTarget(16, 16));
+    if (opts.encoding !== undefined) rt.texture.encoding = opts.encoding;
+    const was = renderer.getRenderTarget();
+    try { renderer.setRenderTarget(rt); renderer.render(p, cam); } finally { renderer.setRenderTarget(was); }
+  });
+  const programs0 = (renderer.info.programs || []).length;
+  const autoShadow = renderer.shadowMap.autoUpdate;
+  let i = 0;
+  try {
+    while (i < items.length) {
+      // the next batch, within this round's ceilings (always at least one item)
+      const batch = [];
+      let progs = 0, texB = 0, tris = 0;
+      while (i < items.length && batch.length < cur.items) {
+        const o = items[i];
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        let np = 0, nt = 0;
+        const texs = [];
+        for (const m of mats) if (m) { if (!seenMat.has(m)) np++; materialTextures(m, texs); }
+        for (const t of texs) if (!seenTex.has(t)) nt += texCost(t);
+        if (nt > 0 && texTotal + nt > texBudget) { res.skipped++; i++; continue; }
+        const tr = triCost(o);
+        if (batch.length && (progs + np > cur.programs || texB + nt > cur.texBytes || tris + tr > cur.tris)) break;
+        for (const m of mats) if (m) seenMat.add(m);
+        for (const t of texs) seenTex.add(t);
+        progs += np; texB += nt; tris += tr; texTotal += nt;
+        batch.push(o); i++;
+      }
+      if (!batch.length) continue;
+      const saved = batch.map(o => [o, o.visible, o.frustumCulled]);
+      for (const o of batch) { o.visible = true; o.frustumCulled = false; }
+      proxy.children = lights.concat(batch);
+      const b0 = now();
+      try {
+        renderer.shadowMap.autoUpdate = true;
+        render(proxy, camera);
+      } finally {
+        renderer.shadowMap.autoUpdate = autoShadow;
+        for (const s of saved) { s[0].visible = s[1]; s[0].frustumCulled = s[2]; }
+        proxy.children = [];
+      }
+      await gpuSettle(gl, 5000);
+      const took = now() - b0;
+      res.slowest = Math.max(res.slowest, Math.round(took));
+      if (gl.isContextLost()) { res.lost = true; break; }
+      for (const o of batch) WARMED.add(o);
+      res.batches++; res.objects += batch.length; res.texMb += texB / 1e6;
+      // adapt: a slow batch halves the next ones, a quick one lets them grow back towards the ceiling
+      const k = took > lim.maxMs ? 0.5 : took > lim.targetMs ? 0.8 : took < lim.targetMs * 0.4 ? 1.4 : 1;
+      cur.programs = Math.max(1, Math.min(lim.programs, Math.round(cur.programs * k)));
+      cur.texBytes = Math.max(4e6, Math.min(lim.texBytes, cur.texBytes * k));
+      cur.tris = Math.max(20e3, Math.min(lim.tris, cur.tris * k));
+      cur.items = Math.max(8, Math.min(lim.items, Math.round(cur.items * k)));
+      if (opts.progress) try { opts.progress(i / items.length); } catch (e) { /* cosmetic */ }
+      await breathe();
+    }
+    // one shadow pass over the whole scene at the end, now that every depth program exists, so the first frame's shadow map is ready
+    if (!res.lost && opts.finalShadow !== false) { renderer.shadowMap.needsUpdate = true; }
+  } catch (e) { res.error = String(e && e.message || e); }
+  finally { renderer.shadowMap.autoUpdate = autoShadow; if (render.rt) { render.rt.dispose(); render.rt = null; } }
+  const programs1 = (renderer.info.programs || []).length;
+  res.programs = programs1; res.newPrograms = programs1 - programs0; res.texMb = +res.texMb.toFixed(0); res.ms = Math.round(now() - t0); res.items = items.length;
+  return res;
 }
 
 // --- the loader ---------------------------------------------------------------------------------------------------

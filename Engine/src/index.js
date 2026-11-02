@@ -19,7 +19,7 @@ export { Characters, characters, CHAR_QUALITY, kindOf, bipedNames } from "./char
 export { subdivideGeometry } from "./characters/Subdivide.js";
 export { synthesizeMaps } from "./characters/MapSynth.js";
 // Persistence: build the whole world behind the loading screen, check it, warm the GPU, and keep it resident.
-export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, warmGPU, memoryBudget, MEMORY_BUDGET } from "./persist/Persistence.js";
+export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, warmGPU, warmGPUChunked, gpuSettle, forgetWarm, memoryBudget, MEMORY_BUDGET } from "./persist/Persistence.js";
 // Standing: honor (what you do: crimes down, kindness up) and respect (how people regard you: rank, greetings), with their HUD.
 export { Honor, HONOR_TIERS } from "./standing/Honor.js";
 export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";

@@ -76,7 +76,7 @@ body[data-reduced-motion="true"] *, body[data-reduced-motion="true"] *::before, 
   #notifs { width: 260px; bottom: 198px; } #phone { right: 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .menu-btn, #phone, #pausestrip, #pausebar, #title, #bootshow .slide { transition: none !important; animation: none !important; }
+  .menu-btn, #phone, #pausestrip, #pausebar, #title, #bootshow .slide .art { transition: none !important; animation: none !important; }
 }
 #bootname img { display: block; width: min(420px,45vw); height: auto; }
 #titlemenu .title-btn { min-height: 50px; padding: 13px 20px; border: 1px solid #69817a; border-left: 3px solid transparent; border-radius: 9px; background: rgba(19,36,42,.92); color: #f4efe3; font-size: 17px; letter-spacing: .02em; text-align: left; }
@@ -109,9 +109,9 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 #bootstage { font-size:clamp(12px,1vw,15px);font-weight:500;letter-spacing:.015em;text-align:right;line-height:1.4; }
 #bootspin { flex:0 0 19px;width:19px;height:19px;border:2px solid rgba(255,255,255,.24);border-top-color:#fff;border-right-color:#fff; }
 #bootbar { position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap; }
-#boot.reduce-motion .slide,body[data-reduced-motion="true"] #bootshow .slide { animation:none!important;transition:none!important;transform:scale(1.02); }
+#boot.reduce-motion .slide .art,body[data-reduced-motion="true"] #bootshow .slide .art { animation:none!important;transition:none!important;transform:scale(1.02); }
 #boot.reduce-motion #bootspin,body[data-reduced-motion="true"] #bootspin { animation:none; }
-@media(prefers-reduced-motion:reduce){#bootshow .slide{animation:none!important;transition:none!important;transform:scale(1.02)}#bootspin{animation:none}}
+@media(prefers-reduced-motion:reduce){#bootshow .slide .art{animation:none!important;transition:none!important;transform:scale(1.02)}#bootspin{animation:none}}
 
 /* Editorial pause shell: horizontal chapter tabs and high-contrast list selection. */
 #pause { background:rgba(8,9,11,.88);color:#f5f5f3; }
@@ -142,10 +142,17 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 @keyframes salary-load-pan-reverse { from{transform:translate3d(2.8%,-.6%,0) scale(1.18)}to{transform:translate3d(-2.8%,.6%,0) scale(1.12)} }
 @keyframes salary-load-dolly { from{transform:translate3d(-.8%,.8%,0) scale(1.09)}to{transform:translate3d(.8%,-.8%,0) scale(1.23)} }
 @keyframes salary-load-rise { from{transform:translate3d(1%,1.8%,0) scale(1.18)}to{transform:translate3d(-1%,-1.8%,0) scale(1.12)} }
-#bootshow.compositor.still .slide { animation-play-state:paused; }
-#boot.reduce-motion #bootshow.compositor .slide,body[data-reduced-motion="true"] #bootshow.compositor .slide { animation:none!important; }
-@media(prefers-reduced-motion:reduce){#bootshow.compositor .slide{animation:none!important}}
-#bootshow.compositor:not(.still) .slide { will-change:transform,opacity; }
+#bootshow.compositor .slide .art { position:absolute;inset:0;background:center / cover no-repeat;will-change:transform; }
+#bootshow.compositor.still .slide,#bootshow.compositor.still .slide .art { animation-play-state:paused; }
+/* Reduced motion (the game's setting, or Windows with animation effects off) stops the drift, never the slideshow itself. */
+#boot.reduce-motion #bootshow.compositor .slide .art,body[data-reduced-motion="true"] #bootshow.compositor .slide .art { animation:none!important;transform:scale(1.02); }
+@media(prefers-reduced-motion:reduce){#bootshow.compositor .slide .art{animation:none!important;transform:scale(1.02)}}
+#bootshow.compositor .slide { transition:none!important; }
+#boot.reduce-motion #bootshow.compositor .slide,body[data-reduced-motion="true"] #bootshow.compositor .slide { transform:none; }
+@media(prefers-reduced-motion:reduce){#bootshow.compositor .slide{transform:none}}
+#bootshow.compositor:not(.still) .slide { will-change:opacity; }
+/* the game's own reduced-motion setting zeroes every animation's duration; the slideshow's crossfade keeps its own */
+body[data-reduced-motion="true"] #bootshow.compositor .slide { animation-duration:var(--cycle,56s)!important; }
 /* Ink Games launch cards run on the compositor while generation proceeds. */
 #bootintro { position:absolute;inset:0;z-index:3;background:radial-gradient(ellipse at 50% 30%,#183b47,#071219 72%);pointer-events:none;animation:ink-intro-deck 20s linear both; }
 .intro-card { position:absolute;inset:8vh 6vw 18vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;opacity:0;color:#f5f3ee; }
