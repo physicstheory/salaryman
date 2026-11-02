@@ -81,5 +81,40 @@
       "steam / vents": "steam",
       "birds": "\\b(pigeons?|crows?)\\b"
     }
+  },
+  "shops": {
+    "_about": "Shops are finished by Web/art/shop-aaa.js. Only kinds listed in kept_kinds may stay as boxes (they are boxes in life: cartons, pallets, printed boards) and they get PBR materials; every other decor kind needs a scanned stand-in or is dropped.",
+    "hooks": [
+      [
+        "ShopAAA.finish(room, root",
+        "rooms are finished with PBR materials when built"
+      ],
+      [
+        "ShopAAA.enter(room)",
+        "the indoor light probe on entering"
+      ],
+      [
+        "ShopAAA.leave()",
+        "the outdoor light back on leaving"
+      ],
+      [
+        "ShopAAA.inside()",
+        "no sun or night exposure indoors"
+      ],
+      [
+        "ShopAAA.propFor(kind",
+        "decor asks for a scanned stand-in first"
+      ]
+    ],
+    "kept_kinds": [
+      "boxes",
+      "pallet",
+      "sandwich",
+      "standee",
+      "wetfloor",
+      "crates",
+      "barrel",
+      "aquarium"
+    ]
   }
 }

@@ -1292,6 +1292,7 @@
 <script src="art/interface.js"></script>
 <script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
+<script src="art/shop-aaa.js"></script>
 <script src="art/realism.js"></script>
 <script src="art/brands.js"></script>
 <script src="art/signfonts/fonts.js"></script>
@@ -37183,6 +37184,7 @@ function applySky(h, dirX, dirZ) {
   const dk = 0.16 + 0.84 * clamp01(k.sun);
   if (Math.abs(dk - hdri.dayK) > 0.04) { hdri.dayK = dk; envFollowSun(true); } else envFollowSun(false);
   if (skyDome && skyDome.material.uniforms && skyDome.material.uniforms.cloudShift) skyDome.material.uniforms.cloudShift.value = (performance.now() * 0.0000012) % 1;
+  if (typeof interior !== "undefined" && window.ShopAAA) { if (interior.active) ShopAAA.inside(); else if (ShopAAA.state.saved) ShopAAA.leave(true); }
 }
 
 function updateTitle(dt) {
@@ -40804,6 +40806,7 @@ function propPut(parent, id, x, y, z, ry, opts) {
 }
 // rooms are drawn unlit; the props in them are lit, by a sky light that only exists while the room is on screen
 function propLight(root) {
+  if (window.ShopAAA) { ShopAAA.rig(root); return; }
   if (root.userData.propLight) return;
   const h = new THREE.HemisphereLight(0xfffaf0, 0x7b8b8f, 0.8); root.add(h);
   const d = new THREE.DirectionalLight(0xfff2dd, 0.6); d.position.set(3, 6, 4); root.add(d); root.add(d.target);
@@ -41585,6 +41588,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "audio") { inAdd(g, 0.2, 0.2, 0.1, 0, 0.1, 0, "#e9ebee"); inAdd(g, 0.12, 0.06, 0.12, 0, 0.23, 0, col); top = 0.26; }
   else if (kind === "game") { inAdd(g, 0.2, 0.28, 0.03, 0, 0.14, 0, col); inAdd(g, 0.16, 0.06, 0.035, 0, 0.1, 0.004, "#f2f2f2"); top = 0.28; }
   else if (kind === "shirt") { inAdd(g, 0.34, 0.4, 0.06, 0, 0.2, 0, col); inAdd(g, 0.56, 0.12, 0.06, 0, 0.34, 0, col); inAdd(g, 0.12, 0.03, 0.065, 0, 0.395, 0.002, inShade(col, 0.6)); top = 0.42; }
+  else if (kind === "book" && window.ShopAAA) { top = ShopAAA.book(g, it); }
   else if (kind === "book") { inAdd(g, 0.18, 0.26, 0.04, 0, 0.13, 0, col); inAdd(g, 0.02, 0.26, 0.042, -0.08, 0.13, 0, "#f2efe6"); top = 0.26; }
   else if (kind === "gun") { const gm = gunModel(it.id, true); gm.rotation.y = Math.PI / 2; gm.position.y = 0.09; gm.scale.setScalar(it.id === "shotgun" ? 0.62 : 0.95); g.add(gm); top = 0.2; }
   else if (kind === "ammo") { inAdd(g, 0.2, 0.09, 0.12, 0, 0.045, 0, "#7a6a3a"); inAdd(g, 0.2, 0.02, 0.121, 0, 0.09, 0, "#c9a04a"); for (let k = 0; k < 4; k++) inAdd(g, 0.02, 0.07, 0.02, -0.06 + k * 0.04, 0.12, 0, "#d9b44a"); top = 0.15; }
@@ -41594,7 +41598,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "pill") { inAdd(g, 0.14, 0.2, 0.08, 0, 0.1, 0, "#f4f4f2"); inAdd(g, 0.14, 0.05, 0.085, 0, 0.1, 0, col); top = 0.2; }
   else if (kind === "umbrella") { inAdd(g, 0.04, 0.5, 0.04, 0, 0.25, 0, "#e8eef2"); inAdd(g, 0.2, 0.08, 0.2, 0, 0.5, 0, "#cfe0ea"); top = 0.55; }
   else { inAdd(g, 0.2, 0.22, 0.14, 0, 0.11, 0, col); inAdd(g, 0.2, 0.06, 0.145, 0, 0.13, 0, "#f4f4f2"); top = 0.22; }
-  SalaryArt.stock(it,kind,g,gfx.tier);
+  if (!(kind === "book" && window.ShopAAA)) SalaryArt.stock(it,kind,g,gfx.tier);
   // a yellow shell round it, shown when it is the one you are looking at
   if (!noGlow) {
     const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
@@ -41652,7 +41656,8 @@ function plazaExtra(def) {
       room.spots.push({ x: x, z: -IN_D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
     });
     inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
-    inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f");
+    if (window.ShopAAA) propPut(root, "potted_plant_01", 0.6, 0, 1.6, 0, { h: 1.35 });
+    else { inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f"); }
     room.colliders.push({ x0: 2.0, x1: 3.6, z0: 0.95, z1: 1.45 }, { x0: -4.4, x1: -2.8, z0: 0.95, z1: 1.45 }, { x0: 0.3, x1: 0.9, z0: 1.3, z1: 1.9 });
     const dir = inLabel(PLAZA_FLOORS.map(f => f.label + " " + f.name).join("   "), 6.8, 0.4, "#2a2d33", "#ffffff"); dir.position.set(-3.0, 2.3, IN_D / 2 - 0.13); dir.rotation.y = Math.PI; root.add(dir);
   };
@@ -41671,6 +41676,7 @@ function interiorShowRoom(room, at, face) {
   if (interior.room && interior.room !== room) interior.room.group.visible = false;
   interior.room = room; room.group.visible = true; interior.hi = null; interior.spot = null;
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz);
+  if (window.ShopAAA) ShopAAA.enter(room);
   player.pos.set(room.ox + at.x, interior.floorY, room.oz + at.z);
   player.yaw = player.targetYaw = face; yaw = face + Math.PI; pitch = -0.22; player.speed = 0;
   player.obj.position.copy(player.pos);
@@ -42302,16 +42308,17 @@ function interiorDecor(room, root, th, brand, opts) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
   const W = IN_W, D = IN_D, H = IN_H;
   // ---- painted surfaces over the plain boxes
-  const floor = inPlaneTex(SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
+  const floor = inPlaneTex(SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); floor.userData.shopSurface = "floor"; root.add(floor);
   const wt = inWallTex(brand);
-  root.add(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
-  root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
-  root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
+  const wallS = m => { m.userData.shopSurface = "wall"; root.add(m); };
+  wallS(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  wallS(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
+  wallS(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
   const side = (W - 2.4) / 2;
-  root.add(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
-  root.add(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
+  wallS(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
+  wallS(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
   const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h);  inPhotoDetail(g, "plaster", w, h, 0.4); });
-  root.add(inPlaneTex(ceil, W, D, W / 2, D / 2, 0, H - 0.006, 0, 0, Math.PI / 2));
+  { const cm = inPlaneTex(ceil, W, D, W / 2, D / 2, 0, H - 0.006, 0, 0, Math.PI / 2); cm.userData.shopSurface = "ceiling"; root.add(cm); }
   // ---- adverts: pillars either side of the door, banners above the shelves
   const lift = !!opts.lift;
   inPoster(root, brand, 0, -1.95, 1.75, D / 2 - 0.13, Math.PI, 0.85, 1.15);
@@ -42365,14 +42372,24 @@ function interiorDecor(room, root, th, brand, opts) {
   } else if (brand === "books") {
     const cols = ["#8a2a2a", "#2a5a8a", "#2a6a3a", "#c8a84a", "#5a3a7a", "#d9d2c3", "#a85a2a", "#3a3a4a"];
     for (let i = 0; i < 12; i++) { inAdd(root, 0.2, 1.7 + (i % 3) * 0.06, 0.04, -W / 2 + 0.5 + 0.0, 0, 0, "#000").visible = false; }
+    if (window.ShopAAA) {
+      // a reading table with chairs, a pendant over it and a set on the table: all scanned
+      propPut(root, "dining_table", -1.5, 0, D / 2 - 3.4, 0, { w: 1.8 }); room.colliders.push({ x0: -2.4, x1: -0.6, z0: D / 2 - 3.9, z1: D / 2 - 2.9 });
+      propPut(root, "dining_chair_02", -2.0, 0, D / 2 - 2.65, Math.PI, { h: 0.92 }); propPut(root, "dining_chair_02", -1.0, 0, D / 2 - 4.15, 0, { h: 0.92 });
+      propPut(root, "book_encyclopedia_set_01", -1.7, 0.79, D / 2 - 3.4, 0.15, { w: 0.55 }); propPut(root, "standing_picture_frame_01", -0.9, 0.79, D / 2 - 3.3, -0.5, { h: 0.25 });
+      propPut(root, "modern_ceiling_lamp_01", -1.5, H - 0.95, D / 2 - 3.4, 0, { h: 0.95 });
+      propPut(root, "wooden_bookshelf_worn", -3.5, 0, -D / 2 + 0.35, 0, { w: 1.3 });
+    } else {
     inTable(room, root, -1.5, D / 2 - 3.4, 1.8, 0.9, "#4a3220", "#8a6a44"); inCyl(root, 0.08, 0.5, -1.5, 1.05, D / 2 - 3.4, "#d9c24a"); inAdd(root, 0.4, 0.1, 0.4, -1.5, 1.35, D / 2 - 3.4, "#e8d98a");
     inAdd(root, 0.7, 0.5, 0.7, -3.2, 0.25, D / 2 - 3.4, "#2c4a3a"); inAdd(root, 0.7, 0.5, 0.7, 0.2, 0.25, D / 2 - 3.4, "#2c4a3a");
     inAdd(root, 0.06, 2.2, 0.5, -3.5, 1.1, -D / 2 + 0.5, "#8a6a44");   // a library ladder
+    }
   } else if (brand === "clothes") {
     inRack(room, root, -5.0, -1.2, 2.4, ["#4a90d9", "#e8e8e6", "#d9a3b8", "#2a2d33", "#7ac9a8"]);
     inRack(room, root, -5.0, 1.8, 2.4, ["#e8e8e6", "#9b6bd3", "#e8d84a", "#4a90d9", "#c8372d"]);
-    inMannequin(root, 2.2, -4.2, "#4a90d9", 0.3); inMannequin(root, 3.1, -4.2, "#e8e8e6", -0.2); inMannequin(root, 4.0, -4.2, "#2a2d33", 0.1);
-    room.colliders.push({ x0: 1.9, x1: 4.3, z0: -4.55, z1: -3.85 });
+    if (!window.ShopAAA) { inMannequin(root, 2.2, -4.2, "#4a90d9", 0.3); inMannequin(root, 3.1, -4.2, "#e8e8e6", -0.2); inMannequin(root, 4.0, -4.2, "#2a2d33", 0.1);
+    room.colliders.push({ x0: 1.9, x1: 4.3, z0: -4.55, z1: -3.85 }); }
+    else { propPut(root, "potted_plant_01", 3.1, 0, -4.6, 0, { h: 1.3 }); room.colliders.push({ x0: 2.8, x1: 3.4, z0: -4.9, z1: -4.3 }); }
     inAdd(root, 1.3, 2.0, 0.06, -W / 2 + 0.2, 1.0, 4.2, "#bcd8ea"); inAdd(root, 1.4, 2.1, 0.04, -W / 2 + 0.17, 1.05, 4.2, "#2a2d33");   // the mirror
     inAdd(root, 1.2, 2.1, 0.06, -W / 2 + 1.0, 1.05, 2.4, "#6a4a7a");   // a fitting-room curtain
   } else if (brand === "dokoto") {
@@ -42479,7 +42496,8 @@ function interiorProps(room, root, th, brand, opts) {
   const W = IN_W, D = IN_D, sk = IN_SKIN[brand] || IN_SKIN.eleven;
   const ads = IN_ADS[brand] || IN_ADS.eleven;
   const trimC = th.trim, sale = brand === "clothes" || brand === "books" ? "#c8372d" : trimC;
-  const pal = brand === "pharmacy" ? ["#e8f4ee", "#2e9b5a", "#f4f4f2", "#3f6fb5", "#d96a8a"] : brand === "arms" ? ["#6a6a4a", "#8a8a6a", "#3a3d42"] : IN_PALETTE;
+  // with the AAA finish, stock on pallets and in stacks is shipping cartons (kraft board, printed), not blocks of colour
+  const pal = window.ShopAAA ? IN_CARTON : brand === "pharmacy" ? ["#e8f4ee", "#2e9b5a", "#f4f4f2", "#3f6fb5", "#d96a8a"] : brand === "arms" ? ["#6a6a4a", "#8a8a6a", "#3a3d42"] : IN_PALETTE;
   const tags = { eleven: ["¥98 SALE", "2 FOR ¥300", "NEW!"], petmart: ["¥980", "SALE", "NEW"], pharmacy: ["¥480", "SALE", "NEW"], books: ["¥600", "NEW", "SALE"], clothes: ["30% OFF", "NEW", "SALE"], arms: ["¥1,200", "SALE", "NEW"], dokoto: ["SALE", "NEW", "NEW"], plaza: ["SALE", "NEW", "OPEN"] }[brand] || ["SALE"];
   let seed = inHash(brand + (opts && opts.key || "")) >>> 0; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   // candidate spots: round the walls for the wall pieces, anywhere on a 0.5 m grid for the floor pieces and by the door for the door pieces
@@ -42510,9 +42528,11 @@ function interiorProps(room, root, th, brand, opts) {
         if (spot) break;
       }
       if (!spot) continue;
+      const sw = window.ShopAAA ? ShopAAA.propFor(kind, n) : null;
+      if (sw && sw.drop) continue;                 // no real counterpart yet: better an aisle than a block of colour
       const g = new THREE.Group(); g.position.set(spot.x, 0, spot.z); g.rotation.y = spot.ry; root.add(g);
       const ad = ads[(n + placed.length) % ads.length];
-      P.make(g, { n: placed.length + n, th: th, brand: brand, pal: pal, sale: ad[3] || sale, tag: tags[(n + placed.length) % tags.length], ad: ad, wood: sk.wall[2] === "#5b3b24" ? "#6a4a2e" : "#8a6a44", bookish: brand === "books" });
+      if (sw) ShopAAA.placeSwap(g, sw, propPut); else P.make(g, { n: placed.length + n, th: th, brand: brand, pal: pal, sale: ad[3] || sale, tag: tags[(n + placed.length) % tags.length], ad: ad, wood: sk.wall[2] === "#5b3b24" ? "#6a4a2e" : "#8a6a44", bookish: brand === "books" });
       placed.push({ x: spot.x, z: spot.z, r: P.r });
       if (P.solid) { const h = P.r * 0.8; room.colliders.push({ x0: spot.x - h, x1: spot.x + h, z0: spot.z - h, z1: spot.z + h }); }
     }
@@ -42585,7 +42605,7 @@ function interiorRoom(s, opts) {
     // backing until it loads; stock shelves and collision remain at their exact heights.
     propLoad(brand==='books'?"wooden_bookshelf_worn":"wooden_display_shelves_01",tpl=>{
       const bays=Math.ceil(sl.len/1.8),width=sl.len/bays,sz=tpl.userData.size;
-      for(let b=0;b<bays;b++){const rack=tpl.clone(true);rack.scale.set((width-.025)/sz.x,1.7/sz.y,.48/sz.z);rack.position.set(-sl.len/2+width*(b+.5),0,-.12);rack.userData.salaryScannedFixture=true;unit.add(rack);}
+      for(let b=0;b<bays;b++){const rack=tpl.clone(true);if(sz.z>sz.x){rack.rotation.y=Math.PI/2;rack.scale.set(.48/sz.x,1.7/sz.y,(width-.025)/sz.z);}else rack.scale.set((width-.025)/sz.x,1.7/sz.y,.48/sz.z);rack.position.set(-sl.len/2+width*(b+.5),0,-.12);rack.userData.salaryScannedFixture=true;unit.add(rack);}
       backing.visible=false;
     });
     inAdd(unit, sl.len + 0.06, 0.06, 0.62, 0, 1.73, -0.0, th.trim);
@@ -42645,7 +42665,8 @@ function interiorRoom(s, opts) {
     for(const z of [-3.2,-1.8]){propPut(root,'dining_chair_02',7.15,0,z,-Math.PI/2,{h:.92});room.colliders.push({x0:6.8,x1:7.55,z0:z-.36,z1:z+.36});}
   }
   SalaryRetail.refurbish(room, root, {add:inAdd,label:inLabel,devices:DEVICES});
-  SalaryArt.coat(root);
+  if (window.ShopAAA) { try { ShopAAA.rig(root); ShopAAA.finish(room, root, IN_H); } catch (e) { console.warn("[Konto] the shop finish failed:", e); } }
+  else SalaryArt.coat(root);
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));
@@ -43161,6 +43182,7 @@ function interiorEnter(s) {
     scene.add(interior.light);
   }
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0.9;
+  if (window.ShopAAA) ShopAAA.enter(room);
   // the world's near plane is two metres, which would cut a close look at a shelf to nothing
   interior.nearWas = camera.near; camera.near = 0.08; camera.updateProjectionMatrix();
   player.pos.copy(room.entry);
@@ -43187,6 +43209,7 @@ function interiorLeave(quiet) {
   interior.room.group.visible = false;
   interior.light.intensity = 0;
   interior.active = false; interior.hi = null;
+  if (window.ShopAAA) ShopAAA.leave();
   if (interior.nearWas) { camera.near = interior.nearWas; camera.updateProjectionMatrix(); }
   interiorUi();
   stepOutFrom(s.door, s.yaw);
