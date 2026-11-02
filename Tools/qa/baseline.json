@@ -271,11 +271,6 @@
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })",
    "where": "Web/konto.html:28820"
   },
-  "code-bare:Web/konto.html:547e4d89dd:1": {
-   "cat": "pbr",
-   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1a2c3c })",
-   "where": "Web/konto.html:14143"
-  },
   "code-bare:Web/konto.html:59b44e90a0:1": {
    "cat": "pbr",
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x6b7077 })",
@@ -305,11 +300,6 @@
    "cat": "pbr",
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: k[2] })",
    "where": "Web/konto.html:30114"
-  },
-  "code-bare:Web/konto.html:65dede7aef:1": {
-   "cat": "pbr",
-   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.07, metalness: 0.65, envMap: env, envMapIntensi",
-   "where": "Web/konto.html:14143"
   },
   "code-bare:Web/konto.html:6844dbbbb5:1": {
    "cat": "pbr",
@@ -875,26 +865,6 @@
    "cat": "lived_in",
    "problem": "missing: rubbish bags / litter on the street",
    "where": "world code + levels"
-  },
-  "facade:civic": {
-   "cat": "buildings",
-   "problem": "facade set is missing rough",
-   "where": "Web/art/facades/civic_*"
-  },
-  "facade:flats": {
-   "cat": "buildings",
-   "problem": "facade set is missing rough",
-   "where": "Web/art/facades/flats_*"
-  },
-  "facade:glass": {
-   "cat": "buildings",
-   "problem": "facade set is missing rough",
-   "where": "Web/art/facades/glass_*"
-  },
-  "facade:office": {
-   "cat": "buildings",
-   "problem": "facade set is missing rough",
-   "where": "Web/art/facades/office_*"
   },
   "lowpoly-kit:Web/kenney/city": {
    "cat": "buildings",
