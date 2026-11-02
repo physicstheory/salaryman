@@ -81,7 +81,7 @@
         const VRAM = { low: 450e6, medium: 800e6, high: 1300e6, ultra: 2000e6 };
         const texBudget = opts.texBudget || (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1);
         const A = anchors(), _w = new THREE.Vector3();
-        const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1;   // the shop rooms, the concourse, the office: small, and the story needs them early return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
+        const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
         r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority });
         if (!r.lost) break;
         console.warn("[Konto] the graphics driver reset while warming up; waiting for it to come back");
