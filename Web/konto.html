@@ -10481,7 +10481,7 @@ function tryStep(dx, dz, radius) {
   if (interior.active) return interiorTryStep(dx, dz, radius);
   const nx = player.pos.x + dx, nz = player.pos.z + dz;
   if (nx < 40 || nz < 40 || nx > WORLD_X - 40 || nz > WORLD_Z - 40) return false;
-  if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
+  if (world.sampleHeight(nx, nz) < 0.35 && world.bridgeY(nx, nz, player.pos.y) === null) return false;          // the waterline (a bridge over it is not)
   if (insideBuilding(nx, nz, radius)) return false;
   if (treeBlocks(nx, nz, radius, player.pos.x, player.pos.z)) return false;
   if (traffic.ready && carBlocks(nx, nz, radius) && !carBlocks(player.pos.x, player.pos.z, radius)) return false;     // (already overlapping a car: any way out is allowed)
@@ -15213,6 +15213,14 @@ function conformRibbon(pts, loop, t0, t1, ground, lift, opts) {
   return { rows: rows, offsets: offsets, along: along, P: P, norms: norms };
 }
 
+// Where the lanes of one direction run, as distances from the centre line: the same sum the marking shader below does (the centre line
+// 0.3 m out, the edge line 0.55 m in from the kerb, as many 3.25 m lanes as fit between and the space shared equally). Traffic drives on
+// these centres, so a car is always between its two lines and never on one.
+function roadLaneCentres(hw) {
+  const edgeX = hw - 0.55, n = Math.max(1, Math.floor((edgeX - 0.3) / 3.25 + 0.2)), lw = (edgeX - 0.3) / n, out = [];
+  for (let k = 0; k < n; k++) out.push(0.3 + (k + 0.5) * lw);
+  return out;
+}
 // ---- road markings, Japanese ------------------------------------------------------------------------------------------------------------
 // Painted into the arterials' surface by the shader, from the road's own coordinates (across it in metres, along it in metres): the solid
 // yellow centre line of a road you may not overtake on (in pairs, as the wide ones have them), white lane lines five metres on and five off,
@@ -17711,7 +17719,6 @@ function decoMaterial(map, instanced) {
 // it on the other side for free.
 function buildTrafficLanes(city) {
   const lanes = [];
-  const LANE_W = 3.25;
   // The painted city ground is laid CITY_LIFT above the terrain across the
   // city's whole rectangle, while surfaceY tapers that lift off towards the
   // edge - so a car placed on surfaceY sinks into the paving by up to
@@ -17724,7 +17731,8 @@ function buildTrafficLanes(city) {
     : world.surfaceY(x, z);
   city.roads.forEach((road, ri) => {
     if (!road.pts || road.pts.length < 3) return;
-    const perSide = road.halfWidth >= 9 ? 2 : 1;
+    // the lanes are where the paint says they are (roadLaneCentres is the road shader's own sum), on the left of travel
+    const centres = roadLaneCentres(road.halfWidth), perSide = centres.length;
     // Thirty on a back street, forty on a middling road, fifty on the big
     // arterials, ninety on the expressway: what the signs say in Japan.
     const limit = road.cls === "expressway" ? 25 : road.halfWidth >= 12 ? 13.9 : road.halfWidth >= 9 ? 11.1 : 8.3;
@@ -17744,15 +17752,15 @@ function buildTrafficLanes(city) {
             const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
             let dx = next[0] - prev[0], dz = next[2] - prev[2];
             const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
-            const off = LANE_W * (k + 0.5);
-            pts.push([src[i][0] - dz * off, src[i][1] + 0.06, src[i][2] + dx * off]);
+            const off = centres[k];
+            pts.push([src[i][0] + dz * off, src[i][1] + 0.06, src[i][2] - dx * off]);
           }
           if (pts.length < 4) continue;
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
             arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
-                       loop: !!road.loop, road: ri, wide: wideDeck, kerb: k === 0,
+                       loop: !!road.loop, road: ri, wide: wideDeck, kerb: k === perSide - 1,
                        elevated: true });
         }
       }
@@ -17772,8 +17780,8 @@ function buildTrafficLanes(city) {
           const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
           let dx = next[0] - prev[0], dz = next[2] - prev[2];
           const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
-          const off = LANE_W * (k + 0.5);
-          const lx = src[i][0] - dz * off, lz = src[i][2] + dx * off;
+          const off = centres[k];
+          const lx = src[i][0] + dz * off, lz = src[i][2] - dx * off;          // (dz, -dx) is the left of (dx, dz): Konto keeps left
           const y = roadY(lx, lz);
           // Paved, and dry. The city rectangle takes in part of the bay, so a
           // road drawn across it would otherwise put a lane of traffic on the
@@ -17801,7 +17809,7 @@ function buildTrafficLanes(city) {
           // A loop only stays a loop if none of it was cut away.
           const whole = runs.length === 1 && pts.length === src.length;
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
-                       loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === 0 });
+                       loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === perSide - 1 });
         });
       }
     }
@@ -18112,23 +18120,31 @@ function makeHeadlights(root, cap) {
   const beamUv = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
   const lamps = mk(lampPos, lampUv, "lamp", [1.0, 0.94, 0.72], 5);
   const beam = mk(beamPos, beamUv, "beam", [0.85, 0.76, 0.48], 4);
+  // the tail lights: two smaller red glows on the back, the same instanced trick
+  const tailPos = [];
+  [-0.62, 0.62].forEach(x => { const s = 0.32; [[-s, -s], [s, -s], [s, s], [-s, -s], [s, s], [-s, s]].forEach(q => tailPos.push(x + q[0], q[1], -0.05)); });
+  const tails = mk(tailPos, lampUv, "lamp", [1.0, 0.10, 0.06], 5);
   let spot = null;
   if (gfx.tier !== "low") {
     spot = new THREE.SpotLight(0xfff1d6, 0, 70, 0.52, 0.6, 1.3);
     spot.castShadow = false;
     root.add(spot); root.add(spot.target);
   }
-  return { mesh: beam, lamps: lamps, mat: beam.material, lampMat: lamps.material, spot: spot };
+  return { mesh: beam, lamps: lamps, tails: tails, mat: beam.material, lampMat: lamps.material, tailMat: tails.material, spot: spot };
 }
 const _hlM = new THREE.Matrix4(), _hlQ = new THREE.Quaternion(), _hlE = new THREE.Euler(), _hlP = new THREE.Vector3(), _hlS = new THREE.Vector3();
 function updateHeadlights() {
   const L = traffic.lamps; if (!L) return;
-  const lit = nightState.lit;
+  // Lights on from dusk, and in the daytime too when it is pouring or foggy, the way drivers do: the darkness of the hour or of the
+  // weather, whichever is the greater.
+  const Wc = window.shigoto && shigoto.engine && shigoto.engine.weather ? shigoto.engine.weather.cur : null;
+  const gloom = Wc ? 0.55 * Math.max(clamp01((Wc.rain - 0.35) / 0.4), clamp01((Wc.fog - 0.006) / 0.008)) : 0;
+  const lit = Math.max(nightState.lit, gloom);
   const own = drive.car && drive.car.lights;
-  const night = lit > 0.22;
-  if (!night && !own) { L.mesh.count = 0; L.lamps.count = 0; L.mat.opacity = 0; L.lampMat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
-  const glow = clamp01(Math.max(lit * 1.05, own ? 0.38 : 0));
-  L.mat.opacity = glow * 0.72; L.lampMat.opacity = glow;
+  const night = lit > 0.14;
+  if (!night && !own) { L.mesh.count = 0; L.lamps.count = 0; L.tails.count = 0; L.mat.opacity = 0; L.lampMat.opacity = 0; L.tailMat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
+  const glow = clamp01(Math.max(0.35 + lit * 0.75, own ? 0.38 : 0));
+  L.mat.opacity = glow * 0.72 * clamp01(nightState.lit * 1.6 + 0.25); L.lampMat.opacity = glow; L.tailMat.opacity = glow * 0.9;      // the pool on the road only shows once it is dark
   let n = 0;
   const put = (x, y, z, yaw, pitch, kind) => {
     if (n >= L.mesh.instanceMatrix.count) return;
@@ -18140,14 +18156,18 @@ function updateHeadlights() {
     L.mesh.setMatrixAt(n, _hlM);
     _hlS.set(kind.W / 1.8, 1, 1);
     _hlM.compose(_hlP, _hlQ, _hlS);
-    L.lamps.setMatrixAt(n++, _hlM);
+    L.lamps.setMatrixAt(n, _hlM);
+    // and the tail lights on the back, at the same height
+    const back = kind.L * 0.5 - 0.04;
+    _hlP.set(x - Math.sin(yaw) * back, y + lh, z - Math.cos(yaw) * back);
+    _hlM.compose(_hlP, _hlQ, _hlS);
+    L.tails.setMatrixAt(n++, _hlM);
   };
   if (night) {
     for (let i = 0; i < traffic.cars.length; i++) {
       const c = traffic.cars[i];
       if (!c.live || !c.at) continue;
-      if (TWO_WHEELERS[CAR_KINDS[c.kind].body]) continue;
-      put(c.at.x, c.at.y, c.at.z, c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);
+      put(c.at.x, c.at.y, c.at.z, c.yawNow === undefined ? c.at.yaw : c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);     // bikes too: a narrow kind puts its two lamps close together
     }
   }
   if (own) {
@@ -18155,6 +18175,7 @@ function updateHeadlights() {
   }
   L.mesh.count = n; L.mesh.instanceMatrix.needsUpdate = true;
   L.lamps.count = n; L.lamps.instanceMatrix.needsUpdate = true;
+  L.tails.count = n; L.tails.instanceMatrix.needsUpdate = true;
   if (L.spot) {
     if (own && drive.car) {
       const d = drive.car, k = CAR_KINDS[d.kind], sy = Math.sin(d.yaw), cy = Math.cos(d.yaw);
@@ -18835,7 +18856,7 @@ function parkTrees(city, trees) {
   const m = city.moat, P = castlePlan(m), gy = m.groundY, inner = m.inner, T = inner - 25;
   const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
   const clear = (lx, lz, pad) => !P.rects.some(q => Math.abs(lx - q[0]) < q[2] / 2 + pad && Math.abs(lz - q[1]) < q[3] / 2 + pad);
-  const onPath = (lx, lz) => Math.abs(lx) < 9 || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
+  const onPath = (lx, lz) => Math.abs(lx) < 9 || (Math.abs(lz) < 10 && lx < -inner * 0.55) || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
   const offTrack = (lx, lz) => { const d = Math.max(Math.abs(lx), Math.abs(lz)); return d < T - 8 || (d > T + 7 && d < inner - 14); };
   let n = 0;
   const add = (lx, lz, sp, s) => { const w = W(lx, lz); trees.push({ c: [w[0], w[1]], y: gy + CITY_LIFT, s: s, where: "palace", sp: sp, hmul: lerp(1.15, 1.4, rnd(Math.round(lx), Math.round(lz), 819)) }); n++; };
@@ -18871,6 +18892,7 @@ function castlePlan(m) {
             [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
   };
 }
+const BRIDGE_HW = 6;          // half the width of the castle's road bridges and their gates
 function buildCastle(root, city) {
   const m = city.moat; if (!m) return;
   world.walk = world.walk.filter(d => !d.castle);
@@ -18960,8 +18982,9 @@ function buildCastle(root, city) {
     roof("tile", cx, cz, w + 1.0, d + 1.0, gy + DH + 0.35, Math.max(0.1, w - 0.3), Math.max(0.1, d - 0.3), gy + DH + 0.85, 0.05);
     solid(cx, cz, w, d, gy, DH + 1);
   };
-  dobei(-DB, -6, -DB, -DB); dobei(6, DB, -DB, -DB); dobei(-DB, -DB, -DB, DB); dobei(DB, DB, -DB, DB);
-  dobei(-DB, -6, DB, DB); dobei(6, DB, DB, DB);
+  const GG = BRIDGE_HW + 4.5;                             // half the gap the gates leave in the wall
+  dobei(-DB, -GG, -DB, -DB); dobei(GG, DB, -DB, -DB); dobei(-DB, -DB, -DB, -GG); dobei(-DB, -DB, GG, DB); dobei(DB, DB, -DB, DB);
+  dobei(-DB, -GG, DB, DB); dobei(GG, DB, DB, DB);
   // ---- the corner turrets
   const storey = (cx, cz, w, d, y, h, wallKey) => box(wallKey || "keep", cx, y, cz, w, h, d, 4);
   [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => {
@@ -18972,23 +18995,58 @@ function buildCastle(root, city) {
     storey(x, z, 8, 8, gy + 8.2, 3.6);
     roof("tile", x, z, 11.5, 11.5, gy + 11.6, 3.0, 0.2, gy + 14.2);
   });
-  // ---- the gatehouse over the gap, and the bridge across to it
-  box("stone", -6.5, gy, DB, 4, 5.2, 8, 6); box("stone", 6.5, gy, DB, 4, 5.2, 8, 6);
-  solid(-6.5, DB, 4, 8, gy, 9); solid(6.5, DB, 4, 8, gy, 9);
-  storey(0, DB, 17, 9, gy + 5.2, 3.6);
-  roof("tile", 0, DB, 20.5, 12.5, gy + 8.6, 12, 0.2, gy + 11.6);
-  const BH = 2.6, bz0 = inner - 1.5, bz1 = outer + 1.5, bl = bz1 - bz0, bc = (bz0 + bz1) / 2;
-  {
-    const q = W(0, bc);
-    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 4.2, hl: bl / 2, ya: gy, yb: gy, amp: BH, r: Math.hypot(4.2, bl / 2) + 1, castle: true });
-    // the deck as a run of stone segments following the arch, with a parapet each side
-    const N = 16;
-    for (let k = 0; k < N; k++) {
-      const t0 = k / N, t1 = (k + 1) / N, z0 = bz0 + bl * t0, z1 = bz0 + bl * t1, y0 = gy + BH * Math.sin(Math.PI * t0), y1 = gy + BH * Math.sin(Math.PI * t1);
-      quad("stone", [-4.4, y0, z0], [4.4, y0, z0], [4.4, y1, z1], [-4.4, y1, z1], 4);
-      [-1, 1].forEach(sd => { quad("stone", [sd * 4.4, y0, z0], [sd * 4.4, y1, z1], [sd * 4.4, y1 + 1.1, z1], [sd * 4.4, y0 + 1.1, z0], 4); quad("stone", [sd * 4.4, y0 - 1.6, z0], [sd * 4.4, y1 - 1.6, z1], [sd * 4.4, y1, z1], [sd * 4.4, y0, z0], 4); });
+  // ---- the gates, and the bridges across the moat to them
+  // Three: the main gate to the south, the north gate, and a west gate into the woods. Each bridge is a road bridge twelve metres wide,
+  // for cars as well as people: a stone deck on a low arch over the water, registered as a real bridge (world.bridges, so the ground under
+  // it, the moat bed below sea level, no longer stops a car or a man halfway across), then a ramp over the outer bank that lands on
+  // Uchibori-dori at the road's own height, so it meets the street level wherever the city's grading left it. Parapets are walls.
+  world.bridges = world.bridges.filter(b => !b.castle);
+  const landD = outer + 36 - 10 + 2.5;                    // a little way onto Uchibori-dori (its centre line is 36 m out from the moat, 10 m half width)
+  const gate = (f) => {
+    // f: which side, as a unit vector in the castle's frame. P(a, d): a across the bridge, d out from the centre along it
+    const P = (a, d) => f[1] ? [a, f[1] * d] : [f[0] * d, a];
+    const PY = (a, y, d) => { const q = P(a, d); return [q[0], y, q[1]]; };
+    const across = (w, d) => f[1] ? [w, d] : [d, w];      // a box/solid's size, w across and d along
+    const BW = BRIDGE_HW, BA = 1.6;
+    // the gatehouse: two stone piers, a storey over the gap, its roof
+    [-1, 1].forEach(sd => { const q = P(sd * (BW + 2.5), DB), sz = across(4, 8); box("stone", q[0], gy, q[1], sz[0], 5.2, sz[1], 6); solid(q[0], q[1], sz[0], sz[1], gy, 9); });
+    { const q = P(0, DB), s1 = across(2 * GG, 9), s2 = across(2 * GG + 3.5, 12.5), s3 = across(2 * GG - 9, 0.2);
+      storey(q[0], q[1], s1[0], s1[1], gy + 5.2, 3.6); roof("tile", q[0], q[1], s2[0], s2[1], gy + 8.6, s3[0], s3[1], gy + 11.6); }
+    // the span: the lawn's height at both ends, a low arch between
+    const d0 = inner - 1.5, d1 = outer + 1.5, NS = 12, yS = gv;
+    const spanY = t => yS + BA * Math.sin(Math.PI * t);
+    for (let k = 0; k < NS; k++) {
+      const t0 = k / NS, t1 = (k + 1) / NS, a = P(0, d0 + (d1 - d0) * t0), b = P(0, d0 + (d1 - d0) * t1), A = W(a[0], a[1]), B = W(b[0], b[1]);
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]), pad = BW + 1;
+      world.bridges.push({ ax: A[0], az: A[1], ux: (B[0] - A[0]) / len, uz: (B[1] - A[1]) / len, len: len, hw: BW, ya: spanY(t0) + 0.02, yb: spanY(t1) + 0.02,
+        x0: Math.min(A[0], B[0]) - pad, x1: Math.max(A[0], B[0]) + pad, z0: Math.min(A[1], B[1]) - pad, z1: Math.max(A[1], B[1]) + pad, castle: true });
     }
-  }
+    // the approach: from the end of the span over the outer bank to the road, wherever the road's level is
+    const LP = P(0, landD), LW = W(LP[0], LP[1]), yL = world.surfaceY(LW[0], LW[1]);
+    { const q = P(0, (d1 + landD) / 2), hl = (landD - d1) / 2, rot = r + (f[1] ? (f[1] > 0 ? 0 : Math.PI) : (f[0] > 0 ? Math.PI / 2 : -Math.PI / 2)), Q = W(q[0], q[1]);
+      // walk decks run along their local z from ya (at -hl) to yb (at +hl): turned so that +z points out, away from the castle
+      world.walk.push({ cx: Q[0], cz: Q[1], c: Math.cos(rot), s: Math.sin(rot), hw: BW, hl: hl, ya: yS, yb: yL, r: Math.hypot(BW, hl) + 1, castle: true }); }
+    // the stonework: deck, parapets with a coping and bronze-capped posts, the fascia under the deck, walls down into the bank on the approach
+    const deckRun = (dA, dB, yA, yB, n, deep) => {
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n, za = dA + (dB - dA) * t0, zb = dA + (dB - dA) * t1;
+        const ya = typeof yA === "function" ? yA(t0) : yA + (yB - yA) * t0, yb = typeof yA === "function" ? yA(t1) : yA + (yB - yA) * t1;
+        quad("stone", PY(-BW, ya, za), PY(BW, ya, za), PY(BW, yb, zb), PY(-BW, yb, zb), 4);
+        [-1, 1].forEach(sd => {
+          const ai = sd * BW, ao = sd * (BW + 0.5);
+          quad("stone", PY(ai, ya, za), PY(ai, yb, zb), PY(ai, yb + 1.1, zb), PY(ai, ya + 1.1, za), 3);           // inner face
+          quad("stone", PY(ao, ya - deep, za), PY(ao, yb - deep, zb), PY(ao, yb + 1.1, zb), PY(ao, ya + 1.1, za), 4); // outer face, down to the fascia's foot
+          quad("stone", PY(ai, ya + 1.1, za), PY(ao, ya + 1.1, za), PY(ao, yb + 1.1, zb), PY(ai, yb + 1.1, zb), 2); // the coping
+          const mz = (za + zb) / 2, my = Math.min(ya, yb), sz = across(0.5, Math.abs(zb - za) + 0.1), q = P(sd * (BW + 0.25), mz);
+          solid(q[0], q[1], sz[0], sz[1], my - 0.5, Math.abs(yb - ya) + 1.6);
+        });
+        if (k % 2 === 0) [-1, 1].forEach(sd => { const q = P(sd * (BW + 0.25), za); box("stone", q[0], ya + 1.1, q[1], 0.6, 0.35, 0.6, 2); box("copper", q[0], ya + 1.45, q[1], 0.36, 0.42, 0.36, 1); });
+      }
+    };
+    deckRun(d0, d1, spanY, null, 16, 1.6);
+    deckRun(d1, landD - 1, yS, yL, 6, Math.max(2, yS - gy + 6));
+  };
+  gate([0, 1]); gate([0, -1]); gate([-1, 0]);
   // ---- the castle proper, at the size the real ones are. Edo's honmaru alone was some four hundred metres across and Osaka's keep stands
   // fifty-five metres over the ground it is built on, so this is laid out to fill the grounds the way they do:
   //   the honmaru   a raised stone terrace across the north half, walled, a turret at each corner, a ramp up to its gate from the south;
@@ -19228,19 +19286,6 @@ function buildCastle(root, city) {
       solid(x, z, f[0] ? 8 : len, f[0] ? len : 8, gy, 8);
     });
   });
-  // the north gate and its bridge
-  box("stone", -6.5, gy, -DB, 4, 5.2, 8, 6); box("stone", 6.5, gy, -DB, 4, 5.2, 8, 6);
-  solid(-6.5, -DB, 4, 8, gy, 9); solid(6.5, -DB, 4, 8, gy, 9);
-  storey(0, -DB, 17, 9, gy + 5.2, 3.6); roof("tile", 0, -DB, 20.5, 12.5, gy + 8.6, 12, 0.2, gy + 11.6);
-  { const q = W(0, -bc);
-    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 4.2, hl: bl / 2, ya: gy, yb: gy, amp: BH, r: Math.hypot(4.2, bl / 2) + 1, castle: true });
-    const N = 16;
-    for (let k = 0; k < N; k++) {
-      const t0 = k / N, t1 = (k + 1) / N, z0 = -(bz0 + bl * t0), z1 = -(bz0 + bl * t1), y0 = gy + BH * Math.sin(Math.PI * t0), y1 = gy + BH * Math.sin(Math.PI * t1);
-      quad("stone", [-4.4, y0, z0], [4.4, y0, z0], [4.4, y1, z1], [-4.4, y1, z1], 4);
-      [-1, 1].forEach(sd => { quad("stone", [sd * 4.4, y0, z0], [sd * 4.4, y1, z1], [sd * 4.4, y1 + 1.1, z1], [sd * 4.4, y0 + 1.1, z0], 4); quad("stone", [sd * 4.4, y0 - 1.6, z0], [sd * 4.4, y1 - 1.6, z1], [sd * 4.4, y1, z1], [sd * 4.4, y0, z0], 4); });
-    }
-  }
   const y = ridge, best = 0;
   // ---- meshes
   const mats = {
