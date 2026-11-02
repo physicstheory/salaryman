@@ -347,6 +347,7 @@
     if (interior.active) interiorLeave(true);
     if (!interiorEnter(s)) { say("The lift is out of order. Try the door again.", 3); return; }
     const R = interior.room;
+    say(C.state().promoted ? "3F Customer Care. Your floor." : "3F Customer Care. Phones ringing everywhere.", 3);
     O.populate(R);
     O.paintBoard(R.board.canvas.getContext("2d"), R.board.canvas.width, R.board.canvas.height); R.board.mat.map.needsUpdate = true;
     const st = C.state(), def = C.mission();
@@ -510,7 +511,7 @@ body.careerdesk #cdesk{display:block}
     setTimeout(() => {
       desk.on = true; desk.R = R; story.step = "c:desk";
       desk.was = { near: camera.near, fov: camera.fov };
-      camera.near = 0.02; camera.fov = 48; camera.updateProjectionMatrix();
+      camera.near = 0.02; camera.fov = 36; camera.updateProjectionMatrix();
       if (player.obj) player.obj.visible = false;
       player.speed = 0;
       desk.look = { x: 0, y: 0, tx: 0, ty: 0 }; desk.t = 0; desk.state = "idle"; desk.sel = 0; desk.lines = []; desk.timer = 0;
@@ -673,8 +674,8 @@ body.careerdesk #cdesk{display:block}
     desk.look.x += (desk.look.tx - desk.look.x) * Math.min(1, dt * 5);
     desk.look.y += (desk.look.ty - desk.look.y) * Math.min(1, dt * 5);
     const fy = interior.floorY, bob = Math.sin(desk.t * 1.3) * 0.004;
-    _eye.set(R.ox + SEAT.x, fy + 1.12 + bob, R.oz + SEAT.z - 0.17);
-    const yawL = desk.look.x, pit = -0.42 + desk.look.y;
+    _eye.set(R.ox + SEAT.x, fy + 1.08 + bob, R.oz + SEAT.z - 0.3);
+    const yawL = desk.look.x, pit = -0.39 + desk.look.y;
     _at.set(_eye.x - Math.sin(yawL) * Math.cos(pit), _eye.y + Math.sin(pit), _eye.z - Math.cos(yawL) * Math.cos(pit));
     camera.position.copy(_eye); camera.lookAt(_at); camPos.copy(_eye);
     present();

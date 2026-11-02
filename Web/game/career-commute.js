@@ -172,15 +172,13 @@
   K.spot = function (a) {
     if (a === "sleep") {
       const h = gameMinutes();
-      if (story.step === "c:toWork" && h > 6 * 60 && h < 9 * 60) { C.menu({ head: "Sleep?", body: "You're due at SOTI by 9:00. Sleeping now means missing the day.", opts: [{ label: "Back to bed. Call in sick… without calling.", fn: () => { interiorLeaveQuiet(); C.sleep("Slept"); } }, { label: "No: get to work", fn: () => {} }], cancel: () => {} }); return true; }
-      interiorLeaveQuiet(); C.sleep("Slept"); return true;
+      if (story.step === "c:toWork" && h > 6 * 60 && h < 9 * 60) { C.menu({ head: "Sleep?", body: "You're due at SOTI by 9:00. Sleeping now means missing the day.", opts: [{ label: "Back to bed. Call in sick… without calling.", fn: () => C.sleep("Slept") }, { label: "No: get to work", fn: () => {} }], cancel: () => {} }); return true; }
+      C.sleep("Slept"); return true;
     }
     if (a === "wardrobe") { if (typeof wardrobeOpen === "function") wardrobeOpen(); return true; }
     if (a === "eat") { vitals.stress = clamp01((vitals.stress || 0) - 0.06); vitals.health = Math.min(1, (vitals.health || 1) + 0.05); say("Cup noodles. Three minutes. Gourmet.", 3); return true; }
     return false;
   };
-  // sleeping: stay in the room (the fade covers it), but the room is left first so the morning starts at the front door
-  function interiorLeaveQuiet() { if (interior.active) { const keep = story.step; interiorLeave(true); story.step = keep; } }
 
   // ---- the company car --------------------------------------------------------------------------------------------------------------------
   function kerbNear(x, z) {

@@ -211,6 +211,7 @@
   const wrap = (name, make) => { if (typeof window[name] !== "function") { console.warn("[Career] missing " + name); return; } was[name] = window[name]; window[name] = make(was[name]); };
   C._was = was;
 
+  wrap("storyNewGame", orig => function () { story.career = null; return orig.apply(this, arguments); });
   wrap("storyMarkerA", orig => function () { if (story.step === "m2wait") { C.beginFirstDay(); return; } return orig.apply(this, arguments); });
   wrap("storySotiDoor", orig => function (s) {
     if (story.step === "m2wait") { C.beginFirstDay(); return; }
