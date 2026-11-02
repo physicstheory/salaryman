@@ -9986,8 +9986,12 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   }
   var WARMED = /* @__PURE__ */ new WeakSet();
+  var WARMED_TEX = /* @__PURE__ */ new WeakSet();
+  var WARMED_TEX_BYTES = 0;
   function forgetWarm() {
     WARMED = /* @__PURE__ */ new WeakSet();
+    WARMED_TEX = /* @__PURE__ */ new WeakSet();
+    WARMED_TEX_BYTES = 0;
   }
   async function warmGPUChunked(renderer, scene, camera, opts) {
     opts = opts || {};
@@ -10025,9 +10029,9 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
     items.sort((a2, b2) => (pri.get(a2) || 0) - (pri.get(b2) || 0) || (firstMat(a2).id || 0) - (firstMat(b2).id || 0));
     const texBudget = opts.texBudget || Infinity;
-    let texTotal = 0;
+    let texTotal = WARMED_TEX_BYTES;
     res.skipped = 0;
-    const seenMat = /* @__PURE__ */ new Set(), seenTex = /* @__PURE__ */ new Set();
+    const seenMat = /* @__PURE__ */ new Set(), seenTex = WARMED_TEX;
     const proxy = Object.create(scene);
     proxy.autoUpdate = false;
     proxy.matrixAutoUpdate = false;
@@ -10122,6 +10126,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     } catch (e2) {
       res.error = String(e2 && e2.message || e2);
     } finally {
+      WARMED_TEX_BYTES = texTotal;
       renderer.shadowMap.autoUpdate = autoShadow;
       if (render.rt) {
         render.rt.dispose();

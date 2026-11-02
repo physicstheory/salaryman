@@ -247,8 +247,8 @@ export async function gpuSettle(gl, maxMs) {
   } catch (e) { /* context lost mid-wait: the caller checks */ }
 }
 // Meshes already warmed, so a second warm (after the opening adds its train, or after a driver reset) only does the rest.
-let WARMED = new WeakSet();
-export function forgetWarm() { WARMED = new WeakSet(); }
+let WARMED = new WeakSet(), WARMED_TEX = new WeakSet(), WARMED_TEX_BYTES = 0;   // shared by every warm until the context is lost
+export function forgetWarm() { WARMED = new WeakSet(); WARMED_TEX = new WeakSet(); WARMED_TEX_BYTES = 0; }
 export async function warmGPUChunked(renderer, scene, camera, opts) {
   opts = opts || {};
   const T = opts.THREE;
@@ -277,9 +277,9 @@ export async function warmGPUChunked(renderer, scene, camera, opts) {
   // Video memory: uploading every texture in the world at once can ask a 2-4 GB card for more than it has, and an over-committed card
   // is the other way a driver resets. Past the budget, meshes that would bring new textures are left to upload when first seen.
   const texBudget = opts.texBudget || Infinity;
-  let texTotal = 0;
+  let texTotal = WARMED_TEX_BYTES;   // the budget covers every warm since the last context loss, not each call
   res.skipped = 0;
-  const seenMat = new Set(), seenTex = new Set();
+  const seenMat = new Set(), seenTex = WARMED_TEX;
   const proxy = Object.create(scene);
   proxy.autoUpdate = false;
   proxy.matrixAutoUpdate = false;
@@ -343,7 +343,7 @@ export async function warmGPUChunked(renderer, scene, camera, opts) {
     // one shadow pass over the whole scene at the end, now that every depth program exists, so the first frame's shadow map is ready
     if (!res.lost && opts.finalShadow !== false) { renderer.shadowMap.needsUpdate = true; }
   } catch (e) { res.error = String(e && e.message || e); }
-  finally { renderer.shadowMap.autoUpdate = autoShadow; if (render.rt) { render.rt.dispose(); render.rt = null; } }
+  finally { WARMED_TEX_BYTES = texTotal; renderer.shadowMap.autoUpdate = autoShadow; if (render.rt) { render.rt.dispose(); render.rt = null; } }
   const programs1 = (renderer.info.programs || []).length;
   res.programs = programs1; res.newPrograms = programs1 - programs0; res.texMb = +res.texMb.toFixed(0); res.ms = Math.round(now() - t0); res.items = items.length;
   return res;
