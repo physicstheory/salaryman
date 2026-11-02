@@ -23,10 +23,12 @@ var SHIGOTO = (() => {
   __export(index_exports, {
     CHAR_QUALITY: () => CHAR_QUALITY,
     Characters: () => Characters,
+    CinematicVideo: () => CinematicVideo,
     Engine: () => Engine,
     HONOR_TIERS: () => HONOR_TIERS,
     Honor: () => Honor,
     HostBridge: () => HostBridge,
+    InteriorEngine: () => InteriorEngine,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
@@ -47,13 +49,18 @@ var SHIGOTO = (() => {
     createEngine: () => createEngine,
     drawProp: () => drawProp,
     estimateBytes: () => estimateBytes,
+    fanDemand: () => fanDemand,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
+    retailProfile: () => retailProfile,
+    retailTemperature: () => retailTemperature,
     scanScene: () => scanScene,
     shaderFailures: () => shaderFailures,
+    stepCarDynamics: () => stepCarDynamics,
     subdivideGeometry: () => subdivideGeometry,
     synthesizeMaps: () => synthesizeMaps,
+    vehicleMass: () => vehicleMass,
     warmGPU: () => warmGPU
   });
 
@@ -10547,6 +10554,619 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       this.cardEl.style.borderLeftColor = h2 < 0 ? "#e3252d" : "#f0c76a";
       this.cardEl.innerHTML = '<h4>Honor</h4><div class="big">' + esc(info.honorTier.name) + '</div><div class="ln">' + esc(info.honorTier.line) + '</div><div class="bar"><b style="background:' + (h2 < 0 ? "#e3252d" : "#f0c76a") + ";left:" + (h2 < 0 ? 50 + h2 / 2 : 50) + "%;width:" + Math.abs(h2) / 2 + '%"></b></div><h4>Respect' + (info.rank ? " \xB7 " + esc(info.rank) : "") + '</h4><div class="big">' + esc(info.respectTier.name) + '</div><div class="ln">' + esc(info.respectTier.line) + '</div><div class="bar"><b style="background:#b9d4ec;left:0;width:' + r2 + '%"></b></div>' + (hist ? '<div class="hist">' + hist + "</div>" : "") + (info.keys ? '<div class="keys">' + info.keys.map((k2) => "<b>" + esc(k2[0]) + "</b>" + esc(k2[1])).join(" &nbsp; ") + "</div>" : "");
       this.cardEl.classList.add("on");
+    }
+  };
+
+  // Engine/src/interior/Interiors.js
+  var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
+  function retailTemperature(hour = 12, weather = {}) {
+    if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
+    return 24 + 5 * Math.sin((hour - 8) / 24 * Math.PI * 2) - 5 * clamp3(weather.rain || 0, 0, 1);
+  }
+  function fanDemand(temperature, running = false) {
+    if (!Number.isFinite(temperature)) return 0;
+    return temperature < (running ? 22 : 24) ? 0 : clamp3((temperature - 22) / 9, 0.25, 1);
+  }
+  function retailProfile(shop = {}, options = {}) {
+    const station = !!(shop.station || options.station), name = shop.name || "", central = !!shop.central || /central|中央/i.test(name);
+    if (station) {
+      if (central) return { width: 64, depth: 44, height: 14, wallHeight: 9, glassRoof: true, design: "glass-terminus", accent: 2648952 };
+      if (/soti/i.test(name)) return { width: 32, depth: 22, height: 5.8, design: "business-hub", accent: 2913943 };
+      if (/mizuho|瑞穂/i.test(name) || shop.city === "Mizuho") return { width: 22, depth: 16, height: 4.8, design: "timber-local", accent: 6912848 };
+      return { width: 26, depth: 19, height: 5.2, design: /coast|nagisa|hamaura/i.test(name + " " + shop.city) ? "coastal-hall" : "neighbourhood-station", accent: 4881286 };
+    }
+    const spec = { books: [24, 17, 4.2, "reading-house"], clothes: [26, 18, 4.6, "fashion-gallery"], dokoto: [32, 22, 5.2, "technology-showroom"], ramen: [22, 16, 4.2, "noodle-kitchen"], sushi: [24, 18, 4.5, "sushi-bar"], sushiya: [24, 18, 4.5, "sushi-bar"], petmart: [26, 18, 4.4, "pet-market"], pharmacy: [24, 17, 4.2, "health-store"], plaza: [32, 24, 5.8, "retail-arcade"] }[shop.brand] || [24, 17, 4.2, "neighbourhood-market"];
+    return { width: spec[0], depth: spec[1], height: spec[2], design: spec[3], accent: 4745580 };
+  }
+  var InteriorEngine = class {
+    constructor(T2, options = {}) {
+      this.T = T2;
+      this.quality = options.quality || "high";
+      this.environment = options.environment || null;
+      this.materials = /* @__PURE__ */ new Map();
+      this.maps = /* @__PURE__ */ new Map();
+      this.signs = /* @__PURE__ */ new Map();
+      this.serial = 0;
+      this.unit = new T2.BoxGeometry(1, 1, 1);
+    }
+    texture(kind, channel) {
+      const key = kind + ":" + channel;
+      if (this.maps.has(key)) return this.maps.get(key);
+      const T2 = this.T, low = this.quality === "low", name = { paint: "plaster", tile: "concrete", wood: "plaster", fabric: "plaster" }[kind] || kind;
+      const suffix = channel === "map" ? "color" : channel === "normalMap" ? "normal" : "roughness";
+      const file = (kind === "wood" || kind === "fabric") && channel !== "roughnessMap" ? "art/interior/" + (kind === "wood" ? "wood_floor" : "dirty_carpet") + (channel === "normalMap" ? "_nor" : "") + ".jpg" : `art/realism/${name}-${suffix}${low ? "-low" : ""}.jpg`;
+      const t2 = new T2.TextureLoader().load(file);
+      t2.wrapS = t2.wrapT = T2.RepeatWrapping;
+      t2.repeat.set(0.5, 0.5);
+      t2.anisotropy = low ? 2 : 4;
+      if (channel === "map") t2.encoding = T2.sRGBEncoding;
+      this.maps.set(key, t2);
+      return t2;
+    }
+    material(kind = "paint", color = 16777215) {
+      const key = kind + ":" + color;
+      if (this.materials.has(key)) return this.materials.get(key);
+      const T2 = this.T, m2 = new T2.MeshStandardMaterial({ color, map: this.texture(kind, "map"), normalMap: this.texture(kind, "normalMap"), roughnessMap: this.texture(kind, "roughnessMap"), roughness: kind === "metal" ? 0.58 : kind === "tile" ? 0.68 : 0.9, metalness: kind === "metal" ? 0.65 : 0, normalScale: new T2.Vector2(0.28, 0.28), envMap: this.environment, envMapIntensity: 0.2, fog: false });
+      m2.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace("#include <uv_vertex>", `#include <uv_vertex>
+#ifdef USE_UV
+ vec4 roomP=vec4(position,1.0);
+#ifdef USE_INSTANCING
+ roomP=instanceMatrix*roomP;
+#endif
+ roomP=modelMatrix*roomP;
+ vec3 roomN=normal;
+#ifdef USE_INSTANCING
+ roomN=mat3(instanceMatrix)*roomN;
+#endif
+ roomN=mat3(modelMatrix)*roomN;
+ vec3 an=abs(roomN);vec2 roomUV=an.y>max(an.x,an.z)?roomP.xz:an.x>an.z?roomP.zy:roomP.xy;
+ vUv=(uvTransform*vec3(roomUV,1.0)).xy;
+#endif`);
+      };
+      m2.customProgramCacheKey = () => "shigoto-interior-metres-v2";
+      m2.userData.shDry = true;
+      this.materials.set(key, m2);
+      return m2;
+    }
+    mapped(map, kind = "paint") {
+      const key = "mapped:" + map.uuid + ":" + kind;
+      if (this.materials.has(key)) return this.materials.get(key);
+      const base = this.material(kind), m2 = base.clone();
+      m2.map = map;
+      m2.fog = false;
+      m2.userData.shDry = true;
+      this.materials.set(key, m2);
+      return m2;
+    }
+    box(root, w2, h2, d2, x2, y2, z2, kind = "metal", color = 16777215) {
+      const m2 = new this.T.Mesh(this.unit, this.material(kind, color));
+      m2.scale.set(w2, h2, d2);
+      m2.position.set(x2, y2, z2);
+      m2.userData.shDry = true;
+      root.add(m2);
+      return m2;
+    }
+    sign(text, w2, h2, bg2 = "#253c43", fg = "#ffffff", fonts) {
+      const T2 = this.T, key = [text, w2, h2, bg2, fg].join("|");
+      let mat = this.signs.get(key);
+      if (!mat) {
+        const c2 = document.createElement("canvas");
+        c2.width = this.quality === "low" ? 1024 : 2048;
+        c2.height = Math.max(128, Math.round(c2.width * h2 / w2));
+        const g2 = c2.getContext("2d"), W3 = c2.width, H2 = c2.height, pad = Math.round(W3 * 0.035);
+        g2.fillStyle = bg2;
+        g2.fillRect(0, 0, W3, H2);
+        const wash = g2.createLinearGradient(0, 0, 0, H2);
+        wash.addColorStop(0, "rgba(255,255,255,.10)");
+        wash.addColorStop(1, "rgba(0,0,0,.08)");
+        g2.fillStyle = wash;
+        g2.fillRect(0, 0, W3, H2);
+        g2.fillStyle = fg;
+        g2.globalAlpha = 0.65;
+        g2.fillRect(pad, H2 * 0.19, Math.max(3, W3 * 3e-3), H2 * 0.62);
+        g2.globalAlpha = 1;
+        const family = fonts?.style ? fonts.style("interior:" + text, { text, stable: true, prefer: ["gothic", "corporate"], avoid: ["pixel", "cute"] }).family : "'Konto Sans','Yu Gothic',sans-serif";
+        let size = Math.round(H2 * 0.43);
+        g2.font = `600 ${size}px ${family}`;
+        while (g2.measureText(text).width > W3 - pad * 4 && size > H2 * 0.2) {
+          size--;
+          g2.font = `600 ${size}px ${family}`;
+        }
+        g2.textAlign = "center";
+        g2.textBaseline = "middle";
+        g2.fillStyle = fg;
+        g2.fillText(text, W3 * 0.52, H2 * 0.52, W3 - pad * 4);
+        const map = new T2.CanvasTexture(c2);
+        map.encoding = T2.sRGBEncoding;
+        map.anisotropy = 4;
+        mat = new T2.MeshStandardMaterial({ map, normalMap: this.texture("metal", "normalMap"), roughnessMap: this.texture("metal", "roughnessMap"), roughness: 0.65, metalness: 0.05, emissive: 16777215, emissiveMap: map, emissiveIntensity: 0.12, fog: false });
+        mat.userData.shDry = true;
+        this.signs.set(key, mat);
+      }
+      const mesh = new T2.Mesh(new T2.PlaneGeometry(w2, h2), mat);
+      mesh.name = "Architectural sign \xB7 " + text;
+      this.box(mesh, w2 + 0.035, h2 + 0.035, 0.045, 0, 0, -0.028, "metal", 7832458);
+      this.box(mesh, 0.012, h2 + 0.018, 0.012, -w2 / 2 - 8e-3, 0, 1e-3, "metal", 12108486);
+      this.box(mesh, 0.012, h2 + 0.018, 0.012, w2 / 2 + 8e-3, 0, 1e-3, "metal", 12108486);
+      const back = new T2.Mesh(new T2.PlaneGeometry(w2, h2), mat);
+      back.position.z = -0.054;
+      back.rotation.y = Math.PI;
+      mesh.add(back);
+      mesh.userData.shDry = true;
+      return mesh;
+    }
+    shelf(root, width, kind = "metal", accent = 3230539) {
+      const T2 = this.T, group = new T2.Group();
+      group.name = "Open retail gondola";
+      root.add(group);
+      const parts = [], trim = [], push = (a2, w2, h2, d2, x2, y2, z2) => a2.push({ w: w2, h: h2, d: d2, x: x2, y: y2, z: z2 });
+      push(parts, width, 1.6, 0.025, 0, 0.86, -0.245);
+      push(parts, width, 0.12, 0.62, 0, 0.1, 0.045);
+      const bays = Math.ceil(width / 1.25);
+      for (let i2 = 0; i2 <= bays; i2++) push(parts, 0.038, 1.75, 0.065, -width / 2 + width * i2 / bays, 0.9, -0.19);
+      for (const y2 of [0.36, 0.8, 1.24, 1.68]) {
+        push(parts, width, 0.035, 0.64, 0, y2, 0.06);
+        push(trim, width, 0.048, 0.018, 0, y2 - 0.015, 0.39);
+      }
+      for (let i2 = 0; i2 < bays; i2++) for (const y2 of [0.36, 0.8, 1.24]) push(parts, 0.2, 0.035, 0.021, -width / 2 + width * (i2 + 0.5) / bays, y2 - 0.012, 0.405);
+      const batch = (list, mat) => {
+        const im = new T2.InstancedMesh(this.unit, mat, list.length), m2 = new T2.Matrix4(), q2 = new T2.Quaternion(), p2 = new T2.Vector3(), sz = new T2.Vector3();
+        list.forEach((o2, i2) => {
+          p2.set(o2.x, o2.y, o2.z);
+          sz.set(o2.w, o2.h, o2.d);
+          m2.compose(p2, q2, sz);
+          im.setMatrixAt(i2, m2);
+        });
+        im.instanceMatrix.needsUpdate = true;
+        im.receiveShadow = true;
+        im.userData.shDry = true;
+        group.add(im);
+      };
+      batch(parts, this.material(kind, kind === "wood" ? 14009517 : 13028816));
+      batch(trim, this.material("paint", accent));
+      group.userData.openRetailShelf = true;
+      return group;
+    }
+    fan(root, x2, z2, height) {
+      const T2 = this.T, g2 = new T2.Group();
+      g2.name = "Thermostatic ceiling fan";
+      g2.position.set(x2, height, z2);
+      root.add(g2);
+      this.box(g2, 0.16, 0.3, 0.16, 0, 0.16, 0, "metal", 7108219);
+      const rotor = new T2.Group();
+      g2.add(rotor);
+      const hub = new T2.Mesh(new T2.CylinderGeometry(0.13, 0.1, 0.14, 20), this.material("metal", 6911865));
+      rotor.add(hub);
+      const blade = new T2.Shape();
+      blade.moveTo(0.08, -0.045);
+      blade.bezierCurveTo(0.32, -0.12, 0.77, -0.12, 0.88, -0.015);
+      blade.bezierCurveTo(0.86, 0.1, 0.38, 0.13, 0.13, 0.07);
+      blade.closePath();
+      const geo = new T2.ExtrudeGeometry(blade, { depth: 0.014, bevelEnabled: true, bevelSize: 8e-3, bevelThickness: 6e-3, bevelSegments: 1, steps: 1, curveSegments: 10 });
+      geo.rotateX(-Math.PI / 2);
+      for (let i2 = 0; i2 < 4; i2++) {
+        const m2 = new T2.Mesh(geo, this.material("metal", 11578016));
+        m2.rotation.y = i2 * Math.PI / 2;
+        rotor.add(m2);
+      }
+      return { group: g2, rotor, speed: 0, angle: 0, running: false };
+    }
+    identityArchitecture(room, rig, width, depth, height) {
+      const T2 = this.T, design = room.profile?.design;
+      if (design === "reading-house") for (const x2 of [-width * 0.3, 0, width * 0.3]) this.box(rig, 0.16, 0.18, depth - 0.4, x2, height - 0.22, 0, "wood", 10256480);
+      if (design === "fashion-gallery") {
+        const ring = new T2.Mesh(new T2.TorusGeometry(2.1, 0.045, 8, 64), this.material("paint", 14933456).clone());
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = height - 0.5;
+        ring.material.emissive = new T2.Color(16772047);
+        ring.material.emissiveIntensity = 0.45;
+        rig.add(ring);
+      }
+      if (design === "technology-showroom") for (const sd of [-1, 1]) {
+        const strip = this.box(rig, 0.04, 0.09, depth - 0.6, sd * (width / 2 - 0.18), height - 1, 0, "paint", 11524062);
+        strip.material = strip.material.clone();
+        strip.material.emissive = new T2.Color(10279651);
+        strip.material.emissiveIntensity = 0.4;
+      }
+      if (design === "noodle-kitchen" || design === "sushi-bar") {
+        const shape = [new T2.Vector2(0.08, 0.32), new T2.Vector2(0.12, 0.28), new T2.Vector2(0.28, 0.12), new T2.Vector2(0.34, 0)], geo = new T2.LatheGeometry(shape, 24);
+        for (const x2 of [-4, 0, 4]) {
+          this.box(rig, 0.02, height - 2.9, 0.02, x2, (height + 2.9) / 2, -depth * 0.15, "metal", 6450801);
+          const shade = new T2.Mesh(geo, this.material("paint", 13875856));
+          shade.position.set(x2, 2.75, -depth * 0.15);
+          rig.add(shade);
+        }
+      }
+    }
+    stationSeating(room, rig, width, depth) {
+      const T2 = this.T;
+      if (!this.seatGeo) {
+        const sh = new T2.Shape(), w2 = 0.56, d2 = 0.46, r2 = 0.055;
+        sh.moveTo(-w2 / 2 + r2, -d2 / 2);
+        sh.lineTo(w2 / 2 - r2, -d2 / 2);
+        sh.quadraticCurveTo(w2 / 2, -d2 / 2, w2 / 2, -d2 / 2 + r2);
+        sh.lineTo(w2 / 2, d2 / 2 - r2);
+        sh.quadraticCurveTo(w2 / 2, d2 / 2, w2 / 2 - r2, d2 / 2);
+        sh.lineTo(-w2 / 2 + r2, d2 / 2);
+        sh.quadraticCurveTo(-w2 / 2, d2 / 2, -w2 / 2, d2 / 2 - r2);
+        sh.lineTo(-w2 / 2, -d2 / 2 + r2);
+        sh.quadraticCurveTo(-w2 / 2, -d2 / 2, -w2 / 2 + r2, -d2 / 2);
+        this.seatGeo = new T2.ExtrudeGeometry(sh, { depth: 0.035, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 8e-3, bevelSegments: 2, steps: 1, curveSegments: 6 });
+      }
+      room.seats = room.seats || [];
+      for (const x2 of [-width * 0.32, width * 0.32]) for (const z2 of room.glassRoof ? [-depth * 0.18, depth * 0.18] : [depth * 0.18]) {
+        const group = new T2.Group();
+        group.name = "Station seating";
+        group.position.set(x2, 0, z2);
+        group.rotation.y = z2 > 0 ? Math.PI : 0;
+        rig.add(group);
+        this.box(group, 2.05, 0.08, 0.08, 0, 0.32, 0, "metal", 7308686);
+        for (const sx of [-0.82, 0.82]) {
+          this.box(group, 0.07, 0.42, 0.07, sx, 0.22, 0, "metal", 8295064);
+          this.box(group, 0.13, 0.035, 0.5, sx, 0.03, 0, "metal", 8295064);
+        }
+        for (const sx of [-0.62, 0, 0.62]) {
+          const seat = new T2.Mesh(this.seatGeo, this.material("metal", 11912904));
+          seat.rotation.x = -Math.PI / 2;
+          seat.position.set(sx, 0.48, 0);
+          group.add(seat);
+          const back = new T2.Mesh(this.seatGeo, this.material("metal", 11912904));
+          back.position.set(sx, 0.76, -0.23);
+          back.rotation.x = -0.12;
+          group.add(back);
+          room.seats.push({ x: x2 + sx, z: z2 + (z2 > 0 ? -0.02 : 0.02), yaw: group.rotation.y });
+        }
+        room.colliders.push({ x0: x2 - 1.1, x1: x2 + 1.1, z0: z2 - 0.4, z1: z2 + 0.4 });
+      }
+      const strips = [], push = (x2, z2, turned) => {
+        for (let k2 = -2; k2 <= 2; k2++) strips.push({ x: x2 + (turned ? 0 : k2 * 0.055), z: z2 + (turned ? k2 * 0.055 : 0), sx: turned ? 0.52 : 0.022, sz: turned ? 0.022 : 0.52 });
+      };
+      for (let z2 = depth / 2 - 0.7; z2 >= -0.4; z2 -= 0.6) push(0, z2, false);
+      for (let x2 = -0.6; x2 >= -width / 2 + 3.7; x2 -= 0.6) push(x2, -0.4, true);
+      const im = new T2.InstancedMesh(this.unit, this.material("tile", 14469233), strips.length), m2 = new T2.Matrix4(), q2 = new T2.Quaternion(), pos = new T2.Vector3(), scale = new T2.Vector3();
+      strips.forEach((s2, i2) => {
+        pos.set(s2.x, 0.064, s2.z);
+        scale.set(s2.sx, 0.014, s2.sz);
+        m2.compose(pos, q2, scale);
+        im.setMatrixAt(i2, m2);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      im.receiveShadow = true;
+      im.name = "Tactile route to ticket gates";
+      rig.add(im);
+    }
+    stationRoof(room, rig, width, depth, height) {
+      const T2 = this.T, p2 = room.profile, spring = p2.wallHeight || height - 5, rise = height - spring, positions = [], uv = [], indices = [], N2 = 32;
+      for (let z2 = 0; z2 <= 8; z2++) for (let i2 = 0; i2 <= N2; i2++) {
+        const t2 = i2 / N2;
+        positions.push((t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, (z2 / 8 - 0.5) * depth);
+        uv.push(t2, z2 / 8);
+      }
+      for (let z2 = 0; z2 < 8; z2++) for (let i2 = 0; i2 < N2; i2++) {
+        const a2 = z2 * (N2 + 1) + i2;
+        indices.push(a2, a2 + N2 + 1, a2 + 1, a2 + 1, a2 + N2 + 1, a2 + N2 + 2);
+      }
+      const geo = new T2.BufferGeometry();
+      geo.setAttribute("position", new T2.Float32BufferAttribute(positions, 3));
+      geo.setAttribute("uv", new T2.Float32BufferAttribute(uv, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      const glass = new T2.MeshPhysicalMaterial({ color: 13101033, transparent: true, opacity: 0.18, roughness: 0.12, metalness: 0, clearcoat: 1, envMap: this.environment, envMapIntensity: 0.45, side: T2.DoubleSide, depthWrite: false });
+      const roof = new T2.Mesh(geo, glass);
+      roof.name = "T\u014Dkonto vaulted glass roof";
+      roof.userData.rainOccluder = true;
+      roof.userData.shDry = true;
+      rig.add(roof);
+      const endPos = [], endUV = [], endIx = [];
+      for (const z2 of [-depth / 2, depth / 2]) {
+        const base = endPos.length / 3;
+        for (let i2 = 0; i2 <= N2; i2++) {
+          const t2 = i2 / N2;
+          endPos.push((t2 - 0.5) * width, spring, z2, (t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, z2);
+          endUV.push(t2, 0, t2, 1);
+        }
+        for (let i2 = 0; i2 < N2; i2++) {
+          const a2 = base + i2 * 2;
+          endIx.push(a2, a2 + 1, a2 + 2, a2 + 1, a2 + 3, a2 + 2);
+        }
+      }
+      const endGeo = new T2.BufferGeometry();
+      endGeo.setAttribute("position", new T2.Float32BufferAttribute(endPos, 3));
+      endGeo.setAttribute("uv", new T2.Float32BufferAttribute(endUV, 2));
+      endGeo.setIndex(endIx);
+      endGeo.computeVertexNormals();
+      const ends = new T2.Mesh(endGeo, glass);
+      ends.name = "Glazed station gables";
+      rig.add(ends);
+      const pts = [];
+      for (let i2 = 0; i2 <= 32; i2++) {
+        const t2 = i2 / 32;
+        pts.push(new T2.Vector3((t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, 0));
+      }
+      const ribGeo = new T2.TubeGeometry(new T2.CatmullRomCurve3(pts), 48, 0.23, 8, false), steel = this.material("metal", 12833492);
+      for (let i2 = 0; i2 <= 6; i2++) {
+        const z2 = (i2 / 6 - 0.5) * depth, rib = new T2.Mesh(ribGeo, steel);
+        rib.position.z = z2;
+        rig.add(rib);
+        for (const sd of [-1, 1]) this.box(rig, 0.28, spring, 0.28, sd * (width / 2 - 0.2), spring / 2, z2, "metal", 12044748);
+      }
+      for (const t2 of [0.12, 0.3, 0.5, 0.7, 0.88]) this.box(rig, 0.075, 0.09, depth, (t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise - 0.12, 0, "metal", 10335674);
+      for (const sd of [-1, 1]) {
+        const duct = new T2.Mesh(new T2.CylinderGeometry(0.25, 0.25, depth * 0.82, 16), this.material("metal", 9084320));
+        duct.rotation.x = Math.PI / 2;
+        duct.position.set(sd * width * 0.31, spring - 0.5, 0);
+        rig.add(duct);
+        this.box(rig, 0.6, 0.1, depth * 0.88, sd * width * 0.22, spring - 0.9, 0, "metal", 7046539);
+        for (const z2 of [-depth * 0.22, depth * 0.22]) {
+          this.box(rig, 0.025, spring - 4.8, 0.025, sd * width * 0.16, (spring + 4.8) / 2, z2, "metal", 8887202);
+          const sign = this.sign(sd < 0 ? "NHRail  \xB7  PLATFORMS  \u2190" : "SHOPS  \xB7  EXIT  \u2192", 5, 0.7, "#173e49", "#f4f3e9");
+          sign.position.set(sd * width * 0.16, 4.8, z2);
+          rig.add(sign);
+        }
+      }
+      return roof;
+    }
+    refurbish(room, { width = 24, depth = 17, height = 4.2 } = {}) {
+      if (room.refurbishment) return room.refurbishment;
+      const T2 = this.T, root = room.group, rig = new T2.Group();
+      rig.name = "Retail lighting and ventilation";
+      root.add(rig);
+      root.userData.shDry = true;
+      const warm = /ramen|sushi|books|home|capsule/.test(room.brand), high = this.quality !== "low", station = !!room.station, lightHeight = station ? Math.min(height - 0.4, 6) : height - 0.4;
+      const fill = new T2.HemisphereLight(warm ? 16772570 : 15266303, 6383210, 0.6);
+      rig.add(fill);
+      const lights = [];
+      for (const x2 of [-width * 0.26, width * 0.26]) for (const z2 of high ? [-depth * 0.26, depth * 0.26] : [0]) {
+        const l2 = new T2.PointLight(warm ? 16769721 : 15857407, 1.15, Math.max(width, depth) * 0.85, 1.5);
+        l2.position.set(x2, lightHeight, z2);
+        rig.add(l2);
+        lights.push(l2);
+        const fixtureY = station ? lightHeight + 0.4 : height - 0.12;
+        const frame = this.box(rig, 1.55, 0.09, 0.42, x2, fixtureY, z2, "metal", 11187382);
+        if (room.glassRoof) this.box(rig, 0.025, 2.3, 0.025, x2, fixtureY + 1.15, z2, "metal", 8953251);
+        const diffuser = this.box(frame, 1, 0.03, 1, 0, -0.7, 0, "paint", 15790828);
+        diffuser.scale.set(0.91, 0.3, 0.83);
+        const dm = this.material("paint", 15790828).clone();
+        dm.emissive = new T2.Color(warm ? 16769199 : 15003903);
+        dm.emissiveIntensity = 0.75;
+        diffuser.material = dm;
+      }
+      if (!room.glassRoof) for (const z2 of [-depth * 0.28, depth * 0.28]) {
+        this.box(rig, 0.85, 0.08, 0.85, 0, height - 0.1, z2, "paint", 13883865);
+        for (let i2 = -3; i2 <= 3; i2++) this.box(rig, 0.6, 0.015, 0.018, 0, height - 0.15, z2 + i2 * 0.075, "metal", 5793901);
+      }
+      this.box(rig, width, 0.13, 0.07, 0, 0.1, -depth / 2 + 0.15, "metal", 9148057);
+      for (const sd of [-1, 1]) this.box(rig, 0.07, 0.13, depth - 0.3, sd * (width / 2 - 0.15), 0.1, 0, "metal", 9148057);
+      this.identityArchitecture(room, rig, width, depth, height);
+      if (room.station) this.stationSeating(room, rig, width, depth);
+      if (room.glassRoof) this.stationRoof(room, rig, width, depth, height);
+      if (room.profile?.design === "timber-local") {
+        for (const x2 of [-width * 0.32, 0, width * 0.32]) this.box(rig, 0.22, 0.28, depth, x2, height - 0.25, 0, "wood", 10190939);
+      }
+      const fanY = room.glassRoof ? room.profile.wallHeight - 0.65 : Math.max(2.3, height - 0.55);
+      const fans = [this.fan(rig, -width * 0.25, 0, fanY), this.fan(rig, width * 0.25, -depth * 0.2, fanY)];
+      root.traverse((o2) => {
+        if (o2.isHemisphereLight && o2 !== fill) o2.intensity = 0;
+        if (!o2.isMesh) return;
+        o2.receiveShadow = true;
+        if (o2.userData.salaryFinish && o2.material?.isMeshBasicMaterial) o2.material = o2.material.map ? this.mapped(o2.material.map) : this.material("paint", o2.userData.salaryFinish);
+        if (!o2.geometry?.attributes.uv) return;
+        for (const m2 of Array.isArray(o2.material) ? o2.material : [o2.material]) {
+          if (!m2?.isMeshStandardMaterial || m2.transparent) continue;
+          if (!m2.map) m2.map = this.texture("paint", "map");
+          if (!m2.normalMap) {
+            m2.normalMap = this.texture("paint", "normalMap");
+            m2.normalScale = new T2.Vector2(0.18, 0.18);
+          }
+          if (!m2.roughnessMap) m2.roughnessMap = this.texture("paint", "roughnessMap");
+          m2.needsUpdate = true;
+        }
+      });
+      const state = { rig, lights, fans, temperature: 24, brand: room.brand, design: room.profile?.design || room.brand };
+      room.refurbishment = state;
+      return state;
+    }
+    update(room, dt, { temperature = 24 } = {}) {
+      const st = room?.refurbishment;
+      if (!st || !room.group.visible) return;
+      dt = Number.isFinite(dt) ? clamp3(dt, 0, 0.1) : 0;
+      st.temperature = Number.isFinite(temperature) ? temperature : 24;
+      for (const f2 of st.fans) {
+        const demand = fanDemand(st.temperature, f2.running);
+        f2.running = demand > 0;
+        f2.speed += (demand * 10 - f2.speed) * (1 - Math.exp(-dt * 2));
+        f2.angle = (f2.angle + f2.speed * dt) % (Math.PI * 2);
+        f2.rotor.rotation.y = f2.angle;
+      }
+    }
+  };
+
+  // Engine/src/physics/VehicleDynamics.js
+  var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
+  var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
+  function vehicleMass(kind = {}) {
+    return { bus: 11e3, truck: 6500, fire: 12500, ambulance: 3200, onebox: 2300, keivan: 1100, kei: 980, suv: 1850 }[kind.body] || (kind.exotic ? 1550 : 1450);
+  }
+  function stepCarDynamics(c2, kind, input, dt, options = {}) {
+    dt = clamp4(finite(dt), 0, 0.1);
+    const mass = finite(options.mass, vehicleMass(kind)), L3 = Math.max(1.5, finite(kind.L, 4.5)), W3 = Math.max(0.8, finite(kind.W, 1.8));
+    const wb = L3 * 0.61, lf = wb * 0.48, lr = wb - lf, Iz = mass * (L3 * L3 + W3 * W3) / 12;
+    const speedLimit = Math.max(4, finite(options.top, 40)), to100 = Math.max(2, finite(options.to100, 10));
+    const wet = clamp4(finite(options.wet), 0, 1), grip = clamp4(finite(options.grip, 1) * (1 - 0.25 * wet), 0.25, 1.6);
+    const throttle = clamp4(finite(input.throttle), 0, 1), brake = clamp4(finite(input.brake), 0, 1), steer = clamp4(finite(input.steer), -1, 1), hand = !!input.hand;
+    let vx = finite(c2.vel?.x, Math.sin(finite(c2.yaw)) * finite(c2.speed)), vz = finite(c2.vel?.y, Math.cos(finite(c2.yaw)) * finite(c2.speed)), yaw = finite(c2.yaw);
+    if (!c2.vel) c2.vel = { x: vx, y: vz };
+    const state = c2.dynamics || (c2.dynamics = { remainder: 0, rate: 0, angle: 0, accel: 0 });
+    for (const k2 of ["remainder", "rate", "angle", "accel"]) state[k2] = finite(state[k2]);
+    state.remainder += dt;
+    let steps = 0, side = 0, under = 0;
+    const STEP2 = 1 / 120;
+    while (state.remainder + 1e-9 >= STEP2 && steps++ < 12) {
+      state.remainder -= STEP2;
+      const fx2 = Math.sin(yaw), fz2 = Math.cos(yaw), rx2 = Math.cos(yaw), rz2 = -Math.sin(yaw);
+      const u2 = vx * fx2 + vz * fz2, v2 = vx * rx2 + vz * rz2, ab = Math.abs(u2), sign = Math.sign(u2) || 1;
+      const maxAngle = 0.52 / (1 + ab * 0.045);
+      state.angle += (steer * maxAngle - state.angle) * (1 - Math.exp(-STEP2 / Math.max(0.09, finite(options.steerResponse, 0.16))));
+      const transfer = mass * state.accel * 0.52 / wb, Nf = clamp4(mass * 9.81 * lr / wb - transfer, mass * 9.81 * 0.18, mass * 9.81 * 0.82), Nr = mass * 9.81 - Nf;
+      const alphaF = Math.atan2(v2 + lf * state.rate, Math.max(ab, 2)) - state.angle * sign, alphaR = Math.atan2(v2 - lr * state.rate, Math.max(ab, 2));
+      const rawF = -alphaF * mass * 35, rawR = -alphaR * mass * 38, capF = grip * Nf, capR = grip * Nr * (hand ? 0.42 : 1);
+      let FyF = clamp4(rawF, -capF, capF), FyR = clamp4(rawR, -capR, capR);
+      const pull = mass * 27.78 / to100, fade = clamp4(1 - Math.pow(ab / speedLimit, 2), 0, 1);
+      let motor = options.engineEnabled === false ? 0 : throttle * pull * fade;
+      if (options.engineEnabled !== false && brake > 0.05 && u2 <= 0.15 && throttle === 0) motor = -brake * pull * 0.48;
+      let Fb = brake * mass * 9.81 * finite(options.brakeGrip, 1.05) * (u2 > 0.15 ? 1 : 0), FxF = -sign * Fb * 0.64, FxR = motor - sign * Fb * 0.36;
+      if (hand) FxR -= Math.sign(u2) * Math.min(mass * 4.5, ab * mass / STEP2);
+      const capLongF = Math.sqrt(Math.max(0, capF * capF - FyF * FyF)), capLongR = Math.sqrt(Math.max(0, capR * capR - FyR * FyR));
+      FxF = clamp4(FxF, -capLongF, capLongF);
+      FxR = clamp4(FxR, -capLongR, capLongR);
+      const drag = 0.5 * 1.225 * 0.32 * W3 * 1.35 * u2 * ab + Math.sign(u2) * mass * 0.12;
+      const slope = finite(options.slope), ax = (FxF + FxR - drag) / mass - 9.81 * Math.sin(slope), ay = (FyF * Math.cos(state.angle) + FyR) / mass;
+      vx += (fx2 * ax + rx2 * ay) * STEP2;
+      vz += (fz2 * ax + rz2 * ay) * STEP2;
+      if (brake > 0.1 && u2 > 0 && vx * fx2 + vz * fz2 < 0 && throttle === 0) {
+        const lateral = vx * rx2 + vz * rz2;
+        vx = rx2 * lateral;
+        vz = rz2 * lateral;
+      }
+      if (throttle === 0 && brake === 0 && ab < 0.12 && Math.abs(slope) < 0.015) {
+        vx *= Math.exp(-STEP2 * 12);
+        vz *= Math.exp(-STEP2 * 12);
+      }
+      const targetKinematic = u2 / wb * Math.tan(state.angle), blend = clamp4((ab - 2) / 4, 0, 1);
+      const dynamic = state.rate + (lf * FyF * Math.cos(state.angle) - lr * FyR) / Iz * STEP2;
+      state.rate = (1 - blend) * (state.rate + (targetKinematic - state.rate) * (1 - Math.exp(-STEP2 * 12))) + blend * dynamic;
+      const rateLimit = Math.min(2.2, grip * 9.81 / Math.max(ab, 3) * (hand ? 1.5 : 1.15));
+      state.rate = clamp4(state.rate, -rateLimit, rateLimit);
+      yaw += state.rate * STEP2;
+      state.accel = ax;
+      side = ay;
+      under = clamp4((Math.abs(rawF) - capF) / Math.max(capF, 1), 0, 1);
+    }
+    state.remainder = Math.max(0, state.remainder);
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    c2.yaw = yaw;
+    c2.vel.x = finite(vx);
+    c2.vel.y = finite(vz);
+    c2.speed = finite(vx * fx + vz * fz);
+    c2.vlat = finite(vx * rx + vz * rz);
+    c2.steer = state.angle / 0.52;
+    c2.steerRate = state.rate;
+    c2.under = under;
+    c2.topNow = speedLimit;
+    c2.slide = clamp4(c2.vlat / 7, -1, 1);
+    c2.squeal = clamp4(Math.abs(c2.vlat) / 4 + under * 0.6, 0, 1);
+    c2.roll = finite(c2.roll) + (clamp4(side / 9.81 * 0.07, -0.1, 0.1) - finite(c2.roll)) * (1 - Math.exp(-dt * 8));
+    c2.accelPitch = clamp4(state.accel / 9.81, -1, 1);
+    c2.pitch = finite(c2.pitch) + (-c2.accelPitch * 0.045 - finite(input.lean) * 0.035 - finite(c2.pitch)) * (1 - Math.exp(-dt * 9));
+    return { steps, mass, grip, rate: state.rate, understeer: under };
+  }
+
+  // Engine/src/cinematics/CinematicVideo.js
+  var CinematicVideo = class {
+    constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
+      this.document = doc;
+      this.element = null;
+      this.token = 0;
+      this.active = false;
+      this.paused = false;
+      this.failed = [];
+      this.clips = {};
+      this.ready = fetcher ? fetcher(manifest).then((r2) => r2.ok ? r2.json() : {}).then((m2) => {
+        this.clips = m2.clips || {};
+        return this.clips;
+      }).catch(() => this.clips) : Promise.resolve(this.clips);
+    }
+    source(key) {
+      const entry = this.clips[key], src = typeof entry === "string" ? entry : entry?.src;
+      return typeof src === "string" && /^art\/cinematics\/[a-zA-Z0-9_/-]+\.(mp4|webm)$/.test(src) ? src : null;
+    }
+    play(key, at = () => 0) {
+      this.stop();
+      const src = this.source(key);
+      if (!src) return Promise.resolve(false);
+      const token = ++this.token, doc = this.document, v2 = doc.createElement("video");
+      this.element = v2;
+      v2.playsInline = true;
+      v2.preload = "auto";
+      v2.controls = false;
+      v2.style.cssText = "position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:48;display:none;pointer-events:none";
+      v2.setAttribute("aria-label", "Cinematic video");
+      doc.body.appendChild(v2);
+      return new Promise((resolve) => {
+        let finished = false;
+        const settle = (ok) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          resolve(ok);
+        };
+        const fail = () => {
+          if (token !== this.token) {
+            settle(false);
+            return;
+          }
+          this.failed.push(key);
+          this.stop();
+          settle(false);
+        };
+        const timer = setTimeout(fail, 3e3);
+        v2.addEventListener("error", fail, { once: true });
+        v2.addEventListener("loadeddata", async () => {
+          if (token !== this.token) {
+            settle(false);
+            return;
+          }
+          try {
+            v2.currentTime = Math.max(0, Math.min(Number.isFinite(v2.duration) ? v2.duration - 0.05 : 0, at() || 0));
+            if (!this.paused) await v2.play();
+            if (token !== this.token) {
+              settle(false);
+              return;
+            }
+            v2.style.display = "block";
+            this.active = true;
+            settle(true);
+          } catch (e2) {
+            fail();
+          }
+        }, { once: true });
+        v2.src = src;
+        v2.load();
+      });
+    }
+    tick(dt) {
+      const v2 = this.element;
+      if (!this.active || this.paused || !v2 || v2.ended) return;
+      if (Math.abs(v2.currentTime - (this.lastTime || 0)) > 5e-3) {
+        this.stalledFor = 0;
+        this.lastTime = v2.currentTime;
+      } else this.stalledFor = (this.stalledFor || 0) + Math.min(0.1, Math.max(0, dt || 0));
+      if (this.stalledFor > 3) {
+        this.failed.push("stalled");
+        this.stop();
+      }
+    }
+    setPaused(on) {
+      this.paused = !!on;
+      const v2 = this.element;
+      if (!v2 || !this.active) return;
+      if (on) v2.pause();
+      else v2.play().catch(() => this.stop());
+    }
+    stop() {
+      this.token++;
+      this.active = false;
+      this.stalledFor = 0;
+      this.lastTime = 0;
+      const v2 = this.element;
+      this.element = null;
+      if (v2) {
+        v2.pause();
+        v2.removeAttribute("src");
+        v2.load();
+        v2.remove();
+      }
     }
   };
   return __toCommonJS(index_exports);

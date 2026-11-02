@@ -24,3 +24,7 @@ export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, war
 export { Honor, HONOR_TIERS } from "./standing/Honor.js";
 export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
+// Retail architecture and fixed-step vehicle handling can be used without starting the physics world.
+export { InteriorEngine, retailProfile, retailTemperature, fanDemand } from './interior/Interiors.js';
+export { stepCarDynamics, vehicleMass } from './physics/VehicleDynamics.js';
+export { CinematicVideo } from './cinematics/CinematicVideo.js';
