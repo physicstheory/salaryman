@@ -123,8 +123,26 @@ test('real-world car paint remains the material updated by driving on Low',()=>{
   const THREE=require('../vendor/three.min.js');
   const c={THREE,gfx:{tier:'low',high:false,env:null},window:{},carMatCache:{},animeArt:()=>true,worldReal:()=>true,carDriver:()=>null,
     toonify(){throw Error('Real-world vehicle unexpectedly toonified');},toonMat(){throw Error('Paint updates must target the real material');}};
-  vm.createContext(c);vm.runInContext(declaration('function fitCarModel(', '// The people in the traffic.'),c);
+  vm.createContext(c);vm.runInContext(declaration('function carTightBox(', '// The people in the traffic.'),c);
   const root=new THREE.Group(),mesh=new THREE.Mesh(new THREE.BoxGeometry(2,1.4,4),new THREE.MeshStandardMaterial());mesh.material.name='paint';root.add(mesh);
   const fitted=c.fitCarModel(root,{name:'sedan',L:4,W:2,H:1.4},{user:true});
   assert.equal(fitted.userData.paint,mesh.material);fitted.userData.paint.color.setRGB(.2,.3,.4);assert.equal(mesh.material.color.r,.2);
+});
+
+test('outfit try-ons reuse pristine rig templates and shared source materials',()=>{
+  const Three=require('../vendor/three.min.js'),loads=[],seen=[];
+  const T={...Three,GLTFLoader:class{load(url,ok){loads.push(url);const scene=new Three.Group(),bone=new Three.Bone();bone.name='Bip01_Pelvis';scene.add(bone,new Three.Mesh(new Three.BoxGeometry(),new Three.MeshStandardMaterial()));ok({scene,animations:[]});}}};
+  const c={THREE:T,pplLib:{dir:'people/real/',anime:false},gfx:{tier:'high'},player:{outfit:null,hq:true},say(){},console,
+    pplPlayer(g){const bone=g.scene.getObjectByName('Bip01_Pelvis');seen.push({x:bone.position.x,material:g.scene.children.find(o=>o.isMesh).material});bone.position.x=17;}};
+  vm.createContext(c);vm.runInContext(declaration('function cloneSkinned(', '// Called when Seiko')+declaration('const wardrobe =','function wardrobeOpen()')+'globalThis.cacheWardrobe=wardrobe;',c);
+  c.cacheWardrobe.list=[{id:'a',file:'a.glb',name:'A'},{id:'b',file:'b.glb',name:'B'}];
+  c.seikoOutfit('a',true);c.seikoOutfit('b',true);c.seikoOutfit('a',true);
+  assert.equal(loads.length,2);assert.deepEqual(seen.map(x=>x.x),[0,0,0]);assert.equal(seen[0].material,seen[2].material);
+});
+
+test('moat height texture retains terrain above the former 25 metre limit',()=>{
+  const THREE=require('../vendor/three.min.js'),c={THREE,water:{},GRID_X:2,GRID_Z:1,world:{height:new Float32Array([32,40]),idx:(x,z)=>z*2+x}};
+  vm.createContext(c);vm.runInContext(declaration('function waterHeightTextureF()', 'function waterMaterial('),c);
+  const tex=c.waterHeightTextureF();assert.equal(tex.type,THREE.FloatType);assert.equal(tex.image.data[0],32);assert.equal(tex.image.data[4],40);
+  assert.equal(c.waterHeightTextureF(),tex,'The world height texture is shared');
 });

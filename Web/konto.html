@@ -3053,11 +3053,14 @@ const SITES = [
     // the city is the thing you are here for. 4.2 x 2.5 km of radii puts the
     // built-up area at about 33 km² of a 126 km² map, and the hills and the
     // coast take the rest.
-    alongRadius: 4200, inlandRadius: 2500,
-    coreRadius: 880, coreOffset: [-260, 880],
-    outlineNoise: 520, wardCount: 26,
+    // Tightened to 3.1 x 1.85 km (about 18 km² built up): a denser, taller
+    // city you can cross in a few minutes on foot reads bigger than a sprawl
+    // of low blocks with sky between them, which is how Kanda feels.
+    alongRadius: 3100, inlandRadius: 1850,
+    coreRadius: 700, coreOffset: [-200, 650],
+    outlineNoise: 400, wardCount: 22,
     maxBuildSlope: 0.34, maxBuildAltitude: 340, platformSlope: 0.085,
-    palace: true, palaceRadius: 470, moatWidth: 58,
+    palace: true, palaceRadius: 380, moatWidth: 50,
     radials: 9, rings: 4, expressway: true,
     railLoop: true, railRadials: 6, shinkansen: true,
     bay: { alongOffset: 250, inlandReach: -180, halfWidth: 1700, depth: 1500, enclosure: 0.62, water: 560 },
@@ -3121,14 +3124,14 @@ const SITES = [
 
 // ---------------------------------------------------------------- district rules
 const D = {
-  Core: { plots: "unit", spacing: [96, 132], size: [34, 64], street: 16, floors: [14, 48], open: 0.10, alleys: false },
-  Station: { plots: "unit", spacing: [58, 86], size: [14, 32], street: 11, floors: [5, 22], open: 0.07, alleys: true },
-  Retail: { plots: "unit", spacing: [58, 88], size: [12, 28], street: 10, floors: [3, 12], open: 0.05, alleys: true },
-  Night: { plots: "unit", spacing: [40, 62], size: [7, 15], street: 6.5, floors: [3, 9], open: 0.02, alleys: true },
-  Office: { plots: "unit", spacing: [72, 104], size: [22, 42], street: 13, floors: [6, 18], open: 0.08, alleys: false },
+  Core: { plots: "unit", spacing: [90, 124], size: [30, 58], street: 16, floors: [16, 52], open: 0.06, alleys: false },
+  Station: { plots: "unit", spacing: [56, 82], size: [12, 28], street: 11, floors: [7, 24], open: 0.03, alleys: true },
+  Retail: { plots: "unit", spacing: [56, 84], size: [10, 24], street: 10, floors: [5, 14], open: 0.025, alleys: true },
+  Night: { plots: "unit", spacing: [40, 60], size: [7, 14], street: 6.5, floors: [4, 11], open: 0.01, alleys: true },
+  Office: { plots: "unit", spacing: [68, 98], size: [18, 36], street: 13, floors: [8, 24], open: 0.04, alleys: false },
   Civic: { plots: "unit", spacing: [110, 158], size: [44, 86], street: 15, floors: [3, 11], open: 0.26, alleys: false },
   Palace: { plots: "block", spacing: [220, 300], size: [120, 220], street: 8, floors: [1, 2], open: 0.92, alleys: false },
-  Mansion: { plots: "unit", spacing: [68, 100], size: [20, 38], street: 9.5, floors: [4, 14], open: 0.12, alleys: true },
+  Mansion: { plots: "unit", spacing: [64, 94], size: [18, 34], street: 9.5, floors: [6, 15], open: 0.07, alleys: true },
   House: { plots: "block", spacing: [48, 76], size: [34, 62], street: 6, floors: [2, 4], open: 0.09, alleys: true },
   Suburb: { plots: "block", spacing: [64, 104], size: [46, 88], street: 6.5, floors: [1, 3], open: 0.14, alleys: false },
   Works: { plots: "unit", spacing: [112, 168], size: [44, 104], street: 12, floors: [1, 4], open: 0.08, alleys: false },
@@ -3137,7 +3140,7 @@ const D = {
   Campus: { plots: "unit", spacing: [130, 180], size: [44, 96], street: 9, floors: [3, 9], open: 0.34, alleys: false },
   Park: { plots: "block", spacing: [180, 260], size: [110, 200], street: 7, floors: [1, 2], open: 0.88, alleys: false },
   Shrine: { plots: "block", spacing: [150, 210], size: [80, 150], street: 7, floors: [1, 2], open: 0.78, alleys: false },
-  Water: { plots: "unit", spacing: [76, 112], size: [22, 50], street: 12, floors: [2, 12], open: 0.20, alleys: false }
+  Water: { plots: "unit", spacing: [72, 106], size: [20, 44], street: 12, floors: [4, 14], open: 0.14, alleys: false }
 };
 const WARD_NAMES = {
   Core: ["Marukane", "Tokura", "Shinmei"],
@@ -8489,7 +8492,8 @@ function initThree() {
       if (e.code === "Enter" || e.code === "Space") { setWheel(false); e.preventDefault(); return; }
     }
     if (e.code === "KeyP") setPhone(!phone.open);
-    if (e.code === "KeyH") toggleSiren();
+    // H: on foot it is an arm out for a taxi, in a car it is the horn and the siren
+    if (e.code === "KeyH" && !e.repeat) { if (!drive.car && player.mode === "walk" && !phone.open && !paused) hailTaxi(); else toggleSiren(); }
     if (e.code === "KeyL" && drive.car && !e.repeat) toggleHeadlights();
     if (paused) {
       if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
@@ -8571,7 +8575,20 @@ function saveSettings() { try { localStorage.setItem("konto.settings.v1", JSON.s
 // The look: a hyper-real world (photo textures left as photographed, physically shaded buildings, cars and props, a film grade with no
 // ink lines) with anime people, toon-shaded with scattering skin - the Makoto Shinkai approach. It is the game's only look.
 function worldReal() { return true; }
-function animeArt() { return true; }           // the people are always anime
+function animeArt() { return true; }           // the world's anime paint pass (off while worldReal(); the people are drawn by Shigoto, below)
+// The people are hyper-realistic (Duncan, 2026-11-01): Microsoft Rocketbox's rigged, game-ready people (MIT) in people/real, drawn by the
+// Shigoto engine's character layer (Engine/src/characters): four PBR maps, scattering skin, cloth sheen, hair, curved subdivision.
+// people/ holds the additional CC0 MakeHuman cast; ?cast=makehuman selects it for comparison.
+function peopleReal() { return !/[?&]cast=makehuman\b/.test(location.search); }
+function charsLib() { return window.SHIGOTO && SHIGOTO.characters ? SHIGOTO.characters(THREE, { quality: gfx.tier || "high", msaa: false }) : null; }
+// a person's materials and shape: Shigoto's realistic character shading, or the toon look for the anime cast
+function charLook(root, bones, hero, model) {
+  if(pplLib.realistic&&window.SalaryRealism)SalaryRealism.person(root);
+  const C = pplLib.real && charsLib();
+  if(C){C.setQuality(gfx.tier||"high");C.upgrade(root,{hero:!!hero,model});if(window.SalaryRealism)SalaryRealism.person(root);return root;}
+  if(!pplLib.realistic){toonify(root);if(!pplLib.anime)animeHead(bones);}
+  return root;
+}
 function animePaint(img) {
   try {
     const w0 = img.naturalWidth || img.width, h0 = img.naturalHeight || img.height;
@@ -8629,37 +8646,80 @@ function animeGradient() {
   t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.needsUpdate = true;
   return (animeGradient.t = t);
 }
-// ---- skin: subsurface scattering ----------------------------------------------------------------------------------------------------------
-// Light goes into skin, travels under it and comes out somewhere else, red travelling furthest. Three things a renderer has to fake for
-// that, done here on the toon shading: (1) the terminator, where light that went in on the lit side comes out just past the edge of the
-// shadow as a warm red band instead of the hard grey line plastic has; (2) translucency, the light through an ear, the edge of the nose,
-// fingers held against the sun; (3) a warm bleed in the shade, because the light that fills a face is light that has been through skin.
-const SKIN = { U: { uSSSColor: { value: new THREE.Color(1.0, 0.38, 0.26) }, uSSSWrap: { value: 0.32 }, uSSSTrans: { value: 0.55 } } };
-function skinSSS(m) {
-  m.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, SKIN.U);
+// ---- the characters' shader: all four PBR maps, and subsurface scattering, under the anime shading ---------------------------------------
+// A character material samples four maps, not one picture:
+//   1. albedo (map): the colour, with no light or shadow painted into it
+//   2. normal (normalMap): the wrinkles, pores, seams and folds a low-poly body cannot carry in its triangles
+//   3. roughness (roughnessMap, glTF's metallicRoughness green): where it is glossy and where matte - wet lips and eyes catch a hard
+//      highlight, skin a broad soft one, cloth almost none
+//   4. ambient occlusion (aoMap, glTF's occlusion): the soft shadow baked into nostrils, the corners of the mouth, under the collar
+// A model that ships them (Tripo, Meshy, a full VRoid export) uses its own. A model without a roughness map gets the value its material's
+// kind calls for (eyes, lips, skin, hair, cloth, leather), and the console lists every character material missing a map, so a model that
+// arrives with only a colour picture is caught.
+// Subsurface scattering (skin): light enters skin, travels under it and leaves somewhere else, red travelling furthest. Modelled with
+// (a) a scattering profile across the terminator: the lit side's light reappears past the shadow line as a warm band, wider where the
+// surface curves more (ears, nose, fingers; the curvature comes from the screen-space change of the normal), (b) transmission: light
+// through thin parts held against the sun, scaled by a thickness map when the model has one, (c) a warm bleed in the shade.
+const CHAR = { U: { uSSSColor: { value: new THREE.Color(1.0, 0.36, 0.24) }, uSSSWrap: { value: 0.34 }, uSSSTrans: { value: 0.6 }, uSSSCurv: { value: 1.6 } },
+  kinds: [[/eye(?!lash|line|brow)/i, 0.06, "eye"], [/mouth|lip/i, 0.32, "lip"], [/_SKIN\b|(^|_)skin($|_)|face(?!brow|mouth|eyel)|body/i, 0.58, "skin"], [/hair/i, 0.42, "hair"],
+          [/shoe|boot|leather|belt/i, 0.35, "leather"], [/cloth|top|bottom|shirt|suit|jacket|skirt|pant/i, 0.86, "cloth"]],
+  missing: new Set() };
+function charKind(name) { for (const k of CHAR.kinds) if (k[0].test(name || "")) return k; return [null, 0.7, "other"]; }
+function charShader(t, src) {
+  const k = charKind(src.name), skin = k[2] === "skin";
+  // the glTF default roughness (1) and the VRoid conversion's flat 0.9 say nothing; the material's kind does
+  const given = src.roughness !== undefined && src.roughness < 0.89 ? src.roughness : null;
+  const rough = src.roughnessMap ? 1 : (given !== null ? given : k[1]);
+  const U = { tRough: { value: src.roughnessMap || null }, uRough: { value: rough }, uHasRough: { value: src.roughnessMap ? 1 : 0 },
+    tThick: { value: src.thicknessMap || null }, uHasThick: { value: src.thicknessMap ? 1 : 0 } };
+  if (k[2] !== "other" && !/highlight|eyeline|lash|brow|extra/i.test(src.name || "")) ["map", "normalMap", "roughnessMap", "aoMap"].forEach(m => { if (!src[m]) CHAR.missing.add((src.name || "?") + ": " + m); });
+  t.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, CHAR.U, U);
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nuniform vec3 uSSSColor; uniform float uSSSWrap, uSSSTrans;")
+      .replace("#include <common>", "#include <common>\nuniform vec3 uSSSColor; uniform float uSSSWrap, uSSSTrans, uSSSCurv, uRough, uHasRough, uHasThick;\nuniform sampler2D tRough, tThick;")
       .replace("#include <lights_fragment_end>", [
         "#include <lights_fragment_end>",
-        "#if NUM_DIR_LIGHTS > 0",
         "  {",
-        "    vec3 sV = normalize(vViewPosition);",
-        "    for (int i = 0; i < NUM_DIR_LIGHTS; i++) {",
-        "      vec3 sL = directionalLights[i].direction;",
-        "      float ndl = dot(normal, sL);",
-        "      float term = smoothstep(-0.45, 0.0, ndl) * (1.0 - smoothstep(0.0, 0.5, ndl));",
-        "      float thin = pow(clamp(dot(sV, -normalize(sL + normal * 0.4)), 0.0, 1.0), 3.0) * (1.0 - abs(dot(normal, sV)));",
-        "      reflectedLight.directDiffuse += directionalLights[i].color * diffuseColor.rgb * uSSSColor * (term * uSSSWrap + thin * uSSSTrans);",
-        "    }",
-        "  }",
+        "    vec3 cV = normalize(vViewPosition);",
+        "    float r = uRough;",
+        "#ifdef USE_UV",
+        "    if (uHasRough > 0.5) r = texture2D(tRough, vUv).g;",
         "#endif",
-        "  reflectedLight.indirectDiffuse *= vec3(1.07, 0.97, 0.94);"].join("\n"));
+        "    r = clamp(r, 0.04, 1.0);",
+        "    float ao = 1.0;",
+        "#ifdef USE_AOMAP",
+        "    ao = (texture2D(aoMap, vUv2).r - 1.0) * aoMapIntensity + 1.0;",
+        "#endif",
+        skin ? "    float curv = clamp(length(fwidth(normal)) / max(length(fwidth(vViewPosition)), 1e-4) * 0.02 * uSSSCurv, 0.0, 1.0);" : "",
+        skin ? "    float thin = 1.0;" : "",
+        skin ? "#ifdef USE_UV\n    if (uHasThick > 0.5) thin = 1.0 - texture2D(tThick, vUv).r;\n#endif" : "",
+        "#if NUM_DIR_LIGHTS > 0",
+        "    for (int i = 0; i < NUM_DIR_LIGHTS; i++) {",
+        "      vec3 L = directionalLights[i].direction, C = directionalLights[i].color;",
+        "      vec3 H = normalize(L + cV);",
+        "      float ndl = dot(normal, L), ndh = max(dot(normal, H), 0.0);",
+        "      float shin = mix(600.0, 6.0, r);",
+        "      float sp = pow(ndh, shin) * step(0.0, ndl);",
+        "      float band = smoothstep(0.42, 0.58, sp) * (1.0 - r) * (1.0 - r);",
+        "      reflectedLight.directDiffuse += C * band * mix(0.35, 1.2, 1.0 - r) * ao;",          // (the toon shading adds only the diffuse terms)
+        skin ? [
+        "      float w = uSSSWrap * (1.0 + curv * 1.5);",
+        "      float term = smoothstep(-w, 0.0, ndl) * (1.0 - smoothstep(0.0, w * 1.4, ndl));",
+        "      float trans = pow(clamp(dot(cV, -normalize(L + normal * 0.4)), 0.0, 1.0), 3.0) * (1.0 - abs(dot(normal, cV))) * thin;",
+        "      reflectedLight.directDiffuse += C * diffuseColor.rgb * uSSSColor * (term * (0.6 + curv) + trans * uSSSTrans) * ao;"].join("\n") : "",
+        "    }",
+        "#endif",
+        skin ? "    reflectedLight.indirectDiffuse *= vec3(1.07, 0.97, 0.94);" : "",
+        "  }"].join("\n"));
   };
-  m.customProgramCacheKey = () => "konto-skin-sss";
-  m.userData.sss = true;
-  return m;
+  t.customProgramCacheKey = () => "konto-char-" + k[2] + (src.roughnessMap ? "-r" : "") + (src.thicknessMap ? "-t" : "");
+  t.extensions = Object.assign({}, t.extensions, { derivatives: true });
+  t.userData.sss = skin; t.userData.charKind = k[2];
+  return t;
 }
+function skinSSS(m) { return charShader(m, { name: m.name || "skin" }); }
+// once loading settles, list every character material missing one of the four maps
+setTimeout(function charMapReport() { if (CHAR.missing.size) console.warn("[Konto] character materials without all four PBR maps (" + CHAR.missing.size + "): " + [...CHAR.missing].slice(0, 40).join("; ")); }, 120000);
 const _toonCache = new Map();
 function toonMat(m, skinned) {
   if (!m || m.isMeshToonMaterial || m.isShaderMaterial || m.isMeshBasicMaterial || m.isPointsMaterial || m.isLineBasicMaterial || m.isSpriteMaterial) return m;
@@ -8668,10 +8728,13 @@ function toonMat(m, skinned) {
   const t = new THREE.MeshToonMaterial({ color: m.color ? m.color.clone() : 0xffffff, map: m.map || null, gradientMap: animeGradient(),
     emissive: m.emissive ? m.emissive.clone() : 0x000000, emissiveMap: m.emissiveMap || null, emissiveIntensity: m.emissiveIntensity === undefined ? 1 : m.emissiveIntensity,
     alphaMap: m.alphaMap || null, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest || 0, side: m.side, vertexColors: m.vertexColors,
-    depthWrite: m.depthWrite });
+    depthWrite: m.depthWrite,
+    // the other three PBR maps come across with the colour (the toon material draws normal and occlusion itself; roughness is ours)
+    normalMap: m.normalMap || null, normalMapType: m.normalMapType || THREE.TangentSpaceNormalMap, normalScale: m.normalScale ? m.normalScale.clone() : new THREE.Vector2(1, 1),
+    aoMap: m.aoMap || null, aoMapIntensity: m.aoMapIntensity === undefined ? 1 : m.aoMapIntensity });
   if (skinned) t.skinning = true;
   t.name = m.name;
-  if (/_SKIN\b|(^|_)skin($|_)/i.test(m.name || "")) skinSSS(t);
+  if (skinned || m.normalMap || m.roughnessMap || m.aoMap || /_(SKIN|FACE|EYE|HAIR|CLOTH)\b/i.test(m.name || "")) charShader(t, m);
   _toonCache.set(key, t);
   return t;
 }
@@ -8682,6 +8745,9 @@ function toonify(root, keep) {
     if (!o.isMesh || (o.material && o.material.isShaderMaterial)) return;
     const sk = !!o.isSkinnedMesh;
     const tm = m => keep && m && keep(m) ? m : toonMat(m, sk);
+    // three draws an occlusion map from the second UV set; a model with one set (every Tripo and Meshy export) shares it
+    const mats0 = Array.isArray(o.material) ? o.material : [o.material];
+    if (o.geometry && o.geometry.attributes.uv && !o.geometry.attributes.uv2 && mats0.some(m => m && m.aoMap)) o.geometry.setAttribute("uv2", o.geometry.attributes.uv);
     o.material = Array.isArray(o.material) ? o.material.map(tm) : tm(o.material);
   });
   return root;
@@ -8947,8 +9013,10 @@ function pollPad(dt) {
     if (pressed(PAD.DOWN)) toggleWalk();
     // D-pad right: headlights, while you are driving.
     if (pressed(PAD.RIGHT) && drive.car) toggleHeadlights();
+    // and on foot it hails a taxi
+    else if (pressed(PAD.RIGHT) && !drive.car && player.mode === "walk") hailTaxi();
     // D-pad left is the radio: tap for the next station, hold for the wheel.
-    // (Taxis are on the phone, in Ryde.)
+    // (A taxi is D-pad right on foot; a Ryde is booked on the phone.)
   }
 
   radioPadFrame(!phone.open && held(PAD.LEFT), deadzone(gp.axes[2] || 0, 0.30), deadzone(gp.axes[3] || 0, 0.30), 1 / 60);
@@ -9202,7 +9270,7 @@ function fillPause(name) {
       '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
       '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
       '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
-      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
       '<div><h3>The island</h3>' + towns + '</div>' +
       '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
       '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
@@ -9634,9 +9702,13 @@ function buildScene(w) {
     og.computeVertexNormals();
     { const ys = new Float32Array(op.count); for (let i = 0; i < op.count; i++) ys[i] = op.getY(i);
       w.overlays.push({ x0: paint.x0, z0: paint.z0, w: paint.w, h: paint.h, sx: segX, sz: segZ, y: ys }); }
-    const overlayMat = new THREE.MeshLambertMaterial({
-      map: tex, transparent: true, alphaTest: 0.08, depthWrite: true
-    });
+    // Standard on high, not Lambert: Lambert has no specular and no roughness, so the engine's rain could only darken the
+    // streets, and its puddles came out as dark blotches with nothing in them. Standard lets a wet road go glossy and a
+    // puddle hold the sky.
+    const overlayMat = gfx.high
+      ? new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.08, depthWrite: true, roughness: 0.92, metalness: 0, envMapIntensity: 0.55 })
+      : new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.08, depthWrite: true });
+    if (gfx.high && gfx.env) overlayMat.envMap = gfx.env;
     w.overlays[w.overlays.length - 1].mat = overlayMat;
     // The plan is painted at metres to the pixel, which is a flat wash once you
     // are standing on it. A grain texture at eight metres a repeat gives the
@@ -9754,9 +9826,11 @@ function buildScene(w) {
         }
         return;
       }
-      const setback = p.kind === "shop" ? 0.6 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
+      // Tokonto builds to the plot line like Kanda: a party wall to the next building and the pavement at the door. The towns keep their yards.
+      const setback = p.kind === "shop" ? 0.6 : !region ? clamp(Math.min(p.size[0], p.size[1]) * 0.03, 0.5, 1.6)
+                                                                 : clamp(Math.min(p.size[0], p.size[1]) * 0.08, 0.6, 4.5);
       const size = [Math.max(3, p.size[0] - setback * 2), Math.max(3, p.size[1] - setback * 2)];
-      const top = p.kind === "landmark" ? p.height : p.height * lerp(0.55, 1, r);
+      const top = p.kind === "landmark" ? p.height : p.height * lerp(!region ? 0.74 : 0.55, 1, r);
       const style = facadeStyleFor(p.kind, region);
       // A shopping street is a run of narrow buildings sharing party walls, not
       // one slab. Split the frontage so the skyline in close has a rhythm.
@@ -12105,6 +12179,18 @@ function waterHeightTexture() {
   water.heightTex = t; water.heightFor = world;
   return t;
 }
+// The ground's real height for the water shaders. The byte texture above stores -25..+25 m, which is all the sea needs, but the moat
+// stands at about 32 m: there every sample read as 25, the water thought it was seven metres deep everywhere, and it lay over the
+// streets beside the moat as a teal sheet. Full float, so a moat or a lake at any height knows where its banks are.
+function waterHeightTextureF() {
+  if (water.heightTexF && water.heightForF === world) return water.heightTexF;
+  const H = world.height, data = new Float32Array(GRID_X * GRID_Z * 4);
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = H[world.idx ? world.idx(x, z) : i]; data[i * 4 + 3] = 1; }
+  const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat, THREE.FloatType);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
+  water.heightTexF = t; water.heightForF = world;
+  return t;
+}
 function waterMaterial(level, deep, shallow, opacity, opts) {
   opts = opts || {};
   if (!gfx.high) {
@@ -12113,23 +12199,24 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
     const U = { lowWaterHeight:{value:waterHeightTexture()},lowWaterSea:{value:opts.sea?1:0},
       lowWaterGrid:{value:new THREE.Vector2(GRID_X,GRID_Z)},lowWaterCell:{value:CELL},
       lowWaterRing:{value:opts.ring?new THREE.Vector4(opts.ring.cx,opts.ring.cz,Math.cos(opts.ring.rot),Math.sin(opts.ring.rot)):new THREE.Vector4(0,0,1,0)},
-      lowWaterInner:{value:opts.ring?opts.ring.inner:0} };
+      lowWaterInner:{value:opts.ring?opts.ring.inner:0},lowWaterLevel:{value:level||0},lowWaterHeightF:{value:waterHeightTextureF()} };
     m.onBeforeCompile = sh => {
       Object.assign(sh.uniforms,U);
       sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos;')
         .replace('#include <project_vertex>','#include <project_vertex>\nvLowWaterPos=(modelMatrix*vec4(transformed,1.0)).xyz;');
-      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos; uniform sampler2D lowWaterHeight; uniform float lowWaterSea,lowWaterCell,lowWaterInner; uniform vec2 lowWaterGrid; uniform vec4 lowWaterRing;')
+      sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec3 vLowWaterPos; uniform sampler2D lowWaterHeight; uniform float lowWaterSea,lowWaterCell,lowWaterInner,lowWaterLevel; uniform sampler2D lowWaterHeightF; uniform vec2 lowWaterGrid; uniform vec4 lowWaterRing;')
         .replace('#include <color_fragment>',`#include <color_fragment>
           vec2 lowUV=(vLowWaterPos.xz/lowWaterCell+0.5)/lowWaterGrid;
           if(lowWaterSea>0.5 && lowUV.x>0.0 && lowUV.y>0.0 && lowUV.x<1.0 && lowUV.y<1.0 && texture2D(lowWaterHeight,lowUV).g<0.5)discard;
-          if(lowWaterInner>0.0){vec2 d=vLowWaterPos.xz-lowWaterRing.xy;vec2 q=vec2(d.x*lowWaterRing.z-d.y*lowWaterRing.w,d.x*lowWaterRing.w+d.y*lowWaterRing.z);if(max(abs(q.x),abs(q.y))<lowWaterInner)discard;}`);
+          if(lowWaterInner>0.0){vec2 d=vLowWaterPos.xz-lowWaterRing.xy;vec2 q=vec2(d.x*lowWaterRing.z-d.y*lowWaterRing.w,d.x*lowWaterRing.w+d.y*lowWaterRing.z);if(max(abs(q.x),abs(q.y))<lowWaterInner)discard;
+            if(texture2D(lowWaterHeightF,lowUV).r>lowWaterLevel-0.6)discard;}`);
     };
-    m.customProgramCacheKey=()=> 'konto-low-water-mask-v1';
+    m.customProgramCacheKey=()=> 'konto-low-water-mask-v2';
     return m;
   }
   if (!water.normTex) { water.normTex = new THREE.TextureLoader().load("art/terrain/water_nor.jpg"); water.normTex.wrapS = water.normTex.wrapT = THREE.RepeatWrapping; }
   const m = new THREE.MeshStandardMaterial({ color: deep, roughness: opts.rough || 0.1, metalness: 0.0, transparent: true, opacity: opacity || 0.94, envMap: gfx.env || null, envMapIntensity: opts.env || 0.55 });
-  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
+  const U = { tWaterN: { value: water.normTex }, tHeight: { value: waterHeightTexture() }, tHeightF: { value: waterHeightTextureF() }, wTime: { value: 0 }, wLevel: { value: level }, seaOnly: { value: opts.sea ? 1 : 0 },
               cDeep: { value: new THREE.Color(deep) }, cShallow: { value: new THREE.Color(shallow) }, gridK: { value: new THREE.Vector2(1 / CELL, 1 / CELL) }, gridN: { value: new THREE.Vector2(GRID_X, GRID_Z) },
               // the Gerstner swell (only the near, finely cut patch has it: see waterPatch) and the hole the flat sea leaves for that patch
               wRing: { value: opts.ring ? new THREE.Vector4(opts.ring.cx, opts.ring.cz, Math.cos(opts.ring.rot), Math.sin(opts.ring.rot)) : new THREE.Vector4(0, 0, 1, 0) }, wInner: { value: opts.ring ? opts.ring.inner : 0 },
@@ -12153,13 +12240,13 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
       .replace("#include <begin_vertex>", "vec3 transformed = vec3(position) + gOff;")
       .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n  vWP = (modelMatrix * vec4(transformed, 1.0)).xyz;");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nvarying float vCrest;\nuniform sampler2D tWaterN, tHeight; uniform float wTime, wLevel, seaOnly, wAmp; uniform vec3 cDeep, cShallow, wHole; uniform vec4 wRing; uniform float wInner; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vWP;\nvarying float vCrest;\nuniform sampler2D tWaterN, tHeight, tHeightF; uniform float wTime, wLevel, seaOnly, wAmp; uniform vec3 cDeep, cShallow, wHole; uniform vec4 wRing; uniform float wInner; uniform vec2 gridK, gridN;\nfloat wDepth;\nvec2 wN;")
       .replace("#include <color_fragment>", [
         "#include <color_fragment>",
         "  {",
         "    vec2 huv = (vWP.xz * gridK + 0.5) / gridN;",
         "    vec2 hs = texture2D(tHeight, huv).rg;",
-        "    float h = hs.r * 50.0 - 25.0;",
+        "    float h = texture2D(tHeightF, huv).r;",
         "    if (seaOnly > 0.5 && hs.g < 0.5 && huv.x > 0.0 && huv.y > 0.0 && huv.x < 1.0 && huv.y < 1.0) discard;",
         "    if (wHole.z > 0.0 && distance(vWP.xz, wHole.xy) < wHole.z) discard;",
         // a moat is a ring: nothing on the island it goes round (the palace grounds are built lower than the water stands)
@@ -12185,6 +12272,10 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
         // between them, so the two disagree by a little near the line - clear water there, and the line itself never shows
         "    float edge = smoothstep(0.45, 1.6, wDepth);",
         "    diffuseColor.a *= clamp(edge * (0.6 + 0.4 * smoothstep(1.0, 5.0, wDepth)) + foam * 0.55 * smoothstep(0.35, 0.55, wDepth), 0.0, 1.0);",
+        // An invisible fragment still writes depth, and the street overlay (transparent too, drawn after) vanished behind it, leaving a
+        // teal band where the streets run beside the moat and the sea. Drop them, and keep a moat off any ground that is not dug below it.
+        "    if (diffuseColor.a < 0.03) discard;",
+        "    if (wInner > 0.0 && wDepth < 0.6) discard;",
         "  }"].join("\n"))
       .replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n  normal = normalize(normal + (viewMatrix * vec4(wN.x, 0.0, wN.y, 0.0)).xyz);")
       // Subsurface scattering in the swell: looking towards the sun, the light comes through the thin top of each wave and it glows
@@ -12201,7 +12292,7 @@ function waterMaterial(level, deep, shallow, opacity, opts) {
         "  }",
         "#endif"].join("\n"));
   };
-  m.customProgramCacheKey = () => opts.waves ? "konto-water-waves" : "konto-water";
+  m.customProgramCacheKey = () => opts.waves ? "konto-water-waves2" : "konto-water2";
   m.userData.shDry = true;           // (the Shigoto engine's wet-surface patch leaves water alone)
   water.mats.push(U);
   return m;
@@ -16397,6 +16488,20 @@ function liveryRoof(kind, livery) {
   return g;
 }
 
+// The box round the vertices themselves. Box3.setFromObject in this three.js turns each part's own box and boxes that, which for a
+// part modelled at an angle (the Carry van's body was authored diagonally) comes out far too big: the car was scaled down to fit a
+// length it never had, and looked small and wrongly placed in its lane.
+function carTightBox(root) {
+  const box = new THREE.Box3(), v = new THREE.Vector3();
+  root.updateMatrixWorld(true);
+  root.traverse(o => {
+    if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+    const pos = o.geometry.attributes.position, step = pos.count > 60000 ? 3 : 1;
+    for (let i = 0; i < pos.count; i += step) { v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); box.expandByPoint(v); }
+  });
+  if (box.isEmpty()) box.setFromObject(root);
+  return box;
+}
 function fitCarModel(object3d, kind, entry) {
   // Whatever it was authored at: stand it on the ground, centre it, point it
   // down +Z and scale it to the length in the catalogue. The meshes are already
@@ -16404,14 +16509,24 @@ function fitCarModel(object3d, kind, entry) {
   const holder = new THREE.Group();
   const inner = new THREE.Group();
   inner.add(object3d);
-  inner.rotation.y = entry.yaw || 0;
-  inner.updateMatrixWorld(true);
-  let box = new THREE.Box3().setFromObject(inner);
-  // A model dropped in by the player may lie along X rather than Z; turn it a quarter so its length runs the way the game expects.
-  if (entry.user) {
-    const s0 = box.getSize(new THREE.Vector3());
-    if (s0.x > s0.z * 1.15) { inner.rotation.y += Math.PI / 2; inner.updateMatrixWorld(true); box = new THREE.Box3().setFromObject(inner); }
+  // Every copy of a model is the same shape, so it is measured once and the copies reuse the numbers.
+  const key = (entry.url || entry.proc && kind.name) + "|" + (entry.yaw || 0);
+  if (!entry._fit || entry._fit.key !== key) entry._fit = { key: key };
+  const fit = entry._fit;
+  if (fit.yaw === undefined) {
+    inner.rotation.y = entry.yaw || 0;
+    inner.updateMatrixWorld(true);
+    let b = carTightBox(inner);
+    // A model dropped in by the player may lie along X rather than Z; turn it a quarter so its length runs the way the game expects.
+    if (entry.user) {
+      const s0 = b.getSize(new THREE.Vector3());
+      if (s0.x > s0.z * 1.15) { inner.rotation.y += Math.PI / 2; inner.updateMatrixWorld(true); b = carTightBox(inner); }
+    }
+    fit.yaw = inner.rotation.y; fit.box = b;
   }
+  inner.rotation.y = fit.yaw;
+  inner.updateMatrixWorld(true);
+  const box = fit.box;
   const size = box.getSize(new THREE.Vector3());
   const centre = box.getCenter(new THREE.Vector3());
   const scale = kind.L / Math.max(1e-4, size.z);      // some arrive in centimetres or less, so no floor that would shrink them
@@ -19082,7 +19197,7 @@ function billboardTexture(v) {
 
 function buildFacadeDressing(city, root, boxes) {
   const lean = gfx.tier === "low";
-  const signs = [], decks = [], rails = [], acs = [], futons = [], tanks = [], stands = [], boards = [], retailWindows = [];
+  const signs = [], decks = [], rails = [], acs = [], futons = [], tanks = [], stands = [], boards = [], pipes = [], retailWindows = [];
   const NSIGN = 10, NBOARD = BILLBOARDS.length;
   // which faces of a box open onto somewhere (a street, a square): the outward point is not inside anything
   const openFaces = b => {
@@ -19112,7 +19227,7 @@ function buildFacadeDressing(city, root, boxes) {
       retailWindows.push({x:q[0],y:b.y+1.85,z:q[1],ry:ryFace,w:Math.min(6.6,W-2),h:2.7,theme:Math.floor(r(91)*6)});
     }
     // a vertical signboard at a corner of the face, standing out from it
-    if ((st === "office" || st === "shop" || st === "flats") && b.h >= 11 && b.h <= 70 && W > 7 && r(2) < (lean ? 0.3 : 0.62)) {
+    if ((st === "office" || st === "shop" || st === "flats") && b.h >= 11 && b.h <= 70 && W > 7 && r(2) < (lean ? 0.36 : 0.8)) {
       const hS = Math.min(b.h - 4.5, 15), u = (r(3) < 0.5 ? -1 : 1) * (W / 2 - 0.9), q = L(u, half + 0.75);
       signs.push({ v: Math.floor(r(4) * NSIGN), x: q[0], y: b.y + 3.6 + hS / 2, z: q[1], ry: ryFace, h: hS });
       if (faces.length > 1 && r(5) < 0.35 && W > 14) { const q2 = L(-u, half + 0.75); signs.push({ v: Math.floor(r(6) * NSIGN), x: q2[0], y: b.y + 3.6 + hS * 0.4, z: q2[1], ry: ryFace, h: hS * 0.8 }); }
@@ -19132,9 +19247,25 @@ function buildFacadeDressing(city, root, boxes) {
         }
       }
     }
+    // the outdoor units of a Kanda office wall: one bolted under a window here and there on every floor, and a drain pipe down the side
+    if ((st === "office" || st === "shop") && b.h >= 9 && b.h <= 80 && W > 6) {
+      const floors = Math.floor((b.h - 4) / 3.6), bays = Math.max(1, Math.floor(W / 3.4)), share = lean ? 0.08 : 0.2;
+      for (const fc of faces) {
+        const Wf = fc[0] ? b.size[1] : b.size[0], hf = (fc[0] ? b.size[0] : b.size[1]) / 2;
+        const Lf = (u, v) => fc[0] ? fromRectLocal(fc[0] * v, u, b.c[0], b.c[1], b.yaw) : fromRectLocal(u, fc[1] * v, b.c[0], b.c[1], b.yaw);
+        const ryF = yr(b) + (fc[0] ? (fc[0] > 0 ? Math.PI / 2 : -Math.PI / 2) : (fc[1] > 0 ? 0 : Math.PI));
+        const fk = (fc[0] + 2) * 5 + fc[1] + 2;
+        for (let fl = 1; fl <= floors; fl++) for (let k = 0; k < bays; k++) {
+          if (r(100 + fk * 997 + fl * 31 + k) > share) continue;
+          const uu = (k + 0.5) / bays * Wf - Wf / 2 + 0.6, qa = Lf(uu, hf + 0.2);
+          acs.push({ x: qa[0], y: b.y + 4 + (fl - 1) * 3.6 + 0.2, z: qa[1], ry: ryF });
+        }
+        if (r(90 + fk) < 0.5) { const qp = Lf((r(91 + fk) < 0.5 ? -1 : 1) * (Wf / 2 - 0.25), hf + 0.08); pipes.push({ x: qp[0], y: b.y + b.h / 2, z: qp[1], ry: ryF, h: b.h }); }
+      }
+    }
     // on the roof: a water tank, now and then a billboard
     const top = b.y + b.h;
-    if ((st === "office" || st === "flats" || st === "shop") && b.size[0] > 8 && b.size[1] > 8 && r(20) < 0.32) {
+    if ((st === "office" || st === "flats" || st === "shop") && b.size[0] > 8 && b.size[1] > 8 && r(20) < 0.58) {
       const q = fromRectLocal((r(21) - 0.5) * b.size[0] * 0.5, (r(22) - 0.5) * b.size[1] * 0.5, b.c[0], b.c[1], b.yaw);
       stands.push({ x: q[0], y: top + 0.75, z: q[1], ry: yr(b) }); tanks.push({ x: q[0], y: top + 2.3, z: q[1], ry: yr(b) });
     }
@@ -19166,6 +19297,7 @@ function buildFacadeDressing(city, root, boxes) {
   inst(new THREE.BoxGeometry(1, 0.18, 1.1), std(0xc9c6bd, 0.85), decks, o => new THREE.Vector3(o.w, 1, 1));
   inst(new THREE.BoxGeometry(1, 1.0, 0.06), std(0xdfe3e6, 0.4, { transparent: true, opacity: 0.88 }), rails, o => new THREE.Vector3(o.w, 1, 1), { noShadow: true });
   inst(new THREE.BoxGeometry(0.8, 0.62, 0.3), std(0xe9ebe6, 0.55), acs, () => new THREE.Vector3(1, 1, 1));
+  inst(new THREE.CylinderGeometry(0.06, 0.06, 1, 6), std(0x8d9196, 0.5), pipes, o => new THREE.Vector3(1, o.h, 1), { noShadow: true });
   const FUTON = [0xf2d7e0, 0xd9e8f5, 0xf6f0d8, 0xe0f0dc, 0xf7e3c8, 0xffffff];
   inst(new THREE.BoxGeometry(1.5, 0.9, 0.1), std(0xffffff, 0.9), futons, () => new THREE.Vector3(1, 1, 1), { colour: o => FUTON[o.c % FUTON.length], noShadow: true });
   inst(new THREE.CylinderGeometry(1.05, 1.05, 1.7, 16), std(0xd9d4c6, 0.5), tanks, () => new THREE.Vector3(1, 1, 1));
@@ -19180,7 +19312,7 @@ function buildFacadeDressing(city, root, boxes) {
   }
   city.retailWindows = retailWindows;
   SalaryRetail.installWindows(root, retailWindows, streamAdd, lean);
-  console.log("[Konto] " + city.name + ": " + signs.length + " signboards, " + decks.length + " balconies, " + tanks.length + " water tanks, " + boards.length + " rooftop billboards");
+  console.log("[Konto] " + city.name + ": " + signs.length + " signboards, " + decks.length + " balconies, " + acs.length + " outdoor units, " + tanks.length + " water tanks, " + boards.length + " rooftop billboards");
 }
 
 function buildStreetFurniture(w, city, root, boxes) {
@@ -23357,7 +23489,7 @@ function phoneRow(g, W, x, y, w, h, on, fill) {
 const RYDE_CLASSES = [
   { name: "Compact",  note: "kei or hatchback, one bag",   mult: 1.00, kind: "kei" },
   { name: "Sedan",    note: "saloon, room for four",       mult: 1.45, kind: "sedan" },
-  { name: "Maxi",     note: "one-box, six seats",          mult: 2.10, kind: "keivan" }
+  { name: "Maxi",     note: "one-box, six seats",          mult: 2.10, kind: "onebox" }
 ];
 function rydeFare(mult) { return Math.round((620 + 280 * mult * 3) * mult); }
 
@@ -34339,6 +34471,7 @@ const DISPATCH_WHO = {
   ambulance: { name: "ambulance", stay: 70, blip: ["#ffffff", "#d8483c"],
                meet: "The crew look you over, and it costs nothing. You are fit to go." },
   ryde:      { name: "Ryde car", stay: 110, blip: ["#12b36b", "#ffffff"], meet: "" },
+  taxi:      { name: "taxi", stay: 90, blip: ["#f2c230", "#202020"], meet: "" },
   fire:      { name: "fire engine", stay: 50, blip: ["#ffb02e", "#d8483c"],
                meet: "“Where is the fire? None? Good. Keep it that way.”" }
 };
@@ -34567,14 +34700,17 @@ function updateDispatch(dt) {
       const v = u.free ? u.v : u.car.v;
       if (remain < (u.free ? 3 : 4) && v < 1.5) {
         u.state = "waiting"; u.t = 0;
-        if (u.svc === "ryde") notify("Ryde", "Your driver is here", "Walk up to the car and press Y.", 6); else notify("Emergency", who.name, "has arrived.", 6);
-        if (u.svc === "ryde") { u.car.stopped = true; phone.dirty = true; }
+        if (u.svc === "ryde") notify("Ryde", "Your driver is here", "Walk up to the car and press Y.", 6);
+        else if (u.svc === "taxi") say("Your taxi has pulled in. Get in with F or Y.", 5);
+        else notify("Emergency", who.name, "has arrived.", 6);
+        if (u.svc === "ryde" || u.svc === "taxi") { u.car.stopped = true; phone.dirty = true; }
       }
     } else if (u.state === "waiting") {
       u.t += dt;
       if (!u.met && Math.hypot(x - px, z - pz) < 14) { u.met = true; meetDispatch(u, who); }
       if (u.t > who.stay) {
         u.state = "leaving"; u.t2 = 0;
+        if (u.svc === "taxi") { if (u.car) { u.car.hailed = false; u.car.stopped = false; } say("The taxi gave up waiting and drove on.", 4); }
         if (u.svc === "ryde") {
           if (u.car) { u.car.hailed = false; u.car.stopped = false; }
           if (phone.ryde && phone.ryde.unit === u) { phone.ryde = null; phone.dirty = true; notify("Ryde", "Ride cancelled", "Your driver gave up waiting.", 5); }
@@ -35125,40 +35261,55 @@ function star(g, cx, cy, r, fill, glow) {
 }
 
 // ---- hailing ---------------------------------------------------------------
-// D-pad left puts a hand out. No prompt on screen: you either know or you
-// learn. The nearest taxi on a lane near you takes the fare, pulls in and
-// waits, and getting in is the usual Y.
+// H on the keyboard, D-pad right on the pad, while you are on foot: an arm goes
+// out at the kerb. A taxi already coming down the street you are standing on
+// takes the fare, and if none is, the next one along turns into it; either way
+// it drives up the lane beside you, pulls in at the kerb and waits. Get in with
+// F or Y and the driver takes you to the marker on your map, on the meter.
 function hailTaxi() {
-  if (!player.placed || player.mode !== "walk" || drive.car || drive.train) return;
-  if (drive.hailed && drive.hailed.live) { say("One is already pulling in.", 3); return; }
+  if (!player.placed || player.mode !== "walk" || drive.car || drive.train || !traffic.ready) return false;
+  const pending = dispatch.units.find(u => u.svc === "taxi" && u.state !== "leaving");
+  if (pending) { say(pending.state === "waiting" ? "Your taxi is waiting at the kerb." : "A taxi is already pulling in for you.", 3); return true; }
   const ki = CAR_KINDS.findIndex(k => k.name === "taxi");
-  if (ki < 0) return;
-  const px = player.pos.x, pz = player.pos.z;
-  let best = null, bestD = 180;
-  traffic.cars.forEach(c => {
-    if (!c.live || c.kind !== ki) return;
-    if (Math.abs((c.at ? c.at.y : 0) - player.pos.y) > 2.4) return;
-    const d = Math.hypot(c.at.x - px, c.at.z - pz);
-    if (d < bestD) { bestD = d; best = c; }
+  if (ki < 0) return false;
+  // the lane beside you: the nearest one, and a taxi sent up it starts only a block or so back, so it is not a long wait
+  const rp = dispatchRoadPoint(90);
+  if (!rp || rp.d > 26) { say("No taxi will stop here. Stand at the kerb of a street.", 3.5); return true; }
+  const lane = traffic.lanes[rp.li];
+  const u = { svc: "taxi", kind: ki, state: "coming", t: 0, stuck: 0, met: true, vmax: Math.min(14, CAR_KINDS[ki].top + 1) };
+  // A taxi already on that lane and still behind you is the one you are waving at.
+  const stop = rp.s - 3;
+  let best = null, bestGap = 170;
+  traffic.byLane[rp.li].forEach(ci => {
+    const c = traffic.cars[ci];
+    if (!c.live || c.kind !== ki || c.dispatch || c.hailed || c.stopped) return;
+    let gap = stop - c.s;
+    if (lane.loop) gap = ((gap % lane.length) + lane.length) % lane.length;
+    if (gap >= 6 && gap < bestGap) { bestGap = gap; best = c; }
   });
-  if (!best) { say("No taxi in sight.", 3); return; }
-  drive.hailed = best;
-  best.hailed = true;
-  say("Taxi flagged down \u00b7 " + Math.round(bestD) + " m", 4);
+  if (best) {
+    u.car = best; u.lane = rp.li;
+    u.target = best.s + bestGap;
+    best.dispatch = u; best.top = Math.min(u.vmax, best.v + 2);
+    best.hailed = true;
+  } else {
+    const car = dispatchPickCar(ki);
+    if (!car) { say("No taxi in sight.", 3); return true; }
+    dispatchOnLane(u, car, rp);
+    car.hailed = true;
+  }
+  dispatch.units.push(u);
+  drive.hailed = u.car;
+  say(best ? "Taxi! It is pulling in." : "Taxi! One is coming down the street.", 3.5);
+  return true;
 }
 
 // A hailed taxi slows and stops beside you; a Ryde booked on the phone counts
 // down and then turns up as one.
 function updateHail(dt) {
+  // the hailed taxi is driven by the dispatcher (updateDispatch); this only forgets it once it is gone
   const h = drive.hailed;
-  if (h) {
-    if (!h.live) { drive.hailed = null; }
-    else {
-      const d = Math.hypot(h.at.x - player.pos.x, h.at.z - player.pos.z);
-      if (d < 22) { h.v = Math.max(0, h.v - 9 * dt); h.stopped = true; }
-      if (d > 200) { h.hailed = false; drive.hailed = null; say("It drove on.", 3); }
-    }
-  }
+  if (h && (!h.live || !h.dispatch)) drive.hailed = null;
   if (phone.ryde && phone.ryde.unit) {
     // a real car: the phone just reports on it, about four times a second
     const st = rydeStatus();
@@ -35377,6 +35528,13 @@ function carsNear(x, z, radius, fn) {
 function findRide() {
   if (!player.placed || player.mode !== "walk" || player.down > 0) return null;
   const px = player.pos.x, pz = player.pos.z;
+  // A taxi you flagged down, or the Ryde you booked, standing at the kerb for you comes before anything else in reach.
+  for (const u of dispatch.units) {
+    if ((u.svc !== "taxi" && u.svc !== "ryde") || !u.car || !u.car.live || !u.car.at || u.state === "leaving") continue;
+    const c = u.car;
+    if (c.v < 3.5 && Math.abs(c.at.y - player.pos.y) < 2.4 && Math.hypot(c.at.x - px, c.at.z - pz) - CAR_KINDS[c.kind].L * 0.4 < 5.0)
+      return { what: "car", car: traffic.cars.indexOf(c) };
+  }
   // A parked car you left is the first thing you would reach for.
   for (let i = 0; i < drive.parked.length; i++) {
     const p = drive.parked[i];
@@ -39184,12 +39342,14 @@ function pedMaterial(k, base) {
   return (peds.mats[key] = m);
 }
 // ---- real-looking people -------------------------------------------------------------------------------------------------------------------
+// The people are realistic: people/real (Microsoft Rocketbox, MIT; Tools/characters/build_real_people.py adds the roughness, occlusion and
+// skin-mask maps), shaded by the Shigoto character layer through charLook(). With ?cast=anime the older set below is used instead.
 // The people in Web/people are anime characters: pixiv's CC0 VRoid samples, converted by Tools/anime/build_anime_people.py (office workers in
 // shirt, tie and waistcoat, people in their own clothes, men and women, recoloured and with their heads swapped round so that nobody shares
 // Seiko's face). Their skeleton is renamed to the Biped names on the way in. They come with no animation, so Seiko's own Idle, Walk and Run,
 // and the hands-up, cowering and phone poses, are retargeted onto them when they load: each bone is given the turn Seiko's matching bone makes
 // away from its rest pose, measured in the world, after lining the two rest poses up bone by bone. Until they have loaded nobody is out.
-const pplLib = { loading: false, ready: [] };
+const pplLib = { loading: false, ready: [], dir: "people/", real: false };
 const PPL_MAP = {
   Bip01_Pelvis: "Hips", Bip01_Spine: "Spine", Bip01_Spine1: "Chest", Bip01_Neck: "Neck", Bip01_Head: "Head",
   Bip01_L_Clavicle: "ShoulderL", Bip01_L_UpperArm: "UpperArmL", Bip01_L_Forearm: "ForearmL", Bip01_L_Hand: "HandL",
@@ -39210,17 +39370,19 @@ const PPL_NEXT = {
 function pplLoad() {
   if (pplLib.loading || !peds.tpl || typeof THREE.GLTFLoader !== "function") return;
   pplLib.loading = true;
-  fetch("people/index.json").then(r => r.ok ? r.json() : null).then(ix => {
+  const tryIx = dir => fetch(dir + "index.json").then(r => r.ok ? r.json() : null).then(ix => ix && ix.people ? (pplLib.dir = dir, ix) : null).catch(() => null);
+  (peopleReal() ? tryIx("people/real/").then(ix => ix || tryIx("people/")) : tryIx("people/")).then(ix => {
     if (!ix || !ix.people) return;
+    pplLib.real = !!(ix.real||ix.realistic);
     // the anime people are painted already: their textures skip the anime repaint, and their heads are their own size
     pplLib.anime = !!ix.anime;
-    pplLib.realistic=!!ix.realistic;
-    if(window.SalaryRealism) SalaryRealism.realisticPeople=!!ix.realistic;
+    pplLib.realistic=!!(ix.realistic||ix.real);
+    if(window.SalaryRealism) SalaryRealism.realisticPeople=!!(ix.realistic||ix.real);
     const loader = new THREE.GLTFLoader(ix.anime ? animeRawManager() : undefined);
     wardrobe.list = ix.outfits || null;
     const wantO = player.outfitWant && ix.outfits && ix.outfits.find(o => o.id === player.outfitWant);
     if (wantO) player.outfit = wantO.id;
-    if (ix.player && !gameSet.classicSeiko) { wardrobe.loading = true; loader.load("people/" + (wantO ? wantO.file : ix.player), g => {
+    if (ix.player && !gameSet.classicSeiko) { wardrobe.loading = true; loader.load(pplLib.dir + (wantO ? wantO.file : ix.player), g => {
       wardrobe.loading = false;
       try { pplPlayer(g); player.outfit = wantO ? wantO.id : (ix.outfits.find(o => o.file === ix.player) || {}).id; } catch (err) { console.warn("[Konto] Seiko keeps his old body:", err); }
       if (player.outfitWant && player.outfitWant !== player.outfit && !wardrobe.next) wardrobe.next = player.outfitWant;
@@ -39238,7 +39400,7 @@ function pplLoad() {
       if(principal.indexOf(e.name)<0 && typeof story!=="undefined" && story.step==="intro") { setTimeout(loadNextPerson,250);return; }
       nextPerson++;
       const advance=()=>setTimeout(loadNextPerson,80);
-      loader.load("people/"+e.file,g=>{try{pplAdopt(e,g);}catch(err){console.warn("[Konto] "+e.file+" could not be used:",err);}advance();},undefined,advance);
+      loader.load(pplLib.dir+e.file,g=>{try{pplAdopt(e,g);}catch(err){console.warn("[Konto] "+e.file+" could not be used:",err);}advance();},undefined,advance);
     };
     setTimeout(loadNextPerson,100);
   }).catch(() => {});
@@ -39246,6 +39408,7 @@ function pplLoad() {
 function pplAdopt(e, gltf) {
   const root = new THREE.Group(), scene = gltf.scene;
   root.add(scene);
+  if (window.SHIGOTO && SHIGOTO.bipedNames) SHIGOTO.bipedNames(scene);     // Mixamo / Meshy / Tripo / VRM rigs drop straight in
   const bones = {};
   scene.traverse(o => {
     if (o.isBone) bones[o.name] = o;
@@ -39254,8 +39417,7 @@ function pplAdopt(e, gltf) {
     (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if (!m) return; m.envMapIntensity = 0.3; if (m.alphaTest > 0) { m.transparent = false; m.depthWrite = true; } m.needsUpdate = true; });
   });
   if (!bones.Bip01_Pelvis || !bones.Bip01_Head) throw new Error("not a Biped skeleton");
-  if(pplLib.realistic&&window.SalaryRealism)SalaryRealism.person(root);
-  toonify(root); if (!pplLib.anime && !pplLib.realistic) animeHead(bones);
+  charLook(root, bones, false, e.name);
   // face +Z, the way everything that walks here faces
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3());
@@ -39355,10 +39517,10 @@ function pplPlayer(gltf) {
   if (!player.clips) return;
   const e = { name: "seiko", female: false };
   const root = new THREE.Group(), scene = gltf.scene; root.add(scene);
+  if (window.SHIGOTO && SHIGOTO.bipedNames) SHIGOTO.bipedNames(scene);
   const bones = {}; scene.traverse(o => { if (o.isBone) bones[o.name] = o; if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
   if (!bones.Bip01_Pelvis) throw new Error("not a Biped skeleton");
-  if(pplLib.realistic&&window.SalaryRealism)SalaryRealism.person(root);
-  toonify(root); if (!pplLib.anime && !pplLib.realistic) animeHead(bones);
+  charLook(root, bones, true, "seiko");
   root.updateMatrixWorld(true);
   const head = bones.Bip01_Head.getWorldPosition(new THREE.Vector3()), nose = (bones.Bip01_MNose || bones.Bip01_REye || bones.Bip01_Head).getWorldPosition(new THREE.Vector3());
   root.rotation.y = -Math.atan2(nose.x - head.x, nose.z - head.z); root.updateMatrixWorld(true);
@@ -39390,7 +39552,7 @@ function pplFigure(e, height) {
 function pedFigure(shirt, height) {
   if (pplLib.ready.length) return pplFigure(pplLib.ready[(Math.random() * pplLib.ready.length) | 0], height);
   // Seiko's own body dressed in another shirt was the stand-in once, and a street of Seikos is what it looked like
-  if (pplLib.anime !== false) return null;
+  if (pplLib.anime !== false || pplLib.real || peopleReal()) return null;
   const body = cloneSkinned(peds.tpl), wrap = new THREE.Group(), holder = new THREE.Group();
   body.traverse(o => { if (o.isMesh) o.material = Array.isArray(o.material) ? o.material.map(m => pedMaterial(shirt, m)) : pedMaterial(shirt, o.material); });
   wrap.scale.setScalar(peds.scale * height); wrap.position.copy(peds.off).multiplyScalar(height);
@@ -40017,14 +40179,16 @@ function propPut(parent, id, x, y, z, ry, opts) {
     const c = toonify(tpl.clone(true)), sz = tpl.userData.size, o = opts || {};
     const k = o.h ? o.h / Math.max(0.01, sz.y) : o.w ? o.w / Math.max(0.01, sz.x) : (o.s || 1);
     c.scale.setScalar(k); holder.add(c);
+    if(id==="dining_chair_02"&&window.SalaryArt)SalaryArt.chairCover(holder);
   });
   return holder;
 }
 // rooms are drawn unlit; the props in them are lit, by a sky light that only exists while the room is on screen
 function propLight(root) {
   if (root.userData.propLight) return;
-  const h = new THREE.HemisphereLight(0xfffaf0, 0x8a7a66, 0.55); root.add(h);
-  const d = new THREE.DirectionalLight(0xfff2dd, 0.4); d.position.set(3, 6, 4); root.add(d); root.add(d.target);
+  const h = new THREE.HemisphereLight(0xfffaf0, 0x7b8b8f, 0.8); root.add(h);
+  const d = new THREE.DirectionalLight(0xfff2dd, 0.6); d.position.set(3, 6, 4); root.add(d); root.add(d.target);
+  const fill=new THREE.DirectionalLight(0xc7dce8,.16);fill.position.set(-4,3,-2);root.add(fill);root.add(fill.target);
   root.userData.propLight = true;
 }
 
@@ -40038,11 +40202,14 @@ function seikoOutfit(id, quiet) {
   if (wardrobe.loading) { wardrobe.next = id; return; }
   if (player.outfit === id && player.hq) { if (!quiet) say("You are already wearing that.", 2); return; }
   wardrobe.loading = true; if (!quiet) say("Changing…", 2);
-  new THREE.GLTFLoader(pplLib.anime ? animeRawManager() : undefined).load("people/" + o.file, g => {
-    wardrobe.loading = false;
-    try { pplPlayer(g); player.outfit = id; if (!quiet) say(o.name + ".", 2.5); } catch (e) { console.warn("[Konto] could not change:", e); }
-    wardrobeNext();
-  }, undefined, () => { wardrobe.loading = false; if (!quiet) say("That outfit is not here.", 2); wardrobeNext(); });
+  const url=(pplLib.dir||"people/")+o.file,key=url+':'+gfx.tier;
+  const adopt=g=>{wardrobe.loading=false;try{pplPlayer(g);player.outfit=id;if(!quiet)say(o.name+".",2.5);}catch(e){console.warn("[Konto] could not change:",e);}wardrobeNext();};
+  if(wardrobe.cache[key]){const tpl=wardrobe.cache[key];adopt({scene:cloneSkinned(tpl.scene),animations:tpl.animations});return;}
+  new THREE.GLTFLoader(pplLib.anime?animeRawManager():undefined).load(url,g=>{
+    // Cache a pristine rig. Meshes share source materials/geometry, so Shigoto
+    // reuses its shader and subdivision caches on subsequent try-ons.
+    wardrobe.cache[key]={scene:cloneSkinned(g.scene),animations:g.animations};adopt(g);
+  },undefined,()=>{wardrobe.loading=false;if(!quiet)say("That outfit is not here.",2);wardrobeNext();});
 }
 // whatever was asked for last wins, once the body before it has loaded
 function wardrobeNext() {
@@ -41474,7 +41641,7 @@ function inTable(room, root, x, z, w, d, hex, top) {
   inAdd(root, 0.08, 0.8, 0.08, x - w / 2 + 0.08, 0.4, z + d / 2 - 0.08, hex); inAdd(root, 0.08, 0.8, 0.08, x + w / 2 - 0.08, 0.4, z + d / 2 - 0.08, hex);
   room.colliders.push({ x0: x - w / 2, x1: x + w / 2, z0: z - d / 2, z1: z + d / 2 });
 }
-function inCyl(root, r, h, x, y, z, hex) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), inMat(hex)); m.position.set(x, y, z); root.add(m); return m; }
+function inCyl(root, r, h, x, y, z, hex) { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 16), inMat(hex)); m.position.set(x, y, z);m.userData.salaryFinish=hex; root.add(m); return m; }
 function inMannequin(root, x, z, shirt, ry) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = ry || 0; root.add(g);
   inAdd(g, 0.35, 0.05, 0.35, 0, 0.03, 0, "#2a2d33"); inAdd(g, 0.06, 0.7, 0.06, 0, 0.4, 0, "#8d939c");
@@ -41832,6 +41999,9 @@ function interiorRoom(s, opts) {
   if (opts.extra) opts.extra(room, root, th);
   try { interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
 
+  if(['dokoto','clothes','plaza','street'].includes(brand)){
+    for(const z of [-3.2,-1.8]){propPut(root,'dining_chair_02',7.15,0,z,-Math.PI/2,{h:.92});room.colliders.push({x0:6.8,x1:7.55,z0:z-.36,z1:z+.36});}
+  }
   SalaryRetail.refurbish(room, root, {add:inAdd,label:inLabel,devices:DEVICES});
   SalaryArt.coat(root);
   root.visible = false;
@@ -41892,7 +42062,7 @@ function inChef(root, x, z, ry, hat) {
   g.userData.armL = mk(-1); g.userData.armR = mk(1);
   return g;
 }
-function inStool(root, x, z, hex) { inCyl(root, 0.22, 0.06, x, 0.58, z, hex || "#8a2a2a"); inCyl(root, 0.05, 0.55, x, 0.28, z, "#8d939c"); inCyl(root, 0.2, 0.04, x, 0.02, z, "#6d7580"); }
+function inStool(root, x, z, hex) { const cushion=inCyl(root, 0.22, 0.06, x, 0.58, z, hex || "#8a2a2a");cushion.userData.salarySurfaceKind="fabric"; inCyl(root, 0.05, 0.55, x, 0.28, z, "#8d939c"); inCyl(root, 0.2, 0.04, x, 0.02, z, "#6d7580"); }
 function inNigiri(parent, x, y, z, topHex, sc) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.scale.setScalar(sc || 1); parent.add(g);
   inAdd(g, 0.1, 0.04, 0.05, 0, 0.02, 0, "#f6f3ea"); inAdd(g, 0.11, 0.02, 0.055, 0, 0.05, 0, topHex);
@@ -43130,6 +43300,20 @@ STORE_SHELVES.street = [{ name: "Streetwear", items: [
   { id: "o_blue", name: "Blue shirt and jeans", price: 7900, outfit: "blue_shirt" },
   { id: "o_denim", name: "Work shirt and jeans", price: 7400, outfit: "village_denim" }] },
   { name: "Everyday", items: [{ id: "socks", name: "Sports socks", price: 490, plain: true }, { id: "umbrella", name: "Clear vinyl umbrella", price: 550 }] }];
+// Additional authored outfit skins, sold through the existing purchase and try-on flow.
+SUIT_IDS.push('custom_suit_black','custom_suit_charcoal','custom_suit_check','custom_waistcoat');
+STORE_SHELVES.clothes[0].items.push(
+ {id:'o_custom_black',name:'NAGI · Midnight suit',price:28900,outfit:'custom_suit_black'},
+ {id:'o_custom_charcoal',name:'NAGI · Slate tailoring',price:25900,outfit:'custom_suit_charcoal'},
+ {id:'o_custom_formal',name:'NAGI · Warm formal suit',price:31900,outfit:'custom_suit_check'},
+ {id:'o_custom_tailored',name:'NAGI · Harbor tailoring',price:27900,outfit:'custom_waistcoat'});
+STORE_SHELVES.street[0].items.push(
+ {id:'o_custom_stripe',name:'THREAD / 09 · Stripe shirt',price:8400,outfit:'custom_blue_shirt'},
+ {id:'o_custom_tee',name:'THREAD / 09 · Weekend denim',price:7200,outfit:'custom_tshirt'},
+ {id:'o_custom_work',name:'THREAD / 09 · Workwear',price:9600,outfit:'custom_village_denim'},
+ {id:'o_custom_jacket',name:'THREAD / 09 · Casual jacket',price:9900,outfit:'custom_track'});
+const CUSTOM_CLOTH_COLORS={custom_suit_black:'#151c22',custom_suit_charcoal:'#454d59',custom_suit_check:'#6c5946',custom_waistcoat:'#355063',custom_blue_shirt:'#453139',custom_tshirt:'#dadce0',custom_village_denim:'#394f76',custom_track:'#354954'};
+for(const shelf of [STORE_SHELVES.clothes[0],STORE_SHELVES.street[0]])for(const it of shelf.items)if(CUSTOM_CLOTH_COLORS[it.outfit])it.shirt=CUSTOM_CLOTH_COLORS[it.outfit];
 [IN_THEME, IN_SKIN, IN_ADS, IN_FONT, IN_PROP_SETS].forEach(T => { if (T && T.clothes && !T.street) T.street = T.clothes; });
 if (typeof IN_ACCENT === "object") IN_ACCENT.street = "#14171b";
 if (INTERIOR_BRANDS.indexOf("street") < 0) INTERIOR_BRANDS.push("street");
@@ -43172,13 +43356,20 @@ function storyWearingSuit() { return SUIT_IDS.indexOf(player.outfit) >= 0 || SUI
 // in the traffic list rather than the car, so it never matched the booking and getting in was taking the car and driving it yourself.)
 function rydePassengerTry(car) {
   if (!car) return false;
-  const u = dispatch.units.find(q => q.svc === "ryde" && q.car === car);
+  // a Ryde you booked, or a taxi you flagged down at the kerb: either way there is a driver and you ride in the back
+  const u = dispatch.units.find(q => (q.svc === "ryde" || q.svc === "taxi") && q.car === car);
   if (!u) return false;
   const dest = story.blips.length ? story.blips[0] : nav.waypoint;
   if (!dest) { say("Driver: “Where to? Put a marker on your map (M) and I'll take you.”", 5); u.t = Math.min(u.t, 10); return true; }
-  rydeBoarded(u);
   const kind = CAR_KINDS[car.kind];
   const dist = Math.hypot(dest.x - player.pos.x, dest.z - player.pos.z);
+  if (u.svc === "taxi") {
+    // the meter: ¥500 for the flag, then ¥100 every 250 m, which is a Tokyo cab
+    const fare = 500 + Math.ceil(Math.max(0, dist * 1.25 - 1000) / 250) * 100;
+    if (purse.yen < fare) { say("Driver: “That's about " + yenText(fare) + ". You don't have it.”", 4); return true; }
+    purse.yen -= fare;
+    notify("Taxi", "Fare", yenText(fare) + " on the meter.", 5);
+  } else rydeBoarded(u);
   const going = dest.label ? dest.label : "the marker on your map";
   u.state = "leaving"; u.t2 = 0; car.hailed = false; car.stopped = false;
   if (player.obj) player.obj.visible = false;

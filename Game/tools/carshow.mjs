@@ -15,7 +15,7 @@ const OUT = path.resolve(process.argv[2] || "carshow");
 fs.mkdirSync(OUT, { recursive: true });
 let chromium;
 try { ({ chromium } = await import("playwright")); }
-catch (e) { ({ chromium } = await import(process.env.PLAYWRIGHT || "playwright")); }
+catch (e) { { const m = await import(process.env.PLAYWRIGHT || "playwright"); chromium = m.chromium || m.default.chromium; } }
 
 const user = JSON.parse(fs.readFileSync(path.join(WEB, "cars/user.json"), "utf8"));
 const page = `<!doctype html><body style="margin:0;background:#20242a;font:13px sans-serif;color:#ddd">

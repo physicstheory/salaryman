@@ -41,11 +41,11 @@ const server = http.createServer((q, r) => {
         part("function pplSource()", "// Seiko's own new body") +
         part("function animeGradient()", "// anime proportions for a person"),
     });
-    const names = process.env.CAST_ONLY ? process.env.CAST_ONLY.split(",") : Object.keys(
-      JSON.parse(fs.readFileSync(root + "/Tools/anime/cast-design.json"))
-        .characters,
-    );
-    const results = await p.evaluate(async (names) => {
+    const castDir=process.env.CAST_DIR||'people';
+    const manifest=JSON.parse(fs.readFileSync(root+'/Web/'+castDir+'/index.json'));
+    const names=process.env.CAST_ONLY?process.env.CAST_ONLY.split(','):[...new Set([...manifest.people.map(e=>e.file),...manifest.outfits.filter(e=>!e.file.startsWith('../')).map(e=>e.file)].map(f=>f.replace(/\.glb$/,'')))];
+    if(process.env.CHAR_ENGINE)await p.addScriptTag({path:root+'/Web/engine/shigoto.js'});
+    const results = await p.evaluate(async ({names,castDir,engine}) => {
       const load = (u) =>
         new Promise((ok, no) => new THREE.GLTFLoader().load(u, ok, null, no));
       const base = await load("/Web/seiko.glb");
@@ -54,13 +54,16 @@ const server = http.createServer((q, r) => {
       window.castModels = {};
       const results = [];
       for (const name of names) {
-        const g = await load("/Web/people/" + name + ".glb");
+        const g = await load("/Web/"+castDir+"/" + name + ".glb");
         const root = g.scene;
         root.updateMatrixWorld(true);
         const bones = {};
         root.traverse((o) => {
           if (o.isBone) bones[o.name] = o;
         });
+        const head=bones.Bip01_Head.getWorldPosition(new THREE.Vector3()),nose=(bones.Bip01_MNose||bones.Bip01_REye||bones.Bip01_Head).getWorldPosition(new THREE.Vector3());let fx=nose.x-head.x,fz=nose.z-head.z;
+        if(Math.hypot(fx,fz)<1e-5){const l=bones.Bip01_L_Thigh.getWorldPosition(new THREE.Vector3()),r=bones.Bip01_R_Thigh.getWorldPosition(new THREE.Vector3());fx=-(l.z-r.z);fz=l.x-r.x;}root.rotation.y=-Math.atan2(fx,fz);root.updateMatrixWorld(true);
+        if(engine){const C=SHIGOTO.characters(THREE,{quality:'high'});C.upgrade(root,{hero:name.startsWith('seiko'),model:name});root.traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material])if(!['hair','glass'].includes(m.userData.charKind)&&(!m.map||!m.normalMap||!m.roughnessMap||!m.aoMap))throw Error(name+' missing PBR maps: '+m.name+' '+JSON.stringify(C.report()));});}
         const target = pplTarget(root, bones),
           clips = {};
         for (const clip of base.animations) {
@@ -118,16 +121,18 @@ const server = http.createServer((q, r) => {
         camera.lookAt(head.x, head.y - 0.04, head.z);
         if(full){camera.position.set(head.x+.28,head.y-.4,head.z+(back?3.9:-3.9));camera.lookAt(head.x,head.y-.7,head.z);}
         renderer.render(scene, camera);
+        if(renderer.info.programs.some(p=>p.diagnostics?.runnable===false))throw Error("Character shader failed compilation");
         return { head: head.toArray(), name };
       };
       return results;
-    }, names);
+    }, {names,castDir,engine:!!process.env.CHAR_ENGINE});
     fs.mkdirSync(output, { recursive: true });
     fs.writeFileSync(
       path.join(output, "rig-validation.json"),
       JSON.stringify(results, null, 2),
     );
     for (const name of (process.env.CAST_ONLY ? names : [
+      "seiko_player",
       "seiko_office",
       "seiko_suit_black",
       "salaryman_04",
@@ -137,7 +142,7 @@ const server = http.createServer((q, r) => {
       "woman_02",
       "seiko_village",
       "seiko_village_denim",
-    ])) {
+    ]).filter(n=>names.includes(n))) {
       console.log(await p.evaluate((n) => portrait(n,true,true), name));
       if(process.env.SCREENSHOTS==="1") await p.screenshot({
         path: path.join(output, name + ".png"),

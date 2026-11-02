@@ -9,3 +9,5 @@ The shipped GLBs and images are local. No generation service, login or internet 
 Characters use natural proportions and photographed skin/clothing maps; they are MakeHuman game assets, not a claim of scanned AAA digital humans. The game retains its Biped animation names, correcting the original motion template into the same forward coordinate frame before retargeting. Low/Medium character texture uploads are capped at 512/1024px, while High/Ultra retain up to 2K. Clothing covers the exported adults; helper and hidden body geometry is excluded by the export masks.
 
 Tests use `PLAYWRIGHT=/path/to/playwright CHROME=/usr/bin/chromium` and the focused scripts in `Game/tools`: `realism-cast-test.cjs`, `vehicle-test.cjs`, `retail-test.cjs`, `readiness-test.cjs`. Screenshots are opt-in with `SCREENSHOTS=1`.
+
+The merged game defaults to Claude's MIT Rocketbox cast in `Web/people/real` and uses Shigoto character shading for both sets. `?cast=makehuman` selects this tool's CC0 cast. Eleven generated wardrobe alternatives are exposed alongside the default outfits, with eight additional purchasable shop skins. See `Docs/QUALITY_BASELINE.md` for the final merged checks.

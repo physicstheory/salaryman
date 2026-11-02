@@ -41,7 +41,7 @@ async function main() {
     const state = () => page.evaluate(() => ({ mode: player.mode, cities: world?.cities.length,
       hq: !!player.hq, outfit: player.outfit, cast: pplLib.ready.length,
       boot: document.getElementById('bootstage').textContent, loading: !document.getElementById('boot').hidden,
-      cutscene: cut.active, placed: player.placed, x: player.pos.x, z: player.pos.z, stationSignNames: signNames.length, signAtlasSize: signCanvas ? [signCanvas.width,signCanvas.height] : null }));
+      cutscene: cut.active, placed: player.placed, x: player.pos.x, z: player.pos.z, phoneOpen:phone.open,phoneBox:(()=>{const r=document.getElementById('phone').getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height};})(),stationSignNames: signNames.length, signAtlasSize: signCanvas ? [signCanvas.width,signCanvas.height] : null }));
     try {
       await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 240000 });
       console.log('PASS title and world generation', JSON.stringify(await state()));
@@ -54,7 +54,8 @@ async function main() {
       console.log('PASS intro skip and playable state');
       await page.waitForFunction(() => window.shigoto?.engine?.physics?.ready, null, {timeout:60000});
       await page.evaluate(async()=>{await SalaryArt.ready;if(SalaryArt.state.failed.length)throw Error('Missing generated art');if(!worldReal())throw Error('Claude realistic-world mode is not enabled');const w=shigoto.engine.weather,wet=w.wetness,puddles=w.puddles;shigoto.weather('rain',true);if(w.state!=='rain')throw Error('Weather integration failed');shigoto.weather('clear',true);w.wetness=wet;w.puddles=puddles;shigoto.engine.surfaces.uniforms.shWet.value=wet;shigoto.engine.surfaces.uniforms.shPuddles.value=puddles;});
-      console.log('PASS Claude engine, physics, weather and generated art loading');
+      await page.evaluate(()=>{const C=SHIGOTO.characters(THREE);if(!pplLib.real||pplLib.dir!=='people/real/')throw Error('Claude realistic cast not selected');let n=0;(player.glb||player.obj).traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material]){if(!m.userData.shigotoChar)throw Error('Character engine shader not applied');if(m.userData.charKind!=='hair'&&(!m.map||!m.normalMap||!m.roughnessMap||!m.aoMap))throw Error('Missing PBR map');n++;}});if(!n)throw Error('No player materials');if(!wardrobe.list.some(e=>e.id==='custom_suit_black'))throw Error('Missing generated wardrobe choices');});
+      console.log('PASS Claude engine, character PBR maps, physics, weather and generated art loading');
 
       await page.evaluate(() => { let n=0;while(cut.active&&n++<20)cutFinish(true);if(home.inside)leaveHome();if(interior.active)interiorLeave(true);cheat('GOTOKONTO');cheat('MIDDAY');loadShow(false);document.getElementById('fade').style.opacity='0'; });
       await page.waitForTimeout(3000);
@@ -64,8 +65,8 @@ async function main() {
       assert.equal(result.hq, true);
       assert.ok(result.signAtlasSize && result.signAtlasSize.every(n=>n<=4096),'Station atlas must fit conservative GPU texture limits');
       if(process.env.SCREENSHOTS==="1") await page.screenshot({ path: path.join(output, 'gameplay.png'), timeout: 240000 });
-      await page.evaluate(() => setPhone(true));
-      await page.waitForFunction(() => { const box = document.getElementById('phone').getBoundingClientRect(); return phone.open && box.top < innerHeight - 100 && box.bottom <= innerHeight; }, null, { timeout: 15000 });
+      await page.evaluate(() => {setPhone(true);setPaused(true,'phone');});
+      await page.waitForFunction(() => { const box = document.getElementById('phone').getBoundingClientRect(); return phone.open && box.top < innerHeight - 100 && box.bottom <= innerHeight; }, null, { timeout: 60000, polling:100 });
       if(process.env.SCREENSHOTS==="1") await page.screenshot({ path: path.join(output, 'phone.png'), animations: 'disabled', timeout: 240000 });
       console.log('PASS phone visible on screen');
       // The 3D scene can stay paused while the native-resolution app canvases are checked.
@@ -139,9 +140,22 @@ async function main() {
       const engine=await page.evaluate(()=>({running:!!shigoto.engine,physicsReady:shigoto.engine.physics.ready,failed:shigoto.failed,realWorld:worldReal(),tier:gfx.tier,post:fx.on,art:SalaryArt.state,capture:reviewCamera}));
       assert.equal(engine.running,true);assert.equal(engine.failed,false);assert.equal(engine.realWorld,true);assert.equal(engine.post,true);assert.equal(engine.capture.insideBuilding,false);
       console.log('PASS high-quality scene render check',JSON.stringify(engine));
+      const retail=await page.evaluate(()=>{
+        const rooms=[...MALL_FLOORS.map((_,i)=>interiorMallLevel({brand:'dokoto'},i)),...['clothes','street','plaza','books','ramen'].map(brand=>interiorRoom({brand}))];
+        for(const r of rooms)if(!r.colliders.every(c=>Object.values(c).every(Number.isFinite)))throw Error('Invalid refurbished collider: '+r.key);
+        const custom=STORE_SHELVES.clothes[0].items.filter(e=>e.outfit?.startsWith('custom_'));
+        if(custom.length!==4||STORE_SHELVES.street[0].items.filter(e=>e.outfit?.startsWith('custom_')).length!==4)throw Error('Missing shop outfit skins');
+        window.reviewRooms=rooms;const it=custom[0];purse.yen=100000;const before=purse.yen;const previous=shops.inside;shops.inside={brand:'clothes'};const cost=outfitPrice(it).cost;outfitBuy(it);shops.inside=previous;
+        if(purse.yen!==before-cost||!story.owned[it.outfit])throw Error('Outfit purchase failed');
+        return {rooms:rooms.map(r=>({key:r.key,items:r.items.length,colliders:r.colliders.length})),purchased:it.outfit};
+      });
+      await page.waitForFunction(()=>player.outfit==='custom_suit_black'&&!wardrobe.loading,null,{timeout:90000});
+      await page.waitForFunction(()=>reviewRooms.filter(r=>['dokoto','clothes','plaza','street'].includes(r.brand)).every(r=>{let n=0;r.group.traverse(o=>{if(o.userData.salaryUpholstered)n++;});return n>=2;}),null,{timeout:30000});
+      const customSkin=await page.evaluate(()=>{let n=0;(player.glb||player.obj).traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material]){if(!m.userData.shigotoChar)throw Error('Generated skin shader missing');if(m.userData.charKind!=='hair'&&(!m.map||!m.normalMap||!m.roughnessMap||!m.aoMap))throw Error('Generated skin PBR map missing: '+m.name+' '+JSON.stringify(SHIGOTO.characters(THREE).report()));n++;}});if(!storyWearingSuit())throw Error('Custom tailoring not recognized as a suit');frameGrab.want=true;present();return n;});
+      console.log('PASS refurbished shop lighting, upholstered chairs, eight additional skins, purchase and rigged custom outfit',JSON.stringify({retail,customSkin}));
       const atlas = await page.evaluate(() => adAtlas().image.toDataURL('image/png'));
       fs.writeFileSync(path.join(output, 'adverts.png'), Buffer.from(atlas.split(',')[1], 'base64'));
-      fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({status:'passed',startedAt,completedAt:new Date().toISOString(),result,engine,appScreens,errors,warnings,warningCounts},null,2));
+      fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({status:'passed',startedAt,completedAt:new Date().toISOString(),result,engine,retail,customSkin,appScreens,errors,warnings,warningCounts},null,2));
       assert.deepEqual(errors, [], 'Uncaught JavaScript errors');
       console.log('PASS gameplay, phone and adverts', JSON.stringify(result));
     } catch (error) {

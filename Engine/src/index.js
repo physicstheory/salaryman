@@ -11,3 +11,7 @@ export { Engine, createEngine, VERSION } from "./core/Engine.js";
 export { PRESETS as WEATHER } from "./env/Weather.js";
 export { PROP_DEFS } from "./world/Props.js";
 export { HostBridge } from "./host/HostBridge.js";
+// Characters: hyper-realistic people (PBR maps, skin scattering, cloth sheen, hair, subdivision). Needs only THREE.
+export { Characters, characters, CHAR_QUALITY, kindOf, bipedNames } from "./characters/Characters.js";
+export { subdivideGeometry } from "./characters/Subdivide.js";
+export { synthesizeMaps } from "./characters/MapSynth.js";

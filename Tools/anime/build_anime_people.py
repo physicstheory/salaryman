@@ -9,8 +9,8 @@ turns each into a small .glb the game's people loader takes as it is:
 
   - the skeleton is renamed to the Biped names the loader and the retargeting already use (J_Bip_C_Hips is
     Bip01_Pelvis, and so on), so every one of Seiko's moves plays on them;
-  - the VRM extension, the face shapes and the normal, rim, outline and specular maps go (the game draws its own
-    cel shading and ink lines), and the colour textures are cut to a size a crowd can afford;
+  - the VRM extension, the face shapes and the rim, outline and specular maps go (the game draws its own cel shading),
+    while the four PBR maps stay (colour, normal, roughness, occlusion), all cut to a size a crowd can afford;
   - a variant is the same character with its clothes and hair recoloured, or with another character's head (that
     is how Seiko gets his suits: his face and hair on the body in the shirt, tie and waistcoat).
 
@@ -26,6 +26,9 @@ import sys
 import numpy as np
 from PIL import Image
 from optimize_people import batch_primitives
+
+# roughness by material kind, for a material that has no roughness map (eyes wet and glossy, cloth matte)
+ROUGH = {"eye": 0.06, "face": 0.58, "body": 0.58, "hair": 0.42, "tops": 0.86, "bottoms": 0.86, "onepiece": 0.86, "shoes": 0.35, "accessory": 0.5}
 
 BONES = {
     "J_Bip_C_Hips": "Bip01_Pelvis", "J_Bip_C_Spine": "Bip01_Spine", "J_Bip_C_Chest": "Bip01_Spine1",
@@ -214,6 +217,22 @@ def build(body_src, head_src, spec):
             rule = spec.get(kind)
             if isinstance(rule, dict): im = recolour(im, rule)
             nm["pbrMetallicRoughness"]["baseColorTexture"] = {"index": out.image(im, iname)}
+        # The other three PBR maps travel with the colour now (the game's character shader samples all four: albedo, normal,
+        # roughness, occlusion), cut to the same size. A material without a roughness map gets its kind's roughness.
+        nm["pbrMetallicRoughness"]["roughnessFactor"] = ROUGH.get(kind, 0.7)
+        def carry(ref, label):
+            img_i = src.j["textures"][ref["index"]]["source"]
+            im2 = src.image(img_i)
+            s2 = tex_size(src.j["images"][img_i].get("name", label))
+            if max(im2.size) > s2: im2 = im2.resize((max(1, im2.size[0] * s2 // max(im2.size)), max(1, im2.size[1] * s2 // max(im2.size))), Image.LANCZOS)
+            return out.image(im2, label + "_" + str(img_i))
+        if m.get("normalTexture"):
+            nm["normalTexture"] = {"index": carry(m["normalTexture"], "normal"), "scale": m["normalTexture"].get("scale", 1)}
+        if m.get("occlusionTexture"):
+            nm["occlusionTexture"] = {"index": carry(m["occlusionTexture"], "occlusion"), "strength": m["occlusionTexture"].get("strength", 1)}
+        if pbr.get("metallicRoughnessTexture"):
+            nm["pbrMetallicRoughness"]["metallicRoughnessTexture"] = {"index": carry(pbr["metallicRoughnessTexture"], "roughness")}
+            nm["pbrMetallicRoughness"]["roughnessFactor"] = pbr.get("roughnessFactor", 1)
         am = m.get("alphaMode", "OPAQUE")
         if am != "OPAQUE":
             nm["alphaMode"] = "MASK"; nm["alphaCutoff"] = 0.5 if kind != "face" else 0.35

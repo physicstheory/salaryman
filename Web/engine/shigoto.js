@@ -21,12 +21,19 @@ var SHIGOTO = (() => {
   // src/index.js
   var index_exports = {};
   __export(index_exports, {
+    CHAR_QUALITY: () => CHAR_QUALITY,
+    Characters: () => Characters,
     Engine: () => Engine,
     HostBridge: () => HostBridge,
     PROP_DEFS: () => PROP_DEFS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
-    createEngine: () => createEngine
+    bipedNames: () => bipedNames,
+    characters: () => characters,
+    createEngine: () => createEngine,
+    kindOf: () => kindOf,
+    subdivideGeometry: () => subdivideGeometry,
+    synthesizeMaps: () => synthesizeMaps
   });
 
   // src/core/Events.js
@@ -6666,12 +6673,12 @@ void shSurface(vec3 wp, vec3 wn) {
       }
       if (signedArea(poly.map((p2) => [p2[0], p2[1]])) < 0) {
       }
-      const rg2 = new T2.BufferGeometry();
-      rg2.setAttribute("position", new T2.Float32BufferAttribute(rp, 3));
-      rg2.setAttribute("normal", new T2.Float32BufferAttribute(rn, 3));
-      rg2.setAttribute("uv", new T2.Float32BufferAttribute(ru, 2));
-      fixWinding(rg2);
-      add("roof", rg2, null, [0.62, 0.62, 0.6]);
+      const rg = new T2.BufferGeometry();
+      rg.setAttribute("position", new T2.Float32BufferAttribute(rp, 3));
+      rg.setAttribute("normal", new T2.Float32BufferAttribute(rn, 3));
+      rg.setAttribute("uv", new T2.Float32BufferAttribute(ru, 2));
+      fixWinding(rg);
+      add("roof", rg, null, [0.62, 0.62, 0.6]);
       const cx = poly.reduce((s2, p2) => s2 + p2[0], 0) / poly.length, cz = poly.reduce((s2, p2) => s2 + p2[1], 0) / poly.length;
       if (b2.roofClutter !== false) {
         const rs = Math.min(...poly.map((p2) => Math.hypot(p2[0] - cx, p2[1] - cz))) * 0.55;
@@ -7295,7 +7302,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // src/core/Engine.js
-  var VERSION = "0.1.0";
+  var VERSION = "0.2.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -7452,5 +7459,659 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       }
     }
   };
+
+  // src/characters/CharacterShader.js
+  var CHAR_COMMON = (
+    /* glsl */
+    `
+uniform vec3 chSSSColor;
+uniform float chSSSWidth, chTrans, chSheen, chSpec2, chWet, chDetail, chDetailScale, chKind, chHasMask, chHairShift, chAllowSkin;
+uniform sampler2D chPores;
+float chSkin = 0.0;
+float chCurv = 0.0;
+float chCloth = 0.0;
+vec3 chHairT = vec3(0.0, 1.0, 0.0);
+vec3 chAlbedo = vec3(0.5);
+float chSkinFromColour(vec3 lin) {
+  vec3 c = pow(max(lin, vec3(0.0)), vec3(1.0 / 2.2)) * 255.0;
+  float y = dot(c, vec3(0.299, 0.587, 0.114));
+  float cb = 128.0 - 0.168736 * c.r - 0.331264 * c.g + 0.5 * c.b;
+  float cr = 128.0 + 0.5 * c.r - 0.418688 * c.g - 0.081312 * c.b;
+  float m = smoothstep(74.0, 80.0, cb) * (1.0 - smoothstep(124.0, 130.0, cb)) * smoothstep(130.0, 136.0, cr) * (1.0 - smoothstep(172.0, 178.0, cr));
+  m *= smoothstep(60.0, 90.0, y) * smoothstep(0.24, 0.32, (c.r - c.b) / max(c.r, 1.0));
+  return m;
+}
+`
+  );
+  var CHAR_BRDF = (
+    /* glsl */
+    `
+float chSheenD(float r, float nh) { float inv = 1.0 / max(r, 0.07); float s2 = max(1.0 - nh * nh, 0.0078125); return (2.0 + inv) * pow(s2, inv * 0.5) / (2.0 * PI); }
+float chSheenV(float nl, float nv) { return clamp(1.0 / (4.0 * (nl + nv - nl * nv)), 0.0, 1.0); }
+void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, const in PhysicalMaterial m, inout ReflectedLight rl) {
+  vec3 N = g.normal, V = g.viewDir, L = dl.direction;
+  float ndl = dot(N, L);
+  float nl = saturate(ndl), nv = saturate(dot(N, V));
+  vec3 C = dl.color;
+  #ifndef PHYSICALLY_CORRECT_LIGHTS
+    C *= PI;
+  #endif
+  // diffuse: Lambert, or for skin a wrapped profile per colour channel (red widest), energy kept
+  vec3 w = chSkin * chSSSWidth * (1.0 + chCurv * 2.0) * vec3(1.0, 0.42, 0.26);
+  vec3 wrapD = saturate((vec3(ndl) + w) / ((1.0 + w) * (1.0 + w)));
+  vec3 tint = mix(vec3(1.0), mix(vec3(1.0), chSSSColor, 0.35), chSkin * (1.0 - nl) * (1.0 - nl));
+  rl.directDiffuse += C * wrapD * tint * BRDF_Diffuse_Lambert(m.diffuseColor);
+  if (chSkin > 0.0) {
+    // light passing through thin flesh (ears, nostrils, fingers) toward the eye
+    vec3 Lt = normalize(L + N * 0.35);
+    float tr = pow(saturate(dot(V, -Lt)), 4.0) * (0.35 + chCurv) * chTrans;
+    rl.directDiffuse += C * tr * chSkin * chSSSColor * m.diffuseColor * RECIPROCAL_PI;
+  }
+  vec3 spec;
+  if (chKind > 1.5) {
+    // hair: Kajiya-Kay, two lobes along the strand direction
+    vec3 H = normalize(L + V);
+    vec3 T1 = normalize(chHairT + N * (chHairShift - 0.12)), T2 = normalize(chHairT + N * (chHairShift + 0.18));
+    float d1 = dot(T1, H), d2 = dot(T2, H);
+    float s1 = pow(sqrt(max(1.0 - d1 * d1, 0.0)), 180.0), s2 = pow(sqrt(max(1.0 - d2 * d2, 0.0)), 36.0);
+    spec = (vec3(0.11) * s1 + chAlbedo * 0.4 * s2) * smoothstep(-0.1, 0.25, ndl);
+    rl.directSpecular += C * spec;
+    return;
+  }
+  spec = BRDF_Specular_GGX(dl, V, N, m.specularColor, m.specularRoughness);
+  if (chSkin > 0.0) {
+    vec3 tight = BRDF_Specular_GGX(dl, V, N, m.specularColor, max(m.specularRoughness * 0.5, 0.08));
+    spec = mix(spec, spec * 0.8 + tight * chSpec2, chSkin);
+  }
+  rl.directSpecular += C * nl * spec;
+  if (chCloth > 0.0) {
+    vec3 H = normalize(L + V);
+    float sh = chSheenD(m.specularRoughness, saturate(dot(N, H))) * chSheenV(nl, nv);
+    rl.directSpecular += C * nl * sh * chCloth * chSheen * mix(vec3(0.04), sqrt(max(chAlbedo, vec3(0.0))), 0.6);
+  }
+}
+#undef RE_Direct
+#define RE_Direct RE_Direct_Char
+`
+  );
+  var CHAR_SURFACE = (
+    /* glsl */
+    `
+  chAlbedo = diffuseColor.rgb;
+  #ifdef USE_ROUGHNESSMAP
+    chSkin = chHasMask > 0.5 ? texelRoughness.b : chSkinFromColour(diffuseColor.rgb);
+  #else
+    chSkin = chSkinFromColour(diffuseColor.rgb);
+  #endif
+  chSkin *= chAllowSkin;
+  if (chKind > 1.5) chSkin = 0.0;
+  roughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.46), chSkin);   // skin is never lacquer: its gloss is the second lobe's job
+  chCloth = (1.0 - chSkin) * smoothstep(0.55, 0.85, roughnessFactor) * step(chKind, 1.5);
+  // rain: water fills the weave (darker cloth, a little darker hair), and everything wet is glossier
+  if (chWet > 0.001) {
+    float soak = chWet * mix(1.0, 0.35, chSkin);
+    diffuseColor.rgb *= mix(1.0, 0.62, soak * (1.0 - chSkin));
+    roughnessFactor = mix(roughnessFactor, min(roughnessFactor, mix(0.3, 0.22, chSkin)), soak);
+  }
+  chCurv = 0.0;
+`
+  );
+  var CHAR_NORMAL = (
+    /* glsl */
+    `
+  #ifdef USE_UV
+  {
+    vec2 duv = fwidth(vUv);
+    #ifdef TANGENTSPACE_NORMALMAP
+      if (chSkin > 0.01 && chDetail > 0.0) {
+        vec2 puv = vUv * chDetailScale;
+        float fade = 1.0 - smoothstep(0.25, 1.0, max(duv.x, duv.y) * chDetailScale * 48.0);
+        if (fade > 0.0) {
+          vec3 pn = texture2D(chPores, puv).xyz * 2.0 - 1.0;
+          pn.xy *= chDetail * chSkin * fade;
+          normal = perturbNormal2Arb(-vViewPosition, normal, normalize(pn), faceDirection);
+        }
+      }
+    #endif
+    vec3 dN = fwidth(normal), dP = fwidth(vViewPosition);
+    chCurv = clamp(length(dN) / max(length(dP), 1e-4) * 0.012, 0.0, 1.0);
+    if (chKind > 1.5) {
+      // strands run along the cards' V direction
+      vec3 dpx = dFdx(-vViewPosition), dpy = dFdy(-vViewPosition);
+      vec2 dux = dFdx(vUv), duy = dFdy(vUv);
+      float det = dux.x * duy.y - duy.x * dux.y;
+      vec3 B = (dpy * dux.x - dpx * duy.x) * sign(det);
+      chHairT = normalize(B - normal * dot(B, normal) + vec3(1e-5));
+    }
+  }
+  #endif
+`
+  );
+
+  // src/characters/Subdivide.js
+  function subdivideGeometry(T2, geo, opts = {}) {
+    if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
+    const pos = geo.attributes.position, nor = geo.attributes.normal;
+    if (!pos || !nor) return null;
+    const crease = Math.cos((opts.creaseDeg ?? 55) * Math.PI / 180);
+    const n0 = pos.count, idx = geo.index.array;
+    const keyOf = (i2) => Math.round(pos.getX(i2) * 1e4) + "," + Math.round(pos.getY(i2) * 1e4) + "," + Math.round(pos.getZ(i2) * 1e4);
+    const groups = /* @__PURE__ */ new Map(), sm = new Float32Array(n0 * 3);
+    for (let i2 = 0; i2 < n0; i2++) {
+      const k2 = keyOf(i2);
+      let g3 = groups.get(k2);
+      if (!g3) groups.set(k2, g3 = [0, 0, 0, []]);
+      g3[0] += nor.getX(i2);
+      g3[1] += nor.getY(i2);
+      g3[2] += nor.getZ(i2);
+      g3[3].push(i2);
+    }
+    groups.forEach((g3) => {
+      const l2 = Math.hypot(g3[0], g3[1], g3[2]) || 1;
+      for (const i2 of g3[3]) {
+        sm[i2 * 3] = g3[0] / l2;
+        sm[i2 * 3 + 1] = g3[1] / l2;
+        sm[i2 * 3 + 2] = g3[2] / l2;
+      }
+    });
+    const names = Object.keys(geo.attributes);
+    const comp = ["getX", "getY", "getZ", "getW"];
+    const norm = (a2) => !a2.normalized ? 1 : a2.array instanceof Uint8Array || a2.array instanceof Int8Array ? 255 : a2.array instanceof Uint16Array || a2.array instanceof Int16Array ? 65535 : 1;
+    const read = (a2) => {
+      const sz = a2.itemSize, out2 = new Float32Array(a2.count * sz), k2 = 1 / norm(a2);
+      for (let i2 = 0; i2 < a2.count; i2++) for (let c2 = 0; c2 < sz; c2++) out2[i2 * sz + c2] = a2[comp[c2]](i2) * k2;
+      return out2;
+    };
+    const edges = /* @__PURE__ */ new Map();
+    const extra = [];
+    const tri = [];
+    const mid = (a2, b2) => {
+      const k2 = a2 < b2 ? a2 * n0 + b2 : b2 * n0 + a2;
+      let v2 = edges.get(k2);
+      if (v2 === void 0) {
+        v2 = n0 + extra.length / 2;
+        extra.push(a2, b2);
+        edges.set(k2, v2);
+      }
+      return v2;
+    };
+    for (let t2 = 0; t2 < idx.length; t2 += 3) {
+      const a2 = idx[t2], b2 = idx[t2 + 1], c2 = idx[t2 + 2];
+      const ab = mid(a2, b2), bc = mid(b2, c2), ca = mid(c2, a2);
+      tri.push(a2, ab, ca, ab, b2, bc, ca, bc, c2, ab, bc, ca);
+    }
+    const ne = extra.length / 2, n1 = n0 + ne;
+    const out = {};
+    for (const name of names) {
+      if (name === "skinIndex" || name === "skinWeight") continue;
+      const src = geo.attributes[name], sz = src.itemSize, A2 = read(src), arr = new Float32Array(n1 * sz);
+      arr.set(A2);
+      for (let e2 = 0; e2 < ne; e2++) {
+        const a2 = extra[e2 * 2], b2 = extra[e2 * 2 + 1], o2 = (n0 + e2) * sz;
+        if (name === "position") {
+          const Pa = [A2[a2 * 3], A2[a2 * 3 + 1], A2[a2 * 3 + 2]], Pb = [A2[b2 * 3], A2[b2 * 3 + 1], A2[b2 * 3 + 2]];
+          const Na = [sm[a2 * 3], sm[a2 * 3 + 1], sm[a2 * 3 + 2]], Nb = [sm[b2 * 3], sm[b2 * 3 + 1], sm[b2 * 3 + 2]];
+          const D2 = [Pb[0] - Pa[0], Pb[1] - Pa[1], Pb[2] - Pa[2]];
+          const dot = (u2, v2) => u2[0] * v2[0] + u2[1] * v2[1] + u2[2] * v2[2];
+          const curved = dot(Na, Nb) > crease, wa = curved ? dot(D2, Na) : 0, wb = curved ? -dot(D2, Nb) : 0;
+          for (let c2 = 0; c2 < 3; c2++) arr[o2 + c2] = (Pa[c2] + Pb[c2]) * 0.5 - (wa * Na[c2] + wb * Nb[c2]) * 0.125;
+        } else {
+          for (let c2 = 0; c2 < sz; c2++) arr[o2 + c2] = (A2[a2 * sz + c2] + A2[b2 * sz + c2]) / 2;
+          if (name === "normal" || name === "tangent") {
+            const l2 = Math.hypot(arr[o2], arr[o2 + 1], arr[o2 + 2]) || 1;
+            arr[o2] /= l2;
+            arr[o2 + 1] /= l2;
+            arr[o2 + 2] /= l2;
+          }
+        }
+      }
+      out[name] = new T2.BufferAttribute(arr, sz);
+    }
+    if (geo.attributes.uv2 && geo.attributes.uv2 === geo.attributes.uv) out.uv2 = out.uv;
+    const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
+    if (si && sw) {
+      const SI2 = read(si), SW = read(sw);
+      const I2 = new Uint16Array(n1 * 4), W2 = new Float32Array(n1 * 4);
+      for (let i2 = 0; i2 < n0 * 4; i2++) {
+        I2[i2] = SI2[i2];
+        W2[i2] = SW[i2];
+      }
+      const acc = /* @__PURE__ */ new Map();
+      for (let e2 = 0; e2 < ne; e2++) {
+        const a2 = extra[e2 * 2], b2 = extra[e2 * 2 + 1], o2 = (n0 + e2) * 4;
+        acc.clear();
+        for (const v2 of [a2, b2]) for (let c2 = 0; c2 < 4; c2++) {
+          const w2 = SW[v2 * 4 + c2];
+          if (w2 > 0) {
+            const j2 = SI2[v2 * 4 + c2];
+            acc.set(j2, (acc.get(j2) || 0) + w2 * 0.5);
+          }
+        }
+        const top = [...acc.entries()].sort((p2, q2) => q2[1] - p2[1]).slice(0, 4);
+        const sum = top.reduce((s2, p2) => s2 + p2[1], 0) || 1;
+        for (let c2 = 0; c2 < 4; c2++) {
+          I2[o2 + c2] = top[c2] ? top[c2][0] : 0;
+          W2[o2 + c2] = top[c2] ? top[c2][1] / sum : 0;
+        }
+      }
+      out.skinIndex = new T2.BufferAttribute(I2, 4);
+      out.skinWeight = new T2.BufferAttribute(W2, 4);
+    }
+    const g2 = new T2.BufferGeometry();
+    for (const name of names) if (out[name]) g2.setAttribute(name, out[name]);
+    g2.setIndex(new T2.BufferAttribute(n1 > 65535 ? new Uint32Array(tri) : new Uint16Array(tri), 1));
+    for (const gr of geo.groups) g2.addGroup(gr.start * 4, gr.count * 4, gr.materialIndex);
+    g2.boundingBox = geo.boundingBox ? geo.boundingBox.clone() : null;
+    g2.boundingSphere = geo.boundingSphere ? geo.boundingSphere.clone() : null;
+    g2.userData = Object.assign({}, geo.userData, { shigotoSubdiv: (geo.userData.shigotoSubdiv || 0) + 1 });
+    return g2;
+  }
+
+  // src/characters/MapSynth.js
+  var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
+  var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
+  function canvasOf(img, max) {
+    const w0 = img.naturalWidth || img.videoWidth || img.width, h0 = img.naturalHeight || img.videoHeight || img.height;
+    if (!w0 || !h0) return null;
+    const k2 = Math.min(1, max / Math.max(w0, h0)), w2 = Math.max(4, Math.round(w0 * k2)), h2 = Math.max(4, Math.round(h0 * k2));
+    const c2 = document.createElement("canvas");
+    c2.width = w2;
+    c2.height = h2;
+    const g2 = c2.getContext("2d", { willReadFrequently: true });
+    g2.drawImage(img, 0, 0, w2, h2);
+    return { c: c2, g: g2, w: w2, h: h2, d: g2.getImageData(0, 0, w2, h2) };
+  }
+  function boxBlur(src, w2, h2, r2) {
+    const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+    for (let y2 = 0; y2 < h2; y2++) {
+      let s2 = 0;
+      for (let x2 = -r2; x2 <= r2; x2++) s2 += src[y2 * w2 + (x2 + w2) % w2];
+      for (let x2 = 0; x2 < w2; x2++) {
+        tmp[y2 * w2 + x2] = s2 / (2 * r2 + 1);
+        s2 += src[y2 * w2 + (x2 + r2 + 1) % w2] - src[y2 * w2 + (x2 - r2 + w2) % w2];
+      }
+    }
+    for (let x2 = 0; x2 < w2; x2++) {
+      let s2 = 0;
+      for (let y2 = -r2; y2 <= r2; y2++) s2 += tmp[(y2 + h2) % h2 * w2 + x2];
+      for (let y2 = 0; y2 < h2; y2++) {
+        out[y2 * w2 + x2] = s2 / (2 * r2 + 1);
+        s2 += tmp[(y2 + r2 + 1) % h2 * w2 + x2] - tmp[(y2 - r2 + h2) % h2 * w2 + x2];
+      }
+    }
+    return out;
+  }
+  function skinMaskValue(r2, g2, b2) {
+    const y2 = 0.299 * r2 + 0.587 * g2 + 0.114 * b2, cb = 128 - 0.168736 * r2 - 0.331264 * g2 + 0.5 * b2, cr = 128 + 0.5 * r2 - 0.418688 * g2 - 0.081312 * b2;
+    const soft = (v2, lo, hi, e2) => Math.min(1, Math.max(0, (v2 - lo) / e2 + 1)) * Math.min(1, Math.max(0, (hi - v2) / e2 + 1));
+    let m2 = soft(cb, 80, 124, 6) * soft(cr, 136, 172, 6) * soft(y2, 85, 255, 20);
+    m2 *= Math.min(1, Math.max(0, (r2 - g2) / 12)) * Math.min(1, Math.max(0, ((r2 - b2) / Math.max(r2, 1) - 0.27) / 0.08));
+    return m2;
+  }
+  function synthesizeMaps(T2, mat, kind, opts = {}) {
+    const img = mat.map && mat.map.image;
+    if (!img) return {};
+    const cv = canvasOf(img, opts.size || 1024);
+    if (!cv) return {};
+    const { w: w2, h: h2, d: d2 } = cv, px = d2.data, n2 = w2 * h2;
+    const lum = new Float32Array(n2);
+    for (let i2 = 0; i2 < n2; i2++) lum[i2] = (0.2126 * px[i2 * 4] + 0.7152 * px[i2 * 4 + 1] + 0.0722 * px[i2 * 4 + 2]) / 255;
+    const low = boxBlur(lum, w2, h2, Math.max(2, Math.round(w2 / 128)));
+    const hgt = new Float32Array(n2);
+    for (let i2 = 0; i2 < n2; i2++) hgt[i2] = lum[i2] - low[i2];
+    const res = {};
+    const flipY = mat.map.flipY;
+    const mk = (data) => {
+      const c2 = document.createElement("canvas");
+      c2.width = w2;
+      c2.height = h2;
+      c2.getContext("2d").putImageData(new ImageData(data, w2, h2), 0, 0);
+      const t2 = new T2.CanvasTexture(c2);
+      t2.flipY = flipY;
+      t2.wrapS = mat.map.wrapS;
+      t2.wrapT = mat.map.wrapT;
+      t2.encoding = T2.LinearEncoding;
+      t2.anisotropy = 4;
+      t2.needsUpdate = true;
+      t2.userData = t2.userData || {};
+      t2.userData.shigotoSynth = true;
+      return t2;
+    };
+    if (!mat.normalMap) {
+      const s2 = (KIND_DEPTH[kind] ?? 1.6) * (opts.normalStrength || 1) * (w2 / 512);
+      const nd = new Uint8ClampedArray(n2 * 4);
+      for (let y2 = 0; y2 < h2; y2++) for (let x2 = 0; x2 < w2; x2++) {
+        const at = (dx, dy) => hgt[(y2 + dy + h2) % h2 * w2 + (x2 + dx + w2) % w2];
+        const gx = at(1, -1) + 2 * at(1, 0) + at(1, 1) - (at(-1, -1) + 2 * at(-1, 0) + at(-1, 1));
+        const gy = at(-1, 1) + 2 * at(0, 1) + at(1, 1) - (at(-1, -1) + 2 * at(0, -1) + at(1, -1));
+        let nx = -gx * s2, ny = (flipY ? gy : -gy) * s2, nz = 1;
+        const l2 = Math.hypot(nx, ny, nz);
+        const o2 = (y2 * w2 + x2) * 4;
+        nd[o2] = (nx / l2 * 0.5 + 0.5) * 255;
+        nd[o2 + 1] = (ny / l2 * 0.5 + 0.5) * 255;
+        nd[o2 + 2] = (nz / l2 * 0.5 + 0.5) * 255;
+        nd[o2 + 3] = 255;
+      }
+      res.normal = mk(nd);
+    }
+    if (!mat.roughnessMap || !mat.aoMap) {
+      const base = KIND_ROUGH[kind] ?? 0.7;
+      const cav = boxBlur(hgt, w2, h2, 3);
+      const od = new Uint8ClampedArray(n2 * 4);
+      for (let i2 = 0; i2 < n2; i2++) {
+        const c2 = cav[i2] - hgt[i2];
+        const ao = Math.min(1, Math.max(0.25, 1 - c2 * 6));
+        const r2 = Math.min(1, Math.max(0.05, base + c2 * 1.5 - Math.max(0, hgt[i2]) * 0.6));
+        const sk = kind === "hair" || kind === "eye" || kind === "glass" ? 0 : skinMaskValue(px[i2 * 4], px[i2 * 4 + 1], px[i2 * 4 + 2]);
+        od[i2 * 4] = ao * 255;
+        od[i2 * 4 + 1] = r2 * 255;
+        od[i2 * 4 + 2] = sk * 255;
+        od[i2 * 4 + 3] = 255;
+      }
+      res.orm = mk(od);
+    }
+    return res;
+  }
+
+  // src/characters/Characters.js
+  var CHAR_QUALITY = {
+    low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
+    medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
+    high: { subdiv: 0, heroSubdiv: 1, pores: 1, synth: 1, synthSize: 1024 },
+    ultra: { subdiv: 1, heroSubdiv: 1, pores: 1, synth: 1, synthSize: 1024 }
+  };
+  var KINDS = [
+    [/opacity|hair|lash|brow|beard|moustache|short0|long0|bob0|ponytail|braid|afro/i, "hair"],
+    [/glass|lens/i, "glass"],
+    [/eye(?!lash|line|brow)|cornea|iris|sclera/i, "eye"],
+    [/mouth|lip|teeth|tongue/i, "lip"],
+    [/_head\b|head|face/i, "head"],
+    [/skin|body|ears|fingernails/i, "skin"],
+    [/shoe|boot|leather|belt/i, "leather"],
+    [/cloth|top|bottom|shirt|suit|jacket|skirt|pant|trouser|dress|coat/i, "cloth"]
+  ];
+  function kindOf(mat) {
+    const ex = mat.userData && mat.userData.shigoto;
+    if (ex && ex.kind) return ex.kind === "skin-atlas" ? "skin" : ex.kind;
+    for (const [re, k2] of KINDS) if (re.test(mat.name || "")) return k2;
+    return "other";
+  }
+  function poreTexture(T2, size = 256) {
+    const n2 = size * size, h2 = new Float32Array(n2);
+    let seed = 1337;
+    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    for (let i2 = 0; i2 < n2; i2++) h2[i2] = rnd() * 0.25;
+    for (let p2 = 0; p2 < size * size / 18; p2++) {
+      const cx = rnd() * size, cy = rnd() * size, r2 = 0.8 + rnd() * 1.6, dep = 0.6 + rnd() * 0.8;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
+        const x2 = (Math.floor(cx) + dx + size) % size, y2 = (Math.floor(cy) + dy + size) % size;
+        const d2 = Math.hypot(Math.floor(cx) + dx - cx, Math.floor(cy) + dy - cy) / r2;
+        if (d2 < 1) h2[y2 * size + x2] -= dep * (1 - d2 * d2);
+      }
+    }
+    for (let y2 = 0; y2 < size; y2++) for (let x2 = 0; x2 < size; x2++) {
+      const u2 = x2 / size * Math.PI * 2, v2 = y2 / size * Math.PI * 2;
+      h2[y2 * size + x2] += 0.12 * Math.sin(u2 * 23 + v2 * 17) * Math.sin(u2 * 11 - v2 * 29);
+    }
+    const data = new Uint8Array(n2 * 4);
+    for (let y2 = 0; y2 < size; y2++) for (let x2 = 0; x2 < size; x2++) {
+      const at = (dx, dy) => h2[(y2 + dy + size) % size * size + (x2 + dx + size) % size];
+      const gx = at(1, 0) - at(-1, 0), gy = at(0, 1) - at(0, -1);
+      const nx = -gx * 0.9, ny = -gy * 0.9, l2 = Math.hypot(nx, ny, 1), o2 = (y2 * size + x2) * 4;
+      data[o2] = (nx / l2 * 0.5 + 0.5) * 255;
+      data[o2 + 1] = (ny / l2 * 0.5 + 0.5) * 255;
+      data[o2 + 2] = (1 / l2 * 0.5 + 0.5) * 255;
+      data[o2 + 3] = 255;
+    }
+    const t2 = new T2.DataTexture(data, size, size, T2.RGBAFormat);
+    t2.wrapS = t2.wrapT = T2.RepeatWrapping;
+    t2.magFilter = T2.LinearFilter;
+    t2.minFilter = T2.LinearMipmapLinearFilter;
+    t2.generateMipmaps = true;
+    t2.anisotropy = 4;
+    t2.needsUpdate = true;
+    return t2;
+  }
+  var Characters = class {
+    constructor(THREE, opts = {}) {
+      this.T = THREE;
+      this.quality = opts.quality || "high";
+      this.msaa = !!opts.msaa;
+      this.uniforms = {
+        chSSSColor: { value: new THREE.Color(1, 0.32, 0.2) },
+        chSSSWidth: { value: 0.45 },
+        chTrans: { value: 0.55 },
+        chSheen: { value: 1 },
+        chSpec2: { value: 0.2 },
+        chWet: { value: 0 },
+        chDetail: { value: (CHAR_QUALITY[this.quality] || CHAR_QUALITY.high).pores ? 0.55 : 0 },
+        chPores: { value: null }
+      };
+      this.cache = /* @__PURE__ */ new Map();
+      this.geoCache = /* @__PURE__ */ new WeakMap();
+      this.missing = /* @__PURE__ */ new Map();
+      this.synthesised = 0;
+      this.upgraded = 0;
+    }
+    setQuality(q2) {
+      if (CHAR_QUALITY[q2]) {
+        this.quality = q2;
+        this.uniforms.chDetail.value = CHAR_QUALITY[q2].pores ? 0.55 : 0;
+      }
+    }
+    setWet(v2) {
+      this.uniforms.chWet.value = Math.max(0, Math.min(1, v2 || 0));
+    }
+    _pores() {
+      return this.uniforms.chPores.value || (this.uniforms.chPores.value = poreTexture(this.T));
+    }
+    // the character material for one source material
+    material(src, opts = {}) {
+      const T2 = this.T, Q2 = CHAR_QUALITY[opts.quality || this.quality] || CHAR_QUALITY.high;
+      if (!src || src.isShaderMaterial || src.userData.shigotoChar) return src;
+      const key = src.uuid + ":" + (opts.skinned ? 1 : 0) + ":" + (opts.quality || this.quality);
+      if (this.cache.has(key)) return this.cache.get(key);
+      const kind = kindOf(src);
+      const m2 = new T2.MeshStandardMaterial({
+        name: src.name,
+        color: src.color ? src.color.clone() : 16777215,
+        map: src.map || null,
+        normalMap: src.normalMap || null,
+        normalScale: src.normalScale ? src.normalScale.clone() : new T2.Vector2(1, 1),
+        roughness: 1,
+        roughnessMap: src.roughnessMap || null,
+        metalness: 0,
+        aoMap: src.aoMap || null,
+        aoMapIntensity: src.aoMapIntensity ?? 1,
+        envMap: src.envMap || null,
+        emissive: src.emissive ? src.emissive.clone() : 0,
+        emissiveMap: src.emissiveMap || null,
+        alphaMap: src.alphaMap || null,
+        side: src.side,
+        vertexColors: !!src.vertexColors,
+        transparent: false,
+        opacity: 1,
+        alphaTest: 0
+      });
+      if (opts.skinned) m2.skinning = true;
+      const given = src.roughness !== void 0 && src.roughness < 0.89 ? src.roughness : null;
+      const kindRough = { skin: 0.55, head: 0.55, lip: 0.32, eye: 0.06, hair: 0.45, leather: 0.36, cloth: 0.86, glass: 0.06, other: 0.7 }[kind];
+      if (!m2.roughnessMap) m2.roughness = given ?? kindRough;
+      if (kind === "hair" || src.alphaTest > 0 || src.transparent && kind !== "glass") {
+        m2.alphaTest = Math.max(0.35, src.alphaTest || 0.42);
+        m2.side = T2.DoubleSide;
+        if (this.msaa && "alphaToCoverage" in m2) {
+          m2.alphaToCoverage = true;
+          m2.alphaTest = 0.2;
+        }
+      }
+      if (kind === "glass") {
+        m2.transparent = true;
+        m2.opacity = Math.min(src.opacity ?? 0.3, 0.35);
+        m2.roughness = 0.05;
+        m2.depthWrite = false;
+      }
+      const lacks = ["map", "normalMap", "roughnessMap", "aoMap"].filter((k2) => !m2[k2]);
+      if (lacks.length && kind !== "glass" && kind !== "hair") {
+        this.missing.set((opts.model || "?") + ": " + (src.name || "?"), lacks);
+        if (Q2.synth && m2.map && m2.map.image) {
+          try {
+            const s2 = synthesizeMaps(T2, m2, kind, { size: Q2.synthSize });
+            if (s2.normal) {
+              m2.normalMap = s2.normal;
+              m2.normalScale.set(1, 1);
+            }
+            if (s2.orm) {
+              if (!m2.roughnessMap) {
+                m2.roughnessMap = s2.orm;
+                m2.roughness = 1;
+              }
+              if (!m2.aoMap) m2.aoMap = s2.orm;
+              m2.userData.synthMask = m2.roughnessMap === s2.orm;
+            }
+            this.synthesised++;
+          } catch (e2) {
+          }
+        }
+      }
+      const hasMask = !!(m2.roughnessMap && (src.userData.shigoto && /skinMask/.test(src.userData.shigoto.orm || "") || m2.userData.synthMask));
+      const U2 = Object.assign({}, this.uniforms, {
+        chKind: { value: kind === "hair" ? 2 : 0 },
+        chAllowSkin: { value: ["cloth", "leather", "hair", "glass", "eye"].includes(kind) ? 0 : 1 },
+        chHasMask: { value: hasMask ? 1 : 0 },
+        chDetailScale: { value: kind === "head" ? 26 : 40 },
+        chHairShift: { value: 0 }
+      });
+      if (Q2.pores) this._pores();
+      if (!this.uniforms.chPores.value) this._pores();
+      m2.onBeforeCompile = (sh) => {
+        Object.assign(sh.uniforms, U2);
+        sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\n" + CHAR_COMMON).replace("#include <lights_physical_pars_fragment>", "#include <lights_physical_pars_fragment>\n" + CHAR_BRDF).replace("#include <roughnessmap_fragment>", "#include <roughnessmap_fragment>\n" + CHAR_SURFACE).replace("#include <normal_fragment_maps>", "#include <normal_fragment_maps>\n" + CHAR_NORMAL);
+      };
+      m2.customProgramCacheKey = () => "shigoto-char-v1-" + kind + (hasMask ? "-m" : "");
+      m2.extensions = Object.assign({}, m2.extensions, { derivatives: true });
+      m2.envMapIntensity = kind === "eye" ? 1 : kind === "hair" ? 0.5 : 0.75;
+      m2.userData = { shigotoChar: true, charKind: kind, sss: kind === "skin" || kind === "head", pbrDone: true, pbr: "dielectric", shDry: true };
+      const unresolved = ["map", "normalMap", "roughnessMap", "aoMap"].filter((k2) => !m2[k2]);
+      const reportKey = (opts.model || "?") + ": " + (src.name || "?");
+      if (kind !== "hair" && kind !== "glass" && unresolved.length) this.missing.set(reportKey, unresolved);
+      else this.missing.delete(reportKey);
+      this.cache.set(key, m2);
+      return m2;
+    }
+    // Upgrade every mesh under root. opts: quality, hero (a close-up character: Seiko, the story's people), model (a name for the report)
+    upgrade(root, opts = {}) {
+      if (!root) return root;
+      const T2 = this.T, q2 = opts.quality || this.quality, Q2 = CHAR_QUALITY[q2] || CHAR_QUALITY.high;
+      const level = opts.hero ? Q2.heroSubdiv : Q2.subdiv;
+      root.traverse((o2) => {
+        if (!o2.isMesh || !o2.material) return;
+        const sk = !!o2.isSkinnedMesh;
+        const mats = Array.isArray(o2.material) ? o2.material : [o2.material];
+        if (o2.geometry && o2.geometry.attributes.uv && !o2.geometry.attributes.uv2 && mats.some((m2) => m2 && m2.aoMap)) o2.geometry.setAttribute("uv2", o2.geometry.attributes.uv);
+        const out = mats.map((m2) => this.material(m2, { skinned: sk, quality: q2, model: opts.model }));
+        o2.material = Array.isArray(o2.material) ? out : out[0];
+        if (o2.geometry?.attributes.uv && !o2.geometry.attributes.uv2 && out.some((m2) => m2?.aoMap)) o2.geometry.setAttribute("uv2", o2.geometry.attributes.uv);
+        o2.userData.shDry = true;
+        if (level > 0 && sk && o2.geometry.index && o2.geometry.index.count / 3 * 4 <= 8e4 && !out.some((m2) => m2.alphaTest > 0 || m2.transparent) && !(o2.geometry.userData && o2.geometry.userData.shigotoSubdiv)) {
+          let g2 = this.geoCache.get(o2.geometry);
+          if (g2 === void 0) {
+            try {
+              g2 = subdivideGeometry(T2, o2.geometry);
+            } catch (e2) {
+              g2 = null;
+            }
+            this.geoCache.set(o2.geometry, g2);
+          }
+          if (g2) {
+            o2.geometry = g2;
+            if (!g2.attributes.uv2 && g2.attributes.uv && out.some((m2) => m2.aoMap)) g2.setAttribute("uv2", g2.attributes.uv);
+          }
+        }
+      });
+      this.upgraded++;
+      root.userData.shigotoCharacter = { quality: q2, hero: !!opts.hero };
+      return root;
+    }
+    report() {
+      const kinds = {};
+      this.cache.forEach((m2) => {
+        kinds[m2.userData.charKind] = (kinds[m2.userData.charKind] || 0) + 1;
+      });
+      return {
+        characters: this.upgraded,
+        materials: this.cache.size,
+        kinds,
+        synthesised: this.synthesised,
+        missing: [...this.missing.entries()].map(([k2, v2]) => k2 + " (" + v2.join(", ") + ")")
+      };
+    }
+  };
+  var _instances = /* @__PURE__ */ new WeakMap();
+  function characters(THREE, opts) {
+    let c2 = _instances.get(THREE);
+    if (!c2) {
+      c2 = new Characters(THREE, opts);
+      _instances.set(THREE, c2);
+    } else if (opts) {
+      if (opts.quality) c2.setQuality(opts.quality);
+      if (opts.msaa !== void 0) c2.msaa = opts.msaa;
+    }
+    return c2;
+  }
+  var BIPED = {
+    hips: "Bip01_Pelvis",
+    pelvis: "Bip01_Pelvis",
+    spine: "Bip01_Spine",
+    spine1: "Bip01_Spine0",
+    spine2: "Bip01_Spine1",
+    chest: "Bip01_Spine1",
+    upperchest: "Bip01_Spine2",
+    neck: "Bip01_Neck",
+    head: "Bip01_Head",
+    leftshoulder: "Bip01_L_Clavicle",
+    leftarm: "Bip01_L_UpperArm",
+    leftupperarm: "Bip01_L_UpperArm",
+    leftforearm: "Bip01_L_Forearm",
+    leftlowerarm: "Bip01_L_Forearm",
+    lefthand: "Bip01_L_Hand",
+    rightshoulder: "Bip01_R_Clavicle",
+    rightarm: "Bip01_R_UpperArm",
+    rightupperarm: "Bip01_R_UpperArm",
+    rightforearm: "Bip01_R_Forearm",
+    rightlowerarm: "Bip01_R_Forearm",
+    righthand: "Bip01_R_Hand",
+    leftupleg: "Bip01_L_Thigh",
+    leftupperleg: "Bip01_L_Thigh",
+    leftleg: "Bip01_L_Calf",
+    leftlowerleg: "Bip01_L_Calf",
+    leftfoot: "Bip01_L_Foot",
+    lefttoebase: "Bip01_L_Toe0",
+    lefttoes: "Bip01_L_Toe0",
+    rightupleg: "Bip01_R_Thigh",
+    rightupperleg: "Bip01_R_Thigh",
+    rightleg: "Bip01_R_Calf",
+    rightlowerleg: "Bip01_R_Calf",
+    rightfoot: "Bip01_R_Foot",
+    righttoebase: "Bip01_R_Toe0",
+    righttoes: "Bip01_R_Toe0"
+  };
+  function bipedNames(root) {
+    let n2 = 0, has = false;
+    root.traverse((o2) => {
+      if (o2.isBone && /^Bip01_/.test(o2.name)) has = true;
+    });
+    if (has) return 0;
+    root.traverse((o2) => {
+      if (!o2.isBone) return;
+      const k2 = o2.name.replace(/^.*[:|]/, "").replace(/^(J_Bip_C_|J_Bip_L_|J_Bip_R_)/, (m2) => m2 === "J_Bip_L_" ? "left" : m2 === "J_Bip_R_" ? "right" : "").replace(/[_\s.-]/g, "").toLowerCase().replace(/^l(?=(shoulder|upperarm|lowerarm|hand|upperleg|lowerleg|foot|toes)$)/, "left").replace(/^r(?=(shoulder|upperarm|lowerarm|hand|upperleg|lowerleg|foot|toes)$)/, "right");
+      if (BIPED[k2]) {
+        o2.userData.srcName = o2.name;
+        o2.name = BIPED[k2];
+        n2++;
+      }
+    });
+    return n2;
+  }
   return __toCommonJS(index_exports);
 })();
