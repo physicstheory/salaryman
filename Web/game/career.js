@@ -415,6 +415,8 @@
     story.m = m;
     if (m >= 3 && !s.flat) C.commute.assignFlat(null, true);
     if (m >= 5) { s.promoted = true; if (!s.car) C.commute.giveCar(null, true); }
+    if (drive.train && typeof leaveTrain === "function") leaveTrain();
+    if (railTrip) railTrip.on = false;
     if (interior.active) interiorLeave(true);
     const f = s.flat;
     if (f) { const d = f.door; stepOutFrom(d, f.yaw); }
