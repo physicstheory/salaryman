@@ -27,12 +27,12 @@ export const CHAR_QUALITY = {
 
 // material kind from what a model calls it (Rocketbox, VRoid, Mixamo, Tripo and Meshy names), or from the build's extras
 const KINDS = [
-  [/opacity|hair|lash|brow|beard|moustache/i, "hair"],
+  [/opacity|hair|lash|brow|beard|moustache|short0|long0|bob0|ponytail|braid|afro/i, "hair"],
   [/glass|lens/i, "glass"],
   [/eye(?!lash|line|brow)|cornea|iris|sclera/i, "eye"],
   [/mouth|lip|teeth|tongue/i, "lip"],
   [/_head\b|head|face/i, "head"],
-  [/skin|body/i, "skin"],
+  [/skin|body|ears|fingernails/i, "skin"],
   [/shoe|boot|leather|belt/i, "leather"],
   [/cloth|top|bottom|shirt|suit|jacket|skirt|pant|trouser|dress|coat/i, "cloth"]
 ];
@@ -86,7 +86,7 @@ export class Characters {
       chSheen: { value: 1.0 },
       chSpec2: { value: 0.2 },
       chWet: { value: 0 },
-      chDetail: { value: 0.55 },
+      chDetail: { value: (CHAR_QUALITY[this.quality]||CHAR_QUALITY.high).pores?.55:0 },
       chPores: { value: null }
     };
     this.cache = new Map();         // source material -> character material
@@ -96,7 +96,7 @@ export class Characters {
     this.upgraded = 0;
   }
 
-  setQuality(q) { if (CHAR_QUALITY[q]) this.quality = q; }
+  setQuality(q) { if (CHAR_QUALITY[q]) {this.quality=q;this.uniforms.chDetail.value=CHAR_QUALITY[q].pores?.55:0;} }
   setWet(v) { this.uniforms.chWet.value = Math.max(0, Math.min(1, v || 0)); }
 
   _pores() { return this.uniforms.chPores.value || (this.uniforms.chPores.value = poreTexture(this.T)); }
@@ -113,6 +113,7 @@ export class Characters {
       normalMap: src.normalMap || null, normalScale: src.normalScale ? src.normalScale.clone() : new T.Vector2(1, 1),
       roughness: 1, roughnessMap: src.roughnessMap || null, metalness: 0,
       aoMap: src.aoMap || null, aoMapIntensity: src.aoMapIntensity ?? 1,
+      envMap: src.envMap || null,
       emissive: src.emissive ? src.emissive.clone() : 0x000000, emissiveMap: src.emissiveMap || null,
       alphaMap: src.alphaMap || null, side: src.side, vertexColors: !!src.vertexColors,
       transparent: false, opacity: 1, alphaTest: 0
@@ -137,7 +138,7 @@ export class Characters {
         try {
           const s = synthesizeMaps(T, m, kind, { size: Q.synthSize });
           if (s.normal) { m.normalMap = s.normal; m.normalScale.set(1, 1); }    // built in UV space already
-          if (s.orm) { if (!m.roughnessMap) { m.roughnessMap = s.orm; m.roughness = 1; } if (!m.aoMap) m.aoMap = s.orm; m.userData.synthMask = true; }
+          if (s.orm) { if (!m.roughnessMap) { m.roughnessMap = s.orm; m.roughness = 1; } if (!m.aoMap) m.aoMap = s.orm; m.userData.synthMask = m.roughnessMap===s.orm; }
           this.synthesised++;
         } catch (e) { /* a texture we cannot read (cross-origin): the shader works without */ }
       }
@@ -145,11 +146,12 @@ export class Characters {
     const hasMask = !!(m.roughnessMap && (src.userData.shigoto && /skinMask/.test(src.userData.shigoto.orm || "") || m.userData.synthMask));
     const U = Object.assign({}, this.uniforms, {
       chKind: { value: kind === "hair" ? 2 : 0 },
+      chAllowSkin: {value:["cloth","leather","hair","glass","eye"].includes(kind)?0:1},
       chHasMask: { value: hasMask ? 1 : 0 },
       chDetailScale: { value: kind === "head" ? 26 : 40 },
       chHairShift: { value: 0 }
     });
-    if (Q.pores) this._pores(); else U.chDetail = { value: 0 };
+    if (Q.pores) this._pores();
     if (!this.uniforms.chPores.value) this._pores();
     m.onBeforeCompile = sh => {
       Object.assign(sh.uniforms, U);
@@ -163,6 +165,9 @@ export class Characters {
     m.extensions = Object.assign({}, m.extensions, { derivatives: true });
     m.envMapIntensity = kind === "eye" ? 1.0 : kind === "hair" ? 0.5 : 0.75;
     m.userData = { shigotoChar: true, charKind: kind, sss: kind === "skin" || kind === "head", pbrDone: true, pbr: "dielectric", shDry: true };
+    const unresolved=["map","normalMap","roughnessMap","aoMap"].filter(k=>!m[k]);
+    const reportKey=(opts.model||"?")+": "+(src.name||"?");
+    if(kind!=="hair"&&kind!=="glass"&&unresolved.length)this.missing.set(reportKey,unresolved);else this.missing.delete(reportKey);
     this.cache.set(key, m);
     return m;
   }
@@ -180,9 +185,10 @@ export class Characters {
       if (o.geometry && o.geometry.attributes.uv && !o.geometry.attributes.uv2 && mats.some(m => m && m.aoMap)) o.geometry.setAttribute("uv2", o.geometry.attributes.uv);
       const out = mats.map(m => this.material(m, { skinned: sk, quality: q, model: opts.model }));
       o.material = Array.isArray(o.material) ? out : out[0];
+      if(o.geometry?.attributes.uv&&!o.geometry.attributes.uv2&&out.some(m=>m?.aoMap))o.geometry.setAttribute("uv2",o.geometry.attributes.uv);
       o.userData.shDry = true;
       // curved subdivision: solid parts only (cut-out cards would bulge)
-      if (level > 0 && sk && !out.some(m => m.alphaTest > 0 || m.transparent) && !(o.geometry.userData && o.geometry.userData.shigotoSubdiv)) {
+      if (level > 0 && sk && o.geometry.index && o.geometry.index.count/3*4<=80000 && !out.some(m => m.alphaTest > 0 || m.transparent) && !(o.geometry.userData && o.geometry.userData.shigotoSubdiv)) {
         let g = this.geoCache.get(o.geometry);
         if (g === undefined) {
           try { g = subdivideGeometry(T, o.geometry); } catch (e) { g = null; }

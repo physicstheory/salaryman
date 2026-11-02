@@ -15,7 +15,7 @@
 
 export const CHAR_COMMON = /* glsl */ `
 uniform vec3 chSSSColor;
-uniform float chSSSWidth, chTrans, chSheen, chSpec2, chWet, chDetail, chDetailScale, chKind, chHasMask, chHairShift;
+uniform float chSSSWidth, chTrans, chSheen, chSpec2, chWet, chDetail, chDetailScale, chKind, chHasMask, chHairShift, chAllowSkin;
 uniform sampler2D chPores;
 float chSkin = 0.0;
 float chCurv = 0.0;
@@ -90,6 +90,7 @@ export const CHAR_SURFACE = /* glsl */ `
   #else
     chSkin = chSkinFromColour(diffuseColor.rgb);
   #endif
+  chSkin *= chAllowSkin;
   if (chKind > 1.5) chSkin = 0.0;
   roughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.46), chSkin);   // skin is never lacquer: its gloss is the second lobe's job
   chCloth = (1.0 - chSkin) * smoothstep(0.55, 0.85, roughnessFactor) * step(chKind, 1.5);

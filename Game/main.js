@@ -104,7 +104,7 @@ function musicFile(rel) {
 }
 function userOverride(rel) {
   const mf = musicFile(rel); if (mf) return mf;
-  const m = /^cars\/([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel) || /^interiors\/([\w.+-]+\.glb)$/i.exec(rel);
+  const m = /^cars\/(?:low\/)?([\w.+-]+\.glb|user\.json)$/i.exec(rel) || /^art\/road\/([\w.+-]+\.jpg)$/i.exec(rel) || /^interiors\/([\w.+-]+\.glb)$/i.exec(rel);
   if (!m) return null;
   const f = path.join(USER_DIR, rel.startsWith("cars") ? "cars" : rel.startsWith("interiors") ? "interiors" : "road", m[1]);
   return fs.existsSync(f) ? f : null;

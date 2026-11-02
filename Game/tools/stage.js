@@ -85,12 +85,12 @@ function main() {
   // with no upload and no git. cars/*.glb replaces a car of the same name, road/* replaces the road textures, seiko.glb replaces the character.
   const drop = path.join(GAME, "Add Your Files");
   let added = 0;
-  const overlay = (from, to, re) => {
+  const overlay = (from, to, re, mirror) => {
     if (!fs.existsSync(from)) return;
     fs.mkdirSync(to, { recursive: true });
-    fs.readdirSync(from).filter(f => re.test(f)).forEach(f => { fs.copyFileSync(path.join(from, f), path.join(to, f)); added++; console.log("  using your file: " + f); });
+    fs.readdirSync(from).filter(f => re.test(f)).forEach(f => { fs.copyFileSync(path.join(from, f), path.join(to, f)); if(mirror){fs.mkdirSync(mirror,{recursive:true});fs.copyFileSync(path.join(from,f),path.join(mirror,f));} added++; console.log("  using your file: " + f); });
   };
-  overlay(path.join(drop, "cars"), path.join(OUT, "cars"), /\.glb$/i);
+  overlay(path.join(drop, "cars"), path.join(OUT, "cars"), /\.glb$/i, path.join(OUT,"cars","low"));
   overlay(path.join(drop, "road"), path.join(OUT, "art", "road"), /\.(jpe?g|png)$/i);
   overlay(drop, OUT, /^seiko\.glb$/i);
 

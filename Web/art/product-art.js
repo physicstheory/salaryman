@@ -23,7 +23,23 @@
   const wood=new Set(['#c8a878','#c2b5a0','#886346','#b79a71','#d8b88a','#9a7a58','#8a6a48','#a97c50','#795943','#8a7a62','#a78b75']);
   const metal=new Set(['#8d939c','#59606a','#4b5058','#aeb6c0','#6d7580','#5b636b']);
   const plaster=new Set(['#f4f4f2','#eef3ef','#f1efe9','#f1ece6','#f6f6f3']);
-  function coat(root){root.traverse(m=>{const hex=m.userData?.salaryFinish;if(!hex||!m.isMesh)return;const kind=wood.has(hex)?'oak':metal.has(hex)?'metal':plaster.has(hex)?'plaster':null;if(!kind)return;const key=kind+':'+hex;if(!materials.has(key))materials.set(key,new T.MeshBasicMaterial({map:surface(kind),color:kind==='metal'?'#b9c3c5':'#e1e0d7',fog:false}));m.material=materials.get(key);m.userData.salarySurface=kind;state.coated++;});}
+  function furniture(kind,tint){const lit=typeof gfx!=="undefined"&&gfx.high,key='pbr:'+kind+':'+tint+':'+lit;if(materials.has(key))return materials.get(key);
+    const map=surface(kind),opts={map,color:tint||'#fff',fog:false};let m;
+    if(lit){m=new T.MeshStandardMaterial({...opts,roughness:kind==='fabric'?.92:kind==='metal'?.38:.74,metalness:kind==='metal'?.65:0,envMap:typeof gfx!=='undefined'?gfx.env:null,envMapIntensity:.35});if(kind==='fabric'||kind==='oak'||kind==='walnut'){m.bumpMap=map;m.bumpScale=kind==='fabric'?.0008:.0015;}}
+    else m=new T.MeshLambertMaterial(opts);
+    materials.set(key,m);return m;
+  }
+  function coat(root){root.traverse(m=>{const hex=m.userData?.salaryFinish;if(!m.isMesh)return;const kind=m.userData.salarySurfaceKind||(wood.has(hex)?'oak':metal.has(hex)?'metal':plaster.has(hex)?'plaster':null);if(!kind)return;
+    m.material=furniture(kind,kind==='fabric'?(hex||'#91a797'):kind==='metal'?'#b9c3c5':'#e1e0d7');m.receiveShadow=true;m.userData.salarySurface=kind;state.coated++;});}
+  const cushionGeometries=new Map();
+  function cushion(w,h,d,r){const key=[w,h,d,r].join(':');if(cushionGeometries.has(key))return cushionGeometries.get(key);const g=new T.BoxGeometry(w,h,d,4,2,4),p=g.attributes.position,n=g.attributes.normal;
+    for(let i=0;i<p.count;i++){const v=new T.Vector3().fromBufferAttribute(p,i),q=v.clone().clamp(new T.Vector3(-w/2+r,-h/2+r,-d/2+r),new T.Vector3(w/2-r,h/2-r,d/2-r)),a=v.clone().sub(q).normalize();v.copy(q).addScaledVector(a,r);p.setXYZ(i,v.x,v.y,v.z);n.setXYZ(i,a.x,a.y,a.z);}p.needsUpdate=n.needsUpdate=true;cushionGeometries.set(key,g);return g;
+  }
+  function chairCover(root){const fabric=furniture('fabric','#77988d');const seat=new T.Mesh(cushion(.42,.055,.38,.012),fabric);seat.position.set(0,.465,0);seat.userData.salarySurface='fabric';root.add(seat);
+    const back=new T.Mesh(cushion(.39,.30,.045,.012),fabric);back.position.set(0,.74,-.17);back.userData.salarySurface='fabric';root.add(back);
+    if(!textures.has('contact')){const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),r=g.createRadialGradient(64,64,12,64,64,64);r.addColorStop(0,'rgba(12,18,16,.28)');r.addColorStop(1,'rgba(12,18,16,0)');g.fillStyle=r;g.fillRect(0,0,128,128);textures.set('contact',new T.CanvasTexture(c));}
+    const shade=new T.Mesh(new T.PlaneGeometry(.7,.7),new T.MeshBasicMaterial({map:textures.get('contact'),transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1,fog:false}));shade.rotation.x=-Math.PI/2;shade.position.y=.036;root.add(shade);root.userData.salaryUpholstered=true;
+  }
   const stockMats=new Map();
   function stock(it,kind,root,tier){
     if(['gun','ammo','baton','umbrella'].includes(kind))return;
@@ -69,5 +85,5 @@
     }
     root.userData.salaryProductTexture=key;state.stockTextured=(state.stockTextured||0)+1;
   }
-  window.SalaryArt={ready,state,photo,surface,poster,interiorPoster,bindAtlas,coat,stock};
+  window.SalaryArt={ready,state,photo,surface,poster,interiorPoster,bindAtlas,coat,stock,furniture,chairCover};
 })();

@@ -34,13 +34,20 @@
       g.restore();
     }});
   });}
+  const photoState={loaded:false,failed:false};
+  let photoAtlas;
+  function interiorPhotos(){if(photoAtlas)return photoAtlas;
+    const low=typeof gfx!=="undefined"&&gfx.tier==="low";
+    photoAtlas=new T.TextureLoader().load('art/realism/interiors'+(low?'-low':'')+'.jpg',()=>{photoState.loaded=true;if(windowMaterial)windowMaterial.uniforms.photoReady.value=1;},undefined,()=>{photoState.failed=true;});
+    photoAtlas.encoding=T.sRGBEncoding;photoAtlas.anisotropy=low?2:4;return photoAtlas;
+  }
   let windowMaterial;
-  function material(){if(windowMaterial)return windowMaterial;windowMaterial=new T.ShaderMaterial({uniforms:{retailAtlas:{value:atlas()}},vertexShader:`
+  function material(){if(windowMaterial)return windowMaterial;windowMaterial=new T.ShaderMaterial({uniforms:{retailAtlas:{value:atlas()},interiorPhotos:{value:interiorPhotos()},photoReady:{value:photoState.loaded?1:0}},vertexShader:`
     attribute float retailTheme; varying float theme; varying vec2 paneUV; varying vec3 eye;
     void main(){mat4 world=modelMatrix*instanceMatrix;vec3 p=(world*vec4(position,1.)).xyz;vec3 d=cameraPosition-p;
       eye=vec3(dot(d,world[0].xyz)/dot(world[0].xyz,world[0].xyz),dot(d,world[1].xyz)/dot(world[1].xyz,world[1].xyz),dot(d,world[2].xyz)/dot(world[2].xyz,world[2].xyz));
       theme=retailTheme;paneUV=uv;gl_Position=projectionMatrix*viewMatrix*vec4(p,1.);}`,fragmentShader:`
-    uniform sampler2D retailAtlas; varying float theme; varying vec2 paneUV; varying vec3 eye;
+    uniform sampler2D interiorPhotos;uniform float photoReady;uniform sampler2D retailAtlas; varying float theme; varying vec2 paneUV; varying vec3 eye;
     vec3 surface(float tile,vec2 uv){vec2 lo=vec2(tile/4.,theme/6.);return texture2D(retailAtlas,lo+(clamp(uv,.004,.996)*vec2(.25,1./6.))).rgb;}
     void main(){vec3 o=vec3(paneUV-.5,0.);vec3 d=-eye;d.z=min(d.z,-.0001);
       // A room six metres wide, 2.7 high and four deep. Plane instances encode the real proportions.
@@ -54,7 +61,16 @@
       vec3 ca=(vec3(-.28,-.5,-2.6)-o)*inv,cb=(vec3(.28,-.18,-1.8)-o)*inv;
       vec3 nearC=min(ca,cb),farC=max(ca,cb);float entry=max(nearC.x,max(nearC.y,nearC.z)),exitT=min(farC.x,min(farC.y,farC.z));
       if(entry>0.&&entry<exitT&&entry<t){vec3 q=o+d*entry;col=surface(2.,vec2(q.x+.5,-q.z/4.));shade=nearC.y>=nearC.x&&nearC.y>=nearC.z?1.05:.58;}
-      col*=shade;float rim=step(paneUV.x,.018)+step(.982,paneUV.x)+step(paneUV.y,.028)+step(.972,paneUV.y);
+      col*=shade;
+      if(photoReady>.5){
+        // Project the actual ray/box intersection into a photographed room. The
+        // camera translates the ray origin, so walls shift in depth as you walk.
+        vec3 roomRay=normalize(vec3(p.x*6.,p.y*2.7,p.z+2.));
+        vec2 uv=vec2(atan(roomRay.x,-roomRay.z)/6.2831853+.5,asin(clamp(roomRay.y,-1.,1.))/3.14159265+.5);
+        float row=5.-theme;uv.x=fract(uv.x+((row<.5||row>4.5)? .25 : row<1.5? .20 : row<2.5? .25 : 0.));vec2 tile=vec2(mod(row,2.)*.5,(2.-floor(row/2.))/3.);
+        col=texture2D(interiorPhotos,tile+clamp(uv,.002,.998)*vec2(.5,1./3.)).rgb;
+      }
+      float rim=step(paneUV.x,.018)+step(.982,paneUV.x)+step(paneUV.y,.028)+step(.972,paneUV.y);
       float mullion=1.-step(.006,abs(paneUV.x-.5));col=mix(col,vec3(.10,.16,.17),clamp(rim+mullion,0.,1.));
       float fres=pow(1.-clamp(eye.z/length(eye),0.,1.),3.);col=mix(col,vec3(.58,.72,.75),.045+fres*.2);
       gl_FragColor=vec4(col,1.);}`});return windowMaterial;}
@@ -80,5 +96,5 @@
     }
     room.retailIdentity=th.name;root.userData.salaryRetailRefurbished=true;
   }
-  window.SalaryRetail={themes,installWindows,floorTexture,wallTexture,refurbish,campaign,atlas,identity};
+  window.SalaryRetail={themes,installWindows,floorTexture,wallTexture,refurbish,campaign,atlas,identity,photoState};
 })();

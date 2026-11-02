@@ -525,6 +525,61 @@
    "id": "track",
    "name": "Track jacket",
    "file": "seiko_track.glb"
+  },
+  {
+   "id": "custom_village",
+   "name": "Custom \u00b7 Village overalls",
+   "file": "../seiko_village.glb"
+  },
+  {
+   "id": "custom_village_denim",
+   "name": "Custom \u00b7 Work overalls",
+   "file": "../seiko_village_denim.glb"
+  },
+  {
+   "id": "custom_office",
+   "name": "Custom \u00b7 Office suit",
+   "file": "../seiko_office.glb"
+  },
+  {
+   "id": "custom_suit_black",
+   "name": "Custom \u00b7 Classic black suit",
+   "file": "../seiko_suit_black.glb"
+  },
+  {
+   "id": "custom_suit_charcoal",
+   "name": "Custom \u00b7 Business suit",
+   "file": "../seiko_suit_charcoal.glb"
+  },
+  {
+   "id": "custom_waistcoat",
+   "name": "Custom \u00b7 Tailored suit",
+   "file": "../seiko_waistcoat.glb"
+  },
+  {
+   "id": "custom_suit_check",
+   "name": "Custom \u00b7 Formal suit",
+   "file": "../seiko_suit_check.glb"
+  },
+  {
+   "id": "custom_polo",
+   "name": "Custom \u00b7 Casual T-shirt and jeans",
+   "file": "../seiko_polo.glb"
+  },
+  {
+   "id": "custom_blue_shirt",
+   "name": "Custom \u00b7 Striped shirt and jeans",
+   "file": "../seiko_blue_shirt.glb"
+  },
+  {
+   "id": "custom_tshirt",
+   "name": "Custom \u00b7 T-shirt and jeans",
+   "file": "../seiko_tshirt.glb"
+  },
+  {
+   "id": "custom_track",
+   "name": "Custom \u00b7 Casual jacket and jeans",
+   "file": "../seiko_track.glb"
   }
  ],
  "anime": false,
@@ -533,5 +588,6 @@
   "characters": 1,
   "orm": "R=occlusion G=roughness B=skinMask"
  },
- "source": "Microsoft Rocketbox avatar library (MIT), see LICENSE-Rocketbox.md"
+ "source": "Microsoft Rocketbox avatar library (MIT), see LICENSE-Rocketbox.md",
+ "realistic": true
 }

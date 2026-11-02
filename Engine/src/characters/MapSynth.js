@@ -58,7 +58,7 @@ export function synthesizeMaps(T, mat, kind, opts = {}) {
     const c = document.createElement("canvas"); c.width = w; c.height = h;
     c.getContext("2d").putImageData(new ImageData(data, w, h), 0, 0);
     const t = new T.CanvasTexture(c); t.flipY = flipY; t.wrapS = mat.map.wrapS; t.wrapT = mat.map.wrapT;
-    t.encoding = T.LinearEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData.shigotoSynth = true;
+    t.encoding = T.LinearEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData=t.userData||{};t.userData.shigotoSynth = true;
     return t;
   };
   if (!mat.normalMap) {

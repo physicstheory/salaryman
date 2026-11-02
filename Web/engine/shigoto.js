@@ -18,7 +18,7 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // Engine/src/index.js
+  // src/index.js
   var index_exports = {};
   __export(index_exports, {
     CHAR_QUALITY: () => CHAR_QUALITY,
@@ -36,7 +36,7 @@ var SHIGOTO = (() => {
     synthesizeMaps: () => synthesizeMaps
   });
 
-  // Engine/src/core/Events.js
+  // src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -67,7 +67,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5232,7 +5232,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // Engine/src/physics/Physics.js
+  // src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5531,7 +5531,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // Engine/src/env/Environment.js
+  // src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5686,7 +5686,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // Engine/src/env/Weather.js
+  // src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -5934,7 +5934,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/src/env/Water.js
+  // src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -6070,7 +6070,7 @@ var SHIGOTO = (() => {
     return inside;
   }
 
-  // Engine/src/render/Surfaces.js
+  // src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -6231,7 +6231,7 @@ void shSurface(vec3 wp, vec3 wn) {
   Surfaces._noop = function() {
   };
 
-  // Engine/src/world/Batcher.js
+  // src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -6317,7 +6317,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // Engine/src/world/Props.js
+  // src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -6435,7 +6435,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // Engine/src/world/CellBuilder.js
+  // src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -6943,7 +6943,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // Engine/src/render/Materials.js
+  // src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -7147,7 +7147,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/world/Streamer.js
+  // src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -7301,7 +7301,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // Engine/src/core/Engine.js
+  // src/core/Engine.js
   var VERSION = "0.2.0";
   var Engine = class {
     constructor(opts) {
@@ -7359,7 +7359,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // Engine/src/host/HostBridge.js
+  // src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -7460,12 +7460,12 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/characters/CharacterShader.js
+  // src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
 uniform vec3 chSSSColor;
-uniform float chSSSWidth, chTrans, chSheen, chSpec2, chWet, chDetail, chDetailScale, chKind, chHasMask, chHairShift;
+uniform float chSSSWidth, chTrans, chSheen, chSpec2, chWet, chDetail, chDetailScale, chKind, chHasMask, chHairShift, chAllowSkin;
 uniform sampler2D chPores;
 float chSkin = 0.0;
 float chCurv = 0.0;
@@ -7543,6 +7543,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
   #else
     chSkin = chSkinFromColour(diffuseColor.rgb);
   #endif
+  chSkin *= chAllowSkin;
   if (chKind > 1.5) chSkin = 0.0;
   roughnessFactor = mix(roughnessFactor, max(roughnessFactor, 0.46), chSkin);   // skin is never lacquer: its gloss is the second lobe's job
   chCloth = (1.0 - chSkin) * smoothstep(0.55, 0.85, roughnessFactor) * step(chKind, 1.5);
@@ -7587,7 +7588,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // Engine/src/characters/Subdivide.js
+  // src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -7706,7 +7707,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // Engine/src/characters/MapSynth.js
+  // src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -7772,6 +7773,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       t2.encoding = T2.LinearEncoding;
       t2.anisotropy = 4;
       t2.needsUpdate = true;
+      t2.userData = t2.userData || {};
       t2.userData.shigotoSynth = true;
       return t2;
     };
@@ -7811,7 +7813,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // Engine/src/characters/Characters.js
+  // src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -7819,12 +7821,12 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     ultra: { subdiv: 1, heroSubdiv: 1, pores: 1, synth: 1, synthSize: 1024 }
   };
   var KINDS = [
-    [/opacity|hair|lash|brow|beard|moustache/i, "hair"],
+    [/opacity|hair|lash|brow|beard|moustache|short0|long0|bob0|ponytail|braid|afro/i, "hair"],
     [/glass|lens/i, "glass"],
     [/eye(?!lash|line|brow)|cornea|iris|sclera/i, "eye"],
     [/mouth|lip|teeth|tongue/i, "lip"],
     [/_head\b|head|face/i, "head"],
-    [/skin|body/i, "skin"],
+    [/skin|body|ears|fingernails/i, "skin"],
     [/shoe|boot|leather|belt/i, "leather"],
     [/cloth|top|bottom|shirt|suit|jacket|skirt|pant|trouser|dress|coat/i, "cloth"]
   ];
@@ -7882,7 +7884,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
         chSheen: { value: 1 },
         chSpec2: { value: 0.2 },
         chWet: { value: 0 },
-        chDetail: { value: 0.55 },
+        chDetail: { value: (CHAR_QUALITY[this.quality] || CHAR_QUALITY.high).pores ? 0.55 : 0 },
         chPores: { value: null }
       };
       this.cache = /* @__PURE__ */ new Map();
@@ -7892,7 +7894,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       this.upgraded = 0;
     }
     setQuality(q2) {
-      if (CHAR_QUALITY[q2]) this.quality = q2;
+      if (CHAR_QUALITY[q2]) {
+        this.quality = q2;
+        this.uniforms.chDetail.value = CHAR_QUALITY[q2].pores ? 0.55 : 0;
+      }
     }
     setWet(v2) {
       this.uniforms.chWet.value = Math.max(0, Math.min(1, v2 || 0));
@@ -7918,6 +7923,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
         metalness: 0,
         aoMap: src.aoMap || null,
         aoMapIntensity: src.aoMapIntensity ?? 1,
+        envMap: src.envMap || null,
         emissive: src.emissive ? src.emissive.clone() : 0,
         emissiveMap: src.emissiveMap || null,
         alphaMap: src.alphaMap || null,
@@ -7961,7 +7967,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
                 m2.roughness = 1;
               }
               if (!m2.aoMap) m2.aoMap = s2.orm;
-              m2.userData.synthMask = true;
+              m2.userData.synthMask = m2.roughnessMap === s2.orm;
             }
             this.synthesised++;
           } catch (e2) {
@@ -7971,12 +7977,12 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       const hasMask = !!(m2.roughnessMap && (src.userData.shigoto && /skinMask/.test(src.userData.shigoto.orm || "") || m2.userData.synthMask));
       const U2 = Object.assign({}, this.uniforms, {
         chKind: { value: kind === "hair" ? 2 : 0 },
+        chAllowSkin: { value: ["cloth", "leather", "hair", "glass", "eye"].includes(kind) ? 0 : 1 },
         chHasMask: { value: hasMask ? 1 : 0 },
         chDetailScale: { value: kind === "head" ? 26 : 40 },
         chHairShift: { value: 0 }
       });
       if (Q2.pores) this._pores();
-      else U2.chDetail = { value: 0 };
       if (!this.uniforms.chPores.value) this._pores();
       m2.onBeforeCompile = (sh) => {
         Object.assign(sh.uniforms, U2);
@@ -7986,6 +7992,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       m2.extensions = Object.assign({}, m2.extensions, { derivatives: true });
       m2.envMapIntensity = kind === "eye" ? 1 : kind === "hair" ? 0.5 : 0.75;
       m2.userData = { shigotoChar: true, charKind: kind, sss: kind === "skin" || kind === "head", pbrDone: true, pbr: "dielectric", shDry: true };
+      const unresolved = ["map", "normalMap", "roughnessMap", "aoMap"].filter((k2) => !m2[k2]);
+      const reportKey = (opts.model || "?") + ": " + (src.name || "?");
+      if (kind !== "hair" && kind !== "glass" && unresolved.length) this.missing.set(reportKey, unresolved);
+      else this.missing.delete(reportKey);
       this.cache.set(key, m2);
       return m2;
     }
@@ -8001,8 +8011,9 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
         if (o2.geometry && o2.geometry.attributes.uv && !o2.geometry.attributes.uv2 && mats.some((m2) => m2 && m2.aoMap)) o2.geometry.setAttribute("uv2", o2.geometry.attributes.uv);
         const out = mats.map((m2) => this.material(m2, { skinned: sk, quality: q2, model: opts.model }));
         o2.material = Array.isArray(o2.material) ? out : out[0];
+        if (o2.geometry?.attributes.uv && !o2.geometry.attributes.uv2 && out.some((m2) => m2?.aoMap)) o2.geometry.setAttribute("uv2", o2.geometry.attributes.uv);
         o2.userData.shDry = true;
-        if (level > 0 && sk && !out.some((m2) => m2.alphaTest > 0 || m2.transparent) && !(o2.geometry.userData && o2.geometry.userData.shigotoSubdiv)) {
+        if (level > 0 && sk && o2.geometry.index && o2.geometry.index.count / 3 * 4 <= 8e4 && !out.some((m2) => m2.alphaTest > 0 || m2.transparent) && !(o2.geometry.userData && o2.geometry.userData.shigotoSubdiv)) {
           let g2 = this.geoCache.get(o2.geometry);
           if (g2 === void 0) {
             try {
