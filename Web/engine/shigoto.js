@@ -29,12 +29,14 @@ var SHIGOTO = (() => {
     HostBridge: () => HostBridge,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     PROP_DEFS: () => PROP_DEFS,
+    PROP_SLOTS: () => PROP_SLOTS,
     Persistence: () => Persistence,
     RAIN_QUALITY: () => RAIN_QUALITY,
     RESPECT_TIERS: () => RESPECT_TIERS,
     RainEngine: () => RainEngine,
     ResidentSet: () => ResidentSet,
     Respect: () => Respect,
+    SLOT_MATERIALS: () => SLOT_MATERIALS,
     STANDING_ICONS: () => STANDING_ICONS,
     StandingHud: () => StandingHud,
     TEMPERS: () => TEMPERS,
@@ -43,8 +45,10 @@ var SHIGOTO = (() => {
     bipedNames: () => bipedNames,
     characters: () => characters,
     createEngine: () => createEngine,
+    drawProp: () => drawProp,
     estimateBytes: () => estimateBytes,
     kindOf: () => kindOf,
+    makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
     scanScene: () => scanScene,
     shaderFailures: () => shaderFailures,
@@ -183,27 +187,27 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S3, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -218,43 +222,43 @@ var SHIGOTO = (() => {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
       }
     }
-    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S3) {
+    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S3));
+        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
         return 0 === G2 ? void 0 : yA.__wrap(G2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2, M2, N2) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2, M2, N2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S3, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -1543,9 +1547,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S3) ? 4294967297 : Math.fround(S3), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
       } finally {
         I[K++] = void 0;
       }
@@ -1753,8 +1757,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S3, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2202,9 +2206,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
-      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S3, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -2421,8 +2425,8 @@ var SHIGOTO = (() => {
     }
     castShape(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, HA), k(C2, WA), k(B2, _OA), k(Q2, WA), k(E2, HA), k(i2, WA);
-      const S3 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
-      return 0 === S3 ? void 0 : dA.__wrap(S3);
+      const S4 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
+      return 0 === S4 ? void 0 : dA.__wrap(S4);
     }
     intersectsShape(I2, g2, C2, B2, Q2) {
       k(I2, WA), k(g2, HA), k(C2, _OA), k(B2, WA), k(Q2, HA);
@@ -3695,24 +3699,24 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S3.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G2.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S3.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G2.free(), k2;
     }
-    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S3), G2.free(), k2.free();
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G2.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S3 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S3, G2, k2, E2, i2, D2, o2, w2);
-      return S3.free(), G2.free(), k2.free(), K2;
+      let S4 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G2, k2, E2, i2, D2, o2, w2);
+      return S4.free(), G2.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(C2), S3 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
-      return w2.free(), S3;
+      let w2 = mA.intoRaw(C2), S4 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
+      return w2.free(), S4;
     }
     projectPointAndGetFeature(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       let o2 = mA.intoRaw(C2), w2 = WI.fromRaw(g2, this.raw.projectPointAndGetFeature(A2.raw, I2.raw, g2.raw, o2, B2, Q2, E2, i2, D2));
@@ -3722,13 +3726,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S3, G2, k2, K2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S4, G2, k2, K2));
       return h2.free(), U2.free(), J2.free(), y2.free(), M2;
     }
-    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S3), G2.free(), k2.free(), K2.free();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S4), G2.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3863,8 +3867,8 @@ var SHIGOTO = (() => {
         case l.HalfSpace:
           return o2 = mA.fromRaw(A2.coHalfspaceNormal(I2)), new _I(o2);
         case l.Voxels:
-          const w2 = A2.coVoxelData(I2), S3 = A2.coVoxelSize(I2);
-          return new Qg(w2, S3);
+          const w2 = A2.coVoxelData(I2), S4 = A2.coVoxelSize(I2);
+          return new Qg(w2, S4);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
           const G2 = A2.coTriMeshFlags(I2);
@@ -3889,16 +3893,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S3 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S3, G2, J2, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S3.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G2, J2, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
-      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S3 = o2.intersectsShape(Q2, E2, w2, i2, D2);
-      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3;
+      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
+      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S3 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S3, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3.free(), G2;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G2;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4085,9 +4089,9 @@ var SHIGOTO = (() => {
     free() {
       this.raw && this.raw.free(), this.raw = void 0;
     }
-    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G2 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S3, S3 ? S3.filterContactPair : null, S3 ? S3.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
+      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
     }
   };
   var hg = class {
@@ -4433,8 +4437,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S3), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4576,8 +4580,8 @@ var SHIGOTO = (() => {
     intersectionsWithPoint(A2, I2, g2, C2, B2, Q2, E2) {
       this.broadPhase.intersectionsWithPoint(this.narrowPhase, this.bodies, this.colliders, A2, this.colliders.castClosure(I2), g2, C2, B2 ? B2.handle : null, Q2 ? Q2.handle : null, this.colliders.castClosure(E2));
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
-      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S3));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
+      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S4));
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       this.broadPhase.intersectionsWithShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, this.colliders.castClosure(C2), B2, Q2, E2 ? E2.handle : null, i2 ? i2.handle : null, this.colliders.castClosure(D2));
@@ -4923,8 +4927,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S3 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S3, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S3.free(), G2.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S4, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S4.free(), G2.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5109,7 +5113,7 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S3 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S3, I2.shape);
+      let S4 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S4, I2.shape);
       return this.map.set(w2, G2), G2;
     }
     remove(A2, I2, g2, C2) {
@@ -6378,7 +6382,7 @@ vec3 rOut(vec3 c) {
       opts = opts || {};
       this.engine = engine;
       const T2 = this.T = engine.THREE;
-      const S3 = engine.surfaces.uniforms;
+      const S4 = engine.surfaces.uniforms;
       this.quality = RAIN_QUALITY[opts.quality] ? opts.quality : "high";
       this.indoors = false;
       this.linearOut = null;
@@ -6402,9 +6406,9 @@ vec3 rOut(vec3 c) {
         LD.push(new T2.Vector4(0, -1, 0, -2));
       }
       this.U = {
-        rOcc: S3.rOcc,
-        rOccInfo: S3.rOccInfo,
-        rOccOn: S3.rOccOn,
+        rOcc: S4.rOcc,
+        rOccInfo: S4.rOccInfo,
+        rOccOn: S4.rOccOn,
         rAmb: { value: new T2.Vector3(0.2, 0.22, 0.25) },
         rSun: { value: new T2.Vector3() },
         rSunDir: { value: new T2.Vector3(0, 1, 0) },
@@ -6840,7 +6844,7 @@ vec3 rOut(vec3 c) {
     update(dt, focus) {
       const c2 = this.cur, t2 = this.target, k2 = Math.min(1, this.blend * dt * 3);
       for (const key in t2) c2[key] += (t2[key] - c2[key]) * k2;
-      const env = this.engine.env, S3 = this.engine.surfaces.uniforms;
+      const env = this.engine.env, S4 = this.engine.surfaces.uniforms;
       env.cloud = c2.cloud;
       env.fogBoost = c2.fog;
       env.wind.setLength(Math.max(0.1, c2.wind));
@@ -6852,9 +6856,9 @@ vec3 rOut(vec3 c) {
         this.wetness = Math.max(0, this.wetness - dt * dry);
         this.puddles = Math.max(0.2, this.puddles - dt * dry * 0.4);
       }
-      S3.shWet.value = this.wetness;
-      S3.shRain.value = c2.rain;
-      S3.shPuddles.value = this.puddles;
+      S4.shWet.value = this.wetness;
+      S4.shRain.value = c2.rain;
+      S4.shPuddles.value = this.puddles;
       const RE = this.rainEngine;
       RE.indoors = this.indoors;
       if (this.linearOut) RE.linearOut = this.linearOut;
@@ -6948,12 +6952,12 @@ vec3 rOut(vec3 c) {
       return null;
     }
     _material(b2) {
-      const T2 = this.T, S3 = this.engine.surfaces.uniforms, U2 = this.u;
+      const T2 = this.T, S4 = this.engine.surfaces.uniforms, U2 = this.u;
       const m2 = new T2.MeshStandardMaterial({ color: new T2.Color(b2.colour), roughness: 0.05, metalness: 0, transparent: true, opacity: 0.9 });
       m2.userData.shDry = true;
       const swell = b2.swell;
       m2.onBeforeCompile = (sh) => {
-        Object.assign(sh.uniforms, U2, { shRain: S3.shRain, shWind: S3.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
+        Object.assign(sh.uniforms, U2, { shRain: S4.shRain, shWind: S4.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float wTime; uniform float wSwell; varying vec3 vWWorld;").replace("#include <begin_vertex>", `#include <begin_vertex>
           vec3 wwp = (modelMatrix * vec4(transformed, 1.0)).xyz;
           transformed.y += wSwell * 0.5 * (sin(wwp.x * 0.12 + wTime * 1.1) * 0.6 + sin(wwp.z * 0.09 - wTime * 0.8) * 0.4);
@@ -7311,6 +7315,81 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
+  // src/world/PropSlots.js
+  var SLOT_MATERIALS = {
+    paint: { metalness: 0.15, roughness: 0.62 },
+    metal: { metalness: 0.9, roughness: 0.38 },
+    galv: { metalness: 0.85, roughness: 0.5 },
+    plastic: { metalness: 0, roughness: 0.5 },
+    rubber: { metalness: 0, roughness: 0.92 },
+    wood: { metalness: 0, roughness: 0.8 },
+    concrete: { metalness: 0, roughness: 0.9 },
+    ceramic: { metalness: 0, roughness: 0.25 },
+    leather: { metalness: 0, roughness: 0.6 },
+    leaves: { metalness: 0, roughness: 0.85, leaves: true },
+    glow: { metalness: 0, roughness: 0.3, glow: true }
+  };
+  var S2 = (prop, part, material, uv, extra) => Object.assign({ prop, part, material, uv }, extra);
+  var PROP_SLOTS = {
+    // ---- traffic cone ----------------------------------------------------------------------------------------------
+    cone_body: S2("cone", "cone shell", "plastic", "wrap", { size: 1024, base: "#e8661a", brief: "A Japanese road-works traffic cone unrolled: fluorescent red-orange PVC, two white retro-reflective sleeves (one wide band at 55-70% height, one thin band at 30%), faint moulding seams, black tyre scuffs and grey road dust towards the bottom, a few scratches through the reflective film." }),
+    cone_base: S2("cone", "square rubber foot", "rubber", "tile", { tile: 0.4, size: 512, base: "#26262a", brief: "Recycled black rubber, slightly speckled, with grit and dried mud in the grooves." }),
+    // ---- litter bin ------------------------------------------------------------------------------------------------
+    bin_body: S2("bin", "drum", "plastic", "wrap", { size: 1024, tint: true, base: "#c8c8c8", brief: "A tall municipal plastic litter bin unrolled, painted in neutral grey for tinting: vertical moulded ribs every 8 cm, a darker drip line under the lid, scuffs and sun-faded patches, a sticker residue patch, grime collecting at the base." }),
+    bin_lid: S2("bin", "lid and rim", "plastic", "tile", { tile: 0.6, size: 512, base: "#2a2a2e", brief: "Charcoal moulded plastic with a fine matte texture, scratches and dust in the corners." }),
+    bin_label: S2("bin", "sorting label", "plastic", "face", { aspect: 0.75, size: 512, base: "#f2f2ee", brief: "A white sorting sticker for a Japanese bin: a coloured header band, large text '\u3082\u3048\u308B\u30B4\u30DF' (burnable), small icons of paper and food waste, small English 'Burnable', slightly peeled corner, rain stains." }),
+    // ---- wooden crate and pallet -------------------------------------------------------------------------------------
+    crate_wood: S2("crate", "planks", "wood", "tile", { tile: 0.6, size: 1024, base: "#9a7650", brief: "Rough-sawn pine crate planks running horizontally, 10 cm wide boards with gaps, nail heads, saw marks, grey weathering and a faded stencilled lot number." }),
+    pallet_wood: S2("pallet", "boards", "wood", "tile", { tile: 1.2, size: 1024, base: "#a88660", brief: "A used shipping pallet's boards: heat-treated pine, an 'HT' stamp, dark water stains, forklift gouges, splinters." }),
+    // ---- road-works barrier -----------------------------------------------------------------------------------------
+    barrier_panel: S2("barrier", "striped panel", "plastic", "face", { aspect: 4.2, size: 1024, base: "#f0c419", brief: "A Japanese road-works barrier panel: diagonal yellow and black stripes, a white plate in the middle reading '\u5DE5\u4E8B\u4E2D' with smaller '\u3054\u8FF7\u60D1\u3092\u304A\u304B\u3051\u3057\u307E\u3059', scuffed, a strip of reflective tape, dirt splashes along the bottom." }),
+    barrier_frame: S2("barrier", "steel legs", "galv", "tile", { tile: 0.5, size: 512, base: "#9ea2a6", brief: "Galvanised steel with spangle pattern, white rust spots and scratches." }),
+    barrier_foot: S2("barrier", "rubber feet", "rubber", "tile", { tile: 0.4, size: 512, base: "#202022", brief: "Heavy black rubber ballast block, moulded grip texture, worn smooth on top." }),
+    // ---- bicycle (mamachari) ------------------------------------------------------------------------------------------
+    bicycle_frame: S2("bicycle", "painted frame", "paint", "tile", { tile: 0.5, size: 512, tint: true, base: "#c8c8c8", brief: "Glossy painted steel tube in neutral grey for tinting, chips showing grey primer, a few scratches, a small registration sticker (\u9632\u72AF\u767B\u9332)." }),
+    bicycle_tyre: S2("bicycle", "tyres", "rubber", "wrap", { size: 512, base: "#1c1c1e", brief: "A bicycle tyre tread unrolled: fine block tread down the middle, smooth sidewall with faint lettering, dust." }),
+    bicycle_steel: S2("bicycle", "chrome parts, spokes, basket", "metal", "tile", { tile: 0.3, size: 512, base: "#b8bcc0", brief: "Chrome-plated steel, slightly pitted, small rust freckles, fingerprints." }),
+    bicycle_saddle: S2("bicycle", "saddle and grips", "leather", "tile", { tile: 0.25, size: 512, base: "#2b2522", brief: "Black vinyl saddle cover, stitched seam, cracks from the sun." }),
+    bicycle_basket: S2("bicycle", "front basket", "metal", "face", { aspect: 1.2, size: 512, base: "#9fa4a8", brief: "A wire mamachari basket seen from the front: a grid of steel wires with a rolled rim, on a mid-grey background (the background shows through as the basket's fill)." }),
+    // ---- vending machine -----------------------------------------------------------------------------------------
+    vending_body: S2("vending", "cabinet", "paint", "tile", { tile: 1, size: 1024, tint: true, base: "#c8c8c8", brief: "Powder-coated steel cabinet in neutral grey for tinting: panel seams, rivets, sun fading, sticker residue, a dented corner, grime at the bottom." }),
+    vending_front: S2("vending", "drinks window", "glow", "face", { aspect: 0.96, size: 1024, base: "#e6eef4", brief: "The lit display window of a Japanese drinks vending machine, seen straight on: three shelves of about 10 cans and PET bottles each (green tea, coffee, cola, water, sports drinks - invented brands), small price tags '\xA5130' / '\xA5160' under each with blue '\u3064\u3081\u305F~\u3044' and red '\u3042\u305F\u305F\u304B~\u3044' labels, a row of round push buttons, slight reflections on the plastic." }),
+    vending_panel: S2("vending", "lower control panel", "plastic", "face", { aspect: 1.9, size: 1024, base: "#2a2c30", brief: "The lower half of the vending machine front: coin slot, note acceptor, IC-card reader (contactless logo), change return lever, the wide dark pickup flap '\u3068\u308A\u3060\u3057\u3050\u3061', a QR sticker, scratches and finger marks." }),
+    vending_trim: S2("vending", "trim and kickplate", "metal", "tile", { tile: 0.5, size: 512, base: "#8e9296", brief: "Brushed stainless steel kickplate, scuffed by shoes, water stains." }),
+    // ---- bench --------------------------------------------------------------------------------------------------------
+    bench_wood: S2("bench", "slats", "wood", "tile", { tile: 0.8, size: 1024, base: "#8a6440", brief: "Hardwood park-bench slats along the length, oiled but weathered, grain, rounded edges, carved initials, bird droppings." }),
+    bench_iron: S2("bench", "cast frame", "paint", "tile", { tile: 0.4, size: 512, base: "#2f3236", brief: "Black-painted cast iron with a slight casting texture, paint chips showing rust." }),
+    // ---- bollard ------------------------------------------------------------------------------------------------------
+    bollard_body: S2("bollard", "post", "galv", "wrap", { size: 1024, base: "#8e9398", brief: "A Japanese steel car-stop bollard unrolled: galvanised grey body, a yellow reflective band near the top, scrape marks from bumpers at 40-60 cm, rust weeping at the base." }),
+    bollard_cap: S2("bollard", "cap", "metal", "tile", { tile: 0.2, size: 512, base: "#d0a01a", brief: "Yellow powder-coated dome cap, chipped." }),
+    // ---- street lamp --------------------------------------------------------------------------------------------------
+    lamp_pole: S2("lamp", "pole and arm", "paint", "tile", { tile: 1, size: 1024, base: "#6a6e72", brief: "Grey painted steel lamp column: vertical weld seam, faded paint, layers of torn flyer paper and tape residue near head height, rust at the base flange." }),
+    lamp_head: S2("lamp", "lantern head", "paint", "tile", { tile: 0.4, size: 512, base: "#4a4c50", brief: "Dark grey die-cast aluminium luminaire housing with cooling fins, bird droppings, dust." }),
+    lamp_lens: S2("lamp", "light lens", "glow", "face", { aspect: 0.6, size: 512, base: "#fff1d6", brief: "The underside lens of an LED street lamp: a grid of small LED dots behind a frosted diffuser, warm white, slightly dirty edges." }),
+    // ---- utility pole -----------------------------------------------------------------------------------------------
+    pole_concrete: S2("pole", "concrete pole", "concrete", "tile", { tile: 1.5, size: 1024, base: "#a29e96", brief: "A Japanese spun-concrete utility pole: light grey with fine pores, faint vertical form lines, climbing-step bolt holes, black grime streaks running down, moss at the bottom." }),
+    pole_guard: S2("pole", "yellow guard", "plastic", "face", { aspect: 0.43, size: 512, base: "#f0c419", brief: "The yellow-and-black diagonally striped reflective guard wrapped round the base of a utility pole, scuffed by cars." }),
+    pole_plate: S2("pole", "pole advert plate", "paint", "face", { aspect: 0.33, size: 1024, base: "#ffffff", brief: "A tall Japanese utility-pole advertisement plate (\u96FB\u67F1\u5E83\u544A): a local clinic or real-estate agent's name in big vertical kanji, an arrow, '200m', a phone number, weathered with rust trickles." }),
+    pole_metal: S2("pole", "cross-arms and transformer", "galv", "tile", { tile: 0.6, size: 512, base: "#8a8e92", brief: "Weathered galvanised steel and grey painted metal: bolts, rust staining, a warning sticker." }),
+    // ---- tree ---------------------------------------------------------------------------------------------------------
+    tree_bark: S2("tree", "trunk", "wood", "tile", { tile: 0.8, size: 1024, base: "#5a4636", brief: "Street-tree bark (zelkova / plane tree): flaking plates of grey-brown bark with lighter patches, lichen." }),
+    tree_leaves: S2("tree", "canopy", "leaves", "tile", { tile: 1.5, size: 1024, base: "#4a6e34", brief: "A dense mass of small deciduous leaves seen from a few metres away, varied greens with sunlit and shadowed clusters, tiny gaps." }),
+    tree_grate: S2("tree", "tree grate", "metal", "face", { aspect: 1, size: 1024, base: "#3a3a3c", brief: "A square cast-iron tree grate seen from above: radiating slots around a round hole, rust, cigarette butts and leaves caught in it." }),
+    // ---- planter ------------------------------------------------------------------------------------------------------
+    planter_box: S2("planter", "concrete planter", "concrete", "tile", { tile: 0.8, size: 1024, base: "#8d8a84", brief: "Precast concrete planter box with exposed aggregate, chipped corners, damp dark stains at the bottom." }),
+    planter_shrub: S2("planter", "shrubs", "leaves", "tile", { tile: 0.8, size: 512, base: "#3e6a30", brief: "Clipped azalea / box shrubs: tight small dark-green leaves, a few pink flowers." }),
+    // ---- road sign ---------------------------------------------------------------------------------------------------
+    signpost_pole: S2("signpost", "post", "galv", "tile", { tile: 0.6, size: 512, base: "#a0a4a8", brief: "Galvanised steel sign post with spangle pattern, stickers half peeled." }),
+    sign_face: S2("signpost", "sign front", "paint", "face", { aspect: 1, size: 1024, base: "#c8102e", brief: "A Japanese 'no entry' road sign (\u8ECA\u4E21\u9032\u5165\u7981\u6B62): red disc, white horizontal bar, white rim, retro-reflective sheeting texture, slight fading, a small dent. On a transparent-looking light grey square background (only the disc is used)." }),
+    sign_back: S2("signpost", "sign back", "galv", "tile", { tile: 0.4, size: 512, base: "#9a9ea2", brief: "The bare aluminium back of a road sign, brushed, with a stamped maker's label and bolts." }),
+    // ---- air-conditioner outdoor unit -----------------------------------------------------------------------------------
+    ac_body: S2("ac", "casing", "paint", "tile", { tile: 0.5, size: 512, base: "#dedcd6", brief: "Off-white painted steel casing of an aircon outdoor unit, rust streaks from the screws, grime, a faded spec label." }),
+    ac_grille: S2("ac", "fan grille", "metal", "face", { aspect: 1, size: 512, base: "#5a5c60", brief: "The round fan grille of an aircon outdoor unit seen straight on: concentric wire rings with a dark fan blade behind, dust, rust spots." }),
+    ac_fins: S2("ac", "side fins", "metal", "tile", { tile: 0.3, size: 512, base: "#9a9c9e", brief: "Aluminium heat-exchanger fins: very fine vertical slats, bent in places, dusty." }),
+    // ---- ball ---------------------------------------------------------------------------------------------------------
+    ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
+  };
+
   // src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
@@ -7330,102 +7409,329 @@ void shSurface(vec3 wp, vec3 wn) {
     ac: { dynamic: false, shape: null, size: [0.8, 0.6, 0.3] },
     ball: { dynamic: true, shape: "sphere", size: [0.11, 0.22, 0.11], mass: 0.43, restitution: 0.7, buoyancy: 4 }
   };
-  function drawProp(T2, type, add, rng) {
-    const M2 = (x2, y2, z2, ry, sx, sy, sz) => new T2.Matrix4().compose(new T2.Vector3(x2, y2, z2), new T2.Quaternion().setFromEuler(new T2.Euler(0, ry || 0, 0)), new T2.Vector3(sx || 1, sy || 1, sz || 1));
-    const box = (w2, h2, d2) => new T2.BoxGeometry(w2, h2, d2);
-    const cyl = (r0, r1, h2, s2) => new T2.CylinderGeometry(r0, r1, h2, s2 || 10);
+  function scaleUV(geo, from, to, su, sv) {
+    const uv = geo.attributes.uv;
+    for (let i2 = from; i2 < to; i2++) uv.setXY(i2, uv.getX(i2) * su, uv.getY(i2) * sv);
+    uv.needsUpdate = true;
+  }
+  function tileOf(slot) {
+    const s2 = PROP_SLOTS[slot];
+    return s2 && s2.uv === "tile" ? s2.tile || 1 : 0;
+  }
+  function makeParts(T2, add) {
+    const E2 = new T2.Euler(), Q2 = new T2.Quaternion(), V2 = new T2.Vector3(), Sc = new T2.Vector3(1, 1, 1);
+    const M2 = (x2, y2, z2, rx, ry, rz) => new T2.Matrix4().compose(V2.set(x2, y2, z2), Q2.setFromEuler(E2.set(rx || 0, ry || 0, rz || 0)), Sc);
+    const P3 = {
+      M: M2,
+      // a box; tiling slots get metre UVs on every face
+      box(slot, w2, h2, d2, x2, y2, z2, col, ry, rx, rz) {
+        const g2 = new T2.BoxGeometry(w2, h2, d2), t2 = tileOf(slot);
+        if (t2) {
+          const dims = [[d2, h2], [d2, h2], [w2, d2], [w2, d2], [w2, h2], [w2, h2]];
+          dims.forEach(([a2, b2], f2) => scaleUV(g2, f2 * 4, f2 * 4 + 4, a2 / t2, b2 / t2));
+        }
+        add(slot, g2, M2(x2, y2, z2, rx, ry, rz), col);
+      },
+      // a box with rounded vertical edges and a small bevel, which is what moulded and pressed things look like
+      rbox(slot, w2, h2, d2, r2, x2, y2, z2, col, ry) {
+        const bev = Math.min(r2 * 0.5, 0.01);
+        w2 -= bev * 2;
+        d2 -= bev * 2;
+        r2 = Math.max(2e-3, r2 - bev);
+        const s2 = new T2.Shape(), hw = w2 / 2 - r2, hd = d2 / 2 - r2;
+        s2.moveTo(-hw, -d2 / 2);
+        s2.lineTo(hw, -d2 / 2);
+        s2.quadraticCurveTo(w2 / 2, -d2 / 2, w2 / 2, -hd);
+        s2.lineTo(w2 / 2, hd);
+        s2.quadraticCurveTo(w2 / 2, d2 / 2, hw, d2 / 2);
+        s2.lineTo(-hw, d2 / 2);
+        s2.quadraticCurveTo(-w2 / 2, d2 / 2, -w2 / 2, hd);
+        s2.lineTo(-w2 / 2, -hd);
+        s2.quadraticCurveTo(-w2 / 2, -d2 / 2, -hw, -d2 / 2);
+        const g2 = new T2.ExtrudeGeometry(s2, { depth: h2 - bev * 2, bevelEnabled: true, bevelThickness: bev, bevelSize: bev, bevelSegments: 1, curveSegments: 3 });
+        g2.rotateX(-Math.PI / 2);
+        g2.translate(0, -h2 / 2 + bev, 0);
+        const t2 = tileOf(slot) || 1;
+        scaleUV(g2, 0, g2.attributes.uv.count, 1 / t2, 1 / t2);
+        add(slot, g2, M2(x2, y2, z2, 0, ry), col);
+      },
+      // a cylinder or truncated cone; wrap slots keep 0..1 round and up, tiling slots get metres
+      cyl(slot, r0, r1, h2, seg, x2, y2, z2, col, rx, rz, ry, open) {
+        seg = seg || 12;
+        const g2 = new T2.CylinderGeometry(r0, r1, h2, seg, 1, !!open), t2 = tileOf(slot), side = (seg + 1) * 2;
+        if (t2) {
+          scaleUV(g2, 0, side, Math.PI * (r0 + r1) / t2, h2 / t2);
+          scaleUV(g2, side, g2.attributes.uv.count, 2 * Math.max(r0, r1) / t2, 2 * Math.max(r0, r1) / t2);
+        }
+        add(slot, g2, M2(x2, y2, z2, rx, ry, rz), col);
+      },
+      // a lathed profile [[radius, height], ...] from the bottom up: cones, bins, bollards, insulators
+      lathe(slot, pts, seg, x2, y2, z2, col) {
+        const g2 = new T2.LatheGeometry(pts.map((p2) => new T2.Vector2(p2[0], p2[1])), seg || 16), t2 = tileOf(slot);
+        if (t2) {
+          let len = 0, rmax = 0;
+          for (let i2 = 1; i2 < pts.length; i2++) len += Math.hypot(pts[i2][0] - pts[i2 - 1][0], pts[i2][1] - pts[i2 - 1][1]);
+          for (const p2 of pts) rmax = Math.max(rmax, p2[0]);
+          scaleUV(g2, 0, g2.attributes.uv.count, Math.PI * 2 * rmax / t2, len / t2);
+        }
+        add(slot, g2, M2(x2, y2, z2), col);
+      },
+      torus(slot, R2, r2, x2, y2, z2, col, ry, rx, segs) {
+        const g2 = new T2.TorusGeometry(R2, r2, 8, segs || 24), t2 = tileOf(slot);
+        if (t2) scaleUV(g2, 0, g2.attributes.uv.count, Math.PI * 2 * R2 / t2, Math.PI * 2 * r2 / t2);
+        add(slot, g2, M2(x2, y2, z2, rx, ry), col);
+      },
+      // a tube along points [[x, y, z], ...]: handlebars, frames, rails, arms
+      tube(slot, pts, r2, col, segs) {
+        const curve = new T2.CatmullRomCurve3(pts.map((p2) => new T2.Vector3(p2[0], p2[1], p2[2])), false, "catmullrom", 0.1);
+        const g2 = new T2.TubeGeometry(curve, segs || Math.max(4, pts.length * 4), r2, 8, false), t2 = tileOf(slot);
+        if (t2) scaleUV(g2, 0, g2.attributes.uv.count, curve.getLength() / t2, Math.PI * 2 * r2 / t2);
+        add(slot, g2, null, col);
+      },
+      // a flat face that shows a whole painted image (a sign, a window, a grille): facing +z before ry
+      face(slot, w2, h2, x2, y2, z2, col, ry, rx) {
+        add(slot, new T2.PlaneGeometry(w2, h2), M2(x2, y2, z2, rx, ry), col);
+      },
+      // a disc showing a whole image (road signs, grilles), facing +z before ry
+      disc(slot, r2, x2, y2, z2, col, ry, segs) {
+        add(slot, new T2.CircleGeometry(r2, segs || 24), M2(x2, y2, z2, 0, ry), col);
+      },
+      sphere(slot, r2, x2, y2, z2, col, sx) {
+        const g2 = new T2.SphereGeometry(r2, 18, 12);
+        add(slot, g2, M2(x2, y2, z2), col);
+      },
+      // an irregular clump (foliage): an icosphere pushed in and out by a smooth function of direction, so it reads as a
+      // mass of leaves rather than a ball. `lumpy` 0..1 is how far it is pushed.
+      blob(slot, r2, x2, y2, z2, col, detail, lumpy, seed) {
+        const g2 = new T2.IcosahedronGeometry(r2, detail == null ? 1 : detail), t2 = tileOf(slot) || 1;
+        if (lumpy) {
+          const p0 = g2.attributes.position, k2 = seed || 0;
+          for (let i2 = 0; i2 < p0.count; i2++) {
+            const vx = p0.getX(i2) / r2, vy = p0.getY(i2) / r2, vz = p0.getZ(i2) / r2;
+            const n2 = Math.sin(vx * 3.1 + k2) * Math.sin(vy * 2.7 + k2 * 1.7) * Math.sin(vz * 3.3 + k2 * 0.6) + 0.5 * Math.sin(vx * 7.3 - vz * 5.1 + k2 * 2.3) * Math.sin(vy * 6.1 + k2);
+            const f2 = 1 + lumpy * n2 - (vy < -0.3 ? lumpy * 0.5 * (-vy - 0.3) : 0);
+            p0.setXYZ(i2, p0.getX(i2) * f2, p0.getY(i2) * f2, p0.getZ(i2) * f2);
+          }
+          const nn = g2.attributes.normal;
+          for (let i2 = 0; i2 < p0.count; i2++) {
+            const vx = p0.getX(i2), vy = p0.getY(i2), vz = p0.getZ(i2), l2 = Math.hypot(vx, vy, vz) || 1;
+            nn.setXYZ(i2, vx / l2, vy / l2, vz / l2);
+          }
+          nn.needsUpdate = true;
+        }
+        const p2 = g2.attributes.position, uv = new Float32Array(p2.count * 2);
+        for (let i2 = 0; i2 < p2.count; i2++) {
+          const vx = p2.getX(i2), vy = p2.getY(i2), vz = p2.getZ(i2), l2 = Math.hypot(vx, vy, vz) || 1;
+          uv[i2 * 2] = (Math.atan2(vz, vx) / (Math.PI * 2) + 0.5) * Math.PI * 2 * r2 / t2;
+          uv[i2 * 2 + 1] = Math.acos(vy / l2) / Math.PI * Math.PI * r2 / t2;
+        }
+        g2.setAttribute("uv", new T2.BufferAttribute(uv, 2));
+        add(slot, g2, M2(x2, y2, z2), col);
+      }
+    };
+    return P3;
+  }
+  var W2 = [1, 1, 1];
+  function drawProp(T2, type, add, rng, opts) {
+    const P3 = makeParts(T2, add), tint = opts && opts.tint;
     switch (type) {
-      case "cone":
-        add("plastic", cyl(0.02, 0.17, 0.62, 12), M2(0, 0.36, 0), [0.95, 0.38, 0.06]);
-        add("plastic", cyl(0.075, 0.115, 0.1, 12), M2(0, 0.42, 0), [0.95, 0.95, 0.95]);
-        add("plastic", box(0.4, 0.05, 0.4), M2(0, 0.025, 0), [0.15, 0.15, 0.15]);
+      case "cone": {
+        P3.lathe("cone_body", [[0.17, 0.05], [0.165, 0.07], [0.04, 0.7], [0.028, 0.72], [0, 0.725]], 20, 0, 0, 0, W2);
+        P3.rbox("cone_base", 0.4, 0.05, 0.4, 0.04, 0, 0.025, 0, W2);
+        P3.cyl("cone_base", 0.19, 0.19, 0.012, 20, 0, 0.056, 0, W2);
         break;
-      case "bin":
-        add("plastic", cyl(0.28, 0.25, 0.85, 14), M2(0, 0.425, 0), rng() < 0.5 ? [0.2, 0.42, 0.25] : [0.25, 0.3, 0.55]);
-        add("plastic", cyl(0.3, 0.3, 0.06, 14), M2(0, 0.88, 0), [0.15, 0.15, 0.16]);
+      }
+      case "bin": {
+        const c2 = tint || (rng() < 0.5 ? [0.32, 0.55, 0.36] : [0.34, 0.42, 0.68]);
+        P3.lathe("bin_body", [[0.24, 0], [0.25, 0.04], [0.27, 0.78], [0.28, 0.8], [0.28, 0.82]], 24, 0, 0, 0, c2);
+        P3.lathe("bin_lid", [[0.3, 0.82], [0.3, 0.86], [0.25, 0.9], [0.12, 0.92], [0.12, 0.9], [0, 0.9]], 24, 0, 0, 0, W2);
+        P3.cyl("bin_lid", 0.12, 0.12, 0.08, 18, 0, 0.88, 0, [0.05, 0.05, 0.05], 0, 0, 0, true);
+        P3.face("bin_label", 0.21, 0.28, 0, 0.5, 0.268, W2, 0, -0.025);
+        P3.torus("bin_lid", 0.245, 0.012, 0, 0.03, 0, W2, 0, Math.PI / 2, 20);
         break;
-      case "crate":
-        add("paint", box(0.6, 0.6, 0.6), M2(0, 0.3, 0), [0.62, 0.47, 0.3]);
-        add("paint", box(0.62, 0.06, 0.62), M2(0, 0.12, 0), [0.5, 0.37, 0.22]);
-        add("paint", box(0.62, 0.06, 0.62), M2(0, 0.48, 0), [0.5, 0.37, 0.22]);
+      }
+      case "crate": {
+        for (const y2 of [0.075, 0.225, 0.375, 0.525]) {
+          P3.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, 0.29, W2);
+          P3.box("crate_wood", 0.6, 0.12, 0.02, 0, y2, -0.29, W2);
+          P3.box("crate_wood", 0.02, 0.12, 0.56, 0.29, y2, 0, W2);
+          P3.box("crate_wood", 0.02, 0.12, 0.56, -0.29, y2, 0, W2);
+        }
+        for (const x2 of [-0.27, 0.27]) for (const z2 of [-0.27, 0.27]) P3.box("crate_wood", 0.05, 0.6, 0.05, x2, 0.3, z2, [0.85, 0.82, 0.78]);
+        P3.box("crate_wood", 0.56, 0.02, 0.56, 0, 0.012, 0, W2);
         break;
-      case "pallet":
-        add("paint", box(1.2, 0.03, 1), M2(0, 0.135, 0), [0.66, 0.52, 0.36]);
-        for (const x2 of [-0.5, 0, 0.5]) add("paint", box(0.12, 0.1, 1), M2(x2, 0.06, 0), [0.6, 0.47, 0.32]);
+      }
+      case "pallet": {
+        for (let i2 = 0; i2 < 7; i2++) P3.box("pallet_wood", 0.14, 0.022, 1, -0.53 + i2 * 0.177, 0.139, 0, W2);
+        for (const x2 of [-0.53, 0, 0.53]) {
+          P3.box("pallet_wood", 0.1, 0.022, 1, x2, 0.011, 0, W2);
+          for (const z2 of [-0.44, 0, 0.44]) P3.box("pallet_wood", 0.1, 0.085, 0.12, x2, 0.065, z2, [0.9, 0.86, 0.82]);
+        }
+        for (const z2 of [-0.44, 0, 0.44]) P3.box("pallet_wood", 1.2, 0.022, 0.1, 0, 0.117, z2, W2);
         break;
-      case "barrier":
-        for (let i2 = 0; i2 < 6; i2++) add("plastic", box(0.233, 0.25, 0.08), M2(-0.58 + i2 * 0.233, 0.62, 0), i2 % 2 ? [0.08, 0.08, 0.08] : [0.95, 0.78, 0.08]);
-        add("metal", box(0.06, 0.8, 0.3), M2(-0.62, 0.4, 0), [0.6, 0.6, 0.62]);
-        add("metal", box(0.06, 0.8, 0.3), M2(0.62, 0.4, 0), [0.6, 0.6, 0.62]);
+      }
+      case "barrier": {
+        P3.face("barrier_panel", 1.3, 0.31, 0, 0.62, 0.021, W2);
+        P3.face("barrier_panel", 1.3, 0.31, 0, 0.62, -0.021, W2, Math.PI);
+        P3.box("barrier_frame", 1.32, 0.33, 0.04, 0, 0.62, 0, [0.95, 0.95, 0.95]);
+        for (const x2 of [-0.62, 0.62]) {
+          P3.cyl("barrier_frame", 0.022, 0.022, 0.8, 10, x2, 0.42, 0, W2);
+          P3.tube("barrier_frame", [[x2, 0.06, -0.16], [x2, 0.3, -0.05], [x2, 0.5, 0]], 0.016, W2);
+          P3.tube("barrier_frame", [[x2, 0.06, 0.16], [x2, 0.3, 0.05], [x2, 0.5, 0]], 0.016, W2);
+          P3.rbox("barrier_foot", 0.12, 0.07, 0.36, 0.03, x2, 0.035, 0, W2);
+        }
+        P3.box("barrier_frame", 1.24, 0.03, 0.03, 0, 0.82, 0, W2);
         break;
+      }
       case "bicycle": {
-        const c2 = [[0.8, 0.12, 0.1], [0.1, 0.2, 0.5], [0.9, 0.9, 0.9], [0.15, 0.15, 0.15]][rng() * 4 | 0];
-        for (const z2 of [-0.55, 0.55]) add("metal", new T2.TorusGeometry(0.33, 0.025, 6, 20), new T2.Matrix4().makeRotationY(Math.PI / 2).setPosition(0, 0.35, z2), [0.1, 0.1, 0.1]);
-        add("metal", box(0.04, 0.04, 1), M2(0, 0.62, 0), c2);
-        add("metal", box(0.04, 0.5, 0.04), M2(0, 0.55, -0.2), c2);
-        add("metal", box(0.2, 0.05, 0.1), M2(0, 0.85, -0.25), [0.1, 0.1, 0.1]);
-        add("metal", box(0.5, 0.03, 0.03), M2(0, 0.95, 0.5), [0.7, 0.7, 0.7]);
-        add("metal", box(0.3, 0.2, 0.25), M2(0, 0.8, 0.62), [0.7, 0.7, 0.72]);
+        const c2 = tint || [[0.8, 0.2, 0.18], [0.24, 0.36, 0.7], [0.94, 0.94, 0.94], [0.25, 0.25, 0.26]][rng() * 4 | 0];
+        for (const z2 of [-0.55, 0.55]) {
+          P3.torus("bicycle_tyre", 0.33, 0.024, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
+          P3.torus("bicycle_steel", 0.3, 8e-3, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
+          P3.cyl("bicycle_steel", 0.03, 0.03, 0.1, 10, 0, 0.35, z2, W2, 0, Math.PI / 2);
+          for (let k2 = 0; k2 < 12; k2++) {
+            const a2 = k2 / 12 * Math.PI * 2;
+            P3.cyl("bicycle_steel", 2e-3, 2e-3, 0.29, 3, 0, 0.35 + Math.sin(a2) * 0.15, z2 + Math.cos(a2) * 0.15, W2, Math.PI / 2 - a2);
+          }
+          const guard = [];
+          for (let k2 = 0; k2 <= 6; k2++) {
+            const a2 = Math.PI * (0.22 + k2 * 0.1);
+            guard.push([0, 0.35 + Math.sin(a2) * 0.37, z2 + Math.cos(a2) * 0.37]);
+          }
+          P3.tube("bicycle_frame", guard, 0.014, c2, 16);
+        }
+        P3.tube("bicycle_frame", [[0, 0.88, 0.42], [0, 0.6, 0.25], [0, 0.32, 0], [0, 0.3, -0.12]], 0.022, c2);
+        P3.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.6, -0.2], [0, 0.82, -0.24]], 0.02, c2);
+        P3.tube("bicycle_frame", [[0, 0.3, -0.12], [0, 0.35, -0.55]], 0.012, c2);
+        P3.tube("bicycle_frame", [[0, 0.75, -0.22], [0, 0.35, -0.55]], 0.01, c2);
+        P3.tube("bicycle_frame", [[0, 0.95, 0.45], [0, 0.6, 0.52], [0, 0.35, 0.55]], 0.016, c2);
+        P3.cyl("bicycle_frame", 0.05, 0.05, 0.12, 12, 0, 0.32, -0.08, c2, 0, Math.PI / 2);
+        P3.box("bicycle_frame", 0.04, 0.12, 0.42, 0.04, 0.33, -0.3, c2);
+        P3.tube("bicycle_steel", [[-0.27, 1.02, 0.36], [-0.12, 1, 0.44], [0, 0.98, 0.46], [0.12, 1, 0.44], [0.27, 1.02, 0.36]], 0.011, W2);
+        for (const s2 of [-1, 1]) P3.cyl("bicycle_saddle", 0.017, 0.017, 0.11, 8, s2 * 0.24, 1.02, 0.37, W2, 0, Math.PI / 2);
+        P3.cyl("bicycle_steel", 0.012, 0.012, 0.22, 8, 0, 0.9, -0.24, W2);
+        P3.rbox("bicycle_saddle", 0.17, 0.06, 0.26, 0.06, 0, 1, -0.25, W2);
+        P3.box("bicycle_steel", 0.3, 0.012, 0.36, 0, 0.7, -0.55, W2);
+        P3.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.82, W2);
+        P3.face("bicycle_basket", 0.34, 0.26, 0, 0.84, 0.56, W2, Math.PI);
+        for (const s2 of [-1, 1]) P3.face("bicycle_basket", 0.26, 0.26, s2 * 0.17, 0.84, 0.69, W2, s2 * Math.PI / 2);
+        P3.box("bicycle_steel", 0.34, 6e-3, 0.26, 0, 0.71, 0.69, W2);
+        P3.cyl("bicycle_steel", 0.035, 0.035, 0.05, 10, 0, 0.95, 0.5, [1, 0.95, 0.8], Math.PI / 2);
+        P3.box("bicycle_frame", 0.015, 0.25, 0.04, 0.1, 0.18, -0.15, c2, 0, 0, 0.5);
         break;
       }
       case "vending": {
-        const body = [[0.9, 0.12, 0.12], [0.1, 0.35, 0.75], [0.95, 0.95, 0.95], [0.9, 0.55, 0.1]][rng() * 4 | 0];
-        add("paint", box(1, 1.85, 0.8), M2(0, 0.925, 0), body);
-        add("glow", box(0.86, 0.9, 0.02), M2(0, 1.3, 0.41), [0.95, 0.95, 0.9]);
-        for (let r2 = 0; r2 < 3; r2++) for (let k2 = 0; k2 < 6; k2++) add("plastic", cyl(0.035, 0.035, 0.13, 6), M2(-0.32 + k2 * 0.13, 1 + r2 * 0.28, 0.43), [rng(), rng(), rng()]);
-        add("paint", box(0.7, 0.18, 0.05), M2(0, 0.35, 0.41), [0.08, 0.08, 0.08]);
+        const body = tint || [[0.9, 0.24, 0.22], [0.26, 0.48, 0.82], [0.95, 0.95, 0.95], [0.92, 0.62, 0.22]][rng() * 4 | 0];
+        P3.rbox("vending_body", 1, 1.78, 0.8, 0.03, 0, 0.96, -0, body);
+        P3.box("vending_body", 1.04, 0.12, 0.84, 0, 1.86, 0, body);
+        P3.box("vending_trim", 1, 0.08, 0.78, 0, 0.04, 0, W2);
+        P3.box("vending_body", 0.92, 1, 0.04, 0, 1.3, 0.41, body);
+        P3.face("vending_front", 0.84, 0.88, 0, 1.31, 0.431, W2);
+        P3.box("vending_trim", 0.86, 0.02, 0.03, 0, 0.86, 0.425, W2);
+        P3.face("vending_panel", 0.92, 0.48, 0, 0.56, 0.403, W2);
+        for (const s2 of [-1, 1]) P3.box("vending_trim", 0.02, 1.72, 0.03, s2 * 0.49, 0.96, 0.415, W2);
+        P3.cyl("vending_trim", 0.012, 0.012, 0.2, 8, 0.4, 0.62, 0.445, W2);
         break;
       }
-      case "bench":
-        add("paint", box(1.8, 0.06, 0.45), M2(0, 0.45, 0), [0.55, 0.38, 0.22]);
-        add("paint", box(1.8, 0.4, 0.05), M2(0, 0.7, -0.2), [0.55, 0.38, 0.22]);
-        for (const x2 of [-0.8, 0.8]) add("metal", box(0.06, 0.45, 0.45), M2(x2, 0.22, 0), [0.2, 0.2, 0.22]);
+      case "bench": {
+        for (let i2 = 0; i2 < 4; i2++) P3.rbox("bench_wood", 1.8, 0.04, 0.09, 0.012, 0, 0.44, -0.18 + i2 * 0.105, W2);
+        for (let i2 = 0; i2 < 3; i2++) P3.rbox("bench_wood", 1.8, 0.085, 0.035, 0.01, 0, 0.6 + i2 * 0.11, -0.25 - i2 * 0.02, W2);
+        for (const x2 of [-0.78, 0, 0.78]) {
+          P3.tube("bench_iron", [[x2, 0, 0.2], [x2, 0.4, 0.18], [x2, 0.42, -0.18], [x2, 0, -0.22]], 0.02, W2);
+          P3.tube("bench_iron", [[x2, 0.42, -0.2], [x2, 0.62, -0.25], [x2, 0.85, -0.3]], 0.018, W2);
+          if (x2) P3.tube("bench_iron", [[x2, 0.42, 0.18], [x2, 0.62, 0.17], [x2, 0.63, -0.05]], 0.016, W2);
+        }
         break;
-      case "bollard":
-        add("metal", cyl(0.1, 0.12, 0.9, 10), M2(0, 0.45, 0), [0.3, 0.32, 0.34]);
-        add("plastic", cyl(0.105, 0.105, 0.06, 10), M2(0, 0.78, 0), [0.95, 0.75, 0.1]);
+      }
+      case "bollard": {
+        P3.lathe("bollard_body", [[0.12, 0], [0.12, 0.03], [0.1, 0.05], [0.095, 0.82], [0.09, 0.85]], 18, 0, 0, 0, W2);
+        P3.lathe("bollard_cap", [[0.095, 0.85], [0.097, 0.87], [0.07, 0.92], [0, 0.935]], 18, 0, 0, 0, W2);
+        P3.torus("bollard_body", 0.098, 8e-3, 0, 0.7, 0, W2, 0, Math.PI / 2, 18);
         break;
-      case "lamp":
-        add("metal", cyl(0.07, 0.1, 6.5, 10), M2(0, 3.25, 0), [0.35, 0.37, 0.4]);
-        add("metal", box(0.08, 0.08, 1.6), M2(0, 6.4, 0.75), [0.35, 0.37, 0.4]);
-        add("metal", box(0.35, 0.12, 0.6), M2(0, 6.35, 1.45), [0.3, 0.3, 0.32]);
-        add("glow", box(0.3, 0.02, 0.5), M2(0, 6.28, 1.45), [1, 0.86, 0.66]);
+      }
+      case "lamp": {
+        P3.lathe("lamp_pole", [[0.16, 0], [0.16, 0.25], [0.11, 0.3], [0.1, 0.5], [0.07, 6.3], [0.06, 6.45]], 14, 0, 0, 0, W2);
+        P3.box("lamp_pole", 0.18, 0.3, 0.12, 0, 1, 0.1, W2);
+        P3.tube("lamp_pole", [[0, 6.2, 0], [0, 6.45, 0.25], [0, 6.48, 0.9], [0, 6.42, 1.35]], 0.04, W2);
+        P3.rbox("lamp_head", 0.34, 0.12, 0.62, 0.08, 0, 6.38, 1.45, W2);
+        for (let k2 = 0; k2 < 5; k2++) P3.box("lamp_head", 0.26, 0.025, 0.02, 0, 6.455, 1.25 + k2 * 0.1, W2);
+        P3.face("lamp_lens", 0.26, 0.48, 0, 6.318, 1.45, W2, 0, Math.PI / 2);
+        P3.cyl("lamp_head", 0.03, 0.03, 0.05, 8, 0, 6.47, 1.6, W2);
         break;
-      case "pole":
-        add("paint", cyl(0.13, 0.17, 10, 10), M2(0, 5, 0), [0.62, 0.6, 0.56]);
-        add("metal", box(1.8, 0.1, 0.1), M2(0, 9.2, 0), [0.3, 0.3, 0.3]);
-        add("metal", box(1.2, 0.1, 0.1), M2(0, 8.4, 0), [0.3, 0.3, 0.3]);
-        add("paint", cyl(0.25, 0.25, 0.7, 10), M2(0.35, 7.6, 0), [0.55, 0.57, 0.58]);
-        add("paint", box(0.3, 0.7, 0.02), M2(0, 2.4, 0.17), [0.95, 0.85, 0.1]);
+      }
+      case "pole": {
+        P3.cyl("pole_concrete", 0.13, 0.17, 10, 16, 0, 5, 0, W2);
+        P3.cyl("pole_concrete", 0.135, 0.135, 0.02, 16, 0, 10, 0, [0.7, 0.7, 0.7]);
+        for (let k2 = 0; k2 < 7; k2++) P3.cyl("pole_metal", 0.012, 0.012, 0.5, 6, 0, 2.4 + k2 * 0.45, 0, W2, Math.PI / 2, 0, k2 % 2 * Math.PI / 2);
+        P3.box("pole_metal", 1.8, 0.09, 0.09, 0, 9.2, 0, W2);
+        P3.box("pole_metal", 1.2, 0.09, 0.09, 0, 8.4, 0, W2);
+        for (const x2 of [-0.8, -0.4, 0.4, 0.8]) P3.lathe("pole_metal", [[0.04, 0], [0.05, 0.03], [0.03, 0.05], [0.05, 0.08], [0.03, 0.1], [0.02, 0.14], [0, 0.14]], 10, x2, 9.245, 0, [0.95, 0.95, 0.92]);
+        P3.cyl("pole_metal", 0.25, 0.25, 0.7, 16, 0.38, 7.6, 0, W2);
+        P3.cyl("pole_metal", 0.26, 0.26, 0.04, 16, 0.38, 7.97, 0, W2);
+        P3.box("pole_metal", 0.06, 0.5, 0.06, 0.12, 7.6, 0, W2);
+        P3.face("pole_guard", 0.36, 0.84, 0, 0.62, 0.176, W2);
+        P3.face("pole_guard", 0.36, 0.84, 0, 0.62, -0.176, W2, Math.PI);
+        P3.face("pole_plate", 0.32, 0.96, 0, 2.4, 0.18, W2);
+        P3.box("pole_metal", 0.36, 0.02, 0.03, 0, 2.9, 0.165, W2);
+        P3.box("pole_metal", 0.36, 0.02, 0.03, 0, 1.9, 0.165, W2);
         break;
+      }
       case "tree": {
         const s2 = 0.8 + rng() * 0.5;
-        add("paint", cyl(0.12 * s2, 0.18 * s2, 3 * s2, 7), M2(0, 1.5 * s2, 0), [0.32, 0.24, 0.17]);
-        for (let i2 = 0; i2 < 6; i2++) {
-          const a2 = rng() * 6.28, r2 = rng() * 1.1 * s2;
-          add("leaves", new T2.IcosahedronGeometry((0.9 + rng() * 0.6) * s2, 1), M2(Math.cos(a2) * r2, (3.2 + rng() * 1.4) * s2, Math.sin(a2) * r2), [0.22 + rng() * 0.08, 0.36 + rng() * 0.1, 0.16]);
+        P3.lathe("tree_bark", [[0.22 * s2, 0], [0.18 * s2, 0.3 * s2], [0.14 * s2, 2 * s2], [0.12 * s2, 3 * s2], [0.06 * s2, 3.4 * s2]], 9, 0, 0, 0, W2);
+        for (let i2 = 0; i2 < 3; i2++) {
+          const a2 = rng() * 6.28;
+          P3.tube("tree_bark", [[0, 2.4 * s2, 0], [Math.cos(a2) * 0.5 * s2, 3.1 * s2, Math.sin(a2) * 0.5 * s2], [Math.cos(a2) * 0.9 * s2, 3.6 * s2, Math.sin(a2) * 0.9 * s2]], 0.05 * s2, W2);
         }
-        add("paint", box(1.2, 0.12, 1.2), M2(0, 0.06, 0), [0.35, 0.3, 0.26]);
+        for (let i2 = 0; i2 < 18; i2++) {
+          const a2 = rng() * 6.28, r2 = Math.sqrt(rng()) * 1.5 * s2, up = rng();
+          P3.blob(
+            "tree_leaves",
+            (0.45 + rng() * 0.4) * s2 * (1.2 - up * 0.4),
+            Math.cos(a2) * r2 * (1 - up * 0.5),
+            (2.9 + up * 2) * s2,
+            Math.sin(a2) * r2 * (1 - up * 0.5),
+            [0.85 + rng() * 0.25, 0.88 + rng() * 0.2, 0.8 + rng() * 0.2],
+            2,
+            0.35,
+            rng() * 10
+          );
+        }
+        P3.face("tree_grate", 1.2, 1.2, 0, 0.024, 0, W2, 0, -Math.PI / 2);
+        P3.box("planter_box", 1.24, 0.03, 1.24, 0, 3e-3, 0, [0.6, 0.6, 0.6]);
         break;
       }
-      case "planter":
-        add("paint", box(1.6, 0.5, 0.6), M2(0, 0.25, 0), [0.55, 0.53, 0.5]);
-        for (let i2 = 0; i2 < 4; i2++) add("leaves", new T2.IcosahedronGeometry(0.3 + rng() * 0.1, 0), M2(-0.6 + i2 * 0.4, 0.6, 0), [0.25, 0.45 + rng() * 0.1, 0.2]);
+      case "planter": {
+        P3.rbox("planter_box", 1.6, 0.5, 0.6, 0.04, 0, 0.25, 0, W2);
+        P3.box("planter_box", 1.66, 0.06, 0.66, 0, 0.5, 0, [0.92, 0.92, 0.9]);
+        P3.box("planter_shrub", 1.5, 0.02, 0.5, 0, 0.52, 0, [0.35, 0.28, 0.22]);
+        for (let i2 = 0; i2 < 8; i2++) P3.blob("planter_shrub", 0.2 + rng() * 0.08, -0.68 + i2 * 0.195, 0.62 + rng() * 0.06, (rng() - 0.5) * 0.18, W2, 2, 0.3, rng() * 10);
         break;
-      case "signpost":
-        add("metal", cyl(0.04, 0.04, 3, 8), M2(0, 1.5, 0), [0.6, 0.6, 0.62]);
-        add("paint", new T2.CylinderGeometry(0.3, 0.3, 0.03, 20).rotateX(Math.PI / 2), M2(0, 2.7, 0.04), [0.85, 0.1, 0.1]);
-        add("paint", box(0.4, 0.08, 0.04), M2(0, 2.7, 0.06), [0.95, 0.95, 0.95]);
+      }
+      case "signpost": {
+        P3.cyl("signpost_pole", 0.03, 0.03, 3, 10, 0, 1.5, 0, W2);
+        P3.cyl("signpost_pole", 0.032, 0.032, 0.02, 10, 0, 3, 0, W2);
+        P3.disc("sign_face", 0.3, 0, 2.7, 0.052, W2);
+        P3.cyl("sign_back", 0.305, 0.305, 0.012, 24, 0, 2.7, 0.043, W2, Math.PI / 2);
+        for (const y2 of [2.55, 2.85]) P3.box("signpost_pole", 0.08, 0.025, 0.05, 0, y2, 0.025, W2);
         break;
-      case "ac":
-        add("paint", box(0.8, 0.6, 0.3), M2(0, 0.3, 0), [0.88, 0.88, 0.86]);
-        add("metal", cyl(0.22, 0.22, 0.02, 16).rotateX(Math.PI / 2), M2(-0.12, 0.3, 0.16), [0.2, 0.2, 0.2]);
+      }
+      case "ac": {
+        P3.rbox("ac_body", 0.8, 0.58, 0.28, 0.02, 0, 0.3, 0, W2);
+        P3.disc("ac_grille", 0.22, -0.12, 0.3, 0.142, W2);
+        P3.torus("ac_body", 0.225, 0.012, -0.12, 0.3, 0.142, W2, 0, 0, 16);
+        P3.face("ac_fins", 0.26, 0.5, 0.401, 0.3, 0, W2, Math.PI / 2);
+        P3.face("ac_fins", 0.76, 0.5, 0, 0.3, -0.141, W2, Math.PI);
+        P3.box("ac_body", 0.18, 0.12, 0.05, 0.27, 0.16, 0.15, [0.85, 0.85, 0.82]);
+        P3.tube("ac_fins", [[0.3, 0.12, 0.1], [0.42, 0.06, 0.1], [0.5, 0, 0.1]], 0.012, [0.9, 0.9, 0.85]);
+        for (const x2 of [-0.32, 0.32]) P3.box("ac_body", 0.06, 0.03, 0.32, x2, 0, 0, [0.6, 0.6, 0.6]);
         break;
+      }
       case "ball":
-        add("plastic", new T2.IcosahedronGeometry(0.11, 2), M2(0, 0, 0), [0.95, 0.95, 0.95]);
+        P3.sphere("ball_skin", 0.11, 0, 0, 0, W2);
         break;
       default:
-        add("paint", box(0.5, 0.5, 0.5), M2(0, 0.25, 0), [1, 0, 1]);
+        P3.box("crate_wood", 0.5, 0.5, 0.5, 0, 0.25, 0, W2);
     }
   }
 
@@ -7497,7 +7803,7 @@ void shSurface(vec3 wp, vec3 wn) {
         add("paint", new T2.BoxGeometry(th, y1 - y0, len), new T2.Matrix4().compose(new T2.Vector3(c2[0], c2[1], c2[2]), new T2.Quaternion().setFromEuler(new T2.Euler(0, yaw, 0)), new T2.Vector3(1, 1, 1)), w2.colour ? hexToRgb(w2.colour) : [0.58, 0.57, 0.54]);
         if (ph) ph.addStaticBox(key, [c2[0] + ox, c2[1] + oy, c2[2] + oz], [th, y1 - y0, len], yaw, { tag: "wall" });
       }
-      const W2 = [0.95, 0.95, 0.92], Y2 = [0.95, 0.72, 0.1];
+      const W3 = [0.95, 0.95, 0.92], Y2 = [0.95, 0.72, 0.1];
       for (const r2 of cell.roads || []) {
         const dx = r2.b[0] - r2.a[0], dz = r2.b[1] - r2.a[1], len = Math.hypot(dx, dz);
         if (len < 0.1) continue;
@@ -7510,25 +7816,25 @@ void shSurface(vec3 wp, vec3 wn) {
         const inset = r2.crossA ? 4.5 : 0, insetB = r2.crossB ? 4.5 : 0;
         const L3 = len - inset - insetB;
         if (L3 > 0) {
-          if (c2 === "dashed") for (let s2 = inset + 1.5; s2 + 3 < len - insetB; s2 += 8) at(s2 + 1.5, 0, 3, 0.15, W2);
-          else if (c2 === "solid") at(inset + L3 / 2, 0, L3, 0.15, W2);
+          if (c2 === "dashed") for (let s2 = inset + 1.5; s2 + 3 < len - insetB; s2 += 8) at(s2 + 1.5, 0, 3, 0.15, W3);
+          else if (c2 === "solid") at(inset + L3 / 2, 0, L3, 0.15, W3);
           else if (c2 === "yellow") {
             at(inset + L3 / 2, 0.15, L3, 0.12, Y2);
             at(inset + L3 / 2, -0.15, L3, 0.12, Y2);
           }
           if (r2.edges !== false) {
-            at(inset + L3 / 2, wid / 2 - 0.4, L3, 0.15, W2);
-            at(inset + L3 / 2, -wid / 2 + 0.4, L3, 0.15, W2);
+            at(inset + L3 / 2, wid / 2 - 0.4, L3, 0.15, W3);
+            at(inset + L3 / 2, -wid / 2 + 0.4, L3, 0.15, W3);
           }
           const lanes = r2.lanes || 2;
-          if (lanes >= 4) for (const lat of [-wid / 4, wid / 4]) for (let s2 = inset + 1.5; s2 + 3 < len - insetB; s2 += 8) at(s2 + 1.5, lat, 3, 0.12, W2);
+          if (lanes >= 4) for (const lat of [-wid / 4, wid / 4]) for (let s2 = inset + 1.5; s2 + 3 < len - insetB; s2 += 8) at(s2 + 1.5, lat, 3, 0.12, W3);
         }
         const zebra = (s2) => {
-          for (let lat = -wid / 2 + 0.8; lat < wid / 2 - 0.6; lat += 0.9) at(s2, lat + 0.25, 3.2, 0.45, W2);
+          for (let lat = -wid / 2 + 0.8; lat < wid / 2 - 0.6; lat += 0.9) at(s2, lat + 0.25, 3.2, 0.45, W3);
         };
         if (r2.crossA) {
           zebra(2);
-          at(4.3, 0, 0.3, wid * 0.5, W2);
+          at(4.3, 0, 0.3, wid * 0.5, W3);
         }
         if (r2.crossB) {
           zebra(len - 2);
@@ -7605,6 +7911,56 @@ void shSurface(vec3 wp, vec3 wn) {
       }
       root.add(group);
       return { group, lights, meshes, signs };
+    }
+    // One prop as a standalone group (the prop viewer, tools, game content that wants a single cone or bench).
+    propMesh(type, seed) {
+      const T2 = this.T, g2 = new T2.Group(), B2 = new Batcher(T2);
+      drawProp(T2, type, (mn, geo, m2, col) => B2.add(mn, this.mat.get(mn), geo, m2, col), seeded(hashStr(type + "|" + (seed || 0))));
+      B2.build(g2);
+      g2.traverse((o2) => {
+        if (o2.isMesh) {
+          o2.castShadow = true;
+          o2.receiveShadow = true;
+        }
+      });
+      g2.name = "prop " + type;
+      return g2;
+    }
+    // Many copies of one prop as instanced meshes, one per texture slot: the host game's own street furniture (vending
+    // machines, aircon units...) drawn with the engine's detailed, textured props at the cost of a few draw calls.
+    // items: [{ x, y, z, yaw, colour: [r, g, b] (sRGB 0..1, tints the prop's tinted parts) }]
+    instanceProps(type, items) {
+      const T2 = this.T, out = new T2.Group(), tmp = new T2.Group(), B2 = new Batcher(T2);
+      out.name = "props " + type;
+      if (!items.length) return out;
+      drawProp(T2, type, (mn, geo, m2, col) => B2.add(mn, this.mat.get(mn), geo, m2, col), seeded(hashStr(type)), { tint: [1, 1, 1] });
+      B2.build(tmp);
+      const m4 = new T2.Matrix4(), q2 = new T2.Quaternion(), e2 = new T2.Euler(), p2 = new T2.Vector3(), one = new T2.Vector3(1, 1, 1), c2 = new T2.Color();
+      for (const mesh of tmp.children) {
+        const im = new T2.InstancedMesh(mesh.geometry, mesh.material, items.length);
+        const tinted = PROP_SLOTS[mesh.name] && PROP_SLOTS[mesh.name].tint;
+        items.forEach((it, i2) => {
+          e2.set(0, it.yaw || 0, 0);
+          q2.setFromEuler(e2);
+          p2.set(it.x, it.y, it.z);
+          m4.compose(p2, q2, one);
+          im.setMatrixAt(i2, m4);
+          if (tinted) {
+            const k2 = it.colour || [1, 1, 1];
+            c2.setRGB(Math.pow(k2[0], 2.2), Math.pow(k2[1], 2.2), Math.pow(k2[2], 2.2));
+            im.setColorAt(i2, c2);
+          }
+        });
+        im.instanceMatrix.needsUpdate = true;
+        if (im.instanceColor) im.instanceColor.needsUpdate = true;
+        im.castShadow = mesh.castShadow;
+        im.receiveShadow = true;
+        im.name = type + ":" + mesh.name;
+        im.computeBoundingSphere && im.computeBoundingSphere();
+        im.frustumCulled = false;
+        out.add(im);
+      }
+      return out;
     }
     _proto(type) {
       if (this.protos.has(type)) return this.protos.get(type);
@@ -7709,13 +8065,13 @@ void shSurface(vec3 wp, vec3 wn) {
           const h2 = s2.height || Math.min(H2 - groundH - 1, Math.max(3, text.length * 1 + 0.6));
           const t2 = s2.at != null ? s2.at : 0.85;
           const x2 = p0[0] + ex * t2 + nx * 0.75, z2 = p0[1] + ez * t2 + nz * 0.75, y2 = y0 + groundH + 0.5 + h2 / 2;
-          const slot = signs.vertical(text, col);
+          const slot = signs.vertical(text, col, key + "|" + (b2.id || b2.c) + "|v|" + (s2.at || 0));
           signs.blade(slot, x2, y2, z2, tx, tz, 0.12, h2, 1);
           lights.push({ pos: [x2 + ox + nx * 0.6, y2 + oy, z2 + oz + nz * 0.6], colour: new T2.Color(col).getHex(), range: 9, intensity: 0.6, sign: true });
         } else {
           const w2 = Math.min(len * 0.8, s2.width || len - 1), t2 = s2.at != null ? s2.at : 0.5;
           const x2 = p0[0] + ex * t2 + nx * 0.18, z2 = p0[1] + ez * t2 + nz * 0.18, y2 = y0 + groundH - 0.55;
-          const slot = signs.fascia(text, col);
+          const slot = signs.fascia(text, col, key + "|" + (b2.id || b2.c) + "|f");
           signs.panel(slot, x2, y2, z2, tx, tz, nx, nz, w2, 0.9);
         }
       }
@@ -7766,10 +8122,18 @@ void shSurface(vec3 wp, vec3 wn) {
     _font(px) {
       return "bold " + px + "px 'Yu Gothic', 'Hiragino Sans', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP', 'WenQuanYi Zen Hei', sans-serif";
     }
-    vertical(text, col) {
+    // With the game's SignFonts library loaded (Web/art/signfonts.js), every sign gets its own typeface, lettering
+    // treatment and board style, seeded by the building, so a street of signs never looks stamped from one font.
+    vertical(text, col, seed) {
       const chars = [...text], cw = 64, s2 = this._alloc(cw, Math.max(4, chars.length) * cw * 0.95 + 16);
       if (!s2) return null;
-      const c2 = this.ctx, light = isLight(col);
+      const c2 = this.ctx, light = isLight(col), SF = globalThis.SignFonts;
+      if (SF) {
+        const st = SF.style("cell|" + (seed || "") + "|" + text, { text }), ink = light ? "#141414" : "#ffffff";
+        SF.panel(c2, s2.x, s2.y, s2.w, s2.h, st, col, ink);
+        SF.vertical(c2, text, s2.x + s2.w / 2, s2.y + 10, s2.y + s2.h - 6, st, ink, col, 48);
+        return s2;
+      }
       c2.fillStyle = col;
       c2.fillRect(s2.x, s2.y, s2.w, s2.h);
       c2.strokeStyle = light ? "#202020" : "#ffffff";
@@ -7783,10 +8147,18 @@ void shSurface(vec3 wp, vec3 wn) {
       chars.forEach((ch, i2) => c2.fillText(ch, s2.x + s2.w / 2, s2.y + 8 + step * (i2 + 0.5)));
       return s2;
     }
-    fascia(text, col) {
+    fascia(text, col, seed) {
       const s2 = this._alloc(512, 72);
       if (!s2) return null;
-      const c2 = this.ctx, light = isLight(col);
+      const c2 = this.ctx, light = isLight(col), SF = globalThis.SignFonts;
+      if (SF) {
+        const st = SF.style("cell|" + (seed || "") + "|" + text, { text }), ink = light ? "#141414" : "#ffffff";
+        SF.panel(c2, s2.x, s2.y, s2.w, s2.h, st, col, ink);
+        c2.textAlign = "center";
+        c2.textBaseline = "middle";
+        SF.text(c2, text, s2.x + s2.w / 2, s2.y + s2.h / 2 + 2, st, ink, col, 50, s2.w - 40);
+        return s2;
+      }
       c2.fillStyle = col;
       c2.fillRect(s2.x, s2.y, s2.w, s2.h);
       c2.fillStyle = light ? "#141414" : "#ffffff";
@@ -7798,7 +8170,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
     _quad(slot, corners, n2) {
       if (!slot) return;
-      const S3 = this.size, u0 = slot.x / S3, u1 = (slot.x + slot.w) / S3, v1 = 1 - slot.y / S3, v0 = 1 - (slot.y + slot.h) / S3;
+      const S4 = this.size, u0 = slot.x / S4, u1 = (slot.x + slot.w) / S4, v1 = 1 - slot.y / S4, v0 = 1 - (slot.y + slot.h) / S4;
       const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       for (const k2 of [0, 1, 2, 0, 2, 3]) {
         this.pos.push(...corners[k2]);
@@ -7983,18 +8355,74 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
 }
 `
   );
+  var ENGINE_SRC = typeof document !== "undefined" && document.currentScript && document.currentScript.src || "";
+  var PROP_TEX_BASE = ENGINE_SRC && /\/engine\/[^/]*$/.test(ENGINE_SRC) ? ENGINE_SRC.replace(/engine\/[^/]*$/, "art/props/") : "art/props/";
   var Materials = class {
     constructor(engine) {
       this.engine = engine;
       this.T = engine.THREE;
       this.cache = /* @__PURE__ */ new Map();
+      this.pending = [];
+      this.texBase = engine.opts && engine.opts.propTextures || PROP_TEX_BASE;
     }
     get(name) {
       if (this.cache.has(name)) return this.cache.get(name);
-      const m2 = this["_" + name] ? this["_" + name]() : this._paint();
+      const m2 = PROP_SLOTS[name] ? this._slot(name) : this["_" + name] ? this["_" + name]() : this._paint();
       this.cache.set(name, m2);
       this.engine.surfaces.adopt(m2);
       return m2;
+    }
+    // A prop texture slot: a full PBR set (map + normalMap + roughnessMap) from Web/art/props/<slot>.jpg, _nor.jpg and
+    // _rough.jpg, tinted by vertex colour. Painted replacements drop in under the same names with no code change.
+    _slot(name) {
+      const T2 = this.T, def = PROP_SLOTS[name], base = SLOT_MATERIALS[def.material] || SLOT_MATERIALS.paint;
+      const loader = this._loader || (this._loader = new T2.TextureLoader());
+      const tex = (suffix, srgb) => {
+        let done;
+        this.pending.push(new Promise((r2) => {
+          done = r2;
+          setTimeout(r2, 15e3);
+        }));
+        const v2 = this.engine.opts && this.engine.opts.texVersion ? "?v=" + this.engine.opts.texVersion : "";
+        const t2 = loader.load(
+          this.texBase + name + suffix + ".jpg" + v2,
+          () => done(),
+          void 0,
+          () => {
+            done();
+            console.warn("[Shigoto] prop texture missing: " + name + suffix + ".jpg");
+          }
+        );
+        t2.wrapS = def.uv === "face" ? T2.ClampToEdgeWrapping : T2.RepeatWrapping;
+        t2.wrapT = def.uv === "tile" ? T2.RepeatWrapping : T2.ClampToEdgeWrapping;
+        t2.anisotropy = 8;
+        if (srgb) t2.encoding = T2.sRGBEncoding;
+        return t2;
+      };
+      const opts = { vertexColors: true, map: tex("", true), normalMap: tex("_nor"), roughnessMap: tex("_rough"), roughness: 1, metalness: base.metalness };
+      if (def.material === "leaves") opts.normalScale = new T2.Vector2(1.6, 1.6);
+      if (base.glow) {
+        opts.emissive = new T2.Color(16777215);
+        opts.emissiveMap = opts.map;
+      }
+      const m2 = new T2.MeshStandardMaterial(opts);
+      m2.name = "prop:" + name;
+      m2.userData.propSlot = name;
+      if (base.glow) {
+        m2.userData.shDry = true;
+        const S4 = this.engine.surfaces.uniforms;
+        m2.onBeforeCompile = (sh) => {
+          sh.uniforms.shNight = S4.shNight;
+          sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor * mix(0.25, 2.4, shNight);");
+        };
+        m2.customProgramCacheKey = () => "shigoto-propglow";
+      }
+      return m2;
+    }
+    // Resolves once every prop texture requested so far has arrived (or failed), so the world is shown painted.
+    texturesReady(timeoutMs) {
+      const all = Promise.all(this.pending.splice(0));
+      return timeoutMs ? Promise.race([all, new Promise((r2) => setTimeout(r2, timeoutMs))]) : all;
     }
     _paint() {
       return new this.T.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0 });
@@ -8008,9 +8436,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     _glow() {
       const m2 = new this.T.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, emissive: 16777215, emissiveIntensity: 1 });
       m2.userData.shDry = true;
-      const S3 = this.engine.surfaces.uniforms;
+      const S4 = this.engine.surfaces.uniforms;
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S3.shNight;
+        sh.uniforms.shNight = S4.shNight;
         sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance = vColor * mix(0.25, 2.4, shNight);");
       };
       m2.customProgramCacheKey = () => "shigoto-glow";
@@ -8065,10 +8493,10 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       return m2;
     }
     _facade() {
-      const T2 = this.T, S3 = this.engine.surfaces.uniforms;
+      const T2 = this.T, S4 = this.engine.surfaces.uniforms;
       const m2 = new T2.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S3.shNight;
+        sh.uniforms.shNight = S4.shNight;
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\n" + FACADE_V).replace("#include <project_vertex>", `#include <project_vertex>
           vFTan = normalize(mat3(modelMatrix) * aTan); vFac = aFac; vFac2 = aFac2; vFUv = uv;
           vFPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFNor = normalize(mat3(modelMatrix) * objectNormal);`);
@@ -8189,6 +8617,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       };
       for (let i2 = 0; i2 < jobs.length; i2 += 4) await Promise.all(jobs.slice(i2, i2 + 4).map(one));
       this.engine.stats.cells = jobs.length - failed;
+      await this.materials.texturesReady(2e4);
       return { cells: jobs.length - failed, failed };
     }
     // url: folder holding level.json. placement: { x, y, z } offset to put the level into a host world.
@@ -8765,10 +9194,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     const si = geo.attributes.skinIndex, sw = geo.attributes.skinWeight;
     if (si && sw) {
       const SI2 = read(si), SW = read(sw);
-      const I2 = new Uint16Array(n1 * 4), W2 = new Float32Array(n1 * 4);
+      const I2 = new Uint16Array(n1 * 4), W3 = new Float32Array(n1 * 4);
       for (let i2 = 0; i2 < n0 * 4; i2++) {
         I2[i2] = SI2[i2];
-        W2[i2] = SW[i2];
+        W3[i2] = SW[i2];
       }
       const acc = /* @__PURE__ */ new Map();
       for (let e2 = 0; e2 < ne; e2++) {
@@ -8785,11 +9214,11 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
         const sum = top.reduce((s2, p2) => s2 + p2[1], 0) || 1;
         for (let c2 = 0; c2 < 4; c2++) {
           I2[o2 + c2] = top[c2] ? top[c2][0] : 0;
-          W2[o2 + c2] = top[c2] ? top[c2][1] / sum : 0;
+          W3[o2 + c2] = top[c2] ? top[c2][1] / sum : 0;
         }
       }
       out.skinIndex = new T2.BufferAttribute(I2, 4);
-      out.skinWeight = new T2.BufferAttribute(W2, 4);
+      out.skinWeight = new T2.BufferAttribute(W3, 4);
     }
     const g2 = new T2.BufferGeometry();
     for (const name of names) if (out[name]) g2.setAttribute(name, out[name]);
@@ -9936,37 +10365,37 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
   // src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
-  var S2 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
   var STANDING_ICONS = {
     gun: SVG(P2("M3 8h15l1-1h2v3h-3l-1 1h-4l-1 2h-2l-1 4H5l1.5-6H3z")),
-    shooting: SVG(S2("M12 3v4M12 17v4M3 12h4M17 12h4") + '<circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>'),
+    shooting: SVG(S3("M12 3v4M12 17v4M3 12h4M17 12h4") + '<circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>'),
     killing: SVG(P2("M12 3c-4.4 0-7.5 3-7.5 7 0 2.3 1 4 2.5 5v3h10v-3c1.5-1 2.5-2.7 2.5-5 0-4-3.1-7-7.5-7zM9 9.5a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zm6 0a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zM10 19h1.2v2H10zm2.8 0H14v2h-1.2z")),
     car: SVG(P2("M5 11l1.8-4.2A2 2 0 018.6 5.6h6.8a2 2 0 011.8 1.2L19 11a2 2 0 011.5 2v4h-2v1.5h-2.5V17h-8v1.5H5.5V17h-2v-4A2 2 0 015 11zm2.2 0h9.6l-1.3-3.2H8.5zM6.5 13.2a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4zm11 0a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z")),
-    knockdown: SVG(P2("M3 13l1.5-3.5A2 2 0 016.3 8.3h5.4a2 2 0 011.8 1.2L15 13v4h-2v1.2h-2V17H6v1.2H4V17H3z") + S2("M18 6l3 3M21 6l-3 3", 1.8)),
+    knockdown: SVG(P2("M3 13l1.5-3.5A2 2 0 016.3 8.3h5.4a2 2 0 011.8 1.2L15 13v4h-2v1.2h-2V17H6v1.2H4V17H3z") + S3("M18 6l3 3M21 6l-3 3", 1.8)),
     alarm: SVG(P2("M12 3a1.4 1.4 0 011.4 1.4v.7A6 6 0 0118 11v4l2 2.5H4L6 15v-4a6 6 0 014.6-5.9v-.7A1.4 1.4 0 0112 3zm-2 16h4a2 2 0 01-4 0z")),
     robbery: SVG('<text x="12" y="18.5" text-anchor="middle" font-size="17" font-weight="800" font-family="Arial,Helvetica,sans-serif" fill="currentColor">\xA5</text>'),
     menace: SVG(P2("M12 2l10 18H2zm-1 6v6h2V8zm0 8v2h2v-2z")),
     escape: SVG(P2("M13.5 5.5a2 2 0 110-4 2 2 0 010 4zM9.8 8.4l3.4-1.2c.7-.2 1.4.1 1.8.7l1.6 2.7 2.9.9-.6 1.9-3.6-1.1-.9-1.4-1.1 3.6 2.4 2.3V22h-2v-4.2l-2.7-2.4-1 3.9H6.5l1.9-7.6-1.6.6V15H4.8v-4.2z")),
-    harass: SVG(S2("M4 12h4l2-5 4 10 2-5h4", 2.2)),
+    harass: SVG(S3("M4 12h4l2-5 4 10 2-5h4", 2.2)),
     help: SVG(P2("M12 20.5l-1.3-1.2C5.9 15 3 12.4 3 9.2 3 6.6 5 4.5 7.6 4.5c1.5 0 3 .7 4.4 2 1.4-1.3 2.9-2 4.4-2C19 4.5 21 6.6 21 9.2c0 3.2-2.9 5.8-7.7 10.1z")),
     wallet: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2zm11 6.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM5 4h11v2H5z")),
-    keep: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z") + S2("M7 10l8 7M15 10l-8 7", 1.8)),
+    keep: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z") + S3("M7 10l8 7M15 10l-8 7", 1.8)),
     directions: SVG(P2("M11 2h2v3h6l2 2.5-2 2.5h-6v2h-2v-2H5L3 7.5 5 5h6zM11 14h2v8h-2z")),
     fare: SVG(P2("M3 6h18v12H3zm2 2v8h14V8zm7 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z")),
     shopping: SVG(P2("M6 8h12l-1 12H7zm3-1a3 3 0 016 0h-1.6a1.4 1.4 0 00-2.8 0z")),
     escort: SVG(P2("M8 4.5a2 2 0 110 4 2 2 0 010-4zm8 0a2 2 0 110 4 2 2 0 010-4zM6 10h4l1 5-1.5.4V21H7.5v-5.6L6 15zm8 0h4l1 4.6-1.5.4.5 6h-2v-5.6L15 15z")),
     service: SVG(P2("M5 4h14v4H5zm1 6h12v10H6zm3 2v6h2v-6zm4 0v6h2v-6z")),
-    broken: SVG(S2("M6 6l12 12M18 6L6 18", 2.4)),
+    broken: SVG(S3("M6 6l12 12M18 6L6 18", 2.4)),
     story: SVG(P2("M6 3h12v18l-6-4-6 4z")),
-    bow: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S2("M14.5 9L8 12.5M9.2 11.8L9 21M9 16l3.5 5", 2.4)),
-    ignored: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S2("M14.5 9L8 12.5M9.2 11.8L9 21", 2.4) + S2("M18 13h4", 2)),
-    returned: SVG('<circle cx="7" cy="6" r="2" fill="currentColor"/><circle cx="17" cy="6" r="2" fill="currentColor"/>' + S2("M8 8.5l2.5 3.5M16 8.5l-2.5 3.5M10.2 12v8M13.8 12v8", 2.2)),
+    bow: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S3("M14.5 9L8 12.5M9.2 11.8L9 21M9 16l3.5 5", 2.4)),
+    ignored: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S3("M14.5 9L8 12.5M9.2 11.8L9 21", 2.4) + S3("M18 13h4", 2)),
+    returned: SVG('<circle cx="7" cy="6" r="2" fill="currentColor"/><circle cx="17" cy="6" r="2" fill="currentColor"/>' + S3("M8 8.5l2.5 3.5M16 8.5l-2.5 3.5M10.2 12v8M13.8 12v8", 2.2)),
     antagonize: SVG(P2("M13 2L5 13h5l-1 9 8-11h-5z")),
     stare: SVG(P2("M12 6c5 0 8.5 4 9.5 6-1 2-4.5 6-9.5 6s-8.5-4-9.5-6c1-2 4.5-6 9.5-6zm0 2.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z")),
-    promotion: SVG(S2("M6 13l6-6 6 6M6 19l6-6 6 6", 2.4)),
-    demotion: SVG(S2("M6 5l6 6 6-6M6 11l6 6 6-6", 2.4)),
+    promotion: SVG(S3("M6 13l6-6 6 6M6 19l6-6 6 6", 2.4)),
+    demotion: SVG(S3("M6 5l6 6 6-6M6 11l6 6 6-6", 2.4)),
     respect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z")),
-    disrespect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z", 'opacity=".45"') + S2("M5 19L19 5", 2))
+    disrespect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z", 'opacity=".45"') + S3("M5 19L19 5", 2))
   };
   var CSS = `
 #stndg { position: fixed; top: 122px; right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 31; width: 280px; pointer-events: none;

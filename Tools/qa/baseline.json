@@ -876,11 +876,6 @@
    "problem": "missing: rubbish bags / litter on the street",
    "where": "world code + levels"
   },
-  "engine-props-untextured": {
-   "cat": "street",
-   "problem": "the engine's 49 street-prop parts (bins, vending machines, bicycles, poles...) are flat-colour primitives: materials glow, leaves, metal, paint, plastic have no texture maps",
-   "where": "Engine/src/world/Props.js + Engine/src/render/Materials.js"
-  },
   "facade:civic": {
    "cat": "buildings",
    "problem": "facade set is missing rough",

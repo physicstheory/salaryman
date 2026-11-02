@@ -42,19 +42,65 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
 }
 `;
 
+import { PROP_SLOTS, SLOT_MATERIALS } from "../world/PropSlots.js";
+
+// Where the prop texture library lives: Web/art/props/, found relative to engine/shigoto.js so the game (Web/) and the
+// sandbox (Web/engine/) both resolve it. A host can override it with options.propTextures.
+const ENGINE_SRC = (typeof document !== "undefined" && document.currentScript && document.currentScript.src) || "";
+const PROP_TEX_BASE = ENGINE_SRC && /\/engine\/[^/]*$/.test(ENGINE_SRC) ? ENGINE_SRC.replace(/engine\/[^/]*$/, "art/props/") : "art/props/";
+
 export class Materials {
   constructor(engine) {
     this.engine = engine;
     this.T = engine.THREE;
     this.cache = new Map();
+    this.pending = [];
+    this.texBase = (engine.opts && engine.opts.propTextures) || PROP_TEX_BASE;
   }
 
   get(name) {
     if (this.cache.has(name)) return this.cache.get(name);
-    const m = this["_" + name] ? this["_" + name]() : this._paint();
+    const m = PROP_SLOTS[name] ? this._slot(name) : this["_" + name] ? this["_" + name]() : this._paint();
     this.cache.set(name, m);
     this.engine.surfaces.adopt(m);
     return m;
+  }
+
+  // A prop texture slot: a full PBR set (map + normalMap + roughnessMap) from Web/art/props/<slot>.jpg, _nor.jpg and
+  // _rough.jpg, tinted by vertex colour. Painted replacements drop in under the same names with no code change.
+  _slot(name) {
+    const T = this.T, def = PROP_SLOTS[name], base = SLOT_MATERIALS[def.material] || SLOT_MATERIALS.paint;
+    const loader = this._loader || (this._loader = new T.TextureLoader());
+    const tex = (suffix, srgb) => {
+      let done; this.pending.push(new Promise(r => { done = r; setTimeout(r, 15000); }));
+      const v = this.engine.opts && this.engine.opts.texVersion ? "?v=" + this.engine.opts.texVersion : "";
+      const t = loader.load(this.texBase + name + suffix + ".jpg" + v, () => done(), undefined,
+        () => { done(); console.warn("[Shigoto] prop texture missing: " + name + suffix + ".jpg"); });
+      t.wrapS = def.uv === "face" ? T.ClampToEdgeWrapping : T.RepeatWrapping;
+      t.wrapT = def.uv === "tile" ? T.RepeatWrapping : T.ClampToEdgeWrapping;
+      t.anisotropy = 8;
+      if (srgb) t.encoding = T.sRGBEncoding;
+      return t;
+    };
+    const opts = { vertexColors: true, map: tex("", true), normalMap: tex("_nor"), roughnessMap: tex("_rough"), roughness: 1.0, metalness: base.metalness };
+    if (def.material === "leaves") opts.normalScale = new T.Vector2(1.6, 1.6);
+    if (base.glow) { opts.emissive = new T.Color(0xffffff); opts.emissiveMap = opts.map; }
+    const m = new T.MeshStandardMaterial(opts);
+    m.name = "prop:" + name;
+    m.userData.propSlot = name;
+    if (base.glow) {
+      m.userData.shDry = true;
+      const S = this.engine.surfaces.uniforms;
+      m.onBeforeCompile = sh => { sh.uniforms.shNight = S.shNight; sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance *= vColor * mix(0.25, 2.4, shNight);"); };
+      m.customProgramCacheKey = () => "shigoto-propglow";
+    }
+    return m;
+  }
+
+  // Resolves once every prop texture requested so far has arrived (or failed), so the world is shown painted.
+  texturesReady(timeoutMs) {
+    const all = Promise.all(this.pending.splice(0));
+    return timeoutMs ? Promise.race([all, new Promise(r => setTimeout(r, timeoutMs))]) : all;
   }
 
   _paint() { return new this.T.MeshStandardMaterial({ vertexColors: true, roughness: 0.75, metalness: 0.0 }); }

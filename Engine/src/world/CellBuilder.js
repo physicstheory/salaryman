@@ -14,6 +14,7 @@
 
 import { Batcher } from "./Batcher.js";
 import { PROP_DEFS, drawProp } from "./Props.js";
+import { PROP_SLOTS } from "./PropSlots.js";
 
 const STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
 const STYLE_COLOURS = {
@@ -169,6 +170,44 @@ export class CellBuilder {
     return { group, lights, meshes, signs };
   }
 
+  // One prop as a standalone group (the prop viewer, tools, game content that wants a single cone or bench).
+  propMesh(type, seed) {
+    const T = this.T, g = new T.Group(), B = new Batcher(T);
+    drawProp(T, type, (mn, geo, m, col) => B.add(mn, this.mat.get(mn), geo, m, col), seeded(hashStr(type + "|" + (seed || 0))));
+    B.build(g);
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    g.name = "prop " + type;
+    return g;
+  }
+
+  // Many copies of one prop as instanced meshes, one per texture slot: the host game's own street furniture (vending
+  // machines, aircon units...) drawn with the engine's detailed, textured props at the cost of a few draw calls.
+  // items: [{ x, y, z, yaw, colour: [r, g, b] (sRGB 0..1, tints the prop's tinted parts) }]
+  instanceProps(type, items) {
+    const T = this.T, out = new T.Group(), tmp = new T.Group(), B = new Batcher(T);
+    out.name = "props " + type;
+    if (!items.length) return out;
+    drawProp(T, type, (mn, geo, m, col) => B.add(mn, this.mat.get(mn), geo, m, col), seeded(hashStr(type)), { tint: [1, 1, 1] });
+    B.build(tmp);
+    const m4 = new T.Matrix4(), q = new T.Quaternion(), e = new T.Euler(), p = new T.Vector3(), one = new T.Vector3(1, 1, 1), c = new T.Color();
+    for (const mesh of tmp.children) {
+      const im = new T.InstancedMesh(mesh.geometry, mesh.material, items.length);
+      const tinted = PROP_SLOTS[mesh.name] && PROP_SLOTS[mesh.name].tint;
+      items.forEach((it, i) => {
+        e.set(0, it.yaw || 0, 0); q.setFromEuler(e); p.set(it.x, it.y, it.z); m4.compose(p, q, one); im.setMatrixAt(i, m4);
+        if (tinted) { const k = it.colour || [1, 1, 1]; c.setRGB(Math.pow(k[0], 2.2), Math.pow(k[1], 2.2), Math.pow(k[2], 2.2)); im.setColorAt(i, c); }
+      });
+      im.instanceMatrix.needsUpdate = true;
+      if (im.instanceColor) im.instanceColor.needsUpdate = true;
+      im.castShadow = mesh.castShadow; im.receiveShadow = true;
+      im.name = type + ":" + mesh.name;
+      im.computeBoundingSphere && im.computeBoundingSphere();
+      im.frustumCulled = false;
+      out.add(im);
+    }
+    return out;
+  }
+
   _proto(type) {
     if (this.protos.has(type)) return this.protos.get(type);
     const T = this.T, g = new T.Group(), B = new Batcher(T);
@@ -264,13 +303,13 @@ export class CellBuilder {
         const h = s.height || Math.min(H - groundH - 1, Math.max(3, text.length * 1.0 + 0.6));
         const t = s.at != null ? s.at : 0.85;
         const x = p0[0] + ex * t + nx * 0.75, z = p0[1] + ez * t + nz * 0.75, y = y0 + groundH + 0.5 + h / 2;
-        const slot = signs.vertical(text, col);
+        const slot = signs.vertical(text, col, key + "|" + (b.id || b.c) + "|v|" + (s.at || 0));
         signs.blade(slot, x, y, z, tx, tz, 0.12, h, 1.0);
         lights.push({ pos: [x + ox + nx * 0.6, y + oy, z + oz + nz * 0.6], colour: new T.Color(col).getHex(), range: 9, intensity: 0.6, sign: true });
       } else {
         const w = Math.min(len * 0.8, s.width || len - 1), t = s.at != null ? s.at : 0.5;
         const x = p0[0] + ex * t + nx * 0.18, z = p0[1] + ez * t + nz * 0.18, y = y0 + groundH - 0.55;
-        const slot = signs.fascia(text, col);
+        const slot = signs.fascia(text, col, key + "|" + (b.id || b.c) + "|f");
         signs.panel(slot, x, y, z, tx, tz, nx, nz, w, 0.9);
       }
     }
@@ -304,10 +343,18 @@ class SignAtlas {
     return s;
   }
   _font(px) { return "bold " + px + "px 'Yu Gothic', 'Hiragino Sans', Meiryo, 'Noto Sans JP', 'Noto Sans CJK JP', 'WenQuanYi Zen Hei', sans-serif"; }
-  vertical(text, col) {
+  // With the game's SignFonts library loaded (Web/art/signfonts.js), every sign gets its own typeface, lettering
+  // treatment and board style, seeded by the building, so a street of signs never looks stamped from one font.
+  vertical(text, col, seed) {
     const chars = [...text], cw = 64, s = this._alloc(cw, Math.max(4, chars.length) * cw * 0.95 + 16);
     if (!s) return null;
-    const c = this.ctx, light = isLight(col);
+    const c = this.ctx, light = isLight(col), SF = globalThis.SignFonts;
+    if (SF) {
+      const st = SF.style("cell|" + (seed || "") + "|" + text, { text }), ink = light ? "#141414" : "#ffffff";
+      SF.panel(c, s.x, s.y, s.w, s.h, st, col, ink);
+      SF.vertical(c, text, s.x + s.w / 2, s.y + 10, s.y + s.h - 6, st, ink, col, 48);
+      return s;
+    }
     c.fillStyle = col; c.fillRect(s.x, s.y, s.w, s.h);
     c.strokeStyle = light ? "#202020" : "#ffffff"; c.lineWidth = 3; c.strokeRect(s.x + 3, s.y + 3, s.w - 6, s.h - 6);
     c.fillStyle = light ? "#141414" : "#ffffff"; c.font = this._font(48); c.textAlign = "center"; c.textBaseline = "middle";
@@ -315,10 +362,17 @@ class SignAtlas {
     chars.forEach((ch, i) => c.fillText(ch, s.x + s.w / 2, s.y + 8 + step * (i + 0.5)));
     return s;
   }
-  fascia(text, col) {
+  fascia(text, col, seed) {
     const s = this._alloc(512, 72);
     if (!s) return null;
-    const c = this.ctx, light = isLight(col);
+    const c = this.ctx, light = isLight(col), SF = globalThis.SignFonts;
+    if (SF) {
+      const st = SF.style("cell|" + (seed || "") + "|" + text, { text }), ink = light ? "#141414" : "#ffffff";
+      SF.panel(c, s.x, s.y, s.w, s.h, st, col, ink);
+      c.textAlign = "center"; c.textBaseline = "middle";
+      SF.text(c, text, s.x + s.w / 2, s.y + s.h / 2 + 2, st, ink, col, 50, s.w - 40);
+      return s;
+    }
     c.fillStyle = col; c.fillRect(s.x, s.y, s.w, s.h);
     c.fillStyle = light ? "#141414" : "#ffffff"; c.font = this._font(50); c.textAlign = "center"; c.textBaseline = "middle";
     c.fillText(text, s.x + s.w / 2, s.y + s.h / 2 + 2);
