@@ -82,3 +82,8 @@ Every model on the road has a cheat of its own, by its name:
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |
 
 From the browser console, `cheat("roadster")` does the same.
+
+`LAMBO`, `BUGATI`, `PORCHE`, and `NISSANGTR` are accepted aliases. You can also
+use the catalogue kind name from the console, such as `cheat("p918")`.
+Completed vehicle codes close the phone and weapon wheel. Each imported model
+loads independently, so a slow vehicle download does not hold up another code.

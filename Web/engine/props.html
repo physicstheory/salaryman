@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Shigoto prop viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; color: #eee; }
+  #hud { position: fixed; left: 12px; top: 12px; background: rgba(10, 12, 16, 0.75); padding: 10px 12px; border-radius: 8px; max-width: 360px; }
+  #hud h1 { font-size: 14px; margin: 0 0 6px; }
+  #hud button { background: #2a3038; color: #eee; border: 1px solid #444c56; border-radius: 4px; padding: 3px 7px; margin: 2px 2px 2px 0; cursor: pointer; font-size: 12px; }
+  #hud button.on { background: #c8102e; border-color: #e0304a; }
+  #slots { font: 12px/1.45 ui-monospace, monospace; color: #b8c4d0; margin-top: 6px; white-space: pre-wrap; }
+  body.shot #hud { display: none; }
+</style>
+</head>
+<body>
+<!-- The engine's street props, lined up for inspection. After painting a texture slot (docs/PROP_TEXTURES.md), serve the
+     repo root (python3 -m http.server) and open Web/engine/props.html to see it on the props. Drag to orbit, wheel to zoom,
+     click a prop's button to fly to it. ?prop=vending&hour=19&shot for screenshots. -->
+<div id="hud"><h1>SHIGOTO · prop viewer</h1><div id="list"></div><div>Time <input id="hour" type="range" min="0" max="24" step="0.1" style="width:150px;vertical-align:middle"></div><div id="slots"></div></div>
+<script>
+window.__three = function () { if (!window.THREE) document.write('<script src="../../Game/vendor/three.min.js"><\/script>'); };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script src="shigoto.js"></script>
+<script>
+(async function () {
+  const Q = new URLSearchParams(location.search);
+  if (Q.has("shot")) document.body.classList.add("shot");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.05, 2000);
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: true, physics: false, weather: true, water: false } });
+  engine.env.setHour(parseFloat(Q.get("hour") || "15"));
+  engine.weather.set("clear", true); engine.weather.auto = false;
+  const B = engine.streamer.builder, M = engine.streamer.materials;
+  // ground: the engine's own paving
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60, 30).rotateX(-Math.PI / 2), M.get("paving")); ground.receiveShadow = true; scene.add(ground);
+  const types = Object.keys(SHIGOTO.PROP_DEFS), spots = {};
+  types.forEach((t, i) => {
+    const big = t === "pole" || t === "lamp" || t === "tree";
+    for (let v = 0; v < (t === "bin" || t === "bicycle" || t === "vending" ? 3 : 1); v++) {
+      const g = B.propMesh(t, v + 1);
+      const x = (i % 8) * 3.2 - 11 + v * 1.1, z = Math.floor(i / 8) * 5 - 2;
+      g.position.set(x, t === "ball" ? 0.11 : 0, z); g.rotation.y = 0.35; scene.add(g);
+      if (!v) spots[t] = new THREE.Vector3(x, big ? 3 : 0.6, z);
+    }
+  });
+  await M.texturesReady(20000);
+  engine.surfaces.adoptTree(scene, 0);
+  // orbit camera
+  let target = new THREE.Vector3(0, 0.8, 0), dist = 22, az = 0.5, el = 0.32;
+  const list = document.getElementById("list");
+  const pick = t => { target.copy(spots[t]); dist = /pole|lamp|tree/.test(t) ? 9 : 3.2; [...list.children].forEach(b => b.classList.toggle("on", b.textContent === t));
+    document.getElementById("slots").textContent = Object.entries(SHIGOTO.PROP_SLOTS).filter(([, s]) => s.prop === t || (t === "pallet" && s.prop === "pallet")).map(([k, s]) => k + "  (" + s.uv + (s.tint ? ", tinted" : "") + ")").join("\n"); };
+  types.forEach(t => { const b = document.createElement("button"); b.textContent = t; b.onclick = () => pick(t); list.appendChild(b); });
+  if (Q.has("prop") && spots[Q.get("prop")]) pick(Q.get("prop"));
+  let drag = null;
+  addEventListener("pointerdown", e => { if (e.target === renderer.domElement) drag = [e.clientX, e.clientY]; });
+  addEventListener("pointerup", () => drag = null);
+  addEventListener("pointermove", e => { if (!drag) return; az -= (e.clientX - drag[0]) * 0.006; el = Math.max(0.02, Math.min(1.4, el + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; });
+  addEventListener("wheel", e => { dist = Math.max(0.8, Math.min(60, dist * (e.deltaY > 0 ? 1.1 : 0.9))); });
+  const hour = document.getElementById("hour"); hour.value = Q.get("hour") || "15"; hour.oninput = () => engine.env.setHour(parseFloat(hour.value));
+  let last = performance.now();
+  (function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    camera.position.set(target.x + Math.sin(az) * Math.cos(el) * dist, target.y + Math.sin(el) * dist, target.z + Math.cos(az) * Math.cos(el) * dist);
+    camera.lookAt(target);
+    engine.update(dt, camera.position);
+    renderer.render(scene, camera);
+    window.__ready = true;
+    requestAnimationFrame(frame);
+  })(last);
+})();
+</script>
+</body>
+</html>

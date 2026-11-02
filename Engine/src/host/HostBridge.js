@@ -127,10 +127,49 @@ export class HostBridge {
       for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const k = x + "," + z; let l = map.get(k); if (!l) map.set(k, (l = [])); l.push(i); }
     });
     this._index = map;
+    this._indexedN = (this._solids || []).length;
+  }
+
+  // The game adds solids after the world is built (the holiday islands, an airport gate, a story set) and takes the odd one away (a gate
+  // arm smashed through). Additions get a collider straight away if their tile is already built, otherwise when the tile is; a removal
+  // drops the physics copy and builds it again around the player, so nothing removed stays solid.
+  syncSolids() {
+    const L = this._solids;
+    if (!L || !this._index) return 0;
+    const n0 = this._indexedN || 0;
+    if (L.length === n0) return 0;
+    if (L.length < n0) { this.solids(L); this._buildIndex(); return -1; }
+    const t = this.tile, map = this._index;
+    let boxed = 0;
+    for (let i = n0; i < L.length; i++) {
+      const b = L[i];
+      const r = Math.max(b.size[0], b.size[1]) * 0.5;
+      const x0 = Math.floor((b.c[0] - r) / t), x1 = Math.floor((b.c[0] + r) / t), z0 = Math.floor((b.c[1] - r) / t), z1 = Math.floor((b.c[1] + r) / t);
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const k = x + "," + z; let l = map.get(k); if (!l) map.set(k, (l = [])); l.push(i); }
+      const tx = Math.floor(b.c[0] / t), tz = Math.floor(b.c[1] / t), key = "host:" + tx + "," + tz;
+      if (this._boxed.has(key)) {
+        const h = b.h || 10, y = b.y || 0;
+        this.ph.addStaticBox(key, [b.c[0], y + h / 2, b.c[1]], [b.size[0], h, b.size[1]], (b.yaw || 0) * Math.PI / 180, { tag: "host" });
+        boxed++;
+      } else if (this.resident) this._buildTile(tx, tz, false);
+    }
+    this._indexedN = L.length;
+    return boxed;
+  }
+
+  // Ground for a whole area now (the holiday islands, built behind the loading screen): heightfields for every tile it covers.
+  prebuildArea(x0, z0, x1, z1) {
+    if (!this.ph || !this._ground) return 0;
+    const t = this.tile;
+    let n = 0;
+    for (let z = Math.floor(z0 / t); z <= Math.floor(z1 / t); z++) for (let x = Math.floor(x0 / t); x <= Math.floor(x1 / t); x++) if (this._buildGround(x, z)) n++;
+    try { this.ph.world.step(); } catch (e) { /* not ready */ }     // queries see new colliders only after a step
+    return n;
   }
 
   update(dt, focus) {
     if (!this.ph) return;
+    if (this._solids && this._index) this.syncSolids();
     for (const [, p] of this.proxies) {
       const s = p.get();
       if (s) p.k.set(s.x, s.y, s.z, s.yaw); else p.k.set(0, -1000, 0, 0);

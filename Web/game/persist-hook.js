@@ -61,10 +61,32 @@
       return { running: !!e };
     }, { label: "Starting the engine" });
 
+    P.stage("holidays", 1.5, async ctx => {
+      // the holiday islands (Seoul, the Kohana Islands, Ryūjima) used to be built the moment you first landed, with no physics, no people
+      // and nothing on the map until then. Now they are built here with everything else, so the physics, weather, rain, water, map,
+      // people and the honor and respect systems all have them from the first frame, and they are kept like the rest of the world
+      if (typeof DEST === "undefined" || !DEST.sites.length || typeof destEnsure !== "function") return { skipped: "no holiday islands" };
+      const out = {};
+      for (let i = 0; i < DEST.sites.length; i++) {
+        const s = DEST.sites[i];
+        const t0 = performance.now();
+        try { destEnsure(s.id); } catch (e) { out[s.id] = "failed: " + e.message; }
+        if (!out[s.id]) out[s.id] = { solids: s.solids.length, walks: (s.pedRoads || []).length, ms: Math.round(performance.now() - t0) };
+        if (s.group) s.group.visible = !!DEST.active && DEST.active === s;
+        ctx.progress((i + 1) / DEST.sites.length);
+        await ctx.breathe();
+      }
+      facts.holidays = out;
+      return out;
+    }, { label: "Building the holiday islands" });
+
     P.stage("physics", 3, async ctx => {
       const b = window.shigoto && shigoto.bridge;
       if (!b) return { skipped: "no engine" };
-      return b.prebuildAll(ctx, A.slice(0, 3), 360);
+      const r = await b.prebuildAll(ctx, A.slice(0, 3), 360);
+      // the holiday islands' ground as well: they are small, and you arrive on them by a cut, not by walking up to them
+      if (typeof DEST !== "undefined") { r.holidayGround = 0; for (const s of DEST.sites) if (s.built) r.holidayGround += b.prebuildArea(s.cx - s.hx, s.cz - s.hz, s.cx + s.hx, s.cz + s.hz); }
+      return r;
     }, { label: "Building the physics" });
 
     P.stage("levels", 1, async ctx => {
@@ -149,11 +171,11 @@
       if (typeof interiorRoom !== "function") return { skipped: "no interiors" };
       interiorPrewarm.started = true;
       const seen = {}, list = [];
-      shops.list.forEach(s => { if (interiorSupports(s) && !s.mall && !s.plaza && s.brand !== "airport" && !seen[s.brand]) { seen[s.brand] = 1; list.push(s); } });
+      shops.list.forEach(s => { const key=s.station?"station":s.mall?"mall":s.plaza?"plaza":s.brand;if (interiorSupports(s) && s.brand !== "airport" && !seen[key]) { seen[key] = 1; list.push(s); } });
       let built = 0, failed = [];
       for (let i = 0; i < list.length; i++) {
         const s = list[i];
-        try { if (!interiorLevels(s)) { const room = interiorRoom(s); if (room && room.group) { room.group.visible = false; built++; } } }
+        try { const levels=interiorLevels(s);if(levels){for(let f=0;f<levels.floors.length;f++){const room=levels.make(f);if(room?.group){room.group.visible=false;built++;}await ctx.breathe();}}else { const room = interiorRoom(s); if (room && room.group) { room.group.visible = false; built++; } } }
         catch (e) { failed.push(s.brand); }
         ctx.progress((i + 1) / list.length);
         await ctx.breathe();
@@ -254,6 +276,21 @@
       const d = PERSIST.detail;
       return { ok: d.size > 0, detail: d.size + " of " + (facts.buildings || 0) + " buildings built in detail (" + Math.round(d.bytes / 1e6) + " MB); the rest are built as you reach them and then kept" };
     });
+    P.check("world", "holiday islands built and walkable", () => {
+      const h = facts.holidays;
+      if (!h) return { ok: true, detail: "skipped" };
+      const bad = [], e = window.shigoto && shigoto.engine, ok = [];
+      for (const s of DEST.sites) {
+        if (typeof h[s.id] === "string") { bad.push(s.id + " " + h[s.id]); continue; }
+        if (!s.built || !s.spawn) { bad.push(s.id + " has no arrival point"); continue; }
+        if (e && e.physics && e.physics.ready) {
+          const y = s.h(s.spawn[0] - s.cx, s.spawn[1] - s.cz), hit = e.physics.raycast([s.spawn[0], y + 60, s.spawn[1]], [0, -1, 0], 200);
+          if (!hit) { bad.push(s.id + " has no ground collider at the arrival point"); continue; }
+        }
+        ok.push(AIR_DESTS[s.id].name + " (" + s.solids.length + " solids, " + (s.pedRoads || []).length + " walks)");
+      }
+      return bad.length ? bad.join("; ") : { ok: true, detail: ok.join(", ") };
+    });
     P.check("world", "shop rooms ready", () => {
       const r = facts.interiors;
       if (!r) return { ok: true, detail: "skipped" };
@@ -297,6 +334,9 @@
       const detailText = Math.round(used / 1e6) + " MB kept of " + Math.round(P.budget / 1e6) + " MB; " + heap + m.geometries + " geometries, " + m.textures + " textures on the GPU";
       return used <= P.budget ? { ok: true, detail: detailText } : "over budget: " + detailText;
     });
+
+    // stages and checks other parts of the game add (career-commute.js: the SOTI floor and Seiko's flat)
+    (window.PERSIST_EXTRA || []).forEach(f => { try { f(P, facts); } catch (e) { console.warn("[Konto] extra persistence stage:", e); } });
 
     const report = await P.run(onProgress);
     last = report;

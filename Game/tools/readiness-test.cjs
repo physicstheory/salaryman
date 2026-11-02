@@ -7,7 +7,7 @@ const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const game = path.resolve(__dirname, '..');
 const output = path.resolve(process.argv[2] || '/tmp/salaryman-readiness');
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.woff2':'font/woff2' };
+const mime = { '.html': 'text/html', '.svg':'image/svg+xml', '.js': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.woff2':'font/woff2' };
 const server = http.createServer((request, response) => {
   const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   if (pathname === '/music/index.json') { response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ stations: {} })); return; }
@@ -43,7 +43,7 @@ async function main() {
       boot: document.getElementById('bootstage').textContent, loading: !document.getElementById('boot').hidden,
       cutscene: cut.active, placed: player.placed, x: player.pos.x, z: player.pos.z, phoneOpen:phone.open,phoneBox:(()=>{const r=document.getElementById('phone').getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height};})(),stationSignNames: signNames.length, signAtlasSize: signCanvas ? [signCanvas.width,signCanvas.height] : null }));
     try {
-      await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 240000 });
+      await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 600000 });
       console.log('PASS title and world generation', JSON.stringify(await state()));
       const persistence=await page.evaluate(()=>{if(!PERSIST.engine?.done)throw Error('Persistence load did not finish before the title');return PERSIST.engine.report;});
       fs.writeFileSync(path.join(output,'persistence.json'),JSON.stringify(persistence,null,2));

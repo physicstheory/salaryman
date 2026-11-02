@@ -77,6 +77,7 @@ export class RainOcclusion {
     if (ud && (ud.shDry || ud.rainSkip)) return true;
     if (o.isPoints || o.isLine || o.isSprite || o.isSkinnedMesh) return true;
     if (!o.isMesh) return false;
+    if (ud && ud.rainOccluder) return false; // Solid glass roofs still stop water.
     const m = Array.isArray(o.material) ? o.material[0] : o.material;
     if (!m) return true;
     if (m.depthWrite === false || (m.transparent && m.opacity < 0.85 && !m.alphaTest) || m.side === this.T.BackSide) return true;

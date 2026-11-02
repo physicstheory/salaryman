@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 contextBridge.exposeInMainWorld("KONTO_DESKTOP", {
   platform: process.platform,
   version: process.versions.electron,
+  // Where YouTube players are wrapped so they carry a referrer (see main.js, startYtShim). Empty if it could not start.
+  ytShim: (() => { try { return ipcRenderer.sendSync("yt-shim") || ""; } catch (e) { return ""; } })(),
   update: () => ipcRenderer.send("update-game"),
   // Spotify sign-in: the main process opens Spotify's own page in a window and hands back the address it redirects to (nothing else)
   spotifyAuth: (url, redirect) => ipcRenderer.invoke("spotify-auth", url, redirect)
