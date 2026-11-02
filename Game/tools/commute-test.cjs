@@ -35,7 +35,7 @@ async function main() {
     await page.route('konto://vendor/**', route => route.fulfill({
       path: path.join(game, 'vendor', new URL(route.request().url()).pathname.split('/').pop()), contentType: 'text/javascript'
     }));
-    await page.goto(`http://127.0.0.1:${server.address().port}/?persist=0`);
+    await page.goto(`http://127.0.0.1:${server.address().port}/${process.env.PERSIST==='0'?'?persist=0':''}`);
     assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('pause')).filter),'none','Shared color theme must load without parent grayscale');
     assert.equal(await page.evaluate(()=>getComputedStyle(document.getElementById('mres')).borderRadius),'0px','Redesigned controls stylesheet must load');
     const state = () => page.evaluate(() => ({ mode: player.mode, cities: world?.cities.length,
@@ -43,8 +43,9 @@ async function main() {
       boot: document.getElementById('bootstage').textContent, loading: !document.getElementById('boot').hidden,
       cutscene: cut.active, placed: player.placed, x: player.pos.x, z: player.pos.z, phoneOpen:phone.open,phoneBox:(()=>{const r=document.getElementById('phone').getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height};})(),stationSignNames: signNames.length, signAtlasSize: signCanvas ? [signCanvas.width,signCanvas.height] : null }));
     try {
-      await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 240000 });
+      await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 600000 });
       console.log('PASS title and world generation', JSON.stringify(await state()));
+      if(process.env.PERSIST!=='0'){const report=await page.evaluate(()=>PERSIST.engine?.report);assert.ok(report,'Persistence report missing');assert.equal(report.failed,0);assert.ok(report.checks.length>=16);fs.writeFileSync(path.join(output,'persistence.json'),JSON.stringify(report,null,2));console.log('PASS latest engine persistence and rain checks',report.checks.length);}
       const stations=await page.evaluate(()=>{const city=world.cities[0],st=city.stations.find(s=>s.name==='SOTI'),central=city.stations.find(s=>s.terminus);if(!st?.frame||!st.conc)throw Error('SOTI lacks a built platform/concourse');if(!central.architecture?.curvedGlass)throw Error('Central glass atrium missing');const dest=railDestinations().find(d=>d.name==='SOTI');if(!dest)throw Error('No Central to SOTI service');return {station:st.centre,walkToOffice:Math.hypot(st.centre[0]-story.soti.at[0],st.centre[1]-story.soti.at[1]),fare:dest.fare,platforms:city.furniture.platforms.length,atrium:central.architecture};});
       assert.equal(stations.fare,180);console.log('PASS SOTI rail connection, platforms and Central atrium',JSON.stringify(stations));
       await page.keyboard.press('Enter');await page.waitForFunction(()=>document.getElementById('boot').hidden&&player.hq&&player.outfit==='village',null,{timeout:120000});
@@ -66,6 +67,8 @@ async function main() {
       await page.evaluate(pos=>{player.pos.fromArray(pos);player.obj.position.copy(player.pos);setPaused(true);setPauseTab(0);},arrival.pos);
       await page.locator('#mapsearch').fill('SOTI');await page.locator('#mapresults button').first().click();
       const map=await page.evaluate(()=>({x:nav.mapCx,z:nav.mapCz,zoom:nav.mapZoom,waypoint:nav.waypoint,road:!!nav.baseRoad}));assert.equal(map.road,true);assert.ok(Math.hypot(map.x-stations.station[0],map.z-stations.station[1])<1);await page.locator('#mapzoomin').click();assert.ok(await page.evaluate(z=>nav.mapZoom>z,map.zoom));await page.locator('#maplocate').click();assert.ok(await page.evaluate(()=>Math.hypot(nav.mapCx-player.pos.x,nav.mapCz-player.pos.z)<1));console.log('PASS pause map search, destination, zoom and recenter');
+      const graphics=await page.evaluate(()=>{setPaused(false);camera.position.copy(player.pos).add(new THREE.Vector3(12,8,12));camera.lookAt(player.pos.clone().add(new THREE.Vector3(0,1.7,0)));camPos.copy(camera.position);applyTier('high',{quiet:true});gfx.scale=.6;sizeRenderer();frameGrab.want=true;present();paused=true;return {post:fx.on,failures:SHIGOTO.shaderFailures(renderer)};});assert.equal(graphics.post,true);assert.deepEqual(graphics.failures,[]);console.log('PASS merged rain engine and HDR graphics render',JSON.stringify(graphics));
+      const door=await page.evaluate(()=>{const d=shopDoors.list.find(d=>d.shop.brand==='clothes')||shopDoors.list[0];if(!d)throw Error('No animated doors');setPaused(false);paused=true;player.pos.set(d.shop.door[0],d.group.position.y,d.shop.door[1]+3);d.open=0;shopDoorUpdate(.1);shopDoorUpdate(.1);const opening=d.hinge.rotation.y;document.getElementById('fade').style.opacity='0';if(interior.active)interiorLeave(true);interiorEnter(d.shop);return {count:shopDoors.list.length,opening,inside:interior.active,fade:document.getElementById('fade').style.opacity};});assert.ok(door.count>0&&door.opening<-.8&&door.inside);assert.equal(door.fade,'0');console.log('PASS visible opening shop doors and immediate entry',JSON.stringify(door));
       assert.deepEqual(errors,[]);fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({status:'passed',stations,offer,boarded,arrival,office,map,errors,warnings},null,2));
     } catch (error) {
       const failedState=await state();

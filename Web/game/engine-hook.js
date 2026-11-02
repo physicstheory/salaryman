@@ -36,6 +36,8 @@
       // the game's post chain (fx) draws the scene into a linear HDR target and tone maps at the end
       engine.weather.linearOut = () => typeof FX_LIN !== "undefined" && FX_LIN.on.value === 1;
       engine.weather.auto = true;
+      // rain detail follows the game's graphics tier
+      try { engine.weather.rainEngine.setQuality(typeof gfx !== "undefined" && gfx.tier ? gfx.tier : "high"); } catch (e) { /* default */ }
       engine.weather.set(savedWeather() || "clear", true);
       engine.surfaces.autoAdopt(scene, 2);
       engine.events.on("weather", w => { try { localStorage.setItem("shigoto.weather", w); } catch (e) { /* private mode */ } });
@@ -72,10 +74,19 @@
     return S._lights;
   }
   function dimLights(cloud, flash) {
+    if (!isFinite(cloud)) cloud = 0;
+    if (!isFinite(flash)) flash = 0;
+    // Lightning lights up the street at night; in daylight a strike a few kilometres off barely shows. At full strength in the day it
+    // tripled the sky light for a third of a second, which read as the whole screen flashing for no reason.
+    const sunUp = typeof sunDir === "object" && sunDir ? sunDir.y : 0;
+    flash *= 0.12 + 0.88 * (1 - Math.min(1, Math.max(0, (sunUp + 0.05) / 0.3)));
     const k = 1 - cloud * 0.62;
     skyLights().forEach(o => {
       let b = lightBase.get(o);
-      if (!b || Math.abs(o.intensity - b.wrote) > 1e-6) { b = { base: o.intensity, wrote: 0 }; lightBase.set(o, b); }
+      if (!b || Math.abs(o.intensity - b.wrote) > 1e-6) {
+        // the game's own value is the base, but never a NaN or a negative one: that would turn every lit thing black for good
+        b = { base: isFinite(o.intensity) && o.intensity >= 0 ? o.intensity : (b ? b.base : 1), wrote: 0 }; lightBase.set(o, b);
+      }
       b.wrote = o.intensity = b.base * (o.isDirectionalLight ? k : 1 - cloud * 0.3) + flash * (o.isHemisphereLight ? 1.5 : 0);
     });
     if (scene.fog && scene.fog.isFog) {
@@ -99,7 +110,9 @@
     if (drive.car) _focus.copy(drive.car.pos); else if (player.placed) _focus.copy(player.pos); else _focus.copy(camera.position);
     // indoors (the shop rooms sit far outside the island): no rain in the room
     const inside = typeof isCameraSheltered === "function" ? isCameraSheltered() : typeof interior !== "undefined" && interior.active;
-    e.weather.rain.visible = e.weather.rain.visible && !inside;
+    e.weather.indoors = !!inside;
+    const RE = e.weather.rainEngine;
+    if (RE && typeof gfx !== "undefined" && gfx.tier && RE.quality !== gfx.tier && gfx.tier !== "potato") RE.setQuality(gfx.tier);
     if (typeof cut !== "undefined" && cut.active && typeof story !== "undefined" && story.step === "intro") {
       if (!paused && dt > 0) { e.env.update(dt,camPos); e.weather.update(dt,camPos); e.surfaces.update(dt); }
     } else e.update(paused ? 0 : dt, _focus);
@@ -120,6 +133,7 @@
   // for the console and cheats: shigoto.weather("storm"), shigoto.cones(), shigoto.shove(), shigoto.characters()
   S.characters = () => SHIGOTO.characters ? SHIGOTO.characters(THREE).report() : null;
   S.weather = (w, now) => S.engine && S.engine.weather.set(w, now);
+  S.rain = () => S.engine && S.engine.weather.rainEngine.report();
   S.cones = (type, n) => { if (!S.bridge) return; const a = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
     return S.bridge.scatter(type || "cone", a.x + Math.sin(yaw) * 9, a.z + Math.cos(yaw) * 9, n || 10, 5); };
   S.shove = () => { if (!S.engine) return; const a = drive.car ? drive.car.pos : player.pos; S.engine.physics.blast([a.x, a.y, a.z], 12, 8); };
