@@ -123,7 +123,7 @@ test('real-world car paint remains the material updated by driving on Low',()=>{
   const THREE=require('../vendor/three.min.js');
   const c={THREE,gfx:{tier:'low',high:false,env:null},window:{},carMatCache:{},animeArt:()=>true,worldReal:()=>true,carDriver:()=>null,
     toonify(){throw Error('Real-world vehicle unexpectedly toonified');},toonMat(){throw Error('Paint updates must target the real material');}};
-  vm.createContext(c);vm.runInContext(declaration('function carTightBox(', '// The people in the traffic.'),c);
+  vm.createContext(c);vm.runInContext(declaration('function carTightBox(', '// Drivers use the same rigged PBR cast'),c);
   const root=new THREE.Group(),mesh=new THREE.Mesh(new THREE.BoxGeometry(2,1.4,4),new THREE.MeshStandardMaterial());mesh.material.name='paint';root.add(mesh);
   const fitted=c.fitCarModel(root,{name:'sedan',L:4,W:2,H:1.4},{user:true});
   assert.equal(fitted.userData.paint,mesh.material);fitted.userData.paint.color.setRGB(.2,.3,.4);assert.equal(mesh.material.color.r,.2);

@@ -7444,8 +7444,35 @@ function facadePhoto(side, style, spec) {
     side.needsUpdate = true;
   }, undefined, () => {});
 }
+function highwaySurface(asphalt) {
+  const m=asphalt?destAsphalt(4):commuterMaterial('concrete',0xb7b5af).clone();
+  m.metalness=0;m.envMapIntensity=.18;m.roughness=asphalt?.94:.86;
+  const prev=m.onBeforeCompile,prevKey=m.customProgramCacheKey;
+  m.onBeforeCompile=(sh,r)=>{if(prev)prev.call(m,sh,r);sh.vertexShader=sh.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+#ifdef USE_UV
+  vec4 roadPoint=vec4(position,1.0);
+#ifdef USE_INSTANCING
+  roadPoint=instanceMatrix*roadPoint;
+#endif
+  roadPoint=modelMatrix*roadPoint;
+  vec3 an=abs(normal);
+  vec2 roadUv=an.y>max(an.x,an.z)?roadPoint.xz:(an.x>an.z?roadPoint.zy:roadPoint.xy);
+  vUv=(uvTransform*vec3(roadUv,1.0)).xy;
+#endif`);};
+  m.customProgramCacheKey=()=> (prevKey?prevKey.call(m):'')+'|highway-world-uv';
+  if(asphalt){roadMarkings(m);const marks=m.onBeforeCompile;m.onBeforeCompile=(sh,r)=>{marks(sh,r);sh.vertexShader=sh.vertexShader.replace('vRoadUV = uv; vRoadAux = aRoad;',`vRoadUV = uv; vRoadAux = aRoad;
+#ifdef USE_INSTANCING
+  float halfW=length(instanceMatrix[0].xyz)*.5;
+  vRoadUV=vec2((position.x+.5)*halfW*2.0,(position.z+.5)*length(instanceMatrix[2].xyz));vRoadAux=vec2(halfW,1.0);
+#endif`);};}
+  else if(window.SalaryRealism)SalaryRealism.facade(m,'deck',{cell:[4,4]});return m;
+}
 function facadeMaterials(style) {
   if (facadeCache[style]) return facadeCache[style];
+  if(style==='deck'||style==='highway'){
+    const concrete=highwaySurface(false),top=style==='highway'?highwaySurface(true):concrete;
+    return facadeCache[style]={mats:[concrete,concrete,top,concrete,concrete,concrete],spec:FACADE_STYLES.deck};
+  }
   const spec = FACADE_STYLES[style] || FACADE_STYLES.office;
   // Glass wants the sky in it and stone does not, which is the whole of what
   // separates a Tokyo office tower from a grey box.
@@ -8460,8 +8487,8 @@ function initThree() {
     if (e.code === "Tab" && gunArmed()) e.preventDefault();
     wakeAudio();
     if (onsens.active) { if (e.code === "Escape" || e.code === "Backspace") endSoak(true); e.preventDefault(); return; }
+    if (!title.on && !e.repeat && cheatKey(e)) {e.preventDefault();return;}
     if (heist.stage === "wire" || heist.stage === "start" || heist.stage === "smash" || heist.stage === "relay") { if (!e.repeat) heistKey(e.code); e.preventDefault(); return; }
-    if (!title.on && !e.repeat) cheatKey(e);
     // The title screen swallows everything while it is up.
     if (title.on) {
       if (e.code === "ArrowUp" || e.code === "KeyW") titleMove(-1);
@@ -9927,7 +9954,7 @@ function buildScene(w) {
         // about X lowers the +Z end, hence the sign.
         const pitch = -Math.atan2(path.profile[i] - path.profile[i - 1], len);
         boxes.push({ c: mid, size: [path.halfWidth * 2 + 1, len * 1.06], yaw: ya, pitch: pitch,
-                     y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
+                     y: deckY - 1.4, h: 1.4, deck: true, style: "highway" });
         const hw = path.halfWidth + 0.5;
         world.bridges.push({ ax: a[0], az: a[2], ux: (b[0] - a[0]) / len, uz: (b[2] - a[2]) / len,
                              len: len, hw: hw, ya: path.profile[i - 1] + 0.04, yb: path.profile[i] + 0.04,
@@ -9967,7 +9994,7 @@ function buildScene(w) {
         const mid = [(a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5], ux = (b[0] - a[0]) / len, uz = (b[2] - a[2]) / len;
         const ya = yawFrom([ux, uz]);
         const deckY = (a[1] + b[1]) * 0.5, pitch = -Math.atan2(b[1] - a[1], len), high = deckY - world.sampleHeight(mid[0], mid[1]) > 2.4;
-        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, pitch: pitch, y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
+        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, pitch: pitch, y: deckY - 1.4, h: 1.4, deck: true, style: road ? "highway" : "deck" });
         if (road) {
           const hw = path.halfWidth + 0.3;
           world.bridges.push({ ax: a[0], az: a[2], ux: ux, uz: uz, len: len, hw: hw, ya: a[1] + 0.04, yb: b[1] + 0.04,
@@ -16742,13 +16769,13 @@ function carDriver(kind, dimensions) {
 function carDriverUpdate(g,kind,manned,isPlayer,near) {
   if(!g)return;
   g.visible=!!manned&&(isPlayer||near);if(!g.visible)return;
-  const src=isPlayer?player.glb:pplLib.ready[0];
+  const src=isPlayer?player.glb:(g._npcSource||(g._npcSource=pplLib.ready[Math.floor(Math.random()*pplLib.ready.length)]));
   if(!src){g.visible=false;return;}
-  if(g.userData.source===src)return;
+  if(g._driverSource===src)return;
   // A wardrobe change replaces the cached body; geometries and PBR textures remain shared.
   for(const c of g.children.slice())g.remove(c);
   let body,clip;
-  if(isPlayer){body=cloneSkinned(src);body.position.set(0,0,0);body.rotation.set(0,0,0);body.scale.set(1,1,1);clip=player.clips&&player.clips.ride&&player.clips.ride.getClip();}
+  if(isPlayer){body=cloneSkinned(src);body.visible=true;body.position.set(0,0,0);body.rotation.set(0,0,0);body.scale.set(1,1,1);clip=player.clips&&player.clips.ride&&player.clips.ride.getClip();}
   else {const f=pplFigure(src,1);body=f.holder;clip=src.clips.ride;}
   if(!clip){g.visible=false;return;}
   g.add(body);const mixer=new THREE.AnimationMixer(body);mixer.clipAction(clip).play();mixer.update(0);
@@ -16759,7 +16786,7 @@ function carDriverUpdate(g,kind,manned,isPlayer,near) {
   const seatY=two?({bike:.8,cruiser:.7,tourer:.78,dirtbike:.92,scooter:.76,mtb:.82}[kind.body]||.8):Math.max(.26,Math.min(m.H-.98,.48));
   const zf=/^(keivan|onebox|truck|bus)$/.test(kind.body)?.24:kind.body==='super'?-.06:0;
   body.position.add(new THREE.Vector3(two?0:-m.W*.21,seatY,two?-.12:m.L*zf).sub(hip));
-  body.updateMatrixWorld(true);g.userData.source=src;g.userData.rigged=true;
+  body.updateMatrixWorld(true);g._driverSource=src;g.userData.rigged=true;
 }
 
 const carMatCache = {};
@@ -17069,7 +17096,7 @@ function loadCarModels(root) {
 function loadCarModelsNow(root) {
   Object.keys(carMatCache).forEach(k => delete carMatCache[k]);
   const loader = new THREE.GLTFLoader();
-  const cache = {}, jobs=[];
+  const cache = {}, jobs=[];traffic.modelJobs={};
   CAR_KINDS.forEach((kind, ki) => {
     const entry = CAR_MODELS[kind.name];
     if (!entry) return;
@@ -17098,7 +17125,7 @@ function loadCarModelsNow(root) {
       return;
     }
     cache[entry.url] = { gltf: null, waiting: [build] };
-    jobs.push(new Promise(resolve=>{ loader.load(entry.url, gltf => {
+    const job=new Promise(resolve=>{ loader.load(entry.url, gltf => {
       cache[entry.url].gltf = gltf;
       cache[entry.url].waiting.forEach(fn => fn(gltf));
       cache[entry.url].waiting.length = 0;
@@ -17107,7 +17134,7 @@ function loadCarModelsNow(root) {
     }, undefined, () => {
       console.warn("[Konto] " + entry.url + " did not load; vehicle remains hidden");
       resolve(false);
-    });}));
+    });});jobs.push(job);traffic.modelJobs[kind.name]=job;
   });
   return Promise.all(jobs);
 }
@@ -17720,12 +17747,13 @@ function buildTrafficLanes(city) {
           const src = dir ? road.pts.slice().reverse() : road.pts;
           const pts = [];
           for (let i = 0; i < src.length; i++) {
-            const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+            const prev = src[road.loop?(i-1+src.length)%src.length:Math.max(0,i-1)], next = src[road.loop?(i+1)%src.length:Math.min(src.length-1,i+1)];
             let dx = next[0] - prev[0], dz = next[2] - prev[2];
             const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
             const off = centres[k];
             pts.push([src[i][0] + dz * off, src[i][1] + 0.06, src[i][2] - dx * off]);
           }
+          if (road.loop && pts.length>2) pts.push(pts[0].slice());
           if (pts.length < 4) continue;
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
@@ -17748,7 +17776,7 @@ function buildTrafficLanes(city) {
         let run = [];
         const runs = [];
         for (let i = 0; i < src.length; i++) {
-          const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+          const prev = src[road.loop?(i-1+src.length)%src.length:Math.max(0,i-1)], next = src[road.loop?(i+1)%src.length:Math.min(src.length-1,i+1)];
           let dx = next[0] - prev[0], dz = next[2] - prev[2];
           const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
           const off = centres[k];
@@ -17774,11 +17802,12 @@ function buildTrafficLanes(city) {
 
         runs.forEach(pts => {
           if (pts.length < 4) return;
+          // Include the last-to-first segment in the arc before wrapping the distance.
+          const whole = runs.length === 1 && pts.length === src.length;
+          if(road.loop&&whole)pts.push(pts[0].slice());
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
             arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
-          // A loop only stays a loop if none of it was cut away.
-          const whole = runs.length === 1 && pts.length === src.length;
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
                        loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === perSide - 1 });
         });
@@ -20866,6 +20895,7 @@ function routeSolve(from, to) {
   return [[from.x, from.z]].concat(path, [[to.x, to.z]]);
 }
 function updateRoute() {
+  if(nav.waypoint&&(!Number.isFinite(nav.waypoint.x)||!Number.isFinite(nav.waypoint.z))){clearWaypoint();nav.route=null;return;}
   if (!nav.waypoint || !player.placed) { nav.route = null; navGuideUpdate(); return; }
   const at = flight.active ? flight.pos : drive.car ? drive.car.pos : player.pos;
   if(drive.train){nav.route={pts:[[at.x,at.z],[nav.waypoint.x,nav.waypoint.z]],mode:'rail',off:0};navGuideUpdate();return;}
@@ -20873,6 +20903,7 @@ function updateRoute() {
   if (Math.hypot(at.x - nav.waypoint.x, at.z - nav.waypoint.z) < (drive.car ? 28 : 14)) {
     clearWaypoint(); say("You have arrived.", 2.5); nav.route = null; navGuideUpdate(); return;
   }
+  if(nav.route&&!(nav.route.path||nav.route.pts||[]).every(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1])))nav.route=null;
   const r = nav.route, now = performance.now();
   let solve = !r || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
   if (r && !solve) {
@@ -21241,7 +21272,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     const c = Math.cos(rot), s = Math.sin(rot);
     return [pw / 2 + (dx * c - dz * s) * S, ph / 2 + (dx * s + dz * c) * S];
   }
-  const labelBoxes = [];
+  const labelBoxes = [];if(opts.roadmap)nav.labelHits=[];
   function label(text, wx, wz, size, colour) {
     const p = toScreen(wx, wz);
     if (p[0] < -80 || p[0] > pw + 80 || p[1] < -40 || p[1] > ph + 40) return;
@@ -21249,7 +21280,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     if (opts.roadmap) {
       const hw=ctx.measureText(text).width/2+5, hh=size*.65+3;
       if(labelBoxes.some(b=>Math.abs(b.x-p[0])<b.w+hw && Math.abs(b.y-p[1])<b.h+hh))return;
-      labelBoxes.push({x:p[0],y:p[1],w:hw,h:hh});
+      labelBoxes.push({x:p[0],y:p[1],w:hw,h:hh});nav.labelHits.push({sx:p[0],sy:p[1],w:hw,h:hh,q:{x:wx,z:wz,name:text,kind:"Landmark"}});
       colour=P.ink;
     }
     ctx.textAlign = "center";
@@ -21446,32 +21477,47 @@ function mapPois(across) {
 
 // A label by the icon under the cursor: the mouse where there is one, the
 // crosshair otherwise.
-function drawMapTip(g, w, h, across) {
-  const S = w / across;
-  const m = nav.mouse && performance.now() - nav.mouse.t < 5000 ? nav.mouse : null;
-  const spot = m || { x: w / 2, y: h / 2 };
-  let best = null, bd = 1e9;
-  mapPois(across).forEach(q => {
-    const sx = w / 2 + (q.x - nav.mapCx) * S, sy = h / 2 + (q.z - nav.mapCz) * S;
-    const d = Math.hypot(sx - spot.x, sy - spot.y);
-    if (d < bd) { bd = d; best = { q: q, sx: sx, sy: sy }; }
-  });
-  if (!best || bd > 20) return;
-  g.save();
-  g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2;
-  g.beginPath(); g.arc(best.sx, best.sy, 15, 0, Math.PI * 2); g.stroke();
-  g.font = "700 14px " + UI;
-  const t1 = best.q.name, t2 = best.q.kind;
-  const tw = Math.max(g.measureText(t1).width, (g.font = "500 11px " + UI, g.measureText(t2).width)) + 20;
-  let bx = best.sx - tw / 2, by = best.sy - 58;
-  bx = clamp(bx, 6, w - tw - 6); if (by < 6) by = best.sy + 24;
-  g.fillStyle = "rgba(14,17,21,0.92)";
-  roundRect(g, bx, by, tw, 38, 8); g.fill();
-  g.strokeStyle = "rgba(255,255,255,0.25)"; g.lineWidth = 1; roundRect(g, bx, by, tw, 38, 8); g.stroke();
-  g.textAlign = "center"; g.textBaseline = "alphabetic";
-  g.fillStyle = "#ffffff"; g.font = "700 14px " + UI; g.fillText(t1, bx + tw / 2, by + 16);
-  g.fillStyle = "#9aa3ad"; g.font = "500 11px " + UI; g.fillText(t2, bx + tw / 2, by + 31);
-  g.restore();
+// Small, bounded live captures of this seed's actual locations. Capture only after the pointer settles.
+const mapPhotos={cache:new Map(),pending:null,timer:null};
+function mapPhoto(q) {
+  const key=world.seed+':'+Math.round(q.x)+':'+Math.round(q.z);
+  if(mapPhotos.cache.has(key))return mapPhotos.cache.get(key);
+  if(mapPhotos.pending===key)return null;
+  clearTimeout(mapPhotos.timer);mapPhotos.pending=key;
+  mapPhotos.timer=setTimeout(()=>{
+    mapPhotos.pending=null;if(!nav.mapOpen)return;
+    const W=320,H=180,rt=new THREE.WebGLRenderTarget(W,H),view=new THREE.PerspectiveCamera(58,W/H,.5,12000);
+    const shop=shops.list.find(s=>Math.hypot(s.at[0]-q.x,s.at[1]-q.z)<15),plot=(world.cities||[]).flatMap(c=>c.plots||[]).find(p=>Math.hypot(p.centre[0]-q.x,p.centre[1]-q.z)<25);
+    const ry=shop?shop.yaw||0:plot?(plot.yaw||0)*Math.PI/180:0,reach=shop?Math.max(15,(plot?.size?.[1]||20)*.7):plot?Math.max(...plot.size)*.85:55;
+    const focus=shop&&shop.door?{x:shop.door[0],z:shop.door[1]}:q,ground=shop&&Number.isFinite(shop.groundY)?shop.groundY:world.surfaceY(q.x,q.z);
+    const distance=shop?Math.max(20,(shop.size?.[0]||30)*.55):reach;
+    let x=focus.x+Math.sin(ry)*distance,z=focus.z+Math.cos(ry)*distance;
+    for(const side of [0,-.6,.6,-1,1]){const a=ry+side,cx=focus.x+Math.sin(a)*distance,cz=focus.z+Math.cos(a)*distance;if(!insideBuilding(cx,cz,1,world.surfaceY(cx,cz)+3)){x=cx;z=cz;break;}}
+    view.position.set(x,Math.max(ground,world.surfaceY(x,z))+3,z);view.lookAt(focus.x,ground+(shop?4:plot?Math.min((plot.h||plot.height||12)*.2,18):5),focus.z);view.updateMatrixWorld(true);rt.texture.encoding=THREE.sRGBEncoding;
+    const saved=STREAM.reg.map(e=>[e.o,e.o.visible]),target=renderer.getRenderTarget(),shadow=renderer.shadowMap.autoUpdate,near=STREAM.fog.low.n.value,far=STREAM.fog.low.f.value,rn=STREAM.fog.road.n.value,rf=STREAM.fog.road.f.value;
+    try{
+      const fr=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(view.projectionMatrix,view.matrixWorldInverse));
+      for(const e of STREAM.reg)e.o.visible=e.s.center.distanceTo(view.position)-e.s.radius<2200&&fr.intersectsSphere(e.s);
+      STREAM.fog.low.n.value=1500;STREAM.fog.low.f.value=2400;STREAM.fog.road.n.value=1500;STREAM.fog.road.f.value=2400;
+      renderer.shadowMap.autoUpdate=false;renderer.setRenderTarget(rt);renderer.render(scene,view);
+      const pixels=new Uint8Array(W*H*4);renderer.readRenderTargetPixels(rt,0,0,W,H,pixels);
+      const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d'),im=g.createImageData(W,H);
+      for(let y=0;y<H;y++)im.data.set(pixels.subarray((H-1-y)*W*4,(H-y)*W*4),y*W*4);g.putImageData(im,0,0);
+      mapPhotos.cache.set(key,cv);if(mapPhotos.cache.size>24)mapPhotos.cache.delete(mapPhotos.cache.keys().next().value);
+    }catch(e){console.warn('[Konto] location preview unavailable',e);}
+    finally{renderer.setRenderTarget(target);renderer.shadowMap.autoUpdate=shadow;STREAM.fog.low.n.value=near;STREAM.fog.low.f.value=far;STREAM.fog.road.n.value=rn;STREAM.fog.road.f.value=rf;for(const [o,v] of saved)o.visible=v;rt.dispose();}
+    if(nav.mapOpen)drawBigMap();
+  },220);return null;
+}
+function drawMapTip(g,w,h,across) {
+  const S=w/across,m=nav.mouse&&performance.now()-nav.mouse.t<5000?nav.mouse:{x:w/2,y:h/2};
+  let best=(nav.labelHits||[]).find(b=>Math.abs(b.sx-m.x)<b.w&&Math.abs(b.sy-m.y)<b.h);
+  if(!best){let bd=20;for(const q of mapPois(across)){const sx=w/2+(q.x-nav.mapCx)*S,sy=h/2+(q.z-nav.mapCz)*S,d=Math.hypot(sx-m.x,sy-m.y);if(d<bd){bd=d;best={q,sx,sy};}}}
+  if(!best){clearTimeout(mapPhotos.timer);mapPhotos.pending=null;return;}
+  const photo=mapPhoto(best.q),tw=Math.min(280,w-16),th=photo?202:66,bx=clamp(best.sx-tw/2,8,w-tw-8),by=clamp(best.sy-th-20,8,h-th-8);
+  g.save();g.fillStyle='#ffffff';g.strokeStyle='#d0d7de';g.lineWidth=1;roundRect(g,bx,by,tw,th,10);g.fill();g.stroke();
+  if(photo){g.save();roundRect(g,bx+4,by+4,tw-8,142,7);g.clip();g.drawImage(photo,bx+4,by+4,tw-8,142);g.restore();}
+  const ty=by+(photo?163:24);g.textAlign='left';g.fillStyle='#243746';g.font='700 13px '+UI;g.fillText(best.q.name,bx+12,ty,tw-24);g.fillStyle='#637383';g.font='500 11px '+UI;g.fillText(best.q.kind+(photo?' · In-game view':' · Loading view…'),bx+12,ty+19,tw-24);g.restore();
 }
 
 function drawBigMap() {
@@ -27571,6 +27617,9 @@ const CHEAT_VEHICLES = {
   LEXUS:     { kind: "lc500",     dial: "5550227" },
   GODZILLA:  { kind: "gtr35",     dial: "5550228" }
 };
+const CHEAT_ALIASES={LAMBO:'LAMBORGHINI',BUGATI:'BUGATTI',PORCHE:'PORSCHE',NISSANGTR:'GODZILLA'};
+for(const [alias,target] of Object.entries(CHEAT_ALIASES))CHEAT_VEHICLES[alias.toUpperCase()]={kind:CHEAT_VEHICLES[target].kind};
+for(const k of CAR_KINDS)if(!CHEAT_VEHICLES[k.name.toUpperCase()])CHEAT_VEHICLES[k.name.toUpperCase()]={kind:k.name};
 // What each kind is, as a car: the model it is drawn with (see Game/tools/cars/cars.json), so a cheat says what it gave you.
 const KIND_MODEL = {"kei": "Honda Fit (GK3)", "keivan": "Suzuki Carry / Every kei van", "hatch": "Toyota Prius 2012", "sedan": "Toyota Camry (XV40)", "saloon": "Nissan Cefiro (A31)", "taxi": "Toyota Corolla (KE80) taxi", "police": "Toyota Crown Athlete S210 patrol car", "suv": "Toyota RAV4 Hybrid 2021", "sports": "Nissan Skyline R34 GT-R", "super": "Honda NSX 1990", "bike": "Suzuki GSX-R750", "cruiser": "Honda CB750 F", "dirtbike": "Honda CRF450", "f8": "Ferrari F8 Tributo", "aventador": "Lamborghini Aventador SVJ", "mc720": "McLaren 720S", "chiron": "Bugatti Chiron Profil\u00e9e", "huayra": "Pagani Huayra", "p918": "Porsche 918 Spyder", "lc500": "Lexus LC 500", "gtr35": "Nissan GT-R (R35)"};
 const CHEAT_ACTIONS = {
@@ -27692,16 +27741,24 @@ function cheatSpawn(kindName) {
   if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
   const kind = CAR_KINDS[ki];
   if(!traffic.pool[ki]){
-    if(traffic.modelsReady){say("Loading the detailed vehicle…",2);traffic.modelsReady.then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
+    if(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady){say("Loading the detailed vehicle…",2);(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady).then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
     else say("The vehicle catalogue is still loading.",3);
     return true;
   }
-  const base = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
+  if(flight.active)flightAbort();
+  if(heist.stage)heistEnd();
+  for(let i=0;i<6&&interior.active;i++)interiorLeave(true);
+  for(let i=0;i<6&&shops.inside;i++)leaveShop();
+  if(player.mode!=='walk')setMode('walk');
+  if(paused)setPaused(false);
+  if(drive.car)vehicleRecover(drive.car);
+  if(!vehicleFinite(player.pos)){const q=home.door||[2523,1645];player.pos.set(q[0],world.surfaceY(q[0],q[1]),q[1]);}
+  const base = drive.car ? drive.car.pos.clone() : player.pos.clone(), yaw = drive.car ? drive.car.yaw : (Number.isFinite(player.yaw)?player.yaw:0);
   let d = 4 + kind.L * 0.5, x = base.x + Math.sin(yaw) * d, z = base.z + Math.cos(yaw) * d;
   for (let t = 0; t < 8 && (insideBuilding(x, z, kind.W * 0.5) || world.sampleHeight(x, z) < 0.5); t++) { d += 3; x = base.x + Math.sin(yaw) * d; z = base.z + Math.cos(yaw) * d; }
   if (drive.car) leaveCar();
   const pal = PAINTS[Math.floor(Math.random() * PAINTS.length)][1];
-  const rec = { kind: ki, pos: new THREE.Vector3(x, world.surfaceY(x, z) + 0.04, z), yaw: yaw,
+  const rec = { kind: ki, pos: new THREE.Vector3(x, world.surfaceY(x, z, base.y) + 0.04, z), yaw: yaw,
                 colour: (kind.colour || pal).slice(), uv: [0, 0], spawned: true };
   drive.parked.push(rec);
   enterParked(drive.parked.length - 1);
@@ -27709,21 +27766,22 @@ function cheatSpawn(kindName) {
   return true;
 }
 function runCheat(name) {
+  name=String(name).trim().toUpperCase().replace(/[\s_-]+/g,'');
   const v = CHEAT_VEHICLES[name], a = CHEAT_ACTIONS[name];
-  if (v) return cheatSpawn(v.kind);
+  if (v) {setPhone(false);setWheel(false);return cheatSpawn(v.kind);}
   if (a) { a.fn(); if (a.note) say(a.note, 3); return true; }
   return false;
 }
 window.cheat = n => runCheat(String(n).toUpperCase());
 let cheatBuf = "";
 function cheatKey(e) {
-  if (!/^Key[A-Z]$/.test(e.code) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if ((!/^[a-z]$/i.test(e.key||'')&&!/^Key[A-Z]$/.test(e.code)) || e.ctrlKey || e.metaKey || e.altKey) return false;
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
   if (phone.open && (phone.entry || phone.app === "MyGram")) return;
-  cheatBuf = (cheatBuf + e.code.slice(3)).slice(-14);
-  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
-  for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ""; if (player.placed) runCheat(all[i]); return; }
+  cheatBuf = (cheatBuf + (/^[a-z]$/i.test(e.key||'')?e.key.toUpperCase():e.code.slice(3))).slice(-24);
+  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS)).sort((a,b)=>b.length-a.length);
+  for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ''; if (player.placed) return runCheat(all[i]); return false; }
 }
 function cheatDial(num) {
   const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
@@ -28570,7 +28628,11 @@ const KUSTOM_PARTS = [
 ];
 var kustoms = { mods: {} };     // var: perfOf can be asked about a car before this line runs
 try { kustoms.mods = JSON.parse(localStorage.getItem(KUSTOM_KEY) || "{}") || {}; } catch (e) { kustoms.mods = {}; }
-function kustomOf(kind) { return (kind && kustoms && kustoms.mods[kind.name]) || { engine: 0, brakes: 0, tyres: 0, susp: 0 }; }
+function kustomOf(kind) {
+  const stored=kind&&kustoms&&kustoms.mods&&kustoms.mods[kind.name],out={};
+  for(const key of ['engine','brakes','tyres','susp'])out[key]=Number.isFinite(stored&&stored[key])?clamp(stored[key],0,3):0;
+  return out;
+}
 function kustomSave() { try { localStorage.setItem(KUSTOM_KEY, JSON.stringify(kustoms.mods)); } catch (e) {} }
 // The respray. Roll in with the police on you but not watching, and the roller door comes down behind you: a new colour, new plates, and
 // they are looking for a car that is not there any more. Roll in with a patrol watching you do it and nobody will touch the car.
@@ -36191,7 +36253,7 @@ function updateBike(dt, c, kind, inp) {
   const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = perfOf(kind, { top: 30, to100: 6 });
   const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
   const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw);
-  if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z); c.vyG = 0; c.slip = 0; c.downT = 0; }
+  if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z,c.pos.y); c.vyG = 0; c.slip = 0; c.downT = 0; }
   // ---- the ground under each wheel, and under the middle
   const refY = c.air ? c.pos.y : c.gy + 0.5;
   const gC = world.walkY(c.pos.x, c.pos.z, refY), onF = world.walkOn;
@@ -36269,12 +36331,12 @@ function updateBike(dt, c, kind, inp) {
   // ---- move
   const step = c.speed * dt;
   const nx = c.pos.x + sy * step, nz = c.pos.z + cy * step;
-  const onDeck = world.bridgeY(nx, nz) !== null;
+  const onDeck = world.bridgeY(nx, nz,c.pos.y) !== null;
   const gN = world.walkY(nx, nz, c.air ? c.pos.y : c.gy + 0.5);
   const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
     || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
-    || insideBuilding(nx, nz, kind.W * 0.45)
-    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
+    || insideBuilding(nx, nz, kind.W * 0.45,gN)
+    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z,c.pos.y)
     || treeBlocks(nx + sy * kind.L * 0.4 * Math.sign(c.speed || 1), nz + cy * kind.L * 0.4 * Math.sign(c.speed || 1), kind.W * 0.38,
                   c.pos.x + sy * kind.L * 0.4 * Math.sign(c.speed || 1), c.pos.z + cy * kind.L * 0.4 * Math.sign(c.speed || 1));
   if (blocked && c.downT <= 0) {
@@ -36348,8 +36410,23 @@ function moveCarGrounded(c,kind,dt) {
     }
 }
 
+function vehicleFinite(v) {return !!v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);}
+function vehicleRecover(c) {
+  if(!vehicleFinite(c.pos)){
+    const fallback=c._safePos||drive.safePos;
+    if(vehicleFinite(fallback))c.pos.copy(fallback);
+    else {const q=home.door||[2523,1645];c.pos.set(q[0],world.surfaceY(q[0],q[1])+.06,q[1]);}
+    c.vel=null;c.speed=0;c.air=undefined;c.dmg=null;nav.route=null;
+  }
+  for(const k of ['yaw','speed','steer','pitch','lean','slide','accelPitch','lastSpeed','slope','roll','theta','omega','vy','vyG'])if(!Number.isFinite(c[k]))c[k]=0;
+  if(c.vel&&(!Number.isFinite(c.vel.x)||!Number.isFinite(c.vel.y)))c.vel=null;
+  if(c.dmg)for(const k of ['total','front','rear','left','right'])if(!Number.isFinite(c.dmg[k]))c.dmg[k]=0;
+  if(!Number.isFinite(yaw))yaw=c.yaw+Math.PI;if(!Number.isFinite(pitch))pitch=-.18;
+  if(!vehicleFinite(camPos))camPos.copy(c.pos).add(new THREE.Vector3(0,3,7));
+  c._safePos=c.pos.clone();drive.safePos=c.pos.clone();
+}
 function updateDrive(dt) {
-  const c = drive.car;
+  const c = drive.car;vehicleRecover(c);dt=Number.isFinite(dt)?clamp(dt,0,.1):0;
   const kind = CAR_KINDS[c.kind];
   const w = wish();
   // Pedals. A trigger is analogue, the keyboard is not, and both end up here.
@@ -36463,6 +36540,7 @@ function updateDrive(dt) {
 }
 
   if (!TWO_WHEELERS[kind.body]) driveFeedback(c, kind, dt, throttle, brake, false);
+  vehicleRecover(c);
   // Camera: behind and a little above, swinging round to the heading unless
   // you are turning it yourself.
   if (!look.x && !look.y && Math.abs(c.speed) > 2.5) {
