@@ -18,7 +18,7 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/index.js
+  // Engine/src/index.js
   var index_exports = {};
   __export(index_exports, {
     CHAR_QUALITY: () => CHAR_QUALITY,
@@ -44,7 +44,7 @@ var SHIGOTO = (() => {
     warmGPU: () => warmGPU
   });
 
-  // src/core/Events.js
+  // Engine/src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -75,7 +75,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5240,7 +5240,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // src/physics/Physics.js
+  // Engine/src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5539,7 +5539,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // src/env/Environment.js
+  // Engine/src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5694,7 +5694,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // src/env/Weather.js
+  // Engine/src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -5942,7 +5942,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // src/env/Water.js
+  // Engine/src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -6078,7 +6078,7 @@ var SHIGOTO = (() => {
     return inside;
   }
 
-  // src/render/Surfaces.js
+  // Engine/src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -6239,7 +6239,7 @@ void shSurface(vec3 wp, vec3 wn) {
   Surfaces._noop = function() {
   };
 
-  // src/world/Batcher.js
+  // Engine/src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -6325,7 +6325,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // src/world/Props.js
+  // Engine/src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -6443,7 +6443,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // src/world/CellBuilder.js
+  // Engine/src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -6951,7 +6951,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // src/render/Materials.js
+  // Engine/src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -7155,7 +7155,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/world/Streamer.js
+  // Engine/src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -7345,7 +7345,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // src/core/Engine.js
+  // Engine/src/core/Engine.js
   var VERSION = "0.3.0";
   var Engine = class {
     constructor(opts) {
@@ -7403,7 +7403,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // src/host/HostBridge.js
+  // Engine/src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -7568,7 +7568,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/characters/CharacterShader.js
+  // Engine/src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -7696,7 +7696,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // src/characters/Subdivide.js
+  // Engine/src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -7815,7 +7815,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // src/characters/MapSynth.js
+  // Engine/src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -7921,7 +7921,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // src/characters/Characters.js
+  // Engine/src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -8222,7 +8222,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // src/persist/Persistence.js
+  // Engine/src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -8419,11 +8419,14 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       if (T2 && T2.WebGLRenderTarget) {
         const rt = new T2.WebGLRenderTarget(16, 16);
         const was = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate;
-        renderer.setRenderTarget(rt);
-        renderer.render(scene, camera);
-        renderer.setRenderTarget(was);
-        renderer.shadowMap.autoUpdate = auto;
-        rt.dispose();
+        try {
+          renderer.setRenderTarget(rt);
+          renderer.render(scene, camera);
+        } finally {
+          renderer.setRenderTarget(was);
+          renderer.shadowMap.autoUpdate = auto;
+          rt.dispose();
+        }
       }
       programs1 = (renderer.info.programs || []).length;
     } catch (e2) {

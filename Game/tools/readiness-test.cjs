@@ -45,6 +45,12 @@ async function main() {
     try {
       await page.waitForFunction(() => document.body.classList.contains('titleup'), null, { timeout: 240000 });
       console.log('PASS title and world generation', JSON.stringify(await state()));
+      const persistence=await page.evaluate(()=>{if(!PERSIST.engine?.done)throw Error('Persistence load did not finish before the title');return PERSIST.engine.report;});
+      fs.writeFileSync(path.join(output,'persistence.json'),JSON.stringify(persistence,null,2));
+      assert.equal(persistence.stages.filter(s=>!s.ok).length,0,'Persistence build stages must succeed');
+      assert.equal(persistence.failed,0,'Persistence quality checks must pass');
+      console.log('PASS persistence load and quality checks',persistence.checks.length,persistence.residentMb+' MB resident');
+
       await page.keyboard.press('Enter');
       await page.waitForFunction(() => document.getElementById('boot').hidden && player.hq && player.outfit === 'village', null, { timeout: 240000 });
       console.log('PASS story assets and rigged player');
@@ -56,6 +62,30 @@ async function main() {
       await page.evaluate(async()=>{await SalaryArt.ready;if(SalaryArt.state.failed.length)throw Error('Missing generated art');if(!worldReal())throw Error('Claude realistic-world mode is not enabled');const w=shigoto.engine.weather,wet=w.wetness,puddles=w.puddles;shigoto.weather('rain',true);if(w.state!=='rain')throw Error('Weather integration failed');shigoto.weather('clear',true);w.wetness=wet;w.puddles=puddles;shigoto.engine.surfaces.uniforms.shWet.value=wet;shigoto.engine.surfaces.uniforms.shPuddles.value=puddles;});
       await page.evaluate(()=>{const C=SHIGOTO.characters(THREE);if(!pplLib.real||pplLib.dir!=='people/real/')throw Error('Claude realistic cast not selected');let n=0;(player.glb||player.obj).traverse(o=>{if(!o.isMesh)return;for(const m of Array.isArray(o.material)?o.material:[o.material]){if(!m.userData.shigotoChar)throw Error('Character engine shader not applied');if(m.userData.charKind!=='hair'&&(!m.map||!m.normalMap||!m.roughnessMap||!m.aoMap))throw Error('Missing PBR map');n++;}});if(!n)throw Error('No player materials');if(!wardrobe.list.some(e=>e.id==='custom_suit_black'))throw Error('Missing generated wardrobe choices');});
       console.log('PASS Claude engine, character PBR maps, physics, weather and generated art loading');
+      const facing = await page.evaluate(() => {
+        setPaused(true,'rig-check');
+        const bones={};player.obj.traverse(o=>{if(o.isBone)bones[o.name]=o;});
+        const pos=n=>bones[n].getWorldPosition(new THREE.Vector3());
+        const originalYaw=player.obj.rotation.y, results=[];
+        for(const yaw of [0,Math.PI/2,Math.PI,-Math.PI/2]) {
+          player.obj.rotation.y=yaw;
+          for(const name of ['idle','walk','run']) {
+            const action=player.clips[name];if(!action)throw Error('Missing '+name+' animation');
+            player.mixer.stopAllAction();action.reset().play();player.mixer.setTime(action.getClip().duration*.37);player.obj.updateMatrixWorld(true);
+            const face=pos('Bip01_MNose').sub(pos('Bip01_Head'));face.y=0;face.normalize();
+            const shoulders=pos('Bip01_L_Clavicle').sub(pos('Bip01_R_Clavicle'));
+            const body=shoulders.cross(new THREE.Vector3(0,1,0));body.y=0;body.normalize();
+            const forward=new THREE.Vector3(Math.sin(yaw),0,Math.cos(yaw));
+            const row={name,yaw,headForward:face.dot(forward),bodyForward:body.dot(forward),headBody:face.dot(body)};
+            if(row.headForward<.5||row.bodyForward<.5||row.headBody<.7)throw Error('Misaligned in-game rig: '+JSON.stringify(row));
+            results.push(row);
+          }
+        }
+        player.obj.rotation.y=originalYaw;player.mixer.stopAllAction();player.action=null;player.clipName='';playSeikoClip('idle',0);player.obj.updateMatrixWorld(true);setPaused(false);
+        return results;
+      });
+      console.log('PASS actual player head/body facing in idle, walk and run at four headings',JSON.stringify(facing));
+
 
       await page.evaluate(() => { let n=0;while(cut.active&&n++<20)cutFinish(true);if(home.inside)leaveHome();if(interior.active)interiorLeave(true);cheat('GOTOKONTO');cheat('MIDDAY');loadShow(false);document.getElementById('fade').style.opacity='0'; });
       await page.waitForTimeout(3000);

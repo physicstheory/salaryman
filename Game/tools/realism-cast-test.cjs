@@ -49,8 +49,10 @@ const server = http.createServer((q, r) => {
       const load = (u) =>
         new Promise((ok, no) => new THREE.GLTFLoader().load(u, ok, null, no));
       const base = await load("/Web/seiko.glb");
-      peds.tpl = base.scene;
-      const src = pplSource();
+      peds.tpl=base.scene;const raw=pplSource();pplLib.src=null;
+      base.scene.rotation.y=Math.PI; // Reproduce seikoLoaded/pedsAdopt.
+      peds.tpl=base.scene;const src=pplSource();
+      for(const name of Object.keys(raw.bindQ)){if(1-Math.abs(raw.bindQ[name].dot(src.bindQ[name]))>1e-6||raw.bindP[name].distanceTo(src.bindP[name])>1e-6)throw Error('Double-applied facing rotation: '+name+' '+JSON.stringify({rawQ:raw.bindQ[name].toArray(),loadedQ:src.bindQ[name].toArray(),rawP:raw.bindP[name].toArray(),loadedP:src.bindP[name].toArray(),auto:base.scene.matrixAutoUpdate}));}
       window.castModels = {};
       const results = [];
       for (const name of names) {
