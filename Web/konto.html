@@ -16707,68 +16707,36 @@ function fitCarModel(object3d, kind, entry) {
   return holder;
 }
 
-// The people in the traffic. Seen through a side window at thirty kilometres an hour a driver is a head, a pair of shoulders and two
-// arms out to the wheel, so that is what is built: a dozen boxes and a sphere, coloured from a handful of skins, hair and clothes.
-// Japan drives on the left, so the driver sits on the right (-x, with the nose down +z). A two-wheeler gets a rider sitting up on it.
-const DRIVER_LOOK = {
-  skin: [0xe7c3a4, 0xdcb08e, 0xd2a27e, 0xf0d0b4, 0xc89472, 0xb98466],
-  hair: [0x141210, 0x1c1714, 0x241c16, 0x2f241c, 0x5a5550, 0x8c8780, 0x3a2414],
-  top:  [0xeef0f2, 0xeef0f2, 0x1e2228, 0x2a3140, 0x3a3f46, 0x6b7582, 0x7a2a2e, 0x2f4a3a, 0xc9b48c, 0x15171a],
-  helmet: [0x111214, 0xe8e8e6, 0xa31d22, 0x1c3f8a, 0x707478]
-};
-const driverMats = {};
-function driverMat(c) {
-  if (!driverMats[c]) driverMats[c] = gfx.high ? new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ color: c });
-  return driverMats[c];
+// Drivers use the same rigged PBR cast as pedestrians, posed once and cached per visible vehicle.
+function vehicleRidePose() {
+  return {ThighR:[1.35,0,.18],ThighL:[1.35,0,-.18],ShinR:[-1.55,0,0],ShinL:[-1.55,0,0],
+    Spine:[-.24,0,0],Chest:[-.10,0,0],Neck:[.15,0,0],
+    UpperArmR:[.65,0,.65],ForearmR:[0,0,.85],UpperArmL:[.65,0,-.65],ForearmL:[0,0,-.85]};
 }
-let driverGeo = null;
-function carDriver(kind, m) {
-  if (!driverGeo) driverGeo = { head: new THREE.SphereGeometry(0.105, 12, 9), box: new THREE.BoxGeometry(1, 1, 1) };
-  const pick = a => a[(Math.random() * a.length) | 0];
-  const skin = driverMat(pick(DRIVER_LOOK.skin)), top = driverMat(pick(DRIVER_LOOK.top));
-  const g = new THREE.Group();
-  const box = (mat, w, h, d, x, y, z, rx) => { const b = new THREE.Mesh(driverGeo.box, mat); b.scale.set(w, h, d); b.position.set(x, y, z); if (rx) b.rotation.x = rx; g.add(b); return b; };
-  const head = new THREE.Mesh(driverGeo.head, skin); g.add(head);
-  // a box from one point to another: an arm, a thigh, a shin
-  const limb = (mat, a, b, t) => {
-    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = d.length();
-    const m3 = new THREE.Mesh(driverGeo.box, mat); m3.scale.set(t, L, t);
-    m3.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
-    m3.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(m3); return m3;
-  };
-  if (TWO_WHEELERS[kind.body]) {
-    if (kind.body === "mtb") return null;
-    // a rider, sat on the seat: the seat height, how far forward the bars are and how far the rider leans to them, by kind of bike
-    const k = m.H / kind.H, Lk = m.L / kind.L;
-    const P = { bike: [0.80, 0.70, 0.30, 0.20], cruiser: [0.70, 0.08, 0.34, 0.42], tourer: [0.78, 0.12, 0.34, 0.40],
-                dirtbike: [0.92, 0.40, 0.30, 0.30], scooter: [0.76, 0.15, 0.36, 0.30] }[kind.body] || [0.8, 0.4, 0.3, 0.3];
-    const sy = P[0] * k, lean = P[1], hipZ = -0.12 * Lk * kind.L / 2.1, barZ = P[2] * kind.L * Lk, barY = sy + P[3];
-    const legs = driverMat(pick([0x1d2128, 0x24272c, 0x2b3340, 0x3a3328])), boot = driverMat(0x121315);
-    const hip = [0, sy + 0.1, hipZ];
-    const sh = [0, hip[1] + 0.52 * Math.cos(lean), hip[2] + 0.52 * Math.sin(lean)];
-    limb(top, hip, sh, 0.27);                                                            // the back and chest
-    const hd = new THREE.Vector3(0, sh[1] + 0.2 * Math.cos(lean * 0.6), sh[2] + 0.2 * Math.sin(lean * 0.6));
-    head.position.copy(hd); head.scale.setScalar(1.3); head.material = driverMat(pick(DRIVER_LOOK.helmet));
-    [-1, 1].forEach(sd => {
-      const s0 = [sd * 0.17, sh[1] - 0.04, sh[2]], grip = [sd * 0.3, barY, barZ];
-      limb(top, s0, grip, 0.085);                                                       // arms to the grips
-      const h0 = [sd * 0.12, hip[1], hip[2]], knee = [sd * 0.2, hip[1] + 0.02, hip[2] + 0.42], peg = [sd * 0.18, sy - 0.42, hip[2] + 0.22];
-      limb(legs, h0, knee, 0.13); limb(legs, knee, peg, 0.11);                          // thigh and shin
-      limb(boot, peg, [peg[0], peg[1] - 0.02, peg[2] + 0.2], 0.1);                      // a boot on the peg
-    });
-  } else {
-    // which way along the car the seat is: well forward in a cab-over van, back and low in a supercar
-    const zf = kind.body === "keivan" || kind.body === "onebox" || kind.body === "truck" || kind.body === "bus" ? 0.24 : kind.body === "super" ? -0.06 : kind.body === "sports" ? -0.04 : 0.0;
-    const x = -m.W * 0.21, z = m.L * zf, hy = Math.min(m.H - 0.30, (kind.body === "super" ? 0.88 : 1.12) + (m.H - 1.45) * 0.55);
-    head.position.set(x, hy, z);
-    box(driverMat(pick(DRIVER_LOOK.hair)), 0.2, 0.08, 0.2, x, hy + 0.07, z - 0.01);
-    box(top, 0.4, 0.5, 0.24, x, hy - 0.42, z - 0.04);                       // shoulders and chest
-    box(skin, 0.08, 0.1, 0.08, x, hy - 0.14, z);                            // neck
-    [-1, 1].forEach(sd => box(top, 0.08, 0.08, 0.42, x + sd * 0.17, hy - 0.42, z + 0.2, -0.35));   // arms out to the wheel
-    box(driverMat(0x101214), 0.34, 0.34, 0.04, x, hy - 0.36, z + 0.42, -0.45);                      // the wheel
-  }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-  return g;
+function carDriver(kind, dimensions) {
+  const g=new THREE.Group();g.name='Rigged vehicle occupant';g.userData.dimensions=dimensions;return g;
+}
+function carDriverUpdate(g,kind,manned,isPlayer,near) {
+  if(!g)return;
+  g.visible=!!manned&&(isPlayer||near);if(!g.visible)return;
+  const src=isPlayer?player.glb:pplLib.ready[0];
+  if(!src){g.visible=false;return;}
+  if(g.userData.source===src)return;
+  // A wardrobe change replaces the cached body; geometries and PBR textures remain shared.
+  for(const c of g.children.slice())g.remove(c);
+  let body,clip;
+  if(isPlayer){body=cloneSkinned(src);body.position.set(0,0,0);body.rotation.set(0,0,0);body.scale.set(1,1,1);clip=player.clips&&player.clips.ride&&player.clips.ride.getClip();}
+  else {const f=pplFigure(src,1);body=f.holder;clip=src.clips.ride;}
+  if(!clip){g.visible=false;return;}
+  g.add(body);const mixer=new THREE.AnimationMixer(body);mixer.clipAction(clip).play();mixer.update(0);
+  g.updateMatrixWorld(true);
+  let pelvis=null;body.traverse(o=>{if(o.isBone&&(/^(hips|Bip01_Pelvis)$/i.test(o.name)||o.userData.alias==='Hips'))pelvis=o;if(o.isMesh){o.frustumCulled=false;o.receiveShadow=true;o.castShadow=gfx.tier!=='low';}});
+  if(!pelvis){g.remove(body);g.visible=false;return;}
+  const hip=g.worldToLocal(pelvis.getWorldPosition(new THREE.Vector3())),m=g.userData.dimensions,two=!!TWO_WHEELERS[kind.body];
+  const seatY=two?({bike:.8,cruiser:.7,tourer:.78,dirtbike:.92,scooter:.76,mtb:.82}[kind.body]||.8):Math.max(.26,Math.min(m.H-.98,.48));
+  const zf=/^(keivan|onebox|truck|bus)$/.test(kind.body)?.24:kind.body==='super'?-.06:0;
+  body.position.add(new THREE.Vector3(two?0:-m.W*.21,seatY,two?-.12:m.L*zf).sub(hip));
+  body.updateMatrixWorld(true);g.userData.source=src;g.userData.rigged=true;
 }
 
 const carMatCache = {};
@@ -17090,7 +17058,7 @@ function loadCarModelsNow(root) {
       if (entry.user) gltf.scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
       const n = entry.user ? (tris > 250000 ? 2 : tris > 120000 ? 4 : cap) : cap;
       for (let i = 0; i < n; i++) {
-        const clone = fitCarModel(gltf.scene.clone(true), kind, entry);
+        const clone = fitCarModel(cloneSkinned(gltf.scene), kind, entry);
         clone.visible = false;
         root.add(clone);
         pool.items.push(clone);
@@ -17811,7 +17779,7 @@ function sampleLane(lane, s) {
   let py = a[1] + (b[1] - a[1]) * t;
   // A road lane that ends on a steep cut can sit well above the ground it
   // meets; a car there would drive along in mid air. Never let one float.
-  if (lane.road !== undefined) py = Math.min(py, world.surfaceY(px, pz) + 2.5);
+  if (lane.road !== undefined && !lane.elevated) py = world.surfaceY(px, pz) + 0.06;
   return {
     x: px, y: py, z: pz,
     yaw: Math.atan2(b[0] - a[0], b[2] - a[2]),
@@ -18236,7 +18204,7 @@ function updateTraffic(dt, at) {
       counts[kindIdx]++;
       const o = pool.items[i];
       if(o.userData.rydeLivery)o.userData.rydeLivery.visible=service==="ryde"||CAR_KINDS[kindIdx].name==="ryde";
-      if (o.userData.driver) o.userData.driver.visible = _carManned;
+      carDriverUpdate(o.userData.driver,CAR_KINDS[kindIdx],_carManned,!!(drive.car&&drive.car.pos===pos),Math.hypot(px-at.x,pz-at.z)<35);
       if (CAR_MODELS[CAR_KINDS[kindIdx].name] && CAR_MODELS[CAR_KINDS[kindIdx].name].user) {
         paint.setMatrixAt(i, _carZero); traffic.trim[kindIdx].setMatrixAt(i, _carZero);
         if (traffic.deco[kindIdx]) traffic.deco[kindIdx].setMatrixAt(i, _carZero);
@@ -19500,8 +19468,8 @@ function buildCentralAtrium(root,st,t,conZ,conY) {
   root.add(g);st.atrium=g;st.architecture={curvedGlass:true,ribs:6,shopMezzanines:2};
 }
 const shopDoors={list:[],root:null};
-function shopDoorBuild(root) {
-  shopDoors.list=[];shopDoors.root=root;
+function shopDoorCreate() {
+  if(!shopDoorCreate.shared){
   // Share the frame, hinge and handle meshes across every shop.
   const frame=new THREE.Group(),metal=commuterMaterial('metal',0x768a98),box=new THREE.BoxGeometry(1,1,1);
   const add=(w,h,d,x,y,z)=>{const m=new THREE.Mesh(box,metal);m.scale.set(w,h,d);m.position.set(x,y,z);frame.add(m);};
@@ -19510,17 +19478,42 @@ function shopDoorBuild(root) {
   frame.traverse(o=>{if(!o.isMesh||o.geometry.attributes.uv)return;const p=o.geometry.attributes.position,n=o.geometry.attributes.normal,uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){const x=Math.abs(n.getX(i)),y=Math.abs(n.getY(i)),z=Math.abs(n.getZ(i));uv[i*2]=x>y&&x>z?p.getZ(i):p.getX(i);uv[i*2+1]=y>x&&y>z?p.getZ(i):p.getY(i);}o.geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));});
   const paneGeo=new THREE.BoxGeometry(1.78,2.65,.035),edgeGeo=new THREE.BoxGeometry(.045,2.7,.06),handleGeo=new THREE.CylinderGeometry(.025,.025,.42,6);
   const glass=new THREE.MeshPhysicalMaterial({color:0xc9e8eb,transparent:true,opacity:.22,roughness:.1,metalness:.1,clearcoat:1,depthWrite:false,side:THREE.DoubleSide});if(gfx.env)glass.envMap=gfx.env;
+    shopDoorCreate.shared={frame,metal,glass,paneGeo,edgeGeo,handleGeo};
+  }
+  const {frame,metal,glass,paneGeo,edgeGeo,handleGeo}=shopDoorCreate.shared;
+  const group=new THREE.Group();group.add(frame.clone(true));
+  const hinge=new THREE.Group();hinge.position.set(-.89,0,.04);group.add(hinge);
+  const pane=new THREE.Mesh(paneGeo,glass);pane.position.set(.89,1.4,0);hinge.add(pane);
+  const edge=new THREE.Mesh(edgeGeo,metal);edge.position.set(1.76,1.4,0);hinge.add(edge);
+  const handle=new THREE.Mesh(handleGeo,metal);handle.position.set(1.62,1.35,.1);hinge.add(handle);
+  const back=handle.clone();back.position.z=-.1;hinge.add(back);
+  return {group,hinge,open:0};
+}
+function shopDoorAnimate(d,near,dt) {
+  if(!near&&d.open<.001)return;
+  d.open=lerp(d.open,near?1:0,1-Math.exp(-16*Math.min(dt,.1)));d.hinge.rotation.y=-Math.PI*.52*d.open;
+}
+function interiorDoorAdd(room,x,z,ry,sx,sy) {
+  room.doors=room.doors||[];
+  const existing=room.doors.find(d=>d.x===x&&d.z===z&&d.ry===ry);if(existing)return existing;
+  const d=Object.assign(shopDoorCreate(),{x,z,ry});d.group.name='Indoor opening glass door';
+  d.group.position.set(x,0,z);d.group.rotation.y=ry;d.group.scale.set(sx||1,sy||1,1);
+  d.group.traverse(o=>{if(o.isMesh)o.userData.shDry=true;});
+  room.group.add(d.group);room.doors.push(d);return d;
+}
+function interiorDoorTick(room,dt) {
+  if(!room||interior.room!==room||!interior.active)return;
+  for(const d of room.doors||[])shopDoorAnimate(d,Math.hypot(player.pos.x-room.ox-d.x,player.pos.z-room.oz-d.z)<3.2,dt);
+}
+function shopDoorBuild(root) {
+  shopDoors.list=[];shopDoors.root=root;
   const previews=[];
   try{stationShop();}catch(e){/* no capital */}
   for(const s of shops.list){
     if(!s.door||!interiorSupports(s)||s.parent||s.vend||s.soti)continue;
-    const group=new THREE.Group();group.name='Opening glass door · '+s.name;group.position.set(s.door[0],s.groundY||world.surfaceY(...s.door),s.door[1]);group.rotation.y=s.yaw||0;
-    group.add(frame.clone(true));const hinge=new THREE.Group();hinge.position.set(-.89,0,.04);group.add(hinge);
-    const pane=new THREE.Mesh(paneGeo,glass);pane.position.set(.89,1.4,0);hinge.add(pane);
-    const edge=new THREE.Mesh(edgeGeo,metal);edge.position.set(1.76,1.4,0);hinge.add(edge);
-    const handle=new THREE.Mesh(handleGeo,metal);handle.position.set(1.62,1.35,.1);hinge.add(handle);
-    const back=handle.clone();back.position.z=-.1;hinge.add(back);
-    root.add(group);shopDoors.list.push({shop:s,group,hinge,open:0});
+    const d=shopDoorCreate(),group=d.group;group.name='Opening glass door · '+s.name;
+    group.position.set(s.door[0],s.groundY||world.surfaceY(...s.door),s.door[1]);group.rotation.y=s.yaw||0;
+    root.add(group);shopDoors.list.push(Object.assign(d,{shop:s}));
     streamAdd(group,{x0:s.door[0]-2,x1:s.door[0]+2,z0:s.door[1]-2,z1:s.door[1]+2,y0:group.position.y,y1:group.position.y+3},gfx.tier==='low'?130:220);
     const theme={books:1,ramen:2,clothes:3,plaza:4,petmart:5}[s.brand]||0;
     previews.push({x:s.door[0]-Math.sin(s.yaw||0)*.07,y:group.position.y+1.4,z:s.door[1]-Math.cos(s.yaw||0)*.07,ry:s.yaw||0,w:1.78,h:2.65,theme,type:0});
@@ -19530,8 +19523,7 @@ function shopDoorBuild(root) {
 function shopDoorUpdate(dt) {
   if(!player.placed)return;
   for(const d of shopDoors.list){const near=!interior.active&&!drive.car&&!drive.train&&Math.hypot(player.pos.x-d.shop.door[0],player.pos.z-d.shop.door[1])<4;
-    if(!near&&d.open<.001)continue;
-    d.open=lerp(d.open,near?1:0,1-Math.exp(-16*Math.min(dt,.1)));d.hinge.rotation.y=-Math.PI*.52*d.open;
+    shopDoorAnimate(d,near,dt);
   }
 }
 
@@ -39656,6 +39648,7 @@ function pedPoseClips(root) {
   // sitting on a chair or a bench: thighs level, knees bent square, hands resting on the thighs, a slight slump
   make("sit", { ThighR: [1.52, 0, 0.06], ThighL: [1.52, 0, -0.06], ShinR: [-1.5, 0, 0], ShinL: [-1.5, 0, 0], Spine: [0.08, 0, 0], Chest: [0.04, 0, 0],
     UpperArmR: [0.25, 0, 0.42], ForearmR: [0, 0, 0.95], UpperArmL: [0.25, 0, -0.42], ForearmL: [0, 0, -0.95] }, 0.44);
+  make("ride", vehicleRidePose(), .4);
   storyPeoplePoses(make);
   return out;
 }
@@ -41360,7 +41353,7 @@ function liftExtra(room, root) {
 }
 function interiorMallLevel(s, idx) {
   const f = MALL_FLOORS[idx];
-  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: liftExtra });
+  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: (room,root,th)=>{liftExtra(room,root,th);interiorDoorAdd(room,IN_W/2-1.55,-3,-Math.PI/2,1,.88);} });
 }
 function plazaExtra(def) {
   return (room, root, th) => {
@@ -41373,6 +41366,9 @@ function plazaExtra(def) {
       inAdd(root, 3.4, 2.5, 0.32, x, 1.25, -IN_D / 2 + 0.22, "#1b1f26");
       inAdd(root, 3.0, 0.05, 0.4, x, 0.02, -IN_D / 2 + 0.6, "#2a2d33");
       const sg = inLabel(br.name, 3.6, 0.5, br.band === "#ffffff" ? "#1272d6" : br.band, br.ink === "#1272d6" ? "#fff" : br.ink); sg.position.set(x, 2.78, -IN_D / 2 + 0.38); root.add(sg);
+      const door=interiorDoorAdd(room,x,-IN_D/2+.55,0,1.45,.88);
+      const theme={books:1,ramen:2,clothes:3,street:3,plaza:4,petmart:5}[b]||0;
+      SalaryRetail.installWindows(root,[{x,y:1.3,z:-IN_D/2+.50,ry:0,w:2.48,h:2.35,theme,type:0}],()=>{},gfx.tier==='low');
       room.spots.push({ x: x, z: -IN_D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
     });
     inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
@@ -41432,6 +41428,7 @@ function interiorEnterStore(sp) {
   const S = { brand: brand, name: SHOP_BRANDS[brand].name, door: P.door, yaw: P.yaw, groundY: P.groundY, city: P.city, parent: P };
   let room;
   try { room = interiorRoom(S); } catch (e) { console.warn("[Konto] a plaza shop could not be built:", e); return; }
+  const door=interiorDoorAdd(room,0,(room.D||IN_D)/2-.15,Math.PI,1,.88);door.open=1;door.hinge.rotation.y=-Math.PI*.52;
   interior.stack = { room: interior.room, spot: sp, shop: P };
   interior.shop = S;
   interiorShowRoom(room, { x: 0, z: IN_D / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
@@ -42982,6 +42979,7 @@ function interiorTick(dt) {
   if (!interior.active) return;
   const R = interior.room;
   interior.said = Math.max(0, interior.said - dt);
+  interiorDoorTick(R,dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (robTick(dt)) { interior.prompt.classList.remove("on"); return; }
   if (R.tick) R.tick(dt);
@@ -43769,6 +43767,7 @@ function rydePassengerTry(car) {
 
 // ---- Seiko's own moves for the story: a bow, a look at the phone, sitting -----------------------------------------------------------------
 function storySeikoClips(make) {
+  const ride=vehicleRidePose();make("ride",1,[{t:0,pose:ride,drop:.4},{t:1,pose:ride,drop:.4}],true);
   make("bow", 2.4, [
     { t: 0.0, pose: {} },
     { t: 0.55, pose: { Spine: [-0.62, 0, 0], Chest: [-0.22, 0, 0], Neck: [-0.18, 0, 0], UpperArmR: [0.08, 0, 0.18], UpperArmL: [0.08, 0, -0.18] } },
