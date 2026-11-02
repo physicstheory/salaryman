@@ -10174,6 +10174,8 @@ function buildScene(w) {
   buildTraffic(w, root);
   buildRail(w, root);
   buildRailStops();
+  try { buildCrossings(w, root); } catch (e) { console.warn("[Konto] crossings:", e); }
+  buildSolidGrid();
   buildNav(w);
   placeSafehouses(w);
   buildShopSigns(root);
@@ -15168,6 +15170,9 @@ function planStreets(w, city, boxes) {
   }));
   // a run that was carried into another of its own line's runs becomes one run
   lines.forEach(L => { L.runs.sort((p, q) => p[0] - q[0]); for (let i = L.runs.length - 1; i > 0; i--) if (L.runs[i][0] <= L.runs[i - 1][1] + 0.01) { L.runs[i - 1][1] = Math.max(L.runs[i - 1][1], L.runs[i][1]); L.runs.splice(i, 1); } });
+  // and none laid down the length of a railway on the ground: they cross it, at a level crossing, or stop short
+  const offRail = streetsOffRails(city, lines);
+  if (offRail) console.log("[Konto] " + city.name + ": " + Math.round(offRail) + " m of street taken off the tracks");
   city.streetPlan = lines.filter(L => L.runs.length);
   // a grid of the finished streets, for anything placed later that has to keep off them (the trees)
   {
@@ -15598,7 +15603,7 @@ const BADGE = {
   busFlag: [4, 2], busBlind: [5, 2], busBrand: [6, 2], busTimes: [7, 2],
   hayabin: [0, 3], hayabinBox: [1, 3], truckDoor: [2, 3], shrineSign: [3, 3],
   dogPlaque: [4, 3], crossingSign: [5, 3], screenOff: [6, 3], vending: [7, 3],
-  ambDoor: [0, 4], fireDoor: [1, 4]
+  ambDoor: [0, 4], fireDoor: [1, 4], pedSignal: [2, 4], pedSign: [3, 4], carSignal: [4, 4], fumikiri: [5, 4]
 };
 
 const ATLAS_CELLS = 8;
@@ -15854,6 +15859,33 @@ function badgeAtlas() {
   cell("fireDoor", (g, P) => {
     text("\u6d88\u9632", P / 2, P * 0.34, 26, "#f4f5f2", JP);
     text("KONTO FIRE", P / 2, P * 0.64, 15, "#f4f5f2");
+  });
+  // ---- the crossings (see buildCrossings): the unlit faces; what is lit is drawn over them
+  cell("pedSignal", (g, P) => {
+    // a pedestrian head, unlit: two dark lenses with the red and green figures just showing, under hoods
+    fill("#16181b", P);
+    [[0.27, "#3a1512"], [0.73, "#0f2a20"]].forEach(q => { g.fillStyle = "#0b0c0e"; g.beginPath(); g.arc(P / 2, P * q[0], P * 0.2, 0, 7); g.fill(); g.fillStyle = q[1]; g.fillRect(P * 0.44, P * (q[0] - 0.1), P * 0.12, P * 0.2); g.beginPath(); g.arc(P / 2, P * (q[0] - 0.13), P * 0.04, 0, 7); g.fill(); });
+  });
+  cell("pedSign", (g, P) => {
+    // the blue 横断歩道 sign: a white triangle, a walking figure, the zebra under it
+    fill("#1b55b3", P);
+    g.fillStyle = "#f4f5f2"; g.beginPath(); g.moveTo(P / 2, P * 0.1); g.lineTo(P * 0.9, P * 0.82); g.lineTo(P * 0.1, P * 0.82); g.closePath(); g.fill();
+    g.fillStyle = "#1a1c20"; g.beginPath(); g.arc(P * 0.52, P * 0.34, P * 0.05, 0, 7); g.fill();
+    g.lineWidth = P * 0.05; g.strokeStyle = "#1a1c20"; g.beginPath(); g.moveTo(P * 0.5, P * 0.4); g.lineTo(P * 0.47, P * 0.58); g.lineTo(P * 0.4, P * 0.7); g.moveTo(P * 0.47, P * 0.58); g.lineTo(P * 0.56, P * 0.7); g.moveTo(P * 0.5, P * 0.45); g.lineTo(P * 0.6, P * 0.52); g.stroke();
+    g.fillStyle = "#1a1c20"; for (let k = 0; k < 5; k++) g.fillRect(P * (0.25 + k * 0.11), P * 0.74, P * 0.06, P * 0.05);
+    text("\u6a2a\u65ad\u6b69\u9053", P / 2, P * 0.92, 14, "#f4f5f2", JP);
+  });
+  cell("carSignal", (g, P) => {
+    // a Japanese car signal: three lenses in a row, green, amber, red, unlit
+    g.fillStyle = "#1a1c1f"; g.fillRect(0, P * 0.34, P, P * 0.32);
+    [["#0e2a22", 0.17], ["#2e2410", 0.5], ["#2e1210", 0.83]].forEach(q => { g.fillStyle = "#0a0b0c"; g.beginPath(); g.arc(P * q[1], P / 2, P * 0.13, 0, 7); g.fill(); g.fillStyle = q[0]; g.beginPath(); g.arc(P * q[1], P / 2, P * 0.1, 0, 7); g.fill(); });
+  });
+  cell("fumikiri", (g, P) => {
+    // the crossbuck of a 踏切: two crossed yellow-and-black boards
+    g.clearRect(0, 0, P, P);
+    [1, -1].forEach(d => { g.save(); g.translate(P / 2, P / 2); g.rotate(d * Math.PI / 4); g.fillStyle = "#e6b417"; g.fillRect(-P * 0.48, -P * 0.09, P * 0.96, P * 0.18);
+      g.fillStyle = "#121212"; for (let x = -P * 0.48; x < P * 0.48; x += P * 0.16) g.fillRect(x, -P * 0.09, P * 0.08, P * 0.18); g.restore(); });
+    text("\u8e0f\u5207", P / 2, P * 0.5, 16, "#f4f5f2", JP);
   });
 
   // ---- NHRail. Nihon Rail, which runs the loop line, the radials and the
@@ -18237,6 +18269,7 @@ function updateTraffic(dt, at) {
       const car = traffic.cars[here[k]];
       let limit = car.dispatch ? car.top : Math.min(lane.speed, car.top);
       if (car.cap < limit) limit = car.cap;
+      limit = xingLimit(car, lane, limit);
       if (car.crash > 0) limit = 0;
       // On a loop the last car's leader is the first car, one lap on.
       const wrap = k + 1 >= here.length && lane.loop && here.length > 1;
@@ -18666,6 +18699,720 @@ function updateRail(dt, at) {
     }
   });
   railSpawn(at);
+  xingTick(dt, at);
+  pedNetTick();
+}
+
+// ---- crossings: level crossings, traffic signals, zebra crossings, and where people may cross ------------------------------------------
+// Three rules, said by Duncan and kept here: a train crosses a road only at a level crossing (barriers, flashing lamps, a bell, and every
+// car and person waiting while it is down); people never step onto an open road and never walk beside a highway; and they cross a street
+// only at a zebra crossing with signals, where the cars on that street have a red light and stop.
+//
+//  - The carriageway oracle (xingRoadAt) knows every carriageway at grade: the avenues, the footway streets, the country roads and coast
+//    highway, and the track bed of every line on the ground. The narrow lanes without a footway are shared space and are not in it.
+//  - Junctions are found where two footway streets meet, where a footway street meets an avenue, and where two avenues meet. Each gets a
+//    signal cycle; each arm a person could cross gets a zebra, set back from the junction, with a pedestrian signal at both ends, and the
+//    avenue arms a stop line and a signal for the cars, which stop at it on red (xingLimit, in updateTraffic). The scramble keeps its own
+//    painted crossings and gets an all-red phase in which people cross every way at once.
+//  - Level crossings are found wherever a line on the ground meets any road. The cars and the people stop while a train is near.
+//  - People walk a footway network (pedNet): the footways of the streets and avenues, cut wherever they would run over a carriageway or a
+//    track, joined round the corners, and joined across a road only by a crossing edge, which they take only when it is open to them.
+const xing = { list: [], junctions: [], level: [], ready: false, segs: [], grid: null, GC: 40, xgrid: null, chunks: [], dyn: null, near: [], bellT: 0, nearT: 0 };
+const XING_PRI = { rail: 5, hwy: 4, art: 3, street: 2 };
+
+function xingSegKey(x, z) { return Math.floor(x / xing.GC) + "," + Math.floor(z / xing.GC); }
+function xingAddSeg(s) {
+  const i = xing.segs.length; xing.segs.push(s);
+  const r = s.hw + 2, G = xing.GC;
+  for (let gx = Math.floor((Math.min(s.ax, s.bx) - r) / G); gx <= Math.floor((Math.max(s.ax, s.bx) + r) / G); gx++)
+    for (let gz = Math.floor((Math.min(s.az, s.bz) - r) / G); gz <= Math.floor((Math.max(s.az, s.bz) + r) / G); gz++) {
+      const k = gx + "," + gz; let l = xing.grid.get(k); if (!l) xing.grid.set(k, l = []); l.push(i);
+    }
+}
+// The carriageway (or track bed) at (x, z), widened by pad: the one that matters most there, or null where a person may stand.
+function xingRoadAt(x, z, pad) {
+  if (!xing.grid) return null;
+  const l = xing.grid.get(xingSegKey(x, z)); if (!l) return null;
+  let best = null;
+  for (let i = 0; i < l.length; i++) {
+    const s = xing.segs[l[i]];
+    if (distToSeg(x, z, s.ax, s.az, s.bx, s.bz) < s.hw + (pad || 0) && (!best || XING_PRI[s.kind] > XING_PRI[best.kind])) best = s;
+  }
+  return best;
+}
+function xingWalkable(x, z) { return !xingRoadAt(x, z, 0.25) && !insideBuilding(x, z, 0.3) && world.sampleHeight(x, z) > 0.35; }
+function xingLineClear(ax, az, bx, bz) {
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.8));
+  for (let k = 0; k <= n; k++) { const t = k / n; if (!xingWalkable(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
+  return true;
+}
+function xingSegIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
+  const rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((cx - ax) * sz - (cz - az) * sx) / den, u = ((cx - ax) * rz - (cz - az) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { x: ax + rx * t, z: az + rz * t, t: t, u: u } : null;
+}
+function xingSurfY(x, z) { let y = world.surfaceY(x, z); const o = world.overlayY ? world.overlayY(x, z) : null; if (o !== null && o !== undefined && o > y) y = o; return y; }
+
+// ---- signal timing ------------------------------------------------------------------------------------------------------------------------
+// A junction has two groups of road, 0 and 1. Cars: green, amber 3 s, all red 2 s, then the other group. People cross the roads of a group
+// while that group is red and the other is green: walking, then the little green man flashing for the last 5 s. A scramble adds a phase in
+// which every car is red and people cross every way, diagonals included.
+function xingCycle(j) { const g0 = j.g0, g1 = j.g1, sc = j.kind === "scramble" ? 22 : 0; return { g0: g0, g1: g1, sc: sc, T: g0 + 5 + g1 + 5 + sc + (sc ? 2 : 0) }; }
+function xingState(j, t) {
+  const C = j.cyc || (j.cyc = xingCycle(j)), u = ((t + j.off) % C.T + C.T) % C.T;
+  // returns car lights per group ("G" / "Y" / "R") and the pedestrian state across each group ("W" walk, "F" flashing, "D" don't), and the scramble's
+  let c0 = "R", c1 = "R", p0 = "D", p1 = "D", ps = "D";
+  if (u < C.g0) { c0 = "G"; p1 = u < C.g0 - 5 ? "W" : "F"; }
+  else if (u < C.g0 + 3) c0 = "Y";
+  else if (u < C.g0 + 5) { }
+  else if (u < C.g0 + 5 + C.g1) { c1 = "G"; const v = u - C.g0 - 5; p0 = v < C.g1 - 5 ? "W" : "F"; }
+  else if (u < C.g0 + 8 + C.g1) c1 = "Y";
+  else if (u < C.g0 + 10 + C.g1) { }
+  else if (C.sc && u < C.g0 + 10 + C.g1 + C.sc) { const v = u - C.g0 - 10 - C.g1; ps = v < C.sc - 5 ? "W" : "F"; p0 = p1 = ps; }
+  return { c: [c0, c1], p: [p0, p1], s: ps };
+}
+function xingTime() { return clock; }
+// May a person step onto crossing X now? (Someone already on it carries on, whatever the lights do.)
+function xingPedGo(X) {
+  if (!X) return true;
+  if (X.type === "level") return !X.lx.closed;
+  const st = xingState(X.j, xingTime());
+  if (X.diag) return st.s === "W";
+  return st.p[X.grp] === "W";
+}
+function xingPedLight(X) { if (X.type === "level") return X.lx.closed ? "D" : "W"; const st = xingState(X.j, xingTime()); return X.diag ? st.s : st.p[X.grp]; }
+// Must a car this far (gap, metres) from the stop line, at speed v, stop for X?
+function xingCarStop(X, gap, v) {
+  if (X.type === "level") return X.lx.closed || X.lx.warnT > 0;
+  const c = xingState(X.j, xingTime()).c[X.grp];
+  if (c === "G") return false;
+  if (c === "Y") return v * v / (2 * 5.5) < gap + 0.5;     // amber: stop if it can, comfortably
+  return true;
+}
+// The speed limit a traffic car keeps for the crossings ahead of it on its lane.
+function xingLimit(car, lane, limit) {
+  const S = lane.xstops; if (!S || !S.length || car.dispatch) return limit;
+  const front = car.s + (car.half || 2);
+  for (let i = 0; i < S.length; i++) {
+    let gap = S[i].s - front;
+    if (lane.loop && gap < -2) gap += lane.length;
+    if (gap < -1.5 || gap > 70) continue;
+    if (xingCarStop(S[i].X, gap, car.v)) limit = Math.min(limit, gap <= 0.3 ? 0 : Math.sqrt(2 * 4.2 * (gap - 0.3)));
+  }
+  return limit;
+}
+
+// ---- finding them ---------------------------------------------------------------------------------------------------------------------------
+function buildCrossings(w, root) {
+  xing.list = []; xing.junctions = []; xing.level = []; xing.segs = []; xing.grid = new Map(); xing.ready = false; xing.chunks = []; xing.near = [];
+  pedNet.ready = false; pedNet.gen = null;
+  if (!w.cities || !w.cities.length) return;
+  const t0 = performance.now();
+  // 1. the carriageways
+  const streetsOf = [];
+  w.cities.forEach((city, ci) => {
+    const b = city.bounds, paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+    city.roads.forEach((r, ri) => {
+      if (r.elevated || r.cls === "ramp" || !r.pts || r.pts.length < 2) return;
+      const kind = r.cls === "arterial" ? "art" : "hwy", P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+      for (let i = 1; i < P.length; i++) xingAddSeg({ ax: P[i - 1][0], az: P[i - 1][2], bx: P[i][0], bz: P[i][2], hw: r.halfWidth, kind: kind, road: r, city: ci, i: i - 1, ay: P[i - 1][1], by: P[i][1] });
+    });
+    const st = [];
+    (city.streetPlan || []).forEach(L => L.runs.forEach(run => {
+      const a = L.pt(run[0]), c = L.pt(run[1]);
+      const s = { ax: a[0], az: a[1], bx: c[0], bz: c[1], hw: L.hw, fw: L.fw, kind: L.fw > 0 ? "street" : "alley", L: L, run: run, city: ci };
+      if (s.kind === "street") xingAddSeg(s);
+      st.push(s);
+    }));
+    streetsOf.push(st);
+    (city.rails || []).forEach((line, li) => {
+      if (line.elevated || !line.pts || line.pts.length < 2) return;
+      const P = line.loop ? line.pts.concat([line.pts[0]]) : line.pts;
+      for (let i = 1; i < P.length; i++) {
+        const ax = P[i - 1][0], az = P[i - 1][2], bx = P[i][0], bz = P[i][2];
+        if (!paved(ax, az) && !paved(bx, bz)) continue;
+        xingAddSeg({ ax: ax, az: az, bx: bx, bz: bz, hw: 4.2, kind: "rail", line: li, city: ci });
+      }
+    });
+  });
+  if (w.highway) { const P = w.highway.pts; for (let i = 0; i < P.length; i++) { const q = P[(i + 1) % P.length]; xingAddSeg({ ax: P[i][0], az: P[i][2], bx: q[0], bz: q[2], hw: w.highway.hw, kind: "hwy", ay: P[i][1], by: q[1], hwyBridge: true }); } }
+
+  // 2. level crossings: every road (and lane) a line on the ground meets
+  const rails = xing.segs.filter(s => s.kind === "rail");
+  const roadsAll = xing.segs.filter(s => s.kind !== "rail").concat([].concat.apply([], streetsOf).filter(s => s.kind === "alley"));
+  const rgrid = new Map(), RG = 80;
+  roadsAll.forEach(s => { for (let gx = Math.floor(Math.min(s.ax, s.bx) / RG); gx <= Math.floor(Math.max(s.ax, s.bx) / RG); gx++) for (let gz = Math.floor(Math.min(s.az, s.bz) / RG); gz <= Math.floor(Math.max(s.az, s.bz) / RG); gz++) { const k = gx + "," + gz; if (!rgrid.has(k)) rgrid.set(k, []); rgrid.get(k).push(s); } });
+  rails.forEach(rs => {
+    const seen = new Set();
+    for (let gx = Math.floor(Math.min(rs.ax, rs.bx) / RG); gx <= Math.floor(Math.max(rs.ax, rs.bx) / RG); gx++) for (let gz = Math.floor(Math.min(rs.az, rs.bz) / RG); gz <= Math.floor(Math.max(rs.az, rs.bz) / RG); gz++)
+      (rgrid.get(gx + "," + gz) || []).forEach(s => {
+        if (seen.has(s)) return; seen.add(s);
+        const p = xingSegIntersect(rs.ax, rs.az, rs.bx, rs.bz, s.ax, s.az, s.bx, s.bz); if (!p) return;
+        // a road on a bridge over the line is not a crossing
+        if (s.ay !== undefined) { const ry = s.ay + (s.by - s.ay) * p.u, gy = world.sampleHeight(p.x, p.z); if (ry - gy > 4.5) return; }
+        if (xing.level.some(o => Math.hypot(o.x - p.x, o.z - p.z) < Math.max(o.hw, s.hw) + 6)) return;
+        let rx = rs.bx - rs.ax, rz = rs.bz - rs.az; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+        let dx = s.bx - s.ax, dz = s.bz - s.az; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+        const sin = Math.max(0.35, Math.abs(rx * dz - rz * dx));
+        xing.level.push({ x: p.x, z: p.z, rx: rx, rz: rz, dx: dx, dz: dz, sin: sin, hw: s.hw, kind: s.kind, fw: s.fw || (s.kind === "art" ? 4.4 : 0), city: rs.city, line: rs.line,
+                          closed: false, warnT: 0, a: 1, lanes: [], y: xingSurfY(p.x, p.z) });
+      });
+  });
+
+  // 3. junctions
+  const addJ = (kind, x, z, g0, g1) => { const j = { kind: kind, x: x, z: z, g0: g0, g1: g1, off: (Math.abs(Math.sin(x * 12.9898 + z * 78.233)) * 43758.5453 % 1) * 60, arms: [] }; xing.junctions.push(j); return j; };
+  const nearJ = (x, z, r) => xing.junctions.find(j => Math.hypot(j.x - x, j.z - z) < r);
+  const onSeg = (s, x, z, pad) => distToSeg(x, z, s.ax, s.az, s.bx, s.bz) < s.hw + (pad || 0);
+  // a zebra across road s (direction d) at distance `back` from the junction centre on side sg, crossing group grp
+  const addZebra = (j, s, d, sg, back, grp, car) => {
+    const cx = j.x + d[0] * sg * back, cz = j.z + d[1] * sg * back;
+    // the arm has to exist: this road, and no other, under the zebra and on past it
+    const onRoad = (x, z) => { const q = xingRoadAt(x, z); return !!q && q.kind === s.kind && (s.kind !== "street" || onSeg(s, x, z, 0)); };
+    if (!onRoad(cx, cz) || !onRoad(cx + d[0] * sg * 3, cz + d[1] * sg * 3)) return null;
+    const u = [-d[1], d[0]];
+    const X = { type: "zebra", j: j, grp: grp, cx: cx, cz: cz, ux: u[0], uz: u[1], dx: d[0] * sg, dz: d[1] * sg, half: s.hw, w: 2.0, kind: s.kind, car: !!car, foot: s.kind === "art" ? 2.2 : 0.12 + (s.fw || 1.5) / 2, y: xingSurfY(cx, cz) };
+    xing.list.push(X); j.arms.push(X); return X;
+  };
+  const dirOf = s => { let dx = s.bx - s.ax, dz = s.bz - s.az; const l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+  const scr = w.cities[0] && w.cities[0].scramble;
+  const arts = xing.segs.filter(s => s.kind === "art");
+  // avenue x avenue
+  for (let a = 0; a < arts.length; a++) for (let b = a + 1; b < arts.length; b++) {
+    const A = arts[a], B = arts[b]; if (A.road === B.road) continue;
+    if (Math.max(A.ax, A.bx) < Math.min(B.ax, B.bx) - 30 || Math.min(A.ax, A.bx) > Math.max(B.ax, B.bx) + 30 || Math.max(A.az, A.bz) < Math.min(B.az, B.bz) - 30 || Math.min(A.az, A.bz) > Math.max(B.az, B.bz) + 30) continue;
+    const p = xingSegIntersect(A.ax, A.az, A.bx, A.bz, B.ax, B.az, B.bx, B.bz); if (!p) continue;
+    if (nearJ(p.x, p.z, Math.max(A.hw, B.hw) + 14)) continue;
+    if (scr && Math.hypot(p.x - scr.at[0], p.z - scr.at[1]) < 60) continue;
+    const dA = dirOf(A), dB = dirOf(B);
+    if (Math.abs(dA[0] * dB[1] - dA[1] * dB[0]) < 0.45) continue;           // roads merging, not crossing
+    const j = addJ("avenue", p.x, p.z, 26, 22);
+    [-1, 1].forEach(sg => { addZebra(j, A, dA, sg, B.hw + 4.4 + 2.4, 0, true); addZebra(j, B, dB, sg, A.hw + 4.4 + 2.4, 1, true); });
+  }
+  // the scramble: its own six crossings, painted already; here only the lights and the stop lines
+  if (scr) {
+    const j = addJ("scramble", scr.at[0], scr.at[1], 20, 20), r = scr.radius, ya = scr.yaw * Math.PI / 180, c = Math.cos(ya), s = Math.sin(ya);
+    const loc = (lx, lz) => [scr.at[0] + lx * c + lz * s, scr.at[1] - lx * s + lz * c];
+    // the avenues that meet there: a crossing over each arm, where the painted ones are, the roads at right angles in two groups
+    const roads = []; arts.forEach(q => { if (distToSeg(j.x, j.z, q.ax, q.az, q.bx, q.bz) < q.hw + 2 && !roads.some(o => o.road === q.road)) roads.push(q); });
+    const d0 = roads.length ? dirOf(roads[0]) : [1, 0];
+    roads.forEach(q => { const d = dirOf(q), grp = Math.abs(d[0] * d0[0] + d[1] * d0[1]) > 0.7 ? 0 : 1; [-1, 1].forEach(sg => { const X = addZebra(j, q, d, sg, r * 0.88, grp, true); if (X) { X.painted = true; X.w = 2.3; } }); });
+    // the diagonals, for people only
+    [[1, 1], [1, -1]].forEach(q => { const n = Math.hypot(q[0], q[1]); const u = loc(q[0] / n, q[1] / n); const X = { type: "zebra", j: j, grp: 0, diag: true, cx: j.x, cz: j.z, ux: u[0] - j.x, uz: u[1] - j.z, dx: 0, dz: 0, half: r * 0.95, w: 2.2, kind: "art", painted: true, foot: 2.2, y: scr.groundY }; xing.list.push(X); j.arms.push(X); });
+  }
+  // footway street x avenue (the street's mouth) and footway street x footway street
+  w.cities.forEach((city, ci) => {
+    const S = streetsOf[ci].filter(s => s.kind === "street");
+    S.forEach(s => {
+      const d = dirOf(s);
+      [[s.ax, s.az, -1], [s.bx, s.bz, 1]].forEach(e => {
+        const A = xingRoadAt(e[0] + d[0] * e[2] * 1.5, e[1] + d[1] * e[2] * 1.5); if (!A || A.kind !== "art") return;
+        if (scr && Math.hypot(e[0] - scr.at[0], e[1] - scr.at[1]) < 60) return;
+        // where the street meets the avenue's edge
+        const dA = dirOf(A), cx = e[0], cz = e[1];
+        if (Math.abs(dA[0] * d[1] - dA[1] * d[0]) < 0.5) return;
+        const foot = distToSeg(cx, cz, A.ax, A.az, A.bx, A.bz);
+        const j = addJ("mouth", cx, cz, 28, 14);
+        const back = Math.max(4, A.hw + 4.4 + 2.2 - foot);
+        addZebra(j, s, d, -e[2], back, 1, false);
+      });
+    });
+    // street x street
+    const G = new Map(), SG = 60;
+    S.forEach(s => { for (let gx = Math.floor(Math.min(s.ax, s.bx) / SG); gx <= Math.floor(Math.max(s.ax, s.bx) / SG); gx++) for (let gz = Math.floor(Math.min(s.az, s.bz) / SG); gz <= Math.floor(Math.max(s.az, s.bz) / SG); gz++) { const k = gx + "," + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(s); } });
+    S.forEach(A => {
+      const seen = new Set();
+      for (let gx = Math.floor(Math.min(A.ax, A.bx) / SG); gx <= Math.floor(Math.max(A.ax, A.bx) / SG); gx++) for (let gz = Math.floor(Math.min(A.az, A.bz) / SG); gz <= Math.floor(Math.max(A.az, A.bz) / SG); gz++)
+        (G.get(gx + "," + gz) || []).forEach(B => {
+          if (B === A || B.L === A.L || seen.has(B)) return; seen.add(B);
+          const dA = dirOf(A), dB = dirOf(B); if (Math.abs(dA[0] * dB[1] - dA[1] * dB[0]) < 0.5) return;
+          // meet, or one ends at the other's edge
+          let p = xingSegIntersect(A.ax - dA[0] * B.hw, A.az - dA[1] * B.hw, A.bx + dA[0] * B.hw, A.bz + dA[1] * B.hw, B.ax - dB[0] * A.hw, B.az - dB[1] * A.hw, B.bx + dB[0] * A.hw, B.bz + dB[1] * A.hw);
+          if (!p) return;
+          if (nearJ(p.x, p.z, Math.max(A.hw, B.hw) + 3)) return;
+          if (xingRoadAt(p.x, p.z) && ["art", "rail", "hwy"].indexOf(xingRoadAt(p.x, p.z).kind) >= 0) return;
+          const j = addJ("street", p.x, p.z, 18, 18);
+          [-1, 1].forEach(sg => { addZebra(j, A, dA, sg, B.hw + B.fw + 2.2, 0, false); addZebra(j, B, dB, sg, A.hw + A.fw + 2.2, 1, false); });
+          if (!j.arms.length) xing.junctions.pop();
+        });
+    });
+  });
+  xing.junctions = xing.junctions.filter(j => j.arms.length);
+  // level crossings become crossings for people too: along each footway of the road (or down the middle of a lane), over the tracks
+  xing.level.forEach(lx => {
+    const offs = lx.kind === "art" ? [-(lx.hw + 2.2), lx.hw + 2.2] : lx.kind === "street" ? [-(lx.hw + 0.12 + lx.fw / 2), lx.hw + 0.12 + lx.fw / 2] : lx.kind === "alley" ? [0] : [];
+    const n = [-lx.dz, lx.dx], span = (4.2 + 1.2) / lx.sin;
+    offs.forEach(o => { const X = { type: "level", lx: lx, cx: lx.x + n[0] * o, cz: lx.z + n[1] * o, ux: lx.dx, uz: lx.dz, half: span, w: 1.2, kind: "rail" }; xing.list.push(X); });
+    lx.X = { type: "level", lx: lx };
+  });
+
+  // 4. stop lines on the traffic lanes
+  traffic.lanes.forEach(lane => {
+    if (lane.elevated) return;
+    const stops = [];
+    const tryX = (X, px, pz, dx, dz, back) => {
+      // nearest point of the lane to (px, pz)
+      let best = null;
+      for (let i = 1; i < lane.pts.length; i++) {
+        const a = lane.pts[i - 1], b = lane.pts[i];
+        if (Math.abs(a[0] - px) > 80 && Math.abs(b[0] - px) > 80) continue;
+        if (Math.abs(a[2] - pz) > 80 && Math.abs(b[2] - pz) > 80) continue;
+        const sx = b[0] - a[0], sz = b[2] - a[2], L2 = sx * sx + sz * sz || 1, t = clamp(((px - a[0]) * sx + (pz - a[2]) * sz) / L2, 0, 1), d = Math.hypot(a[0] + sx * t - px, a[2] + sz * t - pz);
+        if (!best || d < best.d) best = { d: d, s: lane.arc[i - 1] + Math.sqrt(L2) * t, hx: sx / Math.sqrt(L2), hz: sz / Math.sqrt(L2) };
+      }
+      if (!best || best.d > 12) return;
+      if (dx !== null && Math.abs(best.hx * dx + best.hz * dz) < 0.75) return;            // the lane runs along this road
+      if (dx !== null && best.hx * dx + best.hz * dz > 0) return;                         // going away from the junction: it is already through
+      stops.push({ s: best.s - back, X: X });
+      return best;
+    };
+    xing.list.forEach(X => { if (X.type === "zebra" && X.car && !X.diag) tryX(X, X.cx, X.cz, X.dx, X.dz, X.w + 1.4); });
+    xing.level.forEach(lx => {
+      if (lx.kind !== "art" && lx.kind !== "hwy") return;
+      // the lane meets the line once; it stops short of the near side of the track bed, whichever way it is going
+      let best = null;
+      for (let i = 1; i < lane.pts.length; i++) {
+        const a = lane.pts[i - 1], b = lane.pts[i];
+        const p = xingSegIntersect(a[0], a[2], b[0], b[2], lx.x - lx.rx * 40, lx.z - lx.rz * 40, lx.x + lx.rx * 40, lx.z + lx.rz * 40);
+        if (p) { best = { s: lane.arc[i - 1] + Math.hypot(b[0] - a[0], b[2] - a[2]) * p.t }; break; }
+      }
+      if (best) { stops.push({ s: best.s - (5.6 / lx.sin + 1.2), X: lx.X }); lx.lanes.push(lane); }
+    });
+    stops.sort((p, q) => p.s - q.s);
+    lane.xstops = stops;
+  });
+
+  // 5. the rail lanes: where along each one the level crossings are
+  xing.level.forEach(lx => {
+    lx.on = [];
+    const code = w.cities[lx.city] && w.cities[lx.city].code;
+    rail.lines.forEach((L, li) => {
+      if (L.cityCode !== code || L.line !== lx.line) return;
+      let best = null;
+      for (let i = 1; i < L.pts.length; i++) { const a = L.pts[i - 1], b = L.pts[i], sx = b[0] - a[0], sz = b[2] - a[2], L2 = sx * sx + sz * sz || 1, t = clamp(((lx.x - a[0]) * sx + (lx.z - a[2]) * sz) / L2, 0, 1), d = Math.hypot(a[0] + sx * t - lx.x, a[2] + sz * t - lx.z); if (!best || d < best.d) best = { d: d, s: L.arc[i - 1] + Math.sqrt(L2) * t }; }
+      if (best && best.d < 8) lx.on.push({ li: li, s: best.s });
+    });
+  });
+
+  // 6. a grid of the crossings, for people
+  xing.xgrid = new Map();
+  xing.list.forEach((X, i) => { X.id = i; const k = xingSegKey(X.cx, X.cz); if (!xing.xgrid.has(k)) xing.xgrid.set(k, []); xing.xgrid.get(k).push(X); });
+  try { buildCrossingMeshes(root); } catch (e) { console.warn("[Konto] crossing meshes:", e); }
+  xing.ready = true;
+  const n = { zebra: xing.list.filter(X => X.type === "zebra").length, junctions: xing.junctions.length, level: xing.level.length, laneStops: traffic.lanes.reduce((s, l) => s + (l.xstops ? l.xstops.length : 0), 0) };
+  xing.stats = n;
+  console.log("[Konto] crossings: " + n.junctions + " signalled junctions, " + n.zebra + " zebra crossings, " + n.level + " level crossings, " + n.laneStops + " stop lines on the traffic lanes (" + Math.round(performance.now() - t0) + " ms)");
+}
+
+// A street laid down a railway, rather than across it, is a road the trains run along. Cut those stretches out of the street plan (the
+// streets still cross the line, at a level crossing, where they meet it at a real angle).
+function streetsOffRails(city, lines) {
+  const rails = (city.rails || []).filter(r => !r.elevated && r.pts && r.pts.length > 1);
+  if (!rails.length) return 0;
+  const near = (x, z) => { let best = null; rails.forEach(r => { const P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts; for (let i = 1; i < P.length; i++) { const d = distToSeg(x, z, P[i - 1][0], P[i - 1][2], P[i][0], P[i][2]); if (!best || d < best.d) { const dx = P[i][0] - P[i - 1][0], dz = P[i][2] - P[i - 1][2], l = Math.hypot(dx, dz) || 1; best = { d: d, dx: dx / l, dz: dz / l }; } } }); return best; };
+  // and no street through a station: its platforms stand either side of the tracks for a train's length
+  const plats = [];
+  (city.stations || []).forEach(st => {
+    let best = null; rails.forEach(r => { const q = railProject(r.pts, st.centre[0], st.centre[1]); if (q && (!best || q.dist < best.dist)) best = q; });
+    if (best && best.dist < 320) plats.push({ x: best.x, z: best.z, c: Math.cos(best.yaw), s: Math.sin(best.yaw), half: clamp(st.size[0] * 0.62, 84, 158) / 2 + 14 });
+  });
+  const onPlatform = (x, z) => plats.some(q => { const dx = x - q.x, dz = z - q.z, along = dx * q.s + dz * q.c, across = dx * q.c - dz * q.s; return Math.abs(along) < q.half && Math.abs(across) < 16; });
+  let cut = 0;
+  lines.forEach(L => {
+    const A = L.pt(0), B = L.pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+    const out = [];
+    L.runs.forEach(r => {
+      let cur = null;
+      for (let t = r[0]; t < r[1]; t += 2) {
+        const t1 = Math.min(r[1], t + 2), p = L.pt((t + t1) / 2), q = near(p[0], p[1]);
+        const bad = (q && q.d < L.hw + 5.5 && Math.abs(q.dx * dx + q.dz * dz) > 0.6) || (q && q.d < 30 && onPlatform(p[0], p[1]));
+        if (bad) { cur = null; cut += t1 - t; continue; }
+        if (cur && Math.abs(cur[1] - t) < 0.01) cur[1] = t1; else { cur = [t, t1]; out.push(cur); }
+      }
+    });
+    L.runs = out.filter(r => r[1] - r[0] >= 10);
+  });
+  return cut;
+}
+
+// ---- what you see -----------------------------------------------------------------------------------------------------------------------
+const xingTex = {};
+function xingTexture(kind) {
+  if (xingTex[kind]) return xingTex[kind];
+  const cv = document.createElement("canvas"), g = cv.getContext("2d");
+  if (kind === "paint") {
+    // worn road paint: white with the asphalt's grain coming through, and a few scuffs from tyres
+    cv.width = cv.height = 256; g.fillStyle = "#efefe8"; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 2600; i++) { const v = 150 + Math.random() * 90; g.fillStyle = "rgba(" + (v | 0) + "," + (v | 0) + "," + ((v - 6) | 0) + "," + (Math.random() * 0.22) + ")"; g.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3); }
+    for (let i = 0; i < 18; i++) { g.fillStyle = "rgba(60,60,58," + (0.08 + Math.random() * 0.12) + ")"; g.fillRect(Math.random() * 256, Math.random() * 256, 4 + Math.random() * 30, 2 + Math.random() * 6); }
+  } else if (kind === "paintN") {
+    cv.width = cv.height = 128; g.fillStyle = "rgb(128,128,255)"; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 900; i++) { const a = Math.random(); g.fillStyle = "rgb(" + (118 + a * 20 | 0) + "," + (118 + Math.random() * 20 | 0) + ",255)"; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  } else if (kind === "paintR") {
+    cv.width = cv.height = 128; g.fillStyle = "rgb(150,150,150)"; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 900; i++) { const v = 120 + Math.random() * 90 | 0; g.fillStyle = "rgb(" + v + "," + v + "," + v + ")"; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  } else if (kind === "arm") {
+    // a barrier arm: yellow and black in diagonal bands, a little weathered
+    cv.width = 512; cv.height = 32; g.fillStyle = "#e6b417"; g.fillRect(0, 0, 512, 32);
+    g.fillStyle = "#151515"; for (let x = -32; x < 544; x += 64) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 32, 0); g.lineTo(x + 64, 0); g.lineTo(x + 32, 32); g.fill(); }
+    for (let i = 0; i < 400; i++) { g.fillStyle = "rgba(90,80,60," + Math.random() * 0.15 + ")"; g.fillRect(Math.random() * 512, Math.random() * 32, 2, 1); }
+  } else if (kind === "lamp") {
+    // a lit lens: a hot centre and a soft halo (alpha)
+    cv.width = cv.height = 64; const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.95)"); gr.addColorStop(0.5, "rgba(255,255,255,0.35)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  } else if (kind === "walk" || kind === "stand") {
+    // the lit figure of a Japanese pedestrian signal
+    cv.width = cv.height = 64; g.clearRect(0, 0, 64, 64);
+    g.fillStyle = kind === "walk" ? "#3dffa8" : "#ff3a2e"; g.shadowColor = g.fillStyle; g.shadowBlur = 6;
+    g.beginPath(); g.arc(32, 12, 6, 0, 7); g.fill();
+    if (kind === "stand") { g.fillRect(25, 20, 14, 22); g.fillRect(26, 42, 5, 16); g.fillRect(33, 42, 5, 16); g.fillRect(20, 21, 4, 18); g.fillRect(40, 21, 4, 18); }
+    else { g.save(); g.translate(32, 32); g.rotate(0.15); g.fillRect(-6, -12, 12, 20); g.restore(); g.lineWidth = 5; g.strokeStyle = g.fillStyle; g.beginPath(); g.moveTo(31, 38); g.lineTo(22, 58); g.moveTo(33, 38); g.lineTo(43, 57); g.moveTo(29, 22); g.lineTo(18, 34); g.moveTo(36, 22); g.lineTo(46, 30); g.stroke(); }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  if (kind === "paint" || kind === "arm" || kind === "walk" || kind === "stand") t.encoding = THREE.sRGBEncoding;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return (xingTex[kind] = t);
+}
+function xingPaintMaterial() {
+  return new THREE.MeshStandardMaterial({ map: xingTexture("paint"), normalMap: xingTexture("paintN"), roughnessMap: xingTexture("paintR"), roughness: 0.95, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+}
+
+// The static parts: painted bars, poles, signal heads, the crossing furniture. Kept in 256 m chunks so the far ones can be hidden.
+function buildCrossingMeshes(root) {
+  const CH = 256, chunks = new Map();
+  const chunk = (x, z) => { const k = Math.floor(x / CH) + "," + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { x: (Math.floor(x / CH) + 0.5) * CH, z: (Math.floor(z / CH) + 0.5) * CH, paint: [], solid: solidMesh(true), badges: decoMesh() }); return c; };
+  // a flat painted rectangle centred at (x, z): along (ax, az) for len, across for wid
+  const bar = (c, x, y, z, ax, az, len, wid) => {
+    const bx = -az, bz = ax, hl = len / 2, hw = wid / 2;
+    const P = [[x - ax * hl - bx * hw, z - az * hl - bz * hw], [x + ax * hl - bx * hw, z + az * hl - bz * hw], [x + ax * hl + bx * hw, z + az * hl + bz * hw], [x - ax * hl + bx * hw, z - az * hl + bz * hw]];
+    const u0 = Math.random() * 0.5, v0 = Math.random() * 0.5;
+    c.paint.push([P, y, [[u0, v0], [u0 + len / 8, v0], [u0 + len / 8, v0 + wid / 8], [u0, v0 + wid / 8]]]);
+  };
+  const POLE = [0.33, 0.35, 0.36, 0.6, 0.45], HEAD = [0.12, 0.12, 0.13, 0.2, 0.5], YELLOW = [0.85, 0.66, 0.08, 0.1, 0.5], BLACK = [0.06, 0.06, 0.06, 0.1, 0.55];
+  const heads = [], lights = [];
+  // zebras and their signals
+  xing.list.forEach(X => {
+    if (X.type !== "zebra") return;
+    const c = chunk(X.cx, X.cz), y = X.y + 0.13;
+    if (!X.painted && !X.diag) {
+      // bars 0.45 m wide every 0.9 m across the road, each as long as the crossing is wide, running along the road
+      const along = [X.dx || -X.uz, X.dz || X.ux];
+      for (let o = -X.half + 0.55; o <= X.half - 0.4; o += 0.9) bar(c, X.cx + X.ux * o, y, X.cz + X.uz * o, along[0], along[1], X.w * 2, 0.45);
+      // and the stop line before it, across the approach (the left of travel towards the junction, and the whole road on a street)
+      if (X.dx || X.dz) {
+        const sx = X.cx + X.dx * (X.w + 1.1), sz = X.cz + X.dz * (X.w + 1.1), hx = -X.dx, hz = -X.dz, lx = hz, lz = -hx;   // (hz, -hx) is the left of (hx, hz)
+        if (X.car) bar(c, sx + lx * X.half * 0.5, y, sz + lz * X.half * 0.5, X.ux, X.uz, X.half - 0.2, 0.45);
+        else bar(c, sx + lx * X.half * 0.5, y, sz + lz * X.half * 0.5, X.ux, X.uz, X.half - 0.2, 0.3);
+      }
+    }
+    if (X.diag) return;
+    // a pole at each end with the pedestrian head facing across, and on the avenues a car signal on an arm over the approach
+    [-1, 1].forEach(e => {
+      // (beside the end of the zebra, on the side away from the junction, so it never stands where people step off the kerb)
+      const px = X.cx + X.ux * e * (X.half + 0.55) + X.dx * (X.w + 0.5), pz = X.cz + X.uz * e * (X.half + 0.55) + X.dz * (X.w + 0.5), gy = xingSurfY(px, pz), yaw = Math.atan2(-X.ux * e, -X.uz * e);
+      const S = c.solid.frame(px, gy, pz, yaw);
+      S.colour(POLE).box(0, 1.75, 0, 0.14, 3.5, 0.14);
+      S.colour(HEAD).box(0, 2.55, 0.16, 0.36, 0.78, 0.2);
+      c.badges.frame(px, gy, pz, yaw).panel(0, 2.55, 0.27, 0.3, 0.7, "F", badgeUV("pedSignal"), false);
+      heads.push({ X: X, x: px - X.ux * e * 0.3, y: gy + 2.55, z: pz - X.uz * e * 0.3, yaw: yaw, e: e });
+      if (e === 1) c.badges.frame(px, gy, pz, yaw).back(0, 3.25, 0, 0.6, 0.6, badgeUV("pedSign"), false);
+      if (X.car && (X.dx || X.dz)) {
+        // drivers come towards the junction against (dx, dz): the face looks back at them, the arm reaches over the left of the road
+        const hx = -X.dx, hz = -X.dz, lx = hz, lz = -hx;
+        if ((X.ux * e) * lx + (X.uz * e) * lz < 0) return;
+        const fy = Math.atan2(X.dx, X.dz), reach = Math.min(X.half * 0.7, 6.5);
+        const F = c.solid.frame(px, gy, pz, Math.atan2(-X.ux * e, -X.uz * e));
+        F.colour(POLE).box(0, 3.1, 0, 0.18, 6.2, 0.18).box(0, 5.6, reach / 2, 0.12, 0.12, reach);
+        const ax = px - X.ux * e * reach, az = pz - X.uz * e * reach;
+        c.solid.frame(ax, gy, az, fy).colour(HEAD).box(0, 5.35, 0, 1.25, 0.42, 0.3);
+        c.badges.frame(ax, gy, az, fy).panel(0, 5.35, 0.16, 1.2, 0.38, "F", badgeUV("carSignal"), false);
+        lights.push({ X: X, x: ax + X.dx * 0.17, y: gy + 5.35, z: az + X.dz * 0.17, yaw: fy, rx: Math.cos(fy), rz: -Math.sin(fy) });
+      }
+    });
+  });
+  // the scramble's car signals, on its four corners (its poles and people's heads are already built with it)
+  // level crossings
+  xing.level.forEach(lx => {
+    const c = chunk(lx.x, lx.z), y = lx.y, n = [-lx.dz, lx.dx], span = lx.hw + (lx.fw || 0) + 0.6;
+    // the deck over the track: dark rubber panels between and beside the rails, and the four rails showing through
+    const S = c.solid.frame(lx.x, y, lx.z, Math.atan2(lx.rx, lx.rz)).collide(false);
+    const across = span * 2 / lx.sin;
+    S.colour([0.09, 0.09, 0.1, 0.0, 0.85]).box(0, 0.05, 0, 7.4, 0.1, across);
+    S.colour([0.55, 0.55, 0.56, 0.9, 0.3]);
+    [-2.1, 2.1].forEach(t => [-0.717, 0.717].forEach(r => { S.box(t + r, 0.12, 0, 0.08, 0.06, across + 1.0); }));
+    S.collide(true);
+    lx.posts = [];
+    [-1, 1].forEach(side => [-1, 1].forEach(e => {
+      // a post on each kerb, either side of the track: striped, with the crossbuck, the twin lamps and the barrier box
+      const back = (4.2 + 1.4) / lx.sin, px = lx.x + lx.dx * side * back + n[0] * e * span, pz = lx.z + lx.dz * side * back + n[1] * e * span;
+      const gy = xingSurfY(px, pz), face = Math.atan2(lx.dx * side, lx.dz * side);
+      const P = c.solid.frame(px, gy, pz, face);
+      for (let k = 0; k < 8; k++) P.colour(k % 2 ? BLACK : YELLOW).box(0, 0.2 + k * 0.4, 0, 0.16, 0.4, 0.16);
+      P.colour(HEAD).box(0, 0.55, -0.25, 0.42, 1.1, 0.36).box(0, 2.3, 0.05, 0.9, 0.14, 0.14);
+      P.colour(BLACK).box(-0.38, 2.3, 0.1, 0.34, 0.34, 0.12).box(0.38, 2.3, 0.1, 0.34, 0.34, 0.12);
+      c.badges.frame(px, gy, pz, face).back(0, 3.4, 0.1, 1.1, 1.1, badgeUV("fumikiri"), false);
+      // the lamps face the road, towards whoever is coming to the line
+      lx.posts.push({ x: px, y: gy, z: pz, face: face, e: e, side: side, gy: gy });
+    }));
+  });
+  // build them
+  const pm = xingPaintMaterial(), fm = furnitureMaterial(), dm = decoMaterial(badgeAtlas(), false);
+  chunks.forEach(c => {
+    const group = new THREE.Group(); group.userData.cx = c.x; group.userData.cz = c.z;
+    if (c.paint.length) {
+      const pos = [], uv = [], nrm = [];
+      // (wound to face up)
+      c.paint.forEach(q => { const P = q[0], y = q[1], U = q[2]; [0, 2, 1, 0, 3, 2].forEach(i => { pos.push(P[i][0], y, P[i][1]); nrm.push(0, 1, 0); uv.push(U[i][0], U[i][1]); }); });
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      const m = new THREE.Mesh(g, pm); m.receiveShadow = true; m.renderOrder = 3; group.add(m);
+    }
+    if (!c.solid.empty()) { const m = new THREE.Mesh(c.solid.geometry(), fm); m.castShadow = true; m.receiveShadow = true; group.add(m); }
+    if (!c.badges.empty()) group.add(new THREE.Mesh(c.badges.geometry(), dm));
+    root.add(group); xing.chunks.push(group);
+  });
+  // the moving and lit parts, drawn for what is near
+  const quad = new THREE.PlaneGeometry(1, 1), cap = 480;
+  const mk = (tex, colour, n) => { const m = new THREE.InstancedMesh(quad, new THREE.MeshBasicMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, toneMapped: false, fog: false }), n); m.count = 0; m.frustumCulled = false; m.renderOrder = 4; root.add(m); return m; };
+  const armGeo = new THREE.BoxGeometry(1, 1, 1); armGeo.translate(0.5, 0, 0);
+  const armTex = xingTexture("arm");
+  xing.dyn = {
+    walk: mk(xingTexture("walk"), 0xffffff, cap), stand: mk(xingTexture("stand"), 0xffffff, cap),
+    green: mk(xingTexture("lamp"), 0x38ffb0, cap), amber: mk(xingTexture("lamp"), 0xffb020, cap), red: mk(xingTexture("lamp"), 0xff2a1e, cap * 2),
+    arms: (() => { const m = new THREE.InstancedMesh(armGeo, new THREE.MeshStandardMaterial({ map: armTex, normalMap: xingTexture("paintN"), roughnessMap: xingTexture("paintR"), roughness: 0.5 }), 200); m.count = 0; m.frustumCulled = false; m.castShadow = true; root.add(m); return m; })(),
+    heads: heads, lights: lights
+  };
+}
+
+// ---- every frame ------------------------------------------------------------------------------------------------------------------------
+const _xo = new THREE.Object3D();
+function xingTick(dt, at) {
+  if (!xing.ready || !at) return;
+  // level crossings: down while a train is coming or on it
+  for (const lx of xing.level) {
+    let closed = false;
+    for (const o of lx.on) {
+      const L = rail.lines[o.li]; if (!L) continue;
+      for (const set of rail.sets) {
+        if (!set.live || set.line !== o.li) continue;
+        const kind = TRAIN_KINDS[set.kind], len = kind.cars * (kind.L + kind.gap);
+        const ahead = o.s - set.s;                              // the head is this far short of the crossing
+        if (ahead < 260 && ahead > -(len + 10)) { closed = true; break; }
+      }
+      if (closed) break;
+    }
+    if (closed && !lx.closed) lx.warnT = 4;                    // the lamps and bell start before the arms come down
+    lx.closed = closed;
+    if (lx.warnT > 0) lx.warnT -= dt;
+    const want = closed ? (lx.warnT > 0 ? 1 : 0) : 1;
+    lx.a += clamp(want - lx.a, -dt / 5, dt / 4);
+  }
+  // the near ones are drawn: a few times a second, the set within reach
+  xing.nearT -= dt;
+  if (xing.nearT <= 0) {
+    xing.nearT = 0.5;
+    const R = 150;
+    xing.nearH = xing.dyn.heads.filter(h => Math.abs(h.x - at.x) < R && Math.abs(h.z - at.z) < R);
+    xing.nearL = xing.dyn.lights.filter(h => Math.abs(h.x - at.x) < R * 1.4 && Math.abs(h.z - at.z) < R * 1.4);
+    xing.nearX = xing.level.filter(l => Math.abs(l.x - at.x) < R * 1.5 && Math.abs(l.z - at.z) < R * 1.5);
+    const far = 640;
+    xing.chunks.forEach(g => { g.visible = Math.abs(g.userData.cx - at.x) < far && Math.abs(g.userData.cz - at.z) < far; });
+  }
+  const D = xing.dyn, flash = (clock * 2) % 1 < 0.5, n = { walk: 0, stand: 0, green: 0, amber: 0, red: 0, arms: 0 };
+  const put = (m, key, x, y, z, yaw, s) => { if (n[key] >= m.instanceMatrix.count) return; _xo.position.set(x, y, z); _xo.rotation.set(0, yaw, 0); _xo.scale.set(s, s, s); _xo.updateMatrix(); m.setMatrixAt(n[key]++, _xo.matrix); };
+  for (const h of xing.nearH || []) {
+    const st = xingPedLight(h.X);
+    if (st === "W" || (st === "F" && flash)) put(D.walk, "walk", h.x, h.y - 0.19, h.z, h.yaw, 0.32);
+    else if (st === "D") put(D.stand, "stand", h.x, h.y + 0.19, h.z, h.yaw, 0.32);
+  }
+  for (const h of xing.nearL || []) {
+    const c = xingState(h.X.j, xingTime()).c[h.X.grp], o = c === "G" ? -0.4 : c === "Y" ? 0 : 0.4;    // green on the driver's left, red on the right, as Japan has them
+    put(c === "G" ? D.green : c === "Y" ? D.amber : D.red, c === "G" ? "green" : c === "Y" ? "amber" : "red", h.x + h.rx * o, h.y, h.z + h.rz * o, h.yaw, 0.42);
+  }
+  let bell = null;
+  for (const lx of xing.nearX || []) {
+    const on = lx.closed || lx.warnT > 0;
+    for (const p of lx.posts) {
+      if (on) { const fx = Math.sin(p.face), fz = Math.cos(p.face), rx = Math.cos(p.face), rz = -Math.sin(p.face); [-1, 1].forEach((sd, k) => { if ((k === 0) === flash) put(D.red, "red", p.x + rx * sd * 0.38 + fx * 0.17, p.gy + 2.3, p.z + rz * sd * 0.38 + fz * 0.17, p.face, 0.4); }); }
+      // the arm: from the post across to the middle of the road, up when open
+      if (n.arms < D.arms.instanceMatrix.count) {
+        const n2 = [-lx.dz * -p.e, lx.dx * -p.e], len = lx.hw + (lx.fw || 0) + 0.4;
+        _xo.position.set(p.x, p.gy + 1.0, p.z); _xo.rotation.set(0, Math.atan2(-n2[1], n2[0]), lx.a * Math.PI * 0.47, "YXZ"); _xo.scale.set(len, 0.1, 0.12); _xo.updateMatrix(); D.arms.setMatrixAt(n.arms++, _xo.matrix);
+      }
+    }
+    if (on) { const d = Math.hypot(lx.x - at.x, lx.z - at.z); if (!bell || d < bell) bell = d; }
+  }
+  for (const k of ["walk", "stand", "green", "amber", "red", "arms"]) { D[k].count = n[k]; D[k].instanceMatrix.needsUpdate = true; }
+  // the bell: カンカン, two tones, about two and a half a second, while you are near a crossing that is down
+  xing.bellT -= dt;
+  if (bell !== null && bell < 90 && xing.bellT <= 0 && typeof sound !== "undefined" && sound.ctx && sound.master && !paused) {
+    xing.bellT = 0.4; xing.bellHi = !xing.bellHi;
+    try {
+      const ctx = sound.ctx, t = ctx.currentTime, o = ctx.createOscillator(), o2 = ctx.createOscillator(), gn = ctx.createGain(), vol = 0.12 * (1 - bell / 90);
+      o.type = "square"; o.frequency.value = xing.bellHi ? 760 : 700; o2.type = "sine"; o2.frequency.value = (xing.bellHi ? 760 : 700) * 2.76;
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.005); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8;
+      o.connect(f); o2.connect(f); f.connect(gn); gn.connect(sound.master); o.start(t); o2.start(t); o.stop(t + 0.34); o2.stop(t + 0.34);
+    } catch (e) { }
+  }
+}
+
+// ---- the footway network ---------------------------------------------------------------------------------------------------------------
+const pedNet = { ready: false, gen: null, x: [], z: [], adj: [], grid: new Map(), G: 24, cities: 0 };
+function pedNetAdd(x, z) { const i = pedNet.x.length; pedNet.x.push(x); pedNet.z.push(z); pedNet.adj.push([]); const k = Math.floor(x / pedNet.G) + "," + Math.floor(z / pedNet.G); let l = pedNet.grid.get(k); if (!l) pedNet.grid.set(k, l = []); l.push(i); return i; }
+function pedNetLink(a, b, X) { if (a === b || pedNet.adj[a].some(e => e[0] === b)) return; pedNet.adj[a].push([b, X ? X.id : -1]); pedNet.adj[b].push([a, X ? X.id : -1]); }
+function pedNetNear(x, z, R, filter) {
+  const G = pedNet.G, r = Math.ceil(R / G), cx = Math.floor(x / G), cz = Math.floor(z / G), out = [];
+  for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const l = pedNet.grid.get((cx + i) + "," + (cz + j)); if (!l) continue; for (const id of l) { const d = Math.hypot(pedNet.x[id] - x, pedNet.z[id] - z); if (d < R && (!filter || filter(id))) out.push([d, id]); } }
+  out.sort((p, q) => p[0] - q[0]);
+  return out;
+}
+// The work, cut into pieces so it can run a few milliseconds a frame behind the title and the first minutes of play.
+function* pedNetBuild() {
+  const ends = [];
+  // a footway line: sampled every 2 m, cut where it is not walkable, a node every 6 m along each piece that is
+  const line = (pts) => {
+    const ok = pts.map(p => xingWalkable(p[0], p[1]));
+    let since = 0, last = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (!ok[i]) { if (last >= 0) ends.push(last); last = -1; continue; }
+      if (last < 0) { last = pedNetAdd(p[0], p[1]); ends.push(last); since = 0; continue; }
+      since += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+      if (since >= 6 || i === pts.length - 1 || !ok[i + 1]) {
+        // where the line bends, a chord between points 6 m apart can cut the corner of the road beside it: put a point on the bend instead
+        if (i > 1 && !xingLineClear(pedNet.x[last], pedNet.z[last], p[0], p[1])) { const mid = pedNetAdd(pts[i - 1][0], pts[i - 1][1]); pedNetLink(last, mid); last = mid; }
+        const id = pedNetAdd(p[0], p[1]); pedNetLink(last, id); last = id; since = 0;
+      }
+    }
+    if (last >= 0) ends.push(last);
+  };
+  const offsetLine = (P, loop, off) => {
+    const Q = loop ? P.concat([P[0]]) : P, out = [];
+    for (let i = 1; i < Q.length; i++) {
+      const a = Q[i - 1], b = Q[i], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.01) continue;
+      const nx = -dz / L * off, nz = dx / L * off, n = Math.max(1, Math.ceil(L / 2));
+      for (let k = (out.length ? 1 : 0); k <= n; k++) out.push([a[0] + dx * k / n + nx, a[1] + dz * k / n + nz]);
+    }
+    return out;
+  };
+  let work = 0;
+  for (const city of world.cities) {
+    const b = city.bounds; if (!b) continue;
+    for (const r of city.roads) {
+      if (r.elevated || r.cls !== "arterial" || !r.pts || r.pts.length < 2) continue;
+      const P = r.pts.map(q => [q[0], q[2]]);
+      [-1, 1].forEach(sd => line(offsetLine(P, r.loop, sd * (r.halfWidth + 2.2))));
+      if (++work % 2 === 0) yield;
+    }
+    for (const L of city.streetPlan || []) {
+      for (const run of L.runs) {
+        const a = L.pt(run[0]), c = L.pt(run[1]), P = [a, c];
+        if (L.fw > 0) [-1, 1].forEach(sd => line(offsetLine(P, false, sd * (L.hw + 0.12 + L.fw / 2))));
+        else line(offsetLine(P, false, 0));                         // a lane: shared, down the middle
+        if (++work % 40 === 0) yield;
+      }
+    }
+  }
+  // round the corners: each end of a piece to whatever is close and in plain reach
+  for (let k = 0; k < ends.length; k++) {
+    const e = ends[k], near = pedNetNear(pedNet.x[e], pedNet.z[e], 8);
+    let made = 0;
+    for (const q of near) { if (q[1] === e || made >= 3) continue; if (pedNet.adj[e].some(t => t[0] === q[1])) continue; if (xingLineClear(pedNet.x[e], pedNet.z[e], pedNet.x[q[1]], pedNet.z[q[1]])) { pedNetLink(e, q[1]); made++; } }
+    if (k % 300 === 0) yield;
+  }
+  // across the roads and the tracks: only at a crossing
+  for (const X of xing.list) {
+    const ends2 = [];
+    for (const e of [-1, 1]) {
+      // the first place off the far kerb a person can stand
+      let ex = 0, ez = 0, ok = false;
+      for (let o = X.half + 0.45; o < X.half + (X.diag ? 8 : 3.2) && !ok; o += 0.35) { ex = X.cx + X.ux * e * o; ez = X.cz + X.uz * e * o; ok = xingWalkable(ex, ez); }
+      if (!ok) { ends2.push(-1); continue; }
+      const id = pedNetAdd(ex, ez);
+      pedNetNear(ex, ez, 7).slice(0, 6).forEach(q => { if (q[1] !== id && xingLineClear(ex, ez, pedNet.x[q[1]], pedNet.z[q[1]])) pedNetLink(id, q[1]); });
+      ends2.push(id);
+    }
+    if (ends2[0] >= 0 && ends2[1] >= 0) pedNetLink(ends2[0], ends2[1], X);
+    if (X.id % 50 === 0) yield;
+  }
+  pedNet.ready = true;
+  console.log("[Konto] footway network: " + pedNet.x.length + " points, " + xing.list.length + " crossings");
+}
+function pedNetTick() {
+  if (pedNet.ready || !xing.ready) return;
+  if (!pedNet.gen) { pedNet.x = []; pedNet.z = []; pedNet.adj = []; pedNet.grid = new Map(); pedNet.gen = pedNetBuild(); }
+  const t0 = performance.now();
+  while (performance.now() - t0 < 5) { if (pedNet.gen.next().done) { pedNet.gen = null; break; } }
+}
+function pedNetEdgeX(a, b) { const e = pedNet.adj[a].find(t => t[0] === b); return e && e[1] >= 0 ? xing.list[e[1]] : null; }
+// A* over the footways, from the node nearest one point to the node nearest another
+function pedNetRoute(fx, fz, tx, tz) {
+  if (!pedNet.ready) return null;
+  const s0 = pedNetNear(fx, fz, 40)[0], s1 = pedNetNear(tx, tz, 60)[0]; if (!s0 || !s1) return null;
+  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z;
+  const g = new Map([[S, 0]]), from = new Map(), open = [[Math.hypot(X[S] - X[T], Z[S] - Z[T]), S]], done = new Set();
+  let it = 0;
+  while (open.length && it++ < 25000) {
+    // a small binary heap
+    let top = open[0]; const last = open.pop();
+    if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; const t = open[i]; open[i] = open[m]; open[m] = t; i = m; } }
+    const u = top[1]; if (done.has(u)) continue; done.add(u);
+    if (u === T) { const path = [T]; let c = T; while (from.has(c)) { c = from.get(c); path.push(c); } return path.reverse(); }
+    for (const e of pedNet.adj[u]) {
+      const v = e[0], w = Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0), ng = g.get(u) + w;
+      if (ng < (g.has(v) ? g.get(v) : Infinity)) {
+        g.set(v, ng); from.set(v, u);
+        open.push([ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v]);
+        let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; const t = open[i]; open[i] = open[p]; open[p] = t; i = p; }
+      }
+    }
+  }
+  return null;
+}
+// One step of a person on the network: p.na -> p.nb, u along it, a small sideways offset p.lat. Returns false while they wait at a crossing.
+function pedNetStep(p, dt) {
+  const X = pedNet.x, Z = pedNet.z;
+  if (p.nu === 0 && !p.crossing) {
+    const XX = pedNetEdgeX(p.na, p.nb);
+    if (XX && !xingPedGo(XX)) {
+      // wait at the kerb, facing across
+      p.waitX = XX; const want = Math.atan2(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * Math.min(1, dt * 5);
+      return false;
+    }
+    p.crossing = XX || null; p.waitX = null;
+  }
+  const L = Math.hypot(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]) || 0.01;
+  p.nu += p.sp * (p.crossing ? 1.15 : 1) * dt / L;
+  if (p.nu >= 1) { p.nu = 0; p.crossing = null; p.prev = p.na; p.na = p.nb; p.nb = p.next ? p.next(p) : -1; if (p.nb < 0) { p.nb = p.na; p.arrived = true; return true; } }
+  const ux = (X[p.nb] - X[p.na]) / L, uz = (Z[p.nb] - Z[p.na]) / L, lat = p.crossing ? p.lat * 1.6 : p.lat;
+  const bx = X[p.na] + (X[p.nb] - X[p.na]) * p.nu, bz = Z[p.na] + (Z[p.nb] - Z[p.na]) * p.nu;
+  p.x = bx - uz * lat; p.z = bz + ux * lat;
+  // the line itself is on the pavement; a step to the side of it near a corner might not be
+  if (!p.crossing && lat && xingRoadAt(p.x, p.z, 0)) { p.x = bx; p.z = bz; }
+  const want = Math.atan2(ux, uz); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * Math.min(1, dt * 6);
+  return true;
+}
+// the next node for someone just walking: on, round the corner, now and then over a crossing; back only at a dead end
+function pedNetWander(p) {
+  const A = pedNet.adj[p.na], X = pedNet.x, Z = pedNet.z; if (!A.length) return -1;
+  const hx = X[p.na] - X[p.prev], hz = Z[p.na] - Z[p.prev], hl = Math.hypot(hx, hz) || 1;
+  let best = -1, bs = -1e9;
+  for (const e of A) {
+    if (e[0] === p.prev && A.length > 1) continue;
+    const dx = X[e[0]] - X[p.na], dz = Z[e[0]] - Z[p.na], dl = Math.hypot(dx, dz) || 1;
+    const sc = (dx * hx + dz * hz) / (dl * hl) + Math.random() * (e[1] >= 0 ? 0.9 : 1.3) - (e[1] >= 0 ? 0.5 : 0);
+    if (sc > bs) { bs = sc; best = e[0]; }
+  }
+  return best < 0 ? (p.prev !== undefined ? p.prev : -1) : best;
+}
+function pedNetAttach(p, R) {
+  const q = pedNetNear(p.x, p.z, R || 30, id => pedNet.adj[id].length > 0)[0]; if (!q) return false;
+  p.na = q[1]; p.prev = q[1]; p.nu = 0; p.crossing = null; p.next = pedNetWander;
+  const e = pedNet.adj[p.na].filter(t => t[1] < 0); p.nb = (e.length ? e : pedNet.adj[p.na])[(Math.random() * (e.length || pedNet.adj[p.na].length)) | 0][0];
+  p.lat = p.lat !== undefined ? p.lat : (Math.random() - 0.5) * 1.0;
+  return true;
 }
 
 // ------------------------------------------------------------ street furniture
@@ -40215,14 +40962,16 @@ function pedPathPos(p, out) {
   return out;
 }
 function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+// People appear on the footway network (pedNet), which keeps them on the pavements and takes them over a road only at a crossing.
 function pedSpawn() {
-  const G = pedGrid(), C = peds.gridC, px = player.pos.x, pz = player.pos.z, cx = Math.floor(px / C), cz = Math.floor(pz / C), cand = [];
-  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const l = G.get((cx + i) + "," + (cz + j)); if (l) cand.push.apply(cand, l); }
+  if (!pedNet.ready) return false;
+  const px = player.pos.x, pz = player.pos.z, cand = pedNetNear(px, pz, 95, id => pedNet.adj[id].length > 0);
   if (!cand.length) return false;
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw), tmp = {};
   for (let t = 0; t < 8; t++) {
-    const c = cand[(Math.random() * cand.length) | 0], p = { r: c.r, i: c.i, u: Math.random(), side: Math.random() < 0.5 ? -1 : 1, dir: Math.random() < 0.5 ? -1 : 1 };
-    pedPathPos(p, tmp);
+    const c = cand[(Math.random() * cand.length) | 0], p = { x: pedNet.x[c[1]], z: pedNet.z[c[1]], lat: (Math.random() - 0.5) * 1.0, moving: true };
+    if (!pedNetAttach(p, 1)) continue;
+    tmp.x = p.x; tmp.z = p.z; tmp.yaw = Math.atan2(pedNet.x[p.nb] - pedNet.x[p.na], pedNet.z[p.nb] - pedNet.z[p.na]);
     const dx = tmp.x - px, dz = tmp.z - pz, d = Math.hypot(dx, dz);
     if (d < 28 || d > 95) continue;
     if ((dx * fx + dz * fz) / d > 0.55 && d < 60) continue;                       // not out of thin air in front of you
@@ -40297,7 +41046,7 @@ function pedSet(p, state, from) {
     if (!p.icon) { p.icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: pedPhoneIcon(), depthTest: false, fog: false })); p.icon.scale.set(0.5, 0.5, 0.5); p.icon.position.y = 2.25; p.holder.add(p.icon); }
     p.icon.visible = true; pedSay(p, "call", 2.5);
   }
-  else if (state === "walk" || state === "wander") pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED);
+  else if (state === "walk" || state === "wander") { p.moving = true; pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); }
   else if (state === "idle") pedPlay(p, "idle", 0.3);
 }
 // shot or hit by a car: hurt, knocked down, or dead
@@ -40334,12 +41083,14 @@ function pedFree(p, dt, speed, ax, az) {
   let h = Math.atan2(ax, az);
   for (const k of [0, 0.6, -0.6, 1.2, -1.2, 2.0, -2.0, Math.PI]) {
     const a = h + k, nx = p.x + Math.sin(a) * speed * dt * 4, nz = p.z + Math.cos(a) * speed * dt * 4;
-    if (!insideBuilding(nx, nz, 0.35) && world.sampleHeight(nx, nz) > 0.4) { h = a; break; }
+    if (!insideBuilding(nx, nz, 0.35) && world.sampleHeight(nx, nz) > 0.4 && !pedOntoRoad(p, nx, nz)) { h = a; break; }
   }
   let dy = h - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 8);
   const nx = p.x + Math.sin(p.yaw) * speed * dt, nz = p.z + Math.cos(p.yaw) * speed * dt;
-  if (!insideBuilding(nx, nz, 0.3)) { p.x = nx; p.z = nz; }
+  if (!insideBuilding(nx, nz, 0.3) && !pedOntoRoad(p, nx, nz)) { p.x = nx; p.z = nz; }
 }
+// would this step take someone off the kerb onto a road or a track? (Someone already on one may always step off it.)
+function pedOntoRoad(p, nx, nz) { return !!xing.ready && !!xingRoadAt(nx, nz, 0.2) && !xingRoadAt(p.x, p.z, 0.2); }
 // ---- the rush hour ----------------------------------------------------------------------------------------------------------------------
 // From a quarter to seven to half past nine, and again from a quarter past five to eight, the people near a station are commuters: office
 // workers in their suits, walking the real streets (the same street graph the waypoint uses) at a commuter's pace. In the morning the towns
@@ -40370,12 +41121,9 @@ function commuteNearStation(r) {
 }
 function commuteRoute(from, to, key) {
   if (key && commute.routes.has(key)) return commute.routes.get(key);
-  let path = null;
-  try { path = routeSolve({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }); } catch (e) { path = null; }
-  if (!path || path.length < 2) path = [from, to];
-  path = [from].concat(path, [to]).map(q => [q[0], q[1]]);
-  // how wide the road is under each stretch, so they walk on its pavement and not down the middle of it
-  for (let i = 0; i < path.length - 1; i++) path[i][2] = commuteRoadHalf((path[i][0] + path[i + 1][0]) / 2, (path[i][1] + path[i + 1][1]) / 2);
+  // along the footways, and over the roads only at the crossings (see pedNet)
+  const ids = pedNetRoute(from[0], from[1], to[0], to[1]);
+  const path = ids && ids.length >= 2 ? ids.map(id => [pedNet.x[id], pedNet.z[id], id]) : null;
   if (key) { if (commute.routes.size > 300) commute.routes.clear(); commute.routes.set(key, path); }
   return path;
 }
@@ -40400,10 +41148,11 @@ function commuteFigure() {
   return pplFigure(e, 0.94 + Math.random() * 0.08);
 }
 // a commuter on a route: path is [[x, z], ...] along the streets; they keep to one side of it
+function commuteNext(p) { p.pi++; return p.pi + 1 < p.path.length ? p.path[p.pi + 1][2] : -1; }
 function commuteSpawn(path, toStation) {
+  if (!path || path.length < 2) return null;
   const f = commuteFigure(); if (!f) return null;
-  const side = Math.random() < 0.5 ? -1 : 1;
-  const p = Object.assign({ r: null }, f, { path: path, pi: 0, pu: 0, side: side, latX: Math.random(), x: path[0][0], z: path[0][1], y: 0, yaw: 0, sp: 1.5 + Math.random() * 0.45, state: "commute", t: 0, hp: 100, h: 1, idleIn: 1e9, toStation: toStation, commuter: true });
+  const p = Object.assign({ r: null }, f, { path: path, pi: 0, pu: 0, lat: (Math.random() - 0.5) * 1.2, next: commuteNext, moving: true, x: path[0][0], z: path[0][1], y: 0, yaw: 0, sp: 1.5 + Math.random() * 0.45, state: "commute", t: 0, hp: 100, h: 1, idleIn: 1e9, toStation: toStation, commuter: true });
   commutePlace(p);
   p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
   scene.add(p.holder); pedPlay(p, "walk", 0, p.sp / WALK_SPEED);
@@ -40411,22 +41160,24 @@ function commuteSpawn(path, toStation) {
   peds.list.push(p);
   return p;
 }
+// put a commuter at (pi, pu) along their path: on the footway network, between two of its points
 function commutePlace(p) {
-  const P = p.path, a = P[p.pi], b = P[Math.min(P.length - 1, p.pi + 1)];
-  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
-  let x = a[0] + dx * p.pu, z = a[1] + dz * p.pu;
-  // on the pavement of an arterial (its half width plus a step), or to the side of a narrow street; closer in where buildings come to the kerb
-  const hw = a[2] || 0, lat = p.side * (hw ? hw + 1.0 + p.latX * 2.6 : 2.4 + p.latX * 1.4);
-  for (const k of [1, 0.6, 0.25, 0]) { const ox = x - uz * lat * k, oz = z + ux * lat * k; if (!insideBuilding(ox, oz, 0.3)) { x = ox; z = oz; break; } }
-  p.x = x; p.z = z; p.y = world.surfaceY(x, z); p.segL = L;
-  const want = Math.atan2(ux, uz); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * 0.25;
+  const P = p.path; p.pi = Math.max(0, Math.min(p.pi, P.length - 2));
+  p.na = P[p.pi][2]; p.nb = P[p.pi + 1][2]; p.prev = p.na; p.nu = clamp(p.pu || 0, 0, 0.98); p.arrived = false;
+  p.crossing = p.nu > 0 ? pedNetEdgeX(p.na, p.nb) : null;
+  const X = pedNet.x, Z = pedNet.z, L = Math.hypot(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]) || 0.01, ux = (X[p.nb] - X[p.na]) / L, uz = (Z[p.nb] - Z[p.na]) / L;
+  p.x = X[p.na] + (X[p.nb] - X[p.na]) * p.nu - uz * p.lat; p.z = Z[p.na] + (Z[p.nb] - Z[p.na]) * p.nu + ux * p.lat;
+  p.y = world.surfaceY(p.x, p.z); p.yaw = Math.atan2(ux, uz);
 }
+// walk on; at a crossing, wait for the green man. True once they are there.
 function commuteStep(p, dt) {
-  p.pu += p.sp * dt / (p.segL || 1);
-  while (p.pu >= 1 && p.pi < p.path.length - 2) { p.pu -= 1; p.pi++; const a = p.path[p.pi], b = p.path[p.pi + 1]; p.segL = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; }
-  if (p.pu >= 1 && p.pi >= p.path.length - 2) return true;            // there
-  commutePlace(p);
-  return false;
+  pedMoveAnim(p, pedNetStep(p, dt));
+  return !!p.arrived;
+}
+function pedMoveAnim(p, moving) {
+  if (moving === p.moving) return;
+  p.moving = moving;
+  if (moving) pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); else pedPlay(p, "idle", 0.3);
 }
 // spawning: commuters walking in to the station from the streets around it, and waves of them coming out when a train comes in
 function commuteTick(dt) {
@@ -40479,15 +41230,9 @@ function pedsTick(dt) {
     p.t += dt;
     if (p.state === "walk") {
       p.idleIn -= dt;
-      if (p.idleIn <= 0) { pedSet(p, "idle"); p.idleFor = 2 + Math.random() * 5; p.idleIn = 15 + Math.random() * 35; }
-      else {
-        p.u += p.dir * p.sp * dt / (pedPathPos(p, tmp).len);
-        if (p.u > 1) { if (p.i < p.r.pts.length - 2) { p.i++; p.u -= 1; } else { p.u = 1; p.dir = -1; } }
-        if (p.u < 0) { if (p.i > 0) { p.i--; p.u += 1; } else { p.u = 0; p.dir = 1; } }
-        pedPathPos(p, tmp);
-        if (insideBuilding(tmp.x, tmp.z, 0.3)) { p.dir *= -1; }
-        else { p.x = tmp.x; p.z = tmp.z; let dy = tmp.yaw - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 6); }
-      }
+      if (p.na === undefined && !(pedNet.ready && pedNetAttach(p, 1.5))) { pedSet(p, "wander"); p.wh = p.yaw; }
+      else if (p.idleIn <= 0 && !p.crossing && !p.waitX) { pedSet(p, "idle"); p.idleFor = 2 + Math.random() * 5; p.idleIn = 15 + Math.random() * 35; }
+      else pedMoveAnim(p, pedNetStep(p, dt));
     } else if (p.state === "idle") { if (p.t > p.idleFor) pedSet(p, "walk"); }
     else if (p.state === "commute") {
       if (commuteStep(p, dt)) { if (p.toStation) { pedRemove(p); continue; } pedSet(p, "wander"); p.wh = p.yaw; }
@@ -40497,8 +41242,14 @@ function pedsTick(dt) {
       pedFree(p, dt, 4.4, ax || 1, az);
       if (p.t > p.runFor && d > 35) { pedSet(p, "wander"); p.wh = p.yaw; }
     } else if (p.state === "wander") {
-      if (Math.random() < dt * 0.3) p.wh = p.yaw + (Math.random() - 0.5) * 1.4;
-      pedFree(p, dt, p.sp, Math.sin(p.wh), Math.cos(p.wh));
+      // back onto the pavements as soon as there is one: wandering is only for where there is none
+      const q = pedNet.ready ? pedNetNear(p.x, p.z, 30, id => pedNet.adj[id].length > 0)[0] : null;
+      if (q && q[0] < 1.2 && pedNetAttach(p, 1.5)) { p.state = "walk"; p.moving = true; p.idleIn = 20 + Math.random() * 30; pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); continue; }
+      if (q) pedFree(p, dt, p.sp, pedNet.x[q[1]] - p.x, pedNet.z[q[1]] - p.z);            // make for the nearest pavement
+      else {
+        if (Math.random() < dt * 0.3) p.wh = p.yaw + (Math.random() - 0.5) * 1.4;
+        pedFree(p, dt, p.sp, Math.sin(p.wh), Math.cos(p.wh));
+      }
     } else if (p.state === "cower" || p.state === "hands") {
       const aimed = gun.target === p;
       if (aimed) p.t = 0;
