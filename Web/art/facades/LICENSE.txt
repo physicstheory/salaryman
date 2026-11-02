@@ -1,2 +1,4 @@
 Facade textures from ambientCG (https://ambientcg.com): Facade005, Facade006, Facade018A/B, Facade019A/B, Facade020A/B.
 Licensed CC0 1.0 Universal (public domain). Re-encoded for the game.
+glass_* is painted for the game by Tools/facades/make_glass_curtain_wall.py (no photo source).
+*_rough.jpg are derived from each set's colour map by Tools/facades/make_facade_rough.py.

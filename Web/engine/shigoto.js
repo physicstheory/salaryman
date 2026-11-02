@@ -21,35 +21,52 @@ var SHIGOTO = (() => {
   // Engine/src/index.js
   var index_exports = {};
   __export(index_exports, {
+    BIKE_SPECS: () => BIKE_SPECS,
+    BOAT_SPECS: () => BOAT_SPECS,
+    Boat: () => Boat,
+    CANOPY_SCHEMES: () => CANOPY_SCHEMES,
+    CANOPY_SPECS: () => CANOPY_SPECS,
     CHAR_QUALITY: () => CHAR_QUALITY,
+    CanopyRig: () => CanopyRig,
     Characters: () => Characters,
     CinematicVideo: () => CinematicVideo,
     Engine: () => Engine,
+    GERSTNER_WAVES: () => GERSTNER_WAVES,
     HONOR_TIERS: () => HONOR_TIERS,
     Honor: () => Honor,
     HostBridge: () => HostBridge,
     InteriorEngine: () => InteriorEngine,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
+    Motorcycle: () => Motorcycle,
+    Ocean: () => Ocean,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
     Persistence: () => Persistence,
+    RAGDOLL_JOINTS: () => RAGDOLL_JOINTS,
     RAIN_QUALITY: () => RAIN_QUALITY,
     RESPECT_TIERS: () => RESPECT_TIERS,
+    RagdollSystem: () => RagdollSystem,
     RainEngine: () => RainEngine,
     ResidentSet: () => ResidentSet,
     Respect: () => Respect,
     SLOT_MATERIALS: () => SLOT_MATERIALS,
     STANDING_ICONS: () => STANDING_ICONS,
+    Skydiver: () => Skydiver,
     StandingHud: () => StandingHud,
     TEMPERS: () => TEMPERS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
+    WIND_PRESETS: () => WIND_PRESETS,
+    WindField: () => WindField,
+    airDensity: () => airDensity,
     bipedNames: () => bipedNames,
+    buildHull: () => buildHull,
     characters: () => characters,
     createEngine: () => createEngine,
     drawProp: () => drawProp,
     estimateBytes: () => estimateBytes,
     fanDemand: () => fanDemand,
+    findRagdollBones: () => findRagdollBones,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
@@ -194,45 +211,45 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G5) ? 4294967297 : G5 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G2, U2, J2) {
+    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G5, U2, J3) {
       try {
-        const N2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N2, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
-        var y2 = S().getInt32(N2 + 0, true), M2 = S().getFloat64(N2 + 8, true);
+        const N3 = A.__wbindgen_add_to_stack_pointer(-16);
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
+        var y2 = S().getInt32(N3 + 0, true), M2 = S().getFloat64(N3 + 8, true);
         return 0 === y2 ? void 0 : M2;
       } finally {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G5));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
@@ -241,31 +258,31 @@ var SHIGOTO = (() => {
     projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
-        return 0 === G2 ? void 0 : yA.__wrap(G2);
+        const G5 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
+        return 0 === G5 ? void 0 : yA.__wrap(G5);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G5));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2, y2, M2, N2) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3, y2, M2, N3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G5, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -665,10 +682,10 @@ var SHIGOTO = (() => {
     contains(I2) {
       return 0 !== A.rawcolliderset_contains(this.__wbg_ptr, I2);
     }
-    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       try {
         const H2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
+        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
         var l2 = S().getInt32(H2 + 0, true), L3 = S().getFloat64(H2 + 8, true);
         return 0 === l2 ? void 0 : L3;
       } finally {
@@ -1554,9 +1571,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G2, U2, J2) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G5, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
       } finally {
         I[K++] = void 0;
       }
@@ -1764,8 +1781,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G5, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G5, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G5.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2213,9 +2230,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -3706,20 +3723,20 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G5 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G5, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G5.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G2.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G5 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G5, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G5.free(), k2;
     }
     intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G2 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G2.free(), k2.free();
+      let G5 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G5, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G5.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G2, k2, E2, i2, D2, o2, w2);
-      return S4.free(), G2.free(), k2.free(), K2;
+      let S4 = mA.intoRaw(C2), G5 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G5, k2, E2, i2, D2, o2, w2);
+      return S4.free(), G5.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
       let w2 = mA.intoRaw(C2), S4 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
@@ -3733,13 +3750,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S4, G2, k2, K2));
-      return h2.free(), U2.free(), J2.free(), y2.free(), M2;
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G5, k2, K2));
+      return h2.free(), U2.free(), J3.free(), y2.free(), M2;
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G2 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S4), G2.free(), k2.free(), K2.free();
+      let G5 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G5, k2, K2, E2, i2, D2, o2, w2, S4), G5.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3878,11 +3895,11 @@ var SHIGOTO = (() => {
           return new Qg(w2, S4);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
-          const G2 = A2.coTriMeshFlags(I2);
-          return new Eg(Q2, E2, G2);
+          const G5 = A2.coTriMeshFlags(I2);
+          return new Eg(Q2, E2, G5);
         case l.HeightField:
-          const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J2 = A2.coHeightFieldFlags(I2);
-          return new og(h2, U2, K2, k2, J2);
+          const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J3 = A2.coHeightFieldFlags(I2);
+          return new og(h2, U2, K2, k2, J3);
         case l.ConvexPolyhedron:
           return Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2), new ig(Q2, E2);
         case l.RoundConvexPolyhedron:
@@ -3900,16 +3917,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G2, J2, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S4.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G5 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G5, J3, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G5.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
       let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
       return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G2;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G5 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G5;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4097,8 +4114,8 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G2 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
+      let G5 = mA.intoRaw(A2);
+      w2 ? this.raw.stepWithEvents(G5, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G5, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G5.free();
     }
   };
   var hg = class {
@@ -4444,8 +4461,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G2) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G5), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4934,8 +4951,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S4, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S4.free(), G2.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G5 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G5, o2, w2, S4, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S4.free(), G5.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5120,8 +5137,8 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S4 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S4, I2.shape);
-      return this.map.set(w2, G2), G2;
+      let S4 = C2 ? A2.get(g2) : null, G5 = new Yg(this, w2, S4, I2.shape);
+      return this.map.set(w2, G5), G5;
     }
     remove(A2, I2, g2, C2) {
       this.raw.remove(A2, I2.raw, g2.raw, C2), this.unmap(A2);
@@ -5524,12 +5541,12 @@ var SHIGOTO = (() => {
         if (level == null) continue;
         const depth = level - (p2.y - d2.halfH);
         if (depth <= 0) continue;
-        const sub = Math.min(1, depth / (2 * d2.halfH));
-        const lift = sub * d2.volume * 1e3 * 9.81 * STEP * d2.buoyancy * 0.5;
+        const sub2 = Math.min(1, depth / (2 * d2.halfH));
+        const lift = sub2 * d2.volume * 1e3 * 9.81 * STEP * d2.buoyancy * 0.5;
         d2.body.applyImpulse({ x: 0, y: lift, z: 0 }, true);
         const v2 = d2.body.linvel();
-        const drag = 1 - Math.min(0.9, 2.5 * sub * STEP);
-        d2.body.setLinvel({ x: v2.x * drag + water.current[0] * sub * STEP, y: v2.y * drag, z: v2.z * drag + water.current[1] * sub * STEP }, true);
+        const drag = 1 - Math.min(0.9, 2.5 * sub2 * STEP);
+        d2.body.setLinvel({ x: v2.x * drag + water.current[0] * sub2 * STEP, y: v2.y * drag, z: v2.z * drag + water.current[1] * sub2 * STEP }, true);
         const w2 = d2.body.angvel();
         d2.body.setAngvel({ x: w2.x * drag, y: w2.y * drag, z: w2.z * drag }, true);
       }
@@ -5706,8 +5723,8 @@ var SHIGOTO = (() => {
       }
     }
   };
-  function L2(hex) {
-    return new window.THREE.Color(hex).convertSRGBToLinear();
+  function L2(hex2) {
+    return new window.THREE.Color(hex2).convertSRGBToLinear();
   }
   function smooth(a2, b2, x2) {
     const t2 = Math.min(1, Math.max(0, (x2 - a2) / (b2 - a2)));
@@ -8228,8 +8245,8 @@ void shSurface(vec3 wp, vec3 wn) {
     if (floors >= 5 && rng() < 0.6) out.push({ kind: "vertical", at: 0.8 + rng() * 0.1 });
     return out;
   }
-  function isLight(hex) {
-    const c2 = parseInt(hex.slice(1), 16);
+  function isLight(hex2) {
+    const c2 = parseInt(hex2.slice(1), 16);
     return (c2 >> 16 & 255) * 0.3 + (c2 >> 8 & 255) * 0.59 + (c2 & 255) * 0.11 > 150;
   }
   function hexToRgb(h2) {
@@ -8768,7 +8785,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // Engine/src/core/Engine.js
-  var VERSION = "0.5.0";
+  var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8956,9 +8973,58 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         }
       });
       this._index = map;
+      this._indexedN = (this._solids || []).length;
+    }
+    // The game adds solids after the world is built (the holiday islands, an airport gate, a story set) and takes the odd one away (a gate
+    // arm smashed through). Additions get a collider straight away if their tile is already built, otherwise when the tile is; a removal
+    // drops the physics copy and builds it again around the player, so nothing removed stays solid.
+    syncSolids() {
+      const L3 = this._solids;
+      if (!L3 || !this._index) return 0;
+      const n0 = this._indexedN || 0;
+      if (L3.length === n0) return 0;
+      if (L3.length < n0) {
+        this.solids(L3);
+        this._buildIndex();
+        return -1;
+      }
+      const t2 = this.tile, map = this._index;
+      let boxed = 0;
+      for (let i2 = n0; i2 < L3.length; i2++) {
+        const b2 = L3[i2];
+        const r2 = Math.max(b2.size[0], b2.size[1]) * 0.5;
+        const x0 = Math.floor((b2.c[0] - r2) / t2), x1 = Math.floor((b2.c[0] + r2) / t2), z0 = Math.floor((b2.c[1] - r2) / t2), z1 = Math.floor((b2.c[1] + r2) / t2);
+        for (let z2 = z0; z2 <= z1; z2++) for (let x2 = x0; x2 <= x1; x2++) {
+          const k2 = x2 + "," + z2;
+          let l2 = map.get(k2);
+          if (!l2) map.set(k2, l2 = []);
+          l2.push(i2);
+        }
+        const tx = Math.floor(b2.c[0] / t2), tz = Math.floor(b2.c[1] / t2), key = "host:" + tx + "," + tz;
+        if (this._boxed.has(key)) {
+          const h2 = b2.h || 10, y2 = b2.y || 0;
+          this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+          boxed++;
+        } else if (this.resident) this._buildTile(tx, tz, false);
+      }
+      this._indexedN = L3.length;
+      return boxed;
+    }
+    // Ground for a whole area now (the holiday islands, built behind the loading screen): heightfields for every tile it covers.
+    prebuildArea(x0, z0, x1, z1) {
+      if (!this.ph || !this._ground) return 0;
+      const t2 = this.tile;
+      let n2 = 0;
+      for (let z2 = Math.floor(z0 / t2); z2 <= Math.floor(z1 / t2); z2++) for (let x2 = Math.floor(x0 / t2); x2 <= Math.floor(x1 / t2); x2++) if (this._buildGround(x2, z2)) n2++;
+      try {
+        this.ph.world.step();
+      } catch (e2) {
+      }
+      return n2;
     }
     update(dt, focus) {
       if (!this.ph) return;
+      if (this._solids && this._index) this.syncSolids();
       for (const [, p2] of this.proxies) {
         const s2 = p2.get();
         if (s2) p2.k.set(s2.x, s2.y, s2.z, s2.yaw);
@@ -9182,8 +9248,8 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
           const Pa = [A2[a2 * 3], A2[a2 * 3 + 1], A2[a2 * 3 + 2]], Pb = [A2[b2 * 3], A2[b2 * 3 + 1], A2[b2 * 3 + 2]];
           const Na = [sm[a2 * 3], sm[a2 * 3 + 1], sm[a2 * 3 + 2]], Nb = [sm[b2 * 3], sm[b2 * 3 + 1], sm[b2 * 3 + 2]];
           const D2 = [Pb[0] - Pa[0], Pb[1] - Pa[1], Pb[2] - Pa[2]];
-          const dot = (u2, v2) => u2[0] * v2[0] + u2[1] * v2[1] + u2[2] * v2[2];
-          const curved = dot(Na, Nb) > crease, wa = curved ? dot(D2, Na) : 0, wb = curved ? -dot(D2, Nb) : 0;
+          const dot2 = (u2, v2) => u2[0] * v2[0] + u2[1] * v2[1] + u2[2] * v2[2];
+          const curved = dot2(Na, Nb) > crease, wa = curved ? dot2(D2, Na) : 0, wb = curved ? -dot2(D2, Nb) : 0;
           for (let c2 = 0; c2 < 3; c2++) arr[o2 + c2] = (Pa[c2] + Pb[c2]) * 0.5 - (wa * Na[c2] + wb * Nb[c2]) * 0.125;
         } else {
           for (let c2 = 0; c2 < sz; c2++) arr[o2 + c2] = (A2[a2 * sz + c2] + A2[b2 * sz + c2]) / 2;
@@ -9369,10 +9435,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
   function poreTexture(T2, size = 256) {
     const n2 = size * size, h2 = new Float32Array(n2);
     let seed = 1337;
-    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-    for (let i2 = 0; i2 < n2; i2++) h2[i2] = rnd() * 0.25;
+    const rnd2 = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    for (let i2 = 0; i2 < n2; i2++) h2[i2] = rnd2() * 0.25;
     for (let p2 = 0; p2 < size * size / 18; p2++) {
-      const cx = rnd() * size, cy = rnd() * size, r2 = 0.8 + rnd() * 1.6, dep = 0.6 + rnd() * 0.8;
+      const cx = rnd2() * size, cy = rnd2() * size, r2 = 0.8 + rnd2() * 1.6, dep = 0.6 + rnd2() * 0.8;
       for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
         const x2 = (Math.floor(cx) + dx + size) % size, y2 = (Math.floor(cy) + dy + size) % size;
         const d2 = Math.hypot(Math.floor(cx) + dx - cx, Math.floor(cy) + dy - cy) / r2;
@@ -10795,6 +10861,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         this.seatGeo = new T2.ExtrudeGeometry(sh, { depth: 0.035, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 8e-3, bevelSegments: 2, steps: 1, curveSegments: 6 });
       }
       room.seats = room.seats || [];
+      room.colliders = room.colliders || [];
       for (const x2 of [-width * 0.32, width * 0.32]) for (const z2 of room.glassRoof ? [-depth * 0.18, depth * 0.18] : [depth * 0.18]) {
         const group = new T2.Group();
         group.name = "Station seating";
@@ -10837,15 +10904,15 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       rig.add(im);
     }
     stationRoof(room, rig, width, depth, height) {
-      const T2 = this.T, p2 = room.profile, spring = p2.wallHeight || height - 5, rise = height - spring, positions = [], uv = [], indices = [], N2 = 32;
-      for (let z2 = 0; z2 <= 8; z2++) for (let i2 = 0; i2 <= N2; i2++) {
-        const t2 = i2 / N2;
+      const T2 = this.T, p2 = room.profile, spring = p2.wallHeight || height - 5, rise = height - spring, positions = [], uv = [], indices = [], N3 = 32;
+      for (let z2 = 0; z2 <= 8; z2++) for (let i2 = 0; i2 <= N3; i2++) {
+        const t2 = i2 / N3;
         positions.push((t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, (z2 / 8 - 0.5) * depth);
         uv.push(t2, z2 / 8);
       }
-      for (let z2 = 0; z2 < 8; z2++) for (let i2 = 0; i2 < N2; i2++) {
-        const a2 = z2 * (N2 + 1) + i2;
-        indices.push(a2, a2 + N2 + 1, a2 + 1, a2 + 1, a2 + N2 + 1, a2 + N2 + 2);
+      for (let z2 = 0; z2 < 8; z2++) for (let i2 = 0; i2 < N3; i2++) {
+        const a2 = z2 * (N3 + 1) + i2;
+        indices.push(a2, a2 + N3 + 1, a2 + 1, a2 + 1, a2 + N3 + 1, a2 + N3 + 2);
       }
       const geo = new T2.BufferGeometry();
       geo.setAttribute("position", new T2.Float32BufferAttribute(positions, 3));
@@ -10861,12 +10928,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       const endPos = [], endUV = [], endIx = [];
       for (const z2 of [-depth / 2, depth / 2]) {
         const base = endPos.length / 3;
-        for (let i2 = 0; i2 <= N2; i2++) {
-          const t2 = i2 / N2;
+        for (let i2 = 0; i2 <= N3; i2++) {
+          const t2 = i2 / N3;
           endPos.push((t2 - 0.5) * width, spring, z2, (t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, z2);
           endUV.push(t2, 0, t2, 1);
         }
-        for (let i2 = 0; i2 < N2; i2++) {
+        for (let i2 = 0; i2 < N3; i2++) {
           const a2 = base + i2 * 2;
           endIx.push(a2, a2 + 1, a2 + 2, a2 + 1, a2 + 3, a2 + 2);
         }
@@ -11167,6 +11234,3014 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         v2.load();
         v2.remove();
       }
+    }
+  };
+
+  // Engine/src/vehicles/Motorcycle.js
+  var G2 = 9.81;
+  var RHO = 1.2;
+  var BIKE_SPECS = {
+    sport: {
+      mass: 190,
+      rider: 78,
+      wb: 1.4,
+      b: 0.66,
+      h: 0.72,
+      rr: 0.315,
+      rf: 0.3,
+      kP: 0.45,
+      susF: [2e4, 0.12, 0.33, 0.38],
+      susR: [24e3, 0.13, 0.3, 0.4],
+      mu: 1.15,
+      muDirt: 0.55,
+      lean: 0.96,
+      red: 14e3,
+      gears: 6,
+      spread: 2.75,
+      cda: [0.42, 0.3],
+      abs: true,
+      bottom: 3.4,
+      leanRate: 6,
+      shift: 0.05,
+      airTorque: 60
+    },
+    scooter: {
+      mass: 125,
+      rider: 75,
+      wb: 1.3,
+      b: 0.56,
+      h: 0.68,
+      rr: 0.24,
+      rf: 0.25,
+      kP: 0.42,
+      susF: [14e3, 0.09, 0.35, 0.4],
+      susR: [17e3, 0.08, 0.33, 0.4],
+      mu: 1,
+      muDirt: 0.5,
+      lean: 0.7,
+      red: 8500,
+      gears: 0,
+      spread: 1,
+      cda: [0.5, 0.5],
+      abs: true,
+      bottom: 2.6,
+      leanRate: 6.5,
+      shift: 0.04,
+      airTorque: 40
+    },
+    cruiser: {
+      mass: 310,
+      rider: 80,
+      wb: 1.66,
+      b: 0.8,
+      h: 0.62,
+      rr: 0.33,
+      rf: 0.33,
+      kP: 0.5,
+      susF: [22e3, 0.12, 0.32, 0.38],
+      susR: [34e3, 0.09, 0.3, 0.4],
+      mu: 1.05,
+      muDirt: 0.55,
+      lean: 0.56,
+      red: 6e3,
+      gears: 6,
+      spread: 2.2,
+      cda: [0.62, 0.62],
+      abs: true,
+      bottom: 3,
+      leanRate: 3.6,
+      shift: 0.03,
+      airTorque: 60
+    },
+    tourer: {
+      mass: 300,
+      rider: 80,
+      wb: 1.55,
+      b: 0.74,
+      h: 0.74,
+      rr: 0.33,
+      rf: 0.31,
+      kP: 0.5,
+      susF: [24e3, 0.13, 0.32, 0.38],
+      susR: [3e4, 0.13, 0.3, 0.4],
+      mu: 1.1,
+      muDirt: 0.55,
+      lean: 0.7,
+      red: 9500,
+      gears: 6,
+      spread: 2.6,
+      cda: [0.55, 0.48],
+      abs: true,
+      bottom: 3.2,
+      leanRate: 4.2,
+      shift: 0.03,
+      airTorque: 60
+    },
+    dirt: {
+      mass: 112,
+      rider: 78,
+      wb: 1.48,
+      b: 0.7,
+      h: 0.86,
+      rr: 0.355,
+      rf: 0.37,
+      kP: 0.44,
+      susF: [9500, 0.31, 0.3, 0.42],
+      susR: [11500, 0.315, 0.33, 0.45],
+      mu: 0.92,
+      muDirt: 0.86,
+      lean: 0.88,
+      red: 11500,
+      gears: 5,
+      spread: 3,
+      cda: [0.56, 0.52],
+      abs: false,
+      bottom: 8,
+      leanRate: 6.8,
+      shift: 0.07,
+      airTorque: 55
+    },
+    mtb: {
+      mass: 15,
+      rider: 82,
+      wb: 1.22,
+      b: 0.52,
+      h: 1.02,
+      rr: 0.37,
+      rf: 0.37,
+      kP: 0.4,
+      susF: [6500, 0.16, 0.25, 0.45],
+      susR: [7500, 0.15, 0.3, 0.48],
+      mu: 1,
+      muDirt: 0.88,
+      lean: 0.92,
+      red: 0,
+      gears: 0,
+      spread: 1,
+      cda: [0.48, 0.42],
+      abs: false,
+      bottom: 4.6,
+      leanRate: 7.5,
+      shift: 0.38,
+      airTorque: 45,
+      pedal: { power: 1100, force: 700 }
+    }
+  };
+  var clamp5 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var sgn = (v2) => v2 < 0 ? -1 : 1;
+  function pacejka(x2, B2, C2, E2) {
+    const bx = B2 * x2;
+    return Math.sin(C2 * Math.atan(bx - E2 * (bx - Math.atan(bx))));
+  }
+  var TYRE = {
+    road: { lon: [11, 1.9, 0.95], lat: [12, 1.35, -0.6], camber: 0.86 },
+    knobbly: { lon: [7, 1.6, 0.6], lat: [8, 1.25, -0.4], camber: 0.72 }
+  };
+  var Motorcycle = class {
+    // spec: a BIKE_SPECS entry (or a name); opts.top: top speed in m/s the gearing and power are fitted to
+    constructor(spec, opts = {}) {
+      this.spec = typeof spec === "string" ? BIKE_SPECS[spec] : spec;
+      if (!this.spec) throw new Error("Motorcycle: unknown spec " + spec);
+      const S4 = this.spec;
+      this.knobbly = !!opts.knobbly || S4 === BIKE_SPECS.dirt || S4 === BIKE_SPECS.mtb;
+      this.tyre = this.knobbly ? TYRE.knobbly : TYRE.road;
+      this.m = S4.mass + S4.rider;
+      this.Ip = this.m * S4.kP * S4.kP;
+      this.Iz = this.m * 0.36 * 0.36;
+      this.Iw = [0.55 * (S4.mass / 190) + 0.25, 0.45 * (S4.mass / 190) + 0.2];
+      if (S4.pedal) this.Iw = [0.12, 0.11];
+      this.fit(opts.top || 40, opts.to100);
+      const Nf = this.m * G2 * S4.b / S4.wb, Nr = this.m * G2 - Nf;
+      this.Nf0 = Nf;
+      this.sus = [S4.susR, S4.susF].map((p2, i2) => {
+        const [k2, travel, sag, zeta] = p2, N3 = i2 === 0 ? Nr : Nf, mc = N3 / G2;
+        return { k: k2, travel, pre: Math.max(0, N3 / k2 - sag * travel), c: 2 * zeta * Math.sqrt(k2 * mc) };
+      });
+      this.events = [];
+      this.reset({ x: 0, y: 0, z: 0, yaw: 0, speed: 0 });
+    }
+    // gearing and power for a given top speed: drag + rolling resistance at the top equals peak power at the peak-power rpm in top gear
+    fit(top, to100) {
+      const S4 = this.spec;
+      this.top = top;
+      const cda = S4.cda[1], crr = 0.016;
+      const Pdrag = (0.5 * RHO * cda * top * top * top + crr * this.m * G2 * top) / 0.92;
+      const Pacc = to100 ? 0.5 * this.m * 27.78 * 27.78 / to100 * 1.55 : 0;
+      const Preq = Math.max(Pdrag, Pacc);
+      this.Ppeak = Preq;
+      if (S4.pedal) return;
+      const red = S4.red * Math.PI / 30, wPk = red * 0.88;
+      this.red = red;
+      this.idle = red * 0.12;
+      this.Tpk = Preq / (wPk * this.torqueShape(0.88));
+      const wheelTop = top / S4.rr, Gtop = (Pacc > Pdrag ? red * 0.985 : wPk * 1.02) / wheelTop;
+      this.ratios = [];
+      if (S4.gears > 0) {
+        const n2 = S4.gears, q2 = Math.pow(S4.spread, 1 / (n2 - 1));
+        for (let i2 = 0; i2 < n2; i2++) this.ratios.push(Gtop * Math.pow(q2, n2 - 1 - i2));
+      } else this.ratios.push(Gtop);
+      this.Ie = { 6e3: 0.08, 9500: 0.04, 14e3: 0.025, 11500: 0.018, 8500: 0.012 }[S4.red] || 0.03;
+    }
+    // torque at a fraction of the redline, as a fraction of peak torque
+    torqueShape(n2) {
+      const S4 = this.spec;
+      if (S4 === BIKE_SPECS.cruiser) return clamp5(0.78 + 0.6 * n2 - 0.55 * n2 * n2, 0.5, 1);
+      if (S4 === BIKE_SPECS.dirt) return clamp5(0.62 + 0.95 * n2 - 0.75 * n2 * n2, 0.45, 1);
+      return clamp5(0.48 + 1.15 * n2 - 0.72 * n2 * n2, 0.35, 1);
+    }
+    // put the bike somewhere, upright, rolling at `speed`
+    reset(p2) {
+      const S4 = this.spec;
+      this.x = p2.x;
+      this.z = p2.z;
+      this.yaw = p2.yaw || 0;
+      this.u = p2.speed || 0;
+      this.vl = 0;
+      this.r = 0;
+      this.w = 0;
+      this.q = 0;
+      this.pitch = p2.pitch || 0;
+      this.lean = 0;
+      this.leanRate = 0;
+      this.steer = 0;
+      this.shift = 0;
+      this.y = (p2.y || 0) + S4.h;
+      this.wheel = [this.u / S4.rr, this.u / S4.rf];
+      this.s = [0, 0];
+      this.sv = [0, 0];
+      this.N = [this.m * G2 * (1 - S4.b / S4.wb), this.m * G2 * S4.b / S4.wb];
+      this.gear = 0;
+      this.shiftT = 0;
+      this.clutch = 1;
+      this.popT = 0;
+      this.we = this.spec.pedal ? 0 : Math.max(this.idle, this.wheel[0] * this.ratios[0]);
+      this.air = false;
+      this.airT = 0;
+      this.contactT = 0;
+      this.slip = [0, 0];
+      this.alpha = [0, 0];
+      this.slideT = 0;
+      this.tuckT = 0;
+      this.rearSlideMax = 0;
+      this.highT = 0;
+      this.bottomed = 0;
+      this.crashed = null;
+      this.groundPitch = 0;
+      this.groundRoll = 0;
+      this.thr = 0;
+      this.fb = 0;
+      this.rb = 0;
+      this._thrPrev = 0;
+      this.acc = 0;
+      this._t = 0;
+    }
+    get speed() {
+      return this.u;
+    }
+    get rpm() {
+      return this.spec.pedal ? 0 : this.we * 30 / Math.PI;
+    }
+    // the angle from level at which the centre of mass is over the rear contact patch
+    get balancePoint() {
+      const S4 = this.spec;
+      return Math.atan2(S4.b + this.shift, S4.h);
+    }
+    get stoppiePoint() {
+      const S4 = this.spec;
+      return Math.atan2(S4.wb - S4.b - this.shift, S4.h);
+    }
+    get wheelie() {
+      return !this.air && this.N[1] < 1 && this.pitch > 0.06;
+    }
+    get stoppie() {
+      return !this.air && this.N[0] < 1 && this.pitch < -0.04;
+    }
+    // the body point (forward, up from the centre of mass) in world space, in the pitch plane: [forward offset, height]
+    _bodyPt(xi, eta) {
+      const c2 = Math.cos(this.pitch), s2 = Math.sin(this.pitch);
+      return [xi * c2 - eta * s2, this.y + xi * s2 + eta * c2];
+    }
+    // where each axle sits at full extension, in body coordinates (centre of mass is the origin; rider shift moves the origin)
+    _mount(i2) {
+      const S4 = this.spec, sus = this.sus[i2];
+      const xi = (i2 === 0 ? -S4.b : S4.wb - S4.b) - this.shift;
+      const r2 = i2 === 0 ? S4.rr : S4.rf;
+      const eta = -(S4.h - r2) - sus.travel * this._sagFrac(i2);
+      return [xi, eta];
+    }
+    _sagFrac(i2) {
+      const p2 = i2 === 0 ? this.spec.susR : this.spec.susF;
+      return p2[2];
+    }
+    // input: { throttle 0..1, front 0..1, rear 0..1, steer -1..1 (right +), weight -1..1 (back -, forward +), clutchPop: bool }
+    // world: { ground(x, z, refY) -> y, grip(x, z) -> { mu, dirt } }
+    // returns events since the last call: { type: "crash", cause }, { type: "land", impact, air }, { type: "bottom", v }
+    step(dt, input, world) {
+      this.events.length = 0;
+      if (this.crashed) return this.events;
+      const h2 = 1 / 240;
+      this._t += Math.min(dt, 0.1);
+      while (this._t >= h2 && !this.crashed) {
+        this._substep(h2, input, world);
+        this._t -= h2;
+      }
+      return this.events;
+    }
+    _crash(cause, extra) {
+      if (this.crashed) return;
+      this.crashed = cause;
+      this.events.push(Object.assign({ type: "crash", cause, speed: this.u, pitch: this.pitch, lean: this.lean, pitchRate: this.q, leanRate: this.leanRate, vy: this.w }, extra || {}));
+    }
+    _substep(h2, inp, world) {
+      const S4 = this.spec, m2 = this.m;
+      let thrT = clamp5(inp.throttle || 0, 0, 1);
+      this._assist = inp.assist !== false && (inp.weight || 0) > -0.25 && !this.air;
+      this.thr += clamp5(thrT - this.thr, -h2 * 9, h2 * 7);
+      this.fb += clamp5(clamp5(inp.front || 0, 0, 1) - this.fb, -h2 * 10, h2 * 6);
+      this.rb += clamp5(clamp5(inp.rear || 0, 0, 1) - this.rb, -h2 * 10, h2 * 8);
+      const shiftT = -clamp5(inp.weight || 0, -1, 1) * S4.shift;
+      const shift0 = this.shift;
+      this.shift += clamp5(-shiftT - this.shift, -h2 * S4.shift * 5, h2 * S4.shift * 5);
+      this._shiftVel = (this.shift - shift0) / h2;
+      if (inp.clutchPop && this.popT <= 0 && !S4.pedal && this.u < 16 && !this.air) this.popT = 0.22;
+      if (this.popT > 0) this.popT -= h2;
+      const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw), rx = -fz, rz = fx;
+      const cp = Math.cos(this.pitch);
+      let contacts = 0;
+      const F2 = [[0, 0], [0, 0]];
+      const P3 = [[0, 0], [0, 0]];
+      let Ntot = 0;
+      for (let i2 = 0; i2 < 2; i2++) {
+        const mt = this._mount(i2), r2 = i2 === 0 ? S4.rr : S4.rf, sus = this.sus[i2];
+        const A2 = this._bodyPt(mt[0], mt[1]);
+        const wx = this.x + fx * A2[0], wz = this.z + fz * A2[0];
+        const g0 = world.ground(wx, wz, A2[1] - r2 + 0.5);
+        const g1 = world.ground(wx + fx * 0.25, wz + fz * 0.25, A2[1] - r2 + 0.6);
+        const gb = world.ground(wx - fx * 0.25, wz - fz * 0.25, A2[1] - r2 + 0.6);
+        const sF = Math.atan2(g1 - g0, 0.25), sB = Math.atan2(g0 - gb, 0.25);
+        const slope = Math.abs(sF - sB) < 0.35 ? Math.atan2(g1 - gb, 0.5) : Math.abs(sF) < Math.abs(sB) ? sF : sB;
+        const sNew = (g0 + r2 - A2[1]) / Math.max(0.3, cp);
+        const sPrev = this.s[i2];
+        let s2 = sNew, N3 = 0;
+        if (s2 > 0) {
+          const sv = (s2 - sPrev) / h2;
+          this.sv[i2] = this.sv[i2] * 0.5 + sv * 0.5;
+          const sc = Math.min(s2, sus.travel);
+          N3 = sus.k * (sc + sus.pre) + sus.c * this.sv[i2];
+          if (sc > sus.travel * 0.65) {
+            const e2 = sc - sus.travel * 0.65;
+            N3 += sus.k * 3.5 * e2 + sus.c * 1.5 * Math.max(0, this.sv[i2]) * e2 / (sus.travel * 0.35);
+          }
+          if (s2 > sus.travel) {
+            if (sPrev <= sus.travel) {
+              this.events.push({ type: "bottom", v: this.sv[i2], wheel: i2 });
+              this.bottomed = Math.max(this.bottomed, this.sv[i2]);
+            }
+            N3 += 45e4 * (s2 - sus.travel) + 9e3 * Math.max(0, this.sv[i2]);
+          }
+          N3 = Math.max(0, N3);
+          contacts++;
+        } else {
+          s2 = 0;
+          this.sv[i2] = 0;
+        }
+        this.s[i2] = s2;
+        this.N[i2] = N3;
+        Ntot += N3;
+        P3[i2][0] = A2[0];
+        P3[i2][1] = g0 - this.y;
+        F2[i2][0] += -Math.sin(slope) * N3;
+        F2[i2][1] += Math.cos(slope) * N3;
+        this["_slope" + i2] = slope;
+      }
+      const gp = world.grip ? world.grip(this.x, this.z) : { mu: 1, dirt: false };
+      const muS = (gp.dirt ? S4.muDirt : S4.mu) * (gp.mu !== void 0 ? gp.mu : 1);
+      this.surfaceMu = muS;
+      const wasAir = this.air;
+      if (contacts === 0) {
+        this.contactT = 0;
+        this.airT += h2;
+        if (this.airT > 0.06) this.air = true;
+      } else {
+        this.contactT += h2;
+        if (this.air) {
+          const sl = (this._slope0 + this._slope1) / 2;
+          const vn = -(this.w * Math.cos(sl) - this.u * Math.sin(sl));
+          const err = this.pitch - sl, sideways = Math.abs(Math.atan2(this.vl, Math.max(1, Math.abs(this.u))));
+          this.events.push({ type: "land", impact: vn, air: this.airT, pitchErr: err, lean: this.lean });
+          this._landing = { vn, err, t: 0.35 };
+          if (Math.abs(err) > 0.78) this._crash(err > 0 ? "looped" : "nosed", { impact: vn });
+          else if (Math.abs(this.lean) > 0.62 || sideways > 0.55) this._crash("landing", { impact: vn });
+        }
+        this.air = false;
+        this.airT = 0;
+      }
+      if (this._landing) {
+        this._landing.t -= h2;
+        if (this.bottomed > S4.bottom && this._landing.t > 0) this._crash("cased", { impact: this.bottomed });
+        if (this._landing.t <= 0) this._landing = null;
+      }
+      this.bottomed = Math.max(0, this.bottomed - h2 * 20);
+      this.groundPitch = (this._slope0 + this._slope1) / 2;
+      {
+        const gl = world.ground(this.x - rx * 0.6, this.z - rz * 0.6, this.y), gr = world.ground(this.x + rx * 0.6, this.z + rz * 0.6, this.y);
+        this.groundRoll = contacts ? clamp5(Math.atan2(gr - gl, 1.2), -0.9, 0.9) : 0;
+      }
+      const Rr = S4.rr, Rf = S4.rf;
+      let Tdrive = 0;
+      let wheelInertia = this.Iw[0];
+      if (S4.pedal) {
+        const v2 = Math.max(0.5, Math.abs(this.u));
+        const Fp = Math.min(S4.pedal.force, S4.pedal.power / v2) * this.thr * (this.u < 18 ? 1 : 0);
+        Tdrive = Fp * Rr;
+      } else {
+        const shifting = this.shiftT > 0;
+        if (shifting) this.shiftT -= h2;
+        const cvt = S4.gears === 0;
+        let ratio;
+        if (cvt) {
+          const wantW = this.idle + (this.red * 0.86 - this.idle) * clamp5(this.thr * 1.15, 0, 1);
+          ratio = clamp5(wantW / Math.max(1, Math.abs(this.wheel[0])), this.ratios[0], this.ratios[0] * 3.1);
+        } else {
+          ratio = this.ratios[this.gear];
+          const wWheelEng = Math.abs(this.wheel[0]) * ratio;
+          if (!shifting && this.gear < this.ratios.length - 1 && wWheelEng > this.red * (this.N[1] < 1 && this.pitch > 0.12 ? 1 : 0.965) && this.clutch > 0.95) {
+            this.gear++;
+            this.shiftT = 0.07;
+          } else if (!shifting && this.gear > 0 && wWheelEng < this.red * (this.thr > 0.6 ? 0.55 : 0.36)) {
+            this.gear--;
+            this.shiftT = 0.09;
+          }
+          ratio = this.ratios[this.gear];
+        }
+        this.ratio = ratio;
+        const n2 = this.we / this.red;
+        let Te = this.Tpk * this.torqueShape(n2) * this.thr;
+        Te -= (0.07 + 0.1 * n2) * this.Tpk * (1 - this.thr);
+        if (shifting) Te = Math.min(Te, 0);
+        if (this.we >= this.red) Te = Math.min(Te, -0.2 * this.Tpk);
+        if (this.we <= this.idle && Te < 0) Te = 0.05 * this.Tpk;
+        const wWheel = this.wheel[0] * ratio;
+        const launch = cvt ? this.idle + (this.red * 0.86 - this.idle) * clamp5(this.thr * 1.15, 0, 1) * 0.97 : this.idle * 1.5 + this.thr * this.red * 0.42;
+        let cap;
+        if (this.popT > 0) cap = 0;
+        else if (wWheel < launch) cap = this.Tpk * (0.15 + 1.05 * this.thr) * clamp5((this.we - launch * 0.75) / (launch * 0.25 + 1), 0.04, 1);
+        else cap = this.Tpk * 3.5;
+        this.clutch = cap >= this.Tpk * 3 ? 1 : 0.5;
+        const Ieq = this.Ie * ratio * ratio;
+        const lockNow = this.popT <= 0 && (wWheel >= Math.max(this.idle * 1.8, launch * 0.5) || this._locked && wWheel >= this.idle * 1.15);
+        if (lockNow) {
+          wheelInertia = this.Iw[0] + Ieq;
+          Tdrive = Te * ratio * 0.92;
+          this._locked = true;
+          this.we = wWheel;
+        } else {
+          const dW = this.we - wWheel;
+          const Tc = cap * clamp5(dW / 25, -1, 1);
+          this._locked = false;
+          Tdrive = Tc * ratio * 0.92;
+          this.we += (Te - Tc) / this.Ie * h2;
+        }
+        if (!this._locked) this.we = Math.max(this.idle * 0.8, Math.min(this.we, this.red * 1.02));
+      }
+      if (S4.abs && Tdrive > 0 && this.slip[0] > 0.1) Tdrive *= clamp5(1 - (this.slip[0] - 0.1) * 7, 0.15, 1);
+      if (this._assist && Tdrive > 0) {
+        const bEff = S4.b + this.shift, Fmax = this.m * G2 * bEff / S4.h * 0.9 + 0.5 * RHO * S4.cda[0] * this.u * this.u;
+        let lim = Fmax * Rr * (this.N[1] > 1 ? 1 : clamp5(1 - (this.pitch - 0.04) * 5 - Math.max(0, this.q) * 0.8, 0.3, 1));
+        Tdrive = Math.min(Tdrive, lim);
+      }
+      const Tbf_max = 1.35 * m2 * G2 * Rf, Tbr_max = 0.9 * m2 * G2 * Rr;
+      let Tbf = this.fb * Tbf_max, Tbr = this.rb * Tbr_max;
+      if (S4.abs && this.slip[1] < -0.11 && this.u > 2) Tbf *= 0.3;
+      if (S4.abs && this.slip[0] < -0.16 && this.u > 2) Tbr *= 0.4;
+      if (S4.abs && (this.N[0] < this.m * G2 * 0.06 || this.pitch < -0.02)) Tbf *= 0.55;
+      const u2 = this.u;
+      const lonF = [0, 0];
+      const BL = this.tyre.lon;
+      const a2 = S4.wb - S4.b - this.shift, b2 = S4.b + this.shift;
+      const ayLean = this._ay || 0;
+      const tyreAy = ayLean * Math.cos(this.groundRoll) - G2 * Math.sin(this.groundRoll);
+      const latDem = [m2 * tyreAy * a2 / S4.wb, m2 * tyreAy * b2 / S4.wb];
+      const assist = S4.abs;
+      const NS = 8, hs = h2 / NS;
+      const w0r = this.wheel[0];
+      for (let i2 = 0; i2 < 2; i2++) {
+        const R2 = i2 === 0 ? Rr : Rf, N3 = this.N[i2];
+        const vc = u2 * Math.cos(i2 === 0 ? this._slope0 : this._slope1);
+        const muN = muS * N3;
+        const room = assist && muN > 1 ? muN * Math.sqrt(Math.max(0.02, 1 - Math.min(1, Math.abs(latDem[i2]) / muN) ** 2)) : Infinity;
+        const I2 = i2 === 0 ? wheelInertia : this.Iw[1];
+        const Tb = i2 === 0 ? Tbr : Tbf, Td = i2 === 0 ? Tdrive : 0;
+        let fsum = 0;
+        for (let k2 = 0; k2 < NS; k2++) {
+          const sigma = 0.22, ve = Math.max(2, Math.abs(vc));
+          const kappa = clamp5((this.slip[i2] + hs * (this.wheel[i2] * R2 - vc) / sigma) / (1 + hs * ve / sigma), -1, 1);
+          this.slip[i2] = kappa;
+          let fl = N3 > 0 ? clamp5(muN * pacejka(kappa, BL[0], BL[1], BL[2]), -room, room) : 0;
+          fsum += fl;
+          let w1 = this.wheel[i2] + (Td - fl * R2) / I2 * hs;
+          if (Tb > 0) {
+            const dw = Tb / I2 * hs;
+            if (Math.abs(w1) <= dw) w1 = 0;
+            else w1 -= dw * sgn(w1);
+          }
+          w1 -= w1 * 0.02 * hs;
+          this.wheel[i2] = w1;
+        }
+        lonF[i2] = fsum / NS;
+      }
+      this._wheelReact = this.air ? (this.wheel[0] - w0r) / h2 * this.Iw[0] : 0;
+      if (!S4.pedal && this._locked) this.we = Math.max(this.idle * 0.8, Math.abs(this.wheel[0]) * this.ratio);
+      if (S4.pedal && this.thr < 0.05 && this.wheel[0] * Rr > this.u) this.wheel[0] = this.u / Rr;
+      for (let i2 = 0; i2 < 2; i2++) {
+        const sl = i2 === 0 ? this._slope0 : this._slope1;
+        F2[i2][0] += Math.cos(sl) * lonF[i2];
+        F2[i2][1] += Math.sin(sl) * lonF[i2];
+      }
+      const cda = u2 > this.top * 0.55 ? S4.cda[1] : S4.cda[0];
+      const drag = 0.5 * RHO * cda * u2 * Math.abs(u2) + (contacts ? (gp.dirt ? 0.035 : 0.014) * Ntot * sgn(u2) * Math.min(1, Math.abs(u2) * 2) : 0);
+      let Fx = F2[0][0] + F2[1][0] - drag, Fy = F2[0][1] + F2[1][1] - m2 * G2;
+      let tau = 0;
+      for (let i2 = 0; i2 < 2; i2++) {
+        const mt = this._mount(i2), A2 = this._bodyPt(mt[0], mt[1]);
+        const px = A2[0], py = this.N[i2] > 0 ? P3[i2][1] : A2[1] - this.y;
+        tau += px * F2[i2][1] - py * F2[i2][0];
+      }
+      if (this.air) tau += -clamp5(inp.weight || 0, -1, 1) * S4.airTorque + (this._wheelReact || 0);
+      tau += -(this._shiftVel || 0) * S4.rider * 1.6;
+      tau -= this.q * (contacts ? 6 : 1.5);
+      this.acc = Fx / m2;
+      this.u += Fx / m2 * h2;
+      this.w += Fy / m2 * h2;
+      this.q += tau / this.Ip * h2;
+      this.pitch += this.q * h2;
+      this.y += this.w * h2;
+      if (Math.abs(this.u) < 0.05 && this.thr < 0.02 && contacts === 2) {
+        this.u = 0;
+        this.wheel[0] = 0;
+        this.wheel[1] = 0;
+      }
+      const lowSpeed = Math.abs(u2) < 3;
+      const steerIn = clamp5(inp.steer || 0, -1, 1);
+      const vabs = Math.max(0.5, Math.abs(u2));
+      const gyroK = 1 + (this.Iw[0] + this.Iw[1]) * vabs / (S4.rr * m2 * S4.h * 9);
+      if (this.air) {
+        this.leanRate += ((steerIn * 0.3 - this.lean) * 8 - this.leanRate * 3) * h2;
+        this.lean += this.leanRate * h2;
+        this.r *= Math.pow(0.5, h2);
+        this._ay = 0;
+      } else {
+        const avail = [0, 0];
+        for (let i2 = 0; i2 < 2; i2++) {
+          const muN = muS * this.N[i2];
+          avail[i2] = muN > 1 ? muN * Math.sqrt(Math.max(0, 1 - (lonF[i2] / muN) ** 2)) : 0;
+        }
+        if (lowSpeed) {
+          this.steer += clamp5(steerIn * 0.6 - this.steer, -h2 * 3, h2 * 3);
+          const leanT = steerIn * 0.22 * clamp5(Math.abs(u2) / 3, 0, 1);
+          this.leanRate += ((leanT - this.lean) * 40 - this.leanRate * 12) * h2;
+          this.lean += this.leanRate * h2;
+          this.r = u2 * Math.tan(this.steer) / S4.wb;
+          this.vl *= Math.pow(0.01, h2);
+          this._ay = u2 * this.r;
+          this.tuckT = 0;
+        } else {
+          const leanCap = Math.min(S4.lean, Math.atan(muS * 0.88 / gyroK));
+          const leanT = steerIn * leanCap;
+          const wn = S4.leanRate * clamp5(vabs / 8, 0.5, 1) * clamp5(32 / vabs, 0.55, 1);
+          const leanAcc = wn * wn * (leanT - this.lean) - 2 * 0.85 * wn * this.leanRate;
+          this.leanRate += leanAcc * h2;
+          this.lean += this.leanRate * h2;
+          const ay = G2 * Math.tan(this.lean) / gyroK;
+          const rKin = ay / vabs * sgn(u2);
+          const tyreAyNow = ay * Math.cos(this.groundRoll) - G2 * Math.sin(this.groundRoll);
+          const demR = m2 * tyreAyNow * a2 / S4.wb, demF = m2 * tyreAyNow * b2 / S4.wb;
+          const useF = avail[1] > 1 ? Math.abs(demF) / avail[1] : 9, useR = avail[0] > 1 ? Math.abs(demR) / avail[0] : 9;
+          this.use = [useR, useF];
+          const fFrac = useF > 1 ? 1 / useF : 1;
+          const rOver = useR > 1 ? (Math.abs(demR) - avail[0]) * sgn(demR) : 0;
+          const latActual = (demF * fFrac + (demR - rOver)) / m2 + G2 * Math.sin(this.groundRoll) * Math.cos(this.groundRoll) * 0;
+          this.r = rKin * fFrac + rOver / (m2 * vabs) * (S4.wb / Math.max(0.3, a2)) * 0.6;
+          this.vl += (latActual - u2 * rKin * fFrac) * h2;
+          if (useR < 1 && Math.abs(this.vl) > 0) {
+            const spare = (avail[0] - Math.abs(demR)) / m2 * (gp.dirt ? 0.35 : 1.6);
+            const dv = Math.min(Math.abs(this.vl), spare * h2);
+            this.vl -= dv * sgn(this.vl);
+          }
+          this._ay = ay;
+          this.steer = Math.atan(S4.wb * rKin / vabs) + clamp5((leanT - this.lean) * -0.08, -0.1, 0.1);
+          const beta = Math.atan2(this.vl, vabs);
+          this.alpha[0] = beta;
+          this.alpha[1] = useF > 1 ? (useF - 1) * 0.2 : 0;
+          this.tuckT = useF > 1.08 && Math.abs(this.lean) > 0.18 || this.slip[1] < -0.5 && Math.abs(this.lean) > 0.15 ? this.tuckT + h2 : Math.max(0, this.tuckT - h2 * 3);
+          if (this.tuckT > (gp.dirt ? 0.45 : 0.18)) this._crash("lowside");
+          const slideR = Math.abs(beta);
+          if (slideR > this.rearSlideMax) this.rearSlideMax = slideR;
+          if (slideR > 0.08) this.highT = 0.4;
+          else this.highT -= h2;
+          if (!gp.dirt && this.rearSlideMax > 0.26 && slideR < 0.08 && Math.abs(this.lean) > 0.3 && this.highT > 0 && vabs > 8) this._crash("highside");
+          if (this.highT <= 0) this.rearSlideMax = 0;
+          if (slideR > (gp.dirt ? 0.95 : 0.6)) this._crash("lowside");
+          if (Math.abs(this.lean) > S4.lean + 0.14) this._crash("lowside");
+        }
+      }
+      if (Math.abs(this.lean) > 1.2) this._crash("fell");
+      if (!this.air) {
+        if (this.pitch > this.balancePoint + 0.5 || this.pitch > 1.4) this._crash("loopout");
+        if (this.pitch < -(this.stoppiePoint + 0.4)) this._crash("overbars");
+      } else if (Math.abs(this.pitch) > 2.3) this._crash(this.pitch > 0 ? "looped" : "nosed");
+      const dyaw = -this.r * h2;
+      this.yaw += dyaw;
+      this.x += (fx * this.u + rx * this.vl) * h2;
+      this.z += (fz * this.u + rz * this.vl) * h2;
+      if (wasAir !== this.air && this.air) this.events.push({ type: "takeoff", speed: this.u, vy: this.w });
+    }
+    // the rear contact patch and the pose, for drawing: x, z of the rear axle, y of the ground under it (or where it would be in the air)
+    pose() {
+      const S4 = this.spec, mt = this._mount(0), A2 = this._bodyPt(mt[0], mt[1]);
+      const fx = Math.sin(this.yaw), fz = Math.cos(this.yaw);
+      const sR = Math.min(this.s[0], this.sus[0].travel);
+      return {
+        rearX: this.x + fx * A2[0],
+        rearZ: this.z + fz * A2[0],
+        rearY: A2[1] + sR * Math.cos(this.pitch) - S4.rr,
+        pitch: this.pitch,
+        lean: this.lean,
+        yaw: this.yaw,
+        steer: this.steer,
+        compression: [this.s[0] / this.sus[0].travel, this.s[1] / this.sus[1].travel]
+      };
+    }
+    // a summary for a HUD or a debug overlay
+    telemetry() {
+      return {
+        speed: this.u,
+        rpm: this.rpm,
+        gear: this.spec.gears ? this.gear + 1 : 0,
+        pitch: this.pitch,
+        balance: this.balancePoint,
+        lean: this.lean,
+        wheelie: this.wheelie,
+        stoppie: this.stoppie,
+        air: this.air,
+        airTime: this.airT,
+        loads: this.N.slice(),
+        slip: this.slip.slice(),
+        slipAngle: this.alpha.slice(),
+        steer: this.steer,
+        mu: this.surfaceMu
+      };
+    }
+  };
+
+  // Engine/src/vehicles/Boat.js
+  var RHO2 = 1025;
+  var G3 = 9.81;
+  var RHO_AIR = 1.2;
+  var BOAT_SPECS = {
+    // L length, B beam, H hull depth (keel to gunwale), dead deadrise (deg), rise: bow rocker (m), mass (kg, crew and fuel in), power (kW),
+    // drive: outboard | sterndrive | jet | inboard, steerMax (rad), cg: fraction of L forward of the transom, cgY above the keel
+    jetski: { name: "Jet ski", L: 3.3, B: 1.2, H: 0.85, dead: 22, rise: 0.3, mass: 420, power: 165, drive: "jet", steerMax: 0.42, cg: 0.36, cgY: 0.38, cp: 0.7, top: 30 },
+    rib: { name: "Rigid inflatable", L: 6.4, B: 2.45, H: 1.05, dead: 24, rise: 0.45, mass: 1500, power: 150, drive: "outboard", steerMax: 0.52, cg: 0.33, cgY: 0.45, cp: 0.7, top: 22 },
+    runabout: { name: "Sport runabout", L: 7.4, B: 2.5, H: 1.25, dead: 21, rise: 0.5, mass: 2300, power: 270, drive: "sterndrive", steerMax: 0.46, cg: 0.33, cgY: 0.5, cp: 0.7, top: 25 },
+    skiff: { name: "Fishing skiff", L: 5.2, B: 1.95, H: 0.95, dead: 14, rise: 0.35, mass: 750, power: 45, drive: "outboard", steerMax: 0.55, cg: 0.35, cgY: 0.4, cp: 0.7, top: 12 },
+    gyosen: { name: "Fishing boat", L: 11.5, B: 3.1, H: 1.7, dead: 12, rise: 0.7, mass: 8500, power: 330, drive: "inboard", steerMax: 0.6, cg: 0.42, cgY: 0.7, cp: 1, top: 11 }
+  };
+  var sub = (a2, b2) => [a2[0] - b2[0], a2[1] - b2[1], a2[2] - b2[2]];
+  var cross = (a2, b2) => [a2[1] * b2[2] - a2[2] * b2[1], a2[2] * b2[0] - a2[0] * b2[2], a2[0] * b2[1] - a2[1] * b2[0]];
+  var dot = (a2, b2) => a2[0] * b2[0] + a2[1] * b2[1] + a2[2] * b2[2];
+  var clamp6 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  function qmul(a2, b2) {
+    return [
+      a2[3] * b2[0] + a2[0] * b2[3] + a2[1] * b2[2] - a2[2] * b2[1],
+      a2[3] * b2[1] - a2[0] * b2[2] + a2[1] * b2[3] + a2[2] * b2[0],
+      a2[3] * b2[2] + a2[0] * b2[1] - a2[1] * b2[0] + a2[2] * b2[3],
+      a2[3] * b2[3] - a2[0] * b2[0] - a2[1] * b2[1] - a2[2] * b2[2]
+    ];
+  }
+  function qnorm(q2) {
+    const l2 = Math.hypot(q2[0], q2[1], q2[2], q2[3]) || 1;
+    q2[0] /= l2;
+    q2[1] /= l2;
+    q2[2] /= l2;
+    q2[3] /= l2;
+    return q2;
+  }
+  function qFromYaw(y2) {
+    return [0, Math.sin(y2 / 2), 0, Math.cos(y2 / 2)];
+  }
+  function qmat(q2, m2) {
+    const [x2, y2, z2, w2] = q2;
+    m2[0] = 1 - 2 * (y2 * y2 + z2 * z2);
+    m2[1] = 2 * (x2 * y2 - z2 * w2);
+    m2[2] = 2 * (x2 * z2 + y2 * w2);
+    m2[3] = 2 * (x2 * y2 + z2 * w2);
+    m2[4] = 1 - 2 * (x2 * x2 + z2 * z2);
+    m2[5] = 2 * (y2 * z2 - x2 * w2);
+    m2[6] = 2 * (x2 * z2 - y2 * w2);
+    m2[7] = 2 * (y2 * z2 + x2 * w2);
+    m2[8] = 1 - 2 * (x2 * x2 + y2 * y2);
+    return m2;
+  }
+  var mv = (m2, v2) => [m2[0] * v2[0] + m2[1] * v2[1] + m2[2] * v2[2], m2[3] * v2[0] + m2[4] * v2[1] + m2[5] * v2[2], m2[6] * v2[0] + m2[7] * v2[1] + m2[8] * v2[2]];
+  var mtv = (m2, v2) => [m2[0] * v2[0] + m2[3] * v2[1] + m2[6] * v2[2], m2[1] * v2[0] + m2[4] * v2[1] + m2[7] * v2[2], m2[2] * v2[0] + m2[5] * v2[1] + m2[8] * v2[2]];
+  function buildHull(spec, stations = 18, across = 3) {
+    const L3 = spec.L, B2 = spec.B, H2 = spec.H, tb = Math.tan(spec.dead * Math.PI / 180);
+    const zT = -spec.cg * L3, yK = -spec.cgY;
+    const half = (t2) => {
+      if (t2 < 0.55) return B2 * 0.5 * (0.94 + 0.06 * Math.sin(t2 / 0.55 * Math.PI / 2));
+      const u2 = (t2 - 0.55) / 0.45;
+      return B2 * 0.5 * Math.max(0.03, Math.sqrt(Math.max(0, 1 - u2 * u2 * u2)) * (1 - 0.15 * u2));
+    };
+    const keel = (t2) => yK + (t2 > 0.5 ? spec.rise * Math.pow((t2 - 0.5) / 0.5, 2.2) : 0);
+    const chineUp = (t2) => 1 + (t2 > 0.6 ? 1.6 * Math.pow((t2 - 0.6) / 0.4, 1.5) : 0);
+    const verts = [], tris = [];
+    const V2 = (x2, y2, z2) => {
+      verts.push([x2, y2, z2]);
+      return verts.length - 1;
+    };
+    const rows = [];
+    for (let i2 = 0; i2 <= stations; i2++) {
+      const t2 = i2 / stations, z2 = zT + t2 * L3, hb = half(t2), yk = keel(t2), yc = Math.min(yK + H2 * 0.82, yk + hb * tb * chineUp(t2));
+      const yg2 = yK + H2 + (t2 > 0.6 ? 0.25 * H2 * Math.pow((t2 - 0.6) / 0.4, 2) : 0);
+      const flare = 1 + 0.08 * Math.min(1, t2 * 1.4);
+      const row = [];
+      row.push(V2(-hb * flare, yg2, z2));
+      row.push(V2(-hb, yc, z2));
+      for (let k2 = across - 1; k2 >= 1; k2--) {
+        const f2 = k2 / across;
+        row.push(V2(-hb * f2, yk + (yc - yk) * f2, z2));
+      }
+      row.push(V2(0, yk, z2));
+      for (let k2 = 1; k2 < across; k2++) {
+        const f2 = k2 / across;
+        row.push(V2(hb * f2, yk + (yc - yk) * f2, z2));
+      }
+      row.push(V2(hb, yc, z2));
+      row.push(V2(hb * flare, yg2, z2));
+      rows.push(row);
+    }
+    for (let i2 = 0; i2 < stations; i2++) {
+      const a2 = rows[i2], b2 = rows[i2 + 1];
+      const midK = (a2.length - 1) / 2;
+      for (let k2 = 0; k2 < a2.length - 1; k2++) {
+        if (k2 < midK) {
+          tris.push([a2[k2], a2[k2 + 1], b2[k2 + 1]]);
+          tris.push([a2[k2], b2[k2 + 1], b2[k2]]);
+        } else {
+          tris.push([a2[k2], a2[k2 + 1], b2[k2]]);
+          tris.push([a2[k2 + 1], b2[k2 + 1], b2[k2]]);
+        }
+      }
+    }
+    const r0 = rows[0], mid = V2(0, (verts[r0[0]][1] + verts[r0[(r0.length - 1) / 2]][1]) / 2, zT);
+    for (let k2 = 0; k2 < r0.length - 1; k2++) tris.push([mid, r0[k2 + 1], r0[k2]]);
+    for (let i2 = 0; i2 < stations; i2++) {
+      const a2 = rows[i2], b2 = rows[i2 + 1], al = a2.length - 1, bl = b2.length - 1;
+      tris.push([a2[0], b2[0], b2[bl]]);
+      tris.push([a2[0], b2[bl], a2[al]]);
+    }
+    const faces = tris.map((t2) => {
+      const p0 = verts[t2[0]], p1 = verts[t2[1]], p2 = verts[t2[2]];
+      let n2 = cross(sub(p1, p0), sub(p2, p0));
+      const A2 = Math.hypot(n2[0], n2[1], n2[2]) / 2;
+      if (A2 < 1e-6) return null;
+      n2 = [n2[0] / (2 * A2), n2[1] / (2 * A2), n2[2] / (2 * A2)];
+      const c2 = [(p0[0] + p1[0] + p2[0]) / 3, (p0[1] + p1[1] + p2[1]) / 3, (p0[2] + p1[2] + p2[2]) / 3];
+      const out = [c2[0], c2[1] - (yK + H2 * 0.5), c2[2] - (zT + L3 * 0.5)];
+      if (dot(n2, out) < 0) {
+        n2 = [-n2[0], -n2[1], -n2[2]];
+        t2 = [t2[0], t2[2], t2[1]];
+      }
+      return { v: t2, n: n2, A: A2 };
+    }).filter(Boolean);
+    const outline = [];
+    for (let i2 = 0; i2 <= stations; i2 += 2) {
+      outline.push(verts[rows[i2][0]]);
+      outline.push(verts[rows[i2][rows[i2].length - 1]]);
+    }
+    return { verts, faces, outline, half, keel, rows, zT, yK, L: L3, B: B2, H: H2 };
+  }
+  var Boat = class {
+    constructor(kind, opts = {}) {
+      const s2 = BOAT_SPECS[kind] || BOAT_SPECS.runabout;
+      this.kind = kind;
+      this.spec = Object.assign({}, s2, opts);
+      const sp = this.spec;
+      this.hull = buildHull(sp);
+      this.m = sp.mass;
+      const L3 = sp.L, B2 = sp.B, H2 = sp.H, add = 1.25;
+      this.Ib = [this.m * (L3 * L3 + H2 * H2) / 12 * add, this.m * (L3 * L3 + B2 * B2) / 12 * add, this.m * (B2 * B2 + H2 * H2) / 12 * add];
+      this.pos = [0, 0, 0];
+      this.vel = [0, 0, 0];
+      this.quat = [0, 0, 0, 1];
+      this.w = [0, 0, 0];
+      this.R = new Array(9).fill(0);
+      qmat(this.quat, this.R);
+      this.prop = sp.drive === "jet" ? [0, this.hull.yK - 0.02, this.hull.zT + 0.55] : sp.drive === "inboard" ? [0, this.hull.yK - 0.25, this.hull.zT + 0.6] : [0, this.hull.yK - 0.2, this.hull.zT - 0.35];
+      this.bowPt = [0, this.hull.yK + sp.rise + 0.1, this.hull.zT + L3 * 0.97];
+      this.rpm = 0;
+      this.thrust = 0;
+      this.vent = 0;
+      this.steerNow = 0;
+      this.trimNow = 0;
+      this.throttleNow = 0;
+      this.wet = 0;
+      this.lift = 0;
+      this.draft = 0;
+      this.subVol = 0;
+      this.planing = false;
+      this.air = 0;
+      this.capsized = 0;
+      this.grounded = 0;
+      this.acc = 0;
+      this.t = 0;
+      this._wv = this.hull.verts.map(() => [0, 0, 0]);
+      this._dv = new Float32Array(this.hull.verts.length);
+      this._wvel = this.hull.verts.map(() => [0, 0, 0]);
+      this._s = {};
+    }
+    reset(o2) {
+      const sp = this.spec;
+      this.quat = qFromYaw(o2.yaw || 0);
+      qmat(this.quat, this.R);
+      const y2 = o2.y !== void 0 ? o2.y : (o2.sea ? o2.sea.height(o2.x, o2.z) : 0) + sp.cgY * 0.45;
+      this.pos = [o2.x, y2, o2.z];
+      const f2 = this.forward();
+      const v2 = o2.speed || 0;
+      this.vel = [f2[0] * v2, 0, f2[2] * v2];
+      this.w = [0, 0, 0];
+      this.capsized = 0;
+      this.grounded = 0;
+      this.acc = 0;
+      return this;
+    }
+    // body to world
+    toWorld(b2) {
+      const r2 = mv(this.R, b2);
+      return [r2[0] + this.pos[0], r2[1] + this.pos[1], r2[2] + this.pos[2]];
+    }
+    forward() {
+      return [this.R[2], this.R[5], this.R[8]];
+    }
+    up() {
+      return [this.R[1], this.R[4], this.R[7]];
+    }
+    left() {
+      return [this.R[0], this.R[3], this.R[6]];
+    }
+    get yaw() {
+      const f2 = this.forward();
+      return Math.atan2(f2[0], f2[2]);
+    }
+    get speed() {
+      return dot(this.vel, this.forward());
+    }
+    get heel() {
+      const l2 = this.left();
+      return Math.asin(clamp6(l2[1], -1, 1));
+    }
+    // positive: port side up (heeled to starboard)
+    get trim() {
+      const f2 = this.forward();
+      return Math.asin(clamp6(f2[1], -1, 1));
+    }
+    // positive: bow up
+    // Advance by dt (seconds), in fixed sub-steps of 1/120 s. Returns what happened worth telling the host (bumps, slams, grounding).
+    step(dt, inp, world) {
+      const ev = [];
+      this.acc += Math.min(dt, 0.1);
+      const h2 = 1 / 120;
+      while (this.acc >= h2) {
+        this.acc -= h2;
+        this._step(h2, inp || {}, world, ev);
+      }
+      return ev;
+    }
+    _step(h2, inp, world, ev) {
+      const sp = this.spec, hull = this.hull, R2 = this.R, sea = world.sea;
+      this.t += h2;
+      if (sea && sea.time !== void 0 && world.ownTime) sea.time += h2;
+      qmat(this.quat, R2);
+      const F2 = [0, -this.m * G3, 0], T2 = [0, 0, 0];
+      const addF = (f2, at) => {
+        F2[0] += f2[0];
+        F2[1] += f2[1];
+        F2[2] += f2[2];
+        const r2 = [at[0] - this.pos[0], at[1] - this.pos[1], at[2] - this.pos[2]];
+        const t2 = cross(r2, f2);
+        T2[0] += t2[0];
+        T2[1] += t2[1];
+        T2[2] += t2[2];
+      };
+      const velAt = (p2) => {
+        const r2 = [p2[0] - this.pos[0], p2[1] - this.pos[1], p2[2] - this.pos[2]];
+        const c2 = cross(this.w, r2);
+        return [this.vel[0] + c2[0], this.vel[1] + c2[1], this.vel[2] + c2[2]];
+      };
+      const S4 = this._s, wv = this._wv, dv = this._dv, wvel = this._wvel;
+      let wetV = 0;
+      for (let i2 = 0; i2 < hull.verts.length; i2++) {
+        const p2 = mv(R2, hull.verts[i2]);
+        p2[0] += this.pos[0];
+        p2[1] += this.pos[1];
+        p2[2] += this.pos[2];
+        wv[i2] = p2;
+        if (sea) {
+          sea.sample(p2[0], p2[2], S4);
+          dv[i2] = S4.y - p2[1];
+          wvel[i2][0] = S4.vx;
+          wvel[i2][1] = S4.vy;
+          wvel[i2][2] = S4.vz;
+        } else {
+          dv[i2] = -p2[1];
+          wvel[i2][0] = wvel[i2][1] = wvel[i2][2] = 0;
+        }
+        if (dv[i2] > 0) wetV++;
+      }
+      const spd = Math.hypot(this.vel[0], this.vel[1], this.vel[2]);
+      const Rn = Math.max(1e5, spd * sp.L / 119e-8);
+      const Cf = 0.075 / Math.pow(Math.log10(Rn) - 2, 2) + 4e-4;
+      let wetA = 0, vol = 0, lift = 0, bottomWet = 0;
+      const poly = this._poly || (this._poly = []);
+      const up = this.up();
+      for (let fi = 0; fi < hull.faces.length; fi++) {
+        const f2 = hull.faces[fi], a2 = f2.v[0], b2 = f2.v[1], c2 = f2.v[2];
+        const da = dv[a2], db = dv[b2], dc = dv[c2];
+        if (da <= 0 && db <= 0 && dc <= 0) continue;
+        const n2 = mv(R2, f2.n);
+        poly.length = 0;
+        const P4 = [a2, b2, c2], D2 = [da, db, dc];
+        for (let k2 = 0; k2 < 3; k2++) {
+          const i0 = P4[k2], i1 = P4[(k2 + 1) % 3], d0 = D2[k2], d1 = D2[(k2 + 1) % 3];
+          if (d0 > 0) poly.push([wv[i0], d0, wvel[i0]]);
+          if (d0 > 0 !== d1 > 0) {
+            const t2 = d0 / (d0 - d1), p0 = wv[i0], p1 = wv[i1];
+            const w0 = wvel[i0], w1 = wvel[i1];
+            poly.push([
+              [p0[0] + (p1[0] - p0[0]) * t2, p0[1] + (p1[1] - p0[1]) * t2, p0[2] + (p1[2] - p0[2]) * t2],
+              0,
+              [w0[0] + (w1[0] - w0[0]) * t2, w0[1] + (w1[1] - w0[1]) * t2, w0[2] + (w1[2] - w0[2]) * t2]
+            ]);
+          }
+        }
+        for (let k2 = 1; k2 + 1 < poly.length; k2++) {
+          const q0 = poly[0], q1 = poly[k2], q2 = poly[k2 + 1];
+          const e2 = cross(sub(q1[0], q0[0]), sub(q2[0], q0[0]));
+          const A2 = Math.hypot(e2[0], e2[1], e2[2]) / 2;
+          if (A2 < 1e-7) continue;
+          const cp = [(q0[0][0] + q1[0][0] + q2[0][0]) / 3, (q0[0][1] + q1[0][1] + q2[0][1]) / 3, (q0[0][2] + q1[0][2] + q2[0][2]) / 3];
+          const depth = (q0[1] + q1[1] + q2[1]) / 3;
+          const wvc = [(q0[2][0] + q1[2][0] + q2[2][0]) / 3, (q0[2][1] + q1[2][1] + q2[2][1]) / 3, (q0[2][2] + q1[2][2] + q2[2][2]) / 3];
+          wetA += A2;
+          const ph = RHO2 * G3 * depth * A2;
+          addF([-n2[0] * ph, -n2[1] * ph, -n2[2] * ph], cp);
+          vol += depth * A2 * Math.max(0, -n2[1]);
+          const v2 = velAt(cp);
+          v2[0] -= wvc[0];
+          v2[1] -= wvc[1];
+          v2[2] -= wvc[2];
+          const vm = Math.hypot(v2[0], v2[1], v2[2]);
+          if (vm > 1e-4) {
+            const vn = dot(v2, n2), cos = vn / vm;
+            let p2;
+            if (cos > 0) p2 = -(0.5 * RHO2 * sp.cp * vm * vm * cos + 400 * vm * cos) * A2;
+            else p2 = (0.5 * RHO2 * 0.35 / (1 + vm * vm * 0.25) * vm * vm * -cos + 400 * vm * -cos) * A2;
+            const fp = [n2[0] * p2, n2[1] * p2, n2[2] * p2];
+            addF(fp, cp);
+            if (n2[1] < -0.3) {
+              lift += Math.max(0, fp[1]);
+              bottomWet += A2;
+            }
+            const vt = [v2[0] - n2[0] * vn, v2[1] - n2[1] * vn, v2[2] - n2[2] * vn], vtm = Math.hypot(vt[0], vt[1], vt[2]);
+            const fv = -0.5 * RHO2 * Cf * A2 * vtm;
+            addF([vt[0] * fv, vt[1] * fv, vt[2] * fv], cp);
+          }
+        }
+      }
+      this.wet = wetA;
+      this.subVol = vol;
+      this.lift = lift;
+      this.air = wetV === 0 ? this.air + h2 : 0;
+      const fwd = this.forward(), vf = dot(this.vel, fwd);
+      const vh = [this.vel[0], 0, this.vel[2]], vhm = Math.hypot(vh[0], vh[2]);
+      if (vhm > 0.05 && vol > 0) {
+        const Fn = vhm / Math.sqrt(G3 * sp.L);
+        const hump = 0.17 * Math.exp(-Math.pow((Fn - 0.55) / 0.3, 2)) + 0.02 * Math.min(1, Fn * 2);
+        const Rw = RHO2 * G3 * vol * hump * Math.min(1, Fn * 3);
+        addF([-vh[0] / vhm * Rw, 0, -vh[2] / vhm * Rw], this.pos);
+      }
+      if (spd > 0.1) {
+        const Fa = -0.5 * RHO_AIR * 0.6 * sp.B * sp.H * 1.2 * spd;
+        addF([this.vel[0] * Fa, this.vel[1] * Fa, this.vel[2] * Fa], this.pos);
+      }
+      const thrIn = clamp6(inp.throttle || 0, -1, 1);
+      this.throttleNow += (thrIn - this.throttleNow) * Math.min(1, h2 * (thrIn > this.throttleNow ? 3.5 : 6));
+      const steerRate = sp.drive === "jet" ? 5 : 3;
+      this.steerNow += (clamp6(inp.steer || 0, -1, 1) - this.steerNow) * Math.min(1, h2 * steerRate);
+      this.trimNow += (clamp6(inp.trim || 0, -1, 1) - this.trimNow) * Math.min(1, h2 * 0.8);
+      const propW = this.toWorld(this.prop);
+      const propD = sea ? sea.height(propW[0], propW[2]) - propW[1] : -propW[1];
+      const subm = clamp6(propD / (sp.drive === "jet" ? 0.12 : 0.22), 0, 1);
+      this.vent += (1 - subm - this.vent) * Math.min(1, h2 * 10);
+      const P3 = sp.power * 1e3 * Math.abs(this.throttleNow);
+      const bollard = sp.power * 1e3 / 17;
+      let Tm = this.throttleNow >= 0 ? Math.min(bollard * this.throttleNow, 0.62 * P3 / Math.max(1, vf)) : -0.45 * bollard * -this.throttleNow;
+      Tm *= 1 - this.vent;
+      if (vf > sp.top) Tm *= Math.max(0, 1 - (vf - sp.top) / 2);
+      this.thrust = Tm;
+      const steerA0 = this.steerNow * sp.steerMax * (sp.drive === "inboard" ? 0 : 1);
+      const steerA = steerA0;
+      const jetDead = sp.drive === "jet" ? Math.min(1, Math.abs(this.throttleNow) * 3 + 0.08) : 1;
+      const trimA = this.trimNow * 0.11 + (sp.drive === "jet" ? 0 : 0.02);
+      const tb = [Math.sin(steerA) * jetDead, Math.sin(trimA), Math.cos(steerA)];
+      const tw = mv(R2, tb);
+      addF([tw[0] * Tm, tw[1] * Tm, tw[2] * Tm], propW);
+      if (sp.drive === "jet" && Tm > 0) {
+        const mdot = 400 * sp.power / 165 * Math.abs(this.throttleNow);
+        const lw = this.left();
+        const vp = velAt(propW), slip = Math.abs(Math.atan2(dot(vp, lw), Math.max(1, Math.abs(dot(vp, fwd)))));
+        const side = (Tm + mdot * Math.max(0, vf)) * Math.sin(steerA) * (1 - this.vent) * clamp6(1 - slip / 0.4, 0.15, 1);
+        addF([lw[0] * side, lw[1] * side, lw[2] * side], propW);
+      }
+      {
+        const foils = this._foils || (this._foils = [
+          { at: [0, this.hull.yK - 0.15, this.hull.zT - 0.3], A: sp.drive === "outboard" ? 0.07 * sp.power / 100 + 0.04 : sp.drive === "sterndrive" ? 0.16 : 0, steer: true },
+          { at: [0, this.hull.yK - 0.04, this.hull.zT + sp.L * (sp.drive === "jet" ? sp.cg - 0.05 : sp.drive === "inboard" ? 0.3 : 0.12)], A: sp.drive === "jet" ? 0.12 : sp.drive === "inboard" ? 0.1 * sp.L : 0.025 * sp.L, steer: false }
+          // a jet ski's grip is its V and chines, just aft of the rider
+        ]);
+        const lw = this.left();
+        for (const fo of foils) {
+          if (!fo.A) continue;
+          const pw = this.toWorld(fo.at);
+          const fd = sea ? sea.height(pw[0], pw[2]) - pw[1] : -pw[1];
+          if (fd <= 0) continue;
+          const v2 = velAt(pw), vfo = dot(v2, fwd), vla = dot(v2, lw);
+          if (vfo < 0.5) continue;
+          const ang = fo.steer ? steerA0 : 0;
+          let alpha = Math.atan2(-vla, vfo) + ang;
+          const stall = 0.3, a2 = clamp6(alpha, -stall, stall);
+          const Lf = 0.5 * RHO2 * vfo * vfo * fo.A * 2 * Math.PI * a2 * Math.min(1, fd / 0.15);
+          addF([lw[0] * Lf, lw[1] * Lf, lw[2] * Lf], pw);
+          const Dr = 0.5 * RHO2 * vfo * vfo * fo.A * (0.01 + 0.5 * a2 * a2);
+          addF([-fwd[0] * Dr, -fwd[1] * Dr, -fwd[2] * Dr], pw);
+        }
+      }
+      if (sp.drive === "inboard" && subm > 0) {
+        const wash = Math.sqrt(Math.max(0, vf * vf + 2 * Math.max(0, Tm) / (RHO2 * 0.6)));
+        const da = this.steerNow * sp.steerMax, lat = 0.5 * RHO2 * 0.4 * wash * wash * Math.sign(da) * Math.min(1, 2 * Math.PI * Math.abs(da) * 0.6);
+        const lw = this.left();
+        const rp = this.toWorld([0, this.hull.yK + 0.2, this.hull.zT - 0.3]);
+        addF([lw[0] * lat, lw[1] * lat, lw[2] * lat], rp);
+      }
+      if (sp.drive !== "jet") {
+        const yawRate = dot(this.w, up);
+        const onPlane = clamp6((vf - 3) / 6, 0, 1) * (wetV ? 1 : 0);
+        const want = Math.atan(clamp6(-yawRate * Math.max(0, vf) / G3, -1.5, 1.5)) * 0.62;
+        const k2 = this.m * G3 * sp.B * 0.6 * (want - this.heel) * onPlane;
+        T2[0] += fwd[0] * k2;
+        T2[1] += fwd[1] * k2;
+        T2[2] += fwd[2] * k2;
+      }
+      if (sp.drive === "jet") {
+        const yawRate = dot(this.w, up);
+        const want = clamp6(Math.atan(clamp6(-yawRate * Math.max(0, vf) / G3, -2, 2)) * 0.8 + (inp.lean || 0) * 0.25, -0.75, 0.75);
+        const rollRate = dot(this.w, fwd);
+        this._lean = (this._lean || 0) + (want - (this._lean || 0)) * Math.min(1, h2 * 2.5);
+        const k2 = this.m * G3 * 2.2 * (this._lean - this.heel) - this.Ib[2] * 18 * rollRate;
+        T2[0] += fwd[0] * k2;
+        T2[1] += fwd[1] * k2;
+        T2[2] += fwd[2] * k2;
+      }
+      let grounded = 0;
+      if (world.ground) {
+        const nV = hull.verts.length / 2;
+        for (let i2 = 0; i2 < hull.verts.length; i2 += 2) {
+          const p2 = wv[i2], g2 = world.ground(p2[0], p2[2]);
+          if (g2 === null || g2 === void 0 || p2[1] >= g2) continue;
+          const pen = Math.min(0.6, g2 - p2[1]);
+          grounded++;
+          const gx = world.ground(p2[0] + 0.5, p2[2]) - world.ground(p2[0] - 0.5, p2[2]), gz = world.ground(p2[0], p2[2] + 0.5) - world.ground(p2[0], p2[2] - 0.5);
+          let n2 = [-gx, 1, -gz];
+          const nl = Math.hypot(n2[0], n2[1], n2[2]);
+          n2 = [n2[0] / nl, n2[1] / nl, n2[2] / nl];
+          const v2 = velAt(p2), vn = dot(v2, n2);
+          const N3 = Math.max(0, this.m * 1600 / nV * pen - this.m * 40 / nV * vn);
+          const vt = [v2[0] - n2[0] * vn, v2[1] - n2[1] * vn, v2[2] - n2[2] * vn], vtm = Math.hypot(vt[0], vt[1], vt[2]);
+          const fr = vtm > 0.01 ? Math.min(N3 * 0.65, vtm * this.m * 30 / nV) / vtm : 0;
+          addF([n2[0] * N3 - vt[0] * fr, n2[1] * N3 - vt[1] * fr, n2[2] * N3 - vt[2] * fr], p2);
+        }
+      }
+      if (grounded && !this.grounded && Math.abs(vf) > 3) ev.push({ type: "ground", speed: Math.abs(vf) });
+      this.grounded = grounded;
+      const ia = 1 / this.m;
+      this.vel[0] += F2[0] * ia * h2;
+      this.vel[1] += F2[1] * ia * h2;
+      this.vel[2] += F2[2] * ia * h2;
+      const Tb = mtv(R2, T2), wb = mtv(R2, this.w);
+      const Iw = [this.Ib[0] * wb[0], this.Ib[1] * wb[1], this.Ib[2] * wb[2]];
+      const gyro = cross(wb, Iw);
+      for (let k2 = 0; k2 < 3; k2++) wb[k2] += (Tb[k2] - gyro[k2]) / this.Ib[k2] * h2;
+      const dampW = wetV ? 1 : 0.15;
+      wb[0] *= 1 - 0.6 * h2 * dampW;
+      wb[2] *= 1 - 0.9 * h2 * dampW;
+      wb[1] *= 1 - 0.5 * h2 * dampW;
+      this.w = mv(R2, wb);
+      for (let k2 = 0; k2 < 3; k2++) this.pos[k2] += this.vel[k2] * h2;
+      const dq = qmul([this.w[0] * h2 * 0.5, this.w[1] * h2 * 0.5, this.w[2] * h2 * 0.5, 0], this.quat);
+      this.quat = qnorm([this.quat[0] + dq[0], this.quat[1] + dq[1], this.quat[2] + dq[2], this.quat[3] + dq[3]]);
+      qmat(this.quat, R2);
+      if (world.solid) {
+        for (let i2 = 0; i2 < hull.outline.length; i2++) {
+          const p2 = this.toWorld(hull.outline[i2]);
+          if (!world.solid(p2[0], p2[2], p2[1])) continue;
+          let nx = 0, nz = 0;
+          for (let a2 = 0; a2 < 8; a2++) {
+            const ax = Math.cos(a2 * Math.PI / 4), az = Math.sin(a2 * Math.PI / 4);
+            if (!world.solid(p2[0] + ax * 0.8, p2[2] + az * 0.8, p2[1])) {
+              nx += ax;
+              nz += az;
+            }
+          }
+          let nl = Math.hypot(nx, nz);
+          if (nl < 1e-3) {
+            nx = this.pos[0] - p2[0];
+            nz = this.pos[2] - p2[2];
+            nl = Math.hypot(nx, nz) || 1;
+          }
+          nx /= nl;
+          nz /= nl;
+          const v2 = velAt(p2), vn = v2[0] * nx + v2[2] * nz;
+          if (vn < 0) {
+            const j2 = -1.25 * vn;
+            this.vel[0] += nx * j2;
+            this.vel[2] += nz * j2;
+            const r2 = [p2[0] - this.pos[0], 0, p2[2] - this.pos[2]];
+            const tq = cross(r2, [nx * j2 * this.m, 0, nz * j2 * this.m]);
+            this.w[1] += tq[1] / (this.Ib[1] * 2);
+            if (-vn > 1.2) ev.push({ type: "hit", speed: -vn, x: p2[0], y: p2[1], z: p2[2] });
+          }
+          this.pos[0] += nx * 0.04;
+          this.pos[2] += nz * 0.04;
+          break;
+        }
+      }
+      const wetF = bottomWet / (sp.L * sp.B * 0.8);
+      const wasPlaning = this.planing;
+      this.planing = vf > Math.sqrt(G3 * sp.L) * 0.9 && lift > this.m * G3 * 0.25 && wetF < 0.75;
+      if (this.planing && !wasPlaning) ev.push({ type: "plane" });
+      const upY = this.up()[1];
+      this.capsized = upY < 0.15 ? this.capsized + h2 : 0;
+      const vertDrop = -this.vel[1];
+      if (this.air === 0 && this._wasAir > 0.25 && vertDrop > 2.5) ev.push({ type: "slam", speed: vertDrop });
+      this._wasAir = this.air || this._wasAir * 0;
+      if (this.air > 0) this._wasAir = this.air;
+      const load = clamp6(Math.abs(this.throttleNow), 0, 1);
+      const rpmTarget = 750 + (sp.drive === "inboard" ? 2600 : 5400) * (load * (0.45 + 0.55 * clamp6(vf / sp.top, 0, 1)) + this.vent * load * 0.5);
+      this.rpm += (Math.min(rpmTarget, sp.drive === "inboard" ? 3600 : 6600) - this.rpm) * Math.min(1, h2 * 4);
+      this.draft = vol > 0 ? vol / Math.max(0.1, sp.L * sp.B * 0.7) : 0;
+    }
+    // the bits a HUD or a test wants
+    telemetry() {
+      return {
+        kind: this.kind,
+        speed: this.speed,
+        knots: this.speed * 1.9438,
+        trim: this.trim * 180 / Math.PI,
+        heel: this.heel * 180 / Math.PI,
+        planing: this.planing,
+        rpm: Math.round(this.rpm),
+        thrust: Math.round(this.thrust),
+        vent: this.vent,
+        wet: this.wet,
+        lift: this.lift,
+        displacement: this.subVol * RHO2,
+        air: this.air,
+        grounded: this.grounded,
+        capsized: this.capsized,
+        y: this.pos[1]
+      };
+    }
+  };
+
+  // Engine/src/vehicles/Ocean.js
+  var GERSTNER_WAVES = [
+    // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
+    [0.94, 0.342, 64, 0.13],
+    [0.966, -0.259, 31, 0.14],
+    [0.574, 0.819, 17, 0.15],
+    [0.5, -0.866, 10.5, 0.13],
+    [0.819, 0.574, 6.2, 0.11],
+    [-0.259, 0.966, 3.6, 0.09]
+  ];
+  var Ocean = class {
+    constructor(opts = {}) {
+      this.level = opts.level || 0;
+      this.time = 0;
+      this.amp = typeof opts.amp === "function" ? opts.amp : (() => opts.amp === void 0 ? 0.6 : opts.amp);
+      this.waves = (opts.waves || GERSTNER_WAVES).map((w2, i2) => {
+        const k2 = 2 * Math.PI / w2[2];
+        return { dx: w2[0], dz: w2[1], k: k2, c: Math.sqrt(9.81 / k2), w: Math.sqrt(9.81 * k2), s: w2[3], ph: i2 * 1.7 };
+      });
+      this.scale = 1;
+    }
+    // The displacement of the particle that rests at (px, pz).
+    _disp(px, pz, A2, o2) {
+      let ox = 0, oy = 0, oz = 0, vx = 0, vy = 0, vz = 0, sx = 0, sz = 0;
+      const t2 = this.time;
+      for (let i2 = 0; i2 < this.waves.length; i2++) {
+        const W3 = this.waves[i2];
+        const a2 = W3.s / W3.k * A2;
+        if (a2 <= 0) continue;
+        const f2 = W3.k * (W3.dx * px + W3.dz * pz - W3.c * t2) + W3.ph;
+        const cf = Math.cos(f2), sf = Math.sin(f2);
+        ox += W3.dx * a2 * cf;
+        oy += a2 * sf;
+        oz += W3.dz * a2 * cf;
+        vx += W3.dx * a2 * W3.w * sf;
+        vy -= a2 * W3.w * cf;
+        vz += W3.dz * a2 * W3.w * sf;
+        sx += W3.dx * W3.k * a2 * cf;
+        sz += W3.dz * W3.k * a2 * cf;
+      }
+      o2.ox = ox;
+      o2.oy = oy;
+      o2.oz = oz;
+      o2.vx = vx;
+      o2.vy = vy;
+      o2.vz = vz;
+      o2.sx = sx;
+      o2.sz = sz;
+      return o2;
+    }
+    sample(x2, z2, out) {
+      out = out || {};
+      const A2 = this.amp(x2, z2) * this.scale;
+      if (!(A2 > 0)) {
+        out.y = this.level;
+        out.vx = out.vy = out.vz = 0;
+        out.nx = 0;
+        out.ny = 1;
+        out.nz = 0;
+        return out;
+      }
+      const d2 = this._d || (this._d = {});
+      this._disp(x2, z2, A2, d2);
+      this._disp(x2 - d2.ox, z2 - d2.oz, A2, d2);
+      out.y = this.level + d2.oy;
+      out.vx = d2.vx;
+      out.vy = d2.vy;
+      out.vz = d2.vz;
+      const nx = -d2.sx, nz = -d2.sz, ny = 1;
+      const L3 = Math.hypot(nx, ny, nz) || 1;
+      out.nx = nx / L3;
+      out.ny = ny / L3;
+      out.nz = nz / L3;
+      return out;
+    }
+    height(x2, z2) {
+      return this.sample(x2, z2, this._h || (this._h = {})).y;
+    }
+  };
+
+  // Engine/src/ragdoll/Ragdoll.js
+  var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth2 = (t2) => {
+    t2 = clamp7(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  var RAGDOLL_JOINTS = [
+    "pelvis",
+    "chest",
+    "head",
+    "lHip",
+    "lKnee",
+    "lFoot",
+    "rHip",
+    "rKnee",
+    "rFoot",
+    "lSh",
+    "lElb",
+    "lHand",
+    "rSh",
+    "rElb",
+    "rHand"
+  ];
+  var J2 = {};
+  RAGDOLL_JOINTS.forEach((n2, i2) => {
+    J2[n2] = i2;
+  });
+  var N2 = RAGDOLL_JOINTS.length;
+  var RADIUS = [0.13, 0.14, 0.11, 0.08, 0.06, 0.055, 0.08, 0.06, 0.055, 0.07, 0.05, 0.045, 0.07, 0.05, 0.045];
+  var MASS = [0.142, 0.216, 0.081, 0.1, 0.0465, 0.0145, 0.1, 0.0465, 0.0145, 0.028, 0.016, 6e-3, 0.028, 0.016, 6e-3];
+  var HURT = [0.8, 1, 1.6, 0.3, 0.25, 0.1, 0.3, 0.25, 0.1, 0.3, 0.2, 0.1, 0.3, 0.2, 0.1];
+  var BONE_NAMES = {
+    pelvis: ["bip01pelvis", "hips", "pelvis", "jbiphips"],
+    neck: ["bip01neck", "neck", "jbipcneck"],
+    head: ["bip01head", "head", "jbipchead"],
+    lThigh: ["bip01lthigh", "leftupleg", "thighl", "lthigh", "upperlegl", "jbiplupperleg"],
+    lCalf: ["bip01lcalf", "leftleg", "shinl", "calfl", "lcalf", "lowerlegl", "jbipllowerleg"],
+    lFoot: ["bip01lfoot", "leftfoot", "footl", "lfoot", "jbiplfoot"],
+    rThigh: ["bip01rthigh", "rightupleg", "thighr", "rthigh", "upperlegr", "jbiprupperleg"],
+    rCalf: ["bip01rcalf", "rightleg", "shinr", "calfr", "rcalf", "lowerlegr", "jbiprlowerleg"],
+    rFoot: ["bip01rfoot", "rightfoot", "footr", "rfoot", "jbiprfoot"],
+    lUpper: ["bip01lupperarm", "leftarm", "upperarml", "lupperarm", "jbiplupperarm"],
+    lFore: ["bip01lforearm", "leftforearm", "forearml", "lforearm", "lowerarml", "jbipllowerarm"],
+    lHand: ["bip01lhand", "lefthand", "handl", "lhand", "jbiplhand"],
+    rUpper: ["bip01rupperarm", "rightarm", "upperarmr", "rupperarm", "jbiprupperarm"],
+    rFore: ["bip01rforearm", "rightforearm", "forearmr", "rforearm", "lowerarmr", "jbiprlowerarm"],
+    rHand: ["bip01rhand", "righthand", "handr", "rhand", "jbiprhand"]
+  };
+  function findRagdollBones(root) {
+    const all = [];
+    root.traverse((o2) => {
+      if (o2.isBone) all.push({ b: o2, n: o2.name.toLowerCase().replace(/[^a-z0-9]/g, "") });
+    });
+    if (!all.length) return null;
+    const out = {};
+    for (const key in BONE_NAMES) {
+      let hit = null;
+      for (const want of BONE_NAMES[key]) {
+        hit = all.find((e2) => e2.n === want) || all.find((e2) => e2.n.endsWith(want));
+        if (hit) break;
+      }
+      if (!hit) return null;
+      out[key] = hit.b;
+    }
+    const spine = [];
+    for (let b2 = out.neck.parent; b2 && b2 !== out.pelvis; b2 = b2.parent) {
+      if (!b2.isBone) return null;
+      spine.unshift(b2);
+    }
+    if (!spine.length) return null;
+    out.spine = spine;
+    return out;
+  }
+  var RagdollSystem = class {
+    // opts: { THREE, ground(x, z, refY) -> y, blocked?(x, z, r, y) -> bool, friction?(x, z) -> mu, maxActive? }
+    constructor(opts) {
+      this.T = opts.THREE;
+      this.ground = opts.ground || (() => 0);
+      this.blocked = opts.blocked || null;
+      this.friction = opts.friction || null;
+      this.maxActive = opts.maxActive || 10;
+      this.g = opts.gravity || 9.81;
+      this.h = 1 / 240;
+      this.iterations = 6;
+      this.list = [];
+      const T2 = this.T;
+      this._v = [new T2.Vector3(), new T2.Vector3(), new T2.Vector3(), new T2.Vector3()];
+      this._q = [new T2.Quaternion(), new T2.Quaternion(), new T2.Quaternion()];
+      this._m = new T2.Matrix4();
+    }
+    // Make a figure limp. root: the character's top object (its bones are found inside); it should be posed as it
+    // was the instant before (the host's mixer has run). opts:
+    //   velocity {x,y,z}  m/s of the whole body          spin {x,y,z}  rad/s about the centre of mass
+    //   strike {x,y,z}    a vehicle's velocity: the legs take it all, the head about half (the body wraps over the bonnet)
+    //   push {x,y,z, at:"chest"}  an extra velocity on one part (a bullet, a punch)
+    //   getUp (default true), dead, facing {x,z} (which way the figure faces, default the root's +z)
+    //   onSettle(rd), onUp(rd, {x, y, z, yaw}), onHit(rd, speed, part) (a hard landing)
+    spawn(root, opts) {
+      opts = opts || {};
+      const T2 = this.T;
+      const old = this.list.find((r3) => r3.root === root);
+      if (old) this.release(old);
+      root.updateMatrixWorld(true);
+      const B2 = findRagdollBones(root);
+      if (!B2) return null;
+      const wp = (b2) => b2.getWorldPosition(new T2.Vector3());
+      const pos = [];
+      pos[J2.pelvis] = wp(B2.pelvis);
+      pos[J2.chest] = wp(B2.neck);
+      const hd = wp(B2.head);
+      pos[J2.head] = hd.clone().addScaledVector(hd.clone().sub(pos[J2.chest]).normalize(), 0.09);
+      pos[J2.lHip] = wp(B2.lThigh);
+      pos[J2.lKnee] = wp(B2.lCalf);
+      pos[J2.lFoot] = wp(B2.lFoot);
+      pos[J2.rHip] = wp(B2.rThigh);
+      pos[J2.rKnee] = wp(B2.rCalf);
+      pos[J2.rFoot] = wp(B2.rFoot);
+      pos[J2.lSh] = wp(B2.lUpper);
+      pos[J2.lElb] = wp(B2.lFore);
+      pos[J2.lHand] = wp(B2.lHand);
+      pos[J2.rSh] = wp(B2.rUpper);
+      pos[J2.rElb] = wp(B2.rFore);
+      pos[J2.rHand] = wp(B2.rHand);
+      if (pos[J2.pelvis].distanceTo(pos[J2.head]) < 0.2) return null;
+      const rd = {
+        root,
+        bones: B2,
+        opts,
+        state: "fall",
+        t: 0,
+        still: 0,
+        hurt: 0,
+        P: new Float32Array(N2 * 3),
+        O: new Float32Array(N2 * 3),
+        G: new Float32Array(N2),
+        VY: new Float32Array(N2),
+        contact: new Uint8Array(N2),
+        was: new Uint8Array(N2),
+        cons: [],
+        ranges: [],
+        dims: null,
+        frames: null,
+        sign: 1,
+        acc: 0,
+        seq: null,
+        blend: null,
+        culled: []
+      };
+      for (let i2 = 0; i2 < N2; i2++) {
+        rd.P[i2 * 3] = pos[i2].x;
+        rd.P[i2 * 3 + 1] = pos[i2].y;
+        rd.P[i2 * 3 + 2] = pos[i2].z;
+      }
+      const fwd = opts.facing ? new T2.Vector3(opts.facing.x, 0, opts.facing.z) : new T2.Vector3(0, 0, 1).applyQuaternion(root.getWorldQuaternion(new T2.Quaternion()));
+      const side = pos[J2.lHip].clone().sub(pos[J2.rHip]), up = pos[J2.chest].clone().sub(pos[J2.pelvis]);
+      rd.sign = side.clone().cross(up).dot(fwd) >= 0 ? 1 : -1;
+      this._buildConstraints(rd, pos);
+      this._captureFrames(rd);
+      const com = new T2.Vector3();
+      let mt = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        com.addScaledVector(pos[i2], MASS[i2]);
+        mt += MASS[i2];
+      }
+      com.multiplyScalar(1 / mt);
+      let lowY = Infinity;
+      for (let i2 = 0; i2 < N2; i2++) lowY = Math.min(lowY, pos[i2].y);
+      const v2 = new T2.Vector3(), r2 = new T2.Vector3(), w2 = opts.spin ? new T2.Vector3(opts.spin.x || 0, opts.spin.y || 0, opts.spin.z || 0) : null;
+      const lin = opts.velocity ? new T2.Vector3(opts.velocity.x || 0, opts.velocity.y || 0, opts.velocity.z || 0) : new T2.Vector3();
+      const st = opts.strike ? new T2.Vector3(opts.strike.x || 0, opts.strike.y || 0, opts.strike.z || 0) : null;
+      for (let i2 = 0; i2 < N2; i2++) {
+        v2.copy(lin);
+        if (w2) {
+          r2.copy(pos[i2]).sub(com);
+          v2.add(w2.clone().cross(r2));
+        }
+        if (st) {
+          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp7(hgt / 1.7, 0, 1), sp = st.length();
+          v2.addScaledVector(st, k2);
+          v2.y += (hgt < 0.7 ? 0.1 : 0.22) * Math.max(0, sp - 8) + (sp > 3 ? 0.6 : 0);
+        }
+        if (opts.push && RAGDOLL_JOINTS[i2] === (opts.push.at || "chest")) {
+          v2.x += opts.push.x || 0;
+          v2.y += opts.push.y || 0;
+          v2.z += opts.push.z || 0;
+        }
+        rd.O[i2 * 3] = rd.P[i2 * 3] - v2.x * this.h;
+        rd.O[i2 * 3 + 1] = rd.P[i2 * 3 + 1] - v2.y * this.h;
+        rd.O[i2 * 3 + 2] = rd.P[i2 * 3 + 2] - v2.z * this.h;
+      }
+      root.traverse((o2) => {
+        if (o2.isMesh && o2.frustumCulled) {
+          o2.frustumCulled = false;
+          rd.culled.push(o2);
+        }
+      });
+      this.list.push(rd);
+      const moving = this.list.filter((x2) => x2.state === "fall");
+      if (moving.length > this.maxActive) this._settle(moving[0]);
+      return rd;
+    }
+    _buildConstraints(rd, pos) {
+      const d2 = (a2, b2) => pos[a2].distanceTo(pos[b2]);
+      const C2 = (a2, b2, k2) => rd.cons.push([a2, b2, d2(a2, b2), k2 === void 0 ? 1 : k2]);
+      const R2 = (a2, b2, lo, hi, k2) => rd.ranges.push([a2, b2, lo, hi, k2 === void 0 ? 1 : k2]);
+      C2(J2.lHip, J2.lKnee);
+      C2(J2.lKnee, J2.lFoot);
+      C2(J2.rHip, J2.rKnee);
+      C2(J2.rKnee, J2.rFoot);
+      C2(J2.lSh, J2.lElb);
+      C2(J2.lElb, J2.lHand);
+      C2(J2.rSh, J2.rElb);
+      C2(J2.rElb, J2.rHand);
+      C2(J2.pelvis, J2.lHip);
+      C2(J2.pelvis, J2.rHip);
+      C2(J2.lHip, J2.rHip);
+      C2(J2.chest, J2.lSh);
+      C2(J2.chest, J2.rSh);
+      C2(J2.lSh, J2.rSh);
+      C2(J2.pelvis, J2.chest);
+      C2(J2.lHip, J2.lSh, 0.4);
+      C2(J2.rHip, J2.rSh, 0.4);
+      C2(J2.lHip, J2.rSh, 0.3);
+      C2(J2.rHip, J2.lSh, 0.3);
+      C2(J2.pelvis, J2.lSh, 0.3);
+      C2(J2.pelvis, J2.rSh, 0.3);
+      C2(J2.chest, J2.head);
+      const hs = d2(J2.head, J2.lSh), hp = d2(J2.head, J2.pelvis);
+      R2(J2.head, J2.lSh, hs * 0.82, hs * 1.12);
+      R2(J2.head, J2.rSh, hs * 0.82, hs * 1.12);
+      R2(J2.head, J2.pelvis, hp * 0.84, hp * 1.02);
+      const leg = d2(J2.lHip, J2.lKnee) + d2(J2.lKnee, J2.lFoot), arm = d2(J2.lSh, J2.lElb) + d2(J2.lElb, J2.lHand);
+      R2(J2.lHip, J2.lFoot, leg * 0.36, leg);
+      R2(J2.rHip, J2.rFoot, leg * 0.36, leg);
+      R2(J2.lSh, J2.lHand, arm * 0.3, arm);
+      R2(J2.rSh, J2.rHand, arm * 0.3, arm);
+      const sp = d2(J2.pelvis, J2.chest), th = d2(J2.lHip, J2.lKnee), kc = Math.sqrt(sp * sp + th * th - 2 * sp * th * Math.cos(0.96));
+      R2(J2.lKnee, J2.chest, kc, 9, 0.5);
+      R2(J2.rKnee, J2.chest, kc, 9, 0.5);
+      R2(J2.lKnee, J2.rKnee, 0.1, 9);
+      R2(J2.lFoot, J2.rFoot, 0.1, 9);
+      R2(J2.lHand, J2.rHand, 0.07, 9);
+      R2(J2.lHand, J2.chest, 0.12, 9);
+      R2(J2.rHand, J2.chest, 0.12, 9);
+      R2(J2.lHand, J2.pelvis, 0.12, 9);
+      R2(J2.rHand, J2.pelvis, 0.12, 9);
+      const hw = d2(J2.lHip, J2.rHip) / 2, sw = d2(J2.lSh, J2.rSh) / 2, ph = d2(J2.pelvis, J2.lHip), cs = d2(J2.chest, J2.lSh);
+      rd.dims = {
+        hw,
+        sw,
+        Lt: th,
+        Ls: d2(J2.lKnee, J2.lFoot),
+        ua: d2(J2.lSh, J2.lElb),
+        fa: d2(J2.lElb, J2.lHand),
+        Lsp: sp,
+        Ln: d2(J2.chest, J2.head),
+        dy: Math.sqrt(Math.max(0, ph * ph - hw * hw)),
+        shDrop: Math.sqrt(Math.max(0, cs * cs - sw * sw))
+      };
+    }
+    // ---- frames: what turns each bone ------------------------------------------------------------------------------
+    // [bone key, from joint, to joint, reference kind]
+    _segments(rd) {
+      const B2 = rd.bones, S4 = [];
+      S4.push({ bone: B2.pelvis, a: J2.pelvis, b: J2.chest, ref: "hips", pos: true });
+      S4.push({ spine: true, a: J2.pelvis, b: J2.chest, ref: "shoulders" });
+      S4.push({ bone: B2.head, a: J2.chest, b: J2.head, ref: "shoulders" });
+      S4.push({ bone: B2.lThigh, a: J2.lHip, b: J2.lKnee, ref: "hips" });
+      S4.push({ bone: B2.lCalf, a: J2.lKnee, b: J2.lFoot, ref: "hips" });
+      S4.push({ bone: B2.rThigh, a: J2.rHip, b: J2.rKnee, ref: "hips" });
+      S4.push({ bone: B2.rCalf, a: J2.rKnee, b: J2.rFoot, ref: "hips" });
+      S4.push({ bone: B2.lUpper, a: J2.lSh, b: J2.lElb, ref: "arm", c: J2.lHand });
+      S4.push({ bone: B2.lFore, a: J2.lElb, b: J2.lHand, ref: "arm", c: J2.lHand, up: J2.lSh });
+      S4.push({ bone: B2.rUpper, a: J2.rSh, b: J2.rElb, ref: "arm", c: J2.rHand });
+      S4.push({ bone: B2.rFore, a: J2.rElb, b: J2.rHand, ref: "arm", c: J2.rHand, up: J2.rSh });
+      return S4;
+    }
+    _vec(rd, i2, out) {
+      return out.set(rd.P[i2 * 3], rd.P[i2 * 3 + 1], rd.P[i2 * 3 + 2]);
+    }
+    _torsoFwd(rd, out) {
+      const T2 = this.T, a2 = this._vec(rd, J2.lHip, new T2.Vector3()).sub(this._vec(rd, J2.rHip, new T2.Vector3()));
+      const u2 = this._vec(rd, J2.chest, new T2.Vector3()).sub(this._vec(rd, J2.pelvis, new T2.Vector3()));
+      return out.copy(a2).cross(u2).normalize().multiplyScalar(rd.sign);
+    }
+    // an orthonormal frame from a segment and a reference; the previous z stands in when the reference lines up with the segment
+    _basis(rd, seg, prevZ, outQ) {
+      const T2 = this.T, x2 = this._vec(rd, seg.b, new T2.Vector3()).sub(this._vec(rd, seg.a, new T2.Vector3())).normalize();
+      let r2;
+      if (seg.ref === "hips") r2 = this._vec(rd, J2.lHip, new T2.Vector3()).sub(this._vec(rd, J2.rHip, new T2.Vector3()));
+      else if (seg.ref === "shoulders") r2 = this._vec(rd, J2.lSh, new T2.Vector3()).sub(this._vec(rd, J2.rSh, new T2.Vector3()));
+      else {
+        const s2 = seg.up !== void 0 ? seg.up : seg.a, e2 = seg.up !== void 0 ? seg.a : seg.b;
+        const u1 = this._vec(rd, e2, new T2.Vector3()).sub(this._vec(rd, s2, new T2.Vector3())).normalize();
+        const u2 = this._vec(rd, seg.c, new T2.Vector3()).sub(this._vec(rd, e2, new T2.Vector3())).normalize();
+        const bend = u1.clone().cross(u2);
+        const bl = bend.length();
+        if (prevZ) r2 = prevZ.clone().lerp(bl > 0.25 ? bend.normalize() : prevZ, bl > 0.25 ? 0.12 : 0);
+        else r2 = bl > 0.25 ? bend.normalize() : this._torsoFwd(rd, new T2.Vector3());
+      }
+      let z2 = r2.clone().addScaledVector(x2, -r2.dot(x2));
+      if (z2.lengthSq() < 0.04 * Math.max(1e-6, r2.lengthSq()) && prevZ) z2 = prevZ.clone().addScaledVector(x2, -prevZ.dot(x2));
+      if (z2.lengthSq() < 1e-8) z2 = Math.abs(x2.y) < 0.9 ? new T2.Vector3(0, 1, 0).addScaledVector(x2, -x2.y) : new T2.Vector3(1, 0, 0).addScaledVector(x2, -x2.x);
+      z2.normalize();
+      const y2 = z2.clone().cross(x2);
+      this._m.makeBasis(x2, y2, z2);
+      outQ.setFromRotationMatrix(this._m);
+      return z2;
+    }
+    _captureFrames(rd) {
+      const T2 = this.T, segs = this._segments(rd);
+      rd.frames = segs.map((seg) => {
+        const f2 = { seg, q0: new T2.Quaternion(), z: null, bq: [], bp: null };
+        f2.z = this._basis(rd, seg, null, f2.q0);
+        const bones = seg.spine ? rd.bones.spine : [seg.bone];
+        bones.forEach((b2) => f2.bq.push(b2.getWorldQuaternion(new T2.Quaternion())));
+        if (seg.pos) f2.bp = seg.bone.getWorldPosition(new T2.Vector3()).sub(this._vec(rd, seg.a, new T2.Vector3()));
+        return f2;
+      });
+      rd.frames.pelvis = rd.frames[0];
+      rd.frames.chest = rd.frames[1];
+    }
+    // ---- stepping ----------------------------------------------------------------------------------------------------
+    update(dt) {
+      dt = clamp7(dt || 0, 0, 0.1);
+      for (let k2 = this.list.length - 1; k2 >= 0; k2--) {
+        const rd = this.list[k2];
+        if (!rd.root.parent && rd.state !== "blend") {
+          this.release(rd);
+          continue;
+        }
+        rd.t += dt;
+        if (rd.state === "fall") this._simulate(rd, dt);
+        else if (rd.state === "getup") this._getUp(rd, dt);
+        else if (rd.state === "still") {
+          rd.wait -= dt;
+          if (rd.wait <= 0) {
+            if (rd.opts.dead || rd.opts.getUp === false) {
+              rd.state = "frozen";
+            } else this._startGetUp(rd);
+          }
+        }
+        if (rd.state === "blend") {
+          this._blendOut(rd, dt);
+          continue;
+        }
+        if (rd.state !== "frozen" || !rd.frozenWritten) {
+          this._write(rd);
+          if (rd.state === "frozen") rd.frozenWritten = true;
+        }
+      }
+    }
+    _simulate(rd, dt) {
+      const h2 = this.h, P3 = rd.P, O2 = rd.O, g2 = this.g, damp = 0.9996;
+      rd.acc += dt;
+      let steps = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, g3 = this.ground(P3[o2], P3[o2 + 2], P3[o2 + 1] + 0.6);
+        if (rd.F && g3 - rd.G[i2] > RADIUS[i2] * 0.6 && P3[o2 + 1] - RADIUS[i2] < g3 - 0.01) {
+          const vx = P3[o2] - O2[o2], vz = P3[o2 + 2] - O2[o2 + 2];
+          P3[o2] = rd.F[o2];
+          P3[o2 + 2] = rd.F[o2 + 2];
+          O2[o2] = P3[o2] + vx * 0.2;
+          O2[o2 + 2] = P3[o2 + 2] + vz * 0.2;
+        } else rd.G[i2] = g3;
+      }
+      const mu = this.friction ? this.friction(P3[0], P3[2]) : 0.65;
+      while (rd.acc >= h2 && steps < 24) {
+        rd.acc -= h2;
+        steps++;
+        for (let i2 = 0; i2 < N2; i2++) {
+          const o2 = i2 * 3;
+          for (let c2 = 0; c2 < 3; c2++) {
+            const p2 = P3[o2 + c2], v2 = (p2 - O2[o2 + c2]) * damp;
+            O2[o2 + c2] = p2;
+            P3[o2 + c2] = p2 + v2 + (c2 === 1 ? -g2 * h2 * h2 : 0);
+          }
+        }
+        for (let i2 = 0; i2 < N2; i2++) {
+          rd.VY[i2] = (P3[i2 * 3 + 1] - O2[i2 * 3 + 1]) / h2;
+          rd.contact[i2] = 0;
+        }
+        for (let it = 0; it < this.iterations; it++) {
+          this._solve(rd);
+          this._collide(rd, false, mu);
+        }
+        this._collide(rd, true, mu);
+      }
+      if (rd.acc > h2) rd.acc = 0;
+      rd.F = Float32Array.from(P3);
+      let vmax = 0, grounded = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, vx = P3[o2] - O2[o2], vy = P3[o2 + 1] - O2[o2 + 1], vz = P3[o2 + 2] - O2[o2 + 2];
+        vmax = Math.max(vmax, Math.sqrt(vx * vx + vy * vy + vz * vz) / h2);
+        if (P3[o2 + 1] - RADIUS[i2] - rd.G[i2] < 0.06) grounded++;
+      }
+      if (vmax < 0.35 && grounded >= 4) rd.still += dt;
+      else rd.still = 0;
+      if (rd.still > 0.5 || rd.t > 9) this._settle(rd);
+    }
+    _settle(rd) {
+      if (rd.state !== "fall") return;
+      rd.state = "still";
+      rd.wait = rd.opts.dead ? 0 : rd.opts.lieFor !== void 0 ? rd.opts.lieFor : 0.9 + Math.random() * 0.7;
+      for (let i2 = 0; i2 < N2 * 3; i2++) rd.O[i2] = rd.P[i2];
+      if (rd.opts.onSettle) try {
+        rd.opts.onSettle(rd);
+      } catch (e2) {
+        console.warn("[ragdoll] onSettle", e2);
+      }
+    }
+    _solve(rd) {
+      const P3 = rd.P;
+      const pull = (a2, b2, len, k2, only) => {
+        const ao = a2 * 3, bo = b2 * 3, dx = P3[bo] - P3[ao], dy = P3[bo + 1] - P3[ao + 1], dz = P3[bo + 2] - P3[ao + 2];
+        const d2 = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+        if (only === 1 && d2 >= len) return;
+        if (only === 2 && d2 <= len) return;
+        const wa = 1 / MASS[a2], wb = 1 / MASS[b2], s2 = k2 * (d2 - len) / d2 / (wa + wb);
+        P3[ao] += dx * s2 * wa;
+        P3[ao + 1] += dy * s2 * wa;
+        P3[ao + 2] += dz * s2 * wa;
+        P3[bo] -= dx * s2 * wb;
+        P3[bo + 1] -= dy * s2 * wb;
+        P3[bo + 2] -= dz * s2 * wb;
+      };
+      for (const c2 of rd.cons) pull(c2[0], c2[1], c2[2], c2[3], 0);
+      for (const r2 of rd.ranges) {
+        pull(r2[0], r2[1], r2[2], r2[4], 1);
+        pull(r2[0], r2[1], r2[3], r2[4], 2);
+      }
+      const sx = P3[J2.lHip * 3] - P3[J2.rHip * 3], sy = P3[J2.lHip * 3 + 1] - P3[J2.rHip * 3 + 1], sz = P3[J2.lHip * 3 + 2] - P3[J2.rHip * 3 + 2];
+      for (const [hp, kn, ft] of [[J2.lHip, J2.lKnee, J2.lFoot], [J2.rHip, J2.rKnee, J2.rFoot]]) {
+        const ax = P3[ft * 3] - P3[hp * 3], ay = P3[ft * 3 + 1] - P3[hp * 3 + 1], az = P3[ft * 3 + 2] - P3[hp * 3 + 2];
+        let kx = (ay * sz - az * sy) * rd.sign, ky = (az * sx - ax * sz) * rd.sign, kz = (ax * sy - ay * sx) * rd.sign;
+        const kl = Math.sqrt(kx * kx + ky * ky + kz * kz), al = Math.sqrt(ax * ax + ay * ay + az * az), sl = Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (kl < 0.5 * al * sl) continue;
+        kx /= kl;
+        ky /= kl;
+        kz /= kl;
+        const mx = (P3[hp * 3] + P3[ft * 3]) / 2, my = (P3[hp * 3 + 1] + P3[ft * 3 + 1]) / 2, mz = (P3[hp * 3 + 2] + P3[ft * 3 + 2]) / 2;
+        const along = (P3[kn * 3] - mx) * kx + (P3[kn * 3 + 1] - my) * ky + (P3[kn * 3 + 2] - mz) * kz;
+        const ux = P3[J2.chest * 3] - P3[J2.pelvis * 3], uy = P3[J2.chest * 3 + 1] - P3[J2.pelvis * 3 + 1], uz = P3[J2.chest * 3 + 2] - P3[J2.pelvis * 3 + 2];
+        let fx = (sy * uz - sz * uy) * rd.sign, fy = (sz * ux - sx * uz) * rd.sign, fz = (sx * uy - sy * ux) * rd.sign;
+        const fl = Math.sqrt(fx * fx + fy * fy + fz * fz);
+        if (fl > 1e-6) {
+          fx /= fl;
+          fy /= fl;
+          fz /= fl;
+          const tx = P3[kn * 3] - P3[hp * 3], ty = P3[kn * 3 + 1] - P3[hp * 3 + 1], tz = P3[kn * 3 + 2] - P3[hp * 3 + 2];
+          const tl = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1, back = (tx * fx + ty * fy + tz * fz) / tl;
+          if (back < -0.34) {
+            const c2 = Math.min(4e-3, (-0.34 - back) * tl * 0.4);
+            P3[kn * 3] += fx * c2;
+            P3[kn * 3 + 1] += fy * c2;
+            P3[kn * 3 + 2] += fz * c2;
+          }
+        }
+        if (along < -0.03) {
+          const c2 = Math.min(4e-3, (-0.03 - along) * 0.5);
+          P3[kn * 3] += kx * c2;
+          P3[kn * 3 + 1] += ky * c2;
+          P3[kn * 3 + 2] += kz * c2;
+        }
+      }
+    }
+    // The ground and the walls. During the solver passes a joint that is under the ground is simply put back on it; in the
+    // final pass the velocity is made honest: the solver's corrections must not launch a body (any upward speed it
+    // gained from being pushed out of the ground is taken away), a hard landing bounces a little, and sliding obeys friction.
+    _collide(rd, final, mu) {
+      const P3 = rd.P, O2 = rd.O, h2 = this.h, g2 = this.g;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, floor = rd.G[i2] + RADIUS[i2];
+        if (P3[o2 + 1] < floor) {
+          P3[o2 + 1] = floor;
+          rd.contact[i2] = 1;
+        }
+        if (!final) continue;
+        if (rd.contact[i2] || P3[o2 + 1] < floor + 4e-3) {
+          const vin = rd.VY[i2];
+          if (vin < -5 && !rd.was[i2] && rd.opts.onHit) {
+            rd.hurt += (-vin - 5) * HURT[i2];
+            try {
+              rd.opts.onHit(rd, -vin, RAGDOLL_JOINTS[i2]);
+            } catch (e2) {
+            }
+          }
+          const vy = vin < -2.5 ? -vin * 0.1 : Math.min(0.2, Math.max(0, (P3[o2 + 1] - O2[o2 + 1]) / h2) * 0);
+          O2[o2 + 1] = P3[o2 + 1] - vy * h2;
+          const vx = (P3[o2] - O2[o2]) / h2 * 0.99, vz = (P3[o2 + 2] - O2[o2 + 2]) / h2 * 0.99, sp = Math.sqrt(vx * vx + vz * vz);
+          if (sp > 1e-5) {
+            const ns = Math.max(0, sp - mu * g2 * h2) / sp;
+            O2[o2] = P3[o2] - vx * ns * h2;
+            O2[o2 + 2] = P3[o2 + 2] - vz * ns * h2;
+          }
+          rd.was[i2] = 1;
+        } else if (P3[o2 + 1] > floor + 0.08) rd.was[i2] = 0;
+        if (this.blocked && this.blocked(P3[o2], P3[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+          if (!this.blocked(O2[o2], P3[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+            const vx = P3[o2] - O2[o2];
+            P3[o2] = O2[o2];
+            O2[o2] = P3[o2] + vx * 0.25;
+          } else if (!this.blocked(P3[o2], O2[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+            const vz = P3[o2 + 2] - O2[o2 + 2];
+            P3[o2 + 2] = O2[o2 + 2];
+            O2[o2 + 2] = P3[o2 + 2] + vz * 0.25;
+          } else {
+            P3[o2] = O2[o2];
+            P3[o2 + 2] = O2[o2 + 2];
+          }
+        }
+      }
+    }
+    // ---- getting up --------------------------------------------------------------------------------------------------
+    _startGetUp(rd) {
+      const T2 = this.T, P3 = rd.P, D2 = rd.dims;
+      const pel = this._vec(rd, J2.pelvis, new T2.Vector3()), head = this._vec(rd, J2.head, new T2.Vector3());
+      const fwd = this._torsoFwd(rd, new T2.Vector3());
+      const prone = fwd.y < 0;
+      let dx = head.x - pel.x, dz = head.z - pel.z;
+      if (!prone) {
+        dx = -dx;
+        dz = -dz;
+      }
+      if (Math.hypot(dx, dz) < 1e-3) {
+        dx = fwd.x;
+        dz = fwd.z;
+      }
+      const yaw = Math.atan2(dx, dz), F2 = { x: Math.sin(yaw), z: Math.cos(yaw) }, Lx = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+      const O1 = { x: pel.x, z: pel.z }, O2 = prone ? { x: pel.x + F2.x * 0.1, z: pel.z + F2.z * 0.1 } : { x: pel.x + F2.x * 0.42, z: pel.z + F2.z * 0.42 };
+      if (this.blocked && this.blocked(O2.x, O2.z, 0.3, pel.y)) {
+        O2.x = O1.x;
+        O2.z = O1.z;
+      }
+      const st = 0.08;
+      const stand = () => {
+        const hipY = st + D2.Ls + D2.Lt, pY = hipY + D2.dy, cY = pY + D2.Lsp, sY = cY - D2.shDrop;
+        return [
+          [0, pY, 0],
+          [0, cY, -0.01],
+          [0, cY + D2.Ln, 0.02],
+          [D2.hw, hipY, 0],
+          [D2.hw, st + D2.Ls, 0.02],
+          [D2.hw, st, 0],
+          [-D2.hw, hipY, 0],
+          [-D2.hw, st + D2.Ls, 0.02],
+          [-D2.hw, st, 0],
+          [D2.sw, sY, 0],
+          [D2.sw + 0.03, sY - D2.ua, -0.01],
+          [D2.sw + 0.04, sY - D2.ua - D2.fa, 0.04],
+          [-D2.sw, sY, 0],
+          [-D2.sw - 0.03, sY - D2.ua, -0.01],
+          [-D2.sw - 0.04, sY - D2.ua - D2.fa, 0.04]
+        ];
+      };
+      const crouch = () => {
+        const kY = st + D2.Ls * 0.82, kZ = D2.Ls * 0.57, hY = kY + 0.26 * D2.Lt, hZ = kZ - 0.97 * D2.Lt, pY = hY + D2.dy * 0.7;
+        const cY = pY + D2.Lsp * 0.72, cZ = hZ + D2.Lsp * 0.69, sY = cY - D2.shDrop;
+        const hand = [D2.hw + 0.06, kY + 0.07, kZ + 0.07];
+        return [
+          [0, pY, hZ],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.85, cZ + D2.Ln * 0.5],
+          [D2.hw, hY, hZ],
+          [D2.hw + 0.04, kY, kZ],
+          [D2.hw, st, 0],
+          [-D2.hw, hY, hZ],
+          [-D2.hw - 0.04, kY, kZ],
+          [-D2.hw, st, 0],
+          [D2.sw, sY, cZ],
+          [(D2.sw + hand[0]) / 2 + 0.08, (sY + hand[1]) / 2, (cZ + hand[2]) / 2 - 0.04],
+          hand,
+          [-D2.sw, sY, cZ],
+          [-(D2.sw + hand[0]) / 2 - 0.08, (sY + hand[1]) / 2, (cZ + hand[2]) / 2 - 0.04],
+          [-hand[0], hand[1], hand[2]]
+        ];
+      };
+      const fours = () => {
+        const kY = 0.07, hY = kY + D2.Lt * 0.96, pY = hY + D2.dy * 0.5, cY = pY + 0.05, cZ = 0.05 + D2.Lsp * 0.97, sY = cY - D2.shDrop * 0.3;
+        return [
+          [0, pY, 0.05],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.4, cZ + D2.Ln * 0.9],
+          [D2.hw, hY, 0.05],
+          [D2.hw, kY, 0],
+          [D2.hw, 0.07, -D2.Ls],
+          [-D2.hw, hY, 0.05],
+          [-D2.hw, kY, 0],
+          [-D2.hw, 0.07, -D2.Ls],
+          [D2.sw, sY, cZ - 0.02],
+          [D2.sw + 0.02, (sY + 0.05) / 2, cZ + 0.02],
+          [D2.sw, 0.05, cZ + 0.05],
+          [-D2.sw, sY, cZ - 0.02],
+          [-D2.sw - 0.02, (sY + 0.05) / 2, cZ + 0.02],
+          [-D2.sw, 0.05, cZ + 0.05]
+        ];
+      };
+      const sitUp = () => {
+        const hY = 0.11, kY = hY + D2.Lt * 0.64, kZ = 0.02 + D2.Lt * 0.77, fZ = kZ + Math.sqrt(Math.max(0.01, D2.Ls * D2.Ls - (kY - st) * (kY - st)));
+        const cY = 0.13 + D2.Lsp * 0.94, cZ = D2.Lsp * 0.34, sY = cY - D2.shDrop;
+        return [
+          [0, 0.13, 0],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.9, cZ + D2.Ln * 0.42],
+          [D2.hw, hY, 0.02],
+          [D2.hw, kY, kZ],
+          [D2.hw, st, fZ],
+          [-D2.hw, hY, 0.02],
+          [-D2.hw, kY, kZ],
+          [-D2.hw, st, fZ],
+          [D2.sw, sY, cZ],
+          [D2.sw + 0.08, (sY + 0.05) / 2, (cZ - 0.22) / 2 - 0.05],
+          [D2.sw + 0.08, 0.05, -0.22],
+          [-D2.sw, sY, cZ],
+          [-D2.sw - 0.08, (sY + 0.05) / 2, (cZ - 0.22) / 2 - 0.05],
+          [-D2.sw - 0.08, 0.05, -0.22]
+        ];
+      };
+      const world = (pose, O3) => pose.map((p2) => {
+        const x2 = O3.x + Lx.x * p2[0] + F2.x * p2[2], z2 = O3.z + Lx.z * p2[0] + F2.z * p2[2];
+        return [x2, this.ground(x2, z2, pel.y + 0.6) + p2[1], z2];
+      });
+      if (rd.sign < 0) {
+        Lx.x = -Lx.x;
+        Lx.z = -Lx.z;
+      }
+      rd.seq = prone ? [{ pose: world(fours(), O1), T: 0.6 }, { pose: world(crouch(), O2), T: 0.5 }, { pose: world(stand(), O2), T: 0.55 }] : [{ pose: world(sitUp(), O1), T: 0.55 }, { pose: world(crouch(), O2), T: 0.6 }, { pose: world(stand(), O2), T: 0.55 }];
+      rd.seqI = 0;
+      rd.seqT = 0;
+      rd.from = Float32Array.from(P3);
+      rd.up = { x: O2.x, y: this.ground(O2.x, O2.z, pel.y + 0.6), z: O2.z, yaw, prone };
+      rd.state = "getup";
+    }
+    _getUp(rd, dt) {
+      const step = rd.seq[rd.seqI], P3 = rd.P;
+      rd.seqT += dt;
+      const k2 = smooth2(rd.seqT / step.T);
+      for (let i2 = 0; i2 < N2; i2++) for (let c2 = 0; c2 < 3; c2++) {
+        const o2 = i2 * 3 + c2, target = rd.from[o2] + (step.pose[i2][c2] - rd.from[o2]) * k2;
+        P3[o2] += (target - P3[o2]) * 0.7;
+      }
+      for (let i2 = 0; i2 < N2; i2++) rd.G[i2] = this.ground(P3[i2 * 3], P3[i2 * 3 + 2], P3[i2 * 3 + 1] + 0.6);
+      for (let it = 0; it < 4; it++) {
+        this._solve(rd);
+        for (let i2 = 0; i2 < N2; i2++) {
+          const f2 = rd.G[i2] + RADIUS[i2] * 0.6;
+          if (P3[i2 * 3 + 1] < f2) P3[i2 * 3 + 1] = f2;
+        }
+      }
+      for (let i2 = 0; i2 < N2 * 3; i2++) rd.O[i2] = P3[i2];
+      if (rd.seqT >= step.T) {
+        rd.seqI++;
+        rd.seqT = 0;
+        rd.from = Float32Array.from(P3);
+        if (rd.seqI >= rd.seq.length) {
+          this._write(rd);
+          rd.state = "blend";
+          rd.blend = this._snapshot(rd);
+          if (rd.opts.onUp) try {
+            rd.opts.onUp(rd, rd.up);
+          } catch (e2) {
+            console.warn("[ragdoll] onUp", e2);
+          }
+        }
+      }
+    }
+    _snapshot(rd) {
+      const T2 = this.T, out = { t: 0, T: rd.opts.blendTime || 0.4, bones: [] };
+      rd.frames.forEach((f2) => (f2.seg.spine ? rd.bones.spine : [f2.seg.bone]).forEach((b2) => {
+        out.bones.push({
+          b: b2,
+          q: b2.quaternion.clone(),
+          wq: b2 === rd.bones.pelvis ? b2.getWorldQuaternion(new T2.Quaternion()) : null,
+          wp: b2 === rd.bones.pelvis ? b2.getWorldPosition(new T2.Vector3()) : null
+        });
+      }));
+      return out;
+    }
+    // After the host's mixer has posed the figure, pull it from the stored ragdoll pose towards that, a little less each frame.
+    _blendOut(rd, dt) {
+      const B2 = rd.blend, T2 = this.T;
+      B2.t += dt;
+      const w2 = smooth2(B2.t / B2.T);
+      const pq = this._q[0], lq = this._q[1];
+      for (const e2 of B2.bones) {
+        if (e2.wq) {
+          e2.b.parent.updateWorldMatrix(true, false);
+          e2.b.parent.getWorldQuaternion(pq);
+          lq.copy(pq).invert().multiply(e2.wq);
+          const lp = e2.b.parent.worldToLocal(e2.wp.clone());
+          e2.b.position.lerpVectors(lp, e2.b.position, w2);
+          e2.b.quaternion.copy(lq.slerp(e2.b.quaternion, w2));
+        } else e2.b.quaternion.copy(e2.q.clone().slerp(e2.b.quaternion, w2));
+      }
+      if (B2.t >= B2.T) this.release(rd);
+    }
+    // ---- posing the skeleton -----------------------------------------------------------------------------------------
+    _write(rd) {
+      const T2 = this.T, cur = this._q[0], rot = this._q[1], pq = this._q[2];
+      const rotOf = (f2) => {
+        f2.z = this._basis(rd, f2.seg, f2.z, cur);
+        return new T2.Quaternion().copy(cur).multiply(rot.copy(f2.q0).invert());
+      };
+      const Rp = rotOf(rd.frames.pelvis), Rc = rotOf(rd.frames.chest);
+      const setWorld = (bone, wq) => {
+        bone.parent.updateWorldMatrix(true, false);
+        bone.parent.getWorldQuaternion(pq);
+        bone.quaternion.copy(pq.invert().multiply(wq));
+        bone.updateMatrix();
+      };
+      for (const f2 of rd.frames) {
+        const seg = f2.seg;
+        if (seg.spine) {
+          const n2 = rd.bones.spine.length;
+          rd.bones.spine.forEach((b2, i2) => {
+            const R3 = new T2.Quaternion().copy(Rp).slerp(Rc, (i2 + 1) / n2);
+            setWorld(b2, R3.multiply(f2.bq[i2]));
+          });
+          continue;
+        }
+        const R2 = f2 === rd.frames.pelvis ? Rp : rotOf(f2);
+        if (seg.pos) {
+          const p2 = this._vec(rd, seg.a, new T2.Vector3()).add(f2.bp.clone().applyQuaternion(R2));
+          seg.bone.parent.updateWorldMatrix(true, false);
+          seg.bone.position.copy(seg.bone.parent.worldToLocal(p2));
+        }
+        setWorld(seg.bone, new T2.Quaternion().copy(R2).multiply(f2.bq[0]));
+      }
+    }
+    // ---- handles -----------------------------------------------------------------------------------------------------
+    release(rd) {
+      const i2 = this.list.indexOf(rd);
+      if (i2 >= 0) this.list.splice(i2, 1);
+      rd.culled.forEach((o2) => {
+        o2.frustumCulled = true;
+      });
+      rd.culled.length = 0;
+      rd.state = "done";
+    }
+    // the body's pelvis in the world (where the camera should look, where the character now is)
+    pelvis(rd, out) {
+      return this._vec(rd, J2.pelvis, out || new this.T.Vector3());
+    }
+    joint(rd, name, out) {
+      return this._vec(rd, J2[name], out || new this.T.Vector3());
+    }
+    speed(rd) {
+      let s2 = 0;
+      for (let i2 = 0; i2 < 3; i2++) s2 += ((rd.P[i2] - rd.O[i2]) / this.h) ** 2;
+      return Math.sqrt(s2);
+    }
+    find(root) {
+      return this.list.find((r2) => r2.root === root) || null;
+    }
+    // a body that was going to get up stays down (it died while falling)
+    kill(rd) {
+      rd.opts.dead = true;
+      rd.opts.getUp = false;
+      if (rd.state === "getup") {
+        rd.state = "fall";
+        rd.still = 0;
+      }
+    }
+    report() {
+      return { active: this.list.length, moving: this.list.filter((r2) => r2.state === "fall").length, states: this.list.map((r2) => r2.state) };
+    }
+  };
+
+  // Engine/src/skydive/Wind.js
+  var TAU = Math.PI * 2;
+  var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
+  var WIND_PRESETS = {
+    clear: { u10: 3.2, gust: 0.22, veer: 0.35 },
+    cloudy: { u10: 4.6, gust: 0.28, veer: 0.35 },
+    fog: { u10: 1.4, gust: 0.12, veer: 0.2 },
+    drizzle: { u10: 5.2, gust: 0.3, veer: 0.38 },
+    rain: { u10: 6.8, gust: 0.34, veer: 0.4 },
+    snow: { u10: 4, gust: 0.26, veer: 0.35 },
+    storm: { u10: 9.5, gust: 0.48, veer: 0.5 }
+  };
+  function hash3(i2, j2, k2, seed) {
+    let h2 = i2 * 374761393 + j2 * 668265263 + k2 * 1274126177 + seed * 974634221 | 0;
+    h2 = Math.imul(h2 ^ h2 >>> 13, 1274126177);
+    h2 ^= h2 >>> 16;
+    return (h2 & 65535) / 32767.5 - 1;
+  }
+  function noise3(x2, y2, z2, seed) {
+    const i2 = Math.floor(x2), j2 = Math.floor(y2), k2 = Math.floor(z2);
+    const fx = smooth3(x2 - i2), fy = smooth3(y2 - j2), fz = smooth3(z2 - k2);
+    const L3 = (a2, b2, t2) => a2 + (b2 - a2) * t2;
+    const c00 = L3(hash3(i2, j2, k2, seed), hash3(i2 + 1, j2, k2, seed), fx), c10 = L3(hash3(i2, j2 + 1, k2, seed), hash3(i2 + 1, j2 + 1, k2, seed), fx);
+    const c01 = L3(hash3(i2, j2, k2 + 1, seed), hash3(i2 + 1, j2, k2 + 1, seed), fx), c11 = L3(hash3(i2, j2 + 1, k2 + 1, seed), hash3(i2 + 1, j2 + 1, k2 + 1, seed), fx);
+    return L3(L3(c00, c10, fy), L3(c01, c11, fy), fz);
+  }
+  function fbm(x2, y2, z2, seed) {
+    return noise3(x2, y2, z2, seed) * 0.62 + noise3(x2 * 2.03, y2 * 2.03, z2 * 2.03, seed + 7) * 0.27 + noise3(x2 * 4.1, y2 * 4.1, z2 * 4.1, seed + 13) * 0.11;
+  }
+  var WindField = class {
+    // o.dir: the direction the wind blows TOWARD, radians from +z toward +x. o.obstacles(x, z, r): buildings near (x, z):
+    // [{ cx, cz, hw, hl, yaw (radians), base, top }]
+    constructor(o2 = {}) {
+      this.dir = o2.dir !== void 0 ? o2.dir : 0.9;
+      this.seed = o2.seed || 1;
+      this.obstacles = o2.obstacles || null;
+      this.alpha = 0.24;
+      this.set(o2.weather || "clear");
+      this.out = { x: 0, y: 0, z: 0 };
+    }
+    set(weather, dir) {
+      const p2 = WIND_PRESETS[weather] || WIND_PRESETS.clear;
+      this.u10 = p2.u10;
+      this.gust = p2.gust;
+      this.veer = p2.veer;
+      this.weather = weather;
+      if (dir !== void 0) this.dir = dir;
+      return this;
+    }
+    // the mean wind speed at height h above the ground
+    meanSpeed(h2) {
+      return this.u10 * clamp8(Math.pow(Math.max(h2, 2) / 10, this.alpha), 0.55, 2.7);
+    }
+    sample(x2, y2, z2, t2, groundY = 0) {
+      const h2 = Math.max(0, y2 - groundY);
+      const U2 = this.meanSpeed(h2);
+      const dir = this.dir + this.veer * clamp8(h2 / 600, 0, 1.4);
+      const dx = Math.sin(dir), dz = Math.cos(dir);
+      const front = 1 + 0.22 * Math.sin(t2 * 0.071 + this.seed) + 0.14 * Math.sin(t2 * 0.193 + 2 * this.seed) + 0.08 * Math.sin(t2 * 0.61);
+      let ux = dx * U2 * front, uz = dz * U2 * front, uy = 0;
+      const I2 = this.gust * (0.55 + 0.75 * Math.exp(-h2 / 120)), sig = I2 * U2;
+      const Ls = 38 + h2 * 0.25, adv = U2 * t2;
+      const px = (x2 - dx * adv) / Ls, py = y2 / (Ls * 0.7), pz = (z2 - dz * adv) / Ls, tt = t2 * 0.11;
+      ux += sig * fbm(px, py, pz + tt, this.seed) * 1.6;
+      uz += sig * fbm(px + 31.7, py, pz - tt, this.seed + 101) * 1.6;
+      uy += sig * fbm(px - 17.3, py + 9.1, pz + tt, this.seed + 211) * 0.9;
+      if (this.obstacles) {
+        const b2 = this.buildings(x2, y2, z2, U2, dx, dz, t2);
+        ux = ux * b2.k + b2.x;
+        uy = uy * b2.kt + b2.y;
+        uz = uz * b2.k + b2.z;
+      }
+      const o2 = this.out;
+      o2.x = ux;
+      o2.y = uy;
+      o2.z = uz;
+      return o2;
+    }
+    // how the buildings near (x, y, z) change the wind: a factor on the mean flow and on the turbulence, plus an added velocity
+    buildings(x2, y2, z2, U2, dx, dz, t2) {
+      const res = { k: 1, kt: 1, x: 0, y: 0, z: 0 };
+      const list = this.obstacles(x2, z2, 260);
+      if (!list || !list.length) return res;
+      for (let i2 = 0; i2 < list.length; i2++) {
+        const b2 = list[i2], H2 = b2.top - b2.base;
+        if (H2 < 25) continue;
+        const rx = x2 - b2.cx, rz = z2 - b2.cz;
+        const a2 = rx * dx + rz * dz, c2 = rx * dz - rz * dx;
+        const cy = Math.cos(b2.yaw), sy = Math.sin(b2.yaw);
+        const ca = Math.abs(dx * cy - dz * sy), sa = Math.abs(dx * sy + dz * cy);
+        const D2 = b2.hw * sa + b2.hl * ca, W3 = b2.hw * ca + b2.hl * sa;
+        const rel = (y2 - b2.base) / H2;
+        if (rel > 1.35 || rel < -0.05) continue;
+        if (rel <= 1) {
+          if (a2 > D2) {
+            const s2 = a2 - D2, Lw = Math.min(H2, 2.5 * W3) * 3.2, wid = W3 * (1 + s2 / (Lw * 0.6));
+            if (s2 < Lw * 1.6 && Math.abs(c2) < wid) {
+              const def = 0.78 * Math.exp(-s2 / Lw) * (1 - smooth3(clamp8((Math.abs(c2) - W3 * 0.6) / (wid - W3 * 0.6 + 1e-3), 0, 1))) * (rel > 0.85 ? 1 - (rel - 0.85) / 0.15 : 1);
+              res.k *= 1 - def;
+              res.kt *= 1 + 2.4 * def;
+              const fs = 0.2 * U2 / Math.max(4, 2 * W3), ph = Math.sin(TAU * fs * t2 - s2 / Math.max(6, W3) * 1.7);
+              res.x += dz * ph * def * U2 * 0.45;
+              res.z += -dx * ph * def * U2 * 0.45;
+            }
+          } else if (a2 > -D2 - H2 * 0.55 && Math.abs(c2) < W3 + 4) {
+            const gap = Math.max(0, -D2 - a2), near = 1 - smooth3(clamp8(gap / (H2 * 0.55), 0, 1));
+            if (Math.abs(c2) < W3) {
+              res.k *= 1 - 0.85 * near;
+              const vert = rel > 0.7 ? (rel - 0.7) / 0.3 * 0.65 : -(0.7 - rel) / 0.7 * 0.4;
+              res.y += vert * U2 * near;
+              res.x += (c2 >= 0 ? dz : -dz) * 0.35 * U2 * near * Math.abs(c2) / W3;
+              res.z += (c2 >= 0 ? -dx : dx) * 0.35 * U2 * near * Math.abs(c2) / W3;
+            }
+          }
+          if (Math.abs(a2) < D2 + 6 && Math.abs(c2) > W3 && Math.abs(c2) < W3 * 1.7 + 8) {
+            const e2 = 1 - clamp8((Math.abs(c2) - W3) / (W3 * 0.7 + 8), 0, 1);
+            res.k *= 1 + 0.42 * e2 * (rel < 0.95 ? 1 : 0.4);
+            res.kt *= 1 + 0.6 * e2;
+          }
+        } else {
+          const lx = rx * cy - rz * sy, lz = rx * sy + rz * cy;
+          if (Math.abs(lx) < b2.hw + 6 && Math.abs(lz) < b2.hl + 6) {
+            const above = clamp8((y2 - b2.top) / (H2 * 0.35), 0, 1);
+            const windward = clamp8(-a2 / Math.max(D2, 1), -1, 1);
+            res.y += U2 * 0.32 * (1 - above) * clamp8(windward + 0.4, 0, 1.4);
+            res.kt *= 1 + 1.5 * (1 - above);
+          }
+        }
+      }
+      return res;
+    }
+  };
+
+  // Engine/src/skydive/Skydiver.js
+  var G4 = 9.81;
+  var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
+  var smooth4 = (t2) => {
+    t2 = clamp9(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  var wrap = (a2) => {
+    while (a2 > Math.PI) a2 -= Math.PI * 2;
+    while (a2 < -Math.PI) a2 += Math.PI * 2;
+    return a2;
+  };
+  var airDensity = (h2) => 1.225 * Math.exp(-Math.max(0, h2) / 8500);
+  var CANOPY_SPECS = {
+    // a 230 sq ft nine-cell sport canopy with a slider: about 44 km/h forward and 4.3 m/s down at trim, glide 2.8
+    sport: { name: "Sport 230", area: 21.4, span: 7.6, chord: 2.8, cells: 9, lines: 6.6, cl: 0.42, cd: 0.152, slider: true, fill: 150, maxBank: 0.8, pc: 0.62 },
+    // a 280 sq ft seven-cell BASE canopy, slider off: bigger, slower (38 km/h, 3.8 m/s down), opens in a few metres
+    base: { name: "BASE 280", area: 26, span: 8, chord: 3.3, cells: 7, lines: 7, cl: 0.45, cd: 0.17, slider: false, fill: 20, maxBank: 0.74, pc: 1.05 }
+  };
+  var BODY = { cdaEdge: 0.2, cdaBox: 0.48, cdaSpread: 0.68, cdaDive: 0.205, cla: 0.36, cdaUpright: 0.3, side: 0.55 };
+  var Skydiver = class {
+    constructor(o2 = {}) {
+      this.mass = o2.mass || 88;
+      this.spec = CANOPY_SPECS[o2.canopy || "base"] || CANOPY_SPECS.base;
+      this.wind = o2.wind || new WindField();
+      this.ground = o2.ground || (() => 0);
+      this.wall = o2.wall || null;
+      this.rand = o2.random || Math.random;
+      this.pos = { x: 0, y: 0, z: 0 };
+      this.vel = { x: 0, y: 0, z: 0 };
+      this.phase = "idle";
+      this.t = 0;
+    }
+    setCanopy(name) {
+      this.spec = CANOPY_SPECS[name] || this.spec;
+    }
+    // Off a roof (from: "building") or out of an aircraft (from: "aircraft"). vel is his velocity as he leaves.
+    exit(o2) {
+      Object.assign(this.pos, o2.pos);
+      Object.assign(this.vel, o2.vel || { x: 0, y: 0, z: 0 });
+      this.yaw = o2.yaw || 0;
+      this.yawRate = 0;
+      this.theta = 0;
+      this.alpha = 1.5;
+      this.alphaV = 0;
+      this.upright = o2.from === "aircraft" ? 0.35 : 1;
+      this.roll = 0;
+      this.tumble = 0;
+      this.phase = "freefall";
+      this.t = 0;
+      this.ffTime = 0;
+      this.exitFrom = o2.from;
+      this.deployT = 0;
+      this.pcOut = 0;
+      this.linesOut = 0;
+      this.fill = 0;
+      this.slider = this.spec.slider ? 1 : 0;
+      this.bank = 0;
+      this.bankV = 0;
+      this.swingP = 0;
+      this.swingPV = 0;
+      this.twists = 0;
+      this.twistDir = 1;
+      this.bL = 0;
+      this.bR = 0;
+      this.riser = 0;
+      this.clDyn = this.spec.cl;
+      this.stallT = 0;
+      this.stalled = false;
+      this.deepT = 0;
+      this.gload = 1;
+      this.maxG = 1;
+      this.offHeading = 0;
+      this.collapsed = false;
+      this.landed = null;
+      this.events = [];
+      this.lastAir = { x: 0, y: 0, z: 0 };
+      return this;
+    }
+    get airspeed() {
+      return Math.hypot(this.vel.x - this.lastAir.x, this.vel.y - this.lastAir.y, this.vel.z - this.lastAir.z);
+    }
+    get altitude() {
+      return this.pos.y - this.ground(this.pos.x, this.pos.z, this.pos.y);
+    }
+    // in: { pitch -1..1 (forward = track / dive), turn -1..1 (right +), dive (head-down button), deploy (true on the frame it is pressed),
+    //       brakeL, brakeR 0..1, risers 0..1 }
+    step(dt, inp = {}) {
+      const ev = this.events = [];
+      if (this.phase === "idle" || this.phase === "landed") return ev;
+      const n2 = Math.max(1, Math.ceil(dt / (1 / 120))), h2 = dt / n2;
+      for (let i2 = 0; i2 < n2 && this.phase !== "landed"; i2++) this.sub(h2, inp, ev, i2 === 0);
+      return ev;
+    }
+    sub(dt, inp, ev, first) {
+      this.t += dt;
+      const p2 = this.pos, v2 = this.vel;
+      const gy = this.ground(p2.x, p2.z, p2.y + 0.5);
+      const w2 = this.wind.sample(p2.x, p2.y, p2.z, this.t + (this.wind.t0 || 0), gy);
+      this.lastAir.x = w2.x;
+      this.lastAir.y = w2.y;
+      this.lastAir.z = w2.z;
+      const ax0 = v2.x - w2.x, ay0 = v2.y - w2.y, az0 = v2.z - w2.z;
+      const V2 = Math.hypot(ax0, ay0, az0) || 1e-6, rho = airDensity(p2.y), q2 = 0.5 * rho * V2 * V2;
+      let fx = 0, fy = -this.mass * G4, fz = 0;
+      if (this.phase === "freefall") {
+        this.ffTime += dt;
+        if (inp.deploy && first) this.startDeploy(ev);
+        const F2 = this.bodyForces(dt, inp, ax0, ay0, az0, V2, q2);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+      } else if (this.phase === "deploy") {
+        const F2 = this.bodyForces(dt, { pitch: 0, turn: 0 }, ax0, ay0, az0, V2, q2);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+        this.deployT += dt;
+        if (this.deployT > 0.32) this.pcOut = Math.min(1, this.pcOut + dt * Math.max(0.6, V2 / 9));
+        const pcDrag = 0.5 * rho * V2 * V2 * this.spec.pc * this.pcOut;
+        if (pcDrag > 45) this.linesOut += dt * clamp9(V2 * 0.7, 4, 24) / (this.spec.lines + 1.2);
+        if (this.linesOut >= 1 && this.fill === 0) {
+          this.fill = 1e-3;
+          const unstable = Math.max(this.pullInstab || 0, Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V2 > 68 ? 0.4 : 0) + this.upright * 0.25);
+          this.offHeading = (this.rand() + this.rand() + this.rand() - 1.5) * (0.22 + unstable * 0.9);
+          if (this.exitFrom === "building" && unstable < 0.6) this.offHeading = clamp9(this.offHeading, -0.35, 0.35);
+          if (unstable > 0.75 && this.rand() < unstable * 0.7) {
+            this.twists = 1 + Math.floor(this.rand() * (1 + unstable * 2));
+            this.twistDir = this.rand() < 0.5 ? -1 : 1;
+          }
+          this.canopyYaw = this.yaw + this.offHeading;
+          ev.push({ type: "linestretch", offHeading: this.offHeading, twists: this.twists });
+        }
+        if (this.fill > 0) {
+          this.fill = Math.min(1, this.fill + dt * Math.max(V2, 4) / this.spec.fill);
+          const e2 = smooth4(this.fill);
+          const frac = this.spec.slider ? this.fill < 0.55 ? 0.085 * smooth4(this.fill / 0.55) : 0.085 + 0.915 * Math.pow(smooth4((this.fill - 0.55) / 0.45), 1.6) : Math.pow(e2, 1.6);
+          this.slider = this.spec.slider ? 1 - smooth4((this.fill - 0.35) / 0.65) : 0;
+          const cda = this.spec.area * 1.25 * frac;
+          const k2 = q2 * cda / V2;
+          fx -= k2 * ax0;
+          fy -= k2 * ay0;
+          fz -= k2 * az0;
+          if (this.fill >= 1) {
+            this.phase = "canopy";
+            this.slider = 0;
+            this.clDyn = this.spec.cl * 0.8;
+            ev.push({ type: "open", g: this.maxG, twists: this.twists, offHeading: this.offHeading });
+          }
+        }
+      } else if (this.phase === "canopy") {
+        const F2 = this.canopyForces(dt, inp, ax0, ay0, az0, V2, q2, ev);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+      } else if (this.phase === "collapsed") {
+        const k2 = q2 * 3.2 / V2;
+        fx -= k2 * ax0;
+        fy -= k2 * ay0;
+        fz -= k2 * az0;
+      }
+      const axx = fx / this.mass, ayy = fy / this.mass, azz = fz / this.mass;
+      this.gload = Math.hypot(axx, ayy + G4, azz) / G4;
+      if (this.phase === "deploy" || this.phase === "canopy" && this.t < 4) this.maxG = Math.max(this.maxG, this.gload);
+      v2.x += axx * dt;
+      v2.y += ayy * dt;
+      v2.z += azz * dt;
+      const nx = p2.x + v2.x * dt, ny = p2.y + v2.y * dt, nz = p2.z + v2.z * dt;
+      if (this.wall) {
+        const hit = this.wall(nx, ny, nz, 0.45) || (this.phase === "canopy" ? this.wall(nx, ny + this.spec.lines * 0.85, nz, this.spec.span * 0.35) : null);
+        if (hit) {
+          const into = -(v2.x * hit.nx + v2.z * hit.nz);
+          if (into > 0) {
+            const where = this.wall(nx, ny, nz, 0.45) ? "body" : "canopy";
+            ev.push({ type: "wall", speed: Math.hypot(v2.x, v2.y, v2.z), into, normal: { x: hit.nx, z: hit.nz }, phase: this.phase, part: where });
+            v2.x += hit.nx * into * 1.1;
+            v2.z += hit.nz * into * 1.1;
+            if (this.phase === "canopy" && where === "canopy" && into > 2.2) {
+              this.phase = "collapsed";
+              ev.push({ type: "collapse" });
+            }
+            return;
+          }
+        }
+      }
+      p2.x = nx;
+      p2.y = ny;
+      p2.z = nz;
+      const g2 = this.ground(p2.x, p2.z, p2.y + 1.2);
+      if (p2.y <= g2) {
+        p2.y = g2;
+        const sink = -v2.y, hz = Math.hypot(v2.x, v2.z), spd = Math.hypot(v2.x, v2.y, v2.z);
+        let quality;
+        if (this.phase !== "canopy") quality = spd > 30 ? "fatal" : spd > 11 ? "impact" : spd > 6 ? "hard" : "good";
+        else if (sink <= 2.6 && hz <= 5.5) quality = "perfect";
+        else if (sink <= 4.2 && hz <= 8) quality = "good";
+        else if (sink <= 6.5 && hz <= 10.5) quality = "hard";
+        else quality = sink > 14 ? "fatal" : "crash";
+        this.landed = { quality, sink, across: hz, speed: spd, phase: this.phase, vel: { x: v2.x, y: v2.y, z: v2.z } };
+        this.phase = "landed";
+        ev.push(Object.assign({ type: "land" }, this.landed));
+      }
+    }
+    startDeploy(ev) {
+      if (this.phase !== "freefall") return false;
+      const V0 = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
+      this.pullInstab = Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V0 > 68 ? 0.4 : 0) + this.upright * 0.25;
+      this.phase = "deploy";
+      this.deployT = 0;
+      this.pcOut = 0;
+      this.linesOut = 0;
+      this.fill = 0;
+      this.maxG = 1;
+      ev.push({ type: "deploy", speed: Math.hypot(this.vel.x, this.vel.y, this.vel.z), alt: this.altitude });
+      return true;
+    }
+    deploy() {
+      return this.startDeploy(this.events);
+    }
+    // the body as a lifting surface (freefall, and while the canopy is coming out)
+    bodyForces(dt, inp, ax, ay, az, V2, q2) {
+      this.upright = Math.max(0, this.upright - dt * this.upright * (0.25 + q2 / 520) - dt * 0.02);
+      const auth = (1 - this.upright) * clamp9(q2 / 900, 0.12, 1.15);
+      const pitch = clamp9(inp.pitch || 0, -1, 1), turn = clamp9(inp.turn || 0, -1, 1);
+      const spread = Math.max(-pitch, 0), fwd = Math.max(pitch, 0);
+      const aT = inp.dive ? 0.12 : lerp(1.54, 0.6, fwd) + 0.05 * spread;
+      const wn = 1.1 + 3.6 * clamp9(q2 / 1800, 0, 1) * (1 - this.upright * 0.8);
+      if (this.alpha === void 0) this.alpha = 1.5;
+      this.alphaV = (this.alphaV || 0) + (wn * wn * (aT - this.alpha) - 2 * 0.7 * wn * (this.alphaV || 0)) * dt;
+      this.alpha = clamp9(this.alpha + this.alphaV * dt, 0.02, 1.75);
+      const yrT = -turn * (1.55 + fwd * 0.4) * clamp9(auth, 0, 1.1);
+      this.yawRate += (yrT - this.yawRate) * (1 - Math.exp(-dt * (1.8 + 3 * auth)));
+      this.yaw = wrap(this.yaw + this.yawRate * dt);
+      this.roll += (turn * (0.3 + fwd * 0.5) - this.roll) * (1 - Math.exp(-dt * 4));
+      const hx = Math.sin(this.yaw), hz = Math.cos(this.yaw);
+      const along = ax * hx + az * hz, sx = ax - along * hx, sz = az - along * hz;
+      const gam = Math.atan2(ay, along);
+      const alpha = this.alpha;
+      this.theta = -alpha - gam;
+      const s2 = Math.sin(alpha) ** 2;
+      const flat = lerp(BODY.cdaBox, BODY.cdaSpread, spread);
+      const edge = lerp(BODY.cdaEdge, BODY.cdaDive, inp.dive ? 1 : 0);
+      let cda = edge + (flat - edge) * s2, cla = BODY.cla * Math.sin(2 * alpha) * (1 - spread * 0.5);
+      cda = lerp(cda, BODY.cdaUpright, this.upright);
+      cla *= 1 - this.upright;
+      const Vp = Math.hypot(along, ay) || 1e-6;
+      const dk = q2 * cda / V2, lk = q2 * cla / Vp;
+      const lh = -Math.sin(gam), lv = Math.cos(gam);
+      return {
+        x: -dk * ax + lk * Vp * lh * hx - q2 * BODY.side * (sx / V2) * 0.5,
+        y: -dk * ay + lk * Vp * lv,
+        z: -dk * az + lk * Vp * lh * hz - q2 * BODY.side * (sz / V2) * 0.5
+      };
+    }
+    // the canopy as a wing
+    canopyForces(dt, inp, ax, ay, az, V2, q2, ev) {
+      const S4 = this.spec;
+      const rate = 4.2 * dt, toward = (a2, b2) => a2 + clamp9(b2 - a2, -rate, rate);
+      let bl = clamp9(inp.brakeL || 0, 0, 1), br = clamp9(inp.brakeR || 0, 0, 1), rs = clamp9(inp.risers || 0, 0, 1);
+      if (this.twists > 0) {
+        bl = br = 0;
+        rs = 0;
+        this.twists = Math.max(0, this.twists - dt * 0.85);
+        if (this.twists === 0) ev.push({ type: "untwisted" });
+      }
+      this.bL = toward(this.bL, bl);
+      this.bR = toward(this.bR, br);
+      this.riser = toward(this.riser, rs);
+      const sym = (this.bL + this.bR) / 2, asym = this.bR - this.bL;
+      let clT = S4.cl + 0.6 * sym * sym + 0.12 * sym - 0.11 * this.riser;
+      let cd = S4.cd + 0.34 * sym * sym + 0.06 * Math.abs(asym) + 0.02 * this.riser;
+      if (sym > 0.9 && V2 < 9.5) this.deepT += dt;
+      else this.deepT = Math.max(0, this.deepT - dt * 2);
+      if (!this.stalled && this.deepT > 2) {
+        this.stalled = true;
+        this.stallT = 0;
+        ev.push({ type: "stall" });
+      }
+      if (this.stalled) {
+        this.stallT += dt;
+        clT = 0.22;
+        cd = 0.95;
+        if (sym < 0.55 && this.stallT > 0.6) {
+          this.stalled = false;
+          this.deepT = 0;
+          ev.push({ type: "recovered" });
+        }
+      }
+      this.clDyn += (clT - this.clDyn) * (1 - Math.exp(-dt / (clT > this.clDyn ? 0.12 : 0.35)));
+      const cl = this.clDyn;
+      const bankT = this.twists > 0 ? this.twistDir * 0.35 : clamp9(asym * S4.maxBank * clamp9(V2 / 10.5, 0.45, 1.1) * (1 + 0.4 * this.riser), -1.2, 1.2);
+      const wn = 1.5, zeta = 0.5;
+      this.bankV += (wn * wn * (bankT - this.bank) - 2 * zeta * wn * this.bankV) * dt;
+      this.bank += this.bankV * dt;
+      const vx = ax / V2, vy = ay / V2, vz = az / V2;
+      const Vh = Math.hypot(ax, az), Lmag = q2 * S4.area * cl;
+      if (this.twists > 0) this.canopyYaw = wrap(this.canopyYaw + this.twistDir * 1.6 * dt);
+      else this.canopyYaw = wrap(this.canopyYaw - Lmag * Math.sin(this.bank) / (this.mass * Math.max(Vh, 4)) * dt);
+      this.yaw = this.canopyYaw;
+      const rx = -Math.cos(this.canopyYaw), rz = Math.sin(this.canopyYaw);
+      const rdv = rx * vx + rz * vz;
+      let px = rx - rdv * vx, py = -rdv * vy, pz = rz - rdv * vz;
+      const pl = Math.hypot(px, py, pz) || 1;
+      px /= pl;
+      py /= pl;
+      pz /= pl;
+      let l0x = py * vz - pz * vy, l0y = pz * vx - px * vz, l0z = px * vy - py * vx;
+      if (l0y < 0) {
+        l0x = -l0x;
+        l0y = -l0y;
+        l0z = -l0z;
+      }
+      const cb = Math.cos(this.bank), sb = Math.sin(this.bank);
+      const lx = cb * l0x + sb * px, ly = cb * l0y + sb * py, lz = cb * l0z + sb * pz;
+      const L3 = Lmag, D2 = q2 * S4.area * cd + q2 * 0.45;
+      const hx = Math.sin(this.canopyYaw), hzz = Math.cos(this.canopyYaw);
+      const side = ax * hzz - az * hx, sideF = -q2 * 2.2 * side / V2;
+      const along = ax * hx + az * hzz;
+      const accel = (along - (this.prevAlong === void 0 ? along : this.prevAlong)) / Math.max(dt, 1e-4);
+      this.prevAlong = along;
+      const Lp = S4.lines;
+      this.swingPV += (-G4 / Lp * this.swingP - 1.4 * this.swingPV - clamp9(accel, -25, 25) / Lp) * dt;
+      this.swingP = clamp9(this.swingP + this.swingPV * dt, -1.1, 1.1);
+      return {
+        x: L3 * lx - D2 * vx + sideF * hzz,
+        y: L3 * ly - D2 * vy,
+        z: L3 * lz - D2 * vz - sideF * hx
+      };
+    }
+    // a snapshot for the HUD and for drawing
+    state() {
+      const v2 = this.vel;
+      return {
+        phase: this.phase,
+        t: this.t,
+        alt: this.altitude,
+        pos: this.pos,
+        vel: v2,
+        speed: Math.hypot(v2.x, v2.y, v2.z),
+        sink: -v2.y,
+        ground: Math.hypot(v2.x, v2.z),
+        airspeed: this.airspeed,
+        yaw: this.yaw,
+        theta: this.theta,
+        roll: this.roll,
+        upright: this.upright,
+        fill: this.fill,
+        pcOut: this.pcOut,
+        linesOut: this.linesOut,
+        bank: this.bank,
+        swing: this.swingP,
+        brakeL: this.bL,
+        brakeR: this.bR,
+        risers: this.riser,
+        twists: this.twists,
+        stalled: this.stalled,
+        g: this.gload,
+        maxG: this.maxG,
+        wind: this.lastAir
+      };
+    }
+  };
+
+  // Engine/src/skydive/CanopyModel.js
+  var CANOPY_SCHEMES = {
+    // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
+    ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },
+    sunrise: { cells: ["#f2efe8", "#f39a1e", "#e4572e", "#f2efe8", "#e4572e", "#f39a1e", "#f2efe8", "#f39a1e", "#e4572e"], accent: "#1d2330", under: "#d9d2c3" },
+    harbour: { cells: ["#0d3b66", "#f2efe8", "#0d3b66", "#4d9de0", "#f2efe8", "#4d9de0", "#0d3b66", "#f2efe8", "#0d3b66"], accent: "#f2efe8", under: "#13304f" },
+    sakura: { cells: ["#f2efe8", "#e8a0b4", "#f2efe8", "#b8325a", "#f2efe8", "#b8325a", "#f2efe8", "#e8a0b4", "#f2efe8"], accent: "#b8325a", under: "#e5d9d6" }
+  };
+  var clamp10 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth5 = (t2) => {
+    t2 = clamp10(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  function canvas(w2, h2) {
+    const c2 = document.createElement("canvas");
+    c2.width = w2;
+    c2.height = h2;
+    return c2;
+  }
+  function hex(c2) {
+    const n2 = parseInt(c2.slice(1), 16);
+    return [n2 >> 16 & 255, n2 >> 8 & 255, n2 & 255];
+  }
+  function normalFromHeight(H2, w2, h2, strength) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), img = g2.createImageData(w2, h2), d2 = img.data;
+    const at = (x2, y2) => H2[(y2 + h2) % h2 * w2 + (x2 + w2) % w2];
+    for (let y2 = 0; y2 < h2; y2++) for (let x2 = 0; x2 < w2; x2++) {
+      const dx = at(x2 + 1, y2 - 1) + 2 * at(x2 + 1, y2) + at(x2 + 1, y2 + 1) - (at(x2 - 1, y2 - 1) + 2 * at(x2 - 1, y2) + at(x2 - 1, y2 + 1));
+      const dy = at(x2 - 1, y2 + 1) + 2 * at(x2, y2 + 1) + at(x2 + 1, y2 + 1) - (at(x2 - 1, y2 - 1) + 2 * at(x2, y2 - 1) + at(x2 + 1, y2 - 1));
+      let nx = -dx * strength, ny = -dy * strength, nz = 1;
+      const l2 = Math.hypot(nx, ny, nz);
+      nx /= l2;
+      ny /= l2;
+      nz /= l2;
+      const i2 = (y2 * w2 + x2) * 4;
+      d2[i2] = (nx * 0.5 + 0.5) * 255;
+      d2[i2 + 1] = (ny * 0.5 + 0.5) * 255;
+      d2[i2 + 2] = (nz * 0.5 + 0.5) * 255;
+      d2[i2 + 3] = 255;
+    }
+    g2.putImageData(img, 0, 0);
+    return c2;
+  }
+  function grayCanvas(V2, w2, h2) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), img = g2.createImageData(w2, h2), d2 = img.data;
+    for (let i2 = 0; i2 < w2 * h2; i2++) {
+      const v2 = clamp10(V2[i2], 0, 1) * 255;
+      d2[i2 * 4] = d2[i2 * 4 + 1] = d2[i2 * 4 + 2] = v2;
+      d2[i2 * 4 + 3] = 255;
+    }
+    g2.putImageData(img, 0, 0);
+    return c2;
+  }
+  function rnd(seed) {
+    let s2 = seed >>> 0;
+    return () => {
+      s2 = s2 * 1664525 + 1013904223 >>> 0;
+      return s2 / 4294967296;
+    };
+  }
+  function paintCanopy(scheme, cells, top) {
+    const W3 = 1024, Hh = 512, c2 = canvas(W3, Hh), g2 = c2.getContext("2d"), R2 = rnd(top ? 7 : 11);
+    const cw = W3 / cells;
+    for (let i2 = 0; i2 < cells; i2++) {
+      const col = top ? scheme.cells[i2 % scheme.cells.length] : scheme.under;
+      g2.fillStyle = col;
+      g2.fillRect(Math.floor(i2 * cw), 0, Math.ceil(cw) + 1, Hh);
+      const gr = g2.createLinearGradient(i2 * cw, 0, (i2 + 1) * cw, 0);
+      gr.addColorStop(0, "rgba(0,0,0,0.10)");
+      gr.addColorStop(0.5, "rgba(255,255,255,0.05)");
+      gr.addColorStop(1, "rgba(0,0,0,0.10)");
+      g2.fillStyle = gr;
+      g2.fillRect(i2 * cw, 0, cw, Hh);
+      for (let p2 = 0; p2 < 4; p2++) {
+        g2.fillStyle = "rgba(" + (R2() < 0.5 ? "0,0,0" : "255,255,255") + "," + (0.015 + R2() * 0.02) + ")";
+        g2.fillRect(i2 * cw, p2 * Hh / 4, cw, Hh / 4);
+      }
+    }
+    const [ar, ag2, ab] = hex(scheme.accent);
+    for (let i2 = 0; i2 <= cells; i2++) {
+      g2.fillStyle = "rgba(20,20,22,0.55)";
+      g2.fillRect(i2 * cw - 3, 0, 6, Hh);
+      g2.fillStyle = "rgba(255,255,255,0.12)";
+      g2.fillRect(i2 * cw - 1, 0, 1, Hh);
+    }
+    for (let i2 = 0; i2 < cells; i2++) {
+      g2.fillStyle = "rgba(15,15,18,0.22)";
+      g2.fillRect(i2 * cw + cw / 2 - 1.5, 0, 3, Hh);
+    }
+    g2.fillStyle = "rgba(" + ar + "," + ag2 + "," + ab + ",0.9)";
+    g2.fillRect(0, 0, W3, 10);
+    if (top) {
+      const cx = W3 / 2, cy = Hh * 0.42;
+      g2.fillStyle = "rgba(" + ar + "," + ag2 + "," + ab + ",0.92)";
+      g2.beginPath();
+      g2.arc(cx, cy, cw * 0.32, 0, Math.PI * 2);
+      g2.fill();
+      g2.fillStyle = "rgba(242,239,232,0.9)";
+      g2.fillRect(cx - cw * 1.4, Hh * 0.72, cw * 2.8, 9);
+    }
+    const id = g2.getImageData(0, 0, W3, Hh), d2 = id.data;
+    for (let i2 = 0; i2 < d2.length; i2 += 4) {
+      const n2 = (R2() - 0.5) * 9;
+      d2[i2] = clamp10(d2[i2] + n2, 0, 255);
+      d2[i2 + 1] = clamp10(d2[i2 + 1] + n2, 0, 255);
+      d2[i2 + 2] = clamp10(d2[i2 + 2] + n2, 0, 255);
+    }
+    g2.putImageData(id, 0, 0);
+    const H2 = new Float32Array(W3 * Hh), Rg2 = new Float32Array(W3 * Hh);
+    for (let y2 = 0; y2 < Hh; y2++) for (let x2 = 0; x2 < W3; x2++) {
+      const gx = x2 % 8 < 1 ? 1 : 0, gy = y2 % 8 < 1 ? 1 : 0;
+      const u2 = x2 % cw / cw, seam = Math.min(u2, 1 - u2) * cw < 4 ? 1 : 0, mid = Math.abs(u2 - 0.5) * cw < 2 ? 0.6 : 0;
+      const pucker = Math.exp(-Math.min(u2, 1 - u2) * cw / 9) * 0.5 * (0.5 + 0.5 * Math.sin(y2 * 0.35 + x2 * 0.05));
+      H2[y2 * W3 + x2] = gx * 0.35 + gy * 0.35 + seam * 1.2 + mid + pucker + (R2() - 0.5) * 0.08;
+      Rg2[y2 * W3 + x2] = 0.48 + seam * 0.18 + (gx || gy ? 0.05 : 0) + (R2() - 0.5) * 0.06;
+    }
+    return { map: c2, normal: normalFromHeight(H2, W3, Hh, 1.6), rough: grayCanvas(Rg2, W3, Hh) };
+  }
+  function paintWeave(base, seed, w2 = 512, h2 = 512, coarse = 4, roughBase = 0.78) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), R2 = rnd(seed), [r0, g0, b0] = hex(base);
+    const img = g2.createImageData(w2, h2), d2 = img.data, H2 = new Float32Array(w2 * h2), Rg2 = new Float32Array(w2 * h2);
+    for (let y2 = 0; y2 < h2; y2++) for (let x2 = 0; x2 < w2; x2++) {
+      const over = Math.floor(x2 / coarse) + Math.floor(y2 / coarse) & 1 ? 1 : 0;
+      const t2 = over ? Math.sin(x2 % coarse / coarse * Math.PI) : Math.sin(y2 % coarse / coarse * Math.PI);
+      const n2 = (R2() - 0.5) * 14 + t2 * 10 - 5, i2 = (y2 * w2 + x2) * 4;
+      d2[i2] = clamp10(r0 + n2, 0, 255);
+      d2[i2 + 1] = clamp10(g0 + n2, 0, 255);
+      d2[i2 + 2] = clamp10(b0 + n2, 0, 255);
+      d2[i2 + 3] = 255;
+      H2[y2 * w2 + x2] = t2;
+      Rg2[y2 * w2 + x2] = roughBase + (R2() - 0.5) * 0.1 - t2 * 0.06;
+    }
+    g2.putImageData(img, 0, 0);
+    return { map: c2, normal: normalFromHeight(H2, w2, h2, 2.2), rough: grayCanvas(Rg2, w2, h2) };
+  }
+  var CanopyRig = class {
+    constructor(THREE, o2 = {}) {
+      this.THREE = THREE;
+      this.spec = o2.spec;
+      this.scheme = CANOPY_SCHEMES[o2.scheme] || CANOPY_SCHEMES.ink;
+      this.group = new THREE.Group();
+      this.group.name = "canopy-rig";
+      this.cells = this.spec.cells;
+      this.NU = this.cells * 6;
+      this.NV = 18;
+      this.mats = this.materials();
+      this.buildWing();
+      this.buildLines();
+      this.buildRisers();
+      this.buildSlider();
+      this.buildPilot();
+      this.update({ fill: 1, slider: 0, brakeL: 0, brakeR: 0, risers: 0, pcOut: 1, linesOut: 1, phase: "canopy", t: 0 });
+    }
+    tex(cnv, srgb, rep) {
+      const T2 = this.THREE, t2 = new T2.CanvasTexture(cnv);
+      if (srgb) t2.encoding = T2.sRGBEncoding;
+      t2.anisotropy = 8;
+      t2.wrapS = t2.wrapT = T2.RepeatWrapping;
+      if (rep) t2.repeat.set(rep[0], rep[1]);
+      return t2;
+    }
+    pbr(set, extra, rep) {
+      const T2 = this.THREE;
+      return new T2.MeshStandardMaterial(Object.assign({
+        map: this.tex(set.map, true, rep),
+        normalMap: this.tex(set.normal, false, rep),
+        roughnessMap: this.tex(set.rough, false, rep),
+        roughness: 1,
+        metalness: 0
+      }, extra || {}));
+    }
+    materials() {
+      const T2 = this.THREE, cells = this.cells;
+      const top = paintCanopy(this.scheme, cells, true), bot = paintCanopy(this.scheme, cells, false);
+      const m2 = {
+        top: this.pbr(top, { side: T2.DoubleSide, normalScale: new T2.Vector2(0.6, 0.6) }),
+        bottom: this.pbr(bot, { side: T2.DoubleSide, normalScale: new T2.Vector2(0.6, 0.6) }),
+        rib: this.pbr(paintWeave(this.scheme.under, 21, 256, 256, 3, 0.6), { side: T2.DoubleSide }, [2, 1]),
+        stab: this.pbr(paintWeave(this.scheme.accent, 23, 256, 256, 3, 0.55), { side: T2.DoubleSide }, [2, 2]),
+        webbing: this.pbr(paintWeave("#23262c", 31, 256, 256, 2, 0.72), {}, [1, 6]),
+        cordura: this.pbr(paintWeave("#1f2a36", 41, 512, 512, 3, 0.86), {}, [2, 2]),
+        mesh: this.pbr(paintWeave("#2a2c30", 51, 256, 256, 2, 0.8), { side: T2.DoubleSide }, [3, 3])
+      };
+      m2.line = new T2.LineBasicMaterial({ color: 2829875, transparent: true, opacity: 0.8 });
+      return m2;
+    }
+    // the inflated shape: span s in -1..1, chord v 0 (nose) .. 1 (tail), top or bottom skin
+    // -> a point in the canopy's frame (origin at the riser confluence)
+    shape(s2, v2, top, st) {
+      const S4 = this.spec, half = S4.span / 2, H2 = S4.lines + 0.55;
+      const ang = s2 * 0.62, R2 = half / Math.sin(0.62);
+      let x2 = Math.sin(ang) * R2, y2 = H2 - (1 - Math.cos(ang)) * R2 * 0.9;
+      const c2 = S4.chord, th = 0.17 * c2;
+      const t2 = 2.9 * th * (Math.sqrt(v2) * 0.297 - 0.126 * v2 - 0.351 * v2 * v2 + 0.284 * v2 * v2 * v2 - 0.1015 * v2 * v2 * v2 * v2);
+      const camber = 0.035 * c2 * Math.sin(Math.PI * Math.min(1, v2 / 0.95));
+      let z2 = (0.3 - v2) * c2;
+      const cf = (s2 + 1) / 2 * this.cells, cu = cf - Math.floor(cf), pillow = Math.sin(Math.PI * cu) * 0.045 * c2 * (0.4 + Math.sqrt(Math.max(v2, 0)) * 0.6) * (1 - v2 * 0.7);
+      let yy = camber + (top ? t2 + pillow : -t2 * 0.35 - pillow * 0.6);
+      const side = s2 < 0 ? st.brakeL : st.brakeR, tipW = 0.35 + 0.65 * Math.abs(s2);
+      const tail = smooth5((v2 - 0.62) / 0.38), defl = (side * 0.62 + st.flutter * Math.sin(st.t * 23 + s2 * 9) * 0.02) * tail * tipW;
+      yy -= Math.sin(defl) * (v2 - 0.62) * c2 * 1.15;
+      z2 += (1 - Math.cos(defl)) * (v2 - 0.62) * c2 * 0.5;
+      const pit = -0.06 * st.risers;
+      const zz = z2 * Math.cos(pit) - yy * Math.sin(pit), yr = z2 * Math.sin(pit) + yy * Math.cos(pit);
+      return [x2 + Math.sin(ang) * yr, y2 + Math.cos(ang) * yr, zz];
+    }
+    buildWing() {
+      const T2 = this.THREE, NU = this.NU, NV = this.NV;
+      const grid = (nv) => {
+        const g2 = new T2.BufferGeometry(), n2 = (NU + 1) * (nv + 1);
+        g2.setAttribute("position", new T2.BufferAttribute(new Float32Array(n2 * 3), 3));
+        const uv = new Float32Array(n2 * 2), idx = [];
+        for (let j2 = 0; j2 <= nv; j2++) for (let i2 = 0; i2 <= NU; i2++) {
+          const k2 = j2 * (NU + 1) + i2;
+          uv[k2 * 2] = i2 / NU;
+          uv[k2 * 2 + 1] = j2 / nv;
+        }
+        for (let j2 = 0; j2 < nv; j2++) for (let i2 = 0; i2 < NU; i2++) {
+          const a2 = j2 * (NU + 1) + i2, b2 = a2 + 1, d2 = a2 + NU + 1, e2 = d2 + 1;
+          idx.push(a2, d2, b2, b2, d2, e2);
+        }
+        g2.setAttribute("uv", new T2.BufferAttribute(uv, 2));
+        g2.setIndex(idx);
+        return g2;
+      };
+      this.topGeo = grid(NV);
+      this.botGeo = grid(NV);
+      this.top = new T2.Mesh(this.topGeo, this.mats.top);
+      this.bot = new T2.Mesh(this.botGeo, this.mats.bottom);
+      this.top.castShadow = true;
+      this.top.frustumCulled = false;
+      this.bot.frustumCulled = false;
+      this.group.add(this.top, this.bot);
+      const ribN = this.cells + 1, RV = 12;
+      const rg = new T2.BufferGeometry(), rp = new Float32Array(ribN * (RV + 1) * 2 * 3), ruv = new Float32Array(ribN * (RV + 1) * 2 * 2), ri = [];
+      for (let r2 = 0; r2 < ribN; r2++) for (let j2 = 0; j2 <= RV; j2++) {
+        const base = (r2 * (RV + 1) + j2) * 2;
+        ruv[base * 2] = j2 / RV;
+        ruv[base * 2 + 1] = 0;
+        ruv[base * 2 + 2] = j2 / RV;
+        ruv[base * 2 + 3] = 1;
+        if (j2 < RV) {
+          const a2 = base, b2 = base + 1, c2 = base + 2, d2 = base + 3;
+          ri.push(a2, c2, b2, b2, c2, d2);
+        }
+      }
+      rg.setAttribute("position", new T2.BufferAttribute(rp, 3));
+      rg.setAttribute("uv", new T2.BufferAttribute(ruv, 2));
+      rg.setIndex(ri);
+      this.ribGeo = rg;
+      this.ribs = new T2.Mesh(rg, this.mats.rib);
+      this.ribs.frustumCulled = false;
+      this.group.add(this.ribs);
+      this.RV = RV;
+      const sg2 = new T2.BufferGeometry();
+      sg2.setAttribute("position", new T2.BufferAttribute(new Float32Array(2 * 3 * 3), 3));
+      sg2.setAttribute("uv", new T2.BufferAttribute(new Float32Array([0, 1, 1, 1, 0.5, 0, 0, 1, 1, 1, 0.5, 0]), 2));
+      this.stabGeo = sg2;
+      this.stabs = new T2.Mesh(sg2, this.mats.stab);
+      this.stabs.frustumCulled = false;
+      this.group.add(this.stabs);
+    }
+    buildLines() {
+      const T2 = this.THREE;
+      this.lineRows = [0.04, 0.28, 0.52, 0.78];
+      const ribN = this.cells + 1, n2 = ribN * this.lineRows.length + 2 * 5 + 2 * 4 + 1;
+      const g2 = new T2.BufferGeometry();
+      g2.setAttribute("position", new T2.BufferAttribute(new Float32Array(n2 * 2 * 3), 3));
+      this.lineGeo = g2;
+      this.lines = new T2.LineSegments(g2, this.mats.line);
+      this.lines.frustumCulled = false;
+      this.group.add(this.lines);
+    }
+    buildRisers() {
+      const T2 = this.THREE;
+      this.risers = [];
+      for (let k2 = 0; k2 < 4; k2++) {
+        const m2 = new T2.Mesh(new T2.BoxGeometry(0.045, 0.56, 6e-3), this.mats.webbing);
+        this.group.add(m2);
+        this.risers.push(m2);
+      }
+      this.toggles = [];
+      for (let k2 = 0; k2 < 2; k2++) {
+        const m2 = new T2.Mesh(new T2.BoxGeometry(0.03, 0.14, 0.03), this.mats.webbing);
+        this.group.add(m2);
+        this.toggles.push(m2);
+      }
+    }
+    buildSlider() {
+      const T2 = this.THREE, g2 = new T2.PlaneGeometry(1.1, 0.9, 6, 6);
+      g2.rotateX(-Math.PI / 2);
+      this.sliderMesh = new T2.Mesh(g2, this.mats.mesh);
+      this.sliderMesh.visible = !!this.spec.slider;
+      this.group.add(this.sliderMesh);
+      this.sliderBase = g2.attributes.position.array.slice();
+    }
+    buildPilot() {
+      const T2 = this.THREE, pc = new T2.Group();
+      const cap = new T2.Mesh(new T2.SphereGeometry(0.48, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), this.mats.stab);
+      cap.position.y = 0;
+      pc.add(cap);
+      const net = new T2.Mesh(new T2.CylinderGeometry(0.33, 0.06, 0.55, 14, 1, true), this.mats.mesh);
+      net.position.y = -0.38;
+      pc.add(net);
+      this.pilot = pc;
+      this.group.add(pc);
+      const bg2 = new T2.BufferGeometry();
+      bg2.setAttribute("position", new T2.BufferAttribute(new Float32Array(6), 3));
+      this.bridle = new T2.Line(bg2, this.mats.line);
+      this.bridle.frustumCulled = false;
+      this.group.add(this.bridle);
+      this.bagMesh = new T2.Mesh(new T2.BoxGeometry(0.36, 0.2, 0.26), this.mats.cordura);
+      this.group.add(this.bagMesh);
+    }
+    // The container on his back: a rounded Cordura pack with the reserve on top, the main below, the pilot chute pouch
+    // at the bottom and the yoke over the shoulders. About 0.42 x 0.55 x 0.17 m.
+    makeContainer() {
+      const T2 = this.THREE, g2 = new T2.Group();
+      g2.name = "container";
+      const rounded = (w2, h2, d2, r2) => {
+        const geo = new T2.BoxGeometry(w2, h2, d2, 6, 8, 3), p2 = geo.attributes.position;
+        for (let i2 = 0; i2 < p2.count; i2++) {
+          const x2 = p2.getX(i2), y2 = p2.getY(i2), z2 = p2.getZ(i2);
+          const ix = clamp10(x2, -w2 / 2 + r2, w2 / 2 - r2), iy = clamp10(y2, -h2 / 2 + r2, h2 / 2 - r2), iz = clamp10(z2, -d2 / 2 + r2, d2 / 2 - r2);
+          const dx = x2 - ix, dy = y2 - iy, dz = z2 - iz, l2 = Math.hypot(dx, dy, dz) || 1;
+          p2.setXYZ(i2, ix + dx / l2 * Math.min(r2, l2), iy + dy / l2 * Math.min(r2, l2), iz + dz / l2 * Math.min(r2, l2));
+        }
+        geo.computeVertexNormals();
+        return geo;
+      };
+      const main = new T2.Mesh(rounded(0.4, 0.34, 0.16, 0.05), this.mats.cordura);
+      main.position.set(0, -0.08, 0);
+      g2.add(main);
+      const res = new T2.Mesh(rounded(0.38, 0.2, 0.13, 0.045), this.mats.cordura);
+      res.position.set(0, 0.18, -0.01);
+      g2.add(res);
+      const bot = new T2.Mesh(rounded(0.3, 0.07, 0.1, 0.03), this.mats.cordura);
+      bot.position.set(0, -0.28, 0.01);
+      g2.add(bot);
+      for (const s2 of [-1, 1]) {
+        const strap = new T2.Mesh(new T2.BoxGeometry(0.05, 0.5, 0.012), this.mats.webbing);
+        strap.position.set(s2 * 0.13, 0.05, 0.085);
+        g2.add(strap);
+      }
+      main.castShadow = res.castShadow = true;
+      g2.userData.flap = main;
+      return g2;
+    }
+    // st: { fill 0..1, slider 0..1 (1 at the top), brakeL, brakeR, risers, pcOut, linesOut, phase, t }
+    update(st) {
+      const S4 = this.spec, NU = this.NU, NV = this.NV, cells = this.cells;
+      st.flutter = st.phase === "canopy" ? 1 : 3;
+      const fill = st.phase === "canopy" ? 1 : st.phase === "deploy" ? clamp10(st.fill || 0, 0, 1) : 1;
+      const stretch = st.phase === "deploy" ? clamp10(st.linesOut || 0, 0, 1) : 1;
+      const H2 = S4.lines + 0.55;
+      const cellFill = (s2) => smooth5((fill - Math.abs(s2) * 0.45) / 0.55);
+      const P3 = (s2, v2, top) => {
+        const f2 = cellFill(s2), q2 = this.shape(s2, v2, top, st);
+        if (f2 >= 0.999) return q2;
+        const fl = Math.sin(st.t * 17 + s2 * 7 + v2 * 5) * 0.12 * (1 - f2);
+        const yTop = H2 * stretch;
+        const c2 = [s2 * 0.18 + fl, yTop + 0.2 - v2 * 1.8 * (1 - f2 * 0.5) + (top ? 0.05 : 0), (0.3 - v2) * 0.5 + fl * 0.5];
+        const k2 = f2 * f2;
+        return [c2[0] + (q2[0] - c2[0]) * k2, c2[1] + (q2[1] - c2[1]) * k2, c2[2] + (q2[2] - c2[2]) * k2];
+      };
+      const fillSkin = (geo, top, v0) => {
+        const a2 = geo.attributes.position.array;
+        for (let j2 = 0; j2 <= NV; j2++) for (let i2 = 0; i2 <= NU; i2++) {
+          const s2 = i2 / NU * 2 - 1, v2 = top ? j2 / NV : v0 + (1 - v0) * j2 / NV, q2 = P3(s2, v2, top), k2 = (j2 * (NU + 1) + i2) * 3;
+          a2[k2] = q2[0];
+          a2[k2 + 1] = q2[1];
+          a2[k2 + 2] = q2[2];
+        }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+      };
+      fillSkin(this.topGeo, true, 0);
+      fillSkin(this.botGeo, false, 0.075);
+      const ra = this.ribGeo.attributes.position.array, RV = this.RV;
+      for (let r2 = 0; r2 <= cells; r2++) {
+        const s2 = r2 / cells * 2 - 1;
+        for (let j2 = 0; j2 <= RV; j2++) {
+          const v2 = 0.02 + 0.98 * j2 / RV, t2 = P3(s2, v2, true), b2 = P3(s2, Math.max(v2, 0.075), false), base = (r2 * (RV + 1) + j2) * 2 * 3;
+          ra[base] = t2[0];
+          ra[base + 1] = t2[1] - 0.01;
+          ra[base + 2] = t2[2];
+          ra[base + 3] = b2[0];
+          ra[base + 4] = b2[1] + 0.01;
+          ra[base + 5] = b2[2];
+        }
+      }
+      this.ribGeo.attributes.position.needsUpdate = true;
+      this.ribGeo.computeVertexNormals();
+      this.ribGeo.computeBoundingSphere();
+      const sa = this.stabGeo.attributes.position.array;
+      [-1, 1].forEach((s2, k2) => {
+        const a2 = P3(s2, 0.08, false), b2 = P3(s2, 0.85, false), m2 = P3(s2, 0.45, false);
+        const drop = [m2[0] - s2 * 0.05, m2[1] - 0.75 * cellFill(s2), m2[2]];
+        sa.set([a2[0], a2[1], a2[2], b2[0], b2[1], b2[2], drop[0], drop[1], drop[2]], k2 * 9);
+      });
+      this.stabGeo.attributes.position.needsUpdate = true;
+      this.stabGeo.computeVertexNormals();
+      this.stabs.visible = fill > 0.6;
+      const rTop = 0.56, rx = 0.17;
+      const riserEnds = [[-rx, rTop, 0.06], [-rx, rTop, -0.06], [rx, rTop, 0.06], [rx, rTop, -0.06]];
+      this.risers.forEach((m2, k2) => {
+        const e2 = riserEnds[k2];
+        m2.position.set(e2[0] * 0.75, rTop / 2, e2[2]);
+        m2.rotation.set(0, 0, -e2[0] * 0.25);
+      });
+      this.toggles.forEach((m2, k2) => {
+        const side = k2 ? 1 : -1, b2 = k2 ? st.brakeR : st.brakeL;
+        m2.position.set(side * (rx * 0.9 + b2 * 0.05), rTop - 0.05 - b2 * 0.55, -0.1 + b2 * 0.06);
+      });
+      const la = this.lineGeo.attributes.position.array;
+      let w2 = 0;
+      const seg = (a2, b2) => {
+        la[w2++] = a2[0];
+        la[w2++] = a2[1];
+        la[w2++] = a2[2];
+        la[w2++] = b2[0];
+        la[w2++] = b2[1];
+        la[w2++] = b2[2];
+      };
+      const stretchF = stretch;
+      for (let r2 = 0; r2 <= cells; r2++) {
+        const s2 = r2 / cells * 2 - 1;
+        this.lineRows.forEach((v2, k2) => {
+          const a2 = P3(s2, v2, false), e2 = riserEnds[(s2 < 0 ? 0 : 2) + (k2 < 2 ? 0 : 1)];
+          seg([a2[0], a2[1], a2[2]], [e2[0] + (a2[0] - e2[0]) * 0.03 * (1 - stretchF), e2[1], e2[2]]);
+        });
+      }
+      for (const side of [-1, 1]) {
+        const tog = this.toggles[side < 0 ? 0 : 1].position, cas = [side * S4.span * 0.22, H2 * 0.55, -S4.chord * 0.25];
+        seg([tog.x, tog.y, tog.z], cas);
+        for (let k2 = 0; k2 < 4; k2++) {
+          const s2 = side * (0.25 + k2 * 0.25), te = P3(s2, 0.99, false);
+          seg(cas, te);
+        }
+      }
+      const sl = st.phase === "deploy" ? clamp10(st.slider !== void 0 ? st.slider : 1, 0, 1) : 0;
+      if (this.sliderMesh.visible) {
+        const sy = 0.65 + sl * (H2 * stretch - 1.2);
+        this.sliderMesh.position.set(0, sy, 0);
+        const pa = this.sliderMesh.geometry.attributes.position.array, b0 = this.sliderBase;
+        for (let i2 = 0; i2 < pa.length; i2 += 3) {
+          pa[i2] = b0[i2] * (0.5 + sl * 0.6);
+          pa[i2 + 2] = b0[i2 + 2] * (0.5 + sl * 0.6);
+          pa[i2 + 1] = -Math.hypot(b0[i2], b0[i2 + 2]) * 0.12 * sl + Math.sin(st.t * 9 + b0[i2] * 8) * 0.02;
+        }
+        this.sliderMesh.geometry.attributes.position.needsUpdate = true;
+        this.sliderMesh.geometry.computeVertexNormals();
+      }
+      const top0 = P3(0, 0.35, true), pcY = st.phase === "deploy" ? Math.max(top0[1], H2 * stretch) + 1.6 + 1.8 * clamp10(st.pcOut || 0, 0, 1) : top0[1] + 0.9;
+      this.pilot.position.set(0, pcY, top0[2] - (st.phase === "canopy" ? 2.6 : 0.6));
+      this.pilot.rotation.set(st.phase === "canopy" ? -1.2 : 0, 0, 0);
+      this.pilot.scale.setScalar(st.phase === "canopy" ? 0.55 : 0.6 + 0.4 * clamp10(st.pcOut || 0, 0, 1));
+      const ba = this.bridle.geometry.attributes.position.array;
+      ba.set([top0[0], top0[1], top0[2], this.pilot.position.x, this.pilot.position.y - 0.4, this.pilot.position.z]);
+      this.bridle.geometry.attributes.position.needsUpdate = true;
+      this.bagMesh.visible = st.phase === "deploy" && fill < 0.2;
+      this.bagMesh.position.set(0, H2 * stretch + 0.3, 0);
+    }
+    dispose() {
+      this.group.traverse((o2) => {
+        if (o2.geometry) o2.geometry.dispose();
+      });
+      Object.values(this.mats).forEach((m2) => {
+        ["map", "normalMap", "roughnessMap"].forEach((k2) => m2[k2] && m2[k2].dispose());
+        m2.dispose();
+      });
     }
   };
   return __toCommonJS(index_exports);

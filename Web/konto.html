@@ -1292,6 +1292,7 @@
 <script src="art/interface.js"></script>
 <script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
+<script src="art/shop-aaa.js"></script>
 <script src="art/realism.js"></script>
 <script src="art/brands.js"></script>
 <script src="art/signfonts/fonts.js"></script>
@@ -7342,7 +7343,7 @@ function windowLightsTexture(src, key) {
   try { px = g.getImageData(0, 0, S, S).data; } catch (e) { return null; }
 
   const n = S * S;
-  const dark = new Uint8Array(n);
+  const dark = new Uint8Array(n), lum = new Float32Array(n);
   // A glass curtain wall's panes are mid blue-grey, a good deal brighter than a
   // plaster building's black window openings, so what counts as "a window"
   // depends on what kind of wall it is.
@@ -7350,6 +7351,7 @@ function windowLightsTexture(src, key) {
   const cutoff = 0.33;
   for (let i = 0; i < n; i++) {
     const l = (px[i * 4] * 0.299 + px[i * 4 + 1] * 0.587 + px[i * 4 + 2] * 0.114) / 255;
+    lum[i] = l;
     // plaster: the window is the darkest thing on the wall. glass: the panes
     // are brighter than the frame between them, so the window is a band of
     // tone, and a plain "dark" cutoff joins every pane through the frame into
@@ -7391,12 +7393,30 @@ function windowLightsTexture(src, key) {
     sizes.push(count);
     next++;
   }
+  // A region is the dark part of a pane, not the pane. Photographed glass is
+  // shaded (sky reflected in the top, a bright streak down the middle), so the
+  // dark part of a pane is an arch or a U, and lighting just that drew an
+  // upside-down U in every window at night. A lit room fills its whole pane:
+  // each region is lit as a rectangle (below), never as its own outline.
+  // raw is the glass mask before erosion, so frames are judged at real width.
+  const raw = new Uint8Array(n);
+  if (isGlass) for (let i = 0; i < n; i++) raw[i] = (lum[i] > 0.345 && lum[i] < 0.72) ? 1 : 0;
+  const bx0 = new Int32Array(next).fill(S), by0 = new Int32Array(next).fill(S), bx1 = new Int32Array(next).fill(-1), by1 = new Int32Array(next).fill(-1);
+  for (let i = 0; i < n; i++) {
+    const k = label[i]; if (!k) continue;
+    const x = i % S, y = (i / S) | 0;
+    if (x < bx0[k]) bx0[k] = x; if (x > bx1[k]) bx1[k] = x;
+    if (y < by0[k]) by0[k] = y; if (y > by1[k]) by1[k] = y;
+  }
   // Too small is dirt in the plaster and too large is a wall that happens to
-  // be dark; neither is a window.
+  // be dark; neither is a window. A region that fills little of its own
+  // rectangle is a crack or a shadow line, not a pane.
   const lo = n * 0.0009, hi = n * 0.30;
   const lit = new Array(next).fill(null);
   for (let k = 1; k < next; k++) {
     if (sizes[k] < lo || sizes[k] > hi) continue;
+    const bw = bx1[k] - bx0[k] + 1, bh = by1[k] - by0[k] + 1;
+    if (bw * bh > hi || sizes[k] < bw * bh * 0.35) continue;
     const r = rnd(k, key.length, 7331);
     if (r < (/glass/.test(key) ? 0.55 : 0.42)) continue;      // dark room
     const warm = rnd(k, 3, 7333);
@@ -7406,14 +7426,38 @@ function windowLightsTexture(src, key) {
     lit[k] = [tint[0] * level, tint[1] * level, tint[2] * level];
   }
   const out = g.createImageData(S, S), o = out.data;
-  for (let i = 0; i < n; i++) {
-    const k = label[i];
-    const c2 = k ? lit[k] : null;
-    o[i * 4 + 3] = 255;
-    if (!c2) continue;
-    o[i * 4]     = Math.round(255 * c2[0]);
-    o[i * 4 + 1] = Math.round(255 * c2[1]);
-    o[i * 4 + 2] = Math.round(255 * c2[2]);
+  for (let i = 0; i < n; i++) o[i * 4 + 3] = 255;
+  for (let k = 1; k < next; k++) {
+    const c2 = lit[k]; if (!c2) continue;
+    let x0 = bx0[k], x1 = bx1[k], y0 = by0[k], y1 = by1[k];
+    // On a plaster or banded wall the pane runs right up to the pale frame, but
+    // its shaded top or bottom can sit just above the dark cutoff: grow the
+    // rectangle out to the frame on each side, a little at most.
+    if (!isGlass) {
+      const lineMean = (ax, ay, bx2, by2) => { let s = 0, c = 0; for (let y = ay; y <= by2; y++) for (let x = ax; x <= bx2; x++) { s += lum[y * S + x]; c++; } return s / c; };
+      // the pane carries on while the next line is still pane-toned: dark, and
+      // near the region's own tone (a dark stone pier beside it is not pane)
+      let rs = 0, rc = 0;
+      for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) if (label[y * S + x] === k) { rs += lum[y * S + x]; rc++; }
+      const rm = rs / rc, pane = v => v < 0.55 && Math.abs(v - rm) < 0.1;
+      const lim = Math.max(4, Math.round(Math.max(x1 - x0, y1 - y0) * 0.75));
+      for (let t = 0; t < lim && y0 > 0 && pane(lineMean(x0, y0 - 1, x1, y0 - 1)); t++) y0--;
+      for (let t = 0; t < lim && y1 < S - 1 && pane(lineMean(x0, y1 + 1, x1, y1 + 1)); t++) y1++;
+      for (let t = 0; t < lim && x0 > 0 && pane(lineMean(x0 - 1, y0, x0 - 1, y1)); t++) x0--;
+      for (let t = 0; t < lim && x1 < S - 1 && pane(lineMean(x1 + 1, y0, x1 + 1, y1)); t++) x1++;
+    }
+    const colOn = [], rowOn = [];
+    // glass: cut the frame bars back out (a grown plaster pane has none in it)
+    for (let x = x0; x <= x1; x++) { let s = 0; if (isGlass) for (let y = y0; y <= y1; y++) s += raw[y * S + x]; colOn.push(!isGlass || s > (y1 - y0 + 1) * 0.1); }
+    for (let y = y0; y <= y1; y++) { let s = 0; if (isGlass) for (let x = x0; x <= x1; x++) s += raw[y * S + x]; rowOn.push(!isGlass || s > (x1 - x0 + 1) * 0.1); }
+    const R = Math.round(255 * c2[0]), G = Math.round(255 * c2[1]), B = Math.round(255 * c2[2]);
+    for (let y = y0; y <= y1; y++) {
+      if (!rowOn[y - y0]) continue;
+      for (let x = x0; x <= x1; x++) {
+        if (!colOn[x - x0]) continue;
+        const i = (y * S + x) * 4; o[i] = R; o[i + 1] = G; o[i + 2] = B;
+      }
+    }
   }
   g.putImageData(out, 0, 0);
   const tex = new THREE.CanvasTexture(c);
@@ -7431,7 +7475,10 @@ const facadeCache = {};
 // apartment blocks and a civic grid. Each photograph covers so many metres of real wall (size), and is scaled to the style's repeat. The
 // drawn texture stays until the photograph has loaded, and stays for good if it never does. The lit-window maps come from the same
 // photographs taken at night where there is one.
-const FACADE_PHOTOS = { office: { size: [18, 29] }, glass: { size: [24, 24] }, flats: { size: [14.4, 19.8], lights: true }, civic: { size: [16, 21], lights: true } };
+// The glass set is painted (Tools/facades/make_glass_curtain_wall.py): storey-high panes between 1.5 m mullions,
+// spandrel bands and a half-seen office, because the photographed mosaic it replaced averaged to one flat blue on a
+// tower and read as a bare mirror. Every set has a roughness map (glass smooth, walls rough).
+const FACADE_PHOTOS = { office: { size: [18, 29] }, glass: { size: [12, 14.4], lights: true }, flats: { size: [14.4, 19.8], lights: true }, civic: { size: [16, 21], lights: true } };
 function facadePhoto(side, style, spec) {
   const P = FACADE_PHOTOS[style]; if (!P || gameSet.drawnFacades) return;
   const L = new THREE.TextureLoader(), base = "art/facades/" + style;
@@ -7439,6 +7486,8 @@ function facadePhoto(side, style, spec) {
   L.load(base + "_color.jpg", t => {
     side.map = prep(t, true);
     if (side.isMeshStandardMaterial) L.load(base + "_normal.jpg", n => { side.normalMap = prep(n, false); side.normalMap.repeat = side.map.repeat; side.normalScale = new THREE.Vector2(1, 1); side.needsUpdate = true; });
+    // roughness from the map: the panes take the sky, the walls and frames do not. pbrTune must not see the 1.0 and dull it.
+    if (side.isMeshStandardMaterial) L.load(base + "_rough.jpg", r => { side.roughnessMap = prep(r, false); side.roughnessMap.repeat = side.map.repeat; side.roughness = 1; side.userData.pbrDone = true; side.needsUpdate = true; }, undefined, () => {});
     const lit = () => { try { const w = windowLightsTexture(t.image, style + ":photo"); if (w) { w.repeat = side.map.repeat; side.emissiveMap = w; side.emissive = new THREE.Color(1, 1, 1); side.needsUpdate = true; } } catch (e) { /* no lit windows */ } };
     if (P.lights) L.load(base + "_lights.jpg", e => { side.emissiveMap = prep(e, true); side.emissiveMap.repeat = side.map.repeat; side.emissive = new THREE.Color(1, 1, 1); side.needsUpdate = true; }, undefined, lit); else lit();
     side.needsUpdate = true;
@@ -7485,7 +7534,10 @@ function facadeMaterials(style) {
   const side = gfx.high
     ? new THREE.MeshStandardMaterial({
         map: facadeTexture(style),
-        roughness: glassy ? 0.12 : 0.74, metalness: glassy ? 0.55 : 0.04,
+        // glass is a dielectric: its reflection comes from the Fresnel term, strong at a glancing angle and weak
+        // face on, so the curtain wall's mullions, spandrels and rooms show through. At metalness 0.55 the
+        // texture was swamped and the towers read as untextured mirrors.
+        roughness: glassy ? 0.12 : 0.74, metalness: glassy ? 0.0 : 0.04,
         envMap: gfx.env || null, envMapIntensity: glassy ? 1.25 : 0.4
       })
     : new THREE.MeshLambertMaterial({ map: facadeTexture(style) });
@@ -7930,8 +7982,8 @@ function buildSotiTower(plot) {
   shell.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
   shell.computeVertexNormals();
   const glass = gfx.high
-    ? new THREE.MeshStandardMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide,
-        roughness: 0.11, metalness: 0.55, envMap: gfx.env || null, envMapIntensity: 1.3 })
+    ? new THREE.MeshStandardMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide,   // dielectric glass: see facadeMaterials
+        roughness: 0.11, metalness: 0.0, envMap: gfx.env || null, envMapIntensity: 1.3 })
     : new THREE.MeshLambertMaterial({ map: facadeTexture("glass"), side: THREE.DoubleSide });
   if (glass.map && glass.map.image) {
     const lights = windowLightsTexture(glass.map.image, "sotiglass");
@@ -9726,6 +9778,7 @@ function buildScene(w) {
   sea.geometry.rotateX(-Math.PI / 2);
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
   root.add(sea);
+  water.sea = sea;
   try { waterPatch(root); } catch (e) { console.warn("[Konto] no swell:", e); water.patch = null; }
 
   // Shops are chosen now, before any building goes up, because each one is a
@@ -10178,6 +10231,8 @@ function buildScene(w) {
   buildTraffic(w, root);
   buildRail(w, root);
   buildRailStops();
+  try { buildCrossings(w, root); } catch (e) { console.warn("[Konto] crossings:", e); }
+  buildSolidGrid();
   buildNav(w);
   placeSafehouses(w);
   buildShopSigns(root);
@@ -12249,11 +12304,21 @@ function buildCarparks(root, w) {
 // deep, with a line of white foam and the water thinning to nothing where it meets the beach. That fade is also what hides the shore's
 // shape: the ground is laid out every nineteen metres, and a hard waterline traced its steps.
 const water = { mats: [], heightTex: null, normTex: null, t: 0 };
+// The ground under the water, per heightfield sample. The holiday islands are not in the island's heightfield (they are laid over the open
+// sea with their own height functions), so without this the sea shaders thought they were deep water: no shallows, no surf on their beaches,
+// and the swell ran straight up the sand. Their own heights go in where they stand.
+function waterGroundAt(H, x, z, i) {
+  const h = H[world.idx ? world.idx(x, z) : i];
+  if (typeof DEST === "undefined" || !DEST.sites.length) return h;
+  const wx = x * CELL, wz = z * CELL;
+  for (const s of DEST.sites) if (Math.abs(wx - s.cx) < s.hx && Math.abs(wz - s.cz) < s.hz) return s.h(wx - s.cx, wz - s.cz);
+  return h;
+}
 function waterHeightTexture() {
   if (water.heightTex && water.heightFor === world) return water.heightTex;
   const H = world.height, data = new Uint8Array(GRID_X * GRID_Z * 4);
   for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
-    const i = z * GRID_X + x, h = H[world.idx ? world.idx(x, z) : i];
+    const i = z * GRID_X + x, h = waterGroundAt(H, x, z, i);
     data[i * 4] = Math.round(clamp01((h + 25) / 50) * 255); data[i * 4 + 3] = 255;
   }
   // which low ground is the sea: flooded in from the edge of the map through everything below the waterline (and the cells beside it,
@@ -12282,7 +12347,7 @@ function waterHeightTexture() {
 function waterHeightTextureF() {
   if (water.heightTexF && water.heightForF === world) return water.heightTexF;
   const H = world.height, data = new Float32Array(GRID_X * GRID_Z * 4);
-  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = H[world.idx ? world.idx(x, z) : i]; data[i * 4 + 3] = 1; }
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = waterGroundAt(H, x, z, i); data[i * 4 + 3] = 1; }
   const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
   water.heightTexF = t; water.heightForF = world;
@@ -14265,13 +14330,38 @@ const DET_STYLE = {
   kura:    { floor: 3.4, bay: 4.5, ww: 0.18, wh: 0.22, wall: [0.86, 0.84, 0.78], frame: [0.15, 0.12, 0.10], trim: [0.15, 0.12, 0.10], pil: 0.0, timber: true },
   coast:   { floor: 3.0, bay: 2.6, ww: 0.50, wh: 0.44, wall: [0.62, 0.60, 0.54], frame: [0.24, 0.20, 0.17], trim: [0.30, 0.26, 0.22], pil: 0.15, timber: true, skirt: true }
 };
+// the window-glass set, shared, and the world-space projection that stands in for UVs (a face takes the plane its normal faces)
+const WINGLASS = {};
+function winGlassTex(kind) {
+  if (WINGLASS[kind]) return WINGLASS[kind];
+  const t = new THREE.TextureLoader().load("art/facades/winglass_" + kind + ".jpg");
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (kind === "color") t.encoding = THREE.sRGBEncoding;
+  sharpTex(t);
+  return (WINGLASS[kind] = t);
+}
+function winGlassProject(m) {
+  m.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader.replace("#include <uv_vertex>", `#include <uv_vertex>
+#ifdef USE_UV
+  { vec3 wpG = (modelMatrix * vec4(position, 1.0)).xyz, nG = abs(normalize(mat3(modelMatrix) * normal));
+    vUv = (nG.x > 0.5 ? wpG.zy : nG.z > 0.5 ? wpG.xy : wpG.xz) * 0.25; }
+#endif`);
+  };
+  m.customProgramCacheKey = () => "konto-winglass";
+}
 function detailMats() {
   if (DETAIL.mats) return DETAIL.mats;
   const hi = gfx.high, env = gfx.env || null;
   const solid = hi ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.86, metalness: 0.03 }) : new THREE.MeshLambertMaterial({ vertexColors: true });
-  const glass = hi ? new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.07, metalness: 0.65, envMap: env, envMapIntensity: 1.1 }) : new THREE.MeshLambertMaterial({ color: 0x1a2c3c });
-  const lit = hi ? new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.1, metalness: 0.4, envMap: env, envMapIntensity: 0.6, emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 })
-                  : new THREE.MeshLambertMaterial({ color: 0x1a2c3c, emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 });
+  // Window glass is a dielectric (metalness 0): a dim room face on, the sky at a glancing angle. It was a flat colour with a metal
+  // finish, a mirror in every window. Now it carries the window-glass set (Tools/facades/make_window_glass.py: a dim interior, the
+  // ripple of float glass, smudges and dried rain), projected in world space at 4 m a tile, since these panes have no UVs.
+  const glass = hi ? new THREE.MeshStandardMaterial({ map: winGlassTex("color"), normalMap: winGlassTex("normal"), roughnessMap: winGlassTex("rough"), normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1, metalness: 0.0, envMap: env, envMapIntensity: 1.1 })
+                   : new THREE.MeshLambertMaterial({ map: winGlassTex("color") });
+  const lit = hi ? new THREE.MeshStandardMaterial({ map: winGlassTex("color"), normalMap: winGlassTex("normal"), roughnessMap: winGlassTex("rough"), normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1, metalness: 0.0, envMap: env, envMapIntensity: 0.6, emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 })
+                 : new THREE.MeshLambertMaterial({ map: winGlassTex("color"), emissive: new THREE.Color(1.0, 0.78, 0.46), emissiveIntensity: nightState.lit > 0 ? nightState.lit * 1.3 : 0 });
+  [glass, lit].forEach(m => { winGlassProject(m); m.userData.pbrDone = true; m.userData.shared = true; });
   nightMats.push({ m: lit, gain: 1.3 });
   DETAIL.mats = { solid: solid, glass: glass, lit: lit };
   return DETAIL.mats;
@@ -15162,6 +15252,9 @@ function planStreets(w, city, boxes) {
   }));
   // a run that was carried into another of its own line's runs becomes one run
   lines.forEach(L => { L.runs.sort((p, q) => p[0] - q[0]); for (let i = L.runs.length - 1; i > 0; i--) if (L.runs[i][0] <= L.runs[i - 1][1] + 0.01) { L.runs[i - 1][1] = Math.max(L.runs[i - 1][1], L.runs[i][1]); L.runs.splice(i, 1); } });
+  // and none laid down the length of a railway on the ground: they cross it, at a level crossing, or stop short
+  const offRail = streetsOffRails(city, lines);
+  if (offRail) console.log("[Konto] " + city.name + ": " + Math.round(offRail) + " m of street taken off the tracks");
   city.streetPlan = lines.filter(L => L.runs.length);
   // a grid of the finished streets, for anything placed later that has to keep off them (the trees)
   {
@@ -15592,7 +15685,7 @@ const BADGE = {
   busFlag: [4, 2], busBlind: [5, 2], busBrand: [6, 2], busTimes: [7, 2],
   hayabin: [0, 3], hayabinBox: [1, 3], truckDoor: [2, 3], shrineSign: [3, 3],
   dogPlaque: [4, 3], crossingSign: [5, 3], screenOff: [6, 3], vending: [7, 3],
-  ambDoor: [0, 4], fireDoor: [1, 4]
+  ambDoor: [0, 4], fireDoor: [1, 4], pedSignal: [2, 4], pedSign: [3, 4], carSignal: [4, 4], fumikiri: [5, 4]
 };
 
 const ATLAS_CELLS = 8;
@@ -15848,6 +15941,33 @@ function badgeAtlas() {
   cell("fireDoor", (g, P) => {
     text("\u6d88\u9632", P / 2, P * 0.34, 26, "#f4f5f2", JP);
     text("KONTO FIRE", P / 2, P * 0.64, 15, "#f4f5f2");
+  });
+  // ---- the crossings (see buildCrossings): the unlit faces; what is lit is drawn over them
+  cell("pedSignal", (g, P) => {
+    // a pedestrian head, unlit: two dark lenses with the red and green figures just showing, under hoods
+    fill("#16181b", P);
+    [[0.27, "#3a1512"], [0.73, "#0f2a20"]].forEach(q => { g.fillStyle = "#0b0c0e"; g.beginPath(); g.arc(P / 2, P * q[0], P * 0.2, 0, 7); g.fill(); g.fillStyle = q[1]; g.fillRect(P * 0.44, P * (q[0] - 0.1), P * 0.12, P * 0.2); g.beginPath(); g.arc(P / 2, P * (q[0] - 0.13), P * 0.04, 0, 7); g.fill(); });
+  });
+  cell("pedSign", (g, P) => {
+    // the blue 横断歩道 sign: a white triangle, a walking figure, the zebra under it
+    fill("#1b55b3", P);
+    g.fillStyle = "#f4f5f2"; g.beginPath(); g.moveTo(P / 2, P * 0.1); g.lineTo(P * 0.9, P * 0.82); g.lineTo(P * 0.1, P * 0.82); g.closePath(); g.fill();
+    g.fillStyle = "#1a1c20"; g.beginPath(); g.arc(P * 0.52, P * 0.34, P * 0.05, 0, 7); g.fill();
+    g.lineWidth = P * 0.05; g.strokeStyle = "#1a1c20"; g.beginPath(); g.moveTo(P * 0.5, P * 0.4); g.lineTo(P * 0.47, P * 0.58); g.lineTo(P * 0.4, P * 0.7); g.moveTo(P * 0.47, P * 0.58); g.lineTo(P * 0.56, P * 0.7); g.moveTo(P * 0.5, P * 0.45); g.lineTo(P * 0.6, P * 0.52); g.stroke();
+    g.fillStyle = "#1a1c20"; for (let k = 0; k < 5; k++) g.fillRect(P * (0.25 + k * 0.11), P * 0.74, P * 0.06, P * 0.05);
+    text("\u6a2a\u65ad\u6b69\u9053", P / 2, P * 0.92, 14, "#f4f5f2", JP);
+  });
+  cell("carSignal", (g, P) => {
+    // a Japanese car signal: three lenses in a row, green, amber, red, unlit
+    g.fillStyle = "#1a1c1f"; g.fillRect(0, P * 0.34, P, P * 0.32);
+    [["#0e2a22", 0.17], ["#2e2410", 0.5], ["#2e1210", 0.83]].forEach(q => { g.fillStyle = "#0a0b0c"; g.beginPath(); g.arc(P * q[1], P / 2, P * 0.13, 0, 7); g.fill(); g.fillStyle = q[0]; g.beginPath(); g.arc(P * q[1], P / 2, P * 0.1, 0, 7); g.fill(); });
+  });
+  cell("fumikiri", (g, P) => {
+    // the crossbuck of a 踏切: two crossed yellow-and-black boards
+    g.clearRect(0, 0, P, P);
+    [1, -1].forEach(d => { g.save(); g.translate(P / 2, P / 2); g.rotate(d * Math.PI / 4); g.fillStyle = "#e6b417"; g.fillRect(-P * 0.48, -P * 0.09, P * 0.96, P * 0.18);
+      g.fillStyle = "#121212"; for (let x = -P * 0.48; x < P * 0.48; x += P * 0.16) g.fillRect(x, -P * 0.09, P * 0.08, P * 0.18); g.restore(); });
+    text("\u8e0f\u5207", P / 2, P * 0.5, 16, "#f4f5f2", JP);
   });
 
   // ---- NHRail. Nihon Rail, which runs the loop line, the radials and the
@@ -16469,7 +16589,7 @@ const CAR_KINDS = [
     marques: ["kaneda"], dispatch: true },
   // Off-road: a 450 cc dirt bike and a full-suspension mountain bike. Rented at the
   // bike parks on the mountains, or spawned with a cheat; never in the traffic.
-  { name: "dirtbike", palette: "bike", body: "dirtbike", L: 2.12, W: 0.82, H: 1.40, share: 0, top: 30,
+  { name: "dirtbike", palette: "bike", body: "dirtbike", L: 2.12, W: 0.82, H: 1.40, share: 0.008, top: 30,
     marques: ["kaneda"], dispatch: true },
   { name: "mtb", palette: "bike", body: "mtb", L: 1.78, W: 0.72, H: 1.34, share: 0, top: 14,
     marques: ["kaneda"], dispatch: true },
@@ -18231,6 +18351,7 @@ function updateTraffic(dt, at) {
       const car = traffic.cars[here[k]];
       let limit = car.dispatch ? car.top : Math.min(lane.speed, car.top);
       if (car.cap < limit) limit = car.cap;
+      limit = xingLimit(car, lane, limit);
       if (car.crash > 0) limit = 0;
       // On a loop the last car's leader is the first car, one lap on.
       const wrap = k + 1 >= here.length && lane.loop && here.length > 1;
@@ -18304,7 +18425,7 @@ function updateTraffic(dt, at) {
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
                           drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), (TWO_WHEELERS[CAR_KINDS[drive.car.kind].body]?drive.car.slide||0:-((drive.car.roll||0)+(drive.car.roadRoll||0))/.22), drive.car.dmg, drive.car.livery);
   _carManned = false;
-  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, 0, 0, p.dmg, p.livery));
+  drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, p.pitch || 0, p.slide || 0, p.dmg, p.livery));   // a bike left lying after a crash has a slide (its lean)
   _carManned = true;
   dispatch.units.forEach(u => { if (u.free) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
   police.units.forEach(u => { if (u.live) writeCar(u.kind, u.pos, u.yaw, u.colour, [0, 0], 0, 0, null, u.svc); });
@@ -18660,6 +18781,720 @@ function updateRail(dt, at) {
     }
   });
   railSpawn(at);
+  xingTick(dt, at);
+  pedNetTick();
+}
+
+// ---- crossings: level crossings, traffic signals, zebra crossings, and where people may cross ------------------------------------------
+// Three rules, said by Duncan and kept here: a train crosses a road only at a level crossing (barriers, flashing lamps, a bell, and every
+// car and person waiting while it is down); people never step onto an open road and never walk beside a highway; and they cross a street
+// only at a zebra crossing with signals, where the cars on that street have a red light and stop.
+//
+//  - The carriageway oracle (xingRoadAt) knows every carriageway at grade: the avenues, the footway streets, the country roads and coast
+//    highway, and the track bed of every line on the ground. The narrow lanes without a footway are shared space and are not in it.
+//  - Junctions are found where two footway streets meet, where a footway street meets an avenue, and where two avenues meet. Each gets a
+//    signal cycle; each arm a person could cross gets a zebra, set back from the junction, with a pedestrian signal at both ends, and the
+//    avenue arms a stop line and a signal for the cars, which stop at it on red (xingLimit, in updateTraffic). The scramble keeps its own
+//    painted crossings and gets an all-red phase in which people cross every way at once.
+//  - Level crossings are found wherever a line on the ground meets any road. The cars and the people stop while a train is near.
+//  - People walk a footway network (pedNet): the footways of the streets and avenues, cut wherever they would run over a carriageway or a
+//    track, joined round the corners, and joined across a road only by a crossing edge, which they take only when it is open to them.
+const xing = { list: [], junctions: [], level: [], ready: false, segs: [], grid: null, GC: 40, xgrid: null, chunks: [], dyn: null, near: [], bellT: 0, nearT: 0 };
+const XING_PRI = { rail: 5, hwy: 4, art: 3, street: 2 };
+
+function xingSegKey(x, z) { return Math.floor(x / xing.GC) + "," + Math.floor(z / xing.GC); }
+function xingAddSeg(s) {
+  const i = xing.segs.length; xing.segs.push(s);
+  const r = s.hw + 2, G = xing.GC;
+  for (let gx = Math.floor((Math.min(s.ax, s.bx) - r) / G); gx <= Math.floor((Math.max(s.ax, s.bx) + r) / G); gx++)
+    for (let gz = Math.floor((Math.min(s.az, s.bz) - r) / G); gz <= Math.floor((Math.max(s.az, s.bz) + r) / G); gz++) {
+      const k = gx + "," + gz; let l = xing.grid.get(k); if (!l) xing.grid.set(k, l = []); l.push(i);
+    }
+}
+// The carriageway (or track bed) at (x, z), widened by pad: the one that matters most there, or null where a person may stand.
+function xingRoadAt(x, z, pad) {
+  if (!xing.grid) return null;
+  const l = xing.grid.get(xingSegKey(x, z)); if (!l) return null;
+  let best = null;
+  for (let i = 0; i < l.length; i++) {
+    const s = xing.segs[l[i]];
+    if (distToSeg(x, z, s.ax, s.az, s.bx, s.bz) < s.hw + (pad || 0) && (!best || XING_PRI[s.kind] > XING_PRI[best.kind])) best = s;
+  }
+  return best;
+}
+function xingWalkable(x, z) { return !xingRoadAt(x, z, 0.25) && !insideBuilding(x, z, 0.3) && world.sampleHeight(x, z) > 0.35; }
+function xingLineClear(ax, az, bx, bz) {
+  const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / 0.8));
+  for (let k = 0; k <= n; k++) { const t = k / n; if (!xingWalkable(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
+  return true;
+}
+function xingSegIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
+  const rx = bx - ax, rz = bz - az, sx = dx - cx, sz = dz - cz, den = rx * sz - rz * sx;
+  if (Math.abs(den) < 1e-9) return null;
+  const t = ((cx - ax) * sz - (cz - az) * sx) / den, u = ((cx - ax) * rz - (cz - az) * rx) / den;
+  return t >= 0 && t <= 1 && u >= 0 && u <= 1 ? { x: ax + rx * t, z: az + rz * t, t: t, u: u } : null;
+}
+function xingSurfY(x, z) { let y = world.surfaceY(x, z); const o = world.overlayY ? world.overlayY(x, z) : null; if (o !== null && o !== undefined && o > y) y = o; return y; }
+
+// ---- signal timing ------------------------------------------------------------------------------------------------------------------------
+// A junction has two groups of road, 0 and 1. Cars: green, amber 3 s, all red 2 s, then the other group. People cross the roads of a group
+// while that group is red and the other is green: walking, then the little green man flashing for the last 5 s. A scramble adds a phase in
+// which every car is red and people cross every way, diagonals included.
+function xingCycle(j) { const g0 = j.g0, g1 = j.g1, sc = j.kind === "scramble" ? 22 : 0; return { g0: g0, g1: g1, sc: sc, T: g0 + 5 + g1 + 5 + sc + (sc ? 2 : 0) }; }
+function xingState(j, t) {
+  const C = j.cyc || (j.cyc = xingCycle(j)), u = ((t + j.off) % C.T + C.T) % C.T;
+  // returns car lights per group ("G" / "Y" / "R") and the pedestrian state across each group ("W" walk, "F" flashing, "D" don't), and the scramble's
+  let c0 = "R", c1 = "R", p0 = "D", p1 = "D", ps = "D";
+  if (u < C.g0) { c0 = "G"; p1 = u < C.g0 - 5 ? "W" : "F"; }
+  else if (u < C.g0 + 3) c0 = "Y";
+  else if (u < C.g0 + 5) { }
+  else if (u < C.g0 + 5 + C.g1) { c1 = "G"; const v = u - C.g0 - 5; p0 = v < C.g1 - 5 ? "W" : "F"; }
+  else if (u < C.g0 + 8 + C.g1) c1 = "Y";
+  else if (u < C.g0 + 10 + C.g1) { }
+  else if (C.sc && u < C.g0 + 10 + C.g1 + C.sc) { const v = u - C.g0 - 10 - C.g1; ps = v < C.sc - 5 ? "W" : "F"; p0 = p1 = ps; }
+  return { c: [c0, c1], p: [p0, p1], s: ps };
+}
+function xingTime() { return clock; }
+// May a person step onto crossing X now? (Someone already on it carries on, whatever the lights do.)
+function xingPedGo(X) {
+  if (!X) return true;
+  if (X.type === "level") return !X.lx.closed;
+  const st = xingState(X.j, xingTime());
+  if (X.diag) return st.s === "W";
+  return st.p[X.grp] === "W";
+}
+function xingPedLight(X) { if (X.type === "level") return X.lx.closed ? "D" : "W"; const st = xingState(X.j, xingTime()); return X.diag ? st.s : st.p[X.grp]; }
+// Must a car this far (gap, metres) from the stop line, at speed v, stop for X?
+function xingCarStop(X, gap, v) {
+  if (X.type === "level") return X.lx.closed || X.lx.warnT > 0;
+  const c = xingState(X.j, xingTime()).c[X.grp];
+  if (c === "G") return false;
+  if (c === "Y") return v * v / (2 * 5.5) < gap + 0.5;     // amber: stop if it can, comfortably
+  return true;
+}
+// The speed limit a traffic car keeps for the crossings ahead of it on its lane.
+function xingLimit(car, lane, limit) {
+  const S = lane.xstops; if (!S || !S.length || car.dispatch) return limit;
+  const front = car.s + (car.half || 2);
+  for (let i = 0; i < S.length; i++) {
+    let gap = S[i].s - front;
+    if (lane.loop && gap < -2) gap += lane.length;
+    if (gap < -1.5 || gap > 70) continue;
+    if (xingCarStop(S[i].X, gap, car.v)) limit = Math.min(limit, gap <= 0.3 ? 0 : Math.sqrt(2 * 4.2 * (gap - 0.3)));
+  }
+  return limit;
+}
+
+// ---- finding them ---------------------------------------------------------------------------------------------------------------------------
+function buildCrossings(w, root) {
+  xing.list = []; xing.junctions = []; xing.level = []; xing.segs = []; xing.grid = new Map(); xing.ready = false; xing.chunks = []; xing.near = [];
+  pedNet.ready = false; pedNet.gen = null;
+  if (!w.cities || !w.cities.length) return;
+  const t0 = performance.now();
+  // 1. the carriageways
+  const streetsOf = [];
+  w.cities.forEach((city, ci) => {
+    const b = city.bounds, paved = (x, z) => !!b && x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+    city.roads.forEach((r, ri) => {
+      if (r.elevated || r.cls === "ramp" || !r.pts || r.pts.length < 2) return;
+      const kind = r.cls === "arterial" ? "art" : "hwy", P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+      for (let i = 1; i < P.length; i++) xingAddSeg({ ax: P[i - 1][0], az: P[i - 1][2], bx: P[i][0], bz: P[i][2], hw: r.halfWidth, kind: kind, road: r, city: ci, i: i - 1, ay: P[i - 1][1], by: P[i][1] });
+    });
+    const st = [];
+    (city.streetPlan || []).forEach(L => L.runs.forEach(run => {
+      const a = L.pt(run[0]), c = L.pt(run[1]);
+      const s = { ax: a[0], az: a[1], bx: c[0], bz: c[1], hw: L.hw, fw: L.fw, kind: L.fw > 0 ? "street" : "alley", L: L, run: run, city: ci };
+      if (s.kind === "street") xingAddSeg(s);
+      st.push(s);
+    }));
+    streetsOf.push(st);
+    (city.rails || []).forEach((line, li) => {
+      if (line.elevated || !line.pts || line.pts.length < 2) return;
+      const P = line.loop ? line.pts.concat([line.pts[0]]) : line.pts;
+      for (let i = 1; i < P.length; i++) {
+        const ax = P[i - 1][0], az = P[i - 1][2], bx = P[i][0], bz = P[i][2];
+        if (!paved(ax, az) && !paved(bx, bz)) continue;
+        xingAddSeg({ ax: ax, az: az, bx: bx, bz: bz, hw: 4.2, kind: "rail", line: li, city: ci });
+      }
+    });
+  });
+  if (w.highway) { const P = w.highway.pts; for (let i = 0; i < P.length; i++) { const q = P[(i + 1) % P.length]; xingAddSeg({ ax: P[i][0], az: P[i][2], bx: q[0], bz: q[2], hw: w.highway.hw, kind: "hwy", ay: P[i][1], by: q[1], hwyBridge: true }); } }
+
+  // 2. level crossings: every road (and lane) a line on the ground meets
+  const rails = xing.segs.filter(s => s.kind === "rail");
+  const roadsAll = xing.segs.filter(s => s.kind !== "rail").concat([].concat.apply([], streetsOf).filter(s => s.kind === "alley"));
+  const rgrid = new Map(), RG = 80;
+  roadsAll.forEach(s => { for (let gx = Math.floor(Math.min(s.ax, s.bx) / RG); gx <= Math.floor(Math.max(s.ax, s.bx) / RG); gx++) for (let gz = Math.floor(Math.min(s.az, s.bz) / RG); gz <= Math.floor(Math.max(s.az, s.bz) / RG); gz++) { const k = gx + "," + gz; if (!rgrid.has(k)) rgrid.set(k, []); rgrid.get(k).push(s); } });
+  rails.forEach(rs => {
+    const seen = new Set();
+    for (let gx = Math.floor(Math.min(rs.ax, rs.bx) / RG); gx <= Math.floor(Math.max(rs.ax, rs.bx) / RG); gx++) for (let gz = Math.floor(Math.min(rs.az, rs.bz) / RG); gz <= Math.floor(Math.max(rs.az, rs.bz) / RG); gz++)
+      (rgrid.get(gx + "," + gz) || []).forEach(s => {
+        if (seen.has(s)) return; seen.add(s);
+        const p = xingSegIntersect(rs.ax, rs.az, rs.bx, rs.bz, s.ax, s.az, s.bx, s.bz); if (!p) return;
+        // a road on a bridge over the line is not a crossing
+        if (s.ay !== undefined) { const ry = s.ay + (s.by - s.ay) * p.u, gy = world.sampleHeight(p.x, p.z); if (ry - gy > 4.5) return; }
+        if (xing.level.some(o => Math.hypot(o.x - p.x, o.z - p.z) < Math.max(o.hw, s.hw) + 6)) return;
+        let rx = rs.bx - rs.ax, rz = rs.bz - rs.az; const rl = Math.hypot(rx, rz) || 1; rx /= rl; rz /= rl;
+        let dx = s.bx - s.ax, dz = s.bz - s.az; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+        const sin = Math.max(0.35, Math.abs(rx * dz - rz * dx));
+        xing.level.push({ x: p.x, z: p.z, rx: rx, rz: rz, dx: dx, dz: dz, sin: sin, hw: s.hw, kind: s.kind, fw: s.fw || (s.kind === "art" ? 4.4 : 0), city: rs.city, line: rs.line,
+                          closed: false, warnT: 0, a: 1, lanes: [], y: xingSurfY(p.x, p.z) });
+      });
+  });
+
+  // 3. junctions
+  const addJ = (kind, x, z, g0, g1) => { const j = { kind: kind, x: x, z: z, g0: g0, g1: g1, off: (Math.abs(Math.sin(x * 12.9898 + z * 78.233)) * 43758.5453 % 1) * 60, arms: [] }; xing.junctions.push(j); return j; };
+  const nearJ = (x, z, r) => xing.junctions.find(j => Math.hypot(j.x - x, j.z - z) < r);
+  const onSeg = (s, x, z, pad) => distToSeg(x, z, s.ax, s.az, s.bx, s.bz) < s.hw + (pad || 0);
+  // a zebra across road s (direction d) at distance `back` from the junction centre on side sg, crossing group grp
+  const addZebra = (j, s, d, sg, back, grp, car) => {
+    const cx = j.x + d[0] * sg * back, cz = j.z + d[1] * sg * back;
+    // the arm has to exist: this road, and no other, under the zebra and on past it
+    const onRoad = (x, z) => { const q = xingRoadAt(x, z); return !!q && q.kind === s.kind && (s.kind !== "street" || onSeg(s, x, z, 0)); };
+    if (!onRoad(cx, cz) || !onRoad(cx + d[0] * sg * 3, cz + d[1] * sg * 3)) return null;
+    const u = [-d[1], d[0]];
+    const X = { type: "zebra", j: j, grp: grp, cx: cx, cz: cz, ux: u[0], uz: u[1], dx: d[0] * sg, dz: d[1] * sg, half: s.hw, w: 2.0, kind: s.kind, car: !!car, foot: s.kind === "art" ? 2.2 : 0.12 + (s.fw || 1.5) / 2, y: xingSurfY(cx, cz) };
+    xing.list.push(X); j.arms.push(X); return X;
+  };
+  const dirOf = s => { let dx = s.bx - s.ax, dz = s.bz - s.az; const l = Math.hypot(dx, dz) || 1; return [dx / l, dz / l]; };
+  const scr = w.cities[0] && w.cities[0].scramble;
+  const arts = xing.segs.filter(s => s.kind === "art");
+  // avenue x avenue
+  for (let a = 0; a < arts.length; a++) for (let b = a + 1; b < arts.length; b++) {
+    const A = arts[a], B = arts[b]; if (A.road === B.road) continue;
+    if (Math.max(A.ax, A.bx) < Math.min(B.ax, B.bx) - 30 || Math.min(A.ax, A.bx) > Math.max(B.ax, B.bx) + 30 || Math.max(A.az, A.bz) < Math.min(B.az, B.bz) - 30 || Math.min(A.az, A.bz) > Math.max(B.az, B.bz) + 30) continue;
+    const p = xingSegIntersect(A.ax, A.az, A.bx, A.bz, B.ax, B.az, B.bx, B.bz); if (!p) continue;
+    if (nearJ(p.x, p.z, Math.max(A.hw, B.hw) + 14)) continue;
+    if (scr && Math.hypot(p.x - scr.at[0], p.z - scr.at[1]) < 60) continue;
+    const dA = dirOf(A), dB = dirOf(B);
+    if (Math.abs(dA[0] * dB[1] - dA[1] * dB[0]) < 0.45) continue;           // roads merging, not crossing
+    const j = addJ("avenue", p.x, p.z, 26, 22);
+    [-1, 1].forEach(sg => { addZebra(j, A, dA, sg, B.hw + 4.4 + 2.4, 0, true); addZebra(j, B, dB, sg, A.hw + 4.4 + 2.4, 1, true); });
+  }
+  // the scramble: its own six crossings, painted already; here only the lights and the stop lines
+  if (scr) {
+    const j = addJ("scramble", scr.at[0], scr.at[1], 20, 20), r = scr.radius, ya = scr.yaw * Math.PI / 180, c = Math.cos(ya), s = Math.sin(ya);
+    const loc = (lx, lz) => [scr.at[0] + lx * c + lz * s, scr.at[1] - lx * s + lz * c];
+    // the avenues that meet there: a crossing over each arm, where the painted ones are, the roads at right angles in two groups
+    const roads = []; arts.forEach(q => { if (distToSeg(j.x, j.z, q.ax, q.az, q.bx, q.bz) < q.hw + 2 && !roads.some(o => o.road === q.road)) roads.push(q); });
+    const d0 = roads.length ? dirOf(roads[0]) : [1, 0];
+    roads.forEach(q => { const d = dirOf(q), grp = Math.abs(d[0] * d0[0] + d[1] * d0[1]) > 0.7 ? 0 : 1; [-1, 1].forEach(sg => { const X = addZebra(j, q, d, sg, r * 0.88, grp, true); if (X) { X.painted = true; X.w = 2.3; } }); });
+    // the diagonals, for people only
+    [[1, 1], [1, -1]].forEach(q => { const n = Math.hypot(q[0], q[1]); const u = loc(q[0] / n, q[1] / n); const X = { type: "zebra", j: j, grp: 0, diag: true, cx: j.x, cz: j.z, ux: u[0] - j.x, uz: u[1] - j.z, dx: 0, dz: 0, half: r * 0.95, w: 2.2, kind: "art", painted: true, foot: 2.2, y: scr.groundY }; xing.list.push(X); j.arms.push(X); });
+  }
+  // footway street x avenue (the street's mouth) and footway street x footway street
+  w.cities.forEach((city, ci) => {
+    const S = streetsOf[ci].filter(s => s.kind === "street");
+    S.forEach(s => {
+      const d = dirOf(s);
+      [[s.ax, s.az, -1], [s.bx, s.bz, 1]].forEach(e => {
+        const A = xingRoadAt(e[0] + d[0] * e[2] * 1.5, e[1] + d[1] * e[2] * 1.5); if (!A || A.kind !== "art") return;
+        if (scr && Math.hypot(e[0] - scr.at[0], e[1] - scr.at[1]) < 60) return;
+        // where the street meets the avenue's edge
+        const dA = dirOf(A), cx = e[0], cz = e[1];
+        if (Math.abs(dA[0] * d[1] - dA[1] * d[0]) < 0.5) return;
+        const foot = distToSeg(cx, cz, A.ax, A.az, A.bx, A.bz);
+        const j = addJ("mouth", cx, cz, 28, 14);
+        const back = Math.max(4, A.hw + 4.4 + 2.2 - foot);
+        addZebra(j, s, d, -e[2], back, 1, false);
+      });
+    });
+    // street x street
+    const G = new Map(), SG = 60;
+    S.forEach(s => { for (let gx = Math.floor(Math.min(s.ax, s.bx) / SG); gx <= Math.floor(Math.max(s.ax, s.bx) / SG); gx++) for (let gz = Math.floor(Math.min(s.az, s.bz) / SG); gz <= Math.floor(Math.max(s.az, s.bz) / SG); gz++) { const k = gx + "," + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(s); } });
+    S.forEach(A => {
+      const seen = new Set();
+      for (let gx = Math.floor(Math.min(A.ax, A.bx) / SG); gx <= Math.floor(Math.max(A.ax, A.bx) / SG); gx++) for (let gz = Math.floor(Math.min(A.az, A.bz) / SG); gz <= Math.floor(Math.max(A.az, A.bz) / SG); gz++)
+        (G.get(gx + "," + gz) || []).forEach(B => {
+          if (B === A || B.L === A.L || seen.has(B)) return; seen.add(B);
+          const dA = dirOf(A), dB = dirOf(B); if (Math.abs(dA[0] * dB[1] - dA[1] * dB[0]) < 0.5) return;
+          // meet, or one ends at the other's edge
+          let p = xingSegIntersect(A.ax - dA[0] * B.hw, A.az - dA[1] * B.hw, A.bx + dA[0] * B.hw, A.bz + dA[1] * B.hw, B.ax - dB[0] * A.hw, B.az - dB[1] * A.hw, B.bx + dB[0] * A.hw, B.bz + dB[1] * A.hw);
+          if (!p) return;
+          if (nearJ(p.x, p.z, Math.max(A.hw, B.hw) + 3)) return;
+          if (xingRoadAt(p.x, p.z) && ["art", "rail", "hwy"].indexOf(xingRoadAt(p.x, p.z).kind) >= 0) return;
+          const j = addJ("street", p.x, p.z, 18, 18);
+          [-1, 1].forEach(sg => { addZebra(j, A, dA, sg, B.hw + B.fw + 2.2, 0, false); addZebra(j, B, dB, sg, A.hw + A.fw + 2.2, 1, false); });
+          if (!j.arms.length) xing.junctions.pop();
+        });
+    });
+  });
+  xing.junctions = xing.junctions.filter(j => j.arms.length);
+  // level crossings become crossings for people too: along each footway of the road (or down the middle of a lane), over the tracks
+  xing.level.forEach(lx => {
+    const offs = lx.kind === "art" ? [-(lx.hw + 2.2), lx.hw + 2.2] : lx.kind === "street" ? [-(lx.hw + 0.12 + lx.fw / 2), lx.hw + 0.12 + lx.fw / 2] : lx.kind === "alley" ? [0] : [];
+    const n = [-lx.dz, lx.dx], span = (4.2 + 1.2) / lx.sin;
+    offs.forEach(o => { const X = { type: "level", lx: lx, cx: lx.x + n[0] * o, cz: lx.z + n[1] * o, ux: lx.dx, uz: lx.dz, half: span, w: 1.2, kind: "rail" }; xing.list.push(X); });
+    lx.X = { type: "level", lx: lx };
+  });
+
+  // 4. stop lines on the traffic lanes
+  traffic.lanes.forEach(lane => {
+    if (lane.elevated) return;
+    const stops = [];
+    const tryX = (X, px, pz, dx, dz, back) => {
+      // nearest point of the lane to (px, pz)
+      let best = null;
+      for (let i = 1; i < lane.pts.length; i++) {
+        const a = lane.pts[i - 1], b = lane.pts[i];
+        if (Math.abs(a[0] - px) > 80 && Math.abs(b[0] - px) > 80) continue;
+        if (Math.abs(a[2] - pz) > 80 && Math.abs(b[2] - pz) > 80) continue;
+        const sx = b[0] - a[0], sz = b[2] - a[2], L2 = sx * sx + sz * sz || 1, t = clamp(((px - a[0]) * sx + (pz - a[2]) * sz) / L2, 0, 1), d = Math.hypot(a[0] + sx * t - px, a[2] + sz * t - pz);
+        if (!best || d < best.d) best = { d: d, s: lane.arc[i - 1] + Math.sqrt(L2) * t, hx: sx / Math.sqrt(L2), hz: sz / Math.sqrt(L2) };
+      }
+      if (!best || best.d > 12) return;
+      if (dx !== null && Math.abs(best.hx * dx + best.hz * dz) < 0.75) return;            // the lane runs along this road
+      if (dx !== null && best.hx * dx + best.hz * dz > 0) return;                         // going away from the junction: it is already through
+      stops.push({ s: best.s - back, X: X });
+      return best;
+    };
+    xing.list.forEach(X => { if (X.type === "zebra" && X.car && !X.diag) tryX(X, X.cx, X.cz, X.dx, X.dz, X.w + 1.4); });
+    xing.level.forEach(lx => {
+      if (lx.kind !== "art" && lx.kind !== "hwy") return;
+      // the lane meets the line once; it stops short of the near side of the track bed, whichever way it is going
+      let best = null;
+      for (let i = 1; i < lane.pts.length; i++) {
+        const a = lane.pts[i - 1], b = lane.pts[i];
+        const p = xingSegIntersect(a[0], a[2], b[0], b[2], lx.x - lx.rx * 40, lx.z - lx.rz * 40, lx.x + lx.rx * 40, lx.z + lx.rz * 40);
+        if (p) { best = { s: lane.arc[i - 1] + Math.hypot(b[0] - a[0], b[2] - a[2]) * p.t }; break; }
+      }
+      if (best) { stops.push({ s: best.s - (5.6 / lx.sin + 1.2), X: lx.X }); lx.lanes.push(lane); }
+    });
+    stops.sort((p, q) => p.s - q.s);
+    lane.xstops = stops;
+  });
+
+  // 5. the rail lanes: where along each one the level crossings are
+  xing.level.forEach(lx => {
+    lx.on = [];
+    const code = w.cities[lx.city] && w.cities[lx.city].code;
+    rail.lines.forEach((L, li) => {
+      if (L.cityCode !== code || L.line !== lx.line) return;
+      let best = null;
+      for (let i = 1; i < L.pts.length; i++) { const a = L.pts[i - 1], b = L.pts[i], sx = b[0] - a[0], sz = b[2] - a[2], L2 = sx * sx + sz * sz || 1, t = clamp(((lx.x - a[0]) * sx + (lx.z - a[2]) * sz) / L2, 0, 1), d = Math.hypot(a[0] + sx * t - lx.x, a[2] + sz * t - lx.z); if (!best || d < best.d) best = { d: d, s: L.arc[i - 1] + Math.sqrt(L2) * t }; }
+      if (best && best.d < 8) lx.on.push({ li: li, s: best.s });
+    });
+  });
+
+  // 6. a grid of the crossings, for people
+  xing.xgrid = new Map();
+  xing.list.forEach((X, i) => { X.id = i; const k = xingSegKey(X.cx, X.cz); if (!xing.xgrid.has(k)) xing.xgrid.set(k, []); xing.xgrid.get(k).push(X); });
+  try { buildCrossingMeshes(root); } catch (e) { console.warn("[Konto] crossing meshes:", e); }
+  xing.ready = true;
+  const n = { zebra: xing.list.filter(X => X.type === "zebra").length, junctions: xing.junctions.length, level: xing.level.length, laneStops: traffic.lanes.reduce((s, l) => s + (l.xstops ? l.xstops.length : 0), 0) };
+  xing.stats = n;
+  console.log("[Konto] crossings: " + n.junctions + " signalled junctions, " + n.zebra + " zebra crossings, " + n.level + " level crossings, " + n.laneStops + " stop lines on the traffic lanes (" + Math.round(performance.now() - t0) + " ms)");
+}
+
+// A street laid down a railway, rather than across it, is a road the trains run along. Cut those stretches out of the street plan (the
+// streets still cross the line, at a level crossing, where they meet it at a real angle).
+function streetsOffRails(city, lines) {
+  const rails = (city.rails || []).filter(r => !r.elevated && r.pts && r.pts.length > 1);
+  if (!rails.length) return 0;
+  const near = (x, z) => { let best = null; rails.forEach(r => { const P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts; for (let i = 1; i < P.length; i++) { const d = distToSeg(x, z, P[i - 1][0], P[i - 1][2], P[i][0], P[i][2]); if (!best || d < best.d) { const dx = P[i][0] - P[i - 1][0], dz = P[i][2] - P[i - 1][2], l = Math.hypot(dx, dz) || 1; best = { d: d, dx: dx / l, dz: dz / l }; } } }); return best; };
+  // and no street through a station: its platforms stand either side of the tracks for a train's length
+  const plats = [];
+  (city.stations || []).forEach(st => {
+    let best = null; rails.forEach(r => { const q = railProject(r.pts, st.centre[0], st.centre[1]); if (q && (!best || q.dist < best.dist)) best = q; });
+    if (best && best.dist < 320) plats.push({ x: best.x, z: best.z, c: Math.cos(best.yaw), s: Math.sin(best.yaw), half: clamp(st.size[0] * 0.62, 84, 158) / 2 + 14 });
+  });
+  const onPlatform = (x, z) => plats.some(q => { const dx = x - q.x, dz = z - q.z, along = dx * q.s + dz * q.c, across = dx * q.c - dz * q.s; return Math.abs(along) < q.half && Math.abs(across) < 16; });
+  let cut = 0;
+  lines.forEach(L => {
+    const A = L.pt(0), B = L.pt(1); let dx = B[0] - A[0], dz = B[1] - A[1]; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
+    const out = [];
+    L.runs.forEach(r => {
+      let cur = null;
+      for (let t = r[0]; t < r[1]; t += 2) {
+        const t1 = Math.min(r[1], t + 2), p = L.pt((t + t1) / 2), q = near(p[0], p[1]);
+        const bad = (q && q.d < L.hw + 5.5 && Math.abs(q.dx * dx + q.dz * dz) > 0.6) || (q && q.d < 30 && onPlatform(p[0], p[1]));
+        if (bad) { cur = null; cut += t1 - t; continue; }
+        if (cur && Math.abs(cur[1] - t) < 0.01) cur[1] = t1; else { cur = [t, t1]; out.push(cur); }
+      }
+    });
+    L.runs = out.filter(r => r[1] - r[0] >= 10);
+  });
+  return cut;
+}
+
+// ---- what you see -----------------------------------------------------------------------------------------------------------------------
+const xingTex = {};
+function xingTexture(kind) {
+  if (xingTex[kind]) return xingTex[kind];
+  const cv = document.createElement("canvas"), g = cv.getContext("2d");
+  if (kind === "paint") {
+    // worn road paint: white with the asphalt's grain coming through, and a few scuffs from tyres
+    cv.width = cv.height = 256; g.fillStyle = "#efefe8"; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 2600; i++) { const v = 150 + Math.random() * 90; g.fillStyle = "rgba(" + (v | 0) + "," + (v | 0) + "," + ((v - 6) | 0) + "," + (Math.random() * 0.22) + ")"; g.fillRect(Math.random() * 256, Math.random() * 256, 1 + Math.random() * 3, 1 + Math.random() * 3); }
+    for (let i = 0; i < 18; i++) { g.fillStyle = "rgba(60,60,58," + (0.08 + Math.random() * 0.12) + ")"; g.fillRect(Math.random() * 256, Math.random() * 256, 4 + Math.random() * 30, 2 + Math.random() * 6); }
+  } else if (kind === "paintN") {
+    cv.width = cv.height = 128; g.fillStyle = "rgb(128,128,255)"; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 900; i++) { const a = Math.random(); g.fillStyle = "rgb(" + (118 + a * 20 | 0) + "," + (118 + Math.random() * 20 | 0) + ",255)"; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  } else if (kind === "paintR") {
+    cv.width = cv.height = 128; g.fillStyle = "rgb(150,150,150)"; g.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 900; i++) { const v = 120 + Math.random() * 90 | 0; g.fillStyle = "rgb(" + v + "," + v + "," + v + ")"; g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  } else if (kind === "arm") {
+    // a barrier arm: yellow and black in diagonal bands, a little weathered
+    cv.width = 512; cv.height = 32; g.fillStyle = "#e6b417"; g.fillRect(0, 0, 512, 32);
+    g.fillStyle = "#151515"; for (let x = -32; x < 544; x += 64) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 32, 0); g.lineTo(x + 64, 0); g.lineTo(x + 32, 32); g.fill(); }
+    for (let i = 0; i < 400; i++) { g.fillStyle = "rgba(90,80,60," + Math.random() * 0.15 + ")"; g.fillRect(Math.random() * 512, Math.random() * 32, 2, 1); }
+  } else if (kind === "lamp") {
+    // a lit lens: a hot centre and a soft halo (alpha)
+    cv.width = cv.height = 64; const gr = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+    gr.addColorStop(0, "rgba(255,255,255,1)"); gr.addColorStop(0.35, "rgba(255,255,255,0.95)"); gr.addColorStop(0.5, "rgba(255,255,255,0.35)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  } else if (kind === "walk" || kind === "stand") {
+    // the lit figure of a Japanese pedestrian signal
+    cv.width = cv.height = 64; g.clearRect(0, 0, 64, 64);
+    g.fillStyle = kind === "walk" ? "#3dffa8" : "#ff3a2e"; g.shadowColor = g.fillStyle; g.shadowBlur = 6;
+    g.beginPath(); g.arc(32, 12, 6, 0, 7); g.fill();
+    if (kind === "stand") { g.fillRect(25, 20, 14, 22); g.fillRect(26, 42, 5, 16); g.fillRect(33, 42, 5, 16); g.fillRect(20, 21, 4, 18); g.fillRect(40, 21, 4, 18); }
+    else { g.save(); g.translate(32, 32); g.rotate(0.15); g.fillRect(-6, -12, 12, 20); g.restore(); g.lineWidth = 5; g.strokeStyle = g.fillStyle; g.beginPath(); g.moveTo(31, 38); g.lineTo(22, 58); g.moveTo(33, 38); g.lineTo(43, 57); g.moveTo(29, 22); g.lineTo(18, 34); g.moveTo(36, 22); g.lineTo(46, 30); g.stroke(); }
+  }
+  const t = new THREE.CanvasTexture(cv);
+  if (kind === "paint" || kind === "arm" || kind === "walk" || kind === "stand") t.encoding = THREE.sRGBEncoding;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+  return (xingTex[kind] = t);
+}
+function xingPaintMaterial() {
+  return new THREE.MeshStandardMaterial({ map: xingTexture("paint"), normalMap: xingTexture("paintN"), roughnessMap: xingTexture("paintR"), roughness: 0.95, metalness: 0,
+    polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+}
+
+// The static parts: painted bars, poles, signal heads, the crossing furniture. Kept in 256 m chunks so the far ones can be hidden.
+function buildCrossingMeshes(root) {
+  const CH = 256, chunks = new Map();
+  const chunk = (x, z) => { const k = Math.floor(x / CH) + "," + Math.floor(z / CH); let c = chunks.get(k); if (!c) chunks.set(k, c = { x: (Math.floor(x / CH) + 0.5) * CH, z: (Math.floor(z / CH) + 0.5) * CH, paint: [], solid: solidMesh(true), badges: decoMesh() }); return c; };
+  // a flat painted rectangle centred at (x, z): along (ax, az) for len, across for wid
+  const bar = (c, x, y, z, ax, az, len, wid) => {
+    const bx = -az, bz = ax, hl = len / 2, hw = wid / 2;
+    const P = [[x - ax * hl - bx * hw, z - az * hl - bz * hw], [x + ax * hl - bx * hw, z + az * hl - bz * hw], [x + ax * hl + bx * hw, z + az * hl + bz * hw], [x - ax * hl + bx * hw, z - az * hl + bz * hw]];
+    const u0 = Math.random() * 0.5, v0 = Math.random() * 0.5;
+    c.paint.push([P, y, [[u0, v0], [u0 + len / 8, v0], [u0 + len / 8, v0 + wid / 8], [u0, v0 + wid / 8]]]);
+  };
+  const POLE = [0.33, 0.35, 0.36, 0.6, 0.45], HEAD = [0.12, 0.12, 0.13, 0.2, 0.5], YELLOW = [0.85, 0.66, 0.08, 0.1, 0.5], BLACK = [0.06, 0.06, 0.06, 0.1, 0.55];
+  const heads = [], lights = [];
+  // zebras and their signals
+  xing.list.forEach(X => {
+    if (X.type !== "zebra") return;
+    const c = chunk(X.cx, X.cz), y = X.y + 0.13;
+    if (!X.painted && !X.diag) {
+      // bars 0.45 m wide every 0.9 m across the road, each as long as the crossing is wide, running along the road
+      const along = [X.dx || -X.uz, X.dz || X.ux];
+      for (let o = -X.half + 0.55; o <= X.half - 0.4; o += 0.9) bar(c, X.cx + X.ux * o, y, X.cz + X.uz * o, along[0], along[1], X.w * 2, 0.45);
+      // and the stop line before it, across the approach (the left of travel towards the junction, and the whole road on a street)
+      if (X.dx || X.dz) {
+        const sx = X.cx + X.dx * (X.w + 1.1), sz = X.cz + X.dz * (X.w + 1.1), hx = -X.dx, hz = -X.dz, lx = hz, lz = -hx;   // (hz, -hx) is the left of (hx, hz)
+        if (X.car) bar(c, sx + lx * X.half * 0.5, y, sz + lz * X.half * 0.5, X.ux, X.uz, X.half - 0.2, 0.45);
+        else bar(c, sx + lx * X.half * 0.5, y, sz + lz * X.half * 0.5, X.ux, X.uz, X.half - 0.2, 0.3);
+      }
+    }
+    if (X.diag) return;
+    // a pole at each end with the pedestrian head facing across, and on the avenues a car signal on an arm over the approach
+    [-1, 1].forEach(e => {
+      // (beside the end of the zebra, on the side away from the junction, so it never stands where people step off the kerb)
+      const px = X.cx + X.ux * e * (X.half + 0.55) + X.dx * (X.w + 0.5), pz = X.cz + X.uz * e * (X.half + 0.55) + X.dz * (X.w + 0.5), gy = xingSurfY(px, pz), yaw = Math.atan2(-X.ux * e, -X.uz * e);
+      const S = c.solid.frame(px, gy, pz, yaw);
+      S.colour(POLE).box(0, 1.75, 0, 0.14, 3.5, 0.14);
+      S.colour(HEAD).box(0, 2.55, 0.16, 0.36, 0.78, 0.2);
+      c.badges.frame(px, gy, pz, yaw).panel(0, 2.55, 0.27, 0.3, 0.7, "F", badgeUV("pedSignal"), false);
+      heads.push({ X: X, x: px - X.ux * e * 0.3, y: gy + 2.55, z: pz - X.uz * e * 0.3, yaw: yaw, e: e });
+      if (e === 1) c.badges.frame(px, gy, pz, yaw).back(0, 3.25, 0, 0.6, 0.6, badgeUV("pedSign"), false);
+      if (X.car && (X.dx || X.dz)) {
+        // drivers come towards the junction against (dx, dz): the face looks back at them, the arm reaches over the left of the road
+        const hx = -X.dx, hz = -X.dz, lx = hz, lz = -hx;
+        if ((X.ux * e) * lx + (X.uz * e) * lz < 0) return;
+        const fy = Math.atan2(X.dx, X.dz), reach = Math.min(X.half * 0.7, 6.5);
+        const F = c.solid.frame(px, gy, pz, Math.atan2(-X.ux * e, -X.uz * e));
+        F.colour(POLE).box(0, 3.1, 0, 0.18, 6.2, 0.18).box(0, 5.6, reach / 2, 0.12, 0.12, reach);
+        const ax = px - X.ux * e * reach, az = pz - X.uz * e * reach;
+        c.solid.frame(ax, gy, az, fy).colour(HEAD).box(0, 5.35, 0, 1.25, 0.42, 0.3);
+        c.badges.frame(ax, gy, az, fy).panel(0, 5.35, 0.16, 1.2, 0.38, "F", badgeUV("carSignal"), false);
+        lights.push({ X: X, x: ax + X.dx * 0.17, y: gy + 5.35, z: az + X.dz * 0.17, yaw: fy, rx: Math.cos(fy), rz: -Math.sin(fy) });
+      }
+    });
+  });
+  // the scramble's car signals, on its four corners (its poles and people's heads are already built with it)
+  // level crossings
+  xing.level.forEach(lx => {
+    const c = chunk(lx.x, lx.z), y = lx.y, n = [-lx.dz, lx.dx], span = lx.hw + (lx.fw || 0) + 0.6;
+    // the deck over the track: dark rubber panels between and beside the rails, and the four rails showing through
+    const S = c.solid.frame(lx.x, y, lx.z, Math.atan2(lx.rx, lx.rz)).collide(false);
+    const across = span * 2 / lx.sin;
+    S.colour([0.09, 0.09, 0.1, 0.0, 0.85]).box(0, 0.05, 0, 7.4, 0.1, across);
+    S.colour([0.55, 0.55, 0.56, 0.9, 0.3]);
+    [-2.1, 2.1].forEach(t => [-0.717, 0.717].forEach(r => { S.box(t + r, 0.12, 0, 0.08, 0.06, across + 1.0); }));
+    S.collide(true);
+    lx.posts = [];
+    [-1, 1].forEach(side => [-1, 1].forEach(e => {
+      // a post on each kerb, either side of the track: striped, with the crossbuck, the twin lamps and the barrier box
+      const back = (4.2 + 1.4) / lx.sin, px = lx.x + lx.dx * side * back + n[0] * e * span, pz = lx.z + lx.dz * side * back + n[1] * e * span;
+      const gy = xingSurfY(px, pz), face = Math.atan2(lx.dx * side, lx.dz * side);
+      const P = c.solid.frame(px, gy, pz, face);
+      for (let k = 0; k < 8; k++) P.colour(k % 2 ? BLACK : YELLOW).box(0, 0.2 + k * 0.4, 0, 0.16, 0.4, 0.16);
+      P.colour(HEAD).box(0, 0.55, -0.25, 0.42, 1.1, 0.36).box(0, 2.3, 0.05, 0.9, 0.14, 0.14);
+      P.colour(BLACK).box(-0.38, 2.3, 0.1, 0.34, 0.34, 0.12).box(0.38, 2.3, 0.1, 0.34, 0.34, 0.12);
+      c.badges.frame(px, gy, pz, face).back(0, 3.4, 0.1, 1.1, 1.1, badgeUV("fumikiri"), false);
+      // the lamps face the road, towards whoever is coming to the line
+      lx.posts.push({ x: px, y: gy, z: pz, face: face, e: e, side: side, gy: gy });
+    }));
+  });
+  // build them
+  const pm = xingPaintMaterial(), fm = furnitureMaterial(), dm = decoMaterial(badgeAtlas(), false);
+  chunks.forEach(c => {
+    const group = new THREE.Group(); group.userData.cx = c.x; group.userData.cz = c.z;
+    if (c.paint.length) {
+      const pos = [], uv = [], nrm = [];
+      // (wound to face up)
+      c.paint.forEach(q => { const P = q[0], y = q[1], U = q[2]; [0, 2, 1, 0, 3, 2].forEach(i => { pos.push(P[i][0], y, P[i][1]); nrm.push(0, 1, 0); uv.push(U[i][0], U[i][1]); }); });
+      const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(nrm, 3)); g.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+      const m = new THREE.Mesh(g, pm); m.receiveShadow = true; m.renderOrder = 3; group.add(m);
+    }
+    if (!c.solid.empty()) { const m = new THREE.Mesh(c.solid.geometry(), fm); m.castShadow = true; m.receiveShadow = true; group.add(m); }
+    if (!c.badges.empty()) group.add(new THREE.Mesh(c.badges.geometry(), dm));
+    root.add(group); xing.chunks.push(group);
+  });
+  // the moving and lit parts, drawn for what is near
+  const quad = new THREE.PlaneGeometry(1, 1), cap = 480;
+  const mk = (tex, colour, n) => { const m = new THREE.InstancedMesh(quad, new THREE.MeshBasicMaterial({ map: tex, color: colour, transparent: true, depthWrite: false, toneMapped: false, fog: false }), n); m.count = 0; m.frustumCulled = false; m.renderOrder = 4; root.add(m); return m; };
+  const armGeo = new THREE.BoxGeometry(1, 1, 1); armGeo.translate(0.5, 0, 0);
+  const armTex = xingTexture("arm");
+  xing.dyn = {
+    walk: mk(xingTexture("walk"), 0xffffff, cap), stand: mk(xingTexture("stand"), 0xffffff, cap),
+    green: mk(xingTexture("lamp"), 0x38ffb0, cap), amber: mk(xingTexture("lamp"), 0xffb020, cap), red: mk(xingTexture("lamp"), 0xff2a1e, cap * 2),
+    arms: (() => { const m = new THREE.InstancedMesh(armGeo, new THREE.MeshStandardMaterial({ map: armTex, normalMap: xingTexture("paintN"), roughnessMap: xingTexture("paintR"), roughness: 0.5 }), 200); m.count = 0; m.frustumCulled = false; m.castShadow = true; root.add(m); return m; })(),
+    heads: heads, lights: lights
+  };
+}
+
+// ---- every frame ------------------------------------------------------------------------------------------------------------------------
+const _xo = new THREE.Object3D();
+function xingTick(dt, at) {
+  if (!xing.ready || !at) return;
+  // level crossings: down while a train is coming or on it
+  for (const lx of xing.level) {
+    let closed = false;
+    for (const o of lx.on) {
+      const L = rail.lines[o.li]; if (!L) continue;
+      for (const set of rail.sets) {
+        if (!set.live || set.line !== o.li) continue;
+        const kind = TRAIN_KINDS[set.kind], len = kind.cars * (kind.L + kind.gap);
+        const ahead = o.s - set.s;                              // the head is this far short of the crossing
+        if (ahead < 260 && ahead > -(len + 10)) { closed = true; break; }
+      }
+      if (closed) break;
+    }
+    if (closed && !lx.closed) lx.warnT = 4;                    // the lamps and bell start before the arms come down
+    lx.closed = closed;
+    if (lx.warnT > 0) lx.warnT -= dt;
+    const want = closed ? (lx.warnT > 0 ? 1 : 0) : 1;
+    lx.a += clamp(want - lx.a, -dt / 5, dt / 4);
+  }
+  // the near ones are drawn: a few times a second, the set within reach
+  xing.nearT -= dt;
+  if (xing.nearT <= 0) {
+    xing.nearT = 0.5;
+    const R = 150;
+    xing.nearH = xing.dyn.heads.filter(h => Math.abs(h.x - at.x) < R && Math.abs(h.z - at.z) < R);
+    xing.nearL = xing.dyn.lights.filter(h => Math.abs(h.x - at.x) < R * 1.4 && Math.abs(h.z - at.z) < R * 1.4);
+    xing.nearX = xing.level.filter(l => Math.abs(l.x - at.x) < R * 1.5 && Math.abs(l.z - at.z) < R * 1.5);
+    const far = 640;
+    xing.chunks.forEach(g => { g.visible = Math.abs(g.userData.cx - at.x) < far && Math.abs(g.userData.cz - at.z) < far; });
+  }
+  const D = xing.dyn, flash = (clock * 2) % 1 < 0.5, n = { walk: 0, stand: 0, green: 0, amber: 0, red: 0, arms: 0 };
+  const put = (m, key, x, y, z, yaw, s) => { if (n[key] >= m.instanceMatrix.count) return; _xo.position.set(x, y, z); _xo.rotation.set(0, yaw, 0); _xo.scale.set(s, s, s); _xo.updateMatrix(); m.setMatrixAt(n[key]++, _xo.matrix); };
+  for (const h of xing.nearH || []) {
+    const st = xingPedLight(h.X);
+    if (st === "W" || (st === "F" && flash)) put(D.walk, "walk", h.x, h.y - 0.19, h.z, h.yaw, 0.32);
+    else if (st === "D") put(D.stand, "stand", h.x, h.y + 0.19, h.z, h.yaw, 0.32);
+  }
+  for (const h of xing.nearL || []) {
+    const c = xingState(h.X.j, xingTime()).c[h.X.grp], o = c === "G" ? -0.4 : c === "Y" ? 0 : 0.4;    // green on the driver's left, red on the right, as Japan has them
+    put(c === "G" ? D.green : c === "Y" ? D.amber : D.red, c === "G" ? "green" : c === "Y" ? "amber" : "red", h.x + h.rx * o, h.y, h.z + h.rz * o, h.yaw, 0.42);
+  }
+  let bell = null;
+  for (const lx of xing.nearX || []) {
+    const on = lx.closed || lx.warnT > 0;
+    for (const p of lx.posts) {
+      if (on) { const fx = Math.sin(p.face), fz = Math.cos(p.face), rx = Math.cos(p.face), rz = -Math.sin(p.face); [-1, 1].forEach((sd, k) => { if ((k === 0) === flash) put(D.red, "red", p.x + rx * sd * 0.38 + fx * 0.17, p.gy + 2.3, p.z + rz * sd * 0.38 + fz * 0.17, p.face, 0.4); }); }
+      // the arm: from the post across to the middle of the road, up when open
+      if (n.arms < D.arms.instanceMatrix.count) {
+        const n2 = [-lx.dz * -p.e, lx.dx * -p.e], len = lx.hw + (lx.fw || 0) + 0.4;
+        _xo.position.set(p.x, p.gy + 1.0, p.z); _xo.rotation.set(0, Math.atan2(-n2[1], n2[0]), lx.a * Math.PI * 0.47, "YXZ"); _xo.scale.set(len, 0.1, 0.12); _xo.updateMatrix(); D.arms.setMatrixAt(n.arms++, _xo.matrix);
+      }
+    }
+    if (on) { const d = Math.hypot(lx.x - at.x, lx.z - at.z); if (!bell || d < bell) bell = d; }
+  }
+  for (const k of ["walk", "stand", "green", "amber", "red", "arms"]) { D[k].count = n[k]; D[k].instanceMatrix.needsUpdate = true; }
+  // the bell: カンカン, two tones, about two and a half a second, while you are near a crossing that is down
+  xing.bellT -= dt;
+  if (bell !== null && bell < 90 && xing.bellT <= 0 && typeof sound !== "undefined" && sound.ctx && sound.master && !paused) {
+    xing.bellT = 0.4; xing.bellHi = !xing.bellHi;
+    try {
+      const ctx = sound.ctx, t = ctx.currentTime, o = ctx.createOscillator(), o2 = ctx.createOscillator(), gn = ctx.createGain(), vol = 0.12 * (1 - bell / 90);
+      o.type = "square"; o.frequency.value = xing.bellHi ? 760 : 700; o2.type = "sine"; o2.frequency.value = (xing.bellHi ? 760 : 700) * 2.76;
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t + 0.005); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.32);
+      const f = ctx.createBiquadFilter(); f.type = "bandpass"; f.frequency.value = 1400; f.Q.value = 0.8;
+      o.connect(f); o2.connect(f); f.connect(gn); gn.connect(sound.master); o.start(t); o2.start(t); o.stop(t + 0.34); o2.stop(t + 0.34);
+    } catch (e) { }
+  }
+}
+
+// ---- the footway network ---------------------------------------------------------------------------------------------------------------
+const pedNet = { ready: false, gen: null, x: [], z: [], adj: [], grid: new Map(), G: 24, cities: 0 };
+function pedNetAdd(x, z) { const i = pedNet.x.length; pedNet.x.push(x); pedNet.z.push(z); pedNet.adj.push([]); const k = Math.floor(x / pedNet.G) + "," + Math.floor(z / pedNet.G); let l = pedNet.grid.get(k); if (!l) pedNet.grid.set(k, l = []); l.push(i); return i; }
+function pedNetLink(a, b, X) { if (a === b || pedNet.adj[a].some(e => e[0] === b)) return; pedNet.adj[a].push([b, X ? X.id : -1]); pedNet.adj[b].push([a, X ? X.id : -1]); }
+function pedNetNear(x, z, R, filter) {
+  const G = pedNet.G, r = Math.ceil(R / G), cx = Math.floor(x / G), cz = Math.floor(z / G), out = [];
+  for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const l = pedNet.grid.get((cx + i) + "," + (cz + j)); if (!l) continue; for (const id of l) { const d = Math.hypot(pedNet.x[id] - x, pedNet.z[id] - z); if (d < R && (!filter || filter(id))) out.push([d, id]); } }
+  out.sort((p, q) => p[0] - q[0]);
+  return out;
+}
+// The work, cut into pieces so it can run a few milliseconds a frame behind the title and the first minutes of play.
+function* pedNetBuild() {
+  const ends = [];
+  // a footway line: sampled every 2 m, cut where it is not walkable, a node every 6 m along each piece that is
+  const line = (pts) => {
+    const ok = pts.map(p => xingWalkable(p[0], p[1]));
+    let since = 0, last = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (!ok[i]) { if (last >= 0) ends.push(last); last = -1; continue; }
+      if (last < 0) { last = pedNetAdd(p[0], p[1]); ends.push(last); since = 0; continue; }
+      since += Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+      if (since >= 6 || i === pts.length - 1 || !ok[i + 1]) {
+        // where the line bends, a chord between points 6 m apart can cut the corner of the road beside it: put a point on the bend instead
+        if (i > 1 && !xingLineClear(pedNet.x[last], pedNet.z[last], p[0], p[1])) { const mid = pedNetAdd(pts[i - 1][0], pts[i - 1][1]); pedNetLink(last, mid); last = mid; }
+        const id = pedNetAdd(p[0], p[1]); pedNetLink(last, id); last = id; since = 0;
+      }
+    }
+    if (last >= 0) ends.push(last);
+  };
+  const offsetLine = (P, loop, off) => {
+    const Q = loop ? P.concat([P[0]]) : P, out = [];
+    for (let i = 1; i < Q.length; i++) {
+      const a = Q[i - 1], b = Q[i], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz); if (L < 0.01) continue;
+      const nx = -dz / L * off, nz = dx / L * off, n = Math.max(1, Math.ceil(L / 2));
+      for (let k = (out.length ? 1 : 0); k <= n; k++) out.push([a[0] + dx * k / n + nx, a[1] + dz * k / n + nz]);
+    }
+    return out;
+  };
+  let work = 0;
+  for (const city of world.cities) {
+    const b = city.bounds; if (!b) continue;
+    for (const r of city.roads) {
+      if (r.elevated || r.cls !== "arterial" || !r.pts || r.pts.length < 2) continue;
+      const P = r.pts.map(q => [q[0], q[2]]);
+      [-1, 1].forEach(sd => line(offsetLine(P, r.loop, sd * (r.halfWidth + 2.2))));
+      if (++work % 2 === 0) yield;
+    }
+    for (const L of city.streetPlan || []) {
+      for (const run of L.runs) {
+        const a = L.pt(run[0]), c = L.pt(run[1]), P = [a, c];
+        if (L.fw > 0) [-1, 1].forEach(sd => line(offsetLine(P, false, sd * (L.hw + 0.12 + L.fw / 2))));
+        else line(offsetLine(P, false, 0));                         // a lane: shared, down the middle
+        if (++work % 40 === 0) yield;
+      }
+    }
+  }
+  // round the corners: each end of a piece to whatever is close and in plain reach
+  for (let k = 0; k < ends.length; k++) {
+    const e = ends[k], near = pedNetNear(pedNet.x[e], pedNet.z[e], 8);
+    let made = 0;
+    for (const q of near) { if (q[1] === e || made >= 3) continue; if (pedNet.adj[e].some(t => t[0] === q[1])) continue; if (xingLineClear(pedNet.x[e], pedNet.z[e], pedNet.x[q[1]], pedNet.z[q[1]])) { pedNetLink(e, q[1]); made++; } }
+    if (k % 300 === 0) yield;
+  }
+  // across the roads and the tracks: only at a crossing
+  for (const X of xing.list) {
+    const ends2 = [];
+    for (const e of [-1, 1]) {
+      // the first place off the far kerb a person can stand
+      let ex = 0, ez = 0, ok = false;
+      for (let o = X.half + 0.45; o < X.half + (X.diag ? 8 : 3.2) && !ok; o += 0.35) { ex = X.cx + X.ux * e * o; ez = X.cz + X.uz * e * o; ok = xingWalkable(ex, ez); }
+      if (!ok) { ends2.push(-1); continue; }
+      const id = pedNetAdd(ex, ez);
+      pedNetNear(ex, ez, 7).slice(0, 6).forEach(q => { if (q[1] !== id && xingLineClear(ex, ez, pedNet.x[q[1]], pedNet.z[q[1]])) pedNetLink(id, q[1]); });
+      ends2.push(id);
+    }
+    if (ends2[0] >= 0 && ends2[1] >= 0) pedNetLink(ends2[0], ends2[1], X);
+    if (X.id % 50 === 0) yield;
+  }
+  pedNet.ready = true;
+  console.log("[Konto] footway network: " + pedNet.x.length + " points, " + xing.list.length + " crossings");
+}
+function pedNetTick() {
+  if (pedNet.ready || !xing.ready) return;
+  if (!pedNet.gen) { pedNet.x = []; pedNet.z = []; pedNet.adj = []; pedNet.grid = new Map(); pedNet.gen = pedNetBuild(); }
+  const t0 = performance.now();
+  while (performance.now() - t0 < 5) { if (pedNet.gen.next().done) { pedNet.gen = null; break; } }
+}
+function pedNetEdgeX(a, b) { const e = pedNet.adj[a].find(t => t[0] === b); return e && e[1] >= 0 ? xing.list[e[1]] : null; }
+// A* over the footways, from the node nearest one point to the node nearest another
+function pedNetRoute(fx, fz, tx, tz) {
+  if (!pedNet.ready) return null;
+  const s0 = pedNetNear(fx, fz, 40)[0], s1 = pedNetNear(tx, tz, 60)[0]; if (!s0 || !s1) return null;
+  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z;
+  const g = new Map([[S, 0]]), from = new Map(), open = [[Math.hypot(X[S] - X[T], Z[S] - Z[T]), S]], done = new Set();
+  let it = 0;
+  while (open.length && it++ < 25000) {
+    // a small binary heap
+    let top = open[0]; const last = open.pop();
+    if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; const t = open[i]; open[i] = open[m]; open[m] = t; i = m; } }
+    const u = top[1]; if (done.has(u)) continue; done.add(u);
+    if (u === T) { const path = [T]; let c = T; while (from.has(c)) { c = from.get(c); path.push(c); } return path.reverse(); }
+    for (const e of pedNet.adj[u]) {
+      const v = e[0], w = Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0), ng = g.get(u) + w;
+      if (ng < (g.has(v) ? g.get(v) : Infinity)) {
+        g.set(v, ng); from.set(v, u);
+        open.push([ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v]);
+        let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; const t = open[i]; open[i] = open[p]; open[p] = t; i = p; }
+      }
+    }
+  }
+  return null;
+}
+// One step of a person on the network: p.na -> p.nb, u along it, a small sideways offset p.lat. Returns false while they wait at a crossing.
+function pedNetStep(p, dt) {
+  const X = pedNet.x, Z = pedNet.z;
+  if (p.nu === 0 && !p.crossing) {
+    const XX = pedNetEdgeX(p.na, p.nb);
+    if (XX && !xingPedGo(XX)) {
+      // wait at the kerb, facing across
+      p.waitX = XX; const want = Math.atan2(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * Math.min(1, dt * 5);
+      return false;
+    }
+    p.crossing = XX || null; p.waitX = null;
+  }
+  const L = Math.hypot(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]) || 0.01;
+  p.nu += p.sp * (p.crossing ? 1.15 : 1) * dt / L;
+  if (p.nu >= 1) { p.nu = 0; p.crossing = null; p.prev = p.na; p.na = p.nb; p.nb = p.next ? p.next(p) : -1; if (p.nb < 0) { p.nb = p.na; p.arrived = true; return true; } }
+  const ux = (X[p.nb] - X[p.na]) / L, uz = (Z[p.nb] - Z[p.na]) / L, lat = p.crossing ? p.lat * 1.6 : p.lat;
+  const bx = X[p.na] + (X[p.nb] - X[p.na]) * p.nu, bz = Z[p.na] + (Z[p.nb] - Z[p.na]) * p.nu;
+  p.x = bx - uz * lat; p.z = bz + ux * lat;
+  // the line itself is on the pavement; a step to the side of it near a corner might not be
+  if (!p.crossing && lat && xingRoadAt(p.x, p.z, 0)) { p.x = bx; p.z = bz; }
+  const want = Math.atan2(ux, uz); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * Math.min(1, dt * 6);
+  return true;
+}
+// the next node for someone just walking: on, round the corner, now and then over a crossing; back only at a dead end
+function pedNetWander(p) {
+  const A = pedNet.adj[p.na], X = pedNet.x, Z = pedNet.z; if (!A.length) return -1;
+  const hx = X[p.na] - X[p.prev], hz = Z[p.na] - Z[p.prev], hl = Math.hypot(hx, hz) || 1;
+  let best = -1, bs = -1e9;
+  for (const e of A) {
+    if (e[0] === p.prev && A.length > 1) continue;
+    const dx = X[e[0]] - X[p.na], dz = Z[e[0]] - Z[p.na], dl = Math.hypot(dx, dz) || 1;
+    const sc = (dx * hx + dz * hz) / (dl * hl) + Math.random() * (e[1] >= 0 ? 0.9 : 1.3) - (e[1] >= 0 ? 0.5 : 0);
+    if (sc > bs) { bs = sc; best = e[0]; }
+  }
+  return best < 0 ? (p.prev !== undefined ? p.prev : -1) : best;
+}
+function pedNetAttach(p, R) {
+  const q = pedNetNear(p.x, p.z, R || 30, id => pedNet.adj[id].length > 0)[0]; if (!q) return false;
+  p.na = q[1]; p.prev = q[1]; p.nu = 0; p.crossing = null; p.next = pedNetWander;
+  const e = pedNet.adj[p.na].filter(t => t[1] < 0); p.nb = (e.length ? e : pedNet.adj[p.na])[(Math.random() * (e.length || pedNet.adj[p.na].length)) | 0][0];
+  p.lat = p.lat !== undefined ? p.lat : (Math.random() - 0.5) * 1.0;
+  return true;
 }
 
 // ------------------------------------------------------------ street furniture
@@ -21057,6 +21892,22 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Every station's own footprint: the station building (its platforms and concourse) and the forecourt in front of it. A station claims
+  // its ground before the plots are laid, so without this it was a blank gap in the blocks with nothing to say a station stood there.
+  if (opts.stations !== false) {
+    const sb = P.rail || "#326f65";
+    world.cities.forEach(city => (city.stations || []).forEach(st => {
+      const R = Math.max(st.size[0], st.size[1]);
+      if (st.centre[0] + R < vx0 || st.centre[0] - R > vx1 || st.centre[1] + R < vz0 || st.centre[1] - R > vz1) return;
+      const w = Math.max(st.size[0], 6 * mPerPx), d = Math.max(st.size[1], 3 * mPerPx);
+      ctx.save(); ctx.translate(st.centre[0], st.centre[1]); ctx.rotate(-(st.yaw || 0) * Math.PI / 180);
+      if (across < 6000) { ctx.fillStyle = P.street; ctx.fillRect(-w * 0.62, -d * 1.0, w * 1.24, d * 2.0); }
+      ctx.fillStyle = sb; ctx.fillRect(-w * 0.5, -d * 0.5, w, d);
+      if (across < 2500) { ctx.fillStyle = P.plot; ctx.fillRect(-w * 0.46, -d * 0.08, w * 0.92, d * 0.16); }
+      ctx.restore();
+    }));
+  }
+
   function stroke(pts, loop, width, colour, dash) {
     ctx.strokeStyle = colour;
     ctx.lineWidth = Math.max(width, mPerPx * 1.1);
@@ -21153,6 +22004,17 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Station marks at every zoom (they used to vanish once the map was zoomed out past 9 km, so most of the network had no mark at all
+  // on the opening view of the map); the convenience store beside each one only once you are close enough to read it.
+  if (opts.markers !== false && across >= 9000) {
+    const r = Math.max(7 * mPerPx, 11);
+    world.cities.forEach(city => (city.stations || []).forEach(st => {
+      if (st.centre[0] < vx0 || st.centre[0] > vx1 || st.centre[1] < vz0 || st.centre[1] > vz1) return;
+      ctx.save(); ctx.translate(st.centre[0], st.centre[1]); ctx.rotate(-rot);
+      drawBrandMark(ctx, "station", r * 0.9);
+      ctx.restore();
+    }));
+  }
   // Markers: stations, shrines and the places worth going.
   if (opts.markers !== false && across < 9000) {
     const r = Math.max(6 * mPerPx, 11);
@@ -21333,6 +22195,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   }
 
   if (story.blips.length) storyMapBlips(ctx, toScreen, opts);
+  if (window.career && career.mapIcons) try { career.mapIcons(ctx, toScreen, opts); } catch (e) { /* the map draws without them */ }
   // ---- the waypoint, and the line to it
   if (nav.waypoint) {
     const p = toScreen(nav.waypoint.x, nav.waypoint.z);
@@ -21452,7 +22315,7 @@ function mapAcross() {
 // drawn that the map itself uses.
 function mapPois(across) {
   const out = [];
-  if (across < 9000) world.cities.forEach(city => city.stations.forEach(st =>
+  world.cities.forEach(city => (city.stations || []).forEach(st =>
     out.push({ x: st.centre[0], z: st.centre[1], name: st.name, kind: "Station" })));
   ski.list.forEach(R => {
     const nm = R.name || (R.res && R.res.name) || "Ski resort";
@@ -36456,6 +37319,8 @@ function updateDrive(dt) {
     if (c.lapse > 0) { throttle = 0; brake = 0; steer = 0; }
     drive.shake = Math.max(drive.shake || 0, strain * 0.06);
   }
+  // an empty tank (the company car, career-commute.js): the engine has nothing to give
+  if (c.fuelOut) throttle = 0;
 
   if (TWO_WHEELERS[kind.body]) {
     updateBike(dt, c, kind, { throttle: throttle, brake: brake, steer: steer, hand: !!hand,
@@ -37085,6 +37950,7 @@ function applySky(h, dirX, dirZ) {
   const dk = 0.16 + 0.84 * clamp01(k.sun);
   if (Math.abs(dk - hdri.dayK) > 0.04) { hdri.dayK = dk; envFollowSun(true); } else envFollowSun(false);
   if (skyDome && skyDome.material.uniforms && skyDome.material.uniforms.cloudShift) skyDome.material.uniforms.cloudShift.value = (performance.now() * 0.0000012) % 1;
+  if (typeof interior !== "undefined" && window.ShopAAA) { if (interior.active) ShopAAA.inside(); else if (ShopAAA.state.saved) ShopAAA.leave(true); }
 }
 
 function updateTitle(dt) {
@@ -38730,7 +39596,7 @@ function buildSeoul(site, G) {
   const H = 2.4, step = 8, cx = site.cx, cz = site.cz;
   G.add(destGround(site, step, (x, z, h, c) => { if (h < 0.2) { c[0] = 0.18; c[1] = 0.26; c[2] = 0.3; } else if (h > 6) { c[0] = 0.22; c[1] = 0.36; c[2] = 0.18; } else { c[0] = 0.42; c[1] = 0.41; c[2] = 0.39; } }));
   // the river
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(site.hx * 2, 68), new THREE.MeshLambertMaterial({ color: 0x2c5a72, transparent: true, opacity: 0.88 })); water.rotation.x = -Math.PI / 2; water.position.set(cx, 0.4, cz); G.add(water);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(site.hx * 2, 68, 64, 4), waterMaterial(0.4, 0x0d3040, 0x2c6a72, 0.92));   // the island's water engine, as on the moat water.rotation.x = -Math.PI / 2; water.position.set(cx, 0.4, cz); G.add(water);
   // streets: a grid of 96 m blocks, 16 m streets, either side of the river
   const pitch = 96, st = 16, asph = destAsphalt(), paving = destPaving(), roads = [], walks = [], stripes = [];
   const cols = []; for (let x = -480; x <= 480; x += pitch) cols.push(x);
@@ -38833,11 +39699,65 @@ function buildIsland(site, G) {
     site.spawn = [cx + 300, cz - 120, -Math.PI / 2]; destKiosk(G, site, cx + 330, cz - 100, -Math.PI / 2, "RYŪJIMA  AIRSTRIP  ·  DEPARTURES"); void rs;
   }
 }
+// Where people walk on each holiday island, as polylines in the same shape as a city road ({ pts: [[x, y, z]...], halfWidth }): they walk
+// halfWidth + 2.2 m either side of the line. Seoul's are its streets (the pavements are 2 m in from the kerb); the islands' are the
+// beach path past the huts, the village street and the paths from the airstrip.
+function destWalks(site) {
+  const cx = site.cx, cz = site.cz, W = [];
+  const line = (pts, hw) => W.push({ pts: pts.map(p => [cx + p[0], site.h(p[0], p[1]), cz + p[1]]), halfWidth: hw, holiday: site.id });
+  const arc = (r, a0, a1, n, ox, oz, sz) => { const o = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([Math.cos(a) * r + (ox || 0), Math.sin(a) * r * (sz || 1) + (oz || 0)]); } return o; };
+  if (site.id === "seoul") {
+    const pitch = 96, cols = []; for (let x = -480; x <= 480; x += pitch) cols.push(x);
+    const rowsN = []; for (let z = -pitch * 4 - 32; z <= -80; z += pitch) rowsN.push(z);
+    const zones = [[-site.hz + 60, -50, rowsN], [50, site.hz - 60, rowsN.map(z => -z)]];
+    zones.forEach(([z0, z1, rows]) => {
+      cols.forEach(x => line([[x, z0], [x, (z0 + z1) / 2], [x, z1]], 8));
+      rows.forEach(z => line(cols.map(x => [x, z]), 8));
+    });
+    [-380, 0, 380].forEach(b => line([[b, -60], [b, 60]], 6.5));
+  } else if (site.id === "kohana") {
+    line(arc(232, -0.75, 4.55, 30, 20, 0, 0.9), 0.9);                                // the beach path past the huts
+    line([[150, 25], [100, -20], [20, -70], [-60, -70]], 1.2);                         // airstrip to the hotel
+    line([[-60, -70], [-120, 40], [-150, 160], [-150, 225]], 1.2);                     // the hotel down to the bar
+    line([[-180, 175], [-30, 175]], 1.0);                                             // along the parasols
+  } else {
+    line(arc(282, 2.62, 5.08, 22, 40, 0, 0.9), 1.4);                                  // the village street
+    line([[330, -100], [250, -80], [170, -60], [120, -50], [90, -36]], 1.2);           // airstrip to the onsen and the torii
+    line([[90, -36], [20, -110], [-140, -160], [-230, -248]], 1.0);                   // up to the lighthouse
+  }
+  // only the stretches on dry land: a path that runs into the sea is cut there
+  site.pedRoads = [];
+  W.forEach(r => { let cur = []; r.pts.forEach(p => { if (site.h(p[0] - cx, p[2] - cz) > 0.5) cur.push(p); else { if (cur.length > 1) site.pedRoads.push({ pts: cur, halfWidth: r.halfWidth, holiday: r.holiday }); cur = []; } }); if (cur.length > 1) site.pedRoads.push({ pts: cur, halfWidth: r.halfWidth, holiday: r.holiday }); });
+}
+// The islands were put up in flat Lambert, which the engines can only half use: no reflections, and in the rain the wet-street patch has no
+// roughness to take down. On a high setting every plain material out there becomes a physically shaded one with the same colour, so the
+// sky probe, the wet weather and the post chain treat the islands exactly as they treat Tōkonto.
+function destShade(G) {
+  if (!gfx.high) return 0;
+  const done = new Map(); let n = 0;
+  G.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const m = o.material;
+    if (!m.isMeshLambertMaterial || m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile || m.userData.shDry) return;
+    let r = done.get(m);
+    if (!r) {
+      r = new THREE.MeshStandardMaterial({ color: m.color, map: m.map, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, opacity: m.opacity, side: m.side,
+        roughness: m.transparent ? 0.15 : 0.82, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.6 });
+      done.set(m, r); m.dispose(); n++;
+    }
+    o.material = r;
+  });
+  return n;
+}
 function destEnsure(id) {
   const s = DEST.by[id]; if (!s || s.built) return s;
   s.built = true; const G = new THREE.Group(); s.group = G; scene.add(G);
   try { (id === "seoul" ? buildSeoul : buildIsland)(s, G); } catch (e) { console.warn("[Konto] could not build " + id + ":", e); }
+  try { destWalks(s); } catch (e) { console.warn("[Konto] no walks on " + id + ":", e); }
+  try { destShade(G); } catch (e) { console.warn("[Konto] could not shade " + id + ":", e); }
   buildSolidGrid();
+  peds.gridFor = null;                                  // the people's grid picks up the new streets
+  if (window.shigoto && shigoto.bridge && shigoto.bridge.syncSolids) shigoto.bridge.syncSolids();   // and the physics their buildings
   streamAdd(G, { x0: s.cx - s.hx, x1: s.cx + s.hx, z0: s.cz - s.hz, z1: s.cz + s.hz, y0: -3, y1: 120 }, 2600);
   return s;
 }
@@ -38849,6 +39769,16 @@ function destArrive(id) {
   camPos.set(player.pos.x - Math.sin(player.yaw) * 4, player.pos.y + 2.4, player.pos.z - Math.cos(player.yaw) * 4);
   DEST.active = s; say("Welcome to " + AIR_DESTS[id].name + ". Local time " + phoneTime().h + ":" + two(phoneTime().m) + ". The departures kiosk is where you landed.", 8);
 }
+// The sea is the island's own water engine (Gerstner swell near you, shallows, surf, foam, reflections, rain rings), so on holiday it stays:
+// the rest of the mainland is hidden, the sea and its swell are lifted out of it until you fly home.
+function destKeepSea(hide) {
+  [water.sea, water.patch && water.patch.mesh].forEach(m => {
+    if (!m) return;
+    if (hide) { if (m.parent && m.parent !== scene) { m.userData.homeParent = m.parent; scene.attach(m); } }
+    else if (m.userData.homeParent) { m.userData.homeParent.attach(m); m.userData.homeParent = null; }
+  });
+  if (DEST.sea) DEST.sea.visible = hide && !water.sea;
+}
 function destFrame(dt) {
   const p = player.pos, s = DEST.at ? DEST.at(p.x, p.z) : null;
   if (DEST.active && !s) DEST.active = null; else if (s && s !== DEST.active) { DEST.active = s; destEnsure(s.id); }
@@ -38856,8 +39786,8 @@ function destFrame(dt) {
   s && s.kiosk && (DEST.near = Math.hypot(p.x - s.kiosk.sx, p.z - s.kiosk.sz) < 5.5 ? s : null);
   if (!s) DEST.near = null;
   // out there the mainland is not in the picture: the island's own sea and sky are all there is
-  if (worldRoot) { const hide = !!DEST.active; if (worldRoot.visible === hide) worldRoot.visible = !hide; }
-  if (DEST.active) {
+  if (worldRoot) { const hide = !!DEST.active; if (worldRoot.visible === hide) { worldRoot.visible = !hide; destKeepSea(hide); } }
+  if (DEST.active && !water.sea) {
     if (!DEST.sea) { DEST.sea = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshLambertMaterial({ color: 0x1c3f4d })); DEST.sea.geometry.rotateX(-Math.PI / 2); scene.add(DEST.sea); }
     DEST.sea.visible = true; DEST.sea.position.set(DEST.active.cx, 0, DEST.active.cz);
   } else if (DEST.sea) DEST.sea.visible = false;
@@ -40031,6 +40961,15 @@ function pedGrid() {
       (G.get(k) || G.set(k, []).get(k)).push({ r: r, i: i });
     }
   }));
+  // the holiday islands' streets and paths, once they are built: the same people walk there (tourists and locals from the same cast), so
+  // the honor and respect systems, street help requests and crime witnesses work there as they do at home
+  if (typeof DEST !== "undefined") DEST.sites.forEach(site => (site.pedRoads || []).forEach(r => {
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 2) continue;
+      const n = Math.max(1, Math.ceil(len / C));
+      for (let k = 0; k < n; k++) { const t = (k + 0.5) / n, key = Math.floor((a[0] + (b[0] - a[0]) * t) / C) + "," + Math.floor((a[2] + (b[2] - a[2]) * t) / C); const l = G.get(key) || G.set(key, []).get(key); if (!l.some(e => e.r === r && e.i === i)) l.push({ r: r, i: i }); }
+    }
+  }));
   peds.grid = G; peds.gridFor = world; peds.gridC = C;
   return G;
 }
@@ -40042,14 +40981,16 @@ function pedPathPos(p, out) {
   return out;
 }
 function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+// People appear on the footway network (pedNet), which keeps them on the pavements and takes them over a road only at a crossing.
 function pedSpawn() {
-  const G = pedGrid(), C = peds.gridC, px = player.pos.x, pz = player.pos.z, cx = Math.floor(px / C), cz = Math.floor(pz / C), cand = [];
-  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const l = G.get((cx + i) + "," + (cz + j)); if (l) cand.push.apply(cand, l); }
+  if (!pedNet.ready) return false;
+  const px = player.pos.x, pz = player.pos.z, cand = pedNetNear(px, pz, 95, id => pedNet.adj[id].length > 0);
   if (!cand.length) return false;
   const fx = -Math.sin(yaw), fz = -Math.cos(yaw), tmp = {};
   for (let t = 0; t < 8; t++) {
-    const c = cand[(Math.random() * cand.length) | 0], p = { r: c.r, i: c.i, u: Math.random(), side: Math.random() < 0.5 ? -1 : 1, dir: Math.random() < 0.5 ? -1 : 1 };
-    pedPathPos(p, tmp);
+    const c = cand[(Math.random() * cand.length) | 0], p = { x: pedNet.x[c[1]], z: pedNet.z[c[1]], lat: (Math.random() - 0.5) * 1.0, moving: true };
+    if (!pedNetAttach(p, 1)) continue;
+    tmp.x = p.x; tmp.z = p.z; tmp.yaw = Math.atan2(pedNet.x[p.nb] - pedNet.x[p.na], pedNet.z[p.nb] - pedNet.z[p.na]);
     const dx = tmp.x - px, dz = tmp.z - pz, d = Math.hypot(dx, dz);
     if (d < 28 || d > 95) continue;
     if ((dx * fx + dz * fz) / d > 0.55 && d < 60) continue;                       // not out of thin air in front of you
@@ -40124,7 +41065,7 @@ function pedSet(p, state, from) {
     if (!p.icon) { p.icon = new THREE.Sprite(new THREE.SpriteMaterial({ map: pedPhoneIcon(), depthTest: false, fog: false })); p.icon.scale.set(0.5, 0.5, 0.5); p.icon.position.y = 2.25; p.holder.add(p.icon); }
     p.icon.visible = true; pedSay(p, "call", 2.5);
   }
-  else if (state === "walk" || state === "wander") pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED);
+  else if (state === "walk" || state === "wander") { p.moving = true; pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); }
   else if (state === "idle") pedPlay(p, "idle", 0.3);
 }
 // shot or hit by a car: hurt, knocked down, or dead
@@ -40161,12 +41102,14 @@ function pedFree(p, dt, speed, ax, az) {
   let h = Math.atan2(ax, az);
   for (const k of [0, 0.6, -0.6, 1.2, -1.2, 2.0, -2.0, Math.PI]) {
     const a = h + k, nx = p.x + Math.sin(a) * speed * dt * 4, nz = p.z + Math.cos(a) * speed * dt * 4;
-    if (!insideBuilding(nx, nz, 0.35) && world.sampleHeight(nx, nz) > 0.4) { h = a; break; }
+    if (!insideBuilding(nx, nz, 0.35) && world.sampleHeight(nx, nz) > 0.4 && !pedOntoRoad(p, nx, nz)) { h = a; break; }
   }
   let dy = h - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 8);
   const nx = p.x + Math.sin(p.yaw) * speed * dt, nz = p.z + Math.cos(p.yaw) * speed * dt;
-  if (!insideBuilding(nx, nz, 0.3)) { p.x = nx; p.z = nz; }
+  if (!insideBuilding(nx, nz, 0.3) && !pedOntoRoad(p, nx, nz)) { p.x = nx; p.z = nz; }
 }
+// would this step take someone off the kerb onto a road or a track? (Someone already on one may always step off it.)
+function pedOntoRoad(p, nx, nz) { return !!xing.ready && !!xingRoadAt(nx, nz, 0.2) && !xingRoadAt(p.x, p.z, 0.2); }
 // ---- the rush hour ----------------------------------------------------------------------------------------------------------------------
 // From a quarter to seven to half past nine, and again from a quarter past five to eight, the people near a station are commuters: office
 // workers in their suits, walking the real streets (the same street graph the waypoint uses) at a commuter's pace. In the morning the towns
@@ -40197,12 +41140,9 @@ function commuteNearStation(r) {
 }
 function commuteRoute(from, to, key) {
   if (key && commute.routes.has(key)) return commute.routes.get(key);
-  let path = null;
-  try { path = routeSolve({ x: from[0], z: from[1] }, { x: to[0], z: to[1] }); } catch (e) { path = null; }
-  if (!path || path.length < 2) path = [from, to];
-  path = [from].concat(path, [to]).map(q => [q[0], q[1]]);
-  // how wide the road is under each stretch, so they walk on its pavement and not down the middle of it
-  for (let i = 0; i < path.length - 1; i++) path[i][2] = commuteRoadHalf((path[i][0] + path[i + 1][0]) / 2, (path[i][1] + path[i + 1][1]) / 2);
+  // along the footways, and over the roads only at the crossings (see pedNet)
+  const ids = pedNetRoute(from[0], from[1], to[0], to[1]);
+  const path = ids && ids.length >= 2 ? ids.map(id => [pedNet.x[id], pedNet.z[id], id]) : null;
   if (key) { if (commute.routes.size > 300) commute.routes.clear(); commute.routes.set(key, path); }
   return path;
 }
@@ -40227,10 +41167,11 @@ function commuteFigure() {
   return pplFigure(e, 0.94 + Math.random() * 0.08);
 }
 // a commuter on a route: path is [[x, z], ...] along the streets; they keep to one side of it
+function commuteNext(p) { p.pi++; return p.pi + 1 < p.path.length ? p.path[p.pi + 1][2] : -1; }
 function commuteSpawn(path, toStation) {
+  if (!path || path.length < 2) return null;
   const f = commuteFigure(); if (!f) return null;
-  const side = Math.random() < 0.5 ? -1 : 1;
-  const p = Object.assign({ r: null }, f, { path: path, pi: 0, pu: 0, side: side, latX: Math.random(), x: path[0][0], z: path[0][1], y: 0, yaw: 0, sp: 1.5 + Math.random() * 0.45, state: "commute", t: 0, hp: 100, h: 1, idleIn: 1e9, toStation: toStation, commuter: true });
+  const p = Object.assign({ r: null }, f, { path: path, pi: 0, pu: 0, lat: (Math.random() - 0.5) * 1.2, next: commuteNext, moving: true, x: path[0][0], z: path[0][1], y: 0, yaw: 0, sp: 1.5 + Math.random() * 0.45, state: "commute", t: 0, hp: 100, h: 1, idleIn: 1e9, toStation: toStation, commuter: true });
   commutePlace(p);
   p.holder.position.set(p.x, p.y, p.z); p.holder.rotation.y = p.yaw;
   scene.add(p.holder); pedPlay(p, "walk", 0, p.sp / WALK_SPEED);
@@ -40238,22 +41179,24 @@ function commuteSpawn(path, toStation) {
   peds.list.push(p);
   return p;
 }
+// put a commuter at (pi, pu) along their path: on the footway network, between two of its points
 function commutePlace(p) {
-  const P = p.path, a = P[p.pi], b = P[Math.min(P.length - 1, p.pi + 1)];
-  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L;
-  let x = a[0] + dx * p.pu, z = a[1] + dz * p.pu;
-  // on the pavement of an arterial (its half width plus a step), or to the side of a narrow street; closer in where buildings come to the kerb
-  const hw = a[2] || 0, lat = p.side * (hw ? hw + 1.0 + p.latX * 2.6 : 2.4 + p.latX * 1.4);
-  for (const k of [1, 0.6, 0.25, 0]) { const ox = x - uz * lat * k, oz = z + ux * lat * k; if (!insideBuilding(ox, oz, 0.3)) { x = ox; z = oz; break; } }
-  p.x = x; p.z = z; p.y = world.surfaceY(x, z); p.segL = L;
-  const want = Math.atan2(ux, uz); let d = want - p.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); p.yaw += d * 0.25;
+  const P = p.path; p.pi = Math.max(0, Math.min(p.pi, P.length - 2));
+  p.na = P[p.pi][2]; p.nb = P[p.pi + 1][2]; p.prev = p.na; p.nu = clamp(p.pu || 0, 0, 0.98); p.arrived = false;
+  p.crossing = p.nu > 0 ? pedNetEdgeX(p.na, p.nb) : null;
+  const X = pedNet.x, Z = pedNet.z, L = Math.hypot(X[p.nb] - X[p.na], Z[p.nb] - Z[p.na]) || 0.01, ux = (X[p.nb] - X[p.na]) / L, uz = (Z[p.nb] - Z[p.na]) / L;
+  p.x = X[p.na] + (X[p.nb] - X[p.na]) * p.nu - uz * p.lat; p.z = Z[p.na] + (Z[p.nb] - Z[p.na]) * p.nu + ux * p.lat;
+  p.y = world.surfaceY(p.x, p.z); p.yaw = Math.atan2(ux, uz);
 }
+// walk on; at a crossing, wait for the green man. True once they are there.
 function commuteStep(p, dt) {
-  p.pu += p.sp * dt / (p.segL || 1);
-  while (p.pu >= 1 && p.pi < p.path.length - 2) { p.pu -= 1; p.pi++; const a = p.path[p.pi], b = p.path[p.pi + 1]; p.segL = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; }
-  if (p.pu >= 1 && p.pi >= p.path.length - 2) return true;            // there
-  commutePlace(p);
-  return false;
+  pedMoveAnim(p, pedNetStep(p, dt));
+  return !!p.arrived;
+}
+function pedMoveAnim(p, moving) {
+  if (moving === p.moving) return;
+  p.moving = moving;
+  if (moving) pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); else pedPlay(p, "idle", 0.3);
 }
 // spawning: commuters walking in to the station from the streets around it, and waves of them coming out when a train comes in
 function commuteTick(dt) {
@@ -40306,15 +41249,9 @@ function pedsTick(dt) {
     p.t += dt;
     if (p.state === "walk") {
       p.idleIn -= dt;
-      if (p.idleIn <= 0) { pedSet(p, "idle"); p.idleFor = 2 + Math.random() * 5; p.idleIn = 15 + Math.random() * 35; }
-      else {
-        p.u += p.dir * p.sp * dt / (pedPathPos(p, tmp).len);
-        if (p.u > 1) { if (p.i < p.r.pts.length - 2) { p.i++; p.u -= 1; } else { p.u = 1; p.dir = -1; } }
-        if (p.u < 0) { if (p.i > 0) { p.i--; p.u += 1; } else { p.u = 0; p.dir = 1; } }
-        pedPathPos(p, tmp);
-        if (insideBuilding(tmp.x, tmp.z, 0.3)) { p.dir *= -1; }
-        else { p.x = tmp.x; p.z = tmp.z; let dy = tmp.yaw - p.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); p.yaw += dy * Math.min(1, dt * 6); }
-      }
+      if (p.na === undefined && !(pedNet.ready && pedNetAttach(p, 1.5))) { pedSet(p, "wander"); p.wh = p.yaw; }
+      else if (p.idleIn <= 0 && !p.crossing && !p.waitX) { pedSet(p, "idle"); p.idleFor = 2 + Math.random() * 5; p.idleIn = 15 + Math.random() * 35; }
+      else pedMoveAnim(p, pedNetStep(p, dt));
     } else if (p.state === "idle") { if (p.t > p.idleFor) pedSet(p, "walk"); }
     else if (p.state === "commute") {
       if (commuteStep(p, dt)) { if (p.toStation) { pedRemove(p); continue; } pedSet(p, "wander"); p.wh = p.yaw; }
@@ -40324,8 +41261,14 @@ function pedsTick(dt) {
       pedFree(p, dt, 4.4, ax || 1, az);
       if (p.t > p.runFor && d > 35) { pedSet(p, "wander"); p.wh = p.yaw; }
     } else if (p.state === "wander") {
-      if (Math.random() < dt * 0.3) p.wh = p.yaw + (Math.random() - 0.5) * 1.4;
-      pedFree(p, dt, p.sp, Math.sin(p.wh), Math.cos(p.wh));
+      // back onto the pavements as soon as there is one: wandering is only for where there is none
+      const q = pedNet.ready ? pedNetNear(p.x, p.z, 30, id => pedNet.adj[id].length > 0)[0] : null;
+      if (q && q[0] < 1.2 && pedNetAttach(p, 1.5)) { p.state = "walk"; p.moving = true; p.idleIn = 20 + Math.random() * 30; pedPlay(p, "walk", 0.3, p.sp / WALK_SPEED); continue; }
+      if (q) pedFree(p, dt, p.sp, pedNet.x[q[1]] - p.x, pedNet.z[q[1]] - p.z);            // make for the nearest pavement
+      else {
+        if (Math.random() < dt * 0.3) p.wh = p.yaw + (Math.random() - 0.5) * 1.4;
+        pedFree(p, dt, p.sp, Math.sin(p.wh), Math.cos(p.wh));
+      }
     } else if (p.state === "cower" || p.state === "hands") {
       const aimed = gun.target === p;
       if (aimed) p.t = 0;
@@ -40633,6 +41576,7 @@ function propPut(parent, id, x, y, z, ry, opts) {
 }
 // Legacy custom-room fill. InteriorEngine replaces this ambient fill when it refurbishes the room.
 function propLight(root) {
+  if (window.ShopAAA) { ShopAAA.rig(root); return; }
   if (root.userData.propLight) return;
   const h = new THREE.HemisphereLight(0xfffaf0, 0x7b8b8f, 0.8); root.add(h);
   const d = new THREE.DirectionalLight(0xfff2dd, 0.6); d.position.set(3, 6, 4); root.add(d); root.add(d.target);
@@ -41416,6 +42360,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "audio") { inAdd(g, 0.2, 0.2, 0.1, 0, 0.1, 0, "#e9ebee"); inAdd(g, 0.12, 0.06, 0.12, 0, 0.23, 0, col); top = 0.26; }
   else if (kind === "game") { inAdd(g, 0.2, 0.28, 0.03, 0, 0.14, 0, col); inAdd(g, 0.16, 0.06, 0.035, 0, 0.1, 0.004, "#f2f2f2"); top = 0.28; }
   else if (kind === "shirt") { inAdd(g, 0.34, 0.4, 0.06, 0, 0.2, 0, col); inAdd(g, 0.56, 0.12, 0.06, 0, 0.34, 0, col); inAdd(g, 0.12, 0.03, 0.065, 0, 0.395, 0.002, inShade(col, 0.6)); top = 0.42; }
+  else if (kind === "book" && window.ShopAAA) { top = ShopAAA.book(g, it); }
   else if (kind === "book") { inAdd(g, 0.18, 0.26, 0.04, 0, 0.13, 0, col); inAdd(g, 0.02, 0.26, 0.042, -0.08, 0.13, 0, "#f2efe6"); top = 0.26; }
   else if (kind === "gun") { const gm = gunModel(it.id, true); gm.rotation.y = Math.PI / 2; gm.position.y = 0.09; gm.scale.setScalar(it.id === "shotgun" ? 0.62 : 0.95); g.add(gm); top = 0.2; }
   else if (kind === "ammo") { inAdd(g, 0.2, 0.09, 0.12, 0, 0.045, 0, "#7a6a3a"); inAdd(g, 0.2, 0.02, 0.121, 0, 0.09, 0, "#c9a04a"); for (let k = 0; k < 4; k++) inAdd(g, 0.02, 0.07, 0.02, -0.06 + k * 0.04, 0.12, 0, "#d9b44a"); top = 0.15; }
@@ -41425,7 +42370,7 @@ function inItemMesh(it, noGlow) {
   else if (kind === "pill") { inAdd(g, 0.14, 0.2, 0.08, 0, 0.1, 0, "#f4f4f2"); inAdd(g, 0.14, 0.05, 0.085, 0, 0.1, 0, col); top = 0.2; }
   else if (kind === "umbrella") { inAdd(g, 0.04, 0.5, 0.04, 0, 0.25, 0, "#e8eef2"); inAdd(g, 0.2, 0.08, 0.2, 0, 0.5, 0, "#cfe0ea"); top = 0.55; }
   else { inAdd(g, 0.2, 0.22, 0.14, 0, 0.11, 0, col); inAdd(g, 0.2, 0.06, 0.145, 0, 0.13, 0, "#f4f4f2"); top = 0.22; }
-  SalaryArt.stock(it,kind,g,gfx.tier);
+  if (!(kind === "book" && window.ShopAAA)) SalaryArt.stock(it,kind,g,gfx.tier);
   // a yellow shell round it, shown when it is the one you are looking at
   if (!noGlow) {
     const glow = new THREE.Mesh(inBox, new THREE.MeshBasicMaterial({ color: 0xffd21c, side: THREE.BackSide, fog: false }));
@@ -41485,7 +42430,8 @@ function plazaExtra(def) {
       room.spots.push({ x: x, z: -D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
     });
     inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
-    inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f");
+    if (window.ShopAAA) propPut(root, "potted_plant_01", 0.6, 0, 1.6, 0, { h: 1.35 });
+    else { inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f"); }
     room.colliders.push({ x0: 2.0, x1: 3.6, z0: 0.95, z1: 1.45 }, { x0: -4.4, x1: -2.8, z0: 0.95, z1: 1.45 }, { x0: 0.3, x1: 0.9, z0: 1.3, z1: 1.9 });
     const dir = inLabel(PLAZA_FLOORS.map(f => f.label + " " + f.name).join("   "), 6.8, 0.4, "#2a2d33", "#ffffff"); dir.position.set(-3.0, 2.3, D / 2 - 0.13); dir.rotation.y = Math.PI; root.add(dir);
   };
@@ -41502,9 +42448,11 @@ function interiorLevels(s) {
 }
 function interiorShowRoom(room, at, face) {
   interiorPrepare(room);
+  if(window.ShopAAA)ShopAAA.enter(room);
   if (interior.room && interior.room !== room) interior.room.group.visible = false;
   interior.room = room; room.group.visible = true; interior.hi = null; interior.spot = null;
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz);
+  if (window.ShopAAA) ShopAAA.enter(room);
   player.pos.set(room.ox + at.x, interior.floorY, room.oz + at.z);
   player.yaw = player.targetYaw = face; yaw = face + Math.PI; pitch = -0.22; player.speed = 0;
   player.obj.position.copy(player.pos);
@@ -42136,16 +43084,17 @@ function interiorDecor(room, root, th, brand, opts) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
   const W=room.W||IN_W,D=room.D||IN_D,H=room.profile?.wallHeight||room.H||IN_H;
   // ---- painted surfaces over the plain boxes
-  const floor = inPlaneTex(room.profile?.design==='timber-local'?inFloorTex('books'):SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); root.add(floor);
+  const floor = inPlaneTex(room.profile?.design==='timber-local'?inFloorTex('books'):SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); floor.userData.shopSurface="floor";if(room.profile?.design==='timber-local')floor.userData.shopMaterialKind="wood";root.add(floor);
   const wt = inWallTex(brand);
-  root.add(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
-  root.add(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
-  root.add(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
+  const wallS = m => { m.userData.shopSurface = "wall"; root.add(m); };
+  wallS(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
+  wallS(inPlaneTex(wt, D, H, D / 4, 1, -W / 2 + 0.105, H / 2, 0, Math.PI / 2));
+  wallS(inPlaneTex(wt, D, H, D / 4, 1, W / 2 - 0.105, H / 2, 0, -Math.PI / 2));
   const side = (W - 2.4) / 2;
-  root.add(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
-  root.add(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
+  wallS(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
+  wallS(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
   const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h);  inPhotoDetail(g, "plaster", w, h, 0.4); });
-  if(!room.glassRoof)root.add(inPlaneTex(ceil,W,D,W/2,D/2,0,H-.006,0,0,Math.PI/2));
+  if(!room.glassRoof){const cm=inPlaneTex(ceil,W,D,W/2,D/2,0,H-.006,0,0,Math.PI/2);cm.userData.shopSurface="ceiling";root.add(cm);}
   // ---- adverts: pillars either side of the door, banners above the shelves
   const lift = !!opts.lift;
   inPoster(root, brand, 0, -1.95, 1.75, D / 2 - 0.13, Math.PI, 0.85, 1.15);
@@ -42199,14 +43148,24 @@ function interiorDecor(room, root, th, brand, opts) {
   } else if (brand === "books") {
     const cols = ["#8a2a2a", "#2a5a8a", "#2a6a3a", "#c8a84a", "#5a3a7a", "#d9d2c3", "#a85a2a", "#3a3a4a"];
     for (let i = 0; i < 12; i++) { inAdd(root, 0.2, 1.7 + (i % 3) * 0.06, 0.04, -W / 2 + 0.5 + 0.0, 0, 0, "#000").visible = false; }
+    if (window.ShopAAA) {
+      // a reading table with chairs, a pendant over it and a set on the table: all scanned
+      propPut(root, "dining_table", -1.5, 0, D / 2 - 3.4, 0, { w: 1.8 }); room.colliders.push({ x0: -2.4, x1: -0.6, z0: D / 2 - 3.9, z1: D / 2 - 2.9 });
+      propPut(root, "dining_chair_02", -2.0, 0, D / 2 - 2.65, Math.PI, { h: 0.92 }); propPut(root, "dining_chair_02", -1.0, 0, D / 2 - 4.15, 0, { h: 0.92 });
+      propPut(root, "book_encyclopedia_set_01", -1.7, 0.79, D / 2 - 3.4, 0.15, { w: 0.55 }); propPut(root, "standing_picture_frame_01", -0.9, 0.79, D / 2 - 3.3, -0.5, { h: 0.25 });
+      propPut(root, "modern_ceiling_lamp_01", -1.5, H - 0.95, D / 2 - 3.4, 0, { h: 0.95 });
+      propPut(root, "wooden_bookshelf_worn", -3.5, 0, -D / 2 + 0.35, 0, { w: 1.3 });
+    } else {
     inTable(room, root, -1.5, D / 2 - 3.4, 1.8, 0.9, "#4a3220", "#8a6a44"); inCyl(root, 0.08, 0.5, -1.5, 1.05, D / 2 - 3.4, "#d9c24a"); inAdd(root, 0.4, 0.1, 0.4, -1.5, 1.35, D / 2 - 3.4, "#e8d98a");
     inAdd(root, 0.7, 0.5, 0.7, -3.2, 0.25, D / 2 - 3.4, "#2c4a3a"); inAdd(root, 0.7, 0.5, 0.7, 0.2, 0.25, D / 2 - 3.4, "#2c4a3a");
     inAdd(root, 0.06, 2.2, 0.5, -3.5, 1.1, -D / 2 + 0.5, "#8a6a44");   // a library ladder
+    }
   } else if (brand === "clothes") {
     inRack(room, root, -5.0, -1.2, 2.4, ["#4a90d9", "#e8e8e6", "#d9a3b8", "#2a2d33", "#7ac9a8"]);
     inRack(room, root, -5.0, 1.8, 2.4, ["#e8e8e6", "#9b6bd3", "#e8d84a", "#4a90d9", "#c8372d"]);
-    inMannequin(root, 2.2, -4.2, "#4a90d9", 0.3); inMannequin(root, 3.1, -4.2, "#e8e8e6", -0.2); inMannequin(root, 4.0, -4.2, "#2a2d33", 0.1);
-    room.colliders.push({ x0: 1.9, x1: 4.3, z0: -4.55, z1: -3.85 });
+    if (!window.ShopAAA) { inMannequin(root, 2.2, -4.2, "#4a90d9", 0.3); inMannequin(root, 3.1, -4.2, "#e8e8e6", -0.2); inMannequin(root, 4.0, -4.2, "#2a2d33", 0.1);
+    room.colliders.push({ x0: 1.9, x1: 4.3, z0: -4.55, z1: -3.85 }); }
+    else { propPut(root, "potted_plant_01", 3.1, 0, -4.6, 0, { h: 1.3 }); room.colliders.push({ x0: 2.8, x1: 3.4, z0: -4.9, z1: -4.3 }); }
     inAdd(root, 1.3, 2.0, 0.06, -W / 2 + 0.2, 1.0, 4.2, "#bcd8ea"); inAdd(root, 1.4, 2.1, 0.04, -W / 2 + 0.17, 1.05, 4.2, "#2a2d33");   // the mirror
     inAdd(root, 1.2, 2.1, 0.06, -W / 2 + 1.0, 1.05, 2.4, "#6a4a7a");   // a fitting-room curtain
   } else if (brand === "dokoto") {
@@ -42313,7 +43272,8 @@ function interiorProps(room, root, th, brand, opts) {
   const W=room.W||IN_W,D=room.D||IN_D,H=room.H||IN_H,sk=IN_SKIN[brand]||IN_SKIN.eleven;
   const ads = IN_ADS[brand] || IN_ADS.eleven;
   const trimC = th.trim, sale = brand === "clothes" || brand === "books" ? "#c8372d" : trimC;
-  const pal = brand === "pharmacy" ? ["#e8f4ee", "#2e9b5a", "#f4f4f2", "#3f6fb5", "#d96a8a"] : brand === "arms" ? ["#6a6a4a", "#8a8a6a", "#3a3d42"] : IN_PALETTE;
+  // with the AAA finish, stock on pallets and in stacks is shipping cartons (kraft board, printed), not blocks of colour
+  const pal = window.ShopAAA ? IN_CARTON : brand === "pharmacy" ? ["#e8f4ee", "#2e9b5a", "#f4f4f2", "#3f6fb5", "#d96a8a"] : brand === "arms" ? ["#6a6a4a", "#8a8a6a", "#3a3d42"] : IN_PALETTE;
   const tags = { eleven: ["¥98 SALE", "2 FOR ¥300", "NEW!"], petmart: ["¥980", "SALE", "NEW"], pharmacy: ["¥480", "SALE", "NEW"], books: ["¥600", "NEW", "SALE"], clothes: ["30% OFF", "NEW", "SALE"], arms: ["¥1,200", "SALE", "NEW"], dokoto: ["SALE", "NEW", "NEW"], plaza: ["SALE", "NEW", "OPEN"] }[brand] || ["SALE"];
   let seed = inHash(brand + (opts && opts.key || "")) >>> 0; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
   // candidate spots: round the walls for the wall pieces, anywhere on a 0.5 m grid for the floor pieces and by the door for the door pieces
@@ -42344,9 +43304,11 @@ function interiorProps(room, root, th, brand, opts) {
         if (spot) break;
       }
       if (!spot) continue;
+      const sw = window.ShopAAA ? ShopAAA.propFor(kind, n) : null;
+      if (sw && sw.drop) continue;                 // no real counterpart yet: better an aisle than a block of colour
       const g = new THREE.Group(); g.position.set(spot.x, 0, spot.z); g.rotation.y = spot.ry; root.add(g);
       const ad = ads[(n + placed.length) % ads.length];
-      P.make(g, { n: placed.length + n, th: th, brand: brand, pal: pal, sale: ad[3] || sale, tag: tags[(n + placed.length) % tags.length], ad: ad, wood: sk.wall[2] === "#5b3b24" ? "#6a4a2e" : "#8a6a44", bookish: brand === "books" });
+      if (sw) ShopAAA.placeSwap(g, sw, propPut); else P.make(g, { n: placed.length + n, th: th, brand: brand, pal: pal, sale: ad[3] || sale, tag: tags[(n + placed.length) % tags.length], ad: ad, wood: sk.wall[2] === "#5b3b24" ? "#6a4a2e" : "#8a6a44", bookish: brand === "books" });
       placed.push({ x: spot.x, z: spot.z, r: P.r });
       if (P.solid) { const h = P.r * 0.8; room.colliders.push({ x0: spot.x - h, x1: spot.x + h, z0: spot.z - h, z1: spot.z + h }); }
     }
@@ -42475,7 +43437,7 @@ function interiorRoomRaw(s, opts) {
     for(const z of [-3.2,-1.8]){propPut(root,'dining_chair_02',7.15,0,z,-Math.PI/2,{h:.92});room.colliders.push({x0:6.8,x1:7.55,z0:z-.36,z1:z+.36});}
   }
   if(!room.station)SalaryRetail.refurbish(room,root,{add:inAdd,label:inLabel,devices:DEVICES,width:IN_W,depth:IN_D,height:IN_H,mapped:t=>retailEngine().mapped(t)});
-  SalaryArt.coat(root);
+  if(window.ShopAAA){ShopAAA.rig(root);ShopAAA.finish(room, root, IN_H);}else SalaryArt.coat(root);
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));
@@ -42991,6 +43953,7 @@ function interiorEnter(s) {
     scene.add(interior.light);
   }
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0;
+  if(window.ShopAAA)ShopAAA.enter(room);
   // the world's near plane is two metres, which would cut a close look at a shelf to nothing
   interior.nearWas = camera.near; camera.near = 0.08; camera.updateProjectionMatrix();
   player.pos.copy(room.entry);
@@ -43017,6 +43980,7 @@ function interiorLeave(quiet) {
   interior.room.group.visible = false;
   interior.light.intensity = 0;
   interior.active = false; interior.hi = null;
+  if (window.ShopAAA) ShopAAA.leave();
   if (interior.nearWas) { camera.near = interior.nearWas; camera.updateProjectionMatrix(); }
   interiorUi();
   stepOutFrom(s.door, s.yaw);
@@ -43479,6 +44443,15 @@ function cutTick(dt) {
     _cutL.fromArray(from.look); _cutM.fromArray(to.look); _cutL.lerp(_cutM, e);
     camera.position.copy(camPos); camera.lookAt(_cutL);
     if (s.roll) camera.rotateZ(s.roll);
+    // a camera operator's hands: a slow, small drift (layered sines at odd rates, so it never loops), never a mathematically still frame.
+    // Tighter shots get less of it; a shot can set shake: 0 (locked off) or more (a run, a fight).
+    const hh = s.shake === undefined ? ((s.fov || 50) <= 42 ? 0.6 : 1) : s.shake;
+    if (hh > 0) {
+      const T = cut.t + cut.i * 7.31, A = 0.0032 * hh;
+      camera.rotateY(A * (Math.sin(T * 0.71) * 0.6 + Math.sin(T * 1.93 + 1.7) * 0.3 + Math.sin(T * 3.7 + 0.4) * 0.1));
+      camera.rotateX(A * (Math.sin(T * 0.53 + 2.1) * 0.6 + Math.sin(T * 1.37 + 0.9) * 0.3 + Math.sin(T * 4.1 + 2.6) * 0.1));
+      camera.rotateZ(A * 0.5 * Math.sin(T * 0.43 + 0.3));
+    }
   }
   // the lines, each on screen from its time to the next one's
   const lines = s.lines || [];
@@ -44628,5 +45601,13 @@ radioLoadMusic();
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
 <script src="game/standing-hook.js"></script>
+<script src="game/career.js"></script>
+<script src="game/career-office.js"></script>
+<script src="game/career-content.js"></script>
+<script src="game/career-commute.js"></script>
+<script src="game/bike-hook.js"></script>
+<script src="game/ragdoll-hook.js"></script>
+<script src="game/boat-hook.js"></script>
+<script src="game/skydive-hook.js"></script>
 </body>
 </html>

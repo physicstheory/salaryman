@@ -25,7 +25,7 @@ BASELINE = os.path.join(HERE, "baseline.json")
 CACHE = os.path.join(ROOT, ".qa-cache")
 
 CAT_TITLE = {"pbr": "PBR textures", "characters": "Realistic characters", "cars": "Cars", "buildings": "Buildings",
-             "street": "Street detail", "lived_in": "Lived-in world"}
+             "street": "Street detail", "lived_in": "Lived-in world", "shops": "Shop interiors"}
 
 
 class Ctx:
