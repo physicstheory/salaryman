@@ -19487,7 +19487,7 @@ function buildCentralAtrium(root,st,t,conZ,conY) {
   const steel=commuterMaterial('metal',0xd5e1e8),glass=new T.MeshPhysicalMaterial({color:0xa8d7df,transparent:true,opacity:.32,roughness:.14,metalness:.12,clearcoat:1,side:T.DoubleSide,depthWrite:false});if(gfx.env)glass.envMap=gfx.env;
   const pts=[],pos=[],uv=[],ix=[],N=32;
   for(let i=0;i<=N;i++){const a=i/N*Math.PI;pts.push(new T.Vector3(Math.cos(a)*13.2,6.7+Math.sin(a)*10.5,0));for(const z of [-10.4,10.4]){pos.push(Math.cos(a)*13.2,6.7+Math.sin(a)*10.5,z);uv.push(i/N,z<0?0:1);}if(i){const k=i*2;ix.push(k-2,k-1,k,k-1,k+1,k);}}
-  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setIndex(ix);geo.computeVertexNormals();g.add(new T.Mesh(geo,glass));
+  const geo=new T.BufferGeometry();geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));geo.setAttribute('uv',new T.Float32BufferAttribute(uv,2));geo.setIndex(ix);geo.computeVertexNormals();const roof=new T.Mesh(geo,glass);roof.userData.rainOccluder=true;g.add(roof);
   const curve=new T.CatmullRomCurve3(pts),ribGeo=new T.TubeGeometry(curve,32,.16,6,false),ribs=new T.InstancedMesh(ribGeo,steel,6),matrix=new T.Matrix4();
   for(let i=0;i<6;i++){matrix.makeTranslation(0,0,-10.4+i*4.16);ribs.setMatrixAt(i,matrix);}g.add(ribs);
   const front=new T.Shape();front.moveTo(-13.2,6.7);for(let i=N;i>=0;i--)front.lineTo(pts[i].x,pts[i].y);front.closePath();

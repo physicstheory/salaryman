@@ -5777,6 +5777,7 @@ var SHIGOTO = (() => {
       if (ud && (ud.shDry || ud.rainSkip)) return true;
       if (o2.isPoints || o2.isLine || o2.isSprite || o2.isSkinnedMesh) return true;
       if (!o2.isMesh) return false;
+      if (ud && ud.rainOccluder) return false;
       const m2 = Array.isArray(o2.material) ? o2.material[0] : o2.material;
       if (!m2) return true;
       if (m2.depthWrite === false || m2.transparent && m2.opacity < 0.85 && !m2.alphaTest || m2.side === this.T.BackSide) return true;

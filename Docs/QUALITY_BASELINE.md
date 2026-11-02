@@ -158,3 +158,5 @@ Checks: 16 presentation tests; 5 commute/clock/route/ramp regressions; composito
 
 
 Shop entry now uses visible proximity-driven glass doors with frames, hinges and handles. Doors share geometry/materials and remain subject to distance culling; the leaf opens while approaching, before the threshold triggers immediate entry. The shop-entry fade/timer is removed. The initial persistence load prepares mall/plaza/station floors as well as individual shop types so room construction happens before play. This is an immediate handoff into the existing staged room system, not a continuous 1:1 portal into the street building. All mapped door-frame geometry has planar UVs to avoid degenerate normal-map derivatives.
+
+The merged rain engine treats explicitly tagged solid glass roofs as occluders. The browser rain fixture checks Low/High shader compilation, cover below a transparent glass roof, open-air exposure and indoor suppression. The cold-start runtime report now has 16 checks, including rain preparation.
