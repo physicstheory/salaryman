@@ -24,3 +24,5 @@ export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, war
 export { Honor, HONOR_TIERS } from "./standing/Honor.js";
 export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
+// Vehicles: motorcycle and bicycle dynamics (sprung wheels, magic-formula tyres, engine and clutch, wheelies, stoppies, jumps, crashes).
+export { Motorcycle, BIKE_SPECS } from "./vehicles/Motorcycle.js";
