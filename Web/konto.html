@@ -37335,7 +37335,7 @@ function updateDrive(dt) {
     const weather=window.shigoto?.engine?.weather;
     SHIGOTO.stepCarDynamics(c,kind,{throttle,brake,steer,hand,lean:w.y},dt,{
       top:perf.top*(1-.45*hurt),to100:perf.to100,grip:bikeGrip(kind,c.pos.x,c.pos.z)*(1+.06*kustomOf(kind).tyres),
-      engineEnabled:!D||D.total<1,wet:weather?.wetness||0,slope:c.slope||0,brakeGrip:brakeG(kind),steerResponse:.16/(1+.18*kustomOf(kind).susp)
+      engineEnabled:!c.fuelOut&&(!D||D.total<1),wet:weather?.wetness||0,slope:c.slope||0,brakeGrip:brakeG(kind),steerResponse:.16/(1+.18*kustomOf(kind).susp)
     });
     if(c.squeal>.35&&Math.abs(c.speed)>5)skidMark(c,kind);
     moveCarGrounded(c,kind,dt);carSmoke(c,kind,dt);driveCollisions(c,kind,dt);

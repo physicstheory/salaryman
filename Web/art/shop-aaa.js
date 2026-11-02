@@ -338,7 +338,8 @@
   }
   function swapEnv(obj, to, rec) {
     obj.traverse(o => { if (!o.material) return; (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
-      if (!m || !('envMap' in m) || m.isShaderMaterial) return;
+      // PMREM uses CubeUV; r128 Lambert/Phong require a cubemap and cannot compile it.
+      if (!m || !m.isMeshStandardMaterial) return;
       if (m.envMap === to) return; rec.push([m, m.envMap, m.envMapIntensity]); m.envMap = to; if (m.envMapIntensity < 0.6) m.envMapIntensity = 0.9; m.needsUpdate = true; }); });
   }
   function enter(room) {
@@ -366,7 +367,7 @@
     if (typeof sunLight !== 'undefined' && sunLight) sunLight.intensity = 0;
     if (typeof hemiLight !== 'undefined' && hemiLight) hemiLight.intensity = 0;
     if (typeof renderer !== 'undefined' && renderer) renderer.toneMappingExposure = 1.0;
-    if (typeof interior !== 'undefined' && interior.light) { interior.light.intensity = 1.1; interior.light.distance = 20; interior.light.decay = 1.2; interior.light.color.setHex(0xfff2e0); }
+    if (typeof interior !== 'undefined' && interior.light) { interior.light.intensity = interior.room && interior.room.refurbishment ? 0 : 1.1; interior.light.distance = 20; interior.light.decay = 1.2; interior.light.color.setHex(0xfff2e0); }
   }
 
   // ---- audit: is any bare colour box still on show? -------------------------------------------------------------------------------------
