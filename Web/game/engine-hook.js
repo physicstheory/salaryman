@@ -41,6 +41,7 @@
       engine.events.on("weather", w => { try { localStorage.setItem("shigoto.weather", w); } catch (e) { /* private mode */ } });
       engine.events.on("lightning", () => { try { say && engine.weather.state === "storm" && Math.random() < 0.15 && say("Thunder rolls over Tōkonto.", 3); } catch (e) { /* none */ } });
       S.engine = engine; S.bridge = bridge; S.scene = scene; S._lights = null;
+      dressProps(engine);
       console.log("[Shigoto] engine " + SHIGOTO.VERSION + " running under the game");
     } catch (e) {
       S.failed = true;
@@ -56,6 +57,27 @@
     if (!S.engine || S.scene !== scene) await start();
     return S.engine;
   };
+  // The game's own street furniture (vending machines, aircon units) is drawn as plain boxes until the engine runs;
+  // konto.html tags those meshes with userData.propSwap and here they become the engine's detailed, PBR-textured props
+  // (Engine/src/world/Props.js, textures in art/props/), instanced into the same parent so they stream with the city.
+  function dressProps(engine) {
+    const B = engine.streamer && engine.streamer.builder;
+    if (!B || !B.instanceProps) return;
+    if (typeof gfx === "object" && gfx && gfx.tier === "low") return;      // low tier keeps the cheap boxes
+    const found = [];
+    scene.traverse(o => { if (o.userData && o.userData.propSwap && !o.userData.propSwapped) found.push(o); });
+    let n = 0;
+    for (const o of found) {
+      try {
+        const sw = o.userData.propSwap, g = B.instanceProps(sw.type, sw.items);
+        (o.parent || scene).add(g);
+        o.visible = false; (sw.also || []).forEach(m => { m.visible = false; });
+        o.userData.propSwapped = g; n += sw.items.length;
+      } catch (e) { console.warn("[Shigoto] could not swap in detailed " + (o.userData.propSwap || {}).type + " props", e); }
+    }
+    if (n) console.log("[Shigoto] " + n + " street props drawn with the engine's detailed models");
+  }
+  S.dressProps = () => S.engine && dressProps(S.engine);
   function savedWeather() { try { return localStorage.getItem("shigoto.weather"); } catch (e) { return null; } }
 
   // The game's sun and sky lights, dimmed by cloud. The game sets them itself (often every frame), so remember what it

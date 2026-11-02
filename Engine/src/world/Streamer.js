@@ -49,6 +49,8 @@ export class Streamer {
     // a few fetches at once, building as each lands
     for (let i = 0; i < jobs.length; i += 4) await Promise.all(jobs.slice(i, i + 4).map(one));
     this.engine.stats.cells = jobs.length - failed;
+    // the street props' painted textures: wait for them too, so the loading screen lifts on a finished street
+    await this.materials.texturesReady(20000);
     return { cells: jobs.length - failed, failed };
   }
 

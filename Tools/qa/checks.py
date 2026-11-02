@@ -421,6 +421,7 @@ def check_buildings(ctx):
     if not re.search(r"interior", ctx.read("Engine/src/world/CellBuilder.js") + ctx.read("Engine/src/render/Materials.js"), re.I):
         ctx.fail("buildings", "interior-mapping", "Engine/src/world", "facade shader lost interior-mapped windows",
                  "Keep the interior-mapped window shader: flat windows look painted on.")
+    check_sign_fonts(ctx)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -449,11 +450,13 @@ def check_street(ctx):
 
 
 def check_engine_props(ctx):
-    """Engine street props are procedural primitives: their shared materials must carry PBR textures."""
+    """Engine street props are detailed primitives; every part is drawn with a named texture slot (PropSlots.js) and
+    every slot must be a full PBR set (base colour + normal + roughness) in Web/art/props/."""
     props, mats = ctx.read("Engine/src/world/Props.js"), ctx.read("Engine/src/render/Materials.js")
     if not props or not mats:
         return
-    parts = len(re.findall(r'add\("', props))
+    R = ctx.rules["street"]
+    # old style: add("paint", ...) with a shared flat material. Any that come back must be textured materials.
     untextured = []
     for name in sorted(set(re.findall(r'add\("(\w+)"', props))):
         m = re.search(r"_%s\(\)\s*\{([^}]*)\}" % name, mats)
@@ -461,8 +464,78 @@ def check_engine_props(ctx):
             untextured.append(name)
     if untextured:
         ctx.fail("street", "engine-props-untextured", "Engine/src/world/Props.js + Engine/src/render/Materials.js",
-                 "the engine's %d street-prop parts (bins, vending machines, bicycles, poles...) are flat-colour primitives: materials %s have no texture maps" % (parts, ", ".join(untextured)),
-                 "Give those materials a PBR atlas (map + normalMap + roughnessMap, triplanar or UV-mapped), or register textured .glb models for each prop type with engine.streamer.props.register(...); then rebuild with node Engine/build.mjs.")
+                 "street-prop parts use flat-colour materials %s" % ", ".join(untextured),
+                 "Draw every prop part with a texture slot from Engine/src/world/PropSlots.js (P.box(\"vending_body\", ...)), not a shared flat material; see docs/PROP_TEXTURES.md.")
+    # the slot loader must give every slot all three maps
+    body = re.search(r"_slot\(name\)\s*\{(.*?)\n  \}", mats, re.S)
+    if not body or not all(re.search(r"\b%s\b" % k, body.group(1)) for k in ("map", "normalMap", "roughnessMap")):
+        ctx.fail("street", "engine-props-loader", "Engine/src/render/Materials.js",
+                 "the prop texture-slot loader (_slot) is missing or does not load map + normalMap + roughnessMap",
+                 "Keep Materials._slot loading <slot>.jpg, <slot>_nor.jpg and <slot>_rough.jpg from Web/art/props/ for every prop part.")
+    used = sorted(set(re.findall(r'\bP\.\w+\("(\w+)"', props)))
+    slots_path = os.path.join(ctx.root, "Web/art/props/slots.json")
+    try:
+        slots = json.load(open(slots_path))["slots"]
+    except Exception:
+        slots = {}
+    if len(used) < R.get("min_prop_slots", 0):
+        ctx.fail("street", "prop-slots-few", "Engine/src/world/Props.js", "the props use only %d texture slots" % len(used),
+                 "Keep the props detailed: at least %d named texture slots across them (see PropSlots.js)." % R["min_prop_slots"])
+    missing = [u for u in used if u not in slots]
+    if missing:
+        ctx.fail("street", "prop-slots-unlisted", "Web/art/props/slots.json", "prop parts use slots not in slots.json: %s" % ", ".join(missing),
+                 "Add them to Engine/src/world/PropSlots.js, run node Engine/tools/prop-slots.mjs and python3 Tools/props/make_prop_maps.py --placeholders.")
+    stand_ins = []
+    for sid in used:
+        if sid not in slots:
+            continue
+        for suf in ("", "_nor", "_rough"):
+            f = os.path.join(ctx.root, "Web/art/props", sid + suf + ".jpg")
+            if not os.path.exists(f):
+                ctx.fail("street", "prop-tex:%s%s" % (sid, suf), "Web/art/props/%s%s.jpg" % (sid, suf), "prop texture slot '%s' has no %s map" % (sid, {"": "base colour", "_nor": "normal", "_rough": "roughness"}[suf]),
+                         "Paint it (docs/PROP_TEXTURES.md) and run python3 Tools/props/make_prop_maps.py %s, or run --placeholders for a stand-in." % sid)
+                continue
+            head = open(f, "rb").read(65536)
+            sz = image_size(head)
+            if sz and max(sz) < ctx.rules["pbr"]["min_texture_px"]:
+                ctx.fail("street", "prop-texlow:%s%s" % (sid, suf), "Web/art/props/%s%s.jpg" % (sid, suf), "only %dx%d" % sz, "Paint it at %d px or more." % slots[sid].get("size", 512))
+            if suf == "" and b"shigoto-placeholder" in head[:4096]:
+                stand_ins.append(sid)
+    if stand_ins:
+        ctx.warn("street", "prop-stand-ins", "Web/art/props", "%d of %d prop texture slots are still procedural stand-ins: %s" % (len(stand_ins), len(used), ", ".join(stand_ins)),
+                 "Paint them with ChatGPT one at a time following docs/PROP_TEXTURES.md, save as Web/art/props/<slot>.jpg and run python3 Tools/props/make_prop_maps.py <slot>.")
+
+
+def check_sign_fonts(ctx):
+    """Signs and adverts must not all share one typeface: the SignFonts library and its use by every sign painter."""
+    R = ctx.rules.get("signs")
+    if not R:
+        return
+    try:
+        faces = json.load(open(os.path.join(ctx.root, "Web/art/signfonts/signfonts.json")))["fonts"]
+    except Exception:
+        faces = []
+    have = [f for f in faces if os.path.exists(os.path.join(ctx.root, "Web/art/signfonts", f["file"]))]
+    jp = [f for f in have if f.get("script") == "jp"]
+    if len(have) < R["min_faces"] or len(jp) < R["min_jp_faces"]:
+        ctx.fail("buildings", "sign-fonts", "Web/art/signfonts", "only %d sign typefaces (%d with Japanese)" % (len(have), len(jp)),
+                 "Keep at least %d faces (%d Japanese) in the sign-font library: python3 Tools/fonts/build_sign_fonts.py (OFL/Apache faces only)." % (R["min_faces"], R["min_jp_faces"]))
+    bad = [f["file"] for f in faces if f.get("license") not in ("OFL-1.1", "Apache-2.0")]
+    if bad:
+        ctx.fail("buildings", "sign-font-licence", "Web/art/signfonts", "fonts without an open licence: %s" % ", ".join(bad), "Use only SIL OFL 1.1 or Apache 2.0 fonts.")
+    html = ctx.read("Web/konto.html")
+    if "art/signfonts.js" not in html:
+        ctx.fail("buildings", "sign-fonts-loaded", "Web/konto.html", "the game does not load art/signfonts.js", "Load art/signfonts/fonts.js and art/signfonts.js before the world is built.")
+    src = {"Web/konto.html": html, "Engine/src/world/CellBuilder.js": ctx.read("Engine/src/world/CellBuilder.js")}
+    for where, fn in R["painters"]:
+        body = src.get(where, "")
+        i = body.find(fn)
+        seg = body[i:i + 4000] if i >= 0 else ""
+        if i < 0:
+            ctx.warn("buildings", "sign-painter-probe:" + fn, where, "could not find the sign painter %s" % fn, "Update the 'painters' list in Tools/qa/rules.json if it was renamed.")
+        elif "SignFonts" not in seg:
+            ctx.fail("buildings", "sign-painter:" + fn, where, "%s paints signs in one fixed font" % fn,
+                     "Draw its lettering with SignFonts.style/text/vertical (Web/art/signfonts.js) so each sign gets its own typeface.")
 
 
 # ---------------------------------------------------------------------------------------------

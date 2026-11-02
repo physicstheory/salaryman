@@ -1274,6 +1274,8 @@
 <script src="art/retail.js"></script>
 <script src="art/realism.js"></script>
 <script src="art/brands.js"></script>
+<script src="art/signfonts/fonts.js"></script>
+<script src="art/signfonts.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
 <script>
@@ -11951,6 +11953,8 @@ function buildStreetLife(root, w) {
     });
     body.instanceMatrix.needsUpdate = true; if (body.instanceColor) body.instanceColor.needsUpdate = true; face.instanceMatrix.needsUpdate = true;
     body.frustumCulled = false; face.frustumCulled = false; body.castShadow = true;
+    // the engine swaps these boxes for its detailed, PBR-textured vending machine once it is running (game/engine-hook.js)
+    body.userData.propSwap = { type: "vending", also: [face], items: vending.list.map(v => ({ x: v.at[0], y: v.groundY, z: v.at[1], yaw: v.yaw, colour: v.o.c.map(k => Math.pow(k, 1 / 2.2)) })) };
     root.add(body); root.add(face);
   }
   buildSolidGrid();
@@ -15932,11 +15936,19 @@ function adAtlas() {
     g.textAlign = "left";
     g.textBaseline = "alphabetic";
     g.fillStyle = ad.tint;
-    fitText(ad.jp, "700", 38, 1190, JP);
-    g.fillText(ad.jp, 370, 60);
+    if (window.SignFonts) {
+      // each campaign is set in its own typeface and lettering, like real agencies' work, instead of one house font
+      const sj = SignFonts.style("adjp|" + ad.head, { text: ad.jp, treatment: "flat" }), sh = SignFonts.style("ad|" + ad.head, { text: ad.head, hint: ad.sub });
+      SignFonts.text(g, ad.jp, 370, 60, sj, ad.tint, ad.bg, 38, 1190);
+      SignFonts.text(g, ad.head, 368, 150, sh, ad.ink, ad.bg, 84, 1190);
+    } else {
+      fitText(ad.jp, "700", 38, 1190, JP);
+      g.fillText(ad.jp, 370, 60);
+      g.fillStyle = ad.ink;
+      fitText(ad.head, "800", 84, 1190, UI);
+      g.fillText(ad.head, 368, 150);
+    }
     g.fillStyle = ad.ink;
-    fitText(ad.head, "800", 84, 1190, UI);
-    g.fillText(ad.head, 368, 150);
     fitText(ad.sub, "500", 34, 1190, UI);
     g.globalAlpha = 0.85;
     g.fillText(ad.sub, 372, 207);
@@ -19203,12 +19215,15 @@ function kanbanTexture(v) {
   const n = 6, th = cv.height / n;
   for (let i = 0; i < n; i++) {
     const r = rnd(v, i, 7717), col = KANBAN_COLS[Math.floor(r * KANBAN_COLS.length)], word = KANBAN_WORDS[Math.floor(rnd(i, v, 7719) * KANBAN_WORDS.length)];
-    g.fillStyle = col[0]; g.fillRect(0, i * th, 128, th);
+    // every tenant's board has its own typeface and lettering (SignFonts), so a stack of six never looks stamped out
+    const st = window.SignFonts ? SignFonts.style("kanban|" + v + "|" + i + "|" + word, { text: word }) : null;
+    if (st) SignFonts.panel(g, 0, i * th, 128, th, st, col[0], col[1]); else { g.fillStyle = col[0]; g.fillRect(0, i * th, 128, th); }
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, i * th + th - 3, 128, 3);
     g.fillStyle = col[1]; const chars = [...word], fs = Math.min(64, (th - 22) / chars.length * 0.95);
-    g.font = "900 " + Math.round(fs) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
-    chars.forEach((ch, k) => g.fillText(ch, 64, i * th + 12 + fs * (k + 0.55) + (th - 22 - fs * chars.length) / 2));
-    g.font = "700 15px " + UI; g.textAlign = "left"; g.fillText((n - i + 1) + "F", 6, i * th + 13);
+    if (st) SignFonts.vertical(g, word, 64, i * th + 18, i * th + th - 8, st, col[1], col[0], fs);
+    else { g.font = "900 " + Math.round(fs) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+      chars.forEach((ch, k) => g.fillText(ch, 64, i * th + 12 + fs * (k + 0.55) + (th - 22 - fs * chars.length) / 2)); }
+    g.fillStyle = col[1]; g.font = "700 15px " + UI; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText((n - i + 1) + "F", 6, i * th + 13);
   }
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (dressTex[key] = t);
@@ -19225,10 +19240,18 @@ function billboardTexture(v) {
   g.strokeStyle = fg; g.globalAlpha = 0.3; g.lineWidth = 2; g.strokeRect(18, 18, 988, 348); g.globalAlpha = 1;
   g.fillStyle = fg; g.font = "700 20px " + UI; g.textAlign = "left"; g.fillText("TŌKONTO · LOCAL BUSINESS", 52, 59);
   g.fillRect(52, 83, 62, 5);
-  let size = 126; g.font = "800 " + size + "px " + JP;
-  while (g.measureText(big).width > 920 && size > 24) { size--; g.font = "800 " + size + "px " + JP; }
-  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(big, 512, 174);
-  g.font = "500 42px " + JP; g.fillText(small, 512, 272, 900);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  if (window.SignFonts) {
+    // the headline and the strapline each get a face of their own, picked for the business (a hotel is not set like a yakiniku)
+    const st = SignFonts.style("billboard|" + big, { text: big, panel: "solid" }), st2 = SignFonts.style("billboard2|" + small, { text: small, treatment: "flat", avoid: ["script", "outline"] });
+    SignFonts.text(g, big, 512, 174, st, fg, bg, 126, 920);
+    SignFonts.text(g, small, 512, 272, st2, fg, bg, 42, 900);
+  } else {
+    let size = 126; g.font = "800 " + size + "px " + JP;
+    while (g.measureText(big).width > 920 && size > 24) { size--; g.font = "800 " + size + "px " + JP; }
+    g.fillText(big, 512, 174);
+    g.font = "500 42px " + JP; g.fillText(small, 512, 272, 900);
+  }
   g.globalAlpha = .3; g.fillRect(52, 321, 920, 1); g.globalAlpha = 1;
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (dressTex[key] = t);
@@ -19335,7 +19358,9 @@ function buildFacadeDressing(city, root, boxes) {
   }
   inst(new THREE.BoxGeometry(1, 0.18, 1.1), std(0xc9c6bd, 0.85), decks, o => new THREE.Vector3(o.w, 1, 1));
   inst(new THREE.BoxGeometry(1, 1.0, 0.06), std(0xdfe3e6, 0.4, { transparent: true, opacity: 0.88 }), rails, o => new THREE.Vector3(o.w, 1, 1), { noShadow: true });
-  inst(new THREE.BoxGeometry(0.8, 0.62, 0.3), std(0xe9ebe6, 0.55), acs, () => new THREE.Vector3(1, 1, 1));
+  const acIM = inst(new THREE.BoxGeometry(0.8, 0.62, 0.3), std(0xe9ebe6, 0.55), acs, () => new THREE.Vector3(1, 1, 1));
+  // swapped for the engine's detailed, textured outdoor unit once it is running (game/engine-hook.js)
+  if (acIM) acIM.userData.propSwap = { type: "ac", items: acs.map(o => ({ x: o.x, y: o.y - 0.31, z: o.z, yaw: o.ry })) };
   inst(new THREE.CylinderGeometry(0.06, 0.06, 1, 6), std(0x8d9196, 0.5), pipes, o => new THREE.Vector3(1, o.h, 1), { noShadow: true });
   const FUTON = [0xf2d7e0, 0xd9e8f5, 0xf6f0d8, 0xe0f0dc, 0xf7e3c8, 0xffffff];
   inst(new THREE.BoxGeometry(1.5, 0.9, 0.1), std(0xffffff, 0.9), futons, () => new THREE.Vector3(1, 1, 1), { colour: o => FUTON[o.c % FUTON.length], noShadow: true });
@@ -28722,7 +28747,9 @@ function mallLedTex(kind, i) {
     g.fillStyle = "rgba(255,255,255,0.14)"; for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1);
     g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 54px " + JP;
     const t = kind === "dokoto" ? (i ? ["SALE", "最大50%OFF"] : ["NEW", "新作入荷"]) : (i ? ["SALE", "春のセール"] : ["OPEN", "毎日10-22時"]);
-    g.fillText(t[0], w / 2, h * 0.38); g.font = "800 30px " + JP; g.fillText(t[1], w / 2, h * 0.72);
+    if (window.SignFonts) { const st = SignFonts.style("led|" + kind + i, { text: t[0], mood: "play" }), s2 = SignFonts.style("led2|" + kind + i, { text: t[1], treatment: "flat" });
+      SignFonts.text(g, t[0], w / 2, h * 0.38, st, "#ffffff", "#000000", 54, w - 24); SignFonts.text(g, t[1], w / 2, h * 0.72, s2, "#ffffff", "#000000", 30, w - 24); }
+    else { g.fillText(t[0], w / 2, h * 0.38); g.font = "800 30px " + JP; g.fillText(t[1], w / 2, h * 0.72); }
     g.strokeStyle = "#fff"; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
   });
 }
@@ -29312,8 +29339,16 @@ function brandSignTex(brand) {
   g.fillStyle = b.band; g.fillRect(0, 0, 1024, 128);
   g.fillStyle = b.stripes[0]; g.fillRect(0, 108, 1024, 20);
   g.fillStyle = b.ink; g.textBaseline = "middle"; g.textAlign = "left";
-  g.font = "900 70px " + UI; g.fillText(b.name, 36, 56);
-  if (b.jp) { g.textAlign = "right"; g.font = "800 46px " + JP; g.globalAlpha = 0.85; g.fillText(b.jp, 990, 56); g.globalAlpha = 1; }
+  if (window.SignFonts) {
+    // a chain keeps one logo face everywhere (seeded by the brand, stable), but no two chains share the same one
+    const st = SignFonts.style("brand|" + brand, { text: b.name, stable: true, avoid: ["hand", "cute"] });
+    const sj = SignFonts.style("brandjp|" + brand, { text: b.jp || "", script: "jp", stable: true, treatment: "flat" });
+    SignFonts.text(g, b.name, 36, 56, st, b.ink, b.band, 70, b.jp ? 560 : 950);
+    if (b.jp) { g.textAlign = "right"; g.globalAlpha = 0.85; SignFonts.text(g, b.jp, 990, 56, sj, b.ink, b.band, 46, 380); g.globalAlpha = 1; }
+  } else {
+    g.font = "900 70px " + UI; g.fillText(b.name, 36, 56);
+    if (b.jp) { g.textAlign = "right"; g.font = "800 46px " + JP; g.globalAlpha = 0.85; g.fillText(b.jp, 990, 56); g.globalAlpha = 1; }
+  }
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (brandTexCache[brand] = t);
 }
@@ -44106,8 +44141,9 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
   let go = false; const start = () => { if (go) return; go = true; generate(19640101); };
   try {
     if (document.fonts && document.fonts.load) {
-      Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))).then(start, start);
-      setTimeout(start, 4000);
+      Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))
+        .concat(window.SignFonts ? [SignFonts.ready] : [])).then(start, start);
+      setTimeout(start, 6000);
     } else start();
   } catch (e) { start(); }
 })();
