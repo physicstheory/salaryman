@@ -9285,7 +9285,7 @@ function fillPause(name) {
       '<div><h3>Salary Man</h3><p>Seiko Shigu works at Soti, lives in a flat in Mizuho, and has to get to Tōkonto, the capital, and back. Konto is a fictionalised Honshu: one island, one seed, a long coast, mountains down the middle.</p>' +
       '<p>There is no score. Buy things, get on the trains, learn the roads, keep your stress down.</p></div>' +
       '<div><h3>Controls</h3>' + kvRow("Move / look", "WASD · mouse · sticks") + kvRow("Phone", "P · D-pad up") + kvRow("Map and pause", "Esc · M · Start") +
-      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
+      kvRow("Equipment wheel", "Q · hold LB") + kvRow("Radio", "R tap · hold · D-pad left") + kvRow("Headlights", "L · D-pad right") + kvRow("Hail a taxi (on foot)", "H · D-pad right") + kvRow("Regard someone (on foot)", "hold Z · hold LT, hands empty") + kvRow("Bow / antagonise", "B / N · B / RT while regarding") + kvRow("Help a stranger", "E · A") + kvRow("Get in / out", "F · Y") + kvRow("Walk / fly", "G · D-pad down") + '</div>' +
       '<div><h3>The island</h3>' + towns + '</div>' +
       '<div><h3>Good to know</h3><p>Food you buy can be eaten at once or kept: hold LB and pick it from the wheel.</p>' +
       '<p>Toll gates on the highway take cash, or the NH Tolls card if you have activated it in Wallet: with the card you do not stop.</p>' +
@@ -44262,5 +44262,6 @@ radioLoadMusic();
 
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
+<script src="game/standing-hook.js"></script>
 </body>
 </html>

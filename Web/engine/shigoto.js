@@ -24,13 +24,20 @@ var SHIGOTO = (() => {
     CHAR_QUALITY: () => CHAR_QUALITY,
     Characters: () => Characters,
     Engine: () => Engine,
+    HONOR_TIERS: () => HONOR_TIERS,
+    Honor: () => Honor,
     HostBridge: () => HostBridge,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     PROP_DEFS: () => PROP_DEFS,
     Persistence: () => Persistence,
     RAIN_QUALITY: () => RAIN_QUALITY,
+    RESPECT_TIERS: () => RESPECT_TIERS,
     RainEngine: () => RainEngine,
     ResidentSet: () => ResidentSet,
+    Respect: () => Respect,
+    STANDING_ICONS: () => STANDING_ICONS,
+    StandingHud: () => StandingHud,
+    TEMPERS: () => TEMPERS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
     bipedNames: () => bipedNames,
@@ -176,27 +183,27 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S2) ? 4294967297 : S2 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S2) ? 4294967297 : S2 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S2, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S3, o(G2) ? 4294967297 : G2 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -211,43 +218,43 @@ var SHIGOTO = (() => {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S2), o(S2) ? 0 : S2, h(G2));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
       }
     }
-    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S2) {
+    projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S2));
+        const G2 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S3));
         return 0 === G2 ? void 0 : yA.__wrap(G2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S2), o(S2) ? 0 : S2, h(G2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S3), o(S3) ? 0 : S3, h(G2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2, y2, M2, N2) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2, y2, M2, N2) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S2, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S3, G2, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S2) ? 4294967297 : S2 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S3) ? 4294967297 : S3 >>> 0, !o(G2), o(G2) ? 0 : G2, !o(U2), o(U2) ? 0 : U2, h(J2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -1536,9 +1543,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S2, G2, U2, J2) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S3, G2, U2, J2) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S2) ? 4294967297 : Math.fround(S2), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S3) ? 4294967297 : Math.fround(S3), G2, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
       } finally {
         I[K++] = void 0;
       }
@@ -1746,8 +1753,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S2, G2, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S2, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S2.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S3, p), k(G2, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2195,9 +2202,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
-      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S2, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S2.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+      k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S3, HA);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S3.__wbg_ptr, G2, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -2414,8 +2421,8 @@ var SHIGOTO = (() => {
     }
     castShape(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, HA), k(C2, WA), k(B2, _OA), k(Q2, WA), k(E2, HA), k(i2, WA);
-      const S2 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
-      return 0 === S2 ? void 0 : dA.__wrap(S2);
+      const S3 = A.rawshape_castShape(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o2, w2);
+      return 0 === S3 ? void 0 : dA.__wrap(S3);
     }
     intersectsShape(I2, g2, C2, B2, Q2) {
       k(I2, WA), k(g2, HA), k(C2, _OA), k(B2, WA), k(Q2, HA);
@@ -3688,24 +3695,24 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S2 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S2, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S2.free(), G2.free(), k2;
+      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S3.free(), G2.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S2 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S2, G2, B2, Q2, E2, i2, D2, o2, w2));
-      return S2.free(), G2.free(), k2;
+      let S3 = mA.intoRaw(C2.origin), G2 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S3, G2, B2, Q2, E2, i2, D2, o2, w2));
+      return S3.free(), G2.free(), k2;
     }
-    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2) {
+    intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
       let G2 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S2), G2.free(), k2.free();
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G2, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S3), G2.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S2 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S2, G2, k2, E2, i2, D2, o2, w2);
-      return S2.free(), G2.free(), k2.free(), K2;
+      let S3 = mA.intoRaw(C2), G2 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S3, G2, k2, E2, i2, D2, o2, w2);
+      return S3.free(), G2.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(C2), S2 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
-      return w2.free(), S2;
+      let w2 = mA.intoRaw(C2), S3 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
+      return w2.free(), S3;
     }
     projectPointAndGetFeature(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       let o2 = mA.intoRaw(C2), w2 = WI.fromRaw(g2, this.raw.projectPointAndGetFeature(A2.raw, I2.raw, g2.raw, o2, B2, Q2, E2, i2, D2));
@@ -3715,13 +3722,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2, G2, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S2, G2, k2, K2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S3, G2, k2, K2));
       return h2.free(), U2.free(), J2.free(), y2.free(), M2;
     }
-    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2) {
+    intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
       let G2 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S2), G2.free(), k2.free(), K2.free();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G2, k2, K2, E2, i2, D2, o2, w2, S3), G2.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3856,8 +3863,8 @@ var SHIGOTO = (() => {
         case l.HalfSpace:
           return o2 = mA.fromRaw(A2.coHalfspaceNormal(I2)), new _I(o2);
         case l.Voxels:
-          const w2 = A2.coVoxelData(I2), S2 = A2.coVoxelSize(I2);
-          return new Qg(w2, S2);
+          const w2 = A2.coVoxelData(I2), S3 = A2.coVoxelSize(I2);
+          return new Qg(w2, S3);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
           const G2 = A2.coTriMeshFlags(I2);
@@ -3882,16 +3889,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S2 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S2, G2, J2, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S2.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
+      let w2 = mA.intoRaw(A2), S3 = PA.intoRaw(I2), G2 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S3, G2, J2, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S3.free(), G2.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
-      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S2 = o2.intersectsShape(Q2, E2, w2, i2, D2);
-      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S2;
+      let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S3 = o2.intersectsShape(Q2, E2, w2, i2, D2);
+      return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S2 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S2, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S2.free(), G2;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S3 = g2.intoRaw(), G2 = VI.fromRaw(w2.contactShape(E2, i2, S3, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S3.free(), G2;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4078,9 +4085,9 @@ var SHIGOTO = (() => {
     free() {
       this.raw && this.raw.free(), this.raw = void 0;
     }
-    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2) {
+    step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
       let G2 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S2, S2 ? S2.filterContactPair : null, S2 ? S2.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
+      w2 ? this.raw.stepWithEvents(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S3, S3 ? S3.filterContactPair : null, S3 ? S3.filterIntersectionPair : null) : this.raw.step(G2, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G2.free();
     }
   };
   var hg = class {
@@ -4426,8 +4433,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2, G2) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S2), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3, G2) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S3), this.debugRenderPipeline = new Jg(G2), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4569,8 +4576,8 @@ var SHIGOTO = (() => {
     intersectionsWithPoint(A2, I2, g2, C2, B2, Q2, E2) {
       this.broadPhase.intersectionsWithPoint(this.narrowPhase, this.bodies, this.colliders, A2, this.colliders.castClosure(I2), g2, C2, B2 ? B2.handle : null, Q2 ? Q2.handle : null, this.colliders.castClosure(E2));
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S2) {
-      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S3) {
+      return this.broadPhase.castShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2 ? o2.handle : null, w2 ? w2.handle : null, this.colliders.castClosure(S3));
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2) {
       this.broadPhase.intersectionsWithShape(this.narrowPhase, this.bodies, this.colliders, A2, I2, g2, this.colliders.castClosure(C2), B2, Q2, E2 ? E2.handle : null, i2 ? i2.handle : null, this.colliders.castClosure(D2));
@@ -4916,8 +4923,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S2 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S2, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S2.free(), G2.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S3 = mA.intoRaw(B2), G2 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G2, o2, w2, S3, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S3.free(), G2.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5102,7 +5109,7 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S2 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S2, I2.shape);
+      let S3 = C2 ? A2.get(g2) : null, G2 = new Yg(this, w2, S3, I2.shape);
       return this.map.set(w2, G2), G2;
     }
     remove(A2, I2, g2, C2) {
@@ -6370,7 +6377,7 @@ vec3 rOut(vec3 c) {
       opts = opts || {};
       this.engine = engine;
       const T2 = this.T = engine.THREE;
-      const S2 = engine.surfaces.uniforms;
+      const S3 = engine.surfaces.uniforms;
       this.quality = RAIN_QUALITY[opts.quality] ? opts.quality : "high";
       this.indoors = false;
       this.linearOut = null;
@@ -6394,9 +6401,9 @@ vec3 rOut(vec3 c) {
         LD.push(new T2.Vector4(0, -1, 0, -2));
       }
       this.U = {
-        rOcc: S2.rOcc,
-        rOccInfo: S2.rOccInfo,
-        rOccOn: S2.rOccOn,
+        rOcc: S3.rOcc,
+        rOccInfo: S3.rOccInfo,
+        rOccOn: S3.rOccOn,
         rAmb: { value: new T2.Vector3(0.2, 0.22, 0.25) },
         rSun: { value: new T2.Vector3() },
         rSunDir: { value: new T2.Vector3(0, 1, 0) },
@@ -6832,7 +6839,7 @@ vec3 rOut(vec3 c) {
     update(dt, focus) {
       const c2 = this.cur, t2 = this.target, k2 = Math.min(1, this.blend * dt * 3);
       for (const key in t2) c2[key] += (t2[key] - c2[key]) * k2;
-      const env = this.engine.env, S2 = this.engine.surfaces.uniforms;
+      const env = this.engine.env, S3 = this.engine.surfaces.uniforms;
       env.cloud = c2.cloud;
       env.fogBoost = c2.fog;
       env.wind.setLength(Math.max(0.1, c2.wind));
@@ -6844,9 +6851,9 @@ vec3 rOut(vec3 c) {
         this.wetness = Math.max(0, this.wetness - dt * dry);
         this.puddles = Math.max(0.2, this.puddles - dt * dry * 0.4);
       }
-      S2.shWet.value = this.wetness;
-      S2.shRain.value = c2.rain;
-      S2.shPuddles.value = this.puddles;
+      S3.shWet.value = this.wetness;
+      S3.shRain.value = c2.rain;
+      S3.shPuddles.value = this.puddles;
       const RE = this.rainEngine;
       RE.indoors = this.indoors;
       if (this.linearOut) RE.linearOut = this.linearOut;
@@ -6940,12 +6947,12 @@ vec3 rOut(vec3 c) {
       return null;
     }
     _material(b2) {
-      const T2 = this.T, S2 = this.engine.surfaces.uniforms, U2 = this.u;
+      const T2 = this.T, S3 = this.engine.surfaces.uniforms, U2 = this.u;
       const m2 = new T2.MeshStandardMaterial({ color: new T2.Color(b2.colour), roughness: 0.05, metalness: 0, transparent: true, opacity: 0.9 });
       m2.userData.shDry = true;
       const swell = b2.swell;
       m2.onBeforeCompile = (sh) => {
-        Object.assign(sh.uniforms, U2, { shRain: S2.shRain, shWind: S2.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
+        Object.assign(sh.uniforms, U2, { shRain: S3.shRain, shWind: S3.shWind, wSwell: { value: swell }, wDeep: { value: new T2.Color(b2.deep) } });
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\nuniform float wTime; uniform float wSwell; varying vec3 vWWorld;").replace("#include <begin_vertex>", `#include <begin_vertex>
           vec3 wwp = (modelMatrix * vec4(transformed, 1.0)).xyz;
           transformed.y += wSwell * 0.5 * (sin(wwp.x * 0.12 + wTime * 1.1) * 0.6 + sin(wwp.z * 0.09 - wTime * 0.8) * 0.4);
@@ -7447,7 +7454,7 @@ void shSurface(vec3 wp, vec3 wn) {
       group.position.set(ox, oy, oz);
       const B2 = new Batcher(T2);
       const add = (mname, geo, m2, colour, extra) => B2.add(mname, this.mat.get(mname), geo, m2, colour, extra);
-      const P2 = (x2, z2) => [x2 + ox, z2 + oz];
+      const P3 = (x2, z2) => [x2 + ox, z2 + oz];
       const rng = seeded(hashStr(key));
       const lights = [];
       const signs = new SignAtlas(T2, 1024);
@@ -7790,7 +7797,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
     _quad(slot, corners, n2) {
       if (!slot) return;
-      const S2 = this.size, u0 = slot.x / S2, u1 = (slot.x + slot.w) / S2, v1 = 1 - slot.y / S2, v0 = 1 - (slot.y + slot.h) / S2;
+      const S3 = this.size, u0 = slot.x / S3, u1 = (slot.x + slot.w) / S3, v1 = 1 - slot.y / S3, v0 = 1 - (slot.y + slot.h) / S3;
       const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
       for (const k2 of [0, 1, 2, 0, 2, 3]) {
         this.pos.push(...corners[k2]);
@@ -8000,9 +8007,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     _glow() {
       const m2 = new this.T.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, emissive: 16777215, emissiveIntensity: 1 });
       m2.userData.shDry = true;
-      const S2 = this.engine.surfaces.uniforms;
+      const S3 = this.engine.surfaces.uniforms;
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S2.shNight;
+        sh.uniforms.shNight = S3.shNight;
         sh.fragmentShader = sh.fragmentShader.replace("#include <common>", "#include <common>\nuniform float shNight;").replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\n totalEmissiveRadiance = vColor * mix(0.25, 2.4, shNight);");
       };
       m2.customProgramCacheKey = () => "shigoto-glow";
@@ -8057,10 +8064,10 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       return m2;
     }
     _facade() {
-      const T2 = this.T, S2 = this.engine.surfaces.uniforms;
+      const T2 = this.T, S3 = this.engine.surfaces.uniforms;
       const m2 = new T2.MeshStandardMaterial({ vertexColors: true, roughness: 0.8, metalness: 0 });
       m2.onBeforeCompile = (sh) => {
-        sh.uniforms.shNight = S2.shNight;
+        sh.uniforms.shNight = S3.shNight;
         sh.vertexShader = sh.vertexShader.replace("#include <common>", "#include <common>\n" + FACADE_V).replace("#include <project_vertex>", `#include <project_vertex>
           vFTan = normalize(mat3(modelMatrix) * aTan); vFac = aFac; vFac2 = aFac2; vFUv = uv;
           vFPos = (modelMatrix * vec4(transformed, 1.0)).xyz; vFNor = normalize(mat3(modelMatrix) * objectNormal);`);
@@ -8324,7 +8331,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // src/core/Engine.js
-  var VERSION = "0.4.0";
+  var VERSION = "0.5.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8480,7 +8487,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     scatter(type, x2, z2, n2, spread) {
       const st = this.engine.streamer;
       if (!st) return;
-      const P2 = st.builder;
+      const P3 = st.builder;
       const cell = { props: [] };
       for (let i2 = 0; i2 < n2; i2++) {
         const px = x2 + (Math.random() - 0.5) * spread, pz = z2 + (Math.random() - 0.5) * spread;
@@ -8488,7 +8495,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         cell.props.push({ type, pos: [px, y2 + 0.02, pz], yaw: Math.random() * 360, dynamic: true });
       }
       const key = "scatter:" + (this._sc = (this._sc || 0) + 1);
-      P2.build(cell, key, st.root, null);
+      P3.build(cell, key, st.root, null);
       this.props.push(key);
       while (this.props.length > Math.ceil(this.maxProps / Math.max(1, n2))) this.ph.removeOwner(this.props.shift());
       return key;
@@ -9545,6 +9552,571 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       const lines = ["persistence: built + checked in " + (r2.ms / 1e3).toFixed(1) + " s, " + r2.residentMb + "/" + r2.budgetMb + " MB"];
       for (const c2 of r2.checks) lines.push((c2.ok ? c2.repaired ? "FIXED " : "ok    " : "FAIL  ") + c2.framework + " / " + c2.name + (c2.detail ? " - " + c2.detail : ""));
       return lines.join("\n");
+    }
+  };
+
+  // src/standing/Honor.js
+  var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var HONOR_TIERS = [
+    { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
+    { id: "dishonoured", at: -55, name: "Dishonoured", line: "Your name is said quietly, and not kindly." },
+    { id: "doubtful", at: -20, name: "Doubtful", line: "People are not sure what to make of you." },
+    { id: "decent", at: 20, name: "Decent", line: "An ordinary, decent man." },
+    { id: "upright", at: 55, name: "Upright", line: "Strangers trust you. Shopkeepers remember you." },
+    { id: "honourable", at: 85, name: "Honourable", line: "A man of his word. People stand a little straighter around you." }
+  ];
+  var Honor = class {
+    // deeds: { id: { delta, label, icon, group?, cooldown?, window? } }
+    constructor(opts) {
+      opts = opts || {};
+      this.deeds = Object.assign({}, opts.deeds || {});
+      this.value = clamp(opts.start != null ? opts.start : 0, -100, 100);
+      this.now = opts.now || (() => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1e3);
+      this.ledger = [];
+      this.lastById = /* @__PURE__ */ new Map();
+      this.groupHits = /* @__PURE__ */ new Map();
+      this.goodRun = /* @__PURE__ */ new Map();
+      this.listeners = [];
+      this.totals = { good: 0, bad: 0, deeds: 0 };
+    }
+    on(fn) {
+      this.listeners.push(fn);
+      return () => {
+        const i2 = this.listeners.indexOf(fn);
+        if (i2 >= 0) this.listeners.splice(i2, 1);
+      };
+    }
+    emit(ev) {
+      for (const fn of this.listeners) {
+        try {
+          fn(ev);
+        } catch (e2) {
+          console.error("[Shigoto] honor listener failed", e2);
+        }
+      }
+    }
+    define(id, def) {
+      this.deeds[id] = def;
+      return this;
+    }
+    tier(v2) {
+      v2 = v2 == null ? this.value : v2;
+      let t2 = HONOR_TIERS[0];
+      for (const x2 of HONOR_TIERS) if (v2 >= x2.at) t2 = x2;
+      return t2;
+    }
+    // 0..1 position on the bar, for meters
+    norm() {
+      return (this.value + 100) / 200;
+    }
+    // Report a deed. Returns the event (with the applied delta), or null when it was damped to nothing.
+    // opts: { scale (multiplies delta), label (overrides), note (shown under the label), silent, force (skip damping) }
+    deed(id, opts) {
+      opts = opts || {};
+      const d2 = this.deeds[id];
+      if (!d2) return null;
+      const t2 = this.now();
+      if (!opts.force && d2.cooldown) {
+        const last = this.lastById.get(id);
+        if (last != null && t2 - last < d2.cooldown) return null;
+      }
+      if (!opts.force && d2.same) {
+        for (const o2 of d2.same) {
+          const l2 = this.lastById.get(o2);
+          if (l2 != null && t2 - l2 < (d2.cooldown || 10)) return null;
+        }
+      }
+      let delta = d2.delta * (opts.scale != null ? opts.scale : 1);
+      if (!opts.force && d2.group && d2.window) {
+        const hits = (this.groupHits.get(d2.group) || []).filter((x2) => t2 - x2 < d2.window);
+        delta *= Math.max(0.2, Math.pow(0.6, hits.length));
+        hits.push(t2);
+        this.groupHits.set(d2.group, hits);
+      }
+      if (delta > 0 && !opts.force) {
+        const run = this.goodRun.get(id) || { n: 0, t: 0 };
+        const n2 = t2 - run.t > 600 ? 0 : run.n;
+        delta *= Math.max(0.35, 1 - n2 * 0.15);
+        this.goodRun.set(id, { n: n2 + 1, t: t2 });
+      }
+      if (delta > 0 && this.value > 60) delta *= 1 - (this.value - 60) / 80;
+      if (delta < 0 && this.value < -60) delta *= 1 - (-60 - this.value) / 80;
+      delta = Math.round(delta * 10) / 10;
+      this.lastById.set(id, t2);
+      if (!delta) return null;
+      return this.apply(delta, { id, label: opts.label || d2.label, icon: opts.icon || d2.icon || id, note: opts.note || "", silent: !!opts.silent });
+    }
+    // Move honor directly (story beats, scripted rewards). Returns the event.
+    apply(delta, info) {
+      info = info || {};
+      const before = this.value, tierBefore = this.tier().id;
+      this.value = clamp(Math.round((this.value + delta) * 10) / 10, -100, 100);
+      const applied = Math.round((this.value - before) * 10) / 10;
+      const ev = {
+        kind: "honor",
+        id: info.id || "story",
+        label: info.label || "",
+        icon: info.icon || info.id || "story",
+        note: info.note || "",
+        delta: applied,
+        raw: delta,
+        value: this.value,
+        at: this.now(),
+        tier: this.tier(),
+        tierChanged: this.tier().id !== tierBefore,
+        silent: !!info.silent
+      };
+      this.totals.deeds++;
+      if (delta > 0) this.totals.good++;
+      else this.totals.bad++;
+      this.ledger.push({ id: ev.id, label: ev.label, delta: applied, at: ev.at });
+      if (this.ledger.length > 60) this.ledger.splice(0, this.ledger.length - 60);
+      this.emit(ev);
+      return ev;
+    }
+    // What the tier does to the world, for the host to read. All multipliers are 1 at neutral.
+    effects() {
+      const v2 = this.value / 100;
+      return {
+        // how willing strangers are to ask you for help (a known thug does not get asked)
+        askRate: clamp(1 + v2 * 0.8, 0.15, 1.8),
+        // shop prices: a good name gets a little off, a bad one a little on
+        priceMul: clamp(1 - v2 * 0.08, 0.92, 1.1),
+        // how warmly people answer a greeting (added to the respect engine's warmth)
+        warmth: v2 * 0.35,
+        // how likely a witness is to look the other way for a minor offence
+        blindEye: clamp(v2 * 0.25, 0, 0.25)
+      };
+    }
+    save() {
+      return { v: 1, value: this.value, ledger: this.ledger.slice(-20), totals: this.totals };
+    }
+    load(s2) {
+      if (!s2 || typeof s2.value !== "number") return false;
+      this.value = clamp(s2.value, -100, 100);
+      this.ledger = Array.isArray(s2.ledger) ? s2.ledger.slice(-60) : [];
+      if (s2.totals) Object.assign(this.totals, s2.totals);
+      return true;
+    }
+  };
+
+  // src/standing/Respect.js
+  var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var RESPECT_TIERS = [
+    { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
+    { id: "familiar", at: 15, name: "A familiar face", line: "A few people nod when you pass." },
+    { id: "respected", at: 35, name: "Respected", line: "People make room for you." },
+    { id: "esteemed", at: 60, name: "Esteemed", line: "Strangers bow first." },
+    { id: "revered", at: 85, name: "Revered", line: "The street goes quiet when you walk down it." }
+  ];
+  var TEMPERS = ["meek", "polite", "proud", "hothead"];
+  var TEMPER_WARMTH = { meek: 0.12, polite: 0.1, proud: -0.15, hothead: -0.22 };
+  var Respect = class {
+    // opts: { ranks: [{ id, name, base }], rank, earned, now }
+    constructor(opts) {
+      opts = opts || {};
+      this.ranks = (opts.ranks || [{ id: "none", name: "", base: 0 }]).slice();
+      this.rankId = opts.rank || this.ranks[0].id;
+      this.earned = clamp2(opts.earned || 0, -40, 50);
+      this.now = opts.now || (() => (typeof performance !== "undefined" ? performance.now() : Date.now()) / 1e3);
+      this.courtesy = 0;
+      this.courtesyAt = this.now();
+      this.bowsTotal = 0;
+      this.antagTotal = 0;
+      this.bowedTo = 0;
+      this.people = /* @__PURE__ */ new Map();
+      this.recent = [];
+      this.listeners = [];
+      this.rand = opts.random || Math.random;
+    }
+    on(fn) {
+      this.listeners.push(fn);
+      return () => {
+        const i2 = this.listeners.indexOf(fn);
+        if (i2 >= 0) this.listeners.splice(i2, 1);
+      };
+    }
+    emit(ev) {
+      for (const fn of this.listeners) {
+        try {
+          fn(ev);
+        } catch (e2) {
+          console.error("[Shigoto] respect listener failed", e2);
+        }
+      }
+    }
+    rank() {
+      return this.ranks.find((r2) => r2.id === this.rankId) || this.ranks[0];
+    }
+    rankIndex() {
+      return Math.max(0, this.ranks.indexOf(this.rank()));
+    }
+    get value() {
+      return clamp2(Math.round((this.rank().base + this.earned) * 10) / 10, 0, 100);
+    }
+    tier(v2) {
+      v2 = v2 == null ? this.value : v2;
+      let t2 = RESPECT_TIERS[0];
+      for (const x2 of RESPECT_TIERS) if (v2 >= x2.at) t2 = x2;
+      return t2;
+    }
+    norm() {
+      return this.value / 100;
+    }
+    // Promotion (or demotion). Returns the event, or null if nothing changed.
+    setRank(id, info) {
+      const r2 = this.ranks.find((x2) => x2.id === id);
+      if (!r2 || r2.id === this.rankId) return null;
+      const before = this.value, tierBefore = this.tier().id, up = this.ranks.indexOf(r2) > this.rankIndex();
+      this.rankId = r2.id;
+      return this.event(this.value - before, Object.assign({ id: up ? "promotion" : "demotion", label: (up ? "Promoted: " : "Demoted: ") + r2.name, icon: up ? "promotion" : "demotion" }, info), tierBefore);
+    }
+    // Add earned respect from outside (a job done well, a story beat). Returns the event.
+    earn(delta, info) {
+      const before = this.value, tierBefore = this.tier().id;
+      this.earned = clamp2(this.earned + delta, -40, 50);
+      return this.event(this.value - before, Object.assign({ id: "earned", icon: delta >= 0 ? "respect" : "disrespect" }, info), tierBefore);
+    }
+    event(applied, info, tierBefore) {
+      applied = Math.round(applied * 10) / 10;
+      const ev = {
+        kind: "respect",
+        id: info.id,
+        label: info.label || "",
+        icon: info.icon || info.id,
+        note: info.note || "",
+        delta: applied,
+        value: this.value,
+        at: this.now(),
+        tier: this.tier(),
+        tierChanged: this.tier().id !== tierBefore,
+        silent: !!info.silent
+      };
+      this.emit(ev);
+      return ev;
+    }
+    decay() {
+      const t2 = this.now(), dt = t2 - this.courtesyAt;
+      if (dt > 0) {
+        this.courtesy *= Math.pow(0.5, dt / 300);
+        this.courtesyAt = t2;
+      }
+      this.recent = this.recent.filter((x2) => t2 - x2 < 60);
+      return t2;
+    }
+    memory(id) {
+      let m2 = this.people.get(id);
+      if (!m2) {
+        m2 = { bows: 0, antag: 0, last: -1e9, lastBow: -1e9, lastAntag: -1e9 };
+        this.people.set(id, m2);
+        if (this.people.size > 400) this.people.delete(this.people.keys().next().value);
+      }
+      return m2;
+    }
+    // The player greets someone. kind: "bow" | "antagonize".
+    // person: { id, temper, standing (0..1, how important they are), warmth (extra, e.g. from honor) }
+    // Returns { reply, delta, ev, harass } where reply is one of
+    //   bow: "deep" | "bow" | "nod" | "ignore" | "puzzled"      antagonize: "flinch" | "offended" | "glare" | "backsdown" | "squareup" | "flee"
+    greet(kind, person) {
+      person = person || {};
+      const t2 = this.decay(), m2 = this.memory(person.id != null ? person.id : "?"), temper = TEMPERS.includes(person.temper) ? person.temper : "polite";
+      const standing = clamp2(person.standing != null ? person.standing : 0.3, 0, 1), v2 = this.value;
+      const spam = this.recent.length;
+      this.recent.push(t2);
+      let reply, delta = 0, label = "", harass = false;
+      if (kind === "bow") {
+        this.bowsTotal++;
+        this.courtesy += 1;
+        if (t2 - m2.lastBow < 45 && m2.bows > 0) {
+          reply = "puzzled";
+          delta = m2.bows > 1 ? -0.5 : 0;
+          label = "Bowed too often";
+        } else {
+          let w2 = 0.45 + (person.warmth || 0) + (v2 - 30) / 150 + TEMPER_WARMTH[temper] - m2.antag * 0.25;
+          w2 -= Math.max(0, standing - v2 / 100) * 0.3;
+          const r2 = this.rand();
+          if (r2 < w2 * 0.45 + (v2 > 60 ? 0.15 : 0)) {
+            reply = "deep";
+            delta = 2.2;
+            label = "Bowed to deeply";
+          } else if (r2 < w2) {
+            reply = "bow";
+            delta = 1.4;
+            label = "Greeting returned";
+          } else if (r2 < w2 + 0.28) {
+            reply = "nod";
+            delta = 0.5;
+            label = "A nod back";
+          } else {
+            reply = "ignore";
+            delta = -0.4;
+            label = "Ignored";
+          }
+          if (delta > 0) delta *= (0.8 + standing * 0.6) * (m2.bows ? 0.5 : 1) * Math.max(0.3, 1 - Math.max(0, spam - 4) * 0.12);
+          if (delta > 0 && this.earned > 30) delta *= 0.5;
+        }
+        m2.bows++;
+        m2.lastBow = t2;
+      } else {
+        this.antagTotal++;
+        this.courtesy *= 0.6;
+        const again = t2 - m2.lastAntag < 40 && m2.antag > 0;
+        if (again && (temper === "meek" || temper === "polite")) {
+          reply = "flee";
+          delta = -2;
+          label = "Harassed a stranger";
+          harass = true;
+        } else if (temper === "meek") {
+          reply = "flinch";
+          delta = -1;
+          label = "Intimidated someone";
+        } else if (temper === "polite") {
+          reply = "offended";
+          delta = -2.5;
+          label = "Caused offence";
+        } else if (temper === "proud") {
+          if (v2 / 100 > standing + 0.25 && this.rand() < 0.6) {
+            reply = "backsdown";
+            delta = 1;
+            label = "Stared someone down";
+          } else {
+            reply = "glare";
+            delta = -1.5;
+            label = "Lost a staring match";
+          }
+        } else {
+          reply = again ? "squareup" : this.rand() < 0.5 ? "squareup" : "glare";
+          delta = -1.2;
+          label = reply === "squareup" ? "Picked a fight" : "Lost a staring match";
+        }
+        m2.antag++;
+        m2.lastAntag = t2;
+      }
+      m2.last = t2;
+      const ev = delta ? this.earn(delta, { id: kind === "bow" ? "greet" : "antagonize", label, icon: kind === "bow" ? delta > 0 ? "bow" : "ignored" : delta > 0 ? "stare" : "antagonize" }) : null;
+      return { reply, delta: ev ? ev.delta : 0, ev, harass, temper };
+    }
+    // Someone bowed to the player first and he bowed back: a little respect, a little courtesy.
+    returned(personId) {
+      this.decay();
+      const m2 = this.memory(personId);
+      if (m2.bows && this.now() - m2.lastBow < 120) return null;
+      m2.bows++;
+      m2.lastBow = this.now();
+      this.courtesy += 0.5;
+      this.bowedTo++;
+      return this.earn(0.4, { id: "returned", label: "Returned a bow", icon: "bow" });
+    }
+    // Probability that a passer-by bows to the player first. person: { temper, standing, warmth }.
+    bowChance(person) {
+      this.decay();
+      person = person || {};
+      const v2 = this.value, c2 = Math.min(1, this.courtesy / 12);
+      let p2 = Math.max(0, (v2 - 20) / 100) * 0.55 + c2 * 0.3 + (person.warmth || 0) * 0.3 + TEMPER_WARMTH[person.temper || "polite"] * 0.4;
+      p2 -= Math.max(0, (person.standing || 0.3) - v2 / 100) * 0.6;
+      return clamp2(p2, 0, 0.75);
+    }
+    save() {
+      return { v: 1, rank: this.rankId, earned: this.earned, courtesy: Math.round(this.courtesy * 10) / 10, bows: this.bowsTotal, antag: this.antagTotal, bowedTo: this.bowedTo };
+    }
+    load(s2) {
+      if (!s2 || typeof s2.earned !== "number") return false;
+      if (this.ranks.some((r2) => r2.id === s2.rank)) this.rankId = s2.rank;
+      this.earned = clamp2(s2.earned, -40, 50);
+      this.courtesy = s2.courtesy || 0;
+      this.courtesyAt = this.now();
+      this.bowsTotal = s2.bows || 0;
+      this.antagTotal = s2.antag || 0;
+      this.bowedTo = s2.bowedTo || 0;
+      return true;
+    }
+  };
+
+  // src/standing/StandingHud.js
+  var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
+  var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
+  var S2 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+  var STANDING_ICONS = {
+    gun: SVG(P2("M3 8h15l1-1h2v3h-3l-1 1h-4l-1 2h-2l-1 4H5l1.5-6H3z")),
+    shooting: SVG(S2("M12 3v4M12 17v4M3 12h4M17 12h4") + '<circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/>'),
+    killing: SVG(P2("M12 3c-4.4 0-7.5 3-7.5 7 0 2.3 1 4 2.5 5v3h10v-3c1.5-1 2.5-2.7 2.5-5 0-4-3.1-7-7.5-7zM9 9.5a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zm6 0a1.7 1.7 0 110 3.4 1.7 1.7 0 010-3.4zM10 19h1.2v2H10zm2.8 0H14v2h-1.2z")),
+    car: SVG(P2("M5 11l1.8-4.2A2 2 0 018.6 5.6h6.8a2 2 0 011.8 1.2L19 11a2 2 0 011.5 2v4h-2v1.5h-2.5V17h-8v1.5H5.5V17h-2v-4A2 2 0 015 11zm2.2 0h9.6l-1.3-3.2H8.5zM6.5 13.2a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4zm11 0a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z")),
+    knockdown: SVG(P2("M3 13l1.5-3.5A2 2 0 016.3 8.3h5.4a2 2 0 011.8 1.2L15 13v4h-2v1.2h-2V17H6v1.2H4V17H3z") + S2("M18 6l3 3M21 6l-3 3", 1.8)),
+    alarm: SVG(P2("M12 3a1.4 1.4 0 011.4 1.4v.7A6 6 0 0118 11v4l2 2.5H4L6 15v-4a6 6 0 014.6-5.9v-.7A1.4 1.4 0 0112 3zm-2 16h4a2 2 0 01-4 0z")),
+    robbery: SVG('<text x="12" y="18.5" text-anchor="middle" font-size="17" font-weight="800" font-family="Arial,Helvetica,sans-serif" fill="currentColor">\xA5</text>'),
+    menace: SVG(P2("M12 2l10 18H2zm-1 6v6h2V8zm0 8v2h2v-2z")),
+    escape: SVG(P2("M13.5 5.5a2 2 0 110-4 2 2 0 010 4zM9.8 8.4l3.4-1.2c.7-.2 1.4.1 1.8.7l1.6 2.7 2.9.9-.6 1.9-3.6-1.1-.9-1.4-1.1 3.6 2.4 2.3V22h-2v-4.2l-2.7-2.4-1 3.9H6.5l1.9-7.6-1.6.6V15H4.8v-4.2z")),
+    harass: SVG(S2("M4 12h4l2-5 4 10 2-5h4", 2.2)),
+    help: SVG(P2("M12 20.5l-1.3-1.2C5.9 15 3 12.4 3 9.2 3 6.6 5 4.5 7.6 4.5c1.5 0 3 .7 4.4 2 1.4-1.3 2.9-2 4.4-2C19 4.5 21 6.6 21 9.2c0 3.2-2.9 5.8-7.7 10.1z")),
+    wallet: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2zm11 6.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM5 4h11v2H5z")),
+    keep: SVG(P2("M4 7h14a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V9a2 2 0 012-2z") + S2("M7 10l8 7M15 10l-8 7", 1.8)),
+    directions: SVG(P2("M11 2h2v3h6l2 2.5-2 2.5h-6v2h-2v-2H5L3 7.5 5 5h6zM11 14h2v8h-2z")),
+    fare: SVG(P2("M3 6h18v12H3zm2 2v8h14V8zm7 1.5a2.5 2.5 0 110 5 2.5 2.5 0 010-5z")),
+    shopping: SVG(P2("M6 8h12l-1 12H7zm3-1a3 3 0 016 0h-1.6a1.4 1.4 0 00-2.8 0z")),
+    escort: SVG(P2("M8 4.5a2 2 0 110 4 2 2 0 010-4zm8 0a2 2 0 110 4 2 2 0 010-4zM6 10h4l1 5-1.5.4V21H7.5v-5.6L6 15zm8 0h4l1 4.6-1.5.4.5 6h-2v-5.6L15 15z")),
+    service: SVG(P2("M5 4h14v4H5zm1 6h12v10H6zm3 2v6h2v-6zm4 0v6h2v-6z")),
+    broken: SVG(S2("M6 6l12 12M18 6L6 18", 2.4)),
+    story: SVG(P2("M6 3h12v18l-6-4-6 4z")),
+    bow: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S2("M14.5 9L8 12.5M9.2 11.8L9 21M9 16l3.5 5", 2.4)),
+    ignored: SVG('<circle cx="15.5" cy="6" r="2.4" fill="currentColor"/>' + S2("M14.5 9L8 12.5M9.2 11.8L9 21", 2.4) + S2("M18 13h4", 2)),
+    returned: SVG('<circle cx="7" cy="6" r="2" fill="currentColor"/><circle cx="17" cy="6" r="2" fill="currentColor"/>' + S2("M8 8.5l2.5 3.5M16 8.5l-2.5 3.5M10.2 12v8M13.8 12v8", 2.2)),
+    antagonize: SVG(P2("M13 2L5 13h5l-1 9 8-11h-5z")),
+    stare: SVG(P2("M12 6c5 0 8.5 4 9.5 6-1 2-4.5 6-9.5 6s-8.5-4-9.5-6c1-2 4.5-6 9.5-6zm0 2.5a3.5 3.5 0 100 7 3.5 3.5 0 000-7z")),
+    promotion: SVG(S2("M6 13l6-6 6 6M6 19l6-6 6 6", 2.4)),
+    demotion: SVG(S2("M6 5l6 6 6-6M6 11l6 6 6-6", 2.4)),
+    respect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z")),
+    disrespect: SVG(P2("M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6-4.5-4.2 6.1-.7z", 'opacity=".45"') + S2("M5 19L19 5", 2))
+  };
+  var CSS = `
+#stndg { position: fixed; top: 122px; right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 31; width: 280px; pointer-events: none;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px; font-family: 'Konto Sans', 'Segoe UI', Arial, sans-serif; }
+#stndg .mk { display: flex; align-items: center; gap: 9px; padding: 5px 12px 5px 6px; border-radius: 3px;
+  background: linear-gradient(90deg, rgba(8,9,12,0) 0%, rgba(8,9,12,0.62) 26%, rgba(8,9,12,0.78) 100%);
+  transform: translateX(26px); opacity: 0; transition: transform 260ms cubic-bezier(.2,.8,.2,1), opacity 260ms; }
+#stndg .mk.in { transform: none; opacity: 1; }
+#stndg .mk.out { opacity: 0; transform: translateX(14px); transition-duration: 500ms; }
+#stndg .em { position: relative; width: 30px; height: 30px; flex: none; display: grid; place-items: center; }
+#stndg .em i { width: 17px; height: 17px; display: block; position: relative; z-index: 1; }
+#stndg .em::before { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid currentColor; background: rgba(0,0,0,0.35); }
+#stndg .mk.resp .em::before { border-radius: 2px; transform: rotate(45deg) scale(0.78); }
+#stndg .amt { font-weight: 800; font-size: 19px; letter-spacing: 0.5px; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8); }
+#stndg .txt { display: flex; flex-direction: column; text-align: right; max-width: 170px; }
+#stndg .txt b { color: #f3f1ec; font-size: 13px; font-weight: 600; line-height: 1.15; text-shadow: 0 1px 2px #000; }
+#stndg .txt span { color: rgba(243,241,236,0.62); font-size: 10.5px; letter-spacing: 1.2px; text-transform: uppercase; margin-top: 1px; }
+#stndg .mk.hl { color: #e3252d; } #stndg .mk.hl .em::before { background: rgba(120,6,10,0.55); }
+#stndg .mk.hg { color: #f0c76a; }
+#stndg .mk.rg { color: #b9d4ec; } #stndg .mk.rl { color: #8c96a3; }
+#stndg .tier { color: #f3f1ec; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; padding: 4px 10px; border-radius: 2px;
+  background: rgba(8,9,12,0.78); border-right: 3px solid currentColor; opacity: 0; transition: opacity 300ms; }
+#stndg .tier.in { opacity: 1; }
+#stndgm { position: fixed; top: 78px; right: calc(20px + env(safe-area-inset-right, 0px)); z-index: 31; width: 130px; pointer-events: none;
+  opacity: 0; transition: opacity 600ms; display: flex; flex-direction: column; gap: 4px; }
+#stndgm.on { opacity: 1; }
+#stndgm .bar { position: relative; height: 5px; background: rgba(0,0,0,0.58); box-shadow: 0 0 0 1px rgba(0,0,0,0.45); }
+#stndgm .bar b { position: absolute; top: 0; bottom: 0; transition: left 400ms, width 400ms, background 400ms; }
+#stndgm .bar.h::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,255,255,0.55); }
+#stndgm .bar.h b.pos { background: linear-gradient(90deg, #c99a3e, #f0c76a); }
+#stndgm .bar.h b.neg { background: linear-gradient(90deg, #e3252d, #9a1418); }
+#stndgm .bar.r b { left: 0; background: linear-gradient(90deg, #6f8fae, #b9d4ec); }
+#stndgm .lbl { display: flex; justify-content: space-between; font: 600 9px/1 'Konto Sans', Arial, sans-serif; letter-spacing: 1.5px; color: rgba(243,241,236,0.7);
+  text-transform: uppercase; text-shadow: 0 1px 2px #000; }
+#stndgc { position: fixed; right: calc(20px + env(safe-area-inset-right, 0px)); top: 112px; z-index: 32; width: 300px; pointer-events: none;
+  background: rgba(8,9,12,0.86); border-left: 3px solid #f0c76a; padding: 14px 16px; color: #f3f1ec; font-family: 'Konto Sans', Arial, sans-serif;
+  opacity: 0; transform: translateY(-6px); transition: opacity 200ms, transform 200ms; }
+#stndgc.on { opacity: 1; transform: none; }
+#stndgc h4 { margin: 0 0 2px; font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: rgba(243,241,236,0.6); font-weight: 600; }
+#stndgc .big { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+#stndgc .ln { font-size: 12px; color: rgba(243,241,236,0.72); margin-bottom: 10px; line-height: 1.3; }
+#stndgc .bar { position: relative; height: 6px; background: rgba(255,255,255,0.1); margin: 4px 0 12px; }
+#stndgc .bar b { position: absolute; top: 0; bottom: 0; }
+#stndgc .hist { border-top: 1px solid rgba(255,255,255,0.12); padding-top: 8px; font-size: 12px; }
+#stndgc .hist div { display: flex; justify-content: space-between; padding: 2px 0; color: rgba(243,241,236,0.8); }
+#stndgc .hist em { font-style: normal; font-weight: 700; }
+#stndgc .keys { margin-top: 10px; font-size: 11px; color: rgba(243,241,236,0.6); }
+#stndgc .keys b { display: inline-block; min-width: 16px; padding: 1px 5px; margin-right: 4px; border: 1px solid rgba(255,255,255,0.4); border-radius: 3px; color: #fff; text-align: center; }
+body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stndgm, body.paused #stndgm, body.cutscene #stndgm, body.camfull #stndg, body.camfull #stndgm { visibility: hidden; }
+@media (max-width: 640px) { #stndg { width: 220px; top: 100px; } #stndg .txt { max-width: 120px; } }
+`;
+  var fmt = (d2) => (d2 > 0 ? "+" : "\u2212") + (Math.abs(d2) >= 10 || Math.abs(d2) % 1 === 0 ? Math.round(Math.abs(d2)) : Math.abs(d2).toFixed(1));
+  var esc = (s2) => String(s2 == null ? "" : s2).replace(/[&<>"]/g, (c2) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c2]);
+  var StandingHud = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.doc = opts.document || (typeof document !== "undefined" ? document : null);
+      this.icons = Object.assign({}, STANDING_ICONS, opts.icons || {});
+      this.max = opts.max || 4;
+      this.hold = opts.hold || 4.2;
+      this.root = this.meterEl = this.cardEl = null;
+      this.meterT = 0;
+    }
+    mount() {
+      const d2 = this.doc;
+      if (!d2 || this.root) return this;
+      const st = d2.createElement("style");
+      st.id = "stndgcss";
+      st.textContent = CSS;
+      d2.head.appendChild(st);
+      this.root = d2.createElement("div");
+      this.root.id = "stndg";
+      d2.body.appendChild(this.root);
+      this.meterEl = d2.createElement("div");
+      this.meterEl.id = "stndgm";
+      this.meterEl.innerHTML = '<div class="lbl"><span>Honor</span><span class="hv"></span></div><div class="bar h"><b></b></div><div class="lbl"><span>Respect</span><span class="rv"></span></div><div class="bar r"><b></b></div>';
+      d2.body.appendChild(this.meterEl);
+      this.cardEl = d2.createElement("div");
+      this.cardEl.id = "stndgc";
+      d2.body.appendChild(this.cardEl);
+      return this;
+    }
+    // Show one change. ev: an event from Honor or Respect.
+    push(ev) {
+      if (!this.root || !ev || ev.silent || !ev.delta) return null;
+      const d2 = this.doc, el = d2.createElement("div");
+      const honor = ev.kind === "honor", cls = honor ? ev.delta < 0 ? "hl" : "hg" : ev.delta < 0 ? "rl" : "rg";
+      el.className = "mk " + cls + (honor ? "" : " resp");
+      el.innerHTML = '<div class="em"><i>' + (this.icons[ev.icon] || this.icons[honor ? ev.delta < 0 ? "broken" : "help" : ev.delta < 0 ? "disrespect" : "respect"]) + '</i></div><div class="amt">' + fmt(ev.delta) + '</div><div class="txt"><b>' + esc(ev.label) + "</b><span>" + (honor ? "Honor" : "Respect") + (ev.note ? " \xB7 " + esc(ev.note) : "") + "</span></div>";
+      this.root.appendChild(el);
+      while (this.root.querySelectorAll(".mk").length > this.max) {
+        const f2 = this.root.querySelector(".mk");
+        f2.remove();
+      }
+      const raf = typeof requestAnimationFrame === "function" ? requestAnimationFrame : (f2) => setTimeout(f2, 16);
+      raf(() => el.classList.add("in"));
+      setTimeout(() => {
+        el.classList.add("out");
+        el.classList.remove("in");
+        setTimeout(() => el.remove(), 520);
+      }, this.hold * 1e3 + (Math.abs(ev.delta) >= 10 ? 1500 : 0));
+      if (ev.tierChanged) this.tier(ev);
+      return el;
+    }
+    // A tier change gets its own line: "Honor · Dishonoured".
+    tier(ev) {
+      const d2 = this.doc, el = d2.createElement("div");
+      el.className = "tier";
+      el.style.color = ev.kind === "honor" ? ev.value < 0 ? "#e3252d" : "#f0c76a" : "#b9d4ec";
+      el.textContent = (ev.kind === "honor" ? "Honor" : "Respect") + " \xB7 " + ev.tier.name;
+      this.root.appendChild(el);
+      setTimeout(() => el.classList.add("in"), 30);
+      setTimeout(() => {
+        el.classList.remove("in");
+        setTimeout(() => el.remove(), 400);
+      }, 5200);
+    }
+    // The slim meter: honor centred on zero, respect from the left.
+    meter(honor, respect, secs) {
+      if (!this.meterEl) return;
+      const hb = this.meterEl.querySelector(".bar.h b"), rb = this.meterEl.querySelector(".bar.r b");
+      const h2 = Math.max(-100, Math.min(100, honor)), r2 = Math.max(0, Math.min(100, respect));
+      hb.className = h2 < 0 ? "neg" : "pos";
+      hb.style.left = (h2 < 0 ? 50 + h2 / 2 : 50) + "%";
+      hb.style.width = Math.abs(h2) / 2 + "%";
+      rb.style.width = r2 + "%";
+      this.meterEl.querySelector(".hv").textContent = Math.round(h2);
+      this.meterEl.querySelector(".rv").textContent = Math.round(r2);
+      this.meterEl.classList.add("on");
+      clearTimeout(this.meterT);
+      if (secs !== 0) this.meterT = setTimeout(() => this.meterEl.classList.remove("on"), (secs || 6) * 1e3);
+    }
+    // The full card. info: { honor, honorTier, respect, respectTier, rank, ledger: [{label, delta}], keys: [[key, what]] }; null hides it.
+    card(info) {
+      if (!this.cardEl) return;
+      if (!info) {
+        if (this.cardKey) {
+          this.cardEl.classList.remove("on");
+          this.cardKey = "";
+        }
+        return;
+      }
+      const key = JSON.stringify([info.honor, info.respect, info.rank, (info.ledger || []).length, info.keys]);
+      if (key === this.cardKey) return;
+      this.cardKey = key;
+      const h2 = info.honor, r2 = info.respect;
+      const hist = (info.ledger || []).slice(-4).reverse().map((x2) => "<div><span>" + esc(x2.label) + '</span><em style="color:' + (x2.delta < 0 ? "#e3252d" : "#f0c76a") + '">' + fmt(x2.delta) + "</em></div>").join("");
+      this.cardEl.style.borderLeftColor = h2 < 0 ? "#e3252d" : "#f0c76a";
+      this.cardEl.innerHTML = '<h4>Honor</h4><div class="big">' + esc(info.honorTier.name) + '</div><div class="ln">' + esc(info.honorTier.line) + '</div><div class="bar"><b style="background:' + (h2 < 0 ? "#e3252d" : "#f0c76a") + ";left:" + (h2 < 0 ? 50 + h2 / 2 : 50) + "%;width:" + Math.abs(h2) / 2 + '%"></b></div><h4>Respect' + (info.rank ? " \xB7 " + esc(info.rank) : "") + '</h4><div class="big">' + esc(info.respectTier.name) + '</div><div class="ln">' + esc(info.respectTier.line) + '</div><div class="bar"><b style="background:#b9d4ec;left:0;width:' + r2 + '%"></b></div>' + (hist ? '<div class="hist">' + hist + "</div>" : "") + (info.keys ? '<div class="keys">' + info.keys.map((k2) => "<b>" + esc(k2[0]) + "</b>" + esc(k2[1])).join(" &nbsp; ") + "</div>" : "");
+      this.cardEl.classList.add("on");
     }
   };
   return __toCommonJS(index_exports);
