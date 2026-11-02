@@ -12819,7 +12819,7 @@ function updateParking(dt) {
 // forgotten when you leave. Every plant comes from a hash of where it stands,
 // so a tile planted twice is the same tile twice.
 // =====================================================================
-const veg = { cell: 4, w: 0, h: 0, mask: null, trees: new Map(), grass: new Map(), root: null, group: null, mats: null, geo: null, t: 0 };
+const veg = { cell: 4, w: 0, h: 0, mask: null, trees: new Map(), grass: new Map(), root: null, group: null, mats: null, geo: null, t: 0, enf: 0 };
 const VEG_TILE = 500, GRASS_TILE = 80;
 
 function vegDisc(x, z, r) {
@@ -12895,7 +12895,8 @@ function windUpdate(dt) {
 }
 
 function vegBuild(root) {
-  veg.trees.clear(); veg.grass.clear(); trunkPurge(true);
+  veg.trees.clear(); veg.grass.clear(); trunkPurge(true); veg.enf = 0;
+  if (PERSIST.trees) PERSIST.trees.map.clear(); if (PERSIST.grass) PERSIST.grass.map.clear();
   veg.root = root;
   veg.group = new THREE.Group(); veg.group.name = "countryside";
   root.add(veg.group);
@@ -13104,27 +13105,32 @@ function vegUpdate(px, pz, budget) {
       want.push([d, gx, gz]);
     }
     want.sort((a, b) => a[0] - b[0]);
+    const keep = PERSIST.keep && (map === veg.trees ? PERSIST.trees : PERSIST.grass);
     want.forEach(w => {
       const key = w[1] + "," + w[2];
-      if (map.has(key) || built >= maxBuild) return;
+      if (map.has(key)) { const o = map.get(key); if (o && !o.visible) { o.visible = true; if (keep) keep.touch(key); } return; }
+      if (built >= maxBuild) return;
       const obj = make(w[1], w[2]);
       map.set(key, obj || null);
-      if (obj) veg.group.add(obj);
+      if (obj) { veg.group.add(obj); if (keep) keep.add(key, obj, (w[1] + 0.5) * size, (w[2] + 0.5) * size); }
       built++;
     });
     map.forEach((obj, key) => {
       const [gx, gz] = key.split(",").map(Number);
       const d = Math.hypot((gx + 0.5) * size - px, (gz + 0.5) * size - pz);
       if (d > radius + size * 1.6) {
+        // kept by the persistence engine: hidden, still built, shown again on the way back
+        if (keep && keep.has(key)) { if (obj.visible) obj.visible = false; return; }
         if (obj) { trunkDrop(obj); veg.group.remove(obj); obj.traverse(o => { if (o.dispose) o.dispose(); }); }
         map.delete(key);
       }
     });
+    if (keep && ++veg.enf % 120 === 0) keep.enforce(px, pz);
   };
   sweep(veg.trees, VEG_TILE, R.tree, vegTreeTile);
   // the far woods are drawn thinner: past half the reach a tile shows fewer and fewer of its trees, down to two in five at the edge
   veg.trees.forEach((obj, key) => {
-    if (!obj) return;
+    if (!obj || !obj.visible) return;
     const [gx, gz] = key.split(",").map(Number), d = Math.hypot((gx + 0.5) * VEG_TILE - px, (gz + 0.5) * VEG_TILE - pz);
     const keep = 1 - 0.6 * clamp01((d - R.tree * 0.45) / (R.tree * 0.55));
     obj.children.forEach(m => { if (m.userData.full) { const n = Math.max(1, Math.round(m.userData.full * keep)); if (m.count !== n) m.count = n; } });
@@ -14082,6 +14088,11 @@ function applyTier(name, opts) {
 // Everything near Seiko is drawn in full; what is further out is drawn plainer; what is far enough away and not worth seeing is not drawn at all.
 // The terrain and the mountains are never switched off, so the view still reaches the horizon. Large static meshes are cut into 512 m squares and
 // registered here with the distance they stop being worth drawing at, and each frame the ones too far away or outside the view are hidden.
+// ---- persistence ------------------------------------------------------------------------------------------------------------------------
+// With the Shigoto persistence engine running (game/persist-hook.js), the world is built and checked behind the loading screen, and what the
+// streaming used to throw away when you walked off (buildings' close-up detail, trees, grass) is kept: hidden when far, shown when near,
+// never rebuilt. PERSIST.detail/trees/grass are its resident sets (SHIGOTO.ResidentSet); they only let go of something past the memory budget.
+const PERSIST = { keep: false, detail: null, trees: null, grass: null, engine: null };
 const STREAM_CH = 512;
 const STREAM = { low: 2400, tower: 9000, road: 2600, detail: 340, on: true, fog: { low: { n: { value: 1200 }, f: { value: 2300 } }, road: { n: { value: 1300 }, f: { value: 2500 } } }, reg: [], frustum: new THREE.Frustum(), pv: new THREE.Matrix4(), shown: 0, hidden: 0 };
 // Beyond the bubble the buildings and streets are not simply cut off: they sink into the haze first, with a fog of their own that closes in just inside
@@ -14175,7 +14186,12 @@ function dbQuad(B, a, b, c, d, nm) {
 function dbMesh(B, mat) {
   if (!B.ix.length) return null;
   const g = new THREE.BufferGeometry();
-  g.setAttribute("position", new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute("normal", new THREE.Float32BufferAttribute(B.n, 3)); g.setAttribute("color", new THREE.Float32BufferAttribute(B.c, 3));
+  // packed: normals as signed bytes and colours as bytes (both normalised) instead of floats, so a building's close-up detail takes about
+  // half the memory and the persistence engine can keep twice as many of them built (see PERSIST)
+  const nn = new Int8Array(B.n.length), cc = new Uint8Array(B.c.length);
+  for (let i = 0; i < nn.length; i++) nn[i] = Math.round(Math.max(-1, Math.min(1, B.n[i])) * 127);
+  for (let i = 0; i < cc.length; i++) cc[i] = Math.round(clamp01(B.c[i]) * 255);
+  g.setAttribute("position", new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nn, 3, true)); g.setAttribute("color", new THREE.BufferAttribute(cc, 3, true));
   g.setIndex(B.p.length / 3 > 65000 ? new THREE.Uint32BufferAttribute(B.ix, 1) : new THREE.Uint16BufferAttribute(B.ix, 1));
   const m = new THREE.Mesh(g, mat); m.castShadow = false; m.receiveShadow = true; return m;
 }
@@ -14266,6 +14282,17 @@ function buildingDetail(b) {
   g.userData.tris = (S.ix.length + G.ix.length + L.ix.length) / 3;
   return g;
 }
+// Build one building's close-up detail and put it in the scene; with the persistence engine on it is also kept (a resident piece), and only
+// the memory budget can take it away again.
+function detailMake(b) {
+  const g = buildingDetail(b); scene.add(g); DETAIL.built++;
+  const keep = PERSIST.keep && PERSIST.detail;
+  if (keep) {
+    let n = 0; g.traverse(o => { const G = o.geometry; if (!G) return; if (G.index) n += G.index.array.byteLength; for (const k in G.attributes) n += G.attributes[k].array.byteLength; });
+    keep.add(b, g, b.c[0], b.c[1], n);
+  }
+  return g;
+}
 function detailRegister(boxes) {
   boxes.forEach(b => {
     if (b.deck || b.shopRef || b.shoulder || b.plantFor || b.landmark || b.h < 4 || b.h > 70 || Math.min(b.size[0], b.size[1]) < 5 || b.pitch) return;
@@ -14277,7 +14304,11 @@ function detailRegister(boxes) {
 }
 function detailTick() {
   const cam = camera.position, reach = STREAM.on ? ((title && title.on) || player.mode !== "walk" || flight.active || (chute.active && chute.state === "fall") ? 0 : (drive.car ? 0.8 : 1)) : 0, R = STREAM.detail * reach;
-  DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); DETAIL.active.delete(b); } });
+  const keep = PERSIST.keep && PERSIST.detail;
+  // Out of range: with the persistence engine on, the building is only hidden and stays built (back in range it is shown again, nothing is
+  // rebuilt); without it, it is taken apart as before.
+  DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { if (keep && keep.has(b)) g.visible = false; else { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } DETAIL.active.delete(b); } });
+  if (keep && (DETAIL.t = (DETAIL.t || 0) + 1) % 60 === 0) keep.enforce(cam.x, cam.z);
   if (!R) return;
   const near = [], cx0 = Math.floor((cam.x - R) / 128), cx1 = Math.floor((cam.x + R) / 128), cz0 = Math.floor((cam.z - R) / 128), cz1 = Math.floor((cam.z + R) / 128);
   for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const c = DETAIL.cells.get(cx + "," + cz); if (!c) continue; for (const b of c) { if (DETAIL.active.has(b)) continue; const d = Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) - Math.max(b.size[0], b.size[1]) * 0.5; if (d < R) near.push([d, b]); } }
@@ -14285,7 +14316,12 @@ function detailTick() {
   near.sort((a, b) => a[0] - b[0]);
   // as many as fit in a few milliseconds, nearest first: standing still builds the street round you at once, and walking never waits on it
   const t0 = performance.now(), cap = DETAIL.rush > 0 ? 14 : 6;
-  for (let i = 0; i < Math.min(cap, near.length); i++) { const b = near[i][1]; const g = buildingDetail(b); scene.add(g); DETAIL.active.set(b, g); DETAIL.built++; if (performance.now() - t0 > (DETAIL.rush > 0 ? 14 : 5)) break; }
+  for (let i = 0, made = 0; i < near.length && made < cap; i++) {
+    const b = near[i][1], kept = keep && keep.get(b);
+    if (kept) { kept.visible = true; DETAIL.active.set(b, kept); continue; }       // already built: showing it again costs nothing
+    const g = detailMake(b); DETAIL.active.set(b, g); made++;
+    if (performance.now() - t0 > (DETAIL.rush > 0 ? 14 : 5)) break;
+  }
   if (DETAIL.rush > 0) DETAIL.rush--;
 }
 
@@ -14388,7 +14424,8 @@ function perfShow() {
   }
   const i = renderer ? renderer.info.render : { calls: 0, triangles: 0 };
   const sz = renderer ? renderer.domElement.width + "x" + renderer.domElement.height : "";
-  perf.el.textContent = Math.round(perf.fps) + " fps  " + gfx.tier + (perf.potato ? "+" + perf.potato : "") + "  res x" + perf.mult.toFixed(2) + "\n" + sz + "  " + i.calls + " calls  " + (i.triangles / 1000 | 0) + "k tris";
+  perf.el.textContent = Math.round(perf.fps) + " fps  " + gfx.tier + (perf.potato ? "+" + perf.potato : "") + "  res x" + perf.mult.toFixed(2) + "\n" + sz + "  " + i.calls + " calls  " + (i.triangles / 1000 | 0) + "k tris" +
+    (PERSIST.engine && PERSIST.engine.report ? "\nkept " + Math.round(PERSIST.engine.residentBytes() / 1e6) + "/" + Math.round(PERSIST.engine.budget / 1e6) + " MB  " + (PERSIST.detail ? PERSIST.detail.size : 0) + " bldgs  " + PERSIST.engine.report.failed + " checks failed" : "");
   perf.el.style.display = perf.shown ? "block" : "none";
 }
 function perfToggle() { perf.shown = !perf.shown; if (perf.shown) perfShow(); else if (perf.el) perf.el.style.display = "none"; }
@@ -16957,7 +16994,9 @@ function loadCarModels(root) {
     });
     // the kinds modelled here rather than loaded
     PROC_KINDS.forEach(k => { if (!CAR_MODELS[k] && CAR_KINDS.some(kd => kd.name === k)) CAR_MODELS[k] = { proc: true, user: true, yaw: 0 }; });
-    if(gfx.tier==="low"||gfx.tier==="medium")Object.values(CAR_MODELS).forEach(e=>{if(e.url)e.url=e.url.replace("cars/","cars/low/");});
+    // low and medium load the lighter copies in cars/low/, where there is one (the dirt bike's was bigger than the original and the MC720's
+    // too coarse, so those two always load the full model)
+    if(gfx.tier==="low"||gfx.tier==="medium")Object.values(CAR_MODELS).forEach(e=>{if(e.url&&!/\/(dirtbike|mc720)\.glb$/.test(e.url))e.url=e.url.replace("cars/","cars/low/");});
     return loadCarModelsNow(root);
   };
   traffic.modelsReady=fetch("cars/user.json").then(r => (r.ok ? r.json() : {})).catch(() => ({})).then(go);
@@ -40832,12 +40871,23 @@ function generate(seed) {
 
   // Run the stages with a breath between them so the progress bar moves.
   let step = 0;
+  // With the persistence engine (game/persist-hook.js) the world's layout and meshes take the first half of the bar, and the rest is the
+  // persistence load: everything built, kept and checked before the loading screen lifts.
+  const persist = typeof window.persistLoad === "function", k = persist ? 0.5 : 1;
   const work = [
-    () => { world = makeWorld(seed, (text, t) => boot(text, t * 0.86)); },
-    () => { boot("building the mesh", 0.90); buildScene(world); },
-    () => { boot("done", 1); fillReadout(world); }
+    () => { world = makeWorld(seed, (text, t) => boot(text, t * 0.86 * k)); },
+    () => { boot("building the mesh", 0.90 * k); buildScene(world); },
+    () => { boot("done", k); fillReadout(world); }
   ];
+  let persisted = !persist;
   function next() {
+    if (step >= work.length && !persisted) {
+      persisted = true;
+      window.persistLoad(seed, (text, t) => { boot(text, 0.5 + t * 0.5); const l = document.getElementById("bootstage"); if (l && t < 1) l.textContent = text; })
+        .catch(e => console.error("[Konto] the persistence load failed; streaming as before", e))
+        .then(() => setTimeout(next, 16));
+      return;
+    }
     if (step >= work.length) {
       document.getElementById("boot").hidden = true;
       btn.disabled = false;
@@ -44101,5 +44151,6 @@ radioLoadMusic();
 <script>if (window.KONTO_DESKTOP) { var ah = document.getElementById('addhint'); if (ah) ah.innerHTML = '<br><b>F8</b> add your own cars and road textures, or drop the files on this window<br><b>F9</b> get the latest version of the game'; }</script>
 
 <script src="game/engine-hook.js"></script>
+<script src="game/persist-hook.js"></script>
 </body>
 </html>

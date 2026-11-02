@@ -22,6 +22,72 @@ export class HostBridge {
     this.proxies = new Map();
     this.props = [];
     this.maxProps = (opts && opts.maxProps) || 80;
+    // resident: tiles are never removed once built (the persistence engine builds them all up front)
+    this.resident = false;
+    this._hf = new Set();      // tiles with their ground heightfield
+    this._boxed = new Set();   // tiles with their solids' boxes
+  }
+
+  // Build the physics for the whole host world now: a collider for every solid in the world, and the ground
+  // (heightfields, which cost far more to sample) for the tiles within groundR metres of the points in `near` (where play
+  // starts). Ground elsewhere is added as you first get near it, and kept. ctx: a persistence stage context, or nothing.
+  async prebuildAll(ctx, near, groundR) {
+    if (!this.ph) return { tiles: 0 };
+    this.resident = true;
+    if (this._solids && !this._index) this._buildIndex();
+    const t = this.tile, R = groundR || 360;
+    const keys = this._index ? [...this._index.keys()] : [];
+    const want = new Set(keys);
+    for (const p of near || []) for (let z = Math.floor((p[1] - R) / t); z <= Math.floor((p[1] + R) / t); z++) for (let x = Math.floor((p[0] - R) / t); x <= Math.floor((p[0] + R) / t); x++)
+      if (Math.hypot((x + 0.5) * t - p[0], (z + 0.5) * t - p[1]) <= R + t * 0.7) want.add(x + "," + z + ",g");
+    let n = 0, boxes = 0, ground = 0;
+    for (const k of want) {
+      const [x, z, g] = k.split(",");
+      if (g) { if (this._buildGround(+x, +z)) ground++; }
+      else boxes += this._buildTile(+x, +z, false);
+      n++;
+      if (ctx) { if ((n & 15) === 0) ctx.progress(n / want.size); await ctx.slice(); }
+    }
+    // Rapier's ray and shape queries see new colliders after a step
+    try { this.ph.world.step(); } catch (e) { /* not ready */ }
+    return { tiles: this._tiles.size, boxes, groundTiles: ground, solids: this._solids ? this._solids.length : 0 };
+  }
+
+  _buildGround(x, z) {
+    const t = this.tile, key = "host:" + x + "," + z;
+    if (!this._ground || this._hf.has(key)) return false;
+    this._hf.add(key);
+    if (!this._tiles.has(key)) this._tiles.set(key, true);
+    this.ph.addHeightfield(key, (x + 0.5) * t, (z + 0.5) * t, t, 20, this._ground);
+    return true;
+  }
+
+  _buildTile(x, z, withGround) {
+    const t = this.tile, key = "host:" + x + "," + z;
+    if (withGround !== false) this._buildGround(x, z);
+    if (this._boxed.has(key)) return 0;
+    this._boxed.add(key);
+    this._tiles.set(key, true);
+    let n = 0;
+    const l = this._index && this._index.get(x + "," + z);
+    if (l) for (const i of l) {
+      const b = this._solids[i];
+      // a solid spanning several tiles is added by the tile its centre is in
+      if (Math.floor(b.c[0] / t) !== x || Math.floor(b.c[1] / t) !== z) continue;
+      const h = b.h || 10, y = b.y || 0;
+      this.ph.addStaticBox(key, [b.c[0], y + h / 2, b.c[1]], [b.size[0], h, b.size[1]], (b.yaw || 0) * Math.PI / 180, { tag: "host" });
+      n++;
+    }
+    return n;
+  }
+
+  // How many solids have a collider (for the persistence checks): every solid belongs to exactly one tile.
+  coverage() {
+    if (!this._solids) return { solids: 0, covered: 0 };
+    const t = this.tile;
+    let covered = 0;
+    for (const b of this._solids) if (this._boxed.has("host:" + Math.floor(b.c[0] / t) + "," + Math.floor(b.c[1] / t))) covered++;
+    return { solids: this._solids.length, covered };
   }
 
   solids(list) { this._solids = list; this._index = null; this._dropAll(); }
@@ -51,7 +117,7 @@ export class HostBridge {
     return key;
   }
 
-  _dropAll() { for (const k of this._tiles.keys()) this.ph.removeOwner(k); this._tiles.clear(); }
+  _dropAll() { for (const k of this._tiles.keys()) this.ph.removeOwner(k); this._tiles.clear(); this._hf.clear(); this._boxed.clear(); }
 
   _buildIndex() {
     const t = this.tile, map = new Map();
@@ -80,19 +146,10 @@ export class HostBridge {
       if (Math.hypot(cx - focus.x, cz - focus.z) > R + t * 0.7) continue;
       const key = "host:" + x + "," + z;
       keep.add(key);
-      if (this._tiles.has(key) || built >= 2) continue; // at most two tiles per frame
+      if ((this._boxed.has(key) && (this._hf.has(key) || !this._ground)) || built >= 2) continue; // at most two tiles per frame
       built++;
-      this._tiles.set(key, true);
-      if (this._ground) this.ph.addHeightfield(key, cx, cz, t, 20, this._ground);
-      const l = this._index && this._index.get(x + "," + z);
-      if (l) for (const i of l) {
-        const b = this._solids[i];
-        // a solid spanning several tiles is added by the tile its centre is in
-        if (Math.floor(b.c[0] / t) !== x || Math.floor(b.c[1] / t) !== z) continue;
-        const h = b.h || 10, y = b.y || 0;
-        this.ph.addStaticBox(key, [b.c[0], y + h / 2, b.c[1]], [b.size[0], h, b.size[1]], (b.yaw || 0) * Math.PI / 180, { tag: "host" });
-      }
+      this._buildTile(x, z);
     }
-    for (const k of [...this._tiles.keys()]) if (!keep.has(k)) { this.ph.removeOwner(k); this._tiles.delete(k); }
+    if (!this.resident) for (const k of [...this._tiles.keys()]) if (!keep.has(k)) { this.ph.removeOwner(k); this._tiles.delete(k); this._hf.delete(k); this._boxed.delete(k); }
   }
 }

@@ -18,6 +18,7 @@
 
   async function start() {
     S.starting = true;
+    S.scene = scene;
     try {
       if (S.engine) { S.engine.dispose(); S.engine = null; }
       const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: false, water: false } });
@@ -39,7 +40,7 @@
       engine.surfaces.autoAdopt(scene, 2);
       engine.events.on("weather", w => { try { localStorage.setItem("shigoto.weather", w); } catch (e) { /* private mode */ } });
       engine.events.on("lightning", () => { try { say && engine.weather.state === "storm" && Math.random() < 0.15 && say("Thunder rolls over Tōkonto.", 3); } catch (e) { /* none */ } });
-      S.engine = engine; S.bridge = bridge; S.scene = scene;
+      S.engine = engine; S.bridge = bridge; S.scene = scene; S._lights = null;
       console.log("[Shigoto] engine " + SHIGOTO.VERSION + " running under the game");
     } catch (e) {
       S.failed = true;
@@ -47,15 +48,32 @@
     }
     S.starting = false;
   }
+  // Start the engine for the current scene now and wait for it (the persistence load does this behind the loading screen, so the first frame
+  // of play does not pay for it). Safe to call more than once.
+  S.start = async function () {
+    if (S.failed) return null;
+    while (S.starting) await new Promise(r => setTimeout(r, 30));
+    if (!S.engine || S.scene !== scene) await start();
+    return S.engine;
+  };
   function savedWeather() { try { return localStorage.getItem("shigoto.weather"); } catch (e) { return null; } }
 
   // The game's sun and sky lights, dimmed by cloud. The game sets them itself (often every frame), so remember what it
   // last wrote and scale that, rather than scaling our own previous result.
   const lightBase = new WeakMap();
+  // The sun and sky lights are found once every few seconds, not by walking the whole scene every frame (with the world kept resident by
+  // the persistence engine the scene is far bigger than the part that is drawn).
+  function skyLights() {
+    const t = performance.now();
+    if (!S._lights || t - S._lightsAt > 3000) {
+      S._lights = []; S._lightsAt = t;
+      scene.traverse(o => { if (o.isDirectionalLight || o.isHemisphereLight) S._lights.push(o); });
+    }
+    return S._lights;
+  }
   function dimLights(cloud, flash) {
     const k = 1 - cloud * 0.62;
-    scene.traverse(o => {
-      if (!(o.isDirectionalLight || o.isHemisphereLight)) return;
+    skyLights().forEach(o => {
       let b = lightBase.get(o);
       if (!b || Math.abs(o.intensity - b.wrote) > 1e-6) { b = { base: o.intensity, wrote: 0 }; lightBase.set(o, b); }
       b.wrote = o.intensity = b.base * (o.isDirectionalLight ? k : 1 - cloud * 0.3) + flash * (o.isHemisphereLight ? 1.5 : 0);

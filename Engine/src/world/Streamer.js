@@ -21,6 +21,35 @@ export class Streamer {
     this.lightCount = 10;
     this._pool = [];
     this._poolT = 0;
+    // resident: cells are never taken apart once built (the persistence engine sets this after preloadAll). Far cells
+    // are hidden instead, and shown again on the way back.
+    this.resident = false;
+  }
+
+  // Fetch and build every cell of every loaded level now (behind a loading screen), then keep them all.
+  // ctx: a persistence stage context ({ slice, progress }), or nothing.
+  async preloadAll(ctx) {
+    this.resident = true;
+    const jobs = [];
+    for (const l of this.levels) for (const k of l.have) if (!l.cells.has(k)) jobs.push([l, k]);
+    let done = 0, failed = 0;
+    const one = async ([l, k]) => {
+      l.cells.set(k, { state: "loading" });
+      try {
+        const r = await fetch(l.base + "cells/" + k + ".json");
+        if (!r.ok) throw new Error(r.status);
+        const data = await r.json();
+        const out = this.builder.build(data, l.base + k, this.root, l.offset);
+        l.cells.set(k, { state: "built", out });
+        this.engine.events.emit("cell", { key: k, level: l.def.name, group: out.group });
+      } catch (e) { failed++; console.warn("[Shigoto] cell " + k + " failed", e); l.cells.delete(k); l.have.delete(k); }
+      done++;
+      if (ctx) { ctx.progress(done / jobs.length); await ctx.slice(); }
+    };
+    // a few fetches at once, building as each lands
+    for (let i = 0; i < jobs.length; i += 4) await Promise.all(jobs.slice(i, i + 4).map(one));
+    this.engine.stats.cells = jobs.length - failed;
+    return { cells: jobs.length - failed, failed };
   }
 
   // url: folder holding level.json. placement: { x, y, z } offset to put the level into a host world.
@@ -88,10 +117,12 @@ export class Streamer {
         this.engine.events.emit("cell", { key: k, level: l.def.name, group: out.group });
       } catch (e) { console.error("[Shigoto] building cell " + k + " failed", e); c.state = "failed"; }
     }
-    // drop far cells
+    // drop far cells (resident: hide them, keep them built)
     for (const [k, c] of l.cells) {
       if (c.state === "loading") continue;
-      if (cellDist(k, cs, fx, fz) > U) this._drop(l, k);
+      const far = cellDist(k, cs, fx, fz) > U;
+      if (this.resident) { if (c.out && c.out.group.visible === far) c.out.group.visible = !far; }
+      else if (far) this._drop(l, k);
     }
   }
 
