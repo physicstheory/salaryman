@@ -7,6 +7,7 @@
   "private": true,
   "main": "main.js",
   "scripts": {
+    "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks',{stdio:'ignore'})}catch(e){}\"",
     "stage": "node tools/stage.js",
     "start": "npm run stage && electron .",
     "dist": "npm run stage && electron-builder --publish never",

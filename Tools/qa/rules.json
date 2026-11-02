@@ -1,0 +1,75 @@
+{
+  "_about": "Thresholds for the AAA gate (Tools/qa/aaa_gate.py). Raising a number is always fine. Lowering one, or deleting a rule, loosens the gate: CI refuses that unless the commit message carries [aaa-loosen-approved], which only Duncan may authorise. See docs/AAA_GATE.md.",
+  "budget_seconds": 60,
+
+  "pbr": {
+    "asset_dirs": ["Web/props", "Web/people/real", "Web/cars"],
+    "texture_dirs": ["Web/art/terrain", "Web/art/interior", "Web/art/road", "Web/art/surfaces"],
+    "min_texture_px": 512,
+    "min_character_texture_px": 1024,
+    "normal_map_min_blue": 150,
+    "normal_map_min_std": 1.5,
+    "roughness_map_min_std": 2.0,
+    "banned_extensions": ["KHR_materials_unlit", "VRMC_materials_mtoon", "VRM", "VRMC_vrm"],
+    "code_dirs": ["Web/konto.html", "Web/game", "Web/art", "Engine/src"],
+    "waiver_tag": "aaa-ok:"
+  },
+
+  "characters": {
+    "index": "Web/people/real/index.json",
+    "min_bones": 50,
+    "min_tris": 5000,
+    "aaa_tris": 15000,
+    "hero_aaa_tris": 25000,
+    "hero_prefix": "seiko_",
+    "max_pelvis_ratio": 0.63,
+    "photo_min_unique_colours": 300,
+    "photo_max_flat_fraction": 0.6,
+    "min_cast": 20,
+    "anime_markers": ["J_Bip_", "VRoid", "MToon", "_SKIN", "FaceMouth", "EyeHighlight"]
+  },
+
+  "cars": {
+    "dir": "Web/cars",
+    "min_tris": 8000,
+    "aaa_tris": 20000,
+    "need_paint_named": "paint",
+    "min_models": 12
+  },
+
+  "buildings": {
+    "levels_dir": "Web/levels",
+    "min_styles": 5,
+    "min_floor_stddev": 2.0,
+    "min_signed_shop_fraction": 0.4,
+    "lowpoly_kits": ["Web/kenney/city"],
+    "facade_sets_need": ["color", "normal", "rough"]
+  },
+
+  "street": {
+    "min_props_per_street_cell": 25,
+    "min_prop_types_per_level": 12,
+    "required_prop_types": ["vending", "bicycle", "lamp", "pole", "bin", "ac", "planter", "signpost", "bench", "bollard"],
+    "min_count_each_required": 4
+  },
+
+  "lived_in": {
+    "min_peds_high_tier": 20,
+    "elements": {
+      "pedestrians walking the pavements": "function pedSpawn",
+      "traffic that spawns by density": "function trafficSpawn",
+      "rain and wet streets": "puddle|wetness",
+      "lit windows / interiors at night": "interior[- ]?mapp|interiorMap|windowLights|_lights\\.jpg",
+      "shop signs and neon": "neon|signage|signFront",
+      "overhead power lines": "wires",
+      "vending machines": "vending",
+      "parked bicycles": "bicycle",
+      "rubbish bags / litter on the street": "\\b(rubbish ?bags?|trash ?bags?|garbage ?bags?|bin ?bags?|gomi ?bags?|litter(ed)? (on|along)|street litter)\\b",
+      "laundry / futons on balconies": "laundry|washing ?line|futons",
+      "air-con units on walls": "\"ac\"|aircon|air-con",
+      "umbrellas in the rain": "\\bumbrellas?\\b",
+      "steam / vents": "steam",
+      "birds": "\\b(pigeons?|crows?)\\b"
+    }
+  }
+}

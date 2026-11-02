@@ -1,0 +1,1175 @@
+{
+ "_about": "Known AAA debt recorded when the gate was installed. Items here don't block pushes, but nothing new may be added (CI checks). Fix them and run --ratchet.",
+ "debt": {
+  "car-glass:Web/cars/dirtbike.glb": {
+   "cat": "cars",
+   "problem": "no glass material: windows are opaque",
+   "where": "Web/cars/dirtbike.glb"
+  },
+  "car-tris:Web/cars/mc720.glb": {
+   "cat": "cars",
+   "problem": "only 6915 triangles: reads as a toy",
+   "where": "Web/cars/mc720.glb"
+  },
+  "code-bare:Web/konto.html:01e54df06d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: deep, transparent: true, opacity: 0.86 })",
+   "where": "Web/konto.html:12194"
+  },
+  "code-bare:Web/konto.html:03847344fe:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x6b6b66 })",
+   "where": "Web/konto.html:30112"
+  },
+  "code-bare:Web/konto.html:0787ab9200:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: kind === \"palm\" ? 0x8a6a44 : 0x6a4a2e })",
+   "where": "Web/konto.html:38360"
+  },
+  "code-bare:Web/konto.html:09e4969fab:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2a6f86, roughness: 0.15, metalness: 0.1 })",
+   "where": "Web/konto.html:30110"
+  },
+  "code-bare:Web/konto.html:0deba24944:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), roughness: 0.95, metalne",
+   "where": "Web/konto.html:12929"
+  },
+  "code-bare:Web/konto.html:0e3c7d08bb:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xd8a930, metalness: 0.9, roughness: 0.25, envMap: gfx.env || null })",
+   "where": "Web/konto.html:19096"
+  },
+  "code-bare:Web/konto.html:102e1165d6:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5a3b22 })",
+   "where": "Web/konto.html:37000"
+  },
+  "code-bare:Web/konto.html:127a8b6ce4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x6d6a62, roughness: 0.9 })",
+   "where": "Web/konto.html:40867"
+  },
+  "code-bare:Web/konto.html:134f8b5c15:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x0f2a22 })",
+   "where": "Web/konto.html:19021"
+  },
+  "code-bare:Web/konto.html:194e4b423b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5b6066 })",
+   "where": "Web/konto.html:23865"
+  },
+  "code-bare:Web/konto.html:1a35d0a7da:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe8c4a2 })",
+   "where": "Web/konto.html:8028"
+  },
+  "code-bare:Web/konto.html:1b59a6ca58:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 })",
+   "where": "Web/konto.html:32545"
+  },
+  "code-bare:Web/konto.html:1b9d13421b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2a2d33, roughness: 0.38, metalness: 0.75 })",
+   "where": "Web/konto.html:39148"
+  },
+  "code-bare:Web/konto.html:1bc5913383:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: new THREE.Color(0.14, 0.15, 0.21) })",
+   "where": "Web/konto.html:30076"
+  },
+  "code-bare:Web/konto.html:1bc5913383:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: new THREE.Color(0.14, 0.15, 0.21) })",
+   "where": "Web/konto.html:30174"
+  },
+  "code-bare:Web/konto.html:1c21d0c170:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: kind === \"palm\" ? 0x3f9a3a : 0x3f8f3a })",
+   "where": "Web/konto.html:38360"
+  },
+  "code-bare:Web/konto.html:1d547bb46d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1c3f4d })",
+   "where": "Web/konto.html:38503"
+  },
+  "code-bare:Web/konto.html:1ee2f30ace:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? 0.6 : r, metalness: m || 0 })",
+   "where": "Web/konto.html:43938"
+  },
+  "code-bare:Web/konto.html:1ee2f30ace:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: r === undefined ? 0.6 : r, metalness: m || 0 })",
+   "where": "Web/konto.html:43956"
+  },
+  "code-bare:Web/konto.html:21119004d6:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x322b25 })",
+   "where": "Web/konto.html:7528"
+  },
+  "code-bare:Web/konto.html:2130d2ec1b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, metalness: 0.55 })",
+   "where": "Web/konto.html:32536"
+  },
+  "code-bare:Web/konto.html:22ac067bcb:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x20242a) })",
+   "where": "Web/konto.html:37473"
+  },
+  "code-bare:Web/konto.html:22ac067bcb:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x20242a) })",
+   "where": "Web/konto.html:37539"
+  },
+  "code-bare:Web/konto.html:23ee7485d3:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x0a1018, roughness: 0.1, metalness: 0.8 })",
+   "where": "Web/konto.html:32531"
+  },
+  "code-bare:Web/konto.html:250bc2488a:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x9aa0a4 })",
+   "where": "Web/konto.html:7963"
+  },
+  "code-bare:Web/konto.html:27523edca4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x80858d, roughness: 0.4, metalness: 0.7 })",
+   "where": "Web/konto.html:39148"
+  },
+  "code-bare:Web/konto.html:286bd5e02b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x2c3036) })",
+   "where": "Web/konto.html:37504"
+  },
+  "code-bare:Web/konto.html:2a5d2b3ac7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1b1c20 })",
+   "where": "Web/konto.html:8032"
+  },
+  "code-bare:Web/konto.html:2bf4f49358:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xe8e4dc, roughness: 0.4 })",
+   "where": "Web/konto.html:40370"
+  },
+  "code-bare:Web/konto.html:2fd6806d91:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: deep, roughness: opts.rough || 0.1, metalness: 0.0, transparent: true,",
+   "where": "Web/konto.html:12214"
+  },
+  "code-bare:Web/konto.html:2fda1abd45:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x1a3a22, roughness: 1 })",
+   "where": "Web/konto.html:32508"
+  },
+  "code-bare:Web/konto.html:3438f78862:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: s[1], roughness: 0.5 })",
+   "where": "Web/konto.html:40344"
+  },
+  "code-bare:Web/konto.html:384295cf6d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xf08a1c })",
+   "where": "Web/konto.html:30123"
+  },
+  "code-bare:Web/konto.html:3b6ba3a479:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x8a2a2a, roughness: 0.9 })",
+   "where": "Web/konto.html:40354"
+  },
+  "code-bare:Web/konto.html:3cf5acd213:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.45 : rough, metalness: met === u",
+   "where": "Web/konto.html:4716"
+  },
+  "code-bare:Web/konto.html:4154187d1e:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: glass ? 0xcfe6f2 : (i % 2 ? 0x1b1b1d : new THREE.Color(c.colour[0], c.",
+   "where": "Web/konto.html:40591"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:4865"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:11865"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:3": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:11894"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:4": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:38428"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:5": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:38523"
+  },
+  "code-bare:Web/konto.html:41ea55fddc:6": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff })",
+   "where": "Web/konto.html:38634"
+  },
+  "code-bare:Web/konto.html:427819efbc:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x20323d })",
+   "where": "Web/konto.html:23942"
+  },
+  "code-bare:Web/konto.html:4590d821d5:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0xd8342c) })",
+   "where": "Web/konto.html:37527"
+  },
+  "code-bare:Web/konto.html:459ec0cda4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.85 : rough, metalness: 0.05 })",
+   "where": "Web/konto.html:4747"
+  },
+  "code-bare:Web/konto.html:494691a47f:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: colour })",
+   "where": "Web/konto.html:16673"
+  },
+  "code-bare:Web/konto.html:497e0cb57d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x151a22 })",
+   "where": "Web/konto.html:29269"
+  },
+  "code-bare:Web/konto.html:49e21983e1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: i % 3 ? 0x2a2c30 : 0xb8bcc2, roughness: 0.6, metalness: 0.4 })",
+   "where": "Web/konto.html:38735"
+  },
+  "code-bare:Web/konto.html:4af38b3751:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xa8aaa8, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:23780"
+  },
+  "code-bare:Web/konto.html:50cdebaa7f:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xff7a1c, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:4860"
+  },
+  "code-bare:Web/konto.html:516a4ca700:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })",
+   "where": "Web/konto.html:28812"
+  },
+  "code-bare:Web/konto.html:516a4ca700:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xcfd3d8 })",
+   "where": "Web/konto.html:28820"
+  },
+  "code-bare:Web/konto.html:547e4d89dd:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1a2c3c })",
+   "where": "Web/konto.html:14143"
+  },
+  "code-bare:Web/konto.html:59b44e90a0:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x6b7077 })",
+   "where": "Web/konto.html:23939"
+  },
+  "code-bare:Web/konto.html:5ddf8eed49:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x3a5a8a, roughness: 0.9 })",
+   "where": "Web/konto.html:40349"
+  },
+  "code-bare:Web/konto.html:5e54dbc4d5:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xc0302a, roughness: 0.55 })",
+   "where": "Web/konto.html:40845"
+  },
+  "code-bare:Web/konto.html:5fa4487ee1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x141416 })",
+   "where": "Web/konto.html:8031"
+  },
+  "code-bare:Web/konto.html:612bf2b820:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1b1b1d })",
+   "where": "Web/konto.html:30127"
+  },
+  "code-bare:Web/konto.html:6494005c43:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: k[2] })",
+   "where": "Web/konto.html:30114"
+  },
+  "code-bare:Web/konto.html:65dede7aef:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x1a2c3c, roughness: 0.07, metalness: 0.65, envMap: env, envMapIntensi",
+   "where": "Web/konto.html:14143"
+  },
+  "code-bare:Web/konto.html:6844dbbbb5:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x3f6e2c })",
+   "where": "Web/konto.html:40873"
+  },
+  "code-bare:Web/konto.html:68ac979570:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x20242c })",
+   "where": "Web/konto.html:32525"
+  },
+  "code-bare:Web/konto.html:69a3d25ff0:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe5453a })",
+   "where": "Web/konto.html:23943"
+  },
+  "code-bare:Web/konto.html:6a83533771:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x23272d) })",
+   "where": "Web/konto.html:37493"
+  },
+  "code-bare:Web/konto.html:6cfd39dad7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x1d6fbf })",
+   "where": "Web/konto.html:23941"
+  },
+  "code-bare:Web/konto.html:6dc549284e:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xf2efe8, roughness: 0.9 })",
+   "where": "Web/konto.html:40348"
+  },
+  "code-bare:Web/konto.html:6eb325afb0:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xb9b7b0, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:38602"
+  },
+  "code-bare:Web/konto.html:6f44910de6:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x1e2128, roughness: 0.4, metalness: 0.25 })",
+   "where": "Web/konto.html:32488"
+  },
+  "code-bare:Web/konto.html:6fd681c0be:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x3a3c40, roughness: 0.3, metalness: 0.2 })",
+   "where": "Web/konto.html:40370"
+  },
+  "code-bare:Web/konto.html:70dc0f75e4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe6e6e0 })",
+   "where": "Web/konto.html:23940"
+  },
+  "code-bare:Web/konto.html:75aa0f0295:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe0508a })",
+   "where": "Web/konto.html:40873"
+  },
+  "code-bare:Web/konto.html:7b919f9140:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x9a968c, roughness: 0.95 })",
+   "where": "Web/konto.html:40869"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28805"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28815"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:3": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28823"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:4": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28823"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:5": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28823"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:6": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28823"
+  },
+  "code-bare:Web/konto.html:7c209d4ab1:7": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x15171b })",
+   "where": "Web/konto.html:28872"
+  },
+  "code-bare:Web/konto.html:7d26694c17:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: ultra ? 0xe8711a : 0x23262b, roughness: 0.7, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:33840"
+  },
+  "code-bare:Web/konto.html:7d3e0d4cfe:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x30333b, roughness: 0.9 })",
+   "where": "Web/konto.html:32504"
+  },
+  "code-bare:Web/konto.html:7d8783a61c:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe4e4da, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUn",
+   "where": "Web/konto.html:15278"
+  },
+  "code-bare:Web/konto.html:7dcc4971d1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xe8e8e0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUn",
+   "where": "Web/konto.html:4067"
+  },
+  "code-bare:Web/konto.html:7e0cc5d2c6:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2a6a4a, roughness: 0.6, metalness: 0.2 })",
+   "where": "Web/konto.html:32607"
+  },
+  "code-bare:Web/konto.html:7f7a148cfd:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: rough === undefined ? 0.4 : rough, metalness: met === un",
+   "where": "Web/konto.html:4650"
+  },
+  "code-bare:Web/konto.html:81685684d3:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x4a3322 })",
+   "where": "Web/konto.html:30121"
+  },
+  "code-bare:Web/konto.html:8249e5788f:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2f5f56, roughness: 0.05, metalness: 0.3, envMap: gfx.env || null })",
+   "where": "Web/konto.html:40860"
+  },
+  "code-bare:Web/konto.html:8273476bb7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x9a9a94 })",
+   "where": "Web/konto.html:38607"
+  },
+  "code-bare:Web/konto.html:829d5774c4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x67645c, roughness: 0.95 })",
+   "where": "Web/konto.html:40861"
+  },
+  "code-bare:Web/konto.html:8439afc00e:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x23262b })",
+   "where": "Web/konto.html:28792"
+  },
+  "code-bare:Web/konto.html:8439afc00e:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x23262b })",
+   "where": "Web/konto.html:28800"
+  },
+  "code-bare:Web/konto.html:87db4922b2:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshPhongMaterial({ color: 0xb0b8bf, specular: 0x8a949c, shininess: 70,\n        side: THREE.DoubleSi",
+   "where": "Web/konto.html:7891"
+  },
+  "code-bare:Web/konto.html:8ac46744d1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x3c4450, roughness: 0.7, metalness: 0.4 })",
+   "where": "Web/konto.html:32595"
+  },
+  "code-bare:Web/konto.html:8c74c0eab2:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 })",
+   "where": "Web/konto.html:40350"
+  },
+  "code-bare:Web/konto.html:90fc69a48e:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xb8c0c7, roughness: 0.26, metalness: 0.92,\n        side: THREE.Double",
+   "where": "Web/konto.html:7889"
+  },
+  "code-bare:Web/konto.html:9145380db3:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x3a2a1c })",
+   "where": "Web/konto.html:32505"
+  },
+  "code-bare:Web/konto.html:916558b8a8:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 1 })",
+   "where": "Web/konto.html:32531"
+  },
+  "code-bare:Web/konto.html:928bc35e14:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5f7a36 })",
+   "where": "Web/konto.html:30122"
+  },
+  "code-bare:Web/konto.html:93d9670829:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x3a2f26 })",
+   "where": "Web/konto.html:11864"
+  },
+  "code-bare:Web/konto.html:979a4e6988:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: new THREE.Color(P.acc) })",
+   "where": "Web/konto.html:28810"
+  },
+  "code-bare:Web/konto.html:979b0c8871:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x1c4a2c, roughness: 1 })",
+   "where": "Web/konto.html:32505"
+  },
+  "code-bare:Web/konto.html:9806884890:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x5a3c26, roughness: 0.6 })",
+   "where": "Web/konto.html:40339"
+  },
+  "code-bare:Web/konto.html:990f1c41e9:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x8a5a3a })",
+   "where": "Web/konto.html:30134"
+  },
+  "code-bare:Web/konto.html:9baf221158:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xaaa090 })",
+   "where": "Web/konto.html:30131"
+  },
+  "code-bare:Web/konto.html:9ec35f53be:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x555b62 })",
+   "where": "Web/konto.html:38425"
+  },
+  "code-bare:Web/konto.html:9ec35f53be:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x555b62 })",
+   "where": "Web/konto.html:38609"
+  },
+  "code-bare:Web/konto.html:9ec35f53be:3": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x555b62 })",
+   "where": "Web/konto.html:38612"
+  },
+  "code-bare:Web/konto.html:9ec35f53be:4": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x555b62 })",
+   "where": "Web/konto.html:38612"
+  },
+  "code-bare:Web/konto.html:9f688bbb9d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.2 })",
+   "where": "Web/konto.html:39148"
+  },
+  "code-bare:Web/konto.html:a0bab08e2b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x24262b })",
+   "where": "Web/konto.html:8030"
+  },
+  "code-bare:Web/konto.html:a244680e12:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xe8e8e2, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -4",
+   "where": "Web/konto.html:15160"
+  },
+  "code-bare:Web/konto.html:a70ea232e7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x141414 })",
+   "where": "Web/konto.html:8033"
+  },
+  "code-bare:Web/konto.html:aa2b65e1ff:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x6b7279) })",
+   "where": "Web/konto.html:37507"
+  },
+  "code-bare:Web/konto.html:aeaa0d98f5:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: new THREE.Color(b.band), roughness: 0.6 })",
+   "where": "Web/konto.html:28449"
+  },
+  "code-bare:Web/konto.html:aeb5dcc57f:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x8a5a36) })",
+   "where": "Web/konto.html:37503"
+  },
+  "code-bare:Web/konto.html:afadf7f4c1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: new THREE.Color(color).convertSRGBToLinear(), flatShading: !!flat })",
+   "where": "Web/konto.html:12930"
+  },
+  "code-bare:Web/konto.html:afe9bd620c:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x242830, roughness: 1 })",
+   "where": "Web/konto.html:32485"
+  },
+  "code-bare:Web/konto.html:b0e6362237:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x6d737a) })",
+   "where": "Web/konto.html:37462"
+  },
+  "code-bare:Web/konto.html:b26aafa7e4:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x9c2f2b) })",
+   "where": "Web/konto.html:37503"
+  },
+  "code-bare:Web/konto.html:b493d66dac:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x5d5a55, roughness: 0.9, metalness: 0.0 })",
+   "where": "Web/konto.html:7462"
+  },
+  "code-bare:Web/konto.html:b7295074bb:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xb4b6b3 })",
+   "where": "Web/konto.html:23857"
+  },
+  "code-bare:Web/konto.html:b9a449f00e:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x6a4a30, roughness: 0.8 })",
+   "where": "Web/konto.html:40845"
+  },
+  "code-bare:Web/konto.html:bdea53c46d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x14161b, roughness: 1 })",
+   "where": "Web/konto.html:32491"
+  },
+  "code-bare:Web/konto.html:c5dae00830:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5aa05a })",
+   "where": "Web/konto.html:30127"
+  },
+  "code-bare:Web/konto.html:c7a4d9c256:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshPhysicalMaterial({\n            color: 0xcccccc, metalness: 0.42, roughness: 0.38,\n            cl",
+   "where": "Web/konto.html:16550"
+  },
+  "code-bare:Web/konto.html:c863ff9cbd:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x2a1e16 : 0x18191c, roughness: 0.6 })",
+   "where": "Web/konto.html:39696"
+  },
+  "code-bare:Web/konto.html:c93c5a73d7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x2a2d33 })",
+   "where": "Web/konto.html:23938"
+  },
+  "code-bare:Web/konto.html:ca2dc2df12:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:11863"
+  },
+  "code-bare:Web/konto.html:ca7f8f3959:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x8d939c })",
+   "where": "Web/konto.html:28822"
+  },
+  "code-bare:Web/konto.html:cb7c240e74:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xc6c9c9, side: THREE.DoubleSide })",
+   "where": "Web/konto.html:23781"
+  },
+  "code-bare:Web/konto.html:ccaf1f103b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x2c5a72, transparent: true, opacity: 0.88 })",
+   "where": "Web/konto.html:38375"
+  },
+  "code-bare:Web/konto.html:cf0f12d949:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xd8b090 })",
+   "where": "Web/konto.html:32545"
+  },
+  "code-bare:Web/konto.html:d91851468b:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2c2a28, roughness: 1 })",
+   "where": "Web/konto.html:32595"
+  },
+  "code-bare:Web/konto.html:dccf8d3122:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x6b675e, roughness: 0.95 })",
+   "where": "Web/konto.html:40832"
+  },
+  "code-bare:Web/konto.html:dec0d145c7:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 0.8 })",
+   "where": "Web/konto.html:32607"
+  },
+  "code-bare:Web/konto.html:df635b94d1:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x30343a) })",
+   "where": "Web/konto.html:37538"
+  },
+  "code-bare:Web/konto.html:df9cd39e4f:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: r, metalness: 0 })",
+   "where": "Web/konto.html:12134"
+  },
+  "code-bare:Web/konto.html:dffe8ea83d:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xd4152c })",
+   "where": "Web/konto.html:28878"
+  },
+  "code-bare:Web/konto.html:e1bce07a22:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xf4f2ec })",
+   "where": "Web/konto.html:8029"
+  },
+  "code-bare:Web/konto.html:e2d6837356:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 })",
+   "where": "Web/konto.html:16605"
+  },
+  "code-bare:Web/konto.html:e477155755:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: col, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: ",
+   "where": "Web/konto.html:40863"
+  },
+  "code-bare:Web/konto.html:e5487e9096:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: colour, metalness: metal, roughness: rough,\n        envMap: gfx.env ||",
+   "where": "Web/konto.html:16671"
+  },
+  "code-bare:Web/konto.html:ea8e7c2f82:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0xc3d3e6), fog: true })",
+   "where": "Web/konto.html:37513"
+  },
+  "code-bare:Web/konto.html:ef845c2977:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: skiLin(0x14161a) })",
+   "where": "Web/konto.html:37527"
+  },
+  "code-bare:Web/konto.html:f4aba9a7cc:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x0c2036, roughness: 0.2, metalness: 0.6 })",
+   "where": "Web/konto.html:32490"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:4650"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:10": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:38434"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:11": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:38452"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:12": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:38514"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:13": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:39078"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:2": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:4716"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:3": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:4746"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:4": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:12134"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:5": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:16605"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:6": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:30135"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:7": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:34933"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:8": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:38341"
+  },
+  "code-bare:Web/konto.html:f7beb14f81:9": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
+   "where": "Web/konto.html:38432"
+  },
+  "code-bare:Web/konto.html:f7e559e3d2:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 0.7, metalness: 0.05 })",
+   "where": "Web/konto.html:14541"
+  },
+  "code-bare:Web/konto.html:f866c3c256:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x0f2a22, roughness: 0.42, metalness: 0, envMap: gfx.env || null, envM",
+   "where": "Web/konto.html:19021"
+  },
+  "code-bare:Web/konto.html:f9d1d80e6c:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0x2b2520, roughness: 0.93, metalness: 0.0 })",
+   "where": "Web/konto.html:7527"
+  },
+  "code-bare:Web/konto.html:fa4f1e2abd:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xd8a930 })",
+   "where": "Web/konto.html:19096"
+  },
+  "code-bare:Web/konto.html:ff6b8c7f76:1": {
+   "cat": "pbr",
+   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5d5a55 })",
+   "where": "Web/konto.html:7463"
+  },
+  "density:kanda:0_2": {
+   "cat": "street",
+   "problem": "street cell has only 5 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 0_2"
+  },
+  "density:kanda:1_2": {
+   "cat": "street",
+   "problem": "street cell has only 8 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 1_2"
+  },
+  "density:kanda:2_0": {
+   "cat": "street",
+   "problem": "street cell has only 7 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 2_0"
+  },
+  "density:kanda:2_2": {
+   "cat": "street",
+   "problem": "street cell has only 9 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 2_2"
+  },
+  "density:kanda:2_3": {
+   "cat": "street",
+   "problem": "street cell has only 14 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 2_3"
+  },
+  "density:kanda:3_0": {
+   "cat": "street",
+   "problem": "street cell has only 2 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 3_0"
+  },
+  "density:kanda:3_2": {
+   "cat": "street",
+   "problem": "street cell has only 5 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 3_2"
+  },
+  "density:kanda:3_3": {
+   "cat": "street",
+   "problem": "street cell has only 13 props (need 25+): it reads empty",
+   "where": "Web/levels/kanda cell 3_3"
+  },
+  "element:birds": {
+   "cat": "lived_in",
+   "problem": "missing: birds",
+   "where": "world code + levels"
+  },
+  "element:rubbish bags / litter on the street": {
+   "cat": "lived_in",
+   "problem": "missing: rubbish bags / litter on the street",
+   "where": "world code + levels"
+  },
+  "engine-props-untextured": {
+   "cat": "street",
+   "problem": "the engine's 49 street-prop parts (bins, vending machines, bicycles, poles...) are flat-colour primitives: materials glow, leaves, metal, paint, plastic have no texture maps",
+   "where": "Engine/src/world/Props.js + Engine/src/render/Materials.js"
+  },
+  "facade:civic": {
+   "cat": "buildings",
+   "problem": "facade set is missing rough",
+   "where": "Web/art/facades/civic_*"
+  },
+  "facade:flats": {
+   "cat": "buildings",
+   "problem": "facade set is missing rough",
+   "where": "Web/art/facades/flats_*"
+  },
+  "facade:glass": {
+   "cat": "buildings",
+   "problem": "facade set is missing rough",
+   "where": "Web/art/facades/glass_*"
+  },
+  "facade:office": {
+   "cat": "buildings",
+   "problem": "facade set is missing rough",
+   "where": "Web/art/facades/office_*"
+  },
+  "lowpoly-kit:Web/kenney/city": {
+   "cat": "buildings",
+   "problem": "19 low-poly toy-kit buildings (median 1704 triangles, one colour-atlas texture) are still loaded by the game",
+   "where": "Web/kenney/city"
+  },
+  "maps-missing:Web/people/real/man_03.glb:m009_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/man_03.glb  material 'm009_head'"
+  },
+  "maps-missing:Web/people/real/man_04.glb:m014_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/man_04.glb  material 'm014_head'"
+  },
+  "maps-missing:Web/people/real/man_05.glb:m002_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/man_05.glb  material 'm002_head'"
+  },
+  "maps-missing:Web/people/real/officelady_02.glb:f014_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/officelady_02.glb  material 'f014_head'"
+  },
+  "maps-missing:Web/people/real/officelady_03.glb:f015_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/officelady_03.glb  material 'f015_head'"
+  },
+  "maps-missing:Web/people/real/officelady_04.glb:f020_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/officelady_04.glb  material 'f020_head'"
+  },
+  "maps-missing:Web/people/real/officelady_05.glb:f014_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/officelady_05.glb  material 'f014_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_02.glb:m005_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_02.glb  material 'm005_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_03.glb:m020_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_03.glb  material 'm020_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_04.glb:m015_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_04.glb  material 'm015_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_05.glb:m016_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_05.glb  material 'm016_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_06.glb:m025_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_06.glb  material 'm025_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_07.glb:m018_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_07.glb  material 'm018_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_08.glb:m020_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_08.glb  material 'm020_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_09.glb:m016_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_09.glb  material 'm016_head'"
+  },
+  "maps-missing:Web/people/real/salaryman_10.glb:m025_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/salaryman_10.glb  material 'm025_head'"
+  },
+  "maps-missing:Web/people/real/seiko_blue_shirt.glb:m014_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_blue_shirt.glb  material 'm014_head'"
+  },
+  "maps-missing:Web/people/real/seiko_player.glb:m025_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_player.glb  material 'm025_head'"
+  },
+  "maps-missing:Web/people/real/seiko_polo.glb:m002_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_polo.glb  material 'm002_head'"
+  },
+  "maps-missing:Web/people/real/seiko_suit_black.glb:m005_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_suit_black.glb  material 'm005_head'"
+  },
+  "maps-missing:Web/people/real/seiko_suit_charcoal.glb:m020_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_suit_charcoal.glb  material 'm020_head'"
+  },
+  "maps-missing:Web/people/real/seiko_suit_check.glb:m016_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_suit_check.glb  material 'm016_head'"
+  },
+  "maps-missing:Web/people/real/seiko_track.glb:m024_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_track.glb  material 'm024_head'"
+  },
+  "maps-missing:Web/people/real/seiko_tshirt.glb:m017_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_tshirt.glb  material 'm017_head'"
+  },
+  "maps-missing:Web/people/real/seiko_village.glb:m106_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_village.glb  material 'm106_head'"
+  },
+  "maps-missing:Web/people/real/seiko_village_denim.glb:m110_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_village_denim.glb  material 'm110_head'"
+  },
+  "maps-missing:Web/people/real/seiko_waistcoat.glb:m015_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/seiko_waistcoat.glb  material 'm015_head'"
+  },
+  "maps-missing:Web/people/real/woman_04.glb:f001_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/woman_04.glb  material 'f001_head'"
+  },
+  "maps-missing:Web/people/real/woman_05.glb:f005_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/woman_05.glb  material 'f005_head'"
+  },
+  "maps-missing:Web/people/real/woman_06.glb:f008_head": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/people/real/woman_06.glb  material 'f008_head'"
+  },
+  "maps-missing:Web/props/book_encyclopedia_set_01.glb:book_encyclopedia_set_01_paper": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no roughness/ORM map",
+   "where": "Web/props/book_encyclopedia_set_01.glb  material 'book_encyclopedia_set_01_paper'"
+  },
+  "maps-missing:Web/props/standing_picture_frame_01.glb:standing_picture_frame_01_artwork": {
+   "cat": "pbr",
+   "problem": "has a base colour texture but no normal or roughness/ORM map",
+   "where": "Web/props/standing_picture_frame_01.glb  material 'standing_picture_frame_01_artwork'"
+  },
+  "need:kanda:ac": {
+   "cat": "street",
+   "problem": "only 0 'ac' props in the whole level",
+   "where": "Web/levels/kanda"
+  },
+  "need:kanda:bin": {
+   "cat": "street",
+   "problem": "only 2 'bin' props in the whole level",
+   "where": "Web/levels/kanda"
+  },
+  "need:kanda:signpost": {
+   "cat": "street",
+   "problem": "only 2 'signpost' props in the whole level",
+   "where": "Web/levels/kanda"
+  },
+  "texset:Web/art/interior/dirty_carpet": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (dirty_carpet_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/dirty_carpet.jpg"
+  },
+  "texset:Web/art/interior/herringbone_parquet": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (herringbone_parquet_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/herringbone_parquet.jpg"
+  },
+  "texset:Web/art/interior/interior_tiles": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (interior_tiles_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/interior_tiles.jpg"
+  },
+  "texset:Web/art/interior/marble_01": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (marble_01_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/marble_01.jpg"
+  },
+  "texset:Web/art/interior/slate_floor": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (slate_floor_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/slate_floor.jpg"
+  },
+  "texset:Web/art/interior/tatami_mat": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (tatami_mat_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/tatami_mat.jpg"
+  },
+  "texset:Web/art/interior/white_plaster_02": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (white_plaster_02_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/white_plaster_02.jpg"
+  },
+  "texset:Web/art/interior/wood_floor": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (wood_floor_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/interior/wood_floor.jpg"
+  },
+  "texset:Web/art/surfaces/concrete": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (concrete_nor.jpg) or roughness (concrete_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/surfaces/concrete.jpg"
+  },
+  "texset:Web/art/surfaces/gravel": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (gravel_nor.jpg) or roughness (gravel_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/surfaces/gravel.jpg"
+  },
+  "texset:Web/art/terrain/grass": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (grass_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/grass.jpg"
+  },
+  "texset:Web/art/terrain/grass2": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (grass2_nor.jpg) or roughness (grass2_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/grass2.jpg"
+  },
+  "texset:Web/art/terrain/rock": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (rock_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/rock.jpg"
+  },
+  "texset:Web/art/terrain/rock_moss": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (rock_moss_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/rock_moss.jpg"
+  },
+  "texset:Web/art/terrain/sand": {
+   "cat": "pbr",
+   "problem": "surface texture has no roughness (sand_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/sand.jpg"
+  },
+  "texset:Web/art/terrain/sand_wet": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (sand_wet_nor.jpg) or roughness (sand_wet_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/sand_wet.jpg"
+  },
+  "texset:Web/art/terrain/scree": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (scree_nor.jpg) or roughness (scree_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/scree.jpg"
+  },
+  "texset:Web/art/terrain/snow": {
+   "cat": "pbr",
+   "problem": "surface texture has no normal (snow_nor.jpg) or roughness (snow_rough.jpg or _arm.jpg) map",
+   "where": "Web/art/terrain/snow.jpg"
+  }
+ }
+}
