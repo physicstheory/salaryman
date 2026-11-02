@@ -18,18 +18,22 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // Engine/src/index.js
+  // src/index.js
   var index_exports = {};
   __export(index_exports, {
     BIKE_SPECS: () => BIKE_SPECS,
+    BOAT_SPECS: () => BOAT_SPECS,
+    Boat: () => Boat,
     CHAR_QUALITY: () => CHAR_QUALITY,
     Characters: () => Characters,
     Engine: () => Engine,
+    GERSTNER_WAVES: () => GERSTNER_WAVES,
     HONOR_TIERS: () => HONOR_TIERS,
     Honor: () => Honor,
     HostBridge: () => HostBridge,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     Motorcycle: () => Motorcycle,
+    Ocean: () => Ocean,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
     Persistence: () => Persistence,
@@ -47,6 +51,7 @@ var SHIGOTO = (() => {
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
     bipedNames: () => bipedNames,
+    buildHull: () => buildHull,
     characters: () => characters,
     createEngine: () => createEngine,
     drawProp: () => drawProp,
@@ -62,7 +67,7 @@ var SHIGOTO = (() => {
     warmGPU: () => warmGPU
   });
 
-  // Engine/src/core/Events.js
+  // src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -93,7 +98,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -192,45 +197,45 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G3) ? 4294967297 : G3 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G4) ? 4294967297 : G4 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G3, U2, J3) {
+    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G4, U2, J3) {
       try {
         const N3 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
         var y2 = S().getInt32(N3 + 0, true), M2 = S().getFloat64(N3 + 8, true);
         return 0 === y2 ? void 0 : M2;
       } finally {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G3));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G4));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
@@ -239,31 +244,31 @@ var SHIGOTO = (() => {
     projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G3 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
-        return 0 === G3 ? void 0 : yA.__wrap(G3);
+        const G4 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
+        return 0 === G4 ? void 0 : yA.__wrap(G4);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G3));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G4));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3, y2, M2, N3) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3, y2, M2, N3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G3, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G4, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -663,10 +668,10 @@ var SHIGOTO = (() => {
     contains(I2) {
       return 0 !== A.rawcolliderset_contains(this.__wbg_ptr, I2);
     }
-    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
+    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       try {
         const H2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
+        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
         var l2 = S().getInt32(H2 + 0, true), L3 = S().getFloat64(H2 + 8, true);
         return 0 === l2 ? void 0 : L3;
       } finally {
@@ -1552,9 +1557,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G3, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G4, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
       } finally {
         I[K++] = void 0;
       }
@@ -1762,8 +1767,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G3, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G3, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G3.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G4, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G4, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G4.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2211,9 +2216,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -3704,20 +3709,20 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G3 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G3, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G3.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G4 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G4, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G4.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G3 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G3, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G3.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G4 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G4, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G4.free(), k2;
     }
     intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G3 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G3, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G3.free(), k2.free();
+      let G4 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G4, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G4.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2), G3 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G3, k2, E2, i2, D2, o2, w2);
-      return S4.free(), G3.free(), k2.free(), K2;
+      let S4 = mA.intoRaw(C2), G4 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G4, k2, E2, i2, D2, o2, w2);
+      return S4.free(), G4.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
       let w2 = mA.intoRaw(C2), S4 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
@@ -3731,13 +3736,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G3, k2, K2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G4, k2, K2));
       return h2.free(), U2.free(), J3.free(), y2.free(), M2;
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G3 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G3, k2, K2, E2, i2, D2, o2, w2, S4), G3.free(), k2.free(), K2.free();
+      let G4 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G4, k2, K2, E2, i2, D2, o2, w2, S4), G4.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3876,8 +3881,8 @@ var SHIGOTO = (() => {
           return new Qg(w2, S4);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
-          const G3 = A2.coTriMeshFlags(I2);
-          return new Eg(Q2, E2, G3);
+          const G4 = A2.coTriMeshFlags(I2);
+          return new Eg(Q2, E2, G4);
         case l.HeightField:
           const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J3 = A2.coHeightFieldFlags(I2);
           return new og(h2, U2, K2, k2, J3);
@@ -3898,16 +3903,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G3 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G3, J3, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S4.free(), G3.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G4 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G4, J3, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G4.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
       let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
       return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G3 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G3;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G4 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G4;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4095,8 +4100,8 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G3 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G3, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G3, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G3.free();
+      let G4 = mA.intoRaw(A2);
+      w2 ? this.raw.stepWithEvents(G4, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G4, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G4.free();
     }
   };
   var hg = class {
@@ -4442,8 +4447,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G3), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G4), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4932,8 +4937,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G3 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G3, o2, w2, S4, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S4.free(), G3.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G4 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G4, o2, w2, S4, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S4.free(), G4.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5118,8 +5123,8 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S4 = C2 ? A2.get(g2) : null, G3 = new Yg(this, w2, S4, I2.shape);
-      return this.map.set(w2, G3), G3;
+      let S4 = C2 ? A2.get(g2) : null, G4 = new Yg(this, w2, S4, I2.shape);
+      return this.map.set(w2, G4), G4;
     }
     remove(A2, I2, g2, C2) {
       this.raw.remove(A2, I2.raw, g2.raw, C2), this.unmap(A2);
@@ -5258,7 +5263,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // Engine/src/physics/Physics.js
+  // src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5522,12 +5527,12 @@ var SHIGOTO = (() => {
         if (level == null) continue;
         const depth = level - (p2.y - d2.halfH);
         if (depth <= 0) continue;
-        const sub = Math.min(1, depth / (2 * d2.halfH));
-        const lift = sub * d2.volume * 1e3 * 9.81 * STEP * d2.buoyancy * 0.5;
+        const sub2 = Math.min(1, depth / (2 * d2.halfH));
+        const lift = sub2 * d2.volume * 1e3 * 9.81 * STEP * d2.buoyancy * 0.5;
         d2.body.applyImpulse({ x: 0, y: lift, z: 0 }, true);
         const v2 = d2.body.linvel();
-        const drag = 1 - Math.min(0.9, 2.5 * sub * STEP);
-        d2.body.setLinvel({ x: v2.x * drag + water.current[0] * sub * STEP, y: v2.y * drag, z: v2.z * drag + water.current[1] * sub * STEP }, true);
+        const drag = 1 - Math.min(0.9, 2.5 * sub2 * STEP);
+        d2.body.setLinvel({ x: v2.x * drag + water.current[0] * sub2 * STEP, y: v2.y * drag, z: v2.z * drag + water.current[1] * sub2 * STEP }, true);
         const w2 = d2.body.angvel();
         d2.body.setAngvel({ x: w2.x * drag, y: w2.y * drag, z: w2.z * drag }, true);
       }
@@ -5557,7 +5562,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // Engine/src/env/Environment.js
+  // src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5712,7 +5717,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // Engine/src/rain/Occlusion.js
+  // src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5895,7 +5900,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/src/rain/RainShaders.js
+  // src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5956,7 +5961,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // Engine/src/rain/Streaks.js
+  // src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6058,7 +6063,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Splashes.js
+  // src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6233,7 +6238,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Atmosphere.js
+  // src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6375,7 +6380,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/RainEngine.js
+  // src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6731,7 +6736,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Weather.js
+  // src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6895,7 +6900,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Water.js
+  // src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7031,7 +7036,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // Engine/src/render/Surfaces.js
+  // src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7234,7 +7239,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // Engine/src/world/Batcher.js
+  // src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7320,7 +7325,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // Engine/src/world/PropSlots.js
+  // src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7395,7 +7400,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // Engine/src/world/Props.js
+  // src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7740,7 +7745,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // Engine/src/world/CellBuilder.js
+  // src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -8314,7 +8319,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // Engine/src/render/Materials.js
+  // src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8574,7 +8579,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/world/Streamer.js
+  // src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8765,7 +8770,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // Engine/src/core/Engine.js
+  // src/core/Engine.js
   var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
@@ -8823,7 +8828,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // Engine/src/host/HostBridge.js
+  // src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -9037,7 +9042,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/characters/CharacterShader.js
+  // src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9165,7 +9170,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // Engine/src/characters/Subdivide.js
+  // src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9229,8 +9234,8 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
           const Pa = [A2[a2 * 3], A2[a2 * 3 + 1], A2[a2 * 3 + 2]], Pb = [A2[b2 * 3], A2[b2 * 3 + 1], A2[b2 * 3 + 2]];
           const Na = [sm[a2 * 3], sm[a2 * 3 + 1], sm[a2 * 3 + 2]], Nb = [sm[b2 * 3], sm[b2 * 3 + 1], sm[b2 * 3 + 2]];
           const D2 = [Pb[0] - Pa[0], Pb[1] - Pa[1], Pb[2] - Pa[2]];
-          const dot = (u2, v2) => u2[0] * v2[0] + u2[1] * v2[1] + u2[2] * v2[2];
-          const curved = dot(Na, Nb) > crease, wa = curved ? dot(D2, Na) : 0, wb = curved ? -dot(D2, Nb) : 0;
+          const dot2 = (u2, v2) => u2[0] * v2[0] + u2[1] * v2[1] + u2[2] * v2[2];
+          const curved = dot2(Na, Nb) > crease, wa = curved ? dot2(D2, Na) : 0, wb = curved ? -dot2(D2, Nb) : 0;
           for (let c2 = 0; c2 < 3; c2++) arr[o2 + c2] = (Pa[c2] + Pb[c2]) * 0.5 - (wa * Na[c2] + wb * Nb[c2]) * 0.125;
         } else {
           for (let c2 = 0; c2 < sz; c2++) arr[o2 + c2] = (A2[a2 * sz + c2] + A2[b2 * sz + c2]) / 2;
@@ -9284,7 +9289,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // Engine/src/characters/MapSynth.js
+  // src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9390,7 +9395,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // Engine/src/characters/Characters.js
+  // src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9691,7 +9696,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // Engine/src/persist/Persistence.js
+  // src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -10039,7 +10044,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Honor.js
+  // src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10184,7 +10189,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Respect.js
+  // src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10416,7 +10421,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/StandingHud.js
+  // src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10604,7 +10609,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Motorcycle.js
+  // src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -11261,10 +11266,620 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/ragdoll/Ragdoll.js
+  // src/vehicles/Boat.js
+  var RHO2 = 1025;
+  var G3 = 9.81;
+  var RHO_AIR = 1.2;
+  var BOAT_SPECS = {
+    // L length, B beam, H hull depth (keel to gunwale), dead deadrise (deg), rise: bow rocker (m), mass (kg, crew and fuel in), power (kW),
+    // drive: outboard | sterndrive | jet | inboard, steerMax (rad), cg: fraction of L forward of the transom, cgY above the keel
+    jetski: { name: "Jet ski", L: 3.3, B: 1.2, H: 0.85, dead: 22, rise: 0.3, mass: 420, power: 165, drive: "jet", steerMax: 0.42, cg: 0.36, cgY: 0.38, cp: 0.7, top: 30 },
+    rib: { name: "Rigid inflatable", L: 6.4, B: 2.45, H: 1.05, dead: 24, rise: 0.45, mass: 1500, power: 150, drive: "outboard", steerMax: 0.52, cg: 0.33, cgY: 0.45, cp: 0.7, top: 22 },
+    runabout: { name: "Sport runabout", L: 7.4, B: 2.5, H: 1.25, dead: 21, rise: 0.5, mass: 2300, power: 270, drive: "sterndrive", steerMax: 0.46, cg: 0.33, cgY: 0.5, cp: 0.7, top: 25 },
+    skiff: { name: "Fishing skiff", L: 5.2, B: 1.95, H: 0.95, dead: 14, rise: 0.35, mass: 750, power: 45, drive: "outboard", steerMax: 0.55, cg: 0.35, cgY: 0.4, cp: 0.7, top: 12 },
+    gyosen: { name: "Fishing boat", L: 11.5, B: 3.1, H: 1.7, dead: 12, rise: 0.7, mass: 8500, power: 330, drive: "inboard", steerMax: 0.6, cg: 0.42, cgY: 0.7, cp: 1, top: 11 }
+  };
+  var sub = (a2, b2) => [a2[0] - b2[0], a2[1] - b2[1], a2[2] - b2[2]];
+  var cross = (a2, b2) => [a2[1] * b2[2] - a2[2] * b2[1], a2[2] * b2[0] - a2[0] * b2[2], a2[0] * b2[1] - a2[1] * b2[0]];
+  var dot = (a2, b2) => a2[0] * b2[0] + a2[1] * b2[1] + a2[2] * b2[2];
   var clamp4 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  function qmul(a2, b2) {
+    return [
+      a2[3] * b2[0] + a2[0] * b2[3] + a2[1] * b2[2] - a2[2] * b2[1],
+      a2[3] * b2[1] - a2[0] * b2[2] + a2[1] * b2[3] + a2[2] * b2[0],
+      a2[3] * b2[2] + a2[0] * b2[1] - a2[1] * b2[0] + a2[2] * b2[3],
+      a2[3] * b2[3] - a2[0] * b2[0] - a2[1] * b2[1] - a2[2] * b2[2]
+    ];
+  }
+  function qnorm(q2) {
+    const l2 = Math.hypot(q2[0], q2[1], q2[2], q2[3]) || 1;
+    q2[0] /= l2;
+    q2[1] /= l2;
+    q2[2] /= l2;
+    q2[3] /= l2;
+    return q2;
+  }
+  function qFromYaw(y2) {
+    return [0, Math.sin(y2 / 2), 0, Math.cos(y2 / 2)];
+  }
+  function qmat(q2, m2) {
+    const [x2, y2, z2, w2] = q2;
+    m2[0] = 1 - 2 * (y2 * y2 + z2 * z2);
+    m2[1] = 2 * (x2 * y2 - z2 * w2);
+    m2[2] = 2 * (x2 * z2 + y2 * w2);
+    m2[3] = 2 * (x2 * y2 + z2 * w2);
+    m2[4] = 1 - 2 * (x2 * x2 + z2 * z2);
+    m2[5] = 2 * (y2 * z2 - x2 * w2);
+    m2[6] = 2 * (x2 * z2 - y2 * w2);
+    m2[7] = 2 * (y2 * z2 + x2 * w2);
+    m2[8] = 1 - 2 * (x2 * x2 + y2 * y2);
+    return m2;
+  }
+  var mv = (m2, v2) => [m2[0] * v2[0] + m2[1] * v2[1] + m2[2] * v2[2], m2[3] * v2[0] + m2[4] * v2[1] + m2[5] * v2[2], m2[6] * v2[0] + m2[7] * v2[1] + m2[8] * v2[2]];
+  var mtv = (m2, v2) => [m2[0] * v2[0] + m2[3] * v2[1] + m2[6] * v2[2], m2[1] * v2[0] + m2[4] * v2[1] + m2[7] * v2[2], m2[2] * v2[0] + m2[5] * v2[1] + m2[8] * v2[2]];
+  function buildHull(spec, stations = 18, across = 3) {
+    const L3 = spec.L, B2 = spec.B, H2 = spec.H, tb = Math.tan(spec.dead * Math.PI / 180);
+    const zT = -spec.cg * L3, yK = -spec.cgY;
+    const half = (t2) => {
+      if (t2 < 0.55) return B2 * 0.5 * (0.94 + 0.06 * Math.sin(t2 / 0.55 * Math.PI / 2));
+      const u2 = (t2 - 0.55) / 0.45;
+      return B2 * 0.5 * Math.max(0.03, Math.sqrt(Math.max(0, 1 - u2 * u2 * u2)) * (1 - 0.15 * u2));
+    };
+    const keel = (t2) => yK + (t2 > 0.5 ? spec.rise * Math.pow((t2 - 0.5) / 0.5, 2.2) : 0);
+    const chineUp = (t2) => 1 + (t2 > 0.6 ? 1.6 * Math.pow((t2 - 0.6) / 0.4, 1.5) : 0);
+    const verts = [], tris = [];
+    const V2 = (x2, y2, z2) => {
+      verts.push([x2, y2, z2]);
+      return verts.length - 1;
+    };
+    const rows = [];
+    for (let i2 = 0; i2 <= stations; i2++) {
+      const t2 = i2 / stations, z2 = zT + t2 * L3, hb = half(t2), yk = keel(t2), yc = Math.min(yK + H2 * 0.82, yk + hb * tb * chineUp(t2));
+      const yg2 = yK + H2 + (t2 > 0.6 ? 0.25 * H2 * Math.pow((t2 - 0.6) / 0.4, 2) : 0);
+      const flare = 1 + 0.08 * Math.min(1, t2 * 1.4);
+      const row = [];
+      row.push(V2(-hb * flare, yg2, z2));
+      row.push(V2(-hb, yc, z2));
+      for (let k2 = across - 1; k2 >= 1; k2--) {
+        const f2 = k2 / across;
+        row.push(V2(-hb * f2, yk + (yc - yk) * f2, z2));
+      }
+      row.push(V2(0, yk, z2));
+      for (let k2 = 1; k2 < across; k2++) {
+        const f2 = k2 / across;
+        row.push(V2(hb * f2, yk + (yc - yk) * f2, z2));
+      }
+      row.push(V2(hb, yc, z2));
+      row.push(V2(hb * flare, yg2, z2));
+      rows.push(row);
+    }
+    for (let i2 = 0; i2 < stations; i2++) {
+      const a2 = rows[i2], b2 = rows[i2 + 1];
+      const midK = (a2.length - 1) / 2;
+      for (let k2 = 0; k2 < a2.length - 1; k2++) {
+        if (k2 < midK) {
+          tris.push([a2[k2], a2[k2 + 1], b2[k2 + 1]]);
+          tris.push([a2[k2], b2[k2 + 1], b2[k2]]);
+        } else {
+          tris.push([a2[k2], a2[k2 + 1], b2[k2]]);
+          tris.push([a2[k2 + 1], b2[k2 + 1], b2[k2]]);
+        }
+      }
+    }
+    const r0 = rows[0], mid = V2(0, (verts[r0[0]][1] + verts[r0[(r0.length - 1) / 2]][1]) / 2, zT);
+    for (let k2 = 0; k2 < r0.length - 1; k2++) tris.push([mid, r0[k2 + 1], r0[k2]]);
+    for (let i2 = 0; i2 < stations; i2++) {
+      const a2 = rows[i2], b2 = rows[i2 + 1], al = a2.length - 1, bl = b2.length - 1;
+      tris.push([a2[0], b2[0], b2[bl]]);
+      tris.push([a2[0], b2[bl], a2[al]]);
+    }
+    const faces = tris.map((t2) => {
+      const p0 = verts[t2[0]], p1 = verts[t2[1]], p2 = verts[t2[2]];
+      let n2 = cross(sub(p1, p0), sub(p2, p0));
+      const A2 = Math.hypot(n2[0], n2[1], n2[2]) / 2;
+      if (A2 < 1e-6) return null;
+      n2 = [n2[0] / (2 * A2), n2[1] / (2 * A2), n2[2] / (2 * A2)];
+      const c2 = [(p0[0] + p1[0] + p2[0]) / 3, (p0[1] + p1[1] + p2[1]) / 3, (p0[2] + p1[2] + p2[2]) / 3];
+      const out = [c2[0], c2[1] - (yK + H2 * 0.5), c2[2] - (zT + L3 * 0.5)];
+      if (dot(n2, out) < 0) {
+        n2 = [-n2[0], -n2[1], -n2[2]];
+        t2 = [t2[0], t2[2], t2[1]];
+      }
+      return { v: t2, n: n2, A: A2 };
+    }).filter(Boolean);
+    const outline = [];
+    for (let i2 = 0; i2 <= stations; i2 += 2) {
+      outline.push(verts[rows[i2][0]]);
+      outline.push(verts[rows[i2][rows[i2].length - 1]]);
+    }
+    return { verts, faces, outline, half, keel, rows, zT, yK, L: L3, B: B2, H: H2 };
+  }
+  var Boat = class {
+    constructor(kind, opts = {}) {
+      const s2 = BOAT_SPECS[kind] || BOAT_SPECS.runabout;
+      this.kind = kind;
+      this.spec = Object.assign({}, s2, opts);
+      const sp = this.spec;
+      this.hull = buildHull(sp);
+      this.m = sp.mass;
+      const L3 = sp.L, B2 = sp.B, H2 = sp.H, add = 1.25;
+      this.Ib = [this.m * (L3 * L3 + H2 * H2) / 12 * add, this.m * (L3 * L3 + B2 * B2) / 12 * add, this.m * (B2 * B2 + H2 * H2) / 12 * add];
+      this.pos = [0, 0, 0];
+      this.vel = [0, 0, 0];
+      this.quat = [0, 0, 0, 1];
+      this.w = [0, 0, 0];
+      this.R = new Array(9).fill(0);
+      qmat(this.quat, this.R);
+      this.prop = sp.drive === "jet" ? [0, this.hull.yK - 0.02, this.hull.zT + 0.55] : sp.drive === "inboard" ? [0, this.hull.yK - 0.25, this.hull.zT + 0.6] : [0, this.hull.yK - 0.2, this.hull.zT - 0.35];
+      this.bowPt = [0, this.hull.yK + sp.rise + 0.1, this.hull.zT + L3 * 0.97];
+      this.rpm = 0;
+      this.thrust = 0;
+      this.vent = 0;
+      this.steerNow = 0;
+      this.trimNow = 0;
+      this.throttleNow = 0;
+      this.wet = 0;
+      this.lift = 0;
+      this.draft = 0;
+      this.subVol = 0;
+      this.planing = false;
+      this.air = 0;
+      this.capsized = 0;
+      this.grounded = 0;
+      this.acc = 0;
+      this.t = 0;
+      this._wv = this.hull.verts.map(() => [0, 0, 0]);
+      this._dv = new Float32Array(this.hull.verts.length);
+      this._wvel = this.hull.verts.map(() => [0, 0, 0]);
+      this._s = {};
+    }
+    reset(o2) {
+      const sp = this.spec;
+      this.quat = qFromYaw(o2.yaw || 0);
+      qmat(this.quat, this.R);
+      const y2 = o2.y !== void 0 ? o2.y : (o2.sea ? o2.sea.height(o2.x, o2.z) : 0) + sp.cgY * 0.45;
+      this.pos = [o2.x, y2, o2.z];
+      const f2 = this.forward();
+      const v2 = o2.speed || 0;
+      this.vel = [f2[0] * v2, 0, f2[2] * v2];
+      this.w = [0, 0, 0];
+      this.capsized = 0;
+      this.grounded = 0;
+      this.acc = 0;
+      return this;
+    }
+    // body to world
+    toWorld(b2) {
+      const r2 = mv(this.R, b2);
+      return [r2[0] + this.pos[0], r2[1] + this.pos[1], r2[2] + this.pos[2]];
+    }
+    forward() {
+      return [this.R[2], this.R[5], this.R[8]];
+    }
+    up() {
+      return [this.R[1], this.R[4], this.R[7]];
+    }
+    left() {
+      return [this.R[0], this.R[3], this.R[6]];
+    }
+    get yaw() {
+      const f2 = this.forward();
+      return Math.atan2(f2[0], f2[2]);
+    }
+    get speed() {
+      return dot(this.vel, this.forward());
+    }
+    get heel() {
+      const l2 = this.left();
+      return Math.asin(clamp4(l2[1], -1, 1));
+    }
+    // positive: port side up (heeled to starboard)
+    get trim() {
+      const f2 = this.forward();
+      return Math.asin(clamp4(f2[1], -1, 1));
+    }
+    // positive: bow up
+    // Advance by dt (seconds), in fixed sub-steps of 1/120 s. Returns what happened worth telling the host (bumps, slams, grounding).
+    step(dt, inp, world) {
+      const ev = [];
+      this.acc += Math.min(dt, 0.1);
+      const h2 = 1 / 120;
+      while (this.acc >= h2) {
+        this.acc -= h2;
+        this._step(h2, inp || {}, world, ev);
+      }
+      return ev;
+    }
+    _step(h2, inp, world, ev) {
+      const sp = this.spec, hull = this.hull, R2 = this.R, sea = world.sea;
+      this.t += h2;
+      if (sea && sea.time !== void 0 && world.ownTime) sea.time += h2;
+      qmat(this.quat, R2);
+      const F2 = [0, -this.m * G3, 0], T2 = [0, 0, 0];
+      const addF = (f2, at) => {
+        F2[0] += f2[0];
+        F2[1] += f2[1];
+        F2[2] += f2[2];
+        const r2 = [at[0] - this.pos[0], at[1] - this.pos[1], at[2] - this.pos[2]];
+        const t2 = cross(r2, f2);
+        T2[0] += t2[0];
+        T2[1] += t2[1];
+        T2[2] += t2[2];
+      };
+      const velAt = (p2) => {
+        const r2 = [p2[0] - this.pos[0], p2[1] - this.pos[1], p2[2] - this.pos[2]];
+        const c2 = cross(this.w, r2);
+        return [this.vel[0] + c2[0], this.vel[1] + c2[1], this.vel[2] + c2[2]];
+      };
+      const S4 = this._s, wv = this._wv, dv = this._dv, wvel = this._wvel;
+      let wetV = 0;
+      for (let i2 = 0; i2 < hull.verts.length; i2++) {
+        const p2 = mv(R2, hull.verts[i2]);
+        p2[0] += this.pos[0];
+        p2[1] += this.pos[1];
+        p2[2] += this.pos[2];
+        wv[i2] = p2;
+        if (sea) {
+          sea.sample(p2[0], p2[2], S4);
+          dv[i2] = S4.y - p2[1];
+          wvel[i2][0] = S4.vx;
+          wvel[i2][1] = S4.vy;
+          wvel[i2][2] = S4.vz;
+        } else {
+          dv[i2] = -p2[1];
+          wvel[i2][0] = wvel[i2][1] = wvel[i2][2] = 0;
+        }
+        if (dv[i2] > 0) wetV++;
+      }
+      const spd = Math.hypot(this.vel[0], this.vel[1], this.vel[2]);
+      const Rn = Math.max(1e5, spd * sp.L / 119e-8);
+      const Cf = 0.075 / Math.pow(Math.log10(Rn) - 2, 2) + 4e-4;
+      let wetA = 0, vol = 0, lift = 0, bottomWet = 0;
+      const poly = this._poly || (this._poly = []);
+      const up = this.up();
+      for (let fi = 0; fi < hull.faces.length; fi++) {
+        const f2 = hull.faces[fi], a2 = f2.v[0], b2 = f2.v[1], c2 = f2.v[2];
+        const da = dv[a2], db = dv[b2], dc = dv[c2];
+        if (da <= 0 && db <= 0 && dc <= 0) continue;
+        const n2 = mv(R2, f2.n);
+        poly.length = 0;
+        const P4 = [a2, b2, c2], D2 = [da, db, dc];
+        for (let k2 = 0; k2 < 3; k2++) {
+          const i0 = P4[k2], i1 = P4[(k2 + 1) % 3], d0 = D2[k2], d1 = D2[(k2 + 1) % 3];
+          if (d0 > 0) poly.push([wv[i0], d0, wvel[i0]]);
+          if (d0 > 0 !== d1 > 0) {
+            const t2 = d0 / (d0 - d1), p0 = wv[i0], p1 = wv[i1];
+            const w0 = wvel[i0], w1 = wvel[i1];
+            poly.push([
+              [p0[0] + (p1[0] - p0[0]) * t2, p0[1] + (p1[1] - p0[1]) * t2, p0[2] + (p1[2] - p0[2]) * t2],
+              0,
+              [w0[0] + (w1[0] - w0[0]) * t2, w0[1] + (w1[1] - w0[1]) * t2, w0[2] + (w1[2] - w0[2]) * t2]
+            ]);
+          }
+        }
+        for (let k2 = 1; k2 + 1 < poly.length; k2++) {
+          const q0 = poly[0], q1 = poly[k2], q2 = poly[k2 + 1];
+          const e2 = cross(sub(q1[0], q0[0]), sub(q2[0], q0[0]));
+          const A2 = Math.hypot(e2[0], e2[1], e2[2]) / 2;
+          if (A2 < 1e-7) continue;
+          const cp = [(q0[0][0] + q1[0][0] + q2[0][0]) / 3, (q0[0][1] + q1[0][1] + q2[0][1]) / 3, (q0[0][2] + q1[0][2] + q2[0][2]) / 3];
+          const depth = (q0[1] + q1[1] + q2[1]) / 3;
+          const wvc = [(q0[2][0] + q1[2][0] + q2[2][0]) / 3, (q0[2][1] + q1[2][1] + q2[2][1]) / 3, (q0[2][2] + q1[2][2] + q2[2][2]) / 3];
+          wetA += A2;
+          const ph = RHO2 * G3 * depth * A2;
+          addF([-n2[0] * ph, -n2[1] * ph, -n2[2] * ph], cp);
+          vol += depth * A2 * Math.max(0, -n2[1]);
+          const v2 = velAt(cp);
+          v2[0] -= wvc[0];
+          v2[1] -= wvc[1];
+          v2[2] -= wvc[2];
+          const vm = Math.hypot(v2[0], v2[1], v2[2]);
+          if (vm > 1e-4) {
+            const vn = dot(v2, n2), cos = vn / vm;
+            let p2;
+            if (cos > 0) p2 = -(0.5 * RHO2 * sp.cp * vm * vm * cos + 400 * vm * cos) * A2;
+            else p2 = (0.5 * RHO2 * 0.35 / (1 + vm * vm * 0.25) * vm * vm * -cos + 400 * vm * -cos) * A2;
+            const fp = [n2[0] * p2, n2[1] * p2, n2[2] * p2];
+            addF(fp, cp);
+            if (n2[1] < -0.3) {
+              lift += Math.max(0, fp[1]);
+              bottomWet += A2;
+            }
+            const vt = [v2[0] - n2[0] * vn, v2[1] - n2[1] * vn, v2[2] - n2[2] * vn], vtm = Math.hypot(vt[0], vt[1], vt[2]);
+            const fv = -0.5 * RHO2 * Cf * A2 * vtm;
+            addF([vt[0] * fv, vt[1] * fv, vt[2] * fv], cp);
+          }
+        }
+      }
+      this.wet = wetA;
+      this.subVol = vol;
+      this.lift = lift;
+      this.air = wetV === 0 ? this.air + h2 : 0;
+      const fwd = this.forward(), vf = dot(this.vel, fwd);
+      const vh = [this.vel[0], 0, this.vel[2]], vhm = Math.hypot(vh[0], vh[2]);
+      if (vhm > 0.05 && vol > 0) {
+        const Fn = vhm / Math.sqrt(G3 * sp.L);
+        const hump = 0.17 * Math.exp(-Math.pow((Fn - 0.55) / 0.3, 2)) + 0.02 * Math.min(1, Fn * 2);
+        const Rw = RHO2 * G3 * vol * hump * Math.min(1, Fn * 3);
+        addF([-vh[0] / vhm * Rw, 0, -vh[2] / vhm * Rw], this.pos);
+      }
+      if (spd > 0.1) {
+        const Fa = -0.5 * RHO_AIR * 0.6 * sp.B * sp.H * 1.2 * spd;
+        addF([this.vel[0] * Fa, this.vel[1] * Fa, this.vel[2] * Fa], this.pos);
+      }
+      const thrIn = clamp4(inp.throttle || 0, -1, 1);
+      this.throttleNow += (thrIn - this.throttleNow) * Math.min(1, h2 * (thrIn > this.throttleNow ? 3.5 : 6));
+      const steerRate = sp.drive === "jet" ? 5 : 3;
+      this.steerNow += (clamp4(inp.steer || 0, -1, 1) - this.steerNow) * Math.min(1, h2 * steerRate);
+      this.trimNow += (clamp4(inp.trim || 0, -1, 1) - this.trimNow) * Math.min(1, h2 * 0.8);
+      const propW = this.toWorld(this.prop);
+      const propD = sea ? sea.height(propW[0], propW[2]) - propW[1] : -propW[1];
+      const subm = clamp4(propD / (sp.drive === "jet" ? 0.12 : 0.22), 0, 1);
+      this.vent += (1 - subm - this.vent) * Math.min(1, h2 * 10);
+      const P3 = sp.power * 1e3 * Math.abs(this.throttleNow);
+      const bollard = sp.power * 1e3 / 17;
+      let Tm = this.throttleNow >= 0 ? Math.min(bollard * this.throttleNow, 0.62 * P3 / Math.max(1, vf)) : -0.45 * bollard * -this.throttleNow;
+      Tm *= 1 - this.vent;
+      if (vf > sp.top) Tm *= Math.max(0, 1 - (vf - sp.top) / 2);
+      this.thrust = Tm;
+      const steerA0 = this.steerNow * sp.steerMax * (sp.drive === "inboard" ? 0 : 1);
+      const steerA = steerA0;
+      const jetDead = sp.drive === "jet" ? Math.min(1, Math.abs(this.throttleNow) * 3 + 0.08) : 1;
+      const trimA = this.trimNow * 0.11 + (sp.drive === "jet" ? 0 : 0.02);
+      const tb = [Math.sin(steerA) * jetDead, Math.sin(trimA), Math.cos(steerA)];
+      const tw = mv(R2, tb);
+      addF([tw[0] * Tm, tw[1] * Tm, tw[2] * Tm], propW);
+      if (sp.drive === "jet" && Tm > 0) {
+        const mdot = 400 * sp.power / 165 * Math.abs(this.throttleNow);
+        const lw = this.left();
+        const vp = velAt(propW), slip = Math.abs(Math.atan2(dot(vp, lw), Math.max(1, Math.abs(dot(vp, fwd)))));
+        const side = (Tm + mdot * Math.max(0, vf)) * Math.sin(steerA) * (1 - this.vent) * clamp4(1 - slip / 0.4, 0.15, 1);
+        addF([lw[0] * side, lw[1] * side, lw[2] * side], propW);
+      }
+      {
+        const foils = this._foils || (this._foils = [
+          { at: [0, this.hull.yK - 0.15, this.hull.zT - 0.3], A: sp.drive === "outboard" ? 0.07 * sp.power / 100 + 0.04 : sp.drive === "sterndrive" ? 0.16 : 0, steer: true },
+          { at: [0, this.hull.yK - 0.04, this.hull.zT + sp.L * (sp.drive === "jet" ? sp.cg - 0.05 : sp.drive === "inboard" ? 0.3 : 0.12)], A: sp.drive === "jet" ? 0.12 : sp.drive === "inboard" ? 0.1 * sp.L : 0.025 * sp.L, steer: false }
+          // a jet ski's grip is its V and chines, just aft of the rider
+        ]);
+        const lw = this.left();
+        for (const fo of foils) {
+          if (!fo.A) continue;
+          const pw = this.toWorld(fo.at);
+          const fd = sea ? sea.height(pw[0], pw[2]) - pw[1] : -pw[1];
+          if (fd <= 0) continue;
+          const v2 = velAt(pw), vfo = dot(v2, fwd), vla = dot(v2, lw);
+          if (vfo < 0.5) continue;
+          const ang = fo.steer ? steerA0 : 0;
+          let alpha = Math.atan2(-vla, vfo) + ang;
+          const stall = 0.3, a2 = clamp4(alpha, -stall, stall);
+          const Lf = 0.5 * RHO2 * vfo * vfo * fo.A * 2 * Math.PI * a2 * Math.min(1, fd / 0.15);
+          addF([lw[0] * Lf, lw[1] * Lf, lw[2] * Lf], pw);
+          const Dr = 0.5 * RHO2 * vfo * vfo * fo.A * (0.01 + 0.5 * a2 * a2);
+          addF([-fwd[0] * Dr, -fwd[1] * Dr, -fwd[2] * Dr], pw);
+        }
+      }
+      if (sp.drive === "inboard" && subm > 0) {
+        const wash = Math.sqrt(Math.max(0, vf * vf + 2 * Math.max(0, Tm) / (RHO2 * 0.6)));
+        const da = this.steerNow * sp.steerMax, lat = 0.5 * RHO2 * 0.4 * wash * wash * Math.sign(da) * Math.min(1, 2 * Math.PI * Math.abs(da) * 0.6);
+        const lw = this.left();
+        const rp = this.toWorld([0, this.hull.yK + 0.2, this.hull.zT - 0.3]);
+        addF([lw[0] * lat, lw[1] * lat, lw[2] * lat], rp);
+      }
+      if (sp.drive !== "jet") {
+        const yawRate = dot(this.w, up);
+        const onPlane = clamp4((vf - 3) / 6, 0, 1) * (wetV ? 1 : 0);
+        const want = Math.atan(clamp4(-yawRate * Math.max(0, vf) / G3, -1.5, 1.5)) * 0.62;
+        const k2 = this.m * G3 * sp.B * 0.6 * (want - this.heel) * onPlane;
+        T2[0] += fwd[0] * k2;
+        T2[1] += fwd[1] * k2;
+        T2[2] += fwd[2] * k2;
+      }
+      if (sp.drive === "jet") {
+        const yawRate = dot(this.w, up);
+        const want = clamp4(Math.atan(clamp4(-yawRate * Math.max(0, vf) / G3, -2, 2)) * 0.8 + (inp.lean || 0) * 0.25, -0.75, 0.75);
+        const rollRate = dot(this.w, fwd);
+        this._lean = (this._lean || 0) + (want - (this._lean || 0)) * Math.min(1, h2 * 2.5);
+        const k2 = this.m * G3 * 2.2 * (this._lean - this.heel) - this.Ib[2] * 18 * rollRate;
+        T2[0] += fwd[0] * k2;
+        T2[1] += fwd[1] * k2;
+        T2[2] += fwd[2] * k2;
+      }
+      let grounded = 0;
+      if (world.ground) {
+        const nV = hull.verts.length / 2;
+        for (let i2 = 0; i2 < hull.verts.length; i2 += 2) {
+          const p2 = wv[i2], g2 = world.ground(p2[0], p2[2]);
+          if (g2 === null || g2 === void 0 || p2[1] >= g2) continue;
+          const pen = Math.min(0.6, g2 - p2[1]);
+          grounded++;
+          const gx = world.ground(p2[0] + 0.5, p2[2]) - world.ground(p2[0] - 0.5, p2[2]), gz = world.ground(p2[0], p2[2] + 0.5) - world.ground(p2[0], p2[2] - 0.5);
+          let n2 = [-gx, 1, -gz];
+          const nl = Math.hypot(n2[0], n2[1], n2[2]);
+          n2 = [n2[0] / nl, n2[1] / nl, n2[2] / nl];
+          const v2 = velAt(p2), vn = dot(v2, n2);
+          const N3 = Math.max(0, this.m * 1600 / nV * pen - this.m * 40 / nV * vn);
+          const vt = [v2[0] - n2[0] * vn, v2[1] - n2[1] * vn, v2[2] - n2[2] * vn], vtm = Math.hypot(vt[0], vt[1], vt[2]);
+          const fr = vtm > 0.01 ? Math.min(N3 * 0.65, vtm * this.m * 30 / nV) / vtm : 0;
+          addF([n2[0] * N3 - vt[0] * fr, n2[1] * N3 - vt[1] * fr, n2[2] * N3 - vt[2] * fr], p2);
+        }
+      }
+      if (grounded && !this.grounded && Math.abs(vf) > 3) ev.push({ type: "ground", speed: Math.abs(vf) });
+      this.grounded = grounded;
+      const ia = 1 / this.m;
+      this.vel[0] += F2[0] * ia * h2;
+      this.vel[1] += F2[1] * ia * h2;
+      this.vel[2] += F2[2] * ia * h2;
+      const Tb = mtv(R2, T2), wb = mtv(R2, this.w);
+      const Iw = [this.Ib[0] * wb[0], this.Ib[1] * wb[1], this.Ib[2] * wb[2]];
+      const gyro = cross(wb, Iw);
+      for (let k2 = 0; k2 < 3; k2++) wb[k2] += (Tb[k2] - gyro[k2]) / this.Ib[k2] * h2;
+      const dampW = wetV ? 1 : 0.15;
+      wb[0] *= 1 - 0.6 * h2 * dampW;
+      wb[2] *= 1 - 0.9 * h2 * dampW;
+      wb[1] *= 1 - 0.5 * h2 * dampW;
+      this.w = mv(R2, wb);
+      for (let k2 = 0; k2 < 3; k2++) this.pos[k2] += this.vel[k2] * h2;
+      const dq = qmul([this.w[0] * h2 * 0.5, this.w[1] * h2 * 0.5, this.w[2] * h2 * 0.5, 0], this.quat);
+      this.quat = qnorm([this.quat[0] + dq[0], this.quat[1] + dq[1], this.quat[2] + dq[2], this.quat[3] + dq[3]]);
+      qmat(this.quat, R2);
+      if (world.solid) {
+        for (let i2 = 0; i2 < hull.outline.length; i2++) {
+          const p2 = this.toWorld(hull.outline[i2]);
+          if (!world.solid(p2[0], p2[2], p2[1])) continue;
+          let nx = 0, nz = 0;
+          for (let a2 = 0; a2 < 8; a2++) {
+            const ax = Math.cos(a2 * Math.PI / 4), az = Math.sin(a2 * Math.PI / 4);
+            if (!world.solid(p2[0] + ax * 0.8, p2[2] + az * 0.8, p2[1])) {
+              nx += ax;
+              nz += az;
+            }
+          }
+          let nl = Math.hypot(nx, nz);
+          if (nl < 1e-3) {
+            nx = this.pos[0] - p2[0];
+            nz = this.pos[2] - p2[2];
+            nl = Math.hypot(nx, nz) || 1;
+          }
+          nx /= nl;
+          nz /= nl;
+          const v2 = velAt(p2), vn = v2[0] * nx + v2[2] * nz;
+          if (vn < 0) {
+            const j2 = -1.25 * vn;
+            this.vel[0] += nx * j2;
+            this.vel[2] += nz * j2;
+            const r2 = [p2[0] - this.pos[0], 0, p2[2] - this.pos[2]];
+            const tq = cross(r2, [nx * j2 * this.m, 0, nz * j2 * this.m]);
+            this.w[1] += tq[1] / (this.Ib[1] * 2);
+            if (-vn > 1.2) ev.push({ type: "hit", speed: -vn, x: p2[0], y: p2[1], z: p2[2] });
+          }
+          this.pos[0] += nx * 0.04;
+          this.pos[2] += nz * 0.04;
+          break;
+        }
+      }
+      const wetF = bottomWet / (sp.L * sp.B * 0.8);
+      const wasPlaning = this.planing;
+      this.planing = vf > Math.sqrt(G3 * sp.L) * 0.9 && lift > this.m * G3 * 0.25 && wetF < 0.75;
+      if (this.planing && !wasPlaning) ev.push({ type: "plane" });
+      const upY = this.up()[1];
+      this.capsized = upY < 0.15 ? this.capsized + h2 : 0;
+      const vertDrop = -this.vel[1];
+      if (this.air === 0 && this._wasAir > 0.25 && vertDrop > 2.5) ev.push({ type: "slam", speed: vertDrop });
+      this._wasAir = this.air || this._wasAir * 0;
+      if (this.air > 0) this._wasAir = this.air;
+      const load = clamp4(Math.abs(this.throttleNow), 0, 1);
+      const rpmTarget = 750 + (sp.drive === "inboard" ? 2600 : 5400) * (load * (0.45 + 0.55 * clamp4(vf / sp.top, 0, 1)) + this.vent * load * 0.5);
+      this.rpm += (Math.min(rpmTarget, sp.drive === "inboard" ? 3600 : 6600) - this.rpm) * Math.min(1, h2 * 4);
+      this.draft = vol > 0 ? vol / Math.max(0.1, sp.L * sp.B * 0.7) : 0;
+    }
+    // the bits a HUD or a test wants
+    telemetry() {
+      return {
+        kind: this.kind,
+        speed: this.speed,
+        knots: this.speed * 1.9438,
+        trim: this.trim * 180 / Math.PI,
+        heel: this.heel * 180 / Math.PI,
+        planing: this.planing,
+        rpm: Math.round(this.rpm),
+        thrust: Math.round(this.thrust),
+        vent: this.vent,
+        wet: this.wet,
+        lift: this.lift,
+        displacement: this.subVol * RHO2,
+        air: this.air,
+        grounded: this.grounded,
+        capsized: this.capsized,
+        y: this.pos[1]
+      };
+    }
+  };
+
+  // src/vehicles/Ocean.js
+  var GERSTNER_WAVES = [
+    // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
+    [0.94, 0.342, 64, 0.13],
+    [0.966, -0.259, 31, 0.14],
+    [0.574, 0.819, 17, 0.15],
+    [0.5, -0.866, 10.5, 0.13],
+    [0.819, 0.574, 6.2, 0.11],
+    [-0.259, 0.966, 3.6, 0.09]
+  ];
+  var Ocean = class {
+    constructor(opts = {}) {
+      this.level = opts.level || 0;
+      this.time = 0;
+      this.amp = typeof opts.amp === "function" ? opts.amp : (() => opts.amp === void 0 ? 0.6 : opts.amp);
+      this.waves = (opts.waves || GERSTNER_WAVES).map((w2, i2) => {
+        const k2 = 2 * Math.PI / w2[2];
+        return { dx: w2[0], dz: w2[1], k: k2, c: Math.sqrt(9.81 / k2), w: Math.sqrt(9.81 * k2), s: w2[3], ph: i2 * 1.7 };
+      });
+      this.scale = 1;
+    }
+    // The displacement of the particle that rests at (px, pz).
+    _disp(px, pz, A2, o2) {
+      let ox = 0, oy = 0, oz = 0, vx = 0, vy = 0, vz = 0, sx = 0, sz = 0;
+      const t2 = this.time;
+      for (let i2 = 0; i2 < this.waves.length; i2++) {
+        const W3 = this.waves[i2];
+        const a2 = W3.s / W3.k * A2;
+        if (a2 <= 0) continue;
+        const f2 = W3.k * (W3.dx * px + W3.dz * pz - W3.c * t2) + W3.ph;
+        const cf = Math.cos(f2), sf = Math.sin(f2);
+        ox += W3.dx * a2 * cf;
+        oy += a2 * sf;
+        oz += W3.dz * a2 * cf;
+        vx += W3.dx * a2 * W3.w * sf;
+        vy -= a2 * W3.w * cf;
+        vz += W3.dz * a2 * W3.w * sf;
+        sx += W3.dx * W3.k * a2 * cf;
+        sz += W3.dz * W3.k * a2 * cf;
+      }
+      o2.ox = ox;
+      o2.oy = oy;
+      o2.oz = oz;
+      o2.vx = vx;
+      o2.vy = vy;
+      o2.vz = vz;
+      o2.sx = sx;
+      o2.sz = sz;
+      return o2;
+    }
+    sample(x2, z2, out) {
+      out = out || {};
+      const A2 = this.amp(x2, z2) * this.scale;
+      if (!(A2 > 0)) {
+        out.y = this.level;
+        out.vx = out.vy = out.vz = 0;
+        out.nx = 0;
+        out.ny = 1;
+        out.nz = 0;
+        return out;
+      }
+      const d2 = this._d || (this._d = {});
+      this._disp(x2, z2, A2, d2);
+      this._disp(x2 - d2.ox, z2 - d2.oz, A2, d2);
+      out.y = this.level + d2.oy;
+      out.vx = d2.vx;
+      out.vy = d2.vy;
+      out.vz = d2.vz;
+      const nx = -d2.sx, nz = -d2.sz, ny = 1;
+      const L3 = Math.hypot(nx, ny, nz) || 1;
+      out.nx = nx / L3;
+      out.ny = ny / L3;
+      out.nz = nz / L3;
+      return out;
+    }
+    height(x2, z2) {
+      return this.sample(x2, z2, this._h || (this._h = {})).y;
+    }
+  };
+
+  // src/ragdoll/Ragdoll.js
+  var clamp5 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
-    t2 = clamp4(t2, 0, 1);
+    t2 = clamp5(t2, 0, 1);
     return t2 * t2 * (3 - 2 * t2);
   };
   var RAGDOLL_JOINTS = [
@@ -11438,7 +12053,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           v2.add(w2.clone().cross(r2));
         }
         if (st) {
-          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp4(hgt / 1.7, 0, 1), sp = st.length();
+          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp5(hgt / 1.7, 0, 1), sp = st.length();
           v2.addScaledVector(st, k2);
           v2.y += (hgt < 0.7 ? 0.1 : 0.22) * Math.max(0, sp - 8) + (sp > 3 ? 0.6 : 0);
         }
@@ -11585,7 +12200,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     // ---- stepping ----------------------------------------------------------------------------------------------------
     update(dt) {
-      dt = clamp4(dt || 0, 0, 0.1);
+      dt = clamp5(dt || 0, 0, 0.1);
       for (let k2 = this.list.length - 1; k2 >= 0; k2--) {
         const rd = this.list[k2];
         if (!rd.root.parent && rd.state !== "blend") {

@@ -26,5 +26,9 @@ export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
 // Vehicles: motorcycle and bicycle dynamics (sprung wheels, magic-formula tyres, engine and clutch, wheelies, stoppies, jumps, crashes).
 export { Motorcycle, BIKE_SPECS } from "./vehicles/Motorcycle.js";
+// Boats: a lofted hull cut into faces, each pressed on by the real swell (buoyancy, planing lift, drag), a propeller or jet that can
+// ventilate, steering foils, grounding. Ocean is the CPU twin of the water shader's Gerstner waves.
+export { Boat, BOAT_SPECS, buildHull } from "./vehicles/Boat.js";
+export { Ocean, GERSTNER_WAVES } from "./vehicles/Ocean.js";
 // Ragdoll: limp bodies that fall, tumble and slide under real physics on any rigged human, then get back up. Needs only THREE.
 export { RagdollSystem, RAGDOLL_JOINTS, findRagdollBones } from "./ragdoll/Ragdoll.js";
