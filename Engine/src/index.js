@@ -26,3 +26,5 @@ export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
 // Vehicles: motorcycle and bicycle dynamics (sprung wheels, magic-formula tyres, engine and clutch, wheelies, stoppies, jumps, crashes).
 export { Motorcycle, BIKE_SPECS } from "./vehicles/Motorcycle.js";
+// Ragdoll: limp bodies that fall, tumble and slide under real physics on any rigged human, then get back up. Needs only THREE.
+export { RagdollSystem, RAGDOLL_JOINTS, findRagdollBones } from "./ragdoll/Ragdoll.js";

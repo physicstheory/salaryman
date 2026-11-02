@@ -560,5 +560,35 @@ def check_lived_in(ctx):
                      "Add %s to the streets (as level props, procedural dressing in konto.html, or engine props) so the city feels inhabited." % label)
 
 
+# ---------------------------------------------------------------------------------------------
+# 7. shop interiors (Duncan, 2026-11-02: "make sure these basic props do not make it into the next build")
+
+def check_shops(ctx):
+    """Shop rooms must be finished by Web/art/shop-aaa.js (PBR surfaces, indoor light probe) and must not place bare primitive decor."""
+    R = ctx.rules.get("shops")
+    if not R:
+        return
+    html = ctx.read("Web/konto.html")
+    js = ctx.read("Web/art/shop-aaa.js")
+    if "art/shop-aaa.js" not in html or not js:
+        ctx.fail("shops", "shop-finish-loaded", "Web/konto.html", "the shop finishing pass (art/shop-aaa.js) is not loaded",
+                 "Load art/shop-aaa.js after art/retail.js; it gives every shop surface PBR materials and the indoor light.")
+        return
+    for needle, what in R["hooks"]:
+        if needle not in html:
+            ctx.fail("shops", "shop-hook:" + needle[:40], "Web/konto.html", "missing shop hook: %s" % what,
+                     "Restore the call `%s` in Web/konto.html (see Web/art/shop-aaa.js header)." % needle)
+    m = re.search(r"const IN_PROP_SETS = \{(.*?)\n\};", html, re.S)
+    kinds = set(re.findall(r'\["(\w+)",', m.group(1))) if m else set()
+    swap = re.search(r"const SWAP = \{(.*?)\n  \};", js, re.S)
+    real = set(re.findall(r"^\s*(\w+):", swap.group(1), re.M)) if swap else set()
+    drop = re.search(r"const DROP = new Set\(\[(.*?)\]\)", js, re.S)
+    real |= set(re.findall(r"'(\w+)'", drop.group(1))) if drop else set()
+    for k in sorted(kinds - real - set(R["kept_kinds"])):
+        ctx.fail("shops", "shop-prop:" + k, "Web/konto.html IN_PROP." + k,
+                 "shop decor '%s' is built from bare primitives with no scanned stand-in" % k,
+                 "Give '%s' a scanned/PBR model (Web/props/<id>.glb, Poly Haven CC0 or a Meshy/Tripo export with base colour, normal and roughness maps) and map it in SWAP in Web/art/shop-aaa.js, or add it to DROP there." % k)
+
+
 ALL = [("pbr", check_pbr), ("characters", check_characters), ("cars", check_cars), ("buildings", check_buildings),
-       ("street", check_street), ("lived_in", check_lived_in)]
+       ("street", check_street), ("lived_in", check_lived_in), ("shops", check_shops)]

@@ -33,8 +33,10 @@ var SHIGOTO = (() => {
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
     Persistence: () => Persistence,
+    RAGDOLL_JOINTS: () => RAGDOLL_JOINTS,
     RAIN_QUALITY: () => RAIN_QUALITY,
     RESPECT_TIERS: () => RESPECT_TIERS,
+    RagdollSystem: () => RagdollSystem,
     RainEngine: () => RainEngine,
     ResidentSet: () => ResidentSet,
     Respect: () => Respect,
@@ -49,6 +51,7 @@ var SHIGOTO = (() => {
     createEngine: () => createEngine,
     drawProp: () => drawProp,
     estimateBytes: () => estimateBytes,
+    findRagdollBones: () => findRagdollBones,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
@@ -189,36 +192,36 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J2));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G3) ? 4294967297 : G3 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J2), o(J2) ? 0 : J2, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G3) ? 4294967297 : G3 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G3, U2, J2) {
+    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G3, U2, J3) {
       try {
-        const N2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N2, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J2));
-        var y2 = S().getInt32(N2 + 0, true), M2 = S().getFloat64(N2 + 8, true);
+        const N3 = A.__wbindgen_add_to_stack_pointer(-16);
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
+        var y2 = S().getInt32(N3 + 0, true), M2 = S().getFloat64(N3 + 8, true);
         return 0 === y2 ? void 0 : M2;
       } finally {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
@@ -249,18 +252,18 @@ var SHIGOTO = (() => {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2, y2, M2, N2) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3, y2, M2, N3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G3, U2, o(J2) ? 4294967297 : J2 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N2));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G3, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G3), o(G3) ? 0 : G3, !o(U2), o(U2) ? 0 : U2, h(J3));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -660,10 +663,10 @@ var SHIGOTO = (() => {
     contains(I2) {
       return 0 !== A.rawcolliderset_contains(this.__wbg_ptr, I2);
     }
-    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G3, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       try {
         const H2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G3, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
+        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
         var l2 = S().getInt32(H2 + 0, true), L3 = S().getFloat64(H2 + 8, true);
         return 0 === l2 ? void 0 : L3;
       } finally {
@@ -1549,9 +1552,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J2) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G3, U2, J3) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G3, o(U2) ? 4294967297 : U2 >>> 0, h(J2));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G3, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
       } finally {
         I[K++] = void 0;
       }
@@ -2208,9 +2211,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2) {
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G3, K2, h2, U2, J2, y2, M2, N2, F2, a2, s2, R2, Y2, c2, q2);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G3, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -3729,8 +3732,8 @@ var SHIGOTO = (() => {
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G3, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J2 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J2, y2, i2, D2, o2, w2, S4, G3, k2, K2));
-      return h2.free(), U2.free(), J2.free(), y2.free(), M2;
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G3, k2, K2));
+      return h2.free(), U2.free(), J3.free(), y2.free(), M2;
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
       let G3 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
@@ -3876,8 +3879,8 @@ var SHIGOTO = (() => {
           const G3 = A2.coTriMeshFlags(I2);
           return new Eg(Q2, E2, G3);
         case l.HeightField:
-          const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J2 = A2.coHeightFieldFlags(I2);
-          return new og(h2, U2, K2, k2, J2);
+          const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J3 = A2.coHeightFieldFlags(I2);
+          return new og(h2, U2, K2, k2, J3);
         case l.ConvexPolyhedron:
           return Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2), new ig(Q2, E2);
         case l.RoundConvexPolyhedron:
@@ -3895,8 +3898,8 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G3 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J2 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G3, J2, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S4.free(), G3.free(), k2.free(), K2.free(), h2.free(), U2.free(), J2.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G3 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G3, J3, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G3.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
       let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
@@ -8763,7 +8766,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // Engine/src/core/Engine.js
-  var VERSION = "0.5.0";
+  var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8951,9 +8954,58 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         }
       });
       this._index = map;
+      this._indexedN = (this._solids || []).length;
+    }
+    // The game adds solids after the world is built (the holiday islands, an airport gate, a story set) and takes the odd one away (a gate
+    // arm smashed through). Additions get a collider straight away if their tile is already built, otherwise when the tile is; a removal
+    // drops the physics copy and builds it again around the player, so nothing removed stays solid.
+    syncSolids() {
+      const L3 = this._solids;
+      if (!L3 || !this._index) return 0;
+      const n0 = this._indexedN || 0;
+      if (L3.length === n0) return 0;
+      if (L3.length < n0) {
+        this.solids(L3);
+        this._buildIndex();
+        return -1;
+      }
+      const t2 = this.tile, map = this._index;
+      let boxed = 0;
+      for (let i2 = n0; i2 < L3.length; i2++) {
+        const b2 = L3[i2];
+        const r2 = Math.max(b2.size[0], b2.size[1]) * 0.5;
+        const x0 = Math.floor((b2.c[0] - r2) / t2), x1 = Math.floor((b2.c[0] + r2) / t2), z0 = Math.floor((b2.c[1] - r2) / t2), z1 = Math.floor((b2.c[1] + r2) / t2);
+        for (let z2 = z0; z2 <= z1; z2++) for (let x2 = x0; x2 <= x1; x2++) {
+          const k2 = x2 + "," + z2;
+          let l2 = map.get(k2);
+          if (!l2) map.set(k2, l2 = []);
+          l2.push(i2);
+        }
+        const tx = Math.floor(b2.c[0] / t2), tz = Math.floor(b2.c[1] / t2), key = "host:" + tx + "," + tz;
+        if (this._boxed.has(key)) {
+          const h2 = b2.h || 10, y2 = b2.y || 0;
+          this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+          boxed++;
+        } else if (this.resident) this._buildTile(tx, tz, false);
+      }
+      this._indexedN = L3.length;
+      return boxed;
+    }
+    // Ground for a whole area now (the holiday islands, built behind the loading screen): heightfields for every tile it covers.
+    prebuildArea(x0, z0, x1, z1) {
+      if (!this.ph || !this._ground) return 0;
+      const t2 = this.tile;
+      let n2 = 0;
+      for (let z2 = Math.floor(z0 / t2); z2 <= Math.floor(z1 / t2); z2++) for (let x2 = Math.floor(x0 / t2); x2 <= Math.floor(x1 / t2); x2++) if (this._buildGround(x2, z2)) n2++;
+      try {
+        this.ph.world.step();
+      } catch (e2) {
+      }
+      return n2;
     }
     update(dt, focus) {
       if (!this.ph) return;
+      if (this._solids && this._index) this.syncSolids();
       for (const [, p2] of this.proxies) {
         const s2 = p2.get();
         if (s2) p2.k.set(s2.x, s2.y, s2.z, s2.yaw);
@@ -10729,8 +10781,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       const Nf = this.m * G2 * S4.b / S4.wb, Nr = this.m * G2 - Nf;
       this.Nf0 = Nf;
       this.sus = [S4.susR, S4.susF].map((p2, i2) => {
-        const [k2, travel, sag, zeta] = p2, N2 = i2 === 0 ? Nr : Nf, mc = N2 / G2;
-        return { k: k2, travel, pre: Math.max(0, N2 / k2 - sag * travel), c: 2 * zeta * Math.sqrt(k2 * mc) };
+        const [k2, travel, sag, zeta] = p2, N3 = i2 === 0 ? Nr : Nf, mc = N3 / G2;
+        return { k: k2, travel, pre: Math.max(0, N3 / k2 - sag * travel), c: 2 * zeta * Math.sqrt(k2 * mc) };
       });
       this.events = [];
       this.reset({ x: 0, y: 0, z: 0, yaw: 0, speed: 0 });
@@ -10897,36 +10949,36 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const slope = Math.abs(sF - sB) < 0.35 ? Math.atan2(g1 - gb, 0.5) : Math.abs(sF) < Math.abs(sB) ? sF : sB;
         const sNew = (g0 + r2 - A2[1]) / Math.max(0.3, cp);
         const sPrev = this.s[i2];
-        let s2 = sNew, N2 = 0;
+        let s2 = sNew, N3 = 0;
         if (s2 > 0) {
           const sv = (s2 - sPrev) / h2;
           this.sv[i2] = this.sv[i2] * 0.5 + sv * 0.5;
           const sc = Math.min(s2, sus.travel);
-          N2 = sus.k * (sc + sus.pre) + sus.c * this.sv[i2];
+          N3 = sus.k * (sc + sus.pre) + sus.c * this.sv[i2];
           if (sc > sus.travel * 0.65) {
             const e2 = sc - sus.travel * 0.65;
-            N2 += sus.k * 3.5 * e2 + sus.c * 1.5 * Math.max(0, this.sv[i2]) * e2 / (sus.travel * 0.35);
+            N3 += sus.k * 3.5 * e2 + sus.c * 1.5 * Math.max(0, this.sv[i2]) * e2 / (sus.travel * 0.35);
           }
           if (s2 > sus.travel) {
             if (sPrev <= sus.travel) {
               this.events.push({ type: "bottom", v: this.sv[i2], wheel: i2 });
               this.bottomed = Math.max(this.bottomed, this.sv[i2]);
             }
-            N2 += 45e4 * (s2 - sus.travel) + 9e3 * Math.max(0, this.sv[i2]);
+            N3 += 45e4 * (s2 - sus.travel) + 9e3 * Math.max(0, this.sv[i2]);
           }
-          N2 = Math.max(0, N2);
+          N3 = Math.max(0, N3);
           contacts++;
         } else {
           s2 = 0;
           this.sv[i2] = 0;
         }
         this.s[i2] = s2;
-        this.N[i2] = N2;
-        Ntot += N2;
+        this.N[i2] = N3;
+        Ntot += N3;
         P3[i2][0] = A2[0];
         P3[i2][1] = g0 - this.y;
-        F2[i2][0] += -Math.sin(slope) * N2;
-        F2[i2][1] += Math.cos(slope) * N2;
+        F2[i2][0] += -Math.sin(slope) * N3;
+        F2[i2][1] += Math.cos(slope) * N3;
         this["_slope" + i2] = slope;
       }
       const gp = world.grip ? world.grip(this.x, this.z) : { mu: 1, dirt: false };
@@ -11041,9 +11093,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       const NS = 8, hs = h2 / NS;
       const w0r = this.wheel[0];
       for (let i2 = 0; i2 < 2; i2++) {
-        const R2 = i2 === 0 ? Rr : Rf, N2 = this.N[i2];
+        const R2 = i2 === 0 ? Rr : Rf, N3 = this.N[i2];
         const vc = u2 * Math.cos(i2 === 0 ? this._slope0 : this._slope1);
-        const muN = muS * N2;
+        const muN = muS * N3;
         const room = assist && muN > 1 ? muN * Math.sqrt(Math.max(0.02, 1 - Math.min(1, Math.abs(latDem[i2]) / muN) ** 2)) : Infinity;
         const I2 = i2 === 0 ? wheelInertia : this.Iw[1];
         const Tb = i2 === 0 ? Tbr : Tbf, Td = i2 === 0 ? Tdrive : 0;
@@ -11052,7 +11104,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           const sigma = 0.22, ve = Math.max(2, Math.abs(vc));
           const kappa = clamp3((this.slip[i2] + hs * (this.wheel[i2] * R2 - vc) / sigma) / (1 + hs * ve / sigma), -1, 1);
           this.slip[i2] = kappa;
-          let fl = N2 > 0 ? clamp3(muN * pacejka(kappa, BL[0], BL[1], BL[2]), -room, room) : 0;
+          let fl = N3 > 0 ? clamp3(muN * pacejka(kappa, BL[0], BL[1], BL[2]), -room, room) : 0;
           fsum += fl;
           let w1 = this.wheel[i2] + (Td - fl * R2) / I2 * hs;
           if (Tb > 0) {
@@ -11206,6 +11258,774 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         steer: this.steer,
         mu: this.surfaceMu
       };
+    }
+  };
+
+  // Engine/src/ragdoll/Ragdoll.js
+  var clamp4 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth2 = (t2) => {
+    t2 = clamp4(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  var RAGDOLL_JOINTS = [
+    "pelvis",
+    "chest",
+    "head",
+    "lHip",
+    "lKnee",
+    "lFoot",
+    "rHip",
+    "rKnee",
+    "rFoot",
+    "lSh",
+    "lElb",
+    "lHand",
+    "rSh",
+    "rElb",
+    "rHand"
+  ];
+  var J2 = {};
+  RAGDOLL_JOINTS.forEach((n2, i2) => {
+    J2[n2] = i2;
+  });
+  var N2 = RAGDOLL_JOINTS.length;
+  var RADIUS = [0.13, 0.14, 0.11, 0.08, 0.06, 0.055, 0.08, 0.06, 0.055, 0.07, 0.05, 0.045, 0.07, 0.05, 0.045];
+  var MASS = [0.142, 0.216, 0.081, 0.1, 0.0465, 0.0145, 0.1, 0.0465, 0.0145, 0.028, 0.016, 6e-3, 0.028, 0.016, 6e-3];
+  var HURT = [0.8, 1, 1.6, 0.3, 0.25, 0.1, 0.3, 0.25, 0.1, 0.3, 0.2, 0.1, 0.3, 0.2, 0.1];
+  var BONE_NAMES = {
+    pelvis: ["bip01pelvis", "hips", "pelvis", "jbiphips"],
+    neck: ["bip01neck", "neck", "jbipcneck"],
+    head: ["bip01head", "head", "jbipchead"],
+    lThigh: ["bip01lthigh", "leftupleg", "thighl", "lthigh", "upperlegl", "jbiplupperleg"],
+    lCalf: ["bip01lcalf", "leftleg", "shinl", "calfl", "lcalf", "lowerlegl", "jbipllowerleg"],
+    lFoot: ["bip01lfoot", "leftfoot", "footl", "lfoot", "jbiplfoot"],
+    rThigh: ["bip01rthigh", "rightupleg", "thighr", "rthigh", "upperlegr", "jbiprupperleg"],
+    rCalf: ["bip01rcalf", "rightleg", "shinr", "calfr", "rcalf", "lowerlegr", "jbiprlowerleg"],
+    rFoot: ["bip01rfoot", "rightfoot", "footr", "rfoot", "jbiprfoot"],
+    lUpper: ["bip01lupperarm", "leftarm", "upperarml", "lupperarm", "jbiplupperarm"],
+    lFore: ["bip01lforearm", "leftforearm", "forearml", "lforearm", "lowerarml", "jbipllowerarm"],
+    lHand: ["bip01lhand", "lefthand", "handl", "lhand", "jbiplhand"],
+    rUpper: ["bip01rupperarm", "rightarm", "upperarmr", "rupperarm", "jbiprupperarm"],
+    rFore: ["bip01rforearm", "rightforearm", "forearmr", "rforearm", "lowerarmr", "jbiprlowerarm"],
+    rHand: ["bip01rhand", "righthand", "handr", "rhand", "jbiprhand"]
+  };
+  function findRagdollBones(root) {
+    const all = [];
+    root.traverse((o2) => {
+      if (o2.isBone) all.push({ b: o2, n: o2.name.toLowerCase().replace(/[^a-z0-9]/g, "") });
+    });
+    if (!all.length) return null;
+    const out = {};
+    for (const key in BONE_NAMES) {
+      let hit = null;
+      for (const want of BONE_NAMES[key]) {
+        hit = all.find((e2) => e2.n === want) || all.find((e2) => e2.n.endsWith(want));
+        if (hit) break;
+      }
+      if (!hit) return null;
+      out[key] = hit.b;
+    }
+    const spine = [];
+    for (let b2 = out.neck.parent; b2 && b2 !== out.pelvis; b2 = b2.parent) {
+      if (!b2.isBone) return null;
+      spine.unshift(b2);
+    }
+    if (!spine.length) return null;
+    out.spine = spine;
+    return out;
+  }
+  var RagdollSystem = class {
+    // opts: { THREE, ground(x, z, refY) -> y, blocked?(x, z, r, y) -> bool, friction?(x, z) -> mu, maxActive? }
+    constructor(opts) {
+      this.T = opts.THREE;
+      this.ground = opts.ground || (() => 0);
+      this.blocked = opts.blocked || null;
+      this.friction = opts.friction || null;
+      this.maxActive = opts.maxActive || 10;
+      this.g = opts.gravity || 9.81;
+      this.h = 1 / 240;
+      this.iterations = 6;
+      this.list = [];
+      const T2 = this.T;
+      this._v = [new T2.Vector3(), new T2.Vector3(), new T2.Vector3(), new T2.Vector3()];
+      this._q = [new T2.Quaternion(), new T2.Quaternion(), new T2.Quaternion()];
+      this._m = new T2.Matrix4();
+    }
+    // Make a figure limp. root: the character's top object (its bones are found inside); it should be posed as it
+    // was the instant before (the host's mixer has run). opts:
+    //   velocity {x,y,z}  m/s of the whole body          spin {x,y,z}  rad/s about the centre of mass
+    //   strike {x,y,z}    a vehicle's velocity: the legs take it all, the head about half (the body wraps over the bonnet)
+    //   push {x,y,z, at:"chest"}  an extra velocity on one part (a bullet, a punch)
+    //   getUp (default true), dead, facing {x,z} (which way the figure faces, default the root's +z)
+    //   onSettle(rd), onUp(rd, {x, y, z, yaw}), onHit(rd, speed, part) (a hard landing)
+    spawn(root, opts) {
+      opts = opts || {};
+      const T2 = this.T;
+      const old = this.list.find((r3) => r3.root === root);
+      if (old) this.release(old);
+      root.updateMatrixWorld(true);
+      const B2 = findRagdollBones(root);
+      if (!B2) return null;
+      const wp = (b2) => b2.getWorldPosition(new T2.Vector3());
+      const pos = [];
+      pos[J2.pelvis] = wp(B2.pelvis);
+      pos[J2.chest] = wp(B2.neck);
+      const hd = wp(B2.head);
+      pos[J2.head] = hd.clone().addScaledVector(hd.clone().sub(pos[J2.chest]).normalize(), 0.09);
+      pos[J2.lHip] = wp(B2.lThigh);
+      pos[J2.lKnee] = wp(B2.lCalf);
+      pos[J2.lFoot] = wp(B2.lFoot);
+      pos[J2.rHip] = wp(B2.rThigh);
+      pos[J2.rKnee] = wp(B2.rCalf);
+      pos[J2.rFoot] = wp(B2.rFoot);
+      pos[J2.lSh] = wp(B2.lUpper);
+      pos[J2.lElb] = wp(B2.lFore);
+      pos[J2.lHand] = wp(B2.lHand);
+      pos[J2.rSh] = wp(B2.rUpper);
+      pos[J2.rElb] = wp(B2.rFore);
+      pos[J2.rHand] = wp(B2.rHand);
+      if (pos[J2.pelvis].distanceTo(pos[J2.head]) < 0.2) return null;
+      const rd = {
+        root,
+        bones: B2,
+        opts,
+        state: "fall",
+        t: 0,
+        still: 0,
+        hurt: 0,
+        P: new Float32Array(N2 * 3),
+        O: new Float32Array(N2 * 3),
+        G: new Float32Array(N2),
+        VY: new Float32Array(N2),
+        contact: new Uint8Array(N2),
+        was: new Uint8Array(N2),
+        cons: [],
+        ranges: [],
+        dims: null,
+        frames: null,
+        sign: 1,
+        acc: 0,
+        seq: null,
+        blend: null,
+        culled: []
+      };
+      for (let i2 = 0; i2 < N2; i2++) {
+        rd.P[i2 * 3] = pos[i2].x;
+        rd.P[i2 * 3 + 1] = pos[i2].y;
+        rd.P[i2 * 3 + 2] = pos[i2].z;
+      }
+      const fwd = opts.facing ? new T2.Vector3(opts.facing.x, 0, opts.facing.z) : new T2.Vector3(0, 0, 1).applyQuaternion(root.getWorldQuaternion(new T2.Quaternion()));
+      const side = pos[J2.lHip].clone().sub(pos[J2.rHip]), up = pos[J2.chest].clone().sub(pos[J2.pelvis]);
+      rd.sign = side.clone().cross(up).dot(fwd) >= 0 ? 1 : -1;
+      this._buildConstraints(rd, pos);
+      this._captureFrames(rd);
+      const com = new T2.Vector3();
+      let mt = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        com.addScaledVector(pos[i2], MASS[i2]);
+        mt += MASS[i2];
+      }
+      com.multiplyScalar(1 / mt);
+      let lowY = Infinity;
+      for (let i2 = 0; i2 < N2; i2++) lowY = Math.min(lowY, pos[i2].y);
+      const v2 = new T2.Vector3(), r2 = new T2.Vector3(), w2 = opts.spin ? new T2.Vector3(opts.spin.x || 0, opts.spin.y || 0, opts.spin.z || 0) : null;
+      const lin = opts.velocity ? new T2.Vector3(opts.velocity.x || 0, opts.velocity.y || 0, opts.velocity.z || 0) : new T2.Vector3();
+      const st = opts.strike ? new T2.Vector3(opts.strike.x || 0, opts.strike.y || 0, opts.strike.z || 0) : null;
+      for (let i2 = 0; i2 < N2; i2++) {
+        v2.copy(lin);
+        if (w2) {
+          r2.copy(pos[i2]).sub(com);
+          v2.add(w2.clone().cross(r2));
+        }
+        if (st) {
+          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp4(hgt / 1.7, 0, 1), sp = st.length();
+          v2.addScaledVector(st, k2);
+          v2.y += (hgt < 0.7 ? 0.1 : 0.22) * Math.max(0, sp - 8) + (sp > 3 ? 0.6 : 0);
+        }
+        if (opts.push && RAGDOLL_JOINTS[i2] === (opts.push.at || "chest")) {
+          v2.x += opts.push.x || 0;
+          v2.y += opts.push.y || 0;
+          v2.z += opts.push.z || 0;
+        }
+        rd.O[i2 * 3] = rd.P[i2 * 3] - v2.x * this.h;
+        rd.O[i2 * 3 + 1] = rd.P[i2 * 3 + 1] - v2.y * this.h;
+        rd.O[i2 * 3 + 2] = rd.P[i2 * 3 + 2] - v2.z * this.h;
+      }
+      root.traverse((o2) => {
+        if (o2.isMesh && o2.frustumCulled) {
+          o2.frustumCulled = false;
+          rd.culled.push(o2);
+        }
+      });
+      this.list.push(rd);
+      const moving = this.list.filter((x2) => x2.state === "fall");
+      if (moving.length > this.maxActive) this._settle(moving[0]);
+      return rd;
+    }
+    _buildConstraints(rd, pos) {
+      const d2 = (a2, b2) => pos[a2].distanceTo(pos[b2]);
+      const C2 = (a2, b2, k2) => rd.cons.push([a2, b2, d2(a2, b2), k2 === void 0 ? 1 : k2]);
+      const R2 = (a2, b2, lo, hi, k2) => rd.ranges.push([a2, b2, lo, hi, k2 === void 0 ? 1 : k2]);
+      C2(J2.lHip, J2.lKnee);
+      C2(J2.lKnee, J2.lFoot);
+      C2(J2.rHip, J2.rKnee);
+      C2(J2.rKnee, J2.rFoot);
+      C2(J2.lSh, J2.lElb);
+      C2(J2.lElb, J2.lHand);
+      C2(J2.rSh, J2.rElb);
+      C2(J2.rElb, J2.rHand);
+      C2(J2.pelvis, J2.lHip);
+      C2(J2.pelvis, J2.rHip);
+      C2(J2.lHip, J2.rHip);
+      C2(J2.chest, J2.lSh);
+      C2(J2.chest, J2.rSh);
+      C2(J2.lSh, J2.rSh);
+      C2(J2.pelvis, J2.chest);
+      C2(J2.lHip, J2.lSh, 0.4);
+      C2(J2.rHip, J2.rSh, 0.4);
+      C2(J2.lHip, J2.rSh, 0.3);
+      C2(J2.rHip, J2.lSh, 0.3);
+      C2(J2.pelvis, J2.lSh, 0.3);
+      C2(J2.pelvis, J2.rSh, 0.3);
+      C2(J2.chest, J2.head);
+      const hs = d2(J2.head, J2.lSh), hp = d2(J2.head, J2.pelvis);
+      R2(J2.head, J2.lSh, hs * 0.82, hs * 1.12);
+      R2(J2.head, J2.rSh, hs * 0.82, hs * 1.12);
+      R2(J2.head, J2.pelvis, hp * 0.84, hp * 1.02);
+      const leg = d2(J2.lHip, J2.lKnee) + d2(J2.lKnee, J2.lFoot), arm = d2(J2.lSh, J2.lElb) + d2(J2.lElb, J2.lHand);
+      R2(J2.lHip, J2.lFoot, leg * 0.36, leg);
+      R2(J2.rHip, J2.rFoot, leg * 0.36, leg);
+      R2(J2.lSh, J2.lHand, arm * 0.3, arm);
+      R2(J2.rSh, J2.rHand, arm * 0.3, arm);
+      const sp = d2(J2.pelvis, J2.chest), th = d2(J2.lHip, J2.lKnee), kc = Math.sqrt(sp * sp + th * th - 2 * sp * th * Math.cos(0.96));
+      R2(J2.lKnee, J2.chest, kc, 9, 0.5);
+      R2(J2.rKnee, J2.chest, kc, 9, 0.5);
+      R2(J2.lKnee, J2.rKnee, 0.1, 9);
+      R2(J2.lFoot, J2.rFoot, 0.1, 9);
+      R2(J2.lHand, J2.rHand, 0.07, 9);
+      R2(J2.lHand, J2.chest, 0.12, 9);
+      R2(J2.rHand, J2.chest, 0.12, 9);
+      R2(J2.lHand, J2.pelvis, 0.12, 9);
+      R2(J2.rHand, J2.pelvis, 0.12, 9);
+      const hw = d2(J2.lHip, J2.rHip) / 2, sw = d2(J2.lSh, J2.rSh) / 2, ph = d2(J2.pelvis, J2.lHip), cs = d2(J2.chest, J2.lSh);
+      rd.dims = {
+        hw,
+        sw,
+        Lt: th,
+        Ls: d2(J2.lKnee, J2.lFoot),
+        ua: d2(J2.lSh, J2.lElb),
+        fa: d2(J2.lElb, J2.lHand),
+        Lsp: sp,
+        Ln: d2(J2.chest, J2.head),
+        dy: Math.sqrt(Math.max(0, ph * ph - hw * hw)),
+        shDrop: Math.sqrt(Math.max(0, cs * cs - sw * sw))
+      };
+    }
+    // ---- frames: what turns each bone ------------------------------------------------------------------------------
+    // [bone key, from joint, to joint, reference kind]
+    _segments(rd) {
+      const B2 = rd.bones, S4 = [];
+      S4.push({ bone: B2.pelvis, a: J2.pelvis, b: J2.chest, ref: "hips", pos: true });
+      S4.push({ spine: true, a: J2.pelvis, b: J2.chest, ref: "shoulders" });
+      S4.push({ bone: B2.head, a: J2.chest, b: J2.head, ref: "shoulders" });
+      S4.push({ bone: B2.lThigh, a: J2.lHip, b: J2.lKnee, ref: "hips" });
+      S4.push({ bone: B2.lCalf, a: J2.lKnee, b: J2.lFoot, ref: "hips" });
+      S4.push({ bone: B2.rThigh, a: J2.rHip, b: J2.rKnee, ref: "hips" });
+      S4.push({ bone: B2.rCalf, a: J2.rKnee, b: J2.rFoot, ref: "hips" });
+      S4.push({ bone: B2.lUpper, a: J2.lSh, b: J2.lElb, ref: "arm", c: J2.lHand });
+      S4.push({ bone: B2.lFore, a: J2.lElb, b: J2.lHand, ref: "arm", c: J2.lHand, up: J2.lSh });
+      S4.push({ bone: B2.rUpper, a: J2.rSh, b: J2.rElb, ref: "arm", c: J2.rHand });
+      S4.push({ bone: B2.rFore, a: J2.rElb, b: J2.rHand, ref: "arm", c: J2.rHand, up: J2.rSh });
+      return S4;
+    }
+    _vec(rd, i2, out) {
+      return out.set(rd.P[i2 * 3], rd.P[i2 * 3 + 1], rd.P[i2 * 3 + 2]);
+    }
+    _torsoFwd(rd, out) {
+      const T2 = this.T, a2 = this._vec(rd, J2.lHip, new T2.Vector3()).sub(this._vec(rd, J2.rHip, new T2.Vector3()));
+      const u2 = this._vec(rd, J2.chest, new T2.Vector3()).sub(this._vec(rd, J2.pelvis, new T2.Vector3()));
+      return out.copy(a2).cross(u2).normalize().multiplyScalar(rd.sign);
+    }
+    // an orthonormal frame from a segment and a reference; the previous z stands in when the reference lines up with the segment
+    _basis(rd, seg, prevZ, outQ) {
+      const T2 = this.T, x2 = this._vec(rd, seg.b, new T2.Vector3()).sub(this._vec(rd, seg.a, new T2.Vector3())).normalize();
+      let r2;
+      if (seg.ref === "hips") r2 = this._vec(rd, J2.lHip, new T2.Vector3()).sub(this._vec(rd, J2.rHip, new T2.Vector3()));
+      else if (seg.ref === "shoulders") r2 = this._vec(rd, J2.lSh, new T2.Vector3()).sub(this._vec(rd, J2.rSh, new T2.Vector3()));
+      else {
+        const s2 = seg.up !== void 0 ? seg.up : seg.a, e2 = seg.up !== void 0 ? seg.a : seg.b;
+        const u1 = this._vec(rd, e2, new T2.Vector3()).sub(this._vec(rd, s2, new T2.Vector3())).normalize();
+        const u2 = this._vec(rd, seg.c, new T2.Vector3()).sub(this._vec(rd, e2, new T2.Vector3())).normalize();
+        const bend = u1.clone().cross(u2);
+        const bl = bend.length();
+        if (prevZ) r2 = prevZ.clone().lerp(bl > 0.25 ? bend.normalize() : prevZ, bl > 0.25 ? 0.12 : 0);
+        else r2 = bl > 0.25 ? bend.normalize() : this._torsoFwd(rd, new T2.Vector3());
+      }
+      let z2 = r2.clone().addScaledVector(x2, -r2.dot(x2));
+      if (z2.lengthSq() < 0.04 * Math.max(1e-6, r2.lengthSq()) && prevZ) z2 = prevZ.clone().addScaledVector(x2, -prevZ.dot(x2));
+      if (z2.lengthSq() < 1e-8) z2 = Math.abs(x2.y) < 0.9 ? new T2.Vector3(0, 1, 0).addScaledVector(x2, -x2.y) : new T2.Vector3(1, 0, 0).addScaledVector(x2, -x2.x);
+      z2.normalize();
+      const y2 = z2.clone().cross(x2);
+      this._m.makeBasis(x2, y2, z2);
+      outQ.setFromRotationMatrix(this._m);
+      return z2;
+    }
+    _captureFrames(rd) {
+      const T2 = this.T, segs = this._segments(rd);
+      rd.frames = segs.map((seg) => {
+        const f2 = { seg, q0: new T2.Quaternion(), z: null, bq: [], bp: null };
+        f2.z = this._basis(rd, seg, null, f2.q0);
+        const bones = seg.spine ? rd.bones.spine : [seg.bone];
+        bones.forEach((b2) => f2.bq.push(b2.getWorldQuaternion(new T2.Quaternion())));
+        if (seg.pos) f2.bp = seg.bone.getWorldPosition(new T2.Vector3()).sub(this._vec(rd, seg.a, new T2.Vector3()));
+        return f2;
+      });
+      rd.frames.pelvis = rd.frames[0];
+      rd.frames.chest = rd.frames[1];
+    }
+    // ---- stepping ----------------------------------------------------------------------------------------------------
+    update(dt) {
+      dt = clamp4(dt || 0, 0, 0.1);
+      for (let k2 = this.list.length - 1; k2 >= 0; k2--) {
+        const rd = this.list[k2];
+        if (!rd.root.parent && rd.state !== "blend") {
+          this.release(rd);
+          continue;
+        }
+        rd.t += dt;
+        if (rd.state === "fall") this._simulate(rd, dt);
+        else if (rd.state === "getup") this._getUp(rd, dt);
+        else if (rd.state === "still") {
+          rd.wait -= dt;
+          if (rd.wait <= 0) {
+            if (rd.opts.dead || rd.opts.getUp === false) {
+              rd.state = "frozen";
+            } else this._startGetUp(rd);
+          }
+        }
+        if (rd.state === "blend") {
+          this._blendOut(rd, dt);
+          continue;
+        }
+        if (rd.state !== "frozen" || !rd.frozenWritten) {
+          this._write(rd);
+          if (rd.state === "frozen") rd.frozenWritten = true;
+        }
+      }
+    }
+    _simulate(rd, dt) {
+      const h2 = this.h, P3 = rd.P, O2 = rd.O, g2 = this.g, damp = 0.9996;
+      rd.acc += dt;
+      let steps = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, g3 = this.ground(P3[o2], P3[o2 + 2], P3[o2 + 1] + 0.6);
+        if (rd.F && g3 - rd.G[i2] > RADIUS[i2] * 0.6 && P3[o2 + 1] - RADIUS[i2] < g3 - 0.01) {
+          const vx = P3[o2] - O2[o2], vz = P3[o2 + 2] - O2[o2 + 2];
+          P3[o2] = rd.F[o2];
+          P3[o2 + 2] = rd.F[o2 + 2];
+          O2[o2] = P3[o2] + vx * 0.2;
+          O2[o2 + 2] = P3[o2 + 2] + vz * 0.2;
+        } else rd.G[i2] = g3;
+      }
+      const mu = this.friction ? this.friction(P3[0], P3[2]) : 0.65;
+      while (rd.acc >= h2 && steps < 24) {
+        rd.acc -= h2;
+        steps++;
+        for (let i2 = 0; i2 < N2; i2++) {
+          const o2 = i2 * 3;
+          for (let c2 = 0; c2 < 3; c2++) {
+            const p2 = P3[o2 + c2], v2 = (p2 - O2[o2 + c2]) * damp;
+            O2[o2 + c2] = p2;
+            P3[o2 + c2] = p2 + v2 + (c2 === 1 ? -g2 * h2 * h2 : 0);
+          }
+        }
+        for (let i2 = 0; i2 < N2; i2++) {
+          rd.VY[i2] = (P3[i2 * 3 + 1] - O2[i2 * 3 + 1]) / h2;
+          rd.contact[i2] = 0;
+        }
+        for (let it = 0; it < this.iterations; it++) {
+          this._solve(rd);
+          this._collide(rd, false, mu);
+        }
+        this._collide(rd, true, mu);
+      }
+      if (rd.acc > h2) rd.acc = 0;
+      rd.F = Float32Array.from(P3);
+      let vmax = 0, grounded = 0;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, vx = P3[o2] - O2[o2], vy = P3[o2 + 1] - O2[o2 + 1], vz = P3[o2 + 2] - O2[o2 + 2];
+        vmax = Math.max(vmax, Math.sqrt(vx * vx + vy * vy + vz * vz) / h2);
+        if (P3[o2 + 1] - RADIUS[i2] - rd.G[i2] < 0.06) grounded++;
+      }
+      if (vmax < 0.35 && grounded >= 4) rd.still += dt;
+      else rd.still = 0;
+      if (rd.still > 0.5 || rd.t > 9) this._settle(rd);
+    }
+    _settle(rd) {
+      if (rd.state !== "fall") return;
+      rd.state = "still";
+      rd.wait = rd.opts.dead ? 0 : rd.opts.lieFor !== void 0 ? rd.opts.lieFor : 0.9 + Math.random() * 0.7;
+      for (let i2 = 0; i2 < N2 * 3; i2++) rd.O[i2] = rd.P[i2];
+      if (rd.opts.onSettle) try {
+        rd.opts.onSettle(rd);
+      } catch (e2) {
+        console.warn("[ragdoll] onSettle", e2);
+      }
+    }
+    _solve(rd) {
+      const P3 = rd.P;
+      const pull = (a2, b2, len, k2, only) => {
+        const ao = a2 * 3, bo = b2 * 3, dx = P3[bo] - P3[ao], dy = P3[bo + 1] - P3[ao + 1], dz = P3[bo + 2] - P3[ao + 2];
+        const d2 = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+        if (only === 1 && d2 >= len) return;
+        if (only === 2 && d2 <= len) return;
+        const wa = 1 / MASS[a2], wb = 1 / MASS[b2], s2 = k2 * (d2 - len) / d2 / (wa + wb);
+        P3[ao] += dx * s2 * wa;
+        P3[ao + 1] += dy * s2 * wa;
+        P3[ao + 2] += dz * s2 * wa;
+        P3[bo] -= dx * s2 * wb;
+        P3[bo + 1] -= dy * s2 * wb;
+        P3[bo + 2] -= dz * s2 * wb;
+      };
+      for (const c2 of rd.cons) pull(c2[0], c2[1], c2[2], c2[3], 0);
+      for (const r2 of rd.ranges) {
+        pull(r2[0], r2[1], r2[2], r2[4], 1);
+        pull(r2[0], r2[1], r2[3], r2[4], 2);
+      }
+      const sx = P3[J2.lHip * 3] - P3[J2.rHip * 3], sy = P3[J2.lHip * 3 + 1] - P3[J2.rHip * 3 + 1], sz = P3[J2.lHip * 3 + 2] - P3[J2.rHip * 3 + 2];
+      for (const [hp, kn, ft] of [[J2.lHip, J2.lKnee, J2.lFoot], [J2.rHip, J2.rKnee, J2.rFoot]]) {
+        const ax = P3[ft * 3] - P3[hp * 3], ay = P3[ft * 3 + 1] - P3[hp * 3 + 1], az = P3[ft * 3 + 2] - P3[hp * 3 + 2];
+        let kx = (ay * sz - az * sy) * rd.sign, ky = (az * sx - ax * sz) * rd.sign, kz = (ax * sy - ay * sx) * rd.sign;
+        const kl = Math.sqrt(kx * kx + ky * ky + kz * kz), al = Math.sqrt(ax * ax + ay * ay + az * az), sl = Math.sqrt(sx * sx + sy * sy + sz * sz);
+        if (kl < 0.5 * al * sl) continue;
+        kx /= kl;
+        ky /= kl;
+        kz /= kl;
+        const mx = (P3[hp * 3] + P3[ft * 3]) / 2, my = (P3[hp * 3 + 1] + P3[ft * 3 + 1]) / 2, mz = (P3[hp * 3 + 2] + P3[ft * 3 + 2]) / 2;
+        const along = (P3[kn * 3] - mx) * kx + (P3[kn * 3 + 1] - my) * ky + (P3[kn * 3 + 2] - mz) * kz;
+        const ux = P3[J2.chest * 3] - P3[J2.pelvis * 3], uy = P3[J2.chest * 3 + 1] - P3[J2.pelvis * 3 + 1], uz = P3[J2.chest * 3 + 2] - P3[J2.pelvis * 3 + 2];
+        let fx = (sy * uz - sz * uy) * rd.sign, fy = (sz * ux - sx * uz) * rd.sign, fz = (sx * uy - sy * ux) * rd.sign;
+        const fl = Math.sqrt(fx * fx + fy * fy + fz * fz);
+        if (fl > 1e-6) {
+          fx /= fl;
+          fy /= fl;
+          fz /= fl;
+          const tx = P3[kn * 3] - P3[hp * 3], ty = P3[kn * 3 + 1] - P3[hp * 3 + 1], tz = P3[kn * 3 + 2] - P3[hp * 3 + 2];
+          const tl = Math.sqrt(tx * tx + ty * ty + tz * tz) || 1, back = (tx * fx + ty * fy + tz * fz) / tl;
+          if (back < -0.34) {
+            const c2 = Math.min(4e-3, (-0.34 - back) * tl * 0.4);
+            P3[kn * 3] += fx * c2;
+            P3[kn * 3 + 1] += fy * c2;
+            P3[kn * 3 + 2] += fz * c2;
+          }
+        }
+        if (along < -0.03) {
+          const c2 = Math.min(4e-3, (-0.03 - along) * 0.5);
+          P3[kn * 3] += kx * c2;
+          P3[kn * 3 + 1] += ky * c2;
+          P3[kn * 3 + 2] += kz * c2;
+        }
+      }
+    }
+    // The ground and the walls. During the solver passes a joint that is under the ground is simply put back on it; in the
+    // final pass the velocity is made honest: the solver's corrections must not launch a body (any upward speed it
+    // gained from being pushed out of the ground is taken away), a hard landing bounces a little, and sliding obeys friction.
+    _collide(rd, final, mu) {
+      const P3 = rd.P, O2 = rd.O, h2 = this.h, g2 = this.g;
+      for (let i2 = 0; i2 < N2; i2++) {
+        const o2 = i2 * 3, floor = rd.G[i2] + RADIUS[i2];
+        if (P3[o2 + 1] < floor) {
+          P3[o2 + 1] = floor;
+          rd.contact[i2] = 1;
+        }
+        if (!final) continue;
+        if (rd.contact[i2] || P3[o2 + 1] < floor + 4e-3) {
+          const vin = rd.VY[i2];
+          if (vin < -5 && !rd.was[i2] && rd.opts.onHit) {
+            rd.hurt += (-vin - 5) * HURT[i2];
+            try {
+              rd.opts.onHit(rd, -vin, RAGDOLL_JOINTS[i2]);
+            } catch (e2) {
+            }
+          }
+          const vy = vin < -2.5 ? -vin * 0.1 : Math.min(0.2, Math.max(0, (P3[o2 + 1] - O2[o2 + 1]) / h2) * 0);
+          O2[o2 + 1] = P3[o2 + 1] - vy * h2;
+          const vx = (P3[o2] - O2[o2]) / h2 * 0.99, vz = (P3[o2 + 2] - O2[o2 + 2]) / h2 * 0.99, sp = Math.sqrt(vx * vx + vz * vz);
+          if (sp > 1e-5) {
+            const ns = Math.max(0, sp - mu * g2 * h2) / sp;
+            O2[o2] = P3[o2] - vx * ns * h2;
+            O2[o2 + 2] = P3[o2 + 2] - vz * ns * h2;
+          }
+          rd.was[i2] = 1;
+        } else if (P3[o2 + 1] > floor + 0.08) rd.was[i2] = 0;
+        if (this.blocked && this.blocked(P3[o2], P3[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+          if (!this.blocked(O2[o2], P3[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+            const vx = P3[o2] - O2[o2];
+            P3[o2] = O2[o2];
+            O2[o2] = P3[o2] + vx * 0.25;
+          } else if (!this.blocked(P3[o2], O2[o2 + 2], RADIUS[i2], P3[o2 + 1])) {
+            const vz = P3[o2 + 2] - O2[o2 + 2];
+            P3[o2 + 2] = O2[o2 + 2];
+            O2[o2 + 2] = P3[o2 + 2] + vz * 0.25;
+          } else {
+            P3[o2] = O2[o2];
+            P3[o2 + 2] = O2[o2 + 2];
+          }
+        }
+      }
+    }
+    // ---- getting up --------------------------------------------------------------------------------------------------
+    _startGetUp(rd) {
+      const T2 = this.T, P3 = rd.P, D2 = rd.dims;
+      const pel = this._vec(rd, J2.pelvis, new T2.Vector3()), head = this._vec(rd, J2.head, new T2.Vector3());
+      const fwd = this._torsoFwd(rd, new T2.Vector3());
+      const prone = fwd.y < 0;
+      let dx = head.x - pel.x, dz = head.z - pel.z;
+      if (!prone) {
+        dx = -dx;
+        dz = -dz;
+      }
+      if (Math.hypot(dx, dz) < 1e-3) {
+        dx = fwd.x;
+        dz = fwd.z;
+      }
+      const yaw = Math.atan2(dx, dz), F2 = { x: Math.sin(yaw), z: Math.cos(yaw) }, Lx = { x: Math.cos(yaw), z: -Math.sin(yaw) };
+      const O1 = { x: pel.x, z: pel.z }, O2 = prone ? { x: pel.x + F2.x * 0.1, z: pel.z + F2.z * 0.1 } : { x: pel.x + F2.x * 0.42, z: pel.z + F2.z * 0.42 };
+      if (this.blocked && this.blocked(O2.x, O2.z, 0.3, pel.y)) {
+        O2.x = O1.x;
+        O2.z = O1.z;
+      }
+      const st = 0.08;
+      const stand = () => {
+        const hipY = st + D2.Ls + D2.Lt, pY = hipY + D2.dy, cY = pY + D2.Lsp, sY = cY - D2.shDrop;
+        return [
+          [0, pY, 0],
+          [0, cY, -0.01],
+          [0, cY + D2.Ln, 0.02],
+          [D2.hw, hipY, 0],
+          [D2.hw, st + D2.Ls, 0.02],
+          [D2.hw, st, 0],
+          [-D2.hw, hipY, 0],
+          [-D2.hw, st + D2.Ls, 0.02],
+          [-D2.hw, st, 0],
+          [D2.sw, sY, 0],
+          [D2.sw + 0.03, sY - D2.ua, -0.01],
+          [D2.sw + 0.04, sY - D2.ua - D2.fa, 0.04],
+          [-D2.sw, sY, 0],
+          [-D2.sw - 0.03, sY - D2.ua, -0.01],
+          [-D2.sw - 0.04, sY - D2.ua - D2.fa, 0.04]
+        ];
+      };
+      const crouch = () => {
+        const kY = st + D2.Ls * 0.82, kZ = D2.Ls * 0.57, hY = kY + 0.26 * D2.Lt, hZ = kZ - 0.97 * D2.Lt, pY = hY + D2.dy * 0.7;
+        const cY = pY + D2.Lsp * 0.72, cZ = hZ + D2.Lsp * 0.69, sY = cY - D2.shDrop;
+        const hand = [D2.hw + 0.06, kY + 0.07, kZ + 0.07];
+        return [
+          [0, pY, hZ],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.85, cZ + D2.Ln * 0.5],
+          [D2.hw, hY, hZ],
+          [D2.hw + 0.04, kY, kZ],
+          [D2.hw, st, 0],
+          [-D2.hw, hY, hZ],
+          [-D2.hw - 0.04, kY, kZ],
+          [-D2.hw, st, 0],
+          [D2.sw, sY, cZ],
+          [(D2.sw + hand[0]) / 2 + 0.08, (sY + hand[1]) / 2, (cZ + hand[2]) / 2 - 0.04],
+          hand,
+          [-D2.sw, sY, cZ],
+          [-(D2.sw + hand[0]) / 2 - 0.08, (sY + hand[1]) / 2, (cZ + hand[2]) / 2 - 0.04],
+          [-hand[0], hand[1], hand[2]]
+        ];
+      };
+      const fours = () => {
+        const kY = 0.07, hY = kY + D2.Lt * 0.96, pY = hY + D2.dy * 0.5, cY = pY + 0.05, cZ = 0.05 + D2.Lsp * 0.97, sY = cY - D2.shDrop * 0.3;
+        return [
+          [0, pY, 0.05],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.4, cZ + D2.Ln * 0.9],
+          [D2.hw, hY, 0.05],
+          [D2.hw, kY, 0],
+          [D2.hw, 0.07, -D2.Ls],
+          [-D2.hw, hY, 0.05],
+          [-D2.hw, kY, 0],
+          [-D2.hw, 0.07, -D2.Ls],
+          [D2.sw, sY, cZ - 0.02],
+          [D2.sw + 0.02, (sY + 0.05) / 2, cZ + 0.02],
+          [D2.sw, 0.05, cZ + 0.05],
+          [-D2.sw, sY, cZ - 0.02],
+          [-D2.sw - 0.02, (sY + 0.05) / 2, cZ + 0.02],
+          [-D2.sw, 0.05, cZ + 0.05]
+        ];
+      };
+      const sitUp = () => {
+        const hY = 0.11, kY = hY + D2.Lt * 0.64, kZ = 0.02 + D2.Lt * 0.77, fZ = kZ + Math.sqrt(Math.max(0.01, D2.Ls * D2.Ls - (kY - st) * (kY - st)));
+        const cY = 0.13 + D2.Lsp * 0.94, cZ = D2.Lsp * 0.34, sY = cY - D2.shDrop;
+        return [
+          [0, 0.13, 0],
+          [0, cY, cZ],
+          [0, cY + D2.Ln * 0.9, cZ + D2.Ln * 0.42],
+          [D2.hw, hY, 0.02],
+          [D2.hw, kY, kZ],
+          [D2.hw, st, fZ],
+          [-D2.hw, hY, 0.02],
+          [-D2.hw, kY, kZ],
+          [-D2.hw, st, fZ],
+          [D2.sw, sY, cZ],
+          [D2.sw + 0.08, (sY + 0.05) / 2, (cZ - 0.22) / 2 - 0.05],
+          [D2.sw + 0.08, 0.05, -0.22],
+          [-D2.sw, sY, cZ],
+          [-D2.sw - 0.08, (sY + 0.05) / 2, (cZ - 0.22) / 2 - 0.05],
+          [-D2.sw - 0.08, 0.05, -0.22]
+        ];
+      };
+      const world = (pose, O3) => pose.map((p2) => {
+        const x2 = O3.x + Lx.x * p2[0] + F2.x * p2[2], z2 = O3.z + Lx.z * p2[0] + F2.z * p2[2];
+        return [x2, this.ground(x2, z2, pel.y + 0.6) + p2[1], z2];
+      });
+      if (rd.sign < 0) {
+        Lx.x = -Lx.x;
+        Lx.z = -Lx.z;
+      }
+      rd.seq = prone ? [{ pose: world(fours(), O1), T: 0.6 }, { pose: world(crouch(), O2), T: 0.5 }, { pose: world(stand(), O2), T: 0.55 }] : [{ pose: world(sitUp(), O1), T: 0.55 }, { pose: world(crouch(), O2), T: 0.6 }, { pose: world(stand(), O2), T: 0.55 }];
+      rd.seqI = 0;
+      rd.seqT = 0;
+      rd.from = Float32Array.from(P3);
+      rd.up = { x: O2.x, y: this.ground(O2.x, O2.z, pel.y + 0.6), z: O2.z, yaw, prone };
+      rd.state = "getup";
+    }
+    _getUp(rd, dt) {
+      const step = rd.seq[rd.seqI], P3 = rd.P;
+      rd.seqT += dt;
+      const k2 = smooth2(rd.seqT / step.T);
+      for (let i2 = 0; i2 < N2; i2++) for (let c2 = 0; c2 < 3; c2++) {
+        const o2 = i2 * 3 + c2, target = rd.from[o2] + (step.pose[i2][c2] - rd.from[o2]) * k2;
+        P3[o2] += (target - P3[o2]) * 0.7;
+      }
+      for (let i2 = 0; i2 < N2; i2++) rd.G[i2] = this.ground(P3[i2 * 3], P3[i2 * 3 + 2], P3[i2 * 3 + 1] + 0.6);
+      for (let it = 0; it < 4; it++) {
+        this._solve(rd);
+        for (let i2 = 0; i2 < N2; i2++) {
+          const f2 = rd.G[i2] + RADIUS[i2] * 0.6;
+          if (P3[i2 * 3 + 1] < f2) P3[i2 * 3 + 1] = f2;
+        }
+      }
+      for (let i2 = 0; i2 < N2 * 3; i2++) rd.O[i2] = P3[i2];
+      if (rd.seqT >= step.T) {
+        rd.seqI++;
+        rd.seqT = 0;
+        rd.from = Float32Array.from(P3);
+        if (rd.seqI >= rd.seq.length) {
+          this._write(rd);
+          rd.state = "blend";
+          rd.blend = this._snapshot(rd);
+          if (rd.opts.onUp) try {
+            rd.opts.onUp(rd, rd.up);
+          } catch (e2) {
+            console.warn("[ragdoll] onUp", e2);
+          }
+        }
+      }
+    }
+    _snapshot(rd) {
+      const T2 = this.T, out = { t: 0, T: rd.opts.blendTime || 0.4, bones: [] };
+      rd.frames.forEach((f2) => (f2.seg.spine ? rd.bones.spine : [f2.seg.bone]).forEach((b2) => {
+        out.bones.push({
+          b: b2,
+          q: b2.quaternion.clone(),
+          wq: b2 === rd.bones.pelvis ? b2.getWorldQuaternion(new T2.Quaternion()) : null,
+          wp: b2 === rd.bones.pelvis ? b2.getWorldPosition(new T2.Vector3()) : null
+        });
+      }));
+      return out;
+    }
+    // After the host's mixer has posed the figure, pull it from the stored ragdoll pose towards that, a little less each frame.
+    _blendOut(rd, dt) {
+      const B2 = rd.blend, T2 = this.T;
+      B2.t += dt;
+      const w2 = smooth2(B2.t / B2.T);
+      const pq = this._q[0], lq = this._q[1];
+      for (const e2 of B2.bones) {
+        if (e2.wq) {
+          e2.b.parent.updateWorldMatrix(true, false);
+          e2.b.parent.getWorldQuaternion(pq);
+          lq.copy(pq).invert().multiply(e2.wq);
+          const lp = e2.b.parent.worldToLocal(e2.wp.clone());
+          e2.b.position.lerpVectors(lp, e2.b.position, w2);
+          e2.b.quaternion.copy(lq.slerp(e2.b.quaternion, w2));
+        } else e2.b.quaternion.copy(e2.q.clone().slerp(e2.b.quaternion, w2));
+      }
+      if (B2.t >= B2.T) this.release(rd);
+    }
+    // ---- posing the skeleton -----------------------------------------------------------------------------------------
+    _write(rd) {
+      const T2 = this.T, cur = this._q[0], rot = this._q[1], pq = this._q[2];
+      const rotOf = (f2) => {
+        f2.z = this._basis(rd, f2.seg, f2.z, cur);
+        return new T2.Quaternion().copy(cur).multiply(rot.copy(f2.q0).invert());
+      };
+      const Rp = rotOf(rd.frames.pelvis), Rc = rotOf(rd.frames.chest);
+      const setWorld = (bone, wq) => {
+        bone.parent.updateWorldMatrix(true, false);
+        bone.parent.getWorldQuaternion(pq);
+        bone.quaternion.copy(pq.invert().multiply(wq));
+        bone.updateMatrix();
+      };
+      for (const f2 of rd.frames) {
+        const seg = f2.seg;
+        if (seg.spine) {
+          const n2 = rd.bones.spine.length;
+          rd.bones.spine.forEach((b2, i2) => {
+            const R3 = new T2.Quaternion().copy(Rp).slerp(Rc, (i2 + 1) / n2);
+            setWorld(b2, R3.multiply(f2.bq[i2]));
+          });
+          continue;
+        }
+        const R2 = f2 === rd.frames.pelvis ? Rp : rotOf(f2);
+        if (seg.pos) {
+          const p2 = this._vec(rd, seg.a, new T2.Vector3()).add(f2.bp.clone().applyQuaternion(R2));
+          seg.bone.parent.updateWorldMatrix(true, false);
+          seg.bone.position.copy(seg.bone.parent.worldToLocal(p2));
+        }
+        setWorld(seg.bone, new T2.Quaternion().copy(R2).multiply(f2.bq[0]));
+      }
+    }
+    // ---- handles -----------------------------------------------------------------------------------------------------
+    release(rd) {
+      const i2 = this.list.indexOf(rd);
+      if (i2 >= 0) this.list.splice(i2, 1);
+      rd.culled.forEach((o2) => {
+        o2.frustumCulled = true;
+      });
+      rd.culled.length = 0;
+      rd.state = "done";
+    }
+    // the body's pelvis in the world (where the camera should look, where the character now is)
+    pelvis(rd, out) {
+      return this._vec(rd, J2.pelvis, out || new this.T.Vector3());
+    }
+    joint(rd, name, out) {
+      return this._vec(rd, J2[name], out || new this.T.Vector3());
+    }
+    speed(rd) {
+      let s2 = 0;
+      for (let i2 = 0; i2 < 3; i2++) s2 += ((rd.P[i2] - rd.O[i2]) / this.h) ** 2;
+      return Math.sqrt(s2);
+    }
+    find(root) {
+      return this.list.find((r2) => r2.root === root) || null;
+    }
+    // a body that was going to get up stays down (it died while falling)
+    kill(rd) {
+      rd.opts.dead = true;
+      rd.opts.getUp = false;
+      if (rd.state === "getup") {
+        rd.state = "fall";
+        rd.still = 0;
+      }
+    }
+    report() {
+      return { active: this.list.length, moving: this.list.filter((r2) => r2.state === "fall").length, states: this.list.map((r2) => r2.state) };
     }
   };
   return __toCommonJS(index_exports);
