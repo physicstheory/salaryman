@@ -394,6 +394,7 @@ body.titleup #rgdmark, body.paused #rgdmark, body.cutscene #rgdmark, body.titleu
   function askTick(dt) {
     const R = S.req;
     if (!R) {
+      if(typeof story === "object" && story.m===1 && !story.flags.hired)return; // Let the opening tutorial and deadline lead.
       if (!onFoot() || (typeof wanted === "object" && wanted.stars > 0)) return;
       // fewer strangers stop him while the first mission's clock is running
       S.nextAsk -= dt * (typeof story === "object" && story.m === 1 ? 0.35 : 1);

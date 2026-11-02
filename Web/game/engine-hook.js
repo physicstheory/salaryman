@@ -131,7 +131,7 @@
     if (!e || title.on) return;
     if (drive.car) _focus.copy(drive.car.pos); else if (player.placed) _focus.copy(player.pos); else _focus.copy(camera.position);
     // indoors (the shop rooms sit far outside the island): no rain in the room
-    const inside = typeof interior !== "undefined" && interior.active;
+    const inside = typeof isCameraSheltered === "function" ? isCameraSheltered() : typeof interior !== "undefined" && interior.active;
     e.weather.indoors = !!inside;
     const RE = e.weather.rainEngine;
     if (RE && typeof gfx !== "undefined" && gfx.tier && RE.quality !== gfx.tier && gfx.tier !== "potato") RE.setQuality(gfx.tier);

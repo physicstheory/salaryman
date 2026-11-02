@@ -149,11 +149,11 @@
       if (typeof interiorRoom !== "function") return { skipped: "no interiors" };
       interiorPrewarm.started = true;
       const seen = {}, list = [];
-      shops.list.forEach(s => { if (interiorSupports(s) && !s.mall && !s.plaza && s.brand !== "airport" && !seen[s.brand]) { seen[s.brand] = 1; list.push(s); } });
+      shops.list.forEach(s => { const key=s.station?"station":s.mall?"mall":s.plaza?"plaza":s.brand;if (interiorSupports(s) && s.brand !== "airport" && !seen[key]) { seen[key] = 1; list.push(s); } });
       let built = 0, failed = [];
       for (let i = 0; i < list.length; i++) {
         const s = list[i];
-        try { if (!interiorLevels(s)) { const room = interiorRoom(s); if (room && room.group) { room.group.visible = false; built++; } } }
+        try { const levels=interiorLevels(s);if(levels){for(let f=0;f<levels.floors.length;f++){const room=levels.make(f);if(room?.group){room.group.visible=false;built++;}await ctx.breathe();}}else { const room = interiorRoom(s); if (room && room.group) { room.group.visible = false; built++; } } }
         catch (e) { failed.push(s.brand); }
         ctx.progress((i + 1) / list.length);
         await ctx.breathe();
