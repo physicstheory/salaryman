@@ -31827,6 +31827,8 @@ function ytEmbedUrl(src) {
   if ((m = /[?&]v=([\w-]{11})/.exec(src)) || (m = /youtu\.be\/([\w-]{11})/.exec(src)) || (m = /^([\w-]{11})$/.exec(src))) return "https://www.youtube.com/embed/" + m[1] + "?" + tail.slice(1);
   return null;
 }
+// The desktop game wraps each YouTube player in a small local page so it carries a referrer, without which YouTube refuses to play (Error 153).
+function ytFrame(url) { const b = window.KONTO_DESKTOP && window.KONTO_DESKTOP.ytShim; return b && url ? b + "/yt?u=" + encodeURIComponent(url) : url; }
 function ytPost(cmd, args) { try { if (ytRadio.frame && ytRadio.frame.contentWindow) ytRadio.frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: cmd, args: args || [] }), "*"); } catch (e) { /* none */ } }
 function ytStop() {
   if (ytRadio.frame) { try { ytRadio.frame.remove(); } catch (e) { /* none */ } ytRadio.frame = null; }
@@ -31843,7 +31845,7 @@ function ytSync() {
     f.allow = "autoplay; encrypted-media"; f.referrerPolicy = "strict-origin-when-cross-origin";
     f.style.cssText = "position:fixed;left:-300px;top:-300px;width:200px;height:200px;border:0;opacity:0;pointer-events:none";
     f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1 }), "*"); } catch (e) { /* none */ } setTimeout(() => ytPost("setVolume", [78]), 600); };
-    f.src = url; document.body.appendChild(f);
+    f.src = ytFrame(url); document.body.appendChild(f);
     ytRadio.frame = f; ytRadio.src = st.id + "|" + src; ytRadio.t0 = performance.now(); ytRadio.on = false; ytRadio.title = ""; ytRadio.st = st.id; ytRadio.key = st.id + "|" + src;
   }
   return ytRadio.on;
@@ -31935,7 +31937,7 @@ function videoShow(x, y, w, h, where) {
   let f = layer.querySelector("iframe");
   const url = videoUrl();
   if (!f) { f = document.createElement("iframe"); f.allow = "autoplay; encrypted-media; picture-in-picture"; f.setAttribute("allowfullscreen", ""); f.referrerPolicy = "strict-origin-when-cross-origin"; layer.appendChild(f); }
-  if (f.getAttribute("data-url") !== url) { f.src = url; f.setAttribute("data-url", url); }
+  if (f.getAttribute("data-url") !== url) { f.src = ytFrame(url); f.setAttribute("data-url", url); }
   layer.style.cssText = "position:fixed;left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px;z-index:40;background:#000;overflow:hidden;border-radius:" + (where === "phone" ? "14px" : "6px") + ";";
   f.style.cssText = "width:100%;height:100%;border:0;display:block;";
   video.on = true; video.where = where;
@@ -38433,7 +38435,7 @@ function ifeDraw() {
   const el = ife.el, a = AIR_DESTS[ife.from], b = AIR_DESTS[ife.to], p = ifeProgress();
   const left = Math.max(0, Math.round(b.hours * 60 * (1 - p))), tabs = [["movies", "Films"], ["map", "Flight map"], ["call", "Call attendant"]];
   let main = "";
-  if (ife.playing) main = "<h2>" + ife.playing.title + "</h2><div class='player'><iframe src='https://www.youtube-nocookie.com/embed/" + ife.playing.id + "?autoplay=1&rel=0&modestbranding=1&playsinline=1' allow='autoplay; encrypted-media; fullscreen' allowfullscreen referrerpolicy='strict-origin-when-cross-origin'></iframe></div><div class='note'>If the picture does not come up the seat cannot reach the film server: try the moving map. · Esc: back to the films</div>";
+  if (ife.playing) main = "<h2>" + ife.playing.title + "</h2><div class='player'><iframe src='" + ytFrame("https://www.youtube-nocookie.com/embed/" + ife.playing.id + "?autoplay=1&rel=0&modestbranding=1&playsinline=1") + "' allow='autoplay; encrypted-media; fullscreen' allowfullscreen referrerpolicy='strict-origin-when-cross-origin'></iframe></div><div class='note'>If the picture does not come up the seat cannot reach the film server: try the moving map. · Esc: back to the films</div>";
   else if (ife.tab === "movies") main = "<h2>Films · short and free</h2><div class='grid'>" + IFE_FILMS.map((f, i) => "<div class='card" + (i === ife.sel ? " sel" : "") + "' data-i='" + i + "'><div class='po' style='background:linear-gradient(160deg," + f.a + "," + f.b + ")'>" + f.title + "</div><div class='in'>" + f.tag + " · " + f.len + "</div></div>").join("") + "</div>";
   else if (ife.tab === "map") main = "<h2>Flight map</h2><canvas id='ifemap' width='1000' height='520'></canvas>";
   else main = "<h2>Cabin crew</h2><p style='font-size:18px'>A flight attendant is on the way with tea. You may also say nothing, which is normal in this airline.</p>";
