@@ -5448,7 +5448,10 @@ function planCity(world, F, seed, report, progressBase) {
       for (let d = 0; d <= LEN; d += 10) rp.push([a[0] + nx * off + tx * dir * d, 0, a[2] + nz * off + tz * dir * d]);
       const bad = rp.some(q => world.sampleHeight(q[0], q[2]) < 1.2 || q[0] < 300 || q[2] < 300 || q[0] > WORLD_X - 300 || q[2] > WORLD_Z - 300 ||
         (PAL && (() => { const l = toRectLocal(q[0], q[2], PAL.c[0], PAL.c[1], PAL.yaw); return Math.abs(l[0]) < PAL.H + 10 && Math.abs(l[1]) < PAL.H + 10; })()));
-      if (bad) continue;
+      // nor one laid over another ramp: two that face each other on the same side of the ring share a line, and each one's piers then
+      // stand in the other's carriageway, so neither can be driven
+      const clash = L.roads.some(o => o.cls === "ramp" && o.pts.some(p => rp.some(q => Math.hypot(p[0] - q[0], p[2] - q[2]) < RHW * 2 + 6)));
+      if (bad || clash) continue;
       const ramp = { name: "Konto Metropolitan Expressway " + (k % 2 ? "off-ramp" : "on-ramp"), cls: "ramp", halfWidth: RHW, loop: false, elevated: true, pts: rp,
                      rampOf: road, rampAt: i, rampSide: [nx, nz] };
       L.roads.push(ramp); claimPath(rp, RHW + 2, false);
@@ -18889,7 +18892,9 @@ function castlePlan(m) {
     garden: { x: m.inner * 0.4, z: m.inner * 0.52, rx: 105 * k, rz: 58 * k },
     kura: { x: m.inner * 0.79, z0: -m.inner * 0.72 },
     rects: [[0, -m.inner * 0.33, m.inner * 1.42 + 16, m.inner * 0.9 + 16], [-m.inner * 0.5, m.inner * 0.6 + 48, 250, 190], [0, m.inner * 0.3, 40, m.inner * 0.6],
-            [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
+            [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40],
+            // the three bridges and their approaches, out across the footway of Uchibori-dori: no tree in a car's way
+            [0, m.inner + m.width / 2 + 20, 2 * BRIDGE_HW + 6, m.width + 60], [0, -m.inner - m.width / 2 - 20, 2 * BRIDGE_HW + 6, m.width + 60], [-m.inner - m.width / 2 - 20, 0, m.width + 60, 2 * BRIDGE_HW + 6], [-m.inner + 10, 0, 40, 60]]
   };
 }
 const BRIDGE_HW = 6;          // half the width of the castle's road bridges and their gates
@@ -38614,7 +38619,8 @@ function planDestinations(world) {
   const at = (x, z) => { for (let i = 0; i < DEST.sites.length; i++) { const s = DEST.sites[i]; if (Math.abs(x - s.cx) < s.hx && Math.abs(z - s.cz) < s.hz) return s; } return null; };
   DEST.at = at;
   world.sampleHeight = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sH(x, z); };
-  world.surfaceY = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sY(x, z); };
+  // (refY passes through: without it every elevated deck - the expressway, its ramps, the viaducts - was invisible to whatever stands or drives)
+  world.surfaceY = (x, z, refY) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sY(x, z, refY); };
   world.slopeAt = (x, z) => { const s = at(x, z); if (!s) return sS(x, z); const e = 2, h = (a, b) => s.h(a - s.cx, b - s.cz); return Math.hypot(h(x + e, z) - h(x - e, z), h(x, z + e) - h(x, z - e)) / (2 * e); };
 }
 function smoothstepJS(a, b, x) { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
