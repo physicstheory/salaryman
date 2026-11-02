@@ -25,15 +25,23 @@ var SHIGOTO = (() => {
     Characters: () => Characters,
     Engine: () => Engine,
     HostBridge: () => HostBridge,
+    MEMORY_BUDGET: () => MEMORY_BUDGET,
     PROP_DEFS: () => PROP_DEFS,
+    Persistence: () => Persistence,
+    ResidentSet: () => ResidentSet,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
     bipedNames: () => bipedNames,
     characters: () => characters,
     createEngine: () => createEngine,
+    estimateBytes: () => estimateBytes,
     kindOf: () => kindOf,
+    memoryBudget: () => memoryBudget,
+    scanScene: () => scanScene,
+    shaderFailures: () => shaderFailures,
     subdivideGeometry: () => subdivideGeometry,
-    synthesizeMaps: () => synthesizeMaps
+    synthesizeMaps: () => synthesizeMaps,
+    warmGPU: () => warmGPU
   });
 
   // src/core/Events.js
@@ -7163,6 +7171,39 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       this.lightCount = 10;
       this._pool = [];
       this._poolT = 0;
+      this.resident = false;
+    }
+    // Fetch and build every cell of every loaded level now (behind a loading screen), then keep them all.
+    // ctx: a persistence stage context ({ slice, progress }), or nothing.
+    async preloadAll(ctx) {
+      this.resident = true;
+      const jobs = [];
+      for (const l2 of this.levels) for (const k2 of l2.have) if (!l2.cells.has(k2)) jobs.push([l2, k2]);
+      let done = 0, failed = 0;
+      const one = async ([l2, k2]) => {
+        l2.cells.set(k2, { state: "loading" });
+        try {
+          const r2 = await fetch(l2.base + "cells/" + k2 + ".json");
+          if (!r2.ok) throw new Error(r2.status);
+          const data = await r2.json();
+          const out = this.builder.build(data, l2.base + k2, this.root, l2.offset);
+          l2.cells.set(k2, { state: "built", out });
+          this.engine.events.emit("cell", { key: k2, level: l2.def.name, group: out.group });
+        } catch (e2) {
+          failed++;
+          console.warn("[Shigoto] cell " + k2 + " failed", e2);
+          l2.cells.delete(k2);
+          l2.have.delete(k2);
+        }
+        done++;
+        if (ctx) {
+          ctx.progress(done / jobs.length);
+          await ctx.slice();
+        }
+      };
+      for (let i2 = 0; i2 < jobs.length; i2 += 4) await Promise.all(jobs.slice(i2, i2 + 4).map(one));
+      this.engine.stats.cells = jobs.length - failed;
+      return { cells: jobs.length - failed, failed };
     }
     // url: folder holding level.json. placement: { x, y, z } offset to put the level into a host world.
     async load(url, placement) {
@@ -7238,7 +7279,10 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       }
       for (const [k2, c2] of l2.cells) {
         if (c2.state === "loading") continue;
-        if (cellDist(k2, cs, fx, fz) > U2) this._drop(l2, k2);
+        const far = cellDist(k2, cs, fx, fz) > U2;
+        if (this.resident) {
+          if (c2.out && c2.out.group.visible === far) c2.out.group.visible = !far;
+        } else if (far) this._drop(l2, k2);
       }
     }
     _drop(l2, k2) {
@@ -7302,7 +7346,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // src/core/Engine.js
-  var VERSION = "0.2.0";
+  var VERSION = "0.3.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -7373,6 +7417,72 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       this.proxies = /* @__PURE__ */ new Map();
       this.props = [];
       this.maxProps = opts && opts.maxProps || 80;
+      this.resident = false;
+      this._hf = /* @__PURE__ */ new Set();
+      this._boxed = /* @__PURE__ */ new Set();
+    }
+    // Build the physics for the whole host world now: a collider for every solid in the world, and the ground
+    // (heightfields, which cost far more to sample) for the tiles within groundR metres of the points in `near` (where play
+    // starts). Ground elsewhere is added as you first get near it, and kept. ctx: a persistence stage context, or nothing.
+    async prebuildAll(ctx, near, groundR) {
+      if (!this.ph) return { tiles: 0 };
+      this.resident = true;
+      if (this._solids && !this._index) this._buildIndex();
+      const t2 = this.tile, R2 = groundR || 360;
+      const keys = this._index ? [...this._index.keys()] : [];
+      const want = new Set(keys);
+      for (const p2 of near || []) for (let z2 = Math.floor((p2[1] - R2) / t2); z2 <= Math.floor((p2[1] + R2) / t2); z2++) for (let x2 = Math.floor((p2[0] - R2) / t2); x2 <= Math.floor((p2[0] + R2) / t2); x2++)
+        if (Math.hypot((x2 + 0.5) * t2 - p2[0], (z2 + 0.5) * t2 - p2[1]) <= R2 + t2 * 0.7) want.add(x2 + "," + z2 + ",g");
+      let n2 = 0, boxes = 0, ground = 0;
+      for (const k2 of want) {
+        const [x2, z2, g2] = k2.split(",");
+        if (g2) {
+          if (this._buildGround(+x2, +z2)) ground++;
+        } else boxes += this._buildTile(+x2, +z2, false);
+        n2++;
+        if (ctx) {
+          if ((n2 & 15) === 0) ctx.progress(n2 / want.size);
+          await ctx.slice();
+        }
+      }
+      try {
+        this.ph.world.step();
+      } catch (e2) {
+      }
+      return { tiles: this._tiles.size, boxes, groundTiles: ground, solids: this._solids ? this._solids.length : 0 };
+    }
+    _buildGround(x2, z2) {
+      const t2 = this.tile, key = "host:" + x2 + "," + z2;
+      if (!this._ground || this._hf.has(key)) return false;
+      this._hf.add(key);
+      if (!this._tiles.has(key)) this._tiles.set(key, true);
+      this.ph.addHeightfield(key, (x2 + 0.5) * t2, (z2 + 0.5) * t2, t2, 20, this._ground);
+      return true;
+    }
+    _buildTile(x2, z2, withGround) {
+      const t2 = this.tile, key = "host:" + x2 + "," + z2;
+      if (withGround !== false) this._buildGround(x2, z2);
+      if (this._boxed.has(key)) return 0;
+      this._boxed.add(key);
+      this._tiles.set(key, true);
+      let n2 = 0;
+      const l2 = this._index && this._index.get(x2 + "," + z2);
+      if (l2) for (const i2 of l2) {
+        const b2 = this._solids[i2];
+        if (Math.floor(b2.c[0] / t2) !== x2 || Math.floor(b2.c[1] / t2) !== z2) continue;
+        const h2 = b2.h || 10, y2 = b2.y || 0;
+        this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+        n2++;
+      }
+      return n2;
+    }
+    // How many solids have a collider (for the persistence checks): every solid belongs to exactly one tile.
+    coverage() {
+      if (!this._solids) return { solids: 0, covered: 0 };
+      const t2 = this.tile;
+      let covered = 0;
+      for (const b2 of this._solids) if (this._boxed.has("host:" + Math.floor(b2.c[0] / t2) + "," + Math.floor(b2.c[1] / t2))) covered++;
+      return { solids: this._solids.length, covered };
     }
     solids(list) {
       this._solids = list;
@@ -7408,6 +7518,8 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     _dropAll() {
       for (const k2 of this._tiles.keys()) this.ph.removeOwner(k2);
       this._tiles.clear();
+      this._hf.clear();
+      this._boxed.clear();
     }
     _buildIndex() {
       const t2 = this.tile, map = /* @__PURE__ */ new Map();
@@ -7441,21 +7553,17 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         if (Math.hypot(cx - focus.x, cz - focus.z) > R2 + t2 * 0.7) continue;
         const key = "host:" + x2 + "," + z2;
         keep.add(key);
-        if (this._tiles.has(key) || built >= 2) continue;
+        if (this._boxed.has(key) && (this._hf.has(key) || !this._ground) || built >= 2) continue;
         built++;
-        this._tiles.set(key, true);
-        if (this._ground) this.ph.addHeightfield(key, cx, cz, t2, 20, this._ground);
-        const l2 = this._index && this._index.get(x2 + "," + z2);
-        if (l2) for (const i2 of l2) {
-          const b2 = this._solids[i2];
-          if (Math.floor(b2.c[0] / t2) !== x2 || Math.floor(b2.c[1] / t2) !== z2) continue;
-          const h2 = b2.h || 10, y2 = b2.y || 0;
-          this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
-        }
+        this._buildTile(x2, z2);
       }
-      for (const k2 of [...this._tiles.keys()]) if (!keep.has(k2)) {
-        this.ph.removeOwner(k2);
-        this._tiles.delete(k2);
+      if (!this.resident) {
+        for (const k2 of [...this._tiles.keys()]) if (!keep.has(k2)) {
+          this.ph.removeOwner(k2);
+          this._tiles.delete(k2);
+          this._hf.delete(k2);
+          this._boxed.delete(k2);
+        }
       }
     }
   };
@@ -8113,5 +8221,350 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     });
     return n2;
   }
+
+  // src/persist/Persistence.js
+  var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+  var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
+  var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
+  function memoryBudget(tier) {
+    let b2 = MEMORY_BUDGET[tier] || MEMORY_BUDGET.medium;
+    try {
+      const m2 = performance.memory;
+      if (m2 && m2.jsHeapSizeLimit) b2 = Math.min(b2, m2.jsHeapSizeLimit * 0.55);
+    } catch (e2) {
+    }
+    return b2;
+  }
+  function geoBytes(g2, seen) {
+    if (!g2 || seen.has(g2)) return 0;
+    seen.add(g2);
+    let n2 = 0;
+    if (g2.index) n2 += g2.index.array.byteLength;
+    for (const k2 in g2.attributes) {
+      const a2 = g2.attributes[k2];
+      if (a2 && a2.array) n2 += a2.array.byteLength;
+      else if (a2 && a2.data && a2.data.array && !seen.has(a2.data)) {
+        seen.add(a2.data);
+        n2 += a2.data.array.byteLength;
+      }
+    }
+    return n2;
+  }
+  function texBytes(t2, seen) {
+    if (!t2 || seen.has(t2)) return 0;
+    seen.add(t2);
+    const im = t2.image;
+    const w2 = im && (im.width || im.videoWidth) || 0, h2 = im && (im.height || im.videoHeight) || 0;
+    return w2 * h2 * 4 * (t2.generateMipmaps !== false ? 1.33 : 1) * (t2.isCubeTexture ? 6 : 1);
+  }
+  var TEX_SLOTS = ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap", "alphaMap", "bumpMap", "displacementMap", "lightMap", "specularMap", "clearcoatNormalMap", "transmissionMap"];
+  function estimateBytes(root, seen) {
+    seen = seen || /* @__PURE__ */ new Set();
+    let geo = 0, tex = 0;
+    root.traverse((o2) => {
+      if (o2.geometry) geo += geoBytes(o2.geometry, seen);
+      if (o2.isInstancedMesh && o2.instanceMatrix && !seen.has(o2.instanceMatrix)) {
+        seen.add(o2.instanceMatrix);
+        geo += o2.instanceMatrix.array.byteLength;
+      }
+      const ms = o2.material ? Array.isArray(o2.material) ? o2.material : [o2.material] : [];
+      for (const m2 of ms) for (const s2 of TEX_SLOTS) if (m2[s2]) tex += texBytes(m2[s2], seen);
+    });
+    return { geo, tex, total: geo + tex };
+  }
+  var ResidentSet = class {
+    constructor(name, opts) {
+      this.name = name;
+      this.map = /* @__PURE__ */ new Map();
+      this.bytes = 0;
+      this.budget = opts && opts.budget || Infinity;
+      this.evictions = 0;
+      this.onEvict = opts && opts.onEvict || null;
+      this._tick = 0;
+    }
+    get size() {
+      return this.map.size;
+    }
+    has(key) {
+      return this.map.has(key);
+    }
+    get(key) {
+      const e2 = this.map.get(key);
+      if (e2) e2.seen = ++this._tick;
+      return e2 ? e2.obj : void 0;
+    }
+    // x, z: where it is (for eviction by distance). bytes: what it costs (estimated if left out).
+    add(key, obj, x2, z2, bytes) {
+      if (this.map.has(key)) this.remove(key, true);
+      const b2 = bytes != null ? bytes : obj ? estimateBytes(obj).total : 0;
+      this.map.set(key, { obj, x: x2 || 0, z: z2 || 0, bytes: b2, seen: ++this._tick });
+      this.bytes += b2;
+      return obj;
+    }
+    // Mark an entry as seen (shown this frame): it is the last to go if memory runs short.
+    touch(key) {
+      const e2 = this.map.get(key);
+      if (e2) e2.seen = ++this._tick;
+    }
+    remove(key, quiet) {
+      const e2 = this.map.get(key);
+      if (!e2) return;
+      this.map.delete(key);
+      this.bytes -= e2.bytes;
+      if (!quiet && this.onEvict) this.onEvict(key, e2.obj);
+    }
+    // Over budget: drop hidden entries, furthest from (fx, fz) and longest unseen first, until it fits. Visible ones stay.
+    enforce(fx, fz) {
+      if (this.bytes <= this.budget) return 0;
+      const c2 = [];
+      for (const [k2, e2] of this.map) if (!e2.obj || !e2.obj.visible) c2.push([Math.hypot(e2.x - fx, e2.z - fz) - e2.seen * 1e-3, k2]);
+      c2.sort((a2, b2) => b2[0] - a2[0]);
+      let n2 = 0;
+      for (const [, k2] of c2) {
+        if (this.bytes <= this.budget * 0.92) break;
+        this.remove(k2);
+        n2++;
+      }
+      this.evictions += n2;
+      if (n2) console.warn("[Shigoto] resident " + this.name + ": over its memory budget, let go of " + n2 + " far, hidden pieces (they rebuild if you go back)");
+      return n2;
+    }
+    report() {
+      return { entries: this.map.size, mb: +(this.bytes / 1e6).toFixed(1), budgetMb: isFinite(this.budget) ? +(this.budget / 1e6).toFixed(0) : null, evictions: this.evictions };
+    }
+  };
+  function scanScene(root, opts) {
+    const repair = !(opts && opts.repair === false);
+    const out = { meshes: 0, tris: 0, nan: [], empty: [], badTex: [], repaired: 0 };
+    const deadTex = /* @__PURE__ */ new Set(), okTex = /* @__PURE__ */ new Set();
+    root.traverse((o2) => {
+      if (!o2.isMesh && !o2.isPoints && !o2.isLine) return;
+      out.meshes++;
+      const g2 = o2.geometry;
+      const p2 = g2 && g2.attributes && g2.attributes.position;
+      if (!p2 || p2.count === 0) {
+        if (!o2.isInstancedMesh || !p2) {
+          out.empty.push(o2.name || o2.uuid);
+        }
+        return;
+      }
+      out.tris += (g2.index ? g2.index.count : p2.count) / 3 * (o2.isInstancedMesh ? Math.max(1, o2.count) : 1);
+      if (!g2.boundingSphere) {
+        try {
+          g2.computeBoundingSphere();
+        } catch (e2) {
+        }
+      }
+      const s2 = g2.boundingSphere;
+      if (!s2 || !isFinite(s2.radius) || !isFinite(s2.center.x + s2.center.y + s2.center.z)) {
+        out.nan.push(o2.name || o2.parent && o2.parent.name || o2.uuid);
+        if (repair) {
+          o2.visible = false;
+          o2.userData.persistBroken = true;
+          out.repaired++;
+        }
+      }
+      const ms = o2.material ? Array.isArray(o2.material) ? o2.material : [o2.material] : [];
+      for (const m2 of ms) for (const sl of TEX_SLOTS) {
+        const t2 = m2[sl];
+        if (!t2 || okTex.has(t2)) continue;
+        const im = t2.image;
+        const ok = deadTex.has(t2) ? false : t2.isDataTexture || t2.isCompressedTexture || t2.isRenderTargetTexture || t2.isCubeTexture || t2.isVideoTexture || t2.isCanvasTexture || im && (im instanceof (typeof HTMLCanvasElement !== "undefined" ? HTMLCanvasElement : Object) || typeof ImageBitmap !== "undefined" && im instanceof ImageBitmap || im.data || im.complete !== false && (im.naturalWidth > 0 || im.width > 0));
+        if (ok || !im) {
+          okTex.add(t2);
+          continue;
+        }
+        if (im.complete === false) {
+          okTex.add(t2);
+          continue;
+        }
+        deadTex.add(t2);
+        out.badTex.push((m2.name || m2.type) + "." + sl);
+        if (repair) {
+          m2[sl] = null;
+          m2.needsUpdate = true;
+          out.repaired++;
+        }
+      }
+    });
+    return out;
+  }
+  function shaderFailures(renderer) {
+    const bad = [];
+    try {
+      const gl = renderer.getContext();
+      for (const p2 of renderer.info.programs || []) {
+        if (p2.program && !gl.getProgramParameter(p2.program, gl.LINK_STATUS)) bad.push(p2.name || p2.cacheKey || "program " + p2.id);
+        else if (p2.diagnostics && p2.diagnostics.runnable === false) bad.push(p2.name || "program " + p2.id);
+      }
+    } catch (e2) {
+    }
+    return bad;
+  }
+  function warmGPU(renderer, scene, camera, opts) {
+    const T2 = opts && opts.THREE;
+    const t0 = now(), saved = [];
+    scene.traverse((o2) => {
+      if (o2.userData && o2.userData.persistBroken) return;
+      if (!o2.visible || o2.frustumCulled) {
+        saved.push([o2, o2.visible, o2.frustumCulled]);
+        o2.visible = true;
+        o2.frustumCulled = false;
+      }
+    });
+    let programs0 = 0, programs1 = 0, error = null;
+    try {
+      programs0 = (renderer.info.programs || []).length;
+      renderer.compile(scene, camera);
+      if (T2 && T2.WebGLRenderTarget) {
+        const rt = new T2.WebGLRenderTarget(16, 16);
+        const was = renderer.getRenderTarget(), auto = renderer.shadowMap.autoUpdate;
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(was);
+        renderer.shadowMap.autoUpdate = auto;
+        rt.dispose();
+      }
+      programs1 = (renderer.info.programs || []).length;
+    } catch (e2) {
+      error = e2;
+    }
+    for (let i2 = saved.length - 1; i2 >= 0; i2--) {
+      const s2 = saved[i2];
+      s2[0].visible = s2[1];
+      s2[0].frustumCulled = s2[2];
+    }
+    return { ms: Math.round(now() - t0), objects: saved.length, programs: programs1, newPrograms: programs1 - programs0, error: error ? String(error.message || error) : null };
+  }
+  var Persistence = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.sliceMs = opts.sliceMs || 28;
+      this.stages = [];
+      this.checks = [];
+      this.resident = /* @__PURE__ */ new Map();
+      this.report = null;
+      this.running = false;
+      this.done = false;
+      this.budget = opts.budget || memoryBudget(opts.tier);
+      this.log = [];
+    }
+    // A stage of the load. fn(ctx) may be async; long loops call `await ctx.slice()` often and ctx.progress(0..1).
+    stage(name, weight, fn, opts) {
+      this.stages.push({ name, weight: weight || 1, fn, optional: !!(opts && opts.optional), label: opts && opts.label || name });
+      return this;
+    }
+    // A check against one framework (scene, shaders, physics, characters, memory, world...). fn(ctx) returns:
+    //   true / undefined            pass
+    //   "text"                      fail, with why
+    //   { ok, detail, repaired }    full answer (repaired: it was wrong and has been put right)
+    check(framework, name, fn) {
+      this.checks.push({ framework, name, fn });
+      return this;
+    }
+    // A named resident set, sharing the persistence memory budget in the given proportion.
+    residentSet(name, share) {
+      let s2 = this.resident.get(name);
+      if (!s2) {
+        s2 = new ResidentSet(name, { budget: this.budget * (share || 0.25) });
+        this.resident.set(name, s2);
+      }
+      return s2;
+    }
+    residentBytes() {
+      let n2 = 0;
+      for (const s2 of this.resident.values()) n2 += s2.bytes;
+      return n2;
+    }
+    async run(onProgress) {
+      if (this.running) throw new Error("Shigoto persistence: already loading");
+      this.running = true;
+      const T0 = now();
+      const total = this.stages.reduce((a2, s2) => a2 + s2.weight, 0) || 1;
+      let before = 0, sliceAt = now();
+      const report = { stages: [], checks: [], failed: 0, repaired: 0, ms: 0, residentMb: 0, budgetMb: Math.round(this.budget / 1e6) };
+      const say = (label, t2) => {
+        try {
+          onProgress && onProgress(label, Math.max(0, Math.min(1, t2)));
+        } catch (e2) {
+        }
+      };
+      for (const st of this.stages) {
+        const s0 = now();
+        let frac = 0;
+        const ctx = {
+          persistence: this,
+          progress: (t2) => {
+            frac = Math.max(frac, Math.min(1, t2));
+            say(st.label, (before + st.weight * frac) / total);
+          },
+          // yield if this slice has used its time; cheap enough to call every iteration
+          slice: async () => {
+            if (now() - sliceAt > this.sliceMs) {
+              await breathe();
+              sliceAt = now();
+            }
+          },
+          breathe: async () => {
+            await breathe();
+            sliceAt = now();
+          },
+          note: (text) => this.log.push("[" + st.name + "] " + text)
+        };
+        say(st.label, before / total);
+        let result = null, error = null;
+        try {
+          result = await st.fn(ctx);
+        } catch (e2) {
+          error = e2;
+          console.error("[Shigoto] persistence stage '" + st.name + "' failed", e2);
+        }
+        before += st.weight;
+        report.stages.push({ name: st.name, ms: Math.round(now() - s0), ok: !error, error: error ? String(error.message || error) : void 0, result: result == null ? void 0 : result });
+        await breathe();
+        sliceAt = now();
+      }
+      say("Checking the world", 0.995);
+      for (const c2 of this.checks) {
+        let r2;
+        try {
+          r2 = await c2.fn({ persistence: this });
+        } catch (e2) {
+          r2 = { ok: false, detail: "check threw: " + (e2.message || e2) };
+        }
+        if (r2 === void 0 || r2 === true) r2 = { ok: true };
+        else if (typeof r2 === "string") r2 = { ok: false, detail: r2 };
+        else if (r2 === false) r2 = { ok: false };
+        const row = Object.assign({ framework: c2.framework, name: c2.name }, r2);
+        if (!row.ok) report.failed++;
+        if (row.repaired) report.repaired++;
+        report.checks.push(row);
+        if (now() - sliceAt > this.sliceMs) {
+          await breathe();
+          sliceAt = now();
+        }
+      }
+      report.ms = Math.round(now() - T0);
+      report.residentMb = +(this.residentBytes() / 1e6).toFixed(1);
+      report.resident = {};
+      for (const [k2, s2] of this.resident) report.resident[k2] = s2.report();
+      this.report = report;
+      this.running = false;
+      this.done = true;
+      say("Ready", 1);
+      const bad = report.checks.filter((c2) => !c2.ok);
+      console.log("[Shigoto] persistence: world built and checked in " + (report.ms / 1e3).toFixed(1) + " s; " + report.checks.length + " checks, " + bad.length + " failed, " + report.repaired + " repaired; " + report.residentMb + " MB resident of a " + report.budgetMb + " MB budget");
+      for (const b2 of bad) console.warn("[Shigoto] check failed: " + b2.framework + " / " + b2.name + (b2.detail ? ": " + b2.detail : ""));
+      return report;
+    }
+    // A plain-text summary for the console and the F3 overlay.
+    summary() {
+      const r2 = this.report;
+      if (!r2) return this.running ? "persistence: loading" : "persistence: not run";
+      const lines = ["persistence: built + checked in " + (r2.ms / 1e3).toFixed(1) + " s, " + r2.residentMb + "/" + r2.budgetMb + " MB"];
+      for (const c2 of r2.checks) lines.push((c2.ok ? c2.repaired ? "FIXED " : "ok    " : "FAIL  ") + c2.framework + " / " + c2.name + (c2.detail ? " - " + c2.detail : ""));
+      return lines.join("\n");
+    }
+  };
   return __toCommonJS(index_exports);
 })();
