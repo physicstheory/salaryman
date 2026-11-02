@@ -25,7 +25,7 @@ await page.route("**/GLTFLoader.js", r => r.fulfill({ path: path.join(VENDOR, "G
 await page.route("**/RGBELoader.js", r => r.fulfill({ path: path.join(VENDOR, "RGBELoader.js"), contentType: "text/javascript" }));
 await page.route(/fonts\.(googleapis|gstatic)/, r => r.abort());
 const wait = ms => page.waitForTimeout(ms), ev = (f, a) => page.evaluate(f, a);
-await page.goto(`http://localhost:${port}/konto.html?persist=0`, { waitUntil: "commit" });
+await page.goto(`http://localhost:${port}/konto.html${process.env.QS ?? "?persist=0"}`, { waitUntil: "commit" });
 for (let i = 0; i < 120; i++) { try { if (/titleup/.test(await ev(() => document.body.className))) break; } catch (e) {} await wait(5000); }
 console.log("title"); fs.writeFileSync(path.join(DIR, "state"), "title");
 const cmd = path.join(DIR, "cmd.js"), out = path.join(DIR, "out.json");
