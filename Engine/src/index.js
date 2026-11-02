@@ -32,3 +32,8 @@ export { Boat, BOAT_SPECS, buildHull } from "./vehicles/Boat.js";
 export { Ocean, GERSTNER_WAVES } from "./vehicles/Ocean.js";
 // Ragdoll: limp bodies that fall, tumble and slide under real physics on any rigged human, then get back up. Needs only THREE.
 export { RagdollSystem, RAGDOLL_JOINTS, findRagdollBones } from "./ragdoll/Ragdoll.js";
+// Skydiving: freefall as a lifting body, wind with height, gusts and building wakes, pilot chute to opening shock, and a ram-air canopy
+// that turns, dives, flares and stalls; plus the canopy, lines, slider, pilot chute and container as models. Needs only THREE for the models.
+export { Skydiver, CANOPY_SPECS, airDensity } from "./skydive/Skydiver.js";
+export { WindField, WIND_PRESETS } from "./skydive/Wind.js";
+export { CanopyRig, CANOPY_SCHEMES } from "./skydive/CanopyModel.js";

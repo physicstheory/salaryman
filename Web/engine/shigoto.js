@@ -18,13 +18,16 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/index.js
+  // Engine/src/index.js
   var index_exports = {};
   __export(index_exports, {
     BIKE_SPECS: () => BIKE_SPECS,
     BOAT_SPECS: () => BOAT_SPECS,
     Boat: () => Boat,
+    CANOPY_SCHEMES: () => CANOPY_SCHEMES,
+    CANOPY_SPECS: () => CANOPY_SPECS,
     CHAR_QUALITY: () => CHAR_QUALITY,
+    CanopyRig: () => CanopyRig,
     Characters: () => Characters,
     Engine: () => Engine,
     GERSTNER_WAVES: () => GERSTNER_WAVES,
@@ -46,10 +49,14 @@ var SHIGOTO = (() => {
     Respect: () => Respect,
     SLOT_MATERIALS: () => SLOT_MATERIALS,
     STANDING_ICONS: () => STANDING_ICONS,
+    Skydiver: () => Skydiver,
     StandingHud: () => StandingHud,
     TEMPERS: () => TEMPERS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
+    WIND_PRESETS: () => WIND_PRESETS,
+    WindField: () => WindField,
+    airDensity: () => airDensity,
     bipedNames: () => bipedNames,
     buildHull: () => buildHull,
     characters: () => characters,
@@ -67,7 +74,7 @@ var SHIGOTO = (() => {
     warmGPU: () => warmGPU
   });
 
-  // src/core/Events.js
+  // Engine/src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -98,7 +105,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -197,45 +204,45 @@ var SHIGOTO = (() => {
       const I2 = A.rawbroadphase_new();
       return this.__wbg_ptr = I2 >>> 0, L.register(this, this.__wbg_ptr, this), this;
     }
-    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
+    castRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
+        const y2 = A.rawbroadphase_castRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : aA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
+    castRayAndGetNormal(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA);
-        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
+        const y2 = A.rawbroadphase_castRayAndGetNormal(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
         return 0 === y2 ? void 0 : RA.__wrap(y2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3, y2) {
+    intersectionsWithRay(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3, y2) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G4) ? 4294967297 : G4 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, WA), A.rawbroadphase_intersectionsWithRay(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2, h(w2), S4, o(G5) ? 4294967297 : G5 >>> 0, !o(U2), o(U2) ? 0 : U2, !o(J3), o(J3) ? 0 : J3, h(y2));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G4, U2, J3) {
+    intersectionWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, G5, U2, J3) {
       try {
         const N3 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionWithShape(N3, this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2, o(w2) ? 4294967297 : w2 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
         var y2 = S().getInt32(N3 + 0, true), M2 = S().getFloat64(N3 + 8, true);
         return 0 === y2 ? void 0 : M2;
       } finally {
         A.__wbindgen_add_to_stack_pointer(16), I[K++] = void 0;
       }
     }
-    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4) {
+    projectPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G4));
+        const U2 = A.rawbroadphase_projectPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G5));
         return 0 === U2 ? void 0 : yA.__wrap(U2);
       } finally {
         I[K++] = void 0;
@@ -244,31 +251,31 @@ var SHIGOTO = (() => {
     projectPointAndGetFeature(g2, C2, B2, Q2, E2, i2, D2, w2, S4) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA);
-        const G4 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
-        return 0 === G4 ? void 0 : yA.__wrap(G4);
+        const G5 = A.rawbroadphase_projectPointAndGetFeature(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2, o(i2) ? 4294967297 : i2 >>> 0, !o(D2), o(D2) ? 0 : D2, !o(w2), o(w2) ? 0 : w2, h(S4));
+        return 0 === G5 ? void 0 : yA.__wrap(G5);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4) {
+    intersectionsWithPoint(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G4));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), A.rawbroadphase_intersectionsWithPoint(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, h(E2), i2, o(D2) ? 4294967297 : D2 >>> 0, !o(w2), o(w2) ? 0 : w2, !o(S4), o(S4) ? 0 : S4, h(G5));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
     }
-    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3, y2, M2, N3) {
+    castShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3, y2, M2, N3) {
       try {
         k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, WA), k(D2, OA);
-        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G4, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
+        const F2 = A.rawbroadphase_castShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, w2, S4, G5, U2, o(J3) ? 4294967297 : J3 >>> 0, !o(y2), o(y2) ? 0 : y2, !o(M2), o(M2) ? 0 : M2, h(N3));
         return 0 === F2 ? void 0 : d.__wrap(F2);
       } finally {
         I[K++] = void 0;
       }
     }
-    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
+    intersectionsWithShape(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
-        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G4), o(G4) ? 0 : G4, !o(U2), o(U2) ? 0 : U2, h(J3));
+        k(g2, GA), k(C2, lA), k(B2, O), k(Q2, WA), k(E2, HA), k(i2, OA), A.rawbroadphase_intersectionsWithShape(this.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, h(D2), w2, o(S4) ? 4294967297 : S4 >>> 0, !o(G5), o(G5) ? 0 : G5, !o(U2), o(U2) ? 0 : U2, h(J3));
       } finally {
         I[K++] = void 0, I[K++] = void 0;
       }
@@ -668,10 +675,10 @@ var SHIGOTO = (() => {
     contains(I2) {
       return 0 !== A.rawcolliderset_contains(this.__wbg_ptr, I2);
     }
-    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
+    createCollider(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       try {
         const H2 = A.__wbindgen_add_to_stack_pointer(-16);
-        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
+        k(g2, OA), k(C2, WA), k(B2, HA), k(i2, WA), k(D2, WA), k(o2, HA), k(q2, lA), A.rawcolliderset_createCollider(H2, this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2.__wbg_ptr);
         var l2 = S().getInt32(H2 + 0, true), L3 = S().getFloat64(H2 + 8, true);
         return 0 === l2 ? void 0 : L3;
       } finally {
@@ -1557,9 +1564,9 @@ var SHIGOTO = (() => {
     snapToGroundEnabled() {
       return 0 !== A.rawkinematiccharactercontroller_snapToGroundEnabled(this.__wbg_ptr);
     }
-    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G4, U2, J3) {
+    computeColliderMovement(g2, C2, B2, Q2, E2, i2, D2, w2, S4, G5, U2, J3) {
       try {
-        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G4, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
+        k(C2, H), k(B2, GA), k(Q2, lA), k(E2, O), k(D2, WA), A.rawkinematiccharactercontroller_computeColliderMovement(this.__wbg_ptr, g2, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2, D2.__wbg_ptr, w2, o(S4) ? 4294967297 : Math.fround(S4), G5, o(U2) ? 4294967297 : U2 >>> 0, h(J3));
       } finally {
         I[K++] = void 0;
       }
@@ -1767,8 +1774,8 @@ var SHIGOTO = (() => {
     step(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
       k(I2, WA), k(g2, BA), k(C2, EA), k(B2, H), k(Q2, GA), k(E2, lA), k(i2, O), k(D2, gA), k(o2, wA), k(w2, p), A.rawphysicspipeline_step(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr);
     }
-    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G4, K2, h2, U2) {
-      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G4, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G4.__wbg_ptr, B(K2), B(h2), B(U2));
+    stepWithEvents(I2, g2, C2, Q2, E2, i2, D2, o2, w2, S4, G5, K2, h2, U2) {
+      k(I2, WA), k(g2, BA), k(C2, EA), k(Q2, H), k(E2, GA), k(i2, lA), k(D2, O), k(o2, gA), k(w2, wA), k(S4, p), k(G5, v), A.rawphysicspipeline_stepWithEvents(this.__wbg_ptr, I2.__wbg_ptr, g2.__wbg_ptr, C2.__wbg_ptr, Q2.__wbg_ptr, E2.__wbg_ptr, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G5.__wbg_ptr, B(K2), B(h2), B(U2));
     }
   };
   var hA = "undefined" == typeof FinalizationRegistry ? { register: () => {
@@ -2216,9 +2223,9 @@ var SHIGOTO = (() => {
       const I2 = A.rawrigidbodyset_new();
       return this.__wbg_ptr = I2 >>> 0, qA.register(this, this.__wbg_ptr, this), this;
     }
-    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
+    createRigidBody(I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2) {
       k(g2, WA), k(C2, HA), k(i2, WA), k(D2, WA), k(o2, WA), k(w2, WA), k(S4, HA);
-      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G4, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
+      return A.rawrigidbodyset_createRigidBody(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2, Q2, E2, i2.__wbg_ptr, D2.__wbg_ptr, o2.__wbg_ptr, w2.__wbg_ptr, S4.__wbg_ptr, G5, K2, h2, U2, J3, y2, M2, N3, F2, a2, s2, R2, Y2, c2, q2);
     }
     remove(I2, g2, C2, B2, Q2) {
       k(g2, EA), k(C2, O), k(B2, gA), k(Q2, wA), A.rawrigidbodyset_remove(this.__wbg_ptr, I2, g2.__wbg_ptr, C2.__wbg_ptr, B2.__wbg_ptr, Q2.__wbg_ptr);
@@ -3709,20 +3716,20 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     castRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G4 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G4, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G4.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G5 = mA.intoRaw(C2.dir), k2 = jI.fromRaw(g2, this.raw.castRay(A2.raw, I2.raw, g2.raw, S4, G5, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G5.free(), k2;
     }
     castRayAndGetNormal(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2.origin), G4 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G4, B2, Q2, E2, i2, D2, o2, w2));
-      return S4.free(), G4.free(), k2;
+      let S4 = mA.intoRaw(C2.origin), G5 = mA.intoRaw(C2.dir), k2 = ZI.fromRaw(g2, this.raw.castRayAndGetNormal(A2.raw, I2.raw, g2.raw, S4, G5, B2, Q2, E2, i2, D2, o2, w2));
+      return S4.free(), G5.free(), k2;
     }
     intersectionsWithRay(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G4 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
-      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G4, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G4.free(), k2.free();
+      let G5 = mA.intoRaw(C2.origin), k2 = mA.intoRaw(C2.dir);
+      this.raw.intersectionsWithRay(A2.raw, I2.raw, g2.raw, G5, k2, B2, Q2, ((A3) => E2(ZI.fromRaw(g2, A3))), i2, D2, o2, w2, S4), G5.free(), k2.free();
     }
     intersectionWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2) {
-      let S4 = mA.intoRaw(C2), G4 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G4, k2, E2, i2, D2, o2, w2);
-      return S4.free(), G4.free(), k2.free(), K2;
+      let S4 = mA.intoRaw(C2), G5 = PA.intoRaw(B2), k2 = Q2.intoRaw(), K2 = this.raw.intersectionWithShape(A2.raw, I2.raw, g2.raw, S4, G5, k2, E2, i2, D2, o2, w2);
+      return S4.free(), G5.free(), k2.free(), K2;
     }
     projectPoint(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
       let w2 = mA.intoRaw(C2), S4 = WI.fromRaw(g2, this.raw.projectPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2));
@@ -3736,13 +3743,13 @@ var SHIGOTO = (() => {
       let w2 = mA.intoRaw(C2);
       this.raw.intersectionsWithPoint(A2.raw, I2.raw, g2.raw, w2, B2, Q2, E2, i2, D2, o2), w2.free();
     }
-    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4, k2, K2) {
-      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G4, k2, K2));
+    castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5, k2, K2) {
+      let h2 = mA.intoRaw(C2), U2 = PA.intoRaw(B2), J3 = mA.intoRaw(Q2), y2 = E2.intoRaw(), M2 = fI.fromRaw(g2, this.raw.castShape(A2.raw, I2.raw, g2.raw, h2, U2, J3, y2, i2, D2, o2, w2, S4, G5, k2, K2));
       return h2.free(), U2.free(), J3.free(), y2.free(), M2;
     }
     intersectionsWithShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G4 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
-      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G4, k2, K2, E2, i2, D2, o2, w2, S4), G4.free(), k2.free(), K2.free();
+      let G5 = mA.intoRaw(C2), k2 = PA.intoRaw(B2), K2 = Q2.intoRaw();
+      this.raw.intersectionsWithShape(A2.raw, I2.raw, g2.raw, G5, k2, K2, E2, i2, D2, o2, w2, S4), G5.free(), k2.free(), K2.free();
     }
     collidersWithAabbIntersectingAabb(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(C2), i2 = mA.intoRaw(B2);
@@ -3881,8 +3888,8 @@ var SHIGOTO = (() => {
           return new Qg(w2, S4);
         case l.TriMesh:
           Q2 = A2.coVertices(I2), E2 = A2.coIndices(I2);
-          const G4 = A2.coTriMeshFlags(I2);
-          return new Eg(Q2, E2, G4);
+          const G5 = A2.coTriMeshFlags(I2);
+          return new Eg(Q2, E2, G5);
         case l.HeightField:
           const k2 = A2.coHeightfieldScale(I2), K2 = A2.coHeightfieldHeights(I2), h2 = A2.coHeightfieldNRows(I2), U2 = A2.coHeightfieldNCols(I2), J3 = A2.coHeightFieldFlags(I2);
           return new og(h2, U2, K2, k2, J3);
@@ -3903,16 +3910,16 @@ var SHIGOTO = (() => {
       }
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2) {
-      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G4 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G4, J3, k2, K2, h2, i2, D2, o2));
-      return w2.free(), S4.free(), G4.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
+      let w2 = mA.intoRaw(A2), S4 = PA.intoRaw(I2), G5 = mA.intoRaw(g2), k2 = mA.intoRaw(B2), K2 = PA.intoRaw(Q2), h2 = mA.intoRaw(E2), U2 = this.intoRaw(), J3 = C2.intoRaw(), y2 = xI.fromRaw(null, U2.castShape(w2, S4, G5, J3, k2, K2, h2, i2, D2, o2));
+      return w2.free(), S4.free(), G5.free(), k2.free(), K2.free(), h2.free(), U2.free(), J3.free(), y2;
     }
     intersectsShape(A2, I2, g2, C2, B2) {
       let Q2 = mA.intoRaw(A2), E2 = PA.intoRaw(I2), i2 = mA.intoRaw(C2), D2 = PA.intoRaw(B2), o2 = this.intoRaw(), w2 = g2.intoRaw(), S4 = o2.intersectsShape(Q2, E2, w2, i2, D2);
       return Q2.free(), E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4;
     }
     contactShape(A2, I2, g2, C2, B2, Q2) {
-      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G4 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
-      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G4;
+      let E2 = mA.intoRaw(A2), i2 = PA.intoRaw(I2), D2 = mA.intoRaw(C2), o2 = PA.intoRaw(B2), w2 = this.intoRaw(), S4 = g2.intoRaw(), G5 = VI.fromRaw(w2.contactShape(E2, i2, S4, D2, o2, Q2));
+      return E2.free(), i2.free(), D2.free(), o2.free(), w2.free(), S4.free(), G5;
     }
     containsPoint(A2, I2, g2) {
       let C2 = mA.intoRaw(A2), B2 = PA.intoRaw(I2), Q2 = mA.intoRaw(g2), E2 = this.intoRaw(), i2 = E2.containsPoint(C2, B2, Q2);
@@ -4100,8 +4107,8 @@ var SHIGOTO = (() => {
       this.raw && this.raw.free(), this.raw = void 0;
     }
     step(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4) {
-      let G4 = mA.intoRaw(A2);
-      w2 ? this.raw.stepWithEvents(G4, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G4, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G4.free();
+      let G5 = mA.intoRaw(A2);
+      w2 ? this.raw.stepWithEvents(G5, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw, w2.raw, S4, S4 ? S4.filterContactPair : null, S4 ? S4.filterIntersectionPair : null) : this.raw.step(G5, I2.raw, g2.raw, C2.raw, B2.raw, Q2.raw, E2.raw, i2.raw, D2.raw, o2.raw), G5.free();
     }
   };
   var hg = class {
@@ -4447,8 +4454,8 @@ var SHIGOTO = (() => {
     }
   };
   var ag = class _ag {
-    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G4) {
-      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G4), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
+    constructor(A2, I2, g2, C2, B2, Q2, E2, i2, D2, o2, w2, S4, G5) {
+      this.gravity = A2, this.integrationParameters = new UI(I2), this.islands = new OI(g2), this.broadPhase = new mI(C2), this.narrowPhase = new XI(B2), this.bodies = new hI(Q2), this.colliders = new qg(E2), this.impulseJoints = new qI(i2), this.multibodyJoints = new eI(D2), this.ccdSolver = new TI(o2), this.physicsPipeline = new Kg(w2), this.serializationPipeline = new hg(S4), this.debugRenderPipeline = new Jg(G5), this.characterControllers = /* @__PURE__ */ new Set(), this.pidControllers = /* @__PURE__ */ new Set(), this.vehicleControllers = /* @__PURE__ */ new Set(), this.impulseJoints.finalizeDeserialization(this.bodies), this.bodies.finalizeDeserialization(this.colliders), this.colliders.finalizeDeserialization(this.bodies);
     }
     free() {
       this.integrationParameters.free(), this.islands.free(), this.broadPhase.free(), this.narrowPhase.free(), this.bodies.free(), this.colliders.free(), this.impulseJoints.free(), this.multibodyJoints.free(), this.ccdSolver.free(), this.physicsPipeline.free(), this.serializationPipeline.free(), this.debugRenderPipeline.free(), this.characterControllers.forEach(((A2) => A2.free())), this.pidControllers.forEach(((A2) => A2.free())), this.vehicleControllers.forEach(((A2) => A2.free())), this.integrationParameters = void 0, this.islands = void 0, this.broadPhase = void 0, this.narrowPhase = void 0, this.bodies = void 0, this.colliders = void 0, this.ccdSolver = void 0, this.impulseJoints = void 0, this.multibodyJoints = void 0, this.physicsPipeline = void 0, this.serializationPipeline = void 0, this.debugRenderPipeline = void 0, this.characterControllers = void 0, this.pidControllers = void 0, this.vehicleControllers = void 0;
@@ -4937,8 +4944,8 @@ var SHIGOTO = (() => {
       return g2.free(), C2.free(), B2;
     }
     castShape(A2, I2, g2, C2, B2, Q2, E2, i2) {
-      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G4 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G4, o2, w2, S4, Q2, E2, i2));
-      return D2.free(), o2.free(), w2.free(), S4.free(), G4.free(), k2;
+      let D2 = mA.intoRaw(A2), o2 = mA.intoRaw(g2), w2 = PA.intoRaw(C2), S4 = mA.intoRaw(B2), G5 = I2.intoRaw(), k2 = xI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastShape(this.handle, D2, G5, o2, w2, S4, Q2, E2, i2));
+      return D2.free(), o2.free(), w2.free(), S4.free(), G5.free(), k2;
     }
     castCollider(A2, I2, g2, C2, B2, Q2) {
       let E2 = mA.intoRaw(A2), i2 = mA.intoRaw(g2), D2 = fI.fromRaw(this.colliderSet, this.colliderSet.raw.coCastCollider(this.handle, E2, I2.handle, i2, C2, B2, Q2));
@@ -5123,8 +5130,8 @@ var SHIGOTO = (() => {
       if (C2 && isNaN(g2)) throw Error("Cannot create a collider with a parent rigid-body handle that is not a number.");
       let B2 = I2.shape.intoRaw(), Q2 = mA.intoRaw(I2.translation), E2 = PA.intoRaw(I2.rotation), i2 = mA.intoRaw(I2.centerOfMass), D2 = mA.intoRaw(I2.principalAngularInertia), o2 = PA.intoRaw(I2.angularInertiaLocalFrame), w2 = this.raw.createCollider(I2.enabled, B2, Q2, E2, I2.massPropsMode, I2.mass, i2, D2, o2, I2.density, I2.friction, I2.restitution, I2.frictionCombineRule, I2.restitutionCombineRule, I2.isSensor, I2.collisionGroups, I2.solverGroups, I2.activeCollisionTypes, I2.activeHooks, I2.activeEvents, I2.contactForceEventThreshold, I2.contactSkin, C2, C2 ? g2 : 0, A2.raw);
       B2.free(), Q2.free(), E2.free(), i2.free(), D2.free(), o2.free();
-      let S4 = C2 ? A2.get(g2) : null, G4 = new Yg(this, w2, S4, I2.shape);
-      return this.map.set(w2, G4), G4;
+      let S4 = C2 ? A2.get(g2) : null, G5 = new Yg(this, w2, S4, I2.shape);
+      return this.map.set(w2, G5), G5;
     }
     remove(A2, I2, g2, C2) {
       this.raw.remove(A2, I2.raw, g2.raw, C2), this.unmap(A2);
@@ -5263,7 +5270,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // src/physics/Physics.js
+  // Engine/src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5562,7 +5569,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // src/env/Environment.js
+  // Engine/src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5709,15 +5716,15 @@ var SHIGOTO = (() => {
       }
     }
   };
-  function L2(hex) {
-    return new window.THREE.Color(hex).convertSRGBToLinear();
+  function L2(hex2) {
+    return new window.THREE.Color(hex2).convertSRGBToLinear();
   }
   function smooth(a2, b2, x2) {
     const t2 = Math.min(1, Math.max(0, (x2 - a2) / (b2 - a2)));
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // src/rain/Occlusion.js
+  // Engine/src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5900,7 +5907,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // src/rain/RainShaders.js
+  // Engine/src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5961,7 +5968,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // src/rain/Streaks.js
+  // Engine/src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6063,7 +6070,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Splashes.js
+  // Engine/src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6238,7 +6245,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Atmosphere.js
+  // Engine/src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6380,7 +6387,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/RainEngine.js
+  // Engine/src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6736,7 +6743,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Weather.js
+  // Engine/src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6900,7 +6907,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Water.js
+  // Engine/src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7036,7 +7043,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // src/render/Surfaces.js
+  // Engine/src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7239,7 +7246,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // src/world/Batcher.js
+  // Engine/src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7325,7 +7332,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // src/world/PropSlots.js
+  // Engine/src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7400,7 +7407,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // src/world/Props.js
+  // Engine/src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7745,7 +7752,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // src/world/CellBuilder.js
+  // Engine/src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -8231,8 +8238,8 @@ void shSurface(vec3 wp, vec3 wn) {
     if (floors >= 5 && rng() < 0.6) out.push({ kind: "vertical", at: 0.8 + rng() * 0.1 });
     return out;
   }
-  function isLight(hex) {
-    const c2 = parseInt(hex.slice(1), 16);
+  function isLight(hex2) {
+    const c2 = parseInt(hex2.slice(1), 16);
     return (c2 >> 16 & 255) * 0.3 + (c2 >> 8 & 255) * 0.59 + (c2 & 255) * 0.11 > 150;
   }
   function hexToRgb(h2) {
@@ -8319,7 +8326,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // src/render/Materials.js
+  // Engine/src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8579,7 +8586,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/world/Streamer.js
+  // Engine/src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8770,7 +8777,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // src/core/Engine.js
+  // Engine/src/core/Engine.js
   var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
@@ -8828,7 +8835,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // src/host/HostBridge.js
+  // Engine/src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -9042,7 +9049,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/characters/CharacterShader.js
+  // Engine/src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9170,7 +9177,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // src/characters/Subdivide.js
+  // Engine/src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9289,7 +9296,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // src/characters/MapSynth.js
+  // Engine/src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9395,7 +9402,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // src/characters/Characters.js
+  // Engine/src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9421,10 +9428,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
   function poreTexture(T2, size = 256) {
     const n2 = size * size, h2 = new Float32Array(n2);
     let seed = 1337;
-    const rnd = () => (seed = seed * 16807 % 2147483647) / 2147483647;
-    for (let i2 = 0; i2 < n2; i2++) h2[i2] = rnd() * 0.25;
+    const rnd2 = () => (seed = seed * 16807 % 2147483647) / 2147483647;
+    for (let i2 = 0; i2 < n2; i2++) h2[i2] = rnd2() * 0.25;
     for (let p2 = 0; p2 < size * size / 18; p2++) {
-      const cx = rnd() * size, cy = rnd() * size, r2 = 0.8 + rnd() * 1.6, dep = 0.6 + rnd() * 0.8;
+      const cx = rnd2() * size, cy = rnd2() * size, r2 = 0.8 + rnd2() * 1.6, dep = 0.6 + rnd2() * 0.8;
       for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) {
         const x2 = (Math.floor(cx) + dx + size) % size, y2 = (Math.floor(cy) + dy + size) % size;
         const d2 = Math.hypot(Math.floor(cx) + dx - cx, Math.floor(cy) + dy - cy) / r2;
@@ -9696,7 +9703,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // src/persist/Persistence.js
+  // Engine/src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -10044,7 +10051,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Honor.js
+  // Engine/src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10189,7 +10196,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Respect.js
+  // Engine/src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10421,7 +10428,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/StandingHud.js
+  // Engine/src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10609,7 +10616,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Motorcycle.js
+  // Engine/src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -11266,7 +11273,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Boat.js
+  // Engine/src/vehicles/Boat.js
   var RHO2 = 1025;
   var G3 = 9.81;
   var RHO_AIR = 1.2;
@@ -11796,7 +11803,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Ocean.js
+  // Engine/src/vehicles/Ocean.js
   var GERSTNER_WAVES = [
     // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
     [0.94, 0.342, 64, 0.13],
@@ -11876,7 +11883,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/ragdoll/Ragdoll.js
+  // Engine/src/ragdoll/Ragdoll.js
   var clamp5 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
     t2 = clamp5(t2, 0, 1);
@@ -12641,6 +12648,977 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     report() {
       return { active: this.list.length, moving: this.list.filter((r2) => r2.state === "fall").length, states: this.list.map((r2) => r2.state) };
+    }
+  };
+
+  // Engine/src/skydive/Wind.js
+  var TAU = Math.PI * 2;
+  var clamp6 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
+  var WIND_PRESETS = {
+    clear: { u10: 3.2, gust: 0.22, veer: 0.35 },
+    cloudy: { u10: 4.6, gust: 0.28, veer: 0.35 },
+    fog: { u10: 1.4, gust: 0.12, veer: 0.2 },
+    drizzle: { u10: 5.2, gust: 0.3, veer: 0.38 },
+    rain: { u10: 6.8, gust: 0.34, veer: 0.4 },
+    snow: { u10: 4, gust: 0.26, veer: 0.35 },
+    storm: { u10: 9.5, gust: 0.48, veer: 0.5 }
+  };
+  function hash3(i2, j2, k2, seed) {
+    let h2 = i2 * 374761393 + j2 * 668265263 + k2 * 1274126177 + seed * 974634221 | 0;
+    h2 = Math.imul(h2 ^ h2 >>> 13, 1274126177);
+    h2 ^= h2 >>> 16;
+    return (h2 & 65535) / 32767.5 - 1;
+  }
+  function noise3(x2, y2, z2, seed) {
+    const i2 = Math.floor(x2), j2 = Math.floor(y2), k2 = Math.floor(z2);
+    const fx = smooth3(x2 - i2), fy = smooth3(y2 - j2), fz = smooth3(z2 - k2);
+    const L3 = (a2, b2, t2) => a2 + (b2 - a2) * t2;
+    const c00 = L3(hash3(i2, j2, k2, seed), hash3(i2 + 1, j2, k2, seed), fx), c10 = L3(hash3(i2, j2 + 1, k2, seed), hash3(i2 + 1, j2 + 1, k2, seed), fx);
+    const c01 = L3(hash3(i2, j2, k2 + 1, seed), hash3(i2 + 1, j2, k2 + 1, seed), fx), c11 = L3(hash3(i2, j2 + 1, k2 + 1, seed), hash3(i2 + 1, j2 + 1, k2 + 1, seed), fx);
+    return L3(L3(c00, c10, fy), L3(c01, c11, fy), fz);
+  }
+  function fbm(x2, y2, z2, seed) {
+    return noise3(x2, y2, z2, seed) * 0.62 + noise3(x2 * 2.03, y2 * 2.03, z2 * 2.03, seed + 7) * 0.27 + noise3(x2 * 4.1, y2 * 4.1, z2 * 4.1, seed + 13) * 0.11;
+  }
+  var WindField = class {
+    // o.dir: the direction the wind blows TOWARD, radians from +z toward +x. o.obstacles(x, z, r): buildings near (x, z):
+    // [{ cx, cz, hw, hl, yaw (radians), base, top }]
+    constructor(o2 = {}) {
+      this.dir = o2.dir !== void 0 ? o2.dir : 0.9;
+      this.seed = o2.seed || 1;
+      this.obstacles = o2.obstacles || null;
+      this.alpha = 0.24;
+      this.set(o2.weather || "clear");
+      this.out = { x: 0, y: 0, z: 0 };
+    }
+    set(weather, dir) {
+      const p2 = WIND_PRESETS[weather] || WIND_PRESETS.clear;
+      this.u10 = p2.u10;
+      this.gust = p2.gust;
+      this.veer = p2.veer;
+      this.weather = weather;
+      if (dir !== void 0) this.dir = dir;
+      return this;
+    }
+    // the mean wind speed at height h above the ground
+    meanSpeed(h2) {
+      return this.u10 * clamp6(Math.pow(Math.max(h2, 2) / 10, this.alpha), 0.55, 2.7);
+    }
+    sample(x2, y2, z2, t2, groundY = 0) {
+      const h2 = Math.max(0, y2 - groundY);
+      const U2 = this.meanSpeed(h2);
+      const dir = this.dir + this.veer * clamp6(h2 / 600, 0, 1.4);
+      const dx = Math.sin(dir), dz = Math.cos(dir);
+      const front = 1 + 0.22 * Math.sin(t2 * 0.071 + this.seed) + 0.14 * Math.sin(t2 * 0.193 + 2 * this.seed) + 0.08 * Math.sin(t2 * 0.61);
+      let ux = dx * U2 * front, uz = dz * U2 * front, uy = 0;
+      const I2 = this.gust * (0.55 + 0.75 * Math.exp(-h2 / 120)), sig = I2 * U2;
+      const Ls = 38 + h2 * 0.25, adv = U2 * t2;
+      const px = (x2 - dx * adv) / Ls, py = y2 / (Ls * 0.7), pz = (z2 - dz * adv) / Ls, tt = t2 * 0.11;
+      ux += sig * fbm(px, py, pz + tt, this.seed) * 1.6;
+      uz += sig * fbm(px + 31.7, py, pz - tt, this.seed + 101) * 1.6;
+      uy += sig * fbm(px - 17.3, py + 9.1, pz + tt, this.seed + 211) * 0.9;
+      if (this.obstacles) {
+        const b2 = this.buildings(x2, y2, z2, U2, dx, dz, t2);
+        ux = ux * b2.k + b2.x;
+        uy = uy * b2.kt + b2.y;
+        uz = uz * b2.k + b2.z;
+      }
+      const o2 = this.out;
+      o2.x = ux;
+      o2.y = uy;
+      o2.z = uz;
+      return o2;
+    }
+    // how the buildings near (x, y, z) change the wind: a factor on the mean flow and on the turbulence, plus an added velocity
+    buildings(x2, y2, z2, U2, dx, dz, t2) {
+      const res = { k: 1, kt: 1, x: 0, y: 0, z: 0 };
+      const list = this.obstacles(x2, z2, 260);
+      if (!list || !list.length) return res;
+      for (let i2 = 0; i2 < list.length; i2++) {
+        const b2 = list[i2], H2 = b2.top - b2.base;
+        if (H2 < 25) continue;
+        const rx = x2 - b2.cx, rz = z2 - b2.cz;
+        const a2 = rx * dx + rz * dz, c2 = rx * dz - rz * dx;
+        const cy = Math.cos(b2.yaw), sy = Math.sin(b2.yaw);
+        const ca = Math.abs(dx * cy - dz * sy), sa = Math.abs(dx * sy + dz * cy);
+        const D2 = b2.hw * sa + b2.hl * ca, W3 = b2.hw * ca + b2.hl * sa;
+        const rel = (y2 - b2.base) / H2;
+        if (rel > 1.35 || rel < -0.05) continue;
+        if (rel <= 1) {
+          if (a2 > D2) {
+            const s2 = a2 - D2, Lw = Math.min(H2, 2.5 * W3) * 3.2, wid = W3 * (1 + s2 / (Lw * 0.6));
+            if (s2 < Lw * 1.6 && Math.abs(c2) < wid) {
+              const def = 0.78 * Math.exp(-s2 / Lw) * (1 - smooth3(clamp6((Math.abs(c2) - W3 * 0.6) / (wid - W3 * 0.6 + 1e-3), 0, 1))) * (rel > 0.85 ? 1 - (rel - 0.85) / 0.15 : 1);
+              res.k *= 1 - def;
+              res.kt *= 1 + 2.4 * def;
+              const fs = 0.2 * U2 / Math.max(4, 2 * W3), ph = Math.sin(TAU * fs * t2 - s2 / Math.max(6, W3) * 1.7);
+              res.x += dz * ph * def * U2 * 0.45;
+              res.z += -dx * ph * def * U2 * 0.45;
+            }
+          } else if (a2 > -D2 - H2 * 0.55 && Math.abs(c2) < W3 + 4) {
+            const gap = Math.max(0, -D2 - a2), near = 1 - smooth3(clamp6(gap / (H2 * 0.55), 0, 1));
+            if (Math.abs(c2) < W3) {
+              res.k *= 1 - 0.85 * near;
+              const vert = rel > 0.7 ? (rel - 0.7) / 0.3 * 0.65 : -(0.7 - rel) / 0.7 * 0.4;
+              res.y += vert * U2 * near;
+              res.x += (c2 >= 0 ? dz : -dz) * 0.35 * U2 * near * Math.abs(c2) / W3;
+              res.z += (c2 >= 0 ? -dx : dx) * 0.35 * U2 * near * Math.abs(c2) / W3;
+            }
+          }
+          if (Math.abs(a2) < D2 + 6 && Math.abs(c2) > W3 && Math.abs(c2) < W3 * 1.7 + 8) {
+            const e2 = 1 - clamp6((Math.abs(c2) - W3) / (W3 * 0.7 + 8), 0, 1);
+            res.k *= 1 + 0.42 * e2 * (rel < 0.95 ? 1 : 0.4);
+            res.kt *= 1 + 0.6 * e2;
+          }
+        } else {
+          const lx = rx * cy - rz * sy, lz = rx * sy + rz * cy;
+          if (Math.abs(lx) < b2.hw + 6 && Math.abs(lz) < b2.hl + 6) {
+            const above = clamp6((y2 - b2.top) / (H2 * 0.35), 0, 1);
+            const windward = clamp6(-a2 / Math.max(D2, 1), -1, 1);
+            res.y += U2 * 0.32 * (1 - above) * clamp6(windward + 0.4, 0, 1.4);
+            res.kt *= 1 + 1.5 * (1 - above);
+          }
+        }
+      }
+      return res;
+    }
+  };
+
+  // Engine/src/skydive/Skydiver.js
+  var G4 = 9.81;
+  var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
+  var smooth4 = (t2) => {
+    t2 = clamp7(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  var wrap = (a2) => {
+    while (a2 > Math.PI) a2 -= Math.PI * 2;
+    while (a2 < -Math.PI) a2 += Math.PI * 2;
+    return a2;
+  };
+  var airDensity = (h2) => 1.225 * Math.exp(-Math.max(0, h2) / 8500);
+  var CANOPY_SPECS = {
+    // a 230 sq ft nine-cell sport canopy with a slider: about 44 km/h forward and 4.3 m/s down at trim, glide 2.8
+    sport: { name: "Sport 230", area: 21.4, span: 7.6, chord: 2.8, cells: 9, lines: 6.6, cl: 0.42, cd: 0.152, slider: true, fill: 150, maxBank: 0.8, pc: 0.62 },
+    // a 280 sq ft seven-cell BASE canopy, slider off: bigger, slower (38 km/h, 3.8 m/s down), opens in a few metres
+    base: { name: "BASE 280", area: 26, span: 8, chord: 3.3, cells: 7, lines: 7, cl: 0.45, cd: 0.17, slider: false, fill: 20, maxBank: 0.74, pc: 1.05 }
+  };
+  var BODY = { cdaEdge: 0.2, cdaBox: 0.48, cdaSpread: 0.68, cdaDive: 0.205, cla: 0.36, cdaUpright: 0.3, side: 0.55 };
+  var Skydiver = class {
+    constructor(o2 = {}) {
+      this.mass = o2.mass || 88;
+      this.spec = CANOPY_SPECS[o2.canopy || "base"] || CANOPY_SPECS.base;
+      this.wind = o2.wind || new WindField();
+      this.ground = o2.ground || (() => 0);
+      this.wall = o2.wall || null;
+      this.rand = o2.random || Math.random;
+      this.pos = { x: 0, y: 0, z: 0 };
+      this.vel = { x: 0, y: 0, z: 0 };
+      this.phase = "idle";
+      this.t = 0;
+    }
+    setCanopy(name) {
+      this.spec = CANOPY_SPECS[name] || this.spec;
+    }
+    // Off a roof (from: "building") or out of an aircraft (from: "aircraft"). vel is his velocity as he leaves.
+    exit(o2) {
+      Object.assign(this.pos, o2.pos);
+      Object.assign(this.vel, o2.vel || { x: 0, y: 0, z: 0 });
+      this.yaw = o2.yaw || 0;
+      this.yawRate = 0;
+      this.theta = 0;
+      this.alpha = 1.5;
+      this.alphaV = 0;
+      this.upright = o2.from === "aircraft" ? 0.35 : 1;
+      this.roll = 0;
+      this.tumble = 0;
+      this.phase = "freefall";
+      this.t = 0;
+      this.ffTime = 0;
+      this.deployT = 0;
+      this.pcOut = 0;
+      this.linesOut = 0;
+      this.fill = 0;
+      this.slider = this.spec.slider ? 1 : 0;
+      this.bank = 0;
+      this.bankV = 0;
+      this.swingP = 0;
+      this.swingPV = 0;
+      this.twists = 0;
+      this.twistDir = 1;
+      this.bL = 0;
+      this.bR = 0;
+      this.riser = 0;
+      this.clDyn = this.spec.cl;
+      this.stallT = 0;
+      this.stalled = false;
+      this.deepT = 0;
+      this.gload = 1;
+      this.maxG = 1;
+      this.offHeading = 0;
+      this.collapsed = false;
+      this.landed = null;
+      this.events = [];
+      this.lastAir = { x: 0, y: 0, z: 0 };
+      return this;
+    }
+    get airspeed() {
+      return Math.hypot(this.vel.x - this.lastAir.x, this.vel.y - this.lastAir.y, this.vel.z - this.lastAir.z);
+    }
+    get altitude() {
+      return this.pos.y - this.ground(this.pos.x, this.pos.z, this.pos.y);
+    }
+    // in: { pitch -1..1 (forward = track / dive), turn -1..1 (right +), dive (head-down button), deploy (true on the frame it is pressed),
+    //       brakeL, brakeR 0..1, risers 0..1 }
+    step(dt, inp = {}) {
+      const ev = this.events = [];
+      if (this.phase === "idle" || this.phase === "landed") return ev;
+      const n2 = Math.max(1, Math.ceil(dt / (1 / 120))), h2 = dt / n2;
+      for (let i2 = 0; i2 < n2 && this.phase !== "landed"; i2++) this.sub(h2, inp, ev, i2 === 0);
+      return ev;
+    }
+    sub(dt, inp, ev, first) {
+      this.t += dt;
+      const p2 = this.pos, v2 = this.vel;
+      const gy = this.ground(p2.x, p2.z, p2.y + 0.5);
+      const w2 = this.wind.sample(p2.x, p2.y, p2.z, this.t + (this.wind.t0 || 0), gy);
+      this.lastAir.x = w2.x;
+      this.lastAir.y = w2.y;
+      this.lastAir.z = w2.z;
+      const ax0 = v2.x - w2.x, ay0 = v2.y - w2.y, az0 = v2.z - w2.z;
+      const V2 = Math.hypot(ax0, ay0, az0) || 1e-6, rho = airDensity(p2.y), q2 = 0.5 * rho * V2 * V2;
+      let fx = 0, fy = -this.mass * G4, fz = 0;
+      if (this.phase === "freefall") {
+        this.ffTime += dt;
+        if (inp.deploy && first) this.startDeploy(ev);
+        const F2 = this.bodyForces(dt, inp, ax0, ay0, az0, V2, q2);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+      } else if (this.phase === "deploy") {
+        const F2 = this.bodyForces(dt, { pitch: 0, turn: 0 }, ax0, ay0, az0, V2, q2);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+        this.deployT += dt;
+        if (this.deployT > 0.32) this.pcOut = Math.min(1, this.pcOut + dt * Math.max(0.6, V2 / 9));
+        const pcDrag = 0.5 * rho * V2 * V2 * this.spec.pc * this.pcOut;
+        if (pcDrag > 45) this.linesOut += dt * clamp7(V2 * 0.7, 4, 24) / (this.spec.lines + 1.2);
+        if (this.linesOut >= 1 && this.fill === 0) {
+          this.fill = 1e-3;
+          const unstable = Math.max(this.pullInstab || 0, Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V2 > 68 ? 0.4 : 0) + this.upright * 0.25);
+          this.offHeading = (this.rand() + this.rand() + this.rand() - 1.5) * (0.22 + unstable * 0.9);
+          if (unstable > 0.75 && this.rand() < unstable * 0.7) {
+            this.twists = 1 + Math.floor(this.rand() * (1 + unstable * 2));
+            this.twistDir = this.rand() < 0.5 ? -1 : 1;
+          }
+          this.canopyYaw = this.yaw + this.offHeading;
+          ev.push({ type: "linestretch", offHeading: this.offHeading, twists: this.twists });
+        }
+        if (this.fill > 0) {
+          this.fill = Math.min(1, this.fill + dt * Math.max(V2, 4) / this.spec.fill);
+          const e2 = smooth4(this.fill);
+          const frac = this.spec.slider ? this.fill < 0.55 ? 0.085 * smooth4(this.fill / 0.55) : 0.085 + 0.915 * Math.pow(smooth4((this.fill - 0.55) / 0.45), 1.6) : Math.pow(e2, 1.6);
+          this.slider = this.spec.slider ? 1 - smooth4((this.fill - 0.35) / 0.65) : 0;
+          const cda = this.spec.area * 1.25 * frac;
+          const k2 = q2 * cda / V2;
+          fx -= k2 * ax0;
+          fy -= k2 * ay0;
+          fz -= k2 * az0;
+          if (this.fill >= 1) {
+            this.phase = "canopy";
+            this.slider = 0;
+            this.clDyn = this.spec.cl * 0.8;
+            ev.push({ type: "open", g: this.maxG, twists: this.twists, offHeading: this.offHeading });
+          }
+        }
+      } else if (this.phase === "canopy") {
+        const F2 = this.canopyForces(dt, inp, ax0, ay0, az0, V2, q2, ev);
+        fx += F2.x;
+        fy += F2.y;
+        fz += F2.z;
+      } else if (this.phase === "collapsed") {
+        const k2 = q2 * 3.2 / V2;
+        fx -= k2 * ax0;
+        fy -= k2 * ay0;
+        fz -= k2 * az0;
+      }
+      const axx = fx / this.mass, ayy = fy / this.mass, azz = fz / this.mass;
+      this.gload = Math.hypot(axx, ayy + G4, azz) / G4;
+      if (this.phase === "deploy" || this.phase === "canopy" && this.t < 4) this.maxG = Math.max(this.maxG, this.gload);
+      v2.x += axx * dt;
+      v2.y += ayy * dt;
+      v2.z += azz * dt;
+      const nx = p2.x + v2.x * dt, ny = p2.y + v2.y * dt, nz = p2.z + v2.z * dt;
+      if (this.wall) {
+        const hit = this.wall(nx, ny, nz, 0.45) || (this.phase === "canopy" ? this.wall(nx, ny + this.spec.lines * 0.85, nz, this.spec.span * 0.35) : null);
+        if (hit) {
+          const into = -(v2.x * hit.nx + v2.z * hit.nz);
+          if (into > 0) {
+            const where = this.wall(nx, ny, nz, 0.45) ? "body" : "canopy";
+            ev.push({ type: "wall", speed: Math.hypot(v2.x, v2.y, v2.z), into, normal: { x: hit.nx, z: hit.nz }, phase: this.phase, part: where });
+            v2.x += hit.nx * into * 1.1;
+            v2.z += hit.nz * into * 1.1;
+            if (this.phase === "canopy" && where === "canopy" && into > 2.2) {
+              this.phase = "collapsed";
+              ev.push({ type: "collapse" });
+            }
+            return;
+          }
+        }
+      }
+      p2.x = nx;
+      p2.y = ny;
+      p2.z = nz;
+      const g2 = this.ground(p2.x, p2.z, p2.y + 1.2);
+      if (p2.y <= g2) {
+        p2.y = g2;
+        const sink = -v2.y, hz = Math.hypot(v2.x, v2.z), spd = Math.hypot(v2.x, v2.y, v2.z);
+        let quality;
+        if (this.phase !== "canopy") quality = spd > 30 ? "fatal" : spd > 11 ? "impact" : spd > 6 ? "hard" : "good";
+        else if (sink <= 2.6 && hz <= 5.5) quality = "perfect";
+        else if (sink <= 4.2 && hz <= 8) quality = "good";
+        else if (sink <= 6.5 && hz <= 10.5) quality = "hard";
+        else quality = sink > 14 ? "fatal" : "crash";
+        this.landed = { quality, sink, across: hz, speed: spd, phase: this.phase, vel: { x: v2.x, y: v2.y, z: v2.z } };
+        this.phase = "landed";
+        ev.push(Object.assign({ type: "land" }, this.landed));
+      }
+    }
+    startDeploy(ev) {
+      if (this.phase !== "freefall") return false;
+      const V0 = Math.hypot(this.vel.x, this.vel.y, this.vel.z);
+      this.pullInstab = Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V0 > 68 ? 0.4 : 0) + this.upright * 0.25;
+      this.phase = "deploy";
+      this.deployT = 0;
+      this.pcOut = 0;
+      this.linesOut = 0;
+      this.fill = 0;
+      this.maxG = 1;
+      ev.push({ type: "deploy", speed: Math.hypot(this.vel.x, this.vel.y, this.vel.z), alt: this.altitude });
+      return true;
+    }
+    deploy() {
+      return this.startDeploy(this.events);
+    }
+    // the body as a lifting surface (freefall, and while the canopy is coming out)
+    bodyForces(dt, inp, ax, ay, az, V2, q2) {
+      this.upright = Math.max(0, this.upright - dt * this.upright * (0.25 + q2 / 520) - dt * 0.02);
+      const auth = (1 - this.upright) * clamp7(q2 / 900, 0.12, 1.15);
+      const pitch = clamp7(inp.pitch || 0, -1, 1), turn = clamp7(inp.turn || 0, -1, 1);
+      const spread = Math.max(-pitch, 0), fwd = Math.max(pitch, 0);
+      const aT = inp.dive ? 0.12 : lerp(1.54, 0.6, fwd) + 0.05 * spread;
+      const wn = 1.1 + 3.6 * clamp7(q2 / 1800, 0, 1) * (1 - this.upright * 0.8);
+      if (this.alpha === void 0) this.alpha = 1.5;
+      this.alphaV = (this.alphaV || 0) + (wn * wn * (aT - this.alpha) - 2 * 0.7 * wn * (this.alphaV || 0)) * dt;
+      this.alpha = clamp7(this.alpha + this.alphaV * dt, 0.02, 1.75);
+      const yrT = -turn * (1.55 + fwd * 0.4) * clamp7(auth, 0, 1.1);
+      this.yawRate += (yrT - this.yawRate) * (1 - Math.exp(-dt * (1.8 + 3 * auth)));
+      this.yaw = wrap(this.yaw + this.yawRate * dt);
+      this.roll += (turn * (0.3 + fwd * 0.5) - this.roll) * (1 - Math.exp(-dt * 4));
+      const hx = Math.sin(this.yaw), hz = Math.cos(this.yaw);
+      const along = ax * hx + az * hz, sx = ax - along * hx, sz = az - along * hz;
+      const gam = Math.atan2(ay, along);
+      const alpha = this.alpha;
+      this.theta = -alpha - gam;
+      const s2 = Math.sin(alpha) ** 2;
+      const flat = lerp(BODY.cdaBox, BODY.cdaSpread, spread);
+      const edge = lerp(BODY.cdaEdge, BODY.cdaDive, inp.dive ? 1 : 0);
+      let cda = edge + (flat - edge) * s2, cla = BODY.cla * Math.sin(2 * alpha) * (1 - spread * 0.5);
+      cda = lerp(cda, BODY.cdaUpright, this.upright);
+      cla *= 1 - this.upright;
+      const Vp = Math.hypot(along, ay) || 1e-6;
+      const dk = q2 * cda / V2, lk = q2 * cla / Vp;
+      const lh = -Math.sin(gam), lv = Math.cos(gam);
+      return {
+        x: -dk * ax + lk * Vp * lh * hx - q2 * BODY.side * (sx / V2) * 0.5,
+        y: -dk * ay + lk * Vp * lv,
+        z: -dk * az + lk * Vp * lh * hz - q2 * BODY.side * (sz / V2) * 0.5
+      };
+    }
+    // the canopy as a wing
+    canopyForces(dt, inp, ax, ay, az, V2, q2, ev) {
+      const S4 = this.spec;
+      const rate = 4.2 * dt, toward = (a2, b2) => a2 + clamp7(b2 - a2, -rate, rate);
+      let bl = clamp7(inp.brakeL || 0, 0, 1), br = clamp7(inp.brakeR || 0, 0, 1), rs = clamp7(inp.risers || 0, 0, 1);
+      if (this.twists > 0) {
+        bl = br = 0;
+        rs = 0;
+        this.twists = Math.max(0, this.twists - dt * 0.85);
+        if (this.twists === 0) ev.push({ type: "untwisted" });
+      }
+      this.bL = toward(this.bL, bl);
+      this.bR = toward(this.bR, br);
+      this.riser = toward(this.riser, rs);
+      const sym = (this.bL + this.bR) / 2, asym = this.bR - this.bL;
+      let clT = S4.cl + 0.6 * sym * sym + 0.12 * sym - 0.11 * this.riser;
+      let cd = S4.cd + 0.34 * sym * sym + 0.06 * Math.abs(asym) + 0.02 * this.riser;
+      if (sym > 0.9 && V2 < 9.5) this.deepT += dt;
+      else this.deepT = Math.max(0, this.deepT - dt * 2);
+      if (!this.stalled && this.deepT > 2) {
+        this.stalled = true;
+        this.stallT = 0;
+        ev.push({ type: "stall" });
+      }
+      if (this.stalled) {
+        this.stallT += dt;
+        clT = 0.22;
+        cd = 0.95;
+        if (sym < 0.55 && this.stallT > 0.6) {
+          this.stalled = false;
+          this.deepT = 0;
+          ev.push({ type: "recovered" });
+        }
+      }
+      this.clDyn += (clT - this.clDyn) * (1 - Math.exp(-dt / (clT > this.clDyn ? 0.12 : 0.35)));
+      const cl = this.clDyn;
+      const bankT = this.twists > 0 ? this.twistDir * 0.35 : clamp7(asym * S4.maxBank * clamp7(V2 / 10.5, 0.45, 1.1) * (1 + 0.4 * this.riser), -1.2, 1.2);
+      const wn = 1.5, zeta = 0.5;
+      this.bankV += (wn * wn * (bankT - this.bank) - 2 * zeta * wn * this.bankV) * dt;
+      this.bank += this.bankV * dt;
+      const vx = ax / V2, vy = ay / V2, vz = az / V2;
+      const Vh = Math.hypot(ax, az), Lmag = q2 * S4.area * cl;
+      if (this.twists > 0) this.canopyYaw = wrap(this.canopyYaw + this.twistDir * 1.6 * dt);
+      else this.canopyYaw = wrap(this.canopyYaw - Lmag * Math.sin(this.bank) / (this.mass * Math.max(Vh, 4)) * dt);
+      this.yaw = this.canopyYaw;
+      const rx = -Math.cos(this.canopyYaw), rz = Math.sin(this.canopyYaw);
+      const rdv = rx * vx + rz * vz;
+      let px = rx - rdv * vx, py = -rdv * vy, pz = rz - rdv * vz;
+      const pl = Math.hypot(px, py, pz) || 1;
+      px /= pl;
+      py /= pl;
+      pz /= pl;
+      let l0x = py * vz - pz * vy, l0y = pz * vx - px * vz, l0z = px * vy - py * vx;
+      if (l0y < 0) {
+        l0x = -l0x;
+        l0y = -l0y;
+        l0z = -l0z;
+      }
+      const cb = Math.cos(this.bank), sb = Math.sin(this.bank);
+      const lx = cb * l0x + sb * px, ly = cb * l0y + sb * py, lz = cb * l0z + sb * pz;
+      const L3 = Lmag, D2 = q2 * S4.area * cd + q2 * 0.45;
+      const hx = Math.sin(this.canopyYaw), hzz = Math.cos(this.canopyYaw);
+      const side = ax * hzz - az * hx, sideF = -q2 * 2.2 * side / V2;
+      const along = ax * hx + az * hzz;
+      const accel = (along - (this.prevAlong === void 0 ? along : this.prevAlong)) / Math.max(dt, 1e-4);
+      this.prevAlong = along;
+      const Lp = S4.lines;
+      this.swingPV += (-G4 / Lp * this.swingP - 1.4 * this.swingPV - clamp7(accel, -25, 25) / Lp) * dt;
+      this.swingP = clamp7(this.swingP + this.swingPV * dt, -1.1, 1.1);
+      return {
+        x: L3 * lx - D2 * vx + sideF * hzz,
+        y: L3 * ly - D2 * vy,
+        z: L3 * lz - D2 * vz - sideF * hx
+      };
+    }
+    // a snapshot for the HUD and for drawing
+    state() {
+      const v2 = this.vel;
+      return {
+        phase: this.phase,
+        t: this.t,
+        alt: this.altitude,
+        pos: this.pos,
+        vel: v2,
+        speed: Math.hypot(v2.x, v2.y, v2.z),
+        sink: -v2.y,
+        ground: Math.hypot(v2.x, v2.z),
+        airspeed: this.airspeed,
+        yaw: this.yaw,
+        theta: this.theta,
+        roll: this.roll,
+        upright: this.upright,
+        fill: this.fill,
+        pcOut: this.pcOut,
+        linesOut: this.linesOut,
+        bank: this.bank,
+        swing: this.swingP,
+        brakeL: this.bL,
+        brakeR: this.bR,
+        risers: this.riser,
+        twists: this.twists,
+        stalled: this.stalled,
+        g: this.gload,
+        maxG: this.maxG,
+        wind: this.lastAir
+      };
+    }
+  };
+
+  // Engine/src/skydive/CanopyModel.js
+  var CANOPY_SCHEMES = {
+    // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
+    ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },
+    sunrise: { cells: ["#f2efe8", "#f39a1e", "#e4572e", "#f2efe8", "#e4572e", "#f39a1e", "#f2efe8", "#f39a1e", "#e4572e"], accent: "#1d2330", under: "#d9d2c3" },
+    harbour: { cells: ["#0d3b66", "#f2efe8", "#0d3b66", "#4d9de0", "#f2efe8", "#4d9de0", "#0d3b66", "#f2efe8", "#0d3b66"], accent: "#f2efe8", under: "#13304f" },
+    sakura: { cells: ["#f2efe8", "#e8a0b4", "#f2efe8", "#b8325a", "#f2efe8", "#b8325a", "#f2efe8", "#e8a0b4", "#f2efe8"], accent: "#b8325a", under: "#e5d9d6" }
+  };
+  var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var smooth5 = (t2) => {
+    t2 = clamp8(t2, 0, 1);
+    return t2 * t2 * (3 - 2 * t2);
+  };
+  function canvas(w2, h2) {
+    const c2 = document.createElement("canvas");
+    c2.width = w2;
+    c2.height = h2;
+    return c2;
+  }
+  function hex(c2) {
+    const n2 = parseInt(c2.slice(1), 16);
+    return [n2 >> 16 & 255, n2 >> 8 & 255, n2 & 255];
+  }
+  function normalFromHeight(H2, w2, h2, strength) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), img = g2.createImageData(w2, h2), d2 = img.data;
+    const at = (x2, y2) => H2[(y2 + h2) % h2 * w2 + (x2 + w2) % w2];
+    for (let y2 = 0; y2 < h2; y2++) for (let x2 = 0; x2 < w2; x2++) {
+      const dx = at(x2 + 1, y2 - 1) + 2 * at(x2 + 1, y2) + at(x2 + 1, y2 + 1) - (at(x2 - 1, y2 - 1) + 2 * at(x2 - 1, y2) + at(x2 - 1, y2 + 1));
+      const dy = at(x2 - 1, y2 + 1) + 2 * at(x2, y2 + 1) + at(x2 + 1, y2 + 1) - (at(x2 - 1, y2 - 1) + 2 * at(x2, y2 - 1) + at(x2 + 1, y2 - 1));
+      let nx = -dx * strength, ny = -dy * strength, nz = 1;
+      const l2 = Math.hypot(nx, ny, nz);
+      nx /= l2;
+      ny /= l2;
+      nz /= l2;
+      const i2 = (y2 * w2 + x2) * 4;
+      d2[i2] = (nx * 0.5 + 0.5) * 255;
+      d2[i2 + 1] = (ny * 0.5 + 0.5) * 255;
+      d2[i2 + 2] = (nz * 0.5 + 0.5) * 255;
+      d2[i2 + 3] = 255;
+    }
+    g2.putImageData(img, 0, 0);
+    return c2;
+  }
+  function grayCanvas(V2, w2, h2) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), img = g2.createImageData(w2, h2), d2 = img.data;
+    for (let i2 = 0; i2 < w2 * h2; i2++) {
+      const v2 = clamp8(V2[i2], 0, 1) * 255;
+      d2[i2 * 4] = d2[i2 * 4 + 1] = d2[i2 * 4 + 2] = v2;
+      d2[i2 * 4 + 3] = 255;
+    }
+    g2.putImageData(img, 0, 0);
+    return c2;
+  }
+  function rnd(seed) {
+    let s2 = seed >>> 0;
+    return () => {
+      s2 = s2 * 1664525 + 1013904223 >>> 0;
+      return s2 / 4294967296;
+    };
+  }
+  function paintCanopy(scheme, cells, top) {
+    const W3 = 1024, Hh = 512, c2 = canvas(W3, Hh), g2 = c2.getContext("2d"), R2 = rnd(top ? 7 : 11);
+    const cw = W3 / cells;
+    for (let i2 = 0; i2 < cells; i2++) {
+      const col = top ? scheme.cells[i2 % scheme.cells.length] : scheme.under;
+      g2.fillStyle = col;
+      g2.fillRect(Math.floor(i2 * cw), 0, Math.ceil(cw) + 1, Hh);
+      const gr = g2.createLinearGradient(i2 * cw, 0, (i2 + 1) * cw, 0);
+      gr.addColorStop(0, "rgba(0,0,0,0.10)");
+      gr.addColorStop(0.5, "rgba(255,255,255,0.05)");
+      gr.addColorStop(1, "rgba(0,0,0,0.10)");
+      g2.fillStyle = gr;
+      g2.fillRect(i2 * cw, 0, cw, Hh);
+      for (let p2 = 0; p2 < 4; p2++) {
+        g2.fillStyle = "rgba(" + (R2() < 0.5 ? "0,0,0" : "255,255,255") + "," + (0.015 + R2() * 0.02) + ")";
+        g2.fillRect(i2 * cw, p2 * Hh / 4, cw, Hh / 4);
+      }
+    }
+    const [ar, ag2, ab] = hex(scheme.accent);
+    for (let i2 = 0; i2 <= cells; i2++) {
+      g2.fillStyle = "rgba(20,20,22,0.55)";
+      g2.fillRect(i2 * cw - 3, 0, 6, Hh);
+      g2.fillStyle = "rgba(255,255,255,0.12)";
+      g2.fillRect(i2 * cw - 1, 0, 1, Hh);
+    }
+    for (let i2 = 0; i2 < cells; i2++) {
+      g2.fillStyle = "rgba(15,15,18,0.22)";
+      g2.fillRect(i2 * cw + cw / 2 - 1.5, 0, 3, Hh);
+    }
+    g2.fillStyle = "rgba(" + ar + "," + ag2 + "," + ab + ",0.9)";
+    g2.fillRect(0, 0, W3, 10);
+    if (top) {
+      const cx = W3 / 2, cy = Hh * 0.42;
+      g2.fillStyle = "rgba(" + ar + "," + ag2 + "," + ab + ",0.92)";
+      g2.beginPath();
+      g2.arc(cx, cy, cw * 0.32, 0, Math.PI * 2);
+      g2.fill();
+      g2.fillStyle = "rgba(242,239,232,0.9)";
+      g2.fillRect(cx - cw * 1.4, Hh * 0.72, cw * 2.8, 9);
+    }
+    const id = g2.getImageData(0, 0, W3, Hh), d2 = id.data;
+    for (let i2 = 0; i2 < d2.length; i2 += 4) {
+      const n2 = (R2() - 0.5) * 9;
+      d2[i2] = clamp8(d2[i2] + n2, 0, 255);
+      d2[i2 + 1] = clamp8(d2[i2 + 1] + n2, 0, 255);
+      d2[i2 + 2] = clamp8(d2[i2 + 2] + n2, 0, 255);
+    }
+    g2.putImageData(id, 0, 0);
+    const H2 = new Float32Array(W3 * Hh), Rg2 = new Float32Array(W3 * Hh);
+    for (let y2 = 0; y2 < Hh; y2++) for (let x2 = 0; x2 < W3; x2++) {
+      const gx = x2 % 8 < 1 ? 1 : 0, gy = y2 % 8 < 1 ? 1 : 0;
+      const u2 = x2 % cw / cw, seam = Math.min(u2, 1 - u2) * cw < 4 ? 1 : 0, mid = Math.abs(u2 - 0.5) * cw < 2 ? 0.6 : 0;
+      const pucker = Math.exp(-Math.min(u2, 1 - u2) * cw / 9) * 0.5 * (0.5 + 0.5 * Math.sin(y2 * 0.35 + x2 * 0.05));
+      H2[y2 * W3 + x2] = gx * 0.35 + gy * 0.35 + seam * 1.2 + mid + pucker + (R2() - 0.5) * 0.08;
+      Rg2[y2 * W3 + x2] = 0.48 + seam * 0.18 + (gx || gy ? 0.05 : 0) + (R2() - 0.5) * 0.06;
+    }
+    return { map: c2, normal: normalFromHeight(H2, W3, Hh, 1.6), rough: grayCanvas(Rg2, W3, Hh) };
+  }
+  function paintWeave(base, seed, w2 = 512, h2 = 512, coarse = 4, roughBase = 0.78) {
+    const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), R2 = rnd(seed), [r0, g0, b0] = hex(base);
+    const img = g2.createImageData(w2, h2), d2 = img.data, H2 = new Float32Array(w2 * h2), Rg2 = new Float32Array(w2 * h2);
+    for (let y2 = 0; y2 < h2; y2++) for (let x2 = 0; x2 < w2; x2++) {
+      const over = Math.floor(x2 / coarse) + Math.floor(y2 / coarse) & 1 ? 1 : 0;
+      const t2 = over ? Math.sin(x2 % coarse / coarse * Math.PI) : Math.sin(y2 % coarse / coarse * Math.PI);
+      const n2 = (R2() - 0.5) * 14 + t2 * 10 - 5, i2 = (y2 * w2 + x2) * 4;
+      d2[i2] = clamp8(r0 + n2, 0, 255);
+      d2[i2 + 1] = clamp8(g0 + n2, 0, 255);
+      d2[i2 + 2] = clamp8(b0 + n2, 0, 255);
+      d2[i2 + 3] = 255;
+      H2[y2 * w2 + x2] = t2;
+      Rg2[y2 * w2 + x2] = roughBase + (R2() - 0.5) * 0.1 - t2 * 0.06;
+    }
+    g2.putImageData(img, 0, 0);
+    return { map: c2, normal: normalFromHeight(H2, w2, h2, 2.2), rough: grayCanvas(Rg2, w2, h2) };
+  }
+  var CanopyRig = class {
+    constructor(THREE, o2 = {}) {
+      this.THREE = THREE;
+      this.spec = o2.spec;
+      this.scheme = CANOPY_SCHEMES[o2.scheme] || CANOPY_SCHEMES.ink;
+      this.group = new THREE.Group();
+      this.group.name = "canopy-rig";
+      this.cells = this.spec.cells;
+      this.NU = this.cells * 6;
+      this.NV = 18;
+      this.mats = this.materials();
+      this.buildWing();
+      this.buildLines();
+      this.buildRisers();
+      this.buildSlider();
+      this.buildPilot();
+      this.update({ fill: 1, slider: 0, brakeL: 0, brakeR: 0, risers: 0, pcOut: 1, linesOut: 1, phase: "canopy", t: 0 });
+    }
+    tex(cnv, srgb, rep) {
+      const T2 = this.THREE, t2 = new T2.CanvasTexture(cnv);
+      if (srgb) t2.encoding = T2.sRGBEncoding;
+      t2.anisotropy = 8;
+      t2.wrapS = t2.wrapT = T2.RepeatWrapping;
+      if (rep) t2.repeat.set(rep[0], rep[1]);
+      return t2;
+    }
+    pbr(set, extra, rep) {
+      const T2 = this.THREE;
+      return new T2.MeshStandardMaterial(Object.assign({
+        map: this.tex(set.map, true, rep),
+        normalMap: this.tex(set.normal, false, rep),
+        roughnessMap: this.tex(set.rough, false, rep),
+        roughness: 1,
+        metalness: 0
+      }, extra || {}));
+    }
+    materials() {
+      const T2 = this.THREE, cells = this.cells;
+      const top = paintCanopy(this.scheme, cells, true), bot = paintCanopy(this.scheme, cells, false);
+      const m2 = {
+        top: this.pbr(top, { side: T2.DoubleSide, normalScale: new T2.Vector2(0.6, 0.6) }),
+        bottom: this.pbr(bot, { side: T2.DoubleSide, normalScale: new T2.Vector2(0.6, 0.6) }),
+        rib: this.pbr(paintWeave(this.scheme.under, 21, 256, 256, 3, 0.6), { side: T2.DoubleSide }, [2, 1]),
+        stab: this.pbr(paintWeave(this.scheme.accent, 23, 256, 256, 3, 0.55), { side: T2.DoubleSide }, [2, 2]),
+        webbing: this.pbr(paintWeave("#23262c", 31, 256, 256, 2, 0.72), {}, [1, 6]),
+        cordura: this.pbr(paintWeave("#1f2a36", 41, 512, 512, 3, 0.86), {}, [2, 2]),
+        mesh: this.pbr(paintWeave("#2a2c30", 51, 256, 256, 2, 0.8), { side: T2.DoubleSide }, [3, 3])
+      };
+      m2.line = new T2.LineBasicMaterial({ color: 2829875, transparent: true, opacity: 0.8 });
+      return m2;
+    }
+    // the inflated shape: span s in -1..1, chord v 0 (nose) .. 1 (tail), top or bottom skin
+    // -> a point in the canopy's frame (origin at the riser confluence)
+    shape(s2, v2, top, st) {
+      const S4 = this.spec, half = S4.span / 2, H2 = S4.lines + 0.55;
+      const ang = s2 * 0.62, R2 = half / Math.sin(0.62);
+      let x2 = Math.sin(ang) * R2, y2 = H2 - (1 - Math.cos(ang)) * R2 * 0.9;
+      const c2 = S4.chord, th = 0.17 * c2;
+      const t2 = 2.9 * th * (Math.sqrt(v2) * 0.297 - 0.126 * v2 - 0.351 * v2 * v2 + 0.284 * v2 * v2 * v2 - 0.1015 * v2 * v2 * v2 * v2);
+      const camber = 0.035 * c2 * Math.sin(Math.PI * Math.min(1, v2 / 0.95));
+      let z2 = (0.3 - v2) * c2;
+      const cf = (s2 + 1) / 2 * this.cells, cu = cf - Math.floor(cf), pillow = Math.sin(Math.PI * cu) * 0.045 * c2 * (0.4 + Math.sqrt(Math.max(v2, 0)) * 0.6) * (1 - v2 * 0.7);
+      let yy = camber + (top ? t2 + pillow : -t2 * 0.35 - pillow * 0.6);
+      const side = s2 < 0 ? st.brakeL : st.brakeR, tipW = 0.35 + 0.65 * Math.abs(s2);
+      const tail = smooth5((v2 - 0.62) / 0.38), defl = (side * 0.62 + st.flutter * Math.sin(st.t * 23 + s2 * 9) * 0.02) * tail * tipW;
+      yy -= Math.sin(defl) * (v2 - 0.62) * c2 * 1.15;
+      z2 += (1 - Math.cos(defl)) * (v2 - 0.62) * c2 * 0.5;
+      const pit = -0.06 * st.risers;
+      const zz = z2 * Math.cos(pit) - yy * Math.sin(pit), yr = z2 * Math.sin(pit) + yy * Math.cos(pit);
+      return [x2 + Math.sin(ang) * yr, y2 + Math.cos(ang) * yr, zz];
+    }
+    buildWing() {
+      const T2 = this.THREE, NU = this.NU, NV = this.NV;
+      const grid = (nv) => {
+        const g2 = new T2.BufferGeometry(), n2 = (NU + 1) * (nv + 1);
+        g2.setAttribute("position", new T2.BufferAttribute(new Float32Array(n2 * 3), 3));
+        const uv = new Float32Array(n2 * 2), idx = [];
+        for (let j2 = 0; j2 <= nv; j2++) for (let i2 = 0; i2 <= NU; i2++) {
+          const k2 = j2 * (NU + 1) + i2;
+          uv[k2 * 2] = i2 / NU;
+          uv[k2 * 2 + 1] = j2 / nv;
+        }
+        for (let j2 = 0; j2 < nv; j2++) for (let i2 = 0; i2 < NU; i2++) {
+          const a2 = j2 * (NU + 1) + i2, b2 = a2 + 1, d2 = a2 + NU + 1, e2 = d2 + 1;
+          idx.push(a2, d2, b2, b2, d2, e2);
+        }
+        g2.setAttribute("uv", new T2.BufferAttribute(uv, 2));
+        g2.setIndex(idx);
+        return g2;
+      };
+      this.topGeo = grid(NV);
+      this.botGeo = grid(NV);
+      this.top = new T2.Mesh(this.topGeo, this.mats.top);
+      this.bot = new T2.Mesh(this.botGeo, this.mats.bottom);
+      this.top.castShadow = true;
+      this.top.frustumCulled = false;
+      this.bot.frustumCulled = false;
+      this.group.add(this.top, this.bot);
+      const ribN = this.cells + 1, RV = 12;
+      const rg = new T2.BufferGeometry(), rp = new Float32Array(ribN * (RV + 1) * 2 * 3), ruv = new Float32Array(ribN * (RV + 1) * 2 * 2), ri = [];
+      for (let r2 = 0; r2 < ribN; r2++) for (let j2 = 0; j2 <= RV; j2++) {
+        const base = (r2 * (RV + 1) + j2) * 2;
+        ruv[base * 2] = j2 / RV;
+        ruv[base * 2 + 1] = 0;
+        ruv[base * 2 + 2] = j2 / RV;
+        ruv[base * 2 + 3] = 1;
+        if (j2 < RV) {
+          const a2 = base, b2 = base + 1, c2 = base + 2, d2 = base + 3;
+          ri.push(a2, c2, b2, b2, c2, d2);
+        }
+      }
+      rg.setAttribute("position", new T2.BufferAttribute(rp, 3));
+      rg.setAttribute("uv", new T2.BufferAttribute(ruv, 2));
+      rg.setIndex(ri);
+      this.ribGeo = rg;
+      this.ribs = new T2.Mesh(rg, this.mats.rib);
+      this.ribs.frustumCulled = false;
+      this.group.add(this.ribs);
+      this.RV = RV;
+      const sg2 = new T2.BufferGeometry();
+      sg2.setAttribute("position", new T2.BufferAttribute(new Float32Array(2 * 3 * 3), 3));
+      sg2.setAttribute("uv", new T2.BufferAttribute(new Float32Array([0, 1, 1, 1, 0.5, 0, 0, 1, 1, 1, 0.5, 0]), 2));
+      this.stabGeo = sg2;
+      this.stabs = new T2.Mesh(sg2, this.mats.stab);
+      this.stabs.frustumCulled = false;
+      this.group.add(this.stabs);
+    }
+    buildLines() {
+      const T2 = this.THREE;
+      this.lineRows = [0.04, 0.28, 0.52, 0.78];
+      const ribN = this.cells + 1, n2 = ribN * this.lineRows.length + 2 * 5 + 2 * 4 + 1;
+      const g2 = new T2.BufferGeometry();
+      g2.setAttribute("position", new T2.BufferAttribute(new Float32Array(n2 * 2 * 3), 3));
+      this.lineGeo = g2;
+      this.lines = new T2.LineSegments(g2, this.mats.line);
+      this.lines.frustumCulled = false;
+      this.group.add(this.lines);
+    }
+    buildRisers() {
+      const T2 = this.THREE;
+      this.risers = [];
+      for (let k2 = 0; k2 < 4; k2++) {
+        const m2 = new T2.Mesh(new T2.BoxGeometry(0.045, 0.56, 6e-3), this.mats.webbing);
+        this.group.add(m2);
+        this.risers.push(m2);
+      }
+      this.toggles = [];
+      for (let k2 = 0; k2 < 2; k2++) {
+        const m2 = new T2.Mesh(new T2.BoxGeometry(0.03, 0.14, 0.03), this.mats.webbing);
+        this.group.add(m2);
+        this.toggles.push(m2);
+      }
+    }
+    buildSlider() {
+      const T2 = this.THREE, g2 = new T2.PlaneGeometry(1.1, 0.9, 6, 6);
+      g2.rotateX(-Math.PI / 2);
+      this.sliderMesh = new T2.Mesh(g2, this.mats.mesh);
+      this.sliderMesh.visible = !!this.spec.slider;
+      this.group.add(this.sliderMesh);
+      this.sliderBase = g2.attributes.position.array.slice();
+    }
+    buildPilot() {
+      const T2 = this.THREE, pc = new T2.Group();
+      const cap = new T2.Mesh(new T2.SphereGeometry(0.48, 18, 8, 0, Math.PI * 2, 0, Math.PI * 0.42), this.mats.stab);
+      cap.position.y = 0;
+      pc.add(cap);
+      const net = new T2.Mesh(new T2.CylinderGeometry(0.33, 0.06, 0.55, 14, 1, true), this.mats.mesh);
+      net.position.y = -0.38;
+      pc.add(net);
+      this.pilot = pc;
+      this.group.add(pc);
+      const bg2 = new T2.BufferGeometry();
+      bg2.setAttribute("position", new T2.BufferAttribute(new Float32Array(6), 3));
+      this.bridle = new T2.Line(bg2, this.mats.line);
+      this.bridle.frustumCulled = false;
+      this.group.add(this.bridle);
+      this.bagMesh = new T2.Mesh(new T2.BoxGeometry(0.36, 0.2, 0.26), this.mats.cordura);
+      this.group.add(this.bagMesh);
+    }
+    // The container on his back: a rounded Cordura pack with the reserve on top, the main below, the pilot chute pouch
+    // at the bottom and the yoke over the shoulders. About 0.42 x 0.55 x 0.17 m.
+    makeContainer() {
+      const T2 = this.THREE, g2 = new T2.Group();
+      g2.name = "container";
+      const rounded = (w2, h2, d2, r2) => {
+        const geo = new T2.BoxGeometry(w2, h2, d2, 6, 8, 3), p2 = geo.attributes.position;
+        for (let i2 = 0; i2 < p2.count; i2++) {
+          const x2 = p2.getX(i2), y2 = p2.getY(i2), z2 = p2.getZ(i2);
+          const ix = clamp8(x2, -w2 / 2 + r2, w2 / 2 - r2), iy = clamp8(y2, -h2 / 2 + r2, h2 / 2 - r2), iz = clamp8(z2, -d2 / 2 + r2, d2 / 2 - r2);
+          const dx = x2 - ix, dy = y2 - iy, dz = z2 - iz, l2 = Math.hypot(dx, dy, dz) || 1;
+          p2.setXYZ(i2, ix + dx / l2 * Math.min(r2, l2), iy + dy / l2 * Math.min(r2, l2), iz + dz / l2 * Math.min(r2, l2));
+        }
+        geo.computeVertexNormals();
+        return geo;
+      };
+      const main = new T2.Mesh(rounded(0.4, 0.34, 0.16, 0.05), this.mats.cordura);
+      main.position.set(0, -0.08, 0);
+      g2.add(main);
+      const res = new T2.Mesh(rounded(0.38, 0.2, 0.13, 0.045), this.mats.cordura);
+      res.position.set(0, 0.18, -0.01);
+      g2.add(res);
+      const bot = new T2.Mesh(rounded(0.3, 0.07, 0.1, 0.03), this.mats.cordura);
+      bot.position.set(0, -0.28, 0.01);
+      g2.add(bot);
+      for (const s2 of [-1, 1]) {
+        const strap = new T2.Mesh(new T2.BoxGeometry(0.05, 0.5, 0.012), this.mats.webbing);
+        strap.position.set(s2 * 0.13, 0.05, 0.085);
+        g2.add(strap);
+      }
+      main.castShadow = res.castShadow = true;
+      g2.userData.flap = main;
+      return g2;
+    }
+    // st: { fill 0..1, slider 0..1 (1 at the top), brakeL, brakeR, risers, pcOut, linesOut, phase, t }
+    update(st) {
+      const S4 = this.spec, NU = this.NU, NV = this.NV, cells = this.cells;
+      st.flutter = st.phase === "canopy" ? 1 : 3;
+      const fill = st.phase === "canopy" ? 1 : st.phase === "deploy" ? clamp8(st.fill || 0, 0, 1) : 1;
+      const stretch = st.phase === "deploy" ? clamp8(st.linesOut || 0, 0, 1) : 1;
+      const H2 = S4.lines + 0.55;
+      const cellFill = (s2) => smooth5((fill - Math.abs(s2) * 0.45) / 0.55);
+      const P3 = (s2, v2, top) => {
+        const f2 = cellFill(s2), q2 = this.shape(s2, v2, top, st);
+        if (f2 >= 0.999) return q2;
+        const fl = Math.sin(st.t * 17 + s2 * 7 + v2 * 5) * 0.12 * (1 - f2);
+        const yTop = H2 * stretch;
+        const c2 = [s2 * 0.18 + fl, yTop + 0.2 - v2 * 1.8 * (1 - f2 * 0.5) + (top ? 0.05 : 0), (0.3 - v2) * 0.5 + fl * 0.5];
+        const k2 = f2 * f2;
+        return [c2[0] + (q2[0] - c2[0]) * k2, c2[1] + (q2[1] - c2[1]) * k2, c2[2] + (q2[2] - c2[2]) * k2];
+      };
+      const fillSkin = (geo, top, v0) => {
+        const a2 = geo.attributes.position.array;
+        for (let j2 = 0; j2 <= NV; j2++) for (let i2 = 0; i2 <= NU; i2++) {
+          const s2 = i2 / NU * 2 - 1, v2 = top ? j2 / NV : v0 + (1 - v0) * j2 / NV, q2 = P3(s2, v2, top), k2 = (j2 * (NU + 1) + i2) * 3;
+          a2[k2] = q2[0];
+          a2[k2 + 1] = q2[1];
+          a2[k2 + 2] = q2[2];
+        }
+        geo.attributes.position.needsUpdate = true;
+        geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+      };
+      fillSkin(this.topGeo, true, 0);
+      fillSkin(this.botGeo, false, 0.075);
+      const ra = this.ribGeo.attributes.position.array, RV = this.RV;
+      for (let r2 = 0; r2 <= cells; r2++) {
+        const s2 = r2 / cells * 2 - 1;
+        for (let j2 = 0; j2 <= RV; j2++) {
+          const v2 = 0.02 + 0.98 * j2 / RV, t2 = P3(s2, v2, true), b2 = P3(s2, Math.max(v2, 0.075), false), base = (r2 * (RV + 1) + j2) * 2 * 3;
+          ra[base] = t2[0];
+          ra[base + 1] = t2[1] - 0.01;
+          ra[base + 2] = t2[2];
+          ra[base + 3] = b2[0];
+          ra[base + 4] = b2[1] + 0.01;
+          ra[base + 5] = b2[2];
+        }
+      }
+      this.ribGeo.attributes.position.needsUpdate = true;
+      this.ribGeo.computeVertexNormals();
+      this.ribGeo.computeBoundingSphere();
+      const sa = this.stabGeo.attributes.position.array;
+      [-1, 1].forEach((s2, k2) => {
+        const a2 = P3(s2, 0.08, false), b2 = P3(s2, 0.85, false), m2 = P3(s2, 0.45, false);
+        const drop = [m2[0] - s2 * 0.05, m2[1] - 0.75 * cellFill(s2), m2[2]];
+        sa.set([a2[0], a2[1], a2[2], b2[0], b2[1], b2[2], drop[0], drop[1], drop[2]], k2 * 9);
+      });
+      this.stabGeo.attributes.position.needsUpdate = true;
+      this.stabGeo.computeVertexNormals();
+      this.stabs.visible = fill > 0.6;
+      const rTop = 0.56, rx = 0.17;
+      const riserEnds = [[-rx, rTop, 0.06], [-rx, rTop, -0.06], [rx, rTop, 0.06], [rx, rTop, -0.06]];
+      this.risers.forEach((m2, k2) => {
+        const e2 = riserEnds[k2];
+        m2.position.set(e2[0] * 0.75, rTop / 2, e2[2]);
+        m2.rotation.set(0, 0, -e2[0] * 0.25);
+      });
+      this.toggles.forEach((m2, k2) => {
+        const side = k2 ? 1 : -1, b2 = k2 ? st.brakeR : st.brakeL;
+        m2.position.set(side * (rx * 0.9 + b2 * 0.05), rTop - 0.05 - b2 * 0.55, -0.1 + b2 * 0.06);
+      });
+      const la = this.lineGeo.attributes.position.array;
+      let w2 = 0;
+      const seg = (a2, b2) => {
+        la[w2++] = a2[0];
+        la[w2++] = a2[1];
+        la[w2++] = a2[2];
+        la[w2++] = b2[0];
+        la[w2++] = b2[1];
+        la[w2++] = b2[2];
+      };
+      const stretchF = stretch;
+      for (let r2 = 0; r2 <= cells; r2++) {
+        const s2 = r2 / cells * 2 - 1;
+        this.lineRows.forEach((v2, k2) => {
+          const a2 = P3(s2, v2, false), e2 = riserEnds[(s2 < 0 ? 0 : 2) + (k2 < 2 ? 0 : 1)];
+          seg([a2[0], a2[1], a2[2]], [e2[0] + (a2[0] - e2[0]) * 0.03 * (1 - stretchF), e2[1], e2[2]]);
+        });
+      }
+      for (const side of [-1, 1]) {
+        const tog = this.toggles[side < 0 ? 0 : 1].position, cas = [side * S4.span * 0.22, H2 * 0.55, -S4.chord * 0.25];
+        seg([tog.x, tog.y, tog.z], cas);
+        for (let k2 = 0; k2 < 4; k2++) {
+          const s2 = side * (0.25 + k2 * 0.25), te = P3(s2, 0.99, false);
+          seg(cas, te);
+        }
+      }
+      const sl = st.phase === "deploy" ? clamp8(st.slider !== void 0 ? st.slider : 1, 0, 1) : 0;
+      if (this.sliderMesh.visible) {
+        const sy = 0.65 + sl * (H2 * stretch - 1.2);
+        this.sliderMesh.position.set(0, sy, 0);
+        const pa = this.sliderMesh.geometry.attributes.position.array, b0 = this.sliderBase;
+        for (let i2 = 0; i2 < pa.length; i2 += 3) {
+          pa[i2] = b0[i2] * (0.5 + sl * 0.6);
+          pa[i2 + 2] = b0[i2 + 2] * (0.5 + sl * 0.6);
+          pa[i2 + 1] = -Math.hypot(b0[i2], b0[i2 + 2]) * 0.12 * sl + Math.sin(st.t * 9 + b0[i2] * 8) * 0.02;
+        }
+        this.sliderMesh.geometry.attributes.position.needsUpdate = true;
+        this.sliderMesh.geometry.computeVertexNormals();
+      }
+      const top0 = P3(0, 0.35, true), pcY = st.phase === "deploy" ? Math.max(top0[1], H2 * stretch) + 1.6 + 1.8 * clamp8(st.pcOut || 0, 0, 1) : top0[1] + 0.9;
+      this.pilot.position.set(0, pcY, top0[2] - (st.phase === "canopy" ? 2.6 : 0.6));
+      this.pilot.rotation.set(st.phase === "canopy" ? -1.2 : 0, 0, 0);
+      this.pilot.scale.setScalar(st.phase === "canopy" ? 0.55 : 0.6 + 0.4 * clamp8(st.pcOut || 0, 0, 1));
+      const ba = this.bridle.geometry.attributes.position.array;
+      ba.set([top0[0], top0[1], top0[2], this.pilot.position.x, this.pilot.position.y - 0.4, this.pilot.position.z]);
+      this.bridle.geometry.attributes.position.needsUpdate = true;
+      this.bagMesh.visible = st.phase === "deploy" && fill < 0.2;
+      this.bagMesh.position.set(0, H2 * stretch + 0.3, 0);
+    }
+    dispose() {
+      this.group.traverse((o2) => {
+        if (o2.geometry) o2.geometry.dispose();
+      });
+      Object.values(this.mats).forEach((m2) => {
+        ["map", "normalMap", "roughnessMap"].forEach((k2) => m2[k2] && m2[k2].dispose());
+        m2.dispose();
+      });
     }
   };
   return __toCommonJS(index_exports);
