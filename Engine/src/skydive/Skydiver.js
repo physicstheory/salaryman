@@ -64,7 +64,7 @@ export class Skydiver {
     this.theta = 0; this.alpha = 1.5; this.alphaV = 0;                          // attitude: angle of attack, and pitch for drawing
     this.upright = o.from === "aircraft" ? 0.35 : 1;                        // 1 = standing up; the airflow lays him flat
     this.roll = 0; this.tumble = 0;
-    this.phase = "freefall"; this.t = 0; this.ffTime = 0;
+    this.phase = "freefall"; this.t = 0; this.ffTime = 0; this.exitFrom = o.from;
     this.deployT = 0; this.pcOut = 0; this.linesOut = 0; this.fill = 0; this.slider = this.spec.slider ? 1 : 0;
     this.bank = 0; this.bankV = 0; this.swingP = 0; this.swingPV = 0; this.twists = 0; this.twistDir = 1;
     this.bL = 0; this.bR = 0; this.riser = 0; this.clDyn = this.spec.cl; this.stallT = 0; this.stalled = false; this.deepT = 0;
@@ -115,6 +115,7 @@ export class Skydiver {
         // line stretch: how cleanly it comes off depends on how stable he was
         const unstable = Math.max(this.pullInstab || 0, Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V > 68 ? 0.4 : 0) + this.upright * 0.25);
         this.offHeading = (this.rand() + this.rand() + this.rand() - 1.5) * (0.22 + unstable * 0.9);
+        if (this.exitFrom === "building" && unstable < 0.6) this.offHeading = clamp(this.offHeading, -0.35, 0.35);   // a clean BASE pull opens near heading
         if (unstable > 0.75 && this.rand() < unstable * 0.7) { this.twists = 1 + Math.floor(this.rand() * (1 + unstable * 2)); this.twistDir = this.rand() < 0.5 ? -1 : 1; }
         this.canopyYaw = this.yaw + this.offHeading;
         ev.push({ type: "linestretch", offHeading: this.offHeading, twists: this.twists });

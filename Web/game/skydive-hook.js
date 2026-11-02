@@ -178,7 +178,7 @@
     chute.hud.style.display = "block";
   }
   function baseJump(r, dx, dz) {
-    const d = Math.hypot(dx, dz) || 1, sp = Math.max(player.speed, 1.6) + (player.jump > 0 ? 1.2 : 0);
+    const d = Math.hypot(dx, dz) || 1, sp = Math.max(player.speed, 3.2) + (player.jump > 0 ? 1.5 : 0);   // a committed push away from the wall
     const vx = dx / d * sp, vz = dz / d * sp, yawv = Math.atan2(vx, vz);
     const had = SK.have;
     start({ spec: SK.haveSpec || "base", chute: had, from: "building", yaw: yawv,
@@ -268,7 +268,8 @@
       if (e.type === "stall") say("Stall! Let the brakes up.", 2);
       if (e.type === "wall") {
         if (e.phase === "canopy" && e.part === "canopy" && e.into <= 2.2) { if (typeof rumble === "function") rumble(0.4, 0.4, 140); continue; }
-        if (e.into > 4 || e.phase !== "canopy") { finish("wall", { vel: { x: sd.vel.x + e.normal.x * 2, y: sd.vel.y, z: sd.vel.z + e.normal.z * 2 } }); return; }
+        // a brush along the wall is a bounce; going into it properly is a ragdoll
+        if (e.into > (e.phase === "canopy" ? 4 : 3.2)) { finish("wall", { vel: { x: sd.vel.x + e.normal.x * 2, y: sd.vel.y, z: sd.vel.z + e.normal.z * 2 } }); return; }
       }
       if (e.type === "collapse") { finish("collapse", null); return; }
       if (e.type === "land") { finish(e.phase === "canopy" ? e.quality : (e.quality === "good" ? "hard" : e.quality), e); return; }

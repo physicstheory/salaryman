@@ -12837,6 +12837,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       this.phase = "freefall";
       this.t = 0;
       this.ffTime = 0;
+      this.exitFrom = o2.from;
       this.deployT = 0;
       this.pcOut = 0;
       this.linesOut = 0;
@@ -12910,6 +12911,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           this.fill = 1e-3;
           const unstable = Math.max(this.pullInstab || 0, Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V2 > 68 ? 0.4 : 0) + this.upright * 0.25);
           this.offHeading = (this.rand() + this.rand() + this.rand() - 1.5) * (0.22 + unstable * 0.9);
+          if (this.exitFrom === "building" && unstable < 0.6) this.offHeading = clamp7(this.offHeading, -0.35, 0.35);
           if (unstable > 0.75 && this.rand() < unstable * 0.7) {
             this.twists = 1 + Math.floor(this.rand() * (1 + unstable * 2));
             this.twistDir = this.rand() < 0.5 ? -1 : 1;
