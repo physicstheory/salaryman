@@ -1294,6 +1294,8 @@
 <script src="art/retail.js"></script>
 <script src="art/realism.js"></script>
 <script src="art/brands.js"></script>
+<script src="art/signfonts/fonts.js"></script>
+<script src="art/signfonts.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
 <script>
@@ -5446,7 +5448,10 @@ function planCity(world, F, seed, report, progressBase) {
       for (let d = 0; d <= LEN; d += 10) rp.push([a[0] + nx * off + tx * dir * d, 0, a[2] + nz * off + tz * dir * d]);
       const bad = rp.some(q => world.sampleHeight(q[0], q[2]) < 1.2 || q[0] < 300 || q[2] < 300 || q[0] > WORLD_X - 300 || q[2] > WORLD_Z - 300 ||
         (PAL && (() => { const l = toRectLocal(q[0], q[2], PAL.c[0], PAL.c[1], PAL.yaw); return Math.abs(l[0]) < PAL.H + 10 && Math.abs(l[1]) < PAL.H + 10; })()));
-      if (bad) continue;
+      // nor one laid over another ramp: two that face each other on the same side of the ring share a line, and each one's piers then
+      // stand in the other's carriageway, so neither can be driven
+      const clash = L.roads.some(o => o.cls === "ramp" && o.pts.some(p => rp.some(q => Math.hypot(p[0] - q[0], p[2] - q[2]) < RHW * 2 + 6)));
+      if (bad || clash) continue;
       const ramp = { name: "Konto Metropolitan Expressway " + (k % 2 ? "off-ramp" : "on-ramp"), cls: "ramp", halfWidth: RHW, loop: false, elevated: true, pts: rp,
                      rampOf: road, rampAt: i, rampSide: [nx, nz] };
       L.roads.push(ramp); claimPath(rp, RHW + 2, false);
@@ -10479,7 +10484,7 @@ function tryStep(dx, dz, radius) {
   if (interior.active) return interiorTryStep(dx, dz, radius);
   const nx = player.pos.x + dx, nz = player.pos.z + dz;
   if (nx < 40 || nz < 40 || nx > WORLD_X - 40 || nz > WORLD_Z - 40) return false;
-  if (world.sampleHeight(nx, nz) < 0.35) return false;          // the waterline
+  if (world.sampleHeight(nx, nz) < 0.35 && world.bridgeY(nx, nz, player.pos.y) === null) return false;          // the waterline (a bridge over it is not)
   if (insideBuilding(nx, nz, radius)) return false;
   if (treeBlocks(nx, nz, radius, player.pos.x, player.pos.z)) return false;
   if (traffic.ready && carBlocks(nx, nz, radius) && !carBlocks(player.pos.x, player.pos.z, radius)) return false;     // (already overlapping a car: any way out is allowed)
@@ -12008,6 +12013,8 @@ function buildStreetLife(root, w) {
     });
     body.instanceMatrix.needsUpdate = true; if (body.instanceColor) body.instanceColor.needsUpdate = true; face.instanceMatrix.needsUpdate = true;
     body.frustumCulled = false; face.frustumCulled = false; body.castShadow = true;
+    // the engine swaps these boxes for its detailed, PBR-textured vending machine once it is running (game/engine-hook.js)
+    body.userData.propSwap = { type: "vending", also: [face], items: vending.list.map(v => ({ x: v.at[0], y: v.groundY, z: v.at[1], yaw: v.yaw, colour: v.o.c.map(k => Math.pow(k, 1 / 2.2)) })) };
     root.add(body); root.add(face);
   }
   buildSolidGrid();
@@ -15209,6 +15216,14 @@ function conformRibbon(pts, loop, t0, t1, ground, lift, opts) {
   return { rows: rows, offsets: offsets, along: along, P: P, norms: norms };
 }
 
+// Where the lanes of one direction run, as distances from the centre line: the same sum the marking shader below does (the centre line
+// 0.3 m out, the edge line 0.55 m in from the kerb, as many 3.25 m lanes as fit between and the space shared equally). Traffic drives on
+// these centres, so a car is always between its two lines and never on one.
+function roadLaneCentres(hw) {
+  const edgeX = hw - 0.55, n = Math.max(1, Math.floor((edgeX - 0.3) / 3.25 + 0.2)), lw = (edgeX - 0.3) / n, out = [];
+  for (let k = 0; k < n; k++) out.push(0.3 + (k + 0.5) * lw);
+  return out;
+}
 // ---- road markings, Japanese ------------------------------------------------------------------------------------------------------------
 // Painted into the arterials' surface by the shader, from the road's own coordinates (across it in metres, along it in metres): the solid
 // yellow centre line of a road you may not overtake on (in pairs, as the wide ones have them), white lane lines five metres on and five off,
@@ -16006,11 +16021,19 @@ function adAtlas() {
     g.textAlign = "left";
     g.textBaseline = "alphabetic";
     g.fillStyle = ad.tint;
-    fitText(ad.jp, "700", 38, 1190, JP);
-    g.fillText(ad.jp, 370, 60);
+    if (window.SignFonts) {
+      // each campaign is set in its own typeface and lettering, like real agencies' work, instead of one house font
+      const sj = SignFonts.style("adjp|" + ad.head, { text: ad.jp, treatment: "flat" }), sh = SignFonts.style("ad|" + ad.head, { text: ad.head, hint: ad.sub });
+      SignFonts.text(g, ad.jp, 370, 60, sj, ad.tint, ad.bg, 38, 1190);
+      SignFonts.text(g, ad.head, 368, 150, sh, ad.ink, ad.bg, 84, 1190);
+    } else {
+      fitText(ad.jp, "700", 38, 1190, JP);
+      g.fillText(ad.jp, 370, 60);
+      g.fillStyle = ad.ink;
+      fitText(ad.head, "800", 84, 1190, UI);
+      g.fillText(ad.head, 368, 150);
+    }
     g.fillStyle = ad.ink;
-    fitText(ad.head, "800", 84, 1190, UI);
-    g.fillText(ad.head, 368, 150);
     fitText(ad.sub, "500", 34, 1190, UI);
     g.globalAlpha = 0.85;
     g.fillText(ad.sub, 372, 207);
@@ -17667,7 +17690,6 @@ function decoMaterial(map, instanced) {
 // it on the other side for free.
 function buildTrafficLanes(city) {
   const lanes = [];
-  const LANE_W = 3.25;
   // The painted city ground is laid CITY_LIFT above the terrain across the
   // city's whole rectangle, while surfaceY tapers that lift off towards the
   // edge - so a car placed on surfaceY sinks into the paving by up to
@@ -17680,7 +17702,8 @@ function buildTrafficLanes(city) {
     : world.surfaceY(x, z);
   city.roads.forEach((road, ri) => {
     if (!road.pts || road.pts.length < 3) return;
-    const perSide = road.halfWidth >= 9 ? 2 : 1;
+    // the lanes are where the paint says they are (roadLaneCentres is the road shader's own sum), on the left of travel
+    const centres = roadLaneCentres(road.halfWidth), perSide = centres.length;
     // Thirty on a back street, forty on a middling road, fifty on the big
     // arterials, ninety on the expressway: what the signs say in Japan.
     const limit = road.cls === "expressway" ? 25 : road.halfWidth >= 12 ? 13.9 : road.halfWidth >= 9 ? 11.1 : 8.3;
@@ -17700,15 +17723,15 @@ function buildTrafficLanes(city) {
             const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
             let dx = next[0] - prev[0], dz = next[2] - prev[2];
             const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
-            const off = LANE_W * (k + 0.5);
-            pts.push([src[i][0] - dz * off, src[i][1] + 0.06, src[i][2] + dx * off]);
+            const off = centres[k];
+            pts.push([src[i][0] + dz * off, src[i][1] + 0.06, src[i][2] - dx * off]);
           }
           if (pts.length < 4) continue;
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
             arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
-                       loop: !!road.loop, road: ri, wide: wideDeck, kerb: k === 0,
+                       loop: !!road.loop, road: ri, wide: wideDeck, kerb: k === perSide - 1,
                        elevated: true });
         }
       }
@@ -17728,8 +17751,8 @@ function buildTrafficLanes(city) {
           const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
           let dx = next[0] - prev[0], dz = next[2] - prev[2];
           const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
-          const off = LANE_W * (k + 0.5);
-          const lx = src[i][0] - dz * off, lz = src[i][2] + dx * off;
+          const off = centres[k];
+          const lx = src[i][0] + dz * off, lz = src[i][2] - dx * off;          // (dz, -dx) is the left of (dx, dz): Konto keeps left
           const y = roadY(lx, lz);
           // Paved, and dry. The city rectangle takes in part of the bay, so a
           // road drawn across it would otherwise put a lane of traffic on the
@@ -17757,7 +17780,7 @@ function buildTrafficLanes(city) {
           // A loop only stays a loop if none of it was cut away.
           const whole = runs.length === 1 && pts.length === src.length;
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
-                       loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === 0 });
+                       loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === perSide - 1 });
         });
       }
     }
@@ -18068,23 +18091,31 @@ function makeHeadlights(root, cap) {
   const beamUv = [0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1];
   const lamps = mk(lampPos, lampUv, "lamp", [1.0, 0.94, 0.72], 5);
   const beam = mk(beamPos, beamUv, "beam", [0.85, 0.76, 0.48], 4);
+  // the tail lights: two smaller red glows on the back, the same instanced trick
+  const tailPos = [];
+  [-0.62, 0.62].forEach(x => { const s = 0.32; [[-s, -s], [s, -s], [s, s], [-s, -s], [s, s], [-s, s]].forEach(q => tailPos.push(x + q[0], q[1], -0.05)); });
+  const tails = mk(tailPos, lampUv, "lamp", [1.0, 0.10, 0.06], 5);
   let spot = null;
   if (gfx.tier !== "low") {
     spot = new THREE.SpotLight(0xfff1d6, 0, 70, 0.52, 0.6, 1.3);
     spot.castShadow = false;
     root.add(spot); root.add(spot.target);
   }
-  return { mesh: beam, lamps: lamps, mat: beam.material, lampMat: lamps.material, spot: spot };
+  return { mesh: beam, lamps: lamps, tails: tails, mat: beam.material, lampMat: lamps.material, tailMat: tails.material, spot: spot };
 }
 const _hlM = new THREE.Matrix4(), _hlQ = new THREE.Quaternion(), _hlE = new THREE.Euler(), _hlP = new THREE.Vector3(), _hlS = new THREE.Vector3();
 function updateHeadlights() {
   const L = traffic.lamps; if (!L) return;
-  const lit = nightState.lit;
+  // Lights on from dusk, and in the daytime too when it is pouring or foggy, the way drivers do: the darkness of the hour or of the
+  // weather, whichever is the greater.
+  const Wc = window.shigoto && shigoto.engine && shigoto.engine.weather ? shigoto.engine.weather.cur : null;
+  const gloom = Wc ? 0.55 * Math.max(clamp01((Wc.rain - 0.35) / 0.4), clamp01((Wc.fog - 0.006) / 0.008)) : 0;
+  const lit = Math.max(nightState.lit, gloom);
   const own = drive.car && drive.car.lights;
-  const night = lit > 0.22;
-  if (!night && !own) { L.mesh.count = 0; L.lamps.count = 0; L.mat.opacity = 0; L.lampMat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
-  const glow = clamp01(Math.max(lit * 1.05, own ? 0.38 : 0));
-  L.mat.opacity = glow * 0.72; L.lampMat.opacity = glow;
+  const night = lit > 0.14;
+  if (!night && !own) { L.mesh.count = 0; L.lamps.count = 0; L.tails.count = 0; L.mat.opacity = 0; L.lampMat.opacity = 0; L.tailMat.opacity = 0; if (L.spot) L.spot.intensity = 0; return; }
+  const glow = clamp01(Math.max(0.35 + lit * 0.75, own ? 0.38 : 0));
+  L.mat.opacity = glow * 0.72 * clamp01(nightState.lit * 1.6 + 0.25); L.lampMat.opacity = glow; L.tailMat.opacity = glow * 0.9;      // the pool on the road only shows once it is dark
   let n = 0;
   const put = (x, y, z, yaw, pitch, kind) => {
     if (n >= L.mesh.instanceMatrix.count) return;
@@ -18096,14 +18127,18 @@ function updateHeadlights() {
     L.mesh.setMatrixAt(n, _hlM);
     _hlS.set(kind.W / 1.8, 1, 1);
     _hlM.compose(_hlP, _hlQ, _hlS);
-    L.lamps.setMatrixAt(n++, _hlM);
+    L.lamps.setMatrixAt(n, _hlM);
+    // and the tail lights on the back, at the same height
+    const back = kind.L * 0.5 - 0.04;
+    _hlP.set(x - Math.sin(yaw) * back, y + lh, z - Math.cos(yaw) * back);
+    _hlM.compose(_hlP, _hlQ, _hlS);
+    L.tails.setMatrixAt(n++, _hlM);
   };
   if (night) {
     for (let i = 0; i < traffic.cars.length; i++) {
       const c = traffic.cars[i];
       if (!c.live || !c.at) continue;
-      if (TWO_WHEELERS[CAR_KINDS[c.kind].body]) continue;
-      put(c.at.x, c.at.y, c.at.z, c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);
+      put(c.at.x, c.at.y, c.at.z, c.yawNow === undefined ? c.at.yaw : c.yawNow, c.at.pitch, CAR_KINDS[c.kind]);     // bikes too: a narrow kind puts its two lamps close together
     }
   }
   if (own) {
@@ -18111,6 +18146,7 @@ function updateHeadlights() {
   }
   L.mesh.count = n; L.mesh.instanceMatrix.needsUpdate = true;
   L.lamps.count = n; L.lamps.instanceMatrix.needsUpdate = true;
+  L.tails.count = n; L.tails.instanceMatrix.needsUpdate = true;
   if (L.spot) {
     if (own && drive.car) {
       const d = drive.car, k = CAR_KINDS[d.kind], sy = Math.sin(d.yaw), cy = Math.cos(d.yaw);
@@ -18791,7 +18827,7 @@ function parkTrees(city, trees) {
   const m = city.moat, P = castlePlan(m), gy = m.groundY, inner = m.inner, T = inner - 25;
   const W = (lx, lz) => fromRectLocal(lx, lz, m.centre[0], m.centre[1], m.yaw);
   const clear = (lx, lz, pad) => !P.rects.some(q => Math.abs(lx - q[0]) < q[2] / 2 + pad && Math.abs(lz - q[1]) < q[3] / 2 + pad);
-  const onPath = (lx, lz) => Math.abs(lx) < 9 || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
+  const onPath = (lx, lz) => Math.abs(lx) < 9 || (Math.abs(lz) < 10 && lx < -inner * 0.55) || (lz > P.parliament.z + 82 && lz < P.parliament.z + 106 && lx < 0);
   const offTrack = (lx, lz) => { const d = Math.max(Math.abs(lx), Math.abs(lz)); return d < T - 8 || (d > T + 7 && d < inner - 14); };
   let n = 0;
   const add = (lx, lz, sp, s) => { const w = W(lx, lz); trees.push({ c: [w[0], w[1]], y: gy + CITY_LIFT, s: s, where: "palace", sp: sp, hmul: lerp(1.15, 1.4, rnd(Math.round(lx), Math.round(lz), 819)) }); n++; };
@@ -18824,9 +18860,12 @@ function castlePlan(m) {
     garden: { x: m.inner * 0.4, z: m.inner * 0.52, rx: 105 * k, rz: 58 * k },
     kura: { x: m.inner * 0.79, z0: -m.inner * 0.72 },
     rects: [[0, -m.inner * 0.33, m.inner * 1.42 + 16, m.inner * 0.9 + 16], [-m.inner * 0.5, m.inner * 0.6 + 48, 250, 190], [0, m.inner * 0.3, 40, m.inner * 0.6],
-            [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40]]
+            [m.inner * 0.4, m.inner * 0.52 + 6, 205 * k, 125 * k], [m.inner * 0.79 + 13, -m.inner * 0.72 + 70, 60, 180], [m.inner * 0.79 + 13, m.inner * 0.0 + 70, 60, 170], [0, m.inner - 10, 60, 40], [0, -m.inner + 10, 60, 40],
+            // the three bridges and their approaches, out across the footway of Uchibori-dori: no tree in a car's way
+            [0, m.inner + m.width / 2 + 20, 2 * BRIDGE_HW + 6, m.width + 60], [0, -m.inner - m.width / 2 - 20, 2 * BRIDGE_HW + 6, m.width + 60], [-m.inner - m.width / 2 - 20, 0, m.width + 60, 2 * BRIDGE_HW + 6], [-m.inner + 10, 0, 40, 60]]
   };
 }
+const BRIDGE_HW = 6;          // half the width of the castle's road bridges and their gates
 function buildCastle(root, city) {
   const m = city.moat; if (!m) return;
   world.walk = world.walk.filter(d => !d.castle);
@@ -18916,8 +18955,9 @@ function buildCastle(root, city) {
     roof("tile", cx, cz, w + 1.0, d + 1.0, gy + DH + 0.35, Math.max(0.1, w - 0.3), Math.max(0.1, d - 0.3), gy + DH + 0.85, 0.05);
     solid(cx, cz, w, d, gy, DH + 1);
   };
-  dobei(-DB, -6, -DB, -DB); dobei(6, DB, -DB, -DB); dobei(-DB, -DB, -DB, DB); dobei(DB, DB, -DB, DB);
-  dobei(-DB, -6, DB, DB); dobei(6, DB, DB, DB);
+  const GG = BRIDGE_HW + 4.5;                             // half the gap the gates leave in the wall
+  dobei(-DB, -GG, -DB, -DB); dobei(GG, DB, -DB, -DB); dobei(-DB, -DB, -DB, -GG); dobei(-DB, -DB, GG, DB); dobei(DB, DB, -DB, DB);
+  dobei(-DB, -GG, DB, DB); dobei(GG, DB, DB, DB);
   // ---- the corner turrets
   const storey = (cx, cz, w, d, y, h, wallKey) => box(wallKey || "keep", cx, y, cz, w, h, d, 4);
   [[1, 1], [1, -1], [-1, 1], [-1, -1]].forEach(c => {
@@ -18928,23 +18968,58 @@ function buildCastle(root, city) {
     storey(x, z, 8, 8, gy + 8.2, 3.6);
     roof("tile", x, z, 11.5, 11.5, gy + 11.6, 3.0, 0.2, gy + 14.2);
   });
-  // ---- the gatehouse over the gap, and the bridge across to it
-  box("stone", -6.5, gy, DB, 4, 5.2, 8, 6); box("stone", 6.5, gy, DB, 4, 5.2, 8, 6);
-  solid(-6.5, DB, 4, 8, gy, 9); solid(6.5, DB, 4, 8, gy, 9);
-  storey(0, DB, 17, 9, gy + 5.2, 3.6);
-  roof("tile", 0, DB, 20.5, 12.5, gy + 8.6, 12, 0.2, gy + 11.6);
-  const BH = 2.6, bz0 = inner - 1.5, bz1 = outer + 1.5, bl = bz1 - bz0, bc = (bz0 + bz1) / 2;
-  {
-    const q = W(0, bc);
-    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 4.2, hl: bl / 2, ya: gy, yb: gy, amp: BH, r: Math.hypot(4.2, bl / 2) + 1, castle: true });
-    // the deck as a run of stone segments following the arch, with a parapet each side
-    const N = 16;
-    for (let k = 0; k < N; k++) {
-      const t0 = k / N, t1 = (k + 1) / N, z0 = bz0 + bl * t0, z1 = bz0 + bl * t1, y0 = gy + BH * Math.sin(Math.PI * t0), y1 = gy + BH * Math.sin(Math.PI * t1);
-      quad("stone", [-4.4, y0, z0], [4.4, y0, z0], [4.4, y1, z1], [-4.4, y1, z1], 4);
-      [-1, 1].forEach(sd => { quad("stone", [sd * 4.4, y0, z0], [sd * 4.4, y1, z1], [sd * 4.4, y1 + 1.1, z1], [sd * 4.4, y0 + 1.1, z0], 4); quad("stone", [sd * 4.4, y0 - 1.6, z0], [sd * 4.4, y1 - 1.6, z1], [sd * 4.4, y1, z1], [sd * 4.4, y0, z0], 4); });
+  // ---- the gates, and the bridges across the moat to them
+  // Three: the main gate to the south, the north gate, and a west gate into the woods. Each bridge is a road bridge twelve metres wide,
+  // for cars as well as people: a stone deck on a low arch over the water, registered as a real bridge (world.bridges, so the ground under
+  // it, the moat bed below sea level, no longer stops a car or a man halfway across), then a ramp over the outer bank that lands on
+  // Uchibori-dori at the road's own height, so it meets the street level wherever the city's grading left it. Parapets are walls.
+  world.bridges = world.bridges.filter(b => !b.castle);
+  const landD = outer + 36 - 10 + 2.5;                    // a little way onto Uchibori-dori (its centre line is 36 m out from the moat, 10 m half width)
+  const gate = (f) => {
+    // f: which side, as a unit vector in the castle's frame. P(a, d): a across the bridge, d out from the centre along it
+    const P = (a, d) => f[1] ? [a, f[1] * d] : [f[0] * d, a];
+    const PY = (a, y, d) => { const q = P(a, d); return [q[0], y, q[1]]; };
+    const across = (w, d) => f[1] ? [w, d] : [d, w];      // a box/solid's size, w across and d along
+    const BW = BRIDGE_HW, BA = 1.6;
+    // the gatehouse: two stone piers, a storey over the gap, its roof
+    [-1, 1].forEach(sd => { const q = P(sd * (BW + 2.5), DB), sz = across(4, 8); box("stone", q[0], gy, q[1], sz[0], 5.2, sz[1], 6); solid(q[0], q[1], sz[0], sz[1], gy, 9); });
+    { const q = P(0, DB), s1 = across(2 * GG, 9), s2 = across(2 * GG + 3.5, 12.5), s3 = across(2 * GG - 9, 0.2);
+      storey(q[0], q[1], s1[0], s1[1], gy + 5.2, 3.6); roof("tile", q[0], q[1], s2[0], s2[1], gy + 8.6, s3[0], s3[1], gy + 11.6); }
+    // the span: the lawn's height at both ends, a low arch between
+    const d0 = inner - 1.5, d1 = outer + 1.5, NS = 12, yS = gv;
+    const spanY = t => yS + BA * Math.sin(Math.PI * t);
+    for (let k = 0; k < NS; k++) {
+      const t0 = k / NS, t1 = (k + 1) / NS, a = P(0, d0 + (d1 - d0) * t0), b = P(0, d0 + (d1 - d0) * t1), A = W(a[0], a[1]), B = W(b[0], b[1]);
+      const len = Math.hypot(B[0] - A[0], B[1] - A[1]), pad = BW + 1;
+      world.bridges.push({ ax: A[0], az: A[1], ux: (B[0] - A[0]) / len, uz: (B[1] - A[1]) / len, len: len, hw: BW, ya: spanY(t0) + 0.02, yb: spanY(t1) + 0.02,
+        x0: Math.min(A[0], B[0]) - pad, x1: Math.max(A[0], B[0]) + pad, z0: Math.min(A[1], B[1]) - pad, z1: Math.max(A[1], B[1]) + pad, castle: true });
     }
-  }
+    // the approach: from the end of the span over the outer bank to the road, wherever the road's level is
+    const LP = P(0, landD), LW = W(LP[0], LP[1]), yL = world.surfaceY(LW[0], LW[1]);
+    { const q = P(0, (d1 + landD) / 2), hl = (landD - d1) / 2, rot = r + (f[1] ? (f[1] > 0 ? 0 : Math.PI) : (f[0] > 0 ? Math.PI / 2 : -Math.PI / 2)), Q = W(q[0], q[1]);
+      // walk decks run along their local z from ya (at -hl) to yb (at +hl): turned so that +z points out, away from the castle
+      world.walk.push({ cx: Q[0], cz: Q[1], c: Math.cos(rot), s: Math.sin(rot), hw: BW, hl: hl, ya: yS, yb: yL, r: Math.hypot(BW, hl) + 1, castle: true }); }
+    // the stonework: deck, parapets with a coping and bronze-capped posts, the fascia under the deck, walls down into the bank on the approach
+    const deckRun = (dA, dB, yA, yB, n, deep) => {
+      for (let k = 0; k < n; k++) {
+        const t0 = k / n, t1 = (k + 1) / n, za = dA + (dB - dA) * t0, zb = dA + (dB - dA) * t1;
+        const ya = typeof yA === "function" ? yA(t0) : yA + (yB - yA) * t0, yb = typeof yA === "function" ? yA(t1) : yA + (yB - yA) * t1;
+        quad("stone", PY(-BW, ya, za), PY(BW, ya, za), PY(BW, yb, zb), PY(-BW, yb, zb), 4);
+        [-1, 1].forEach(sd => {
+          const ai = sd * BW, ao = sd * (BW + 0.5);
+          quad("stone", PY(ai, ya, za), PY(ai, yb, zb), PY(ai, yb + 1.1, zb), PY(ai, ya + 1.1, za), 3);           // inner face
+          quad("stone", PY(ao, ya - deep, za), PY(ao, yb - deep, zb), PY(ao, yb + 1.1, zb), PY(ao, ya + 1.1, za), 4); // outer face, down to the fascia's foot
+          quad("stone", PY(ai, ya + 1.1, za), PY(ao, ya + 1.1, za), PY(ao, yb + 1.1, zb), PY(ai, yb + 1.1, zb), 2); // the coping
+          const mz = (za + zb) / 2, my = Math.min(ya, yb), sz = across(0.5, Math.abs(zb - za) + 0.1), q = P(sd * (BW + 0.25), mz);
+          solid(q[0], q[1], sz[0], sz[1], my - 0.5, Math.abs(yb - ya) + 1.6);
+        });
+        if (k % 2 === 0) [-1, 1].forEach(sd => { const q = P(sd * (BW + 0.25), za); box("stone", q[0], ya + 1.1, q[1], 0.6, 0.35, 0.6, 2); box("copper", q[0], ya + 1.45, q[1], 0.36, 0.42, 0.36, 1); });
+      }
+    };
+    deckRun(d0, d1, spanY, null, 16, 1.6);
+    deckRun(d1, landD - 1, yS, yL, 6, Math.max(2, yS - gy + 6));
+  };
+  gate([0, 1]); gate([0, -1]); gate([-1, 0]);
   // ---- the castle proper, at the size the real ones are. Edo's honmaru alone was some four hundred metres across and Osaka's keep stands
   // fifty-five metres over the ground it is built on, so this is laid out to fill the grounds the way they do:
   //   the honmaru   a raised stone terrace across the north half, walled, a turret at each corner, a ramp up to its gate from the south;
@@ -19184,19 +19259,6 @@ function buildCastle(root, city) {
       solid(x, z, f[0] ? 8 : len, f[0] ? len : 8, gy, 8);
     });
   });
-  // the north gate and its bridge
-  box("stone", -6.5, gy, -DB, 4, 5.2, 8, 6); box("stone", 6.5, gy, -DB, 4, 5.2, 8, 6);
-  solid(-6.5, -DB, 4, 8, gy, 9); solid(6.5, -DB, 4, 8, gy, 9);
-  storey(0, -DB, 17, 9, gy + 5.2, 3.6); roof("tile", 0, -DB, 20.5, 12.5, gy + 8.6, 12, 0.2, gy + 11.6);
-  { const q = W(0, -bc);
-    world.walk.push({ cx: q[0], cz: q[1], c: Math.cos(r), s: Math.sin(r), hw: 4.2, hl: bl / 2, ya: gy, yb: gy, amp: BH, r: Math.hypot(4.2, bl / 2) + 1, castle: true });
-    const N = 16;
-    for (let k = 0; k < N; k++) {
-      const t0 = k / N, t1 = (k + 1) / N, z0 = -(bz0 + bl * t0), z1 = -(bz0 + bl * t1), y0 = gy + BH * Math.sin(Math.PI * t0), y1 = gy + BH * Math.sin(Math.PI * t1);
-      quad("stone", [-4.4, y0, z0], [4.4, y0, z0], [4.4, y1, z1], [-4.4, y1, z1], 4);
-      [-1, 1].forEach(sd => { quad("stone", [sd * 4.4, y0, z0], [sd * 4.4, y1, z1], [sd * 4.4, y1 + 1.1, z1], [sd * 4.4, y0 + 1.1, z0], 4); quad("stone", [sd * 4.4, y0 - 1.6, z0], [sd * 4.4, y1 - 1.6, z1], [sd * 4.4, y1, z1], [sd * 4.4, y0, z0], 4); });
-    }
-  }
   const y = ridge, best = 0;
   // ---- meshes
   const mats = {
@@ -19282,12 +19344,15 @@ function kanbanTexture(v) {
   const n = 6, th = cv.height / n;
   for (let i = 0; i < n; i++) {
     const r = rnd(v, i, 7717), col = KANBAN_COLS[Math.floor(r * KANBAN_COLS.length)], word = KANBAN_WORDS[Math.floor(rnd(i, v, 7719) * KANBAN_WORDS.length)];
-    g.fillStyle = col[0]; g.fillRect(0, i * th, 128, th);
+    // every tenant's board has its own typeface and lettering (SignFonts), so a stack of six never looks stamped out
+    const st = window.SignFonts ? SignFonts.style("kanban|" + v + "|" + i + "|" + word, { text: word }) : null;
+    if (st) SignFonts.panel(g, 0, i * th, 128, th, st, col[0], col[1]); else { g.fillStyle = col[0]; g.fillRect(0, i * th, 128, th); }
     g.fillStyle = "rgba(0,0,0,0.35)"; g.fillRect(0, i * th + th - 3, 128, 3);
     g.fillStyle = col[1]; const chars = [...word], fs = Math.min(64, (th - 22) / chars.length * 0.95);
-    g.font = "900 " + Math.round(fs) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
-    chars.forEach((ch, k) => g.fillText(ch, 64, i * th + 12 + fs * (k + 0.55) + (th - 22 - fs * chars.length) / 2));
-    g.font = "700 15px " + UI; g.textAlign = "left"; g.fillText((n - i + 1) + "F", 6, i * th + 13);
+    if (st) SignFonts.vertical(g, word, 64, i * th + 18, i * th + th - 8, st, col[1], col[0], fs);
+    else { g.font = "900 " + Math.round(fs) + "px " + UI; g.textAlign = "center"; g.textBaseline = "middle";
+      chars.forEach((ch, k) => g.fillText(ch, 64, i * th + 12 + fs * (k + 0.55) + (th - 22 - fs * chars.length) / 2)); }
+    g.fillStyle = col[1]; g.font = "700 15px " + UI; g.textAlign = "left"; g.textBaseline = "middle"; g.fillText((n - i + 1) + "F", 6, i * th + 13);
   }
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (dressTex[key] = t);
@@ -19304,10 +19369,18 @@ function billboardTexture(v) {
   g.strokeStyle = fg; g.globalAlpha = 0.3; g.lineWidth = 2; g.strokeRect(18, 18, 988, 348); g.globalAlpha = 1;
   g.fillStyle = fg; g.font = "700 20px " + UI; g.textAlign = "left"; g.fillText("TŌKONTO · LOCAL BUSINESS", 52, 59);
   g.fillRect(52, 83, 62, 5);
-  let size = 126; g.font = "800 " + size + "px " + JP;
-  while (g.measureText(big).width > 920 && size > 24) { size--; g.font = "800 " + size + "px " + JP; }
-  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(big, 512, 174);
-  g.font = "500 42px " + JP; g.fillText(small, 512, 272, 900);
+  g.textAlign = "center"; g.textBaseline = "middle";
+  if (window.SignFonts) {
+    // the headline and the strapline each get a face of their own, picked for the business (a hotel is not set like a yakiniku)
+    const st = SignFonts.style("billboard|" + big, { text: big, panel: "solid" }), st2 = SignFonts.style("billboard2|" + small, { text: small, treatment: "flat", avoid: ["script", "outline"] });
+    SignFonts.text(g, big, 512, 174, st, fg, bg, 126, 920);
+    SignFonts.text(g, small, 512, 272, st2, fg, bg, 42, 900);
+  } else {
+    let size = 126; g.font = "800 " + size + "px " + JP;
+    while (g.measureText(big).width > 920 && size > 24) { size--; g.font = "800 " + size + "px " + JP; }
+    g.fillText(big, 512, 174);
+    g.font = "500 42px " + JP; g.fillText(small, 512, 272, 900);
+  }
   g.globalAlpha = .3; g.fillRect(52, 321, 920, 1); g.globalAlpha = 1;
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (dressTex[key] = t);
@@ -19416,7 +19489,9 @@ function buildFacadeDressing(city, root, boxes) {
   }
   inst(new THREE.BoxGeometry(1, 0.18, 1.1), std(0xc9c6bd, 0.85), decks, o => new THREE.Vector3(o.w, 1, 1));
   inst(new THREE.BoxGeometry(1, 1.0, 0.06), std(0xdfe3e6, 0.4, { transparent: true, opacity: 0.88 }), rails, o => new THREE.Vector3(o.w, 1, 1), { noShadow: true });
-  inst(new THREE.BoxGeometry(0.8, 0.62, 0.3), std(0xe9ebe6, 0.55), acs, () => new THREE.Vector3(1, 1, 1));
+  const acIM = inst(new THREE.BoxGeometry(0.8, 0.62, 0.3), std(0xe9ebe6, 0.55), acs, () => new THREE.Vector3(1, 1, 1));
+  // swapped for the engine's detailed, textured outdoor unit once it is running (game/engine-hook.js)
+  if (acIM) acIM.userData.propSwap = { type: "ac", items: acs.map(o => ({ x: o.x, y: o.y - 0.31, z: o.z, yaw: o.ry })) };
   inst(new THREE.CylinderGeometry(0.06, 0.06, 1, 6), std(0x8d9196, 0.5), pipes, o => new THREE.Vector3(1, o.h, 1), { noShadow: true });
   const FUTON = [0xf2d7e0, 0xd9e8f5, 0xf6f0d8, 0xe0f0dc, 0xf7e3c8, 0xffffff];
   inst(new THREE.BoxGeometry(1.5, 0.9, 0.1), std(0xffffff, 0.9), futons, () => new THREE.Vector3(1, 1, 1), { colour: o => FUTON[o.c % FUTON.length], noShadow: true });
@@ -29004,7 +29079,9 @@ function mallLedTex(kind, i) {
     g.fillStyle = "rgba(255,255,255,0.14)"; for (let y = 0; y < h; y += 4) g.fillRect(0, y, w, 1);
     g.fillStyle = "#fff"; g.textAlign = "center"; g.textBaseline = "middle"; g.font = "900 54px " + JP;
     const t = kind === "dokoto" ? (i ? ["SALE", "最大50%OFF"] : ["NEW", "新作入荷"]) : (i ? ["SALE", "春のセール"] : ["OPEN", "毎日10-22時"]);
-    g.fillText(t[0], w / 2, h * 0.38); g.font = "800 30px " + JP; g.fillText(t[1], w / 2, h * 0.72);
+    if (window.SignFonts) { const st = SignFonts.style("led|" + kind + i, { text: t[0], mood: "play" }), s2 = SignFonts.style("led2|" + kind + i, { text: t[1], treatment: "flat" });
+      SignFonts.text(g, t[0], w / 2, h * 0.38, st, "#ffffff", "#000000", 54, w - 24); SignFonts.text(g, t[1], w / 2, h * 0.72, s2, "#ffffff", "#000000", 30, w - 24); }
+    else { g.fillText(t[0], w / 2, h * 0.38); g.font = "800 30px " + JP; g.fillText(t[1], w / 2, h * 0.72); }
     g.strokeStyle = "#fff"; g.lineWidth = 6; g.strokeRect(3, 3, w - 6, h - 6);
   });
 }
@@ -29594,8 +29671,16 @@ function brandSignTex(brand) {
   g.fillStyle = b.band; g.fillRect(0, 0, 1024, 128);
   g.fillStyle = b.stripes[0]; g.fillRect(0, 108, 1024, 20);
   g.fillStyle = b.ink; g.textBaseline = "middle"; g.textAlign = "left";
-  g.font = "900 70px " + UI; g.fillText(b.name, 36, 56);
-  if (b.jp) { g.textAlign = "right"; g.font = "800 46px " + JP; g.globalAlpha = 0.85; g.fillText(b.jp, 990, 56); g.globalAlpha = 1; }
+  if (window.SignFonts) {
+    // a chain keeps one logo face everywhere (seeded by the brand, stable), but no two chains share the same one
+    const st = SignFonts.style("brand|" + brand, { text: b.name, stable: true, avoid: ["hand", "cute"] });
+    const sj = SignFonts.style("brandjp|" + brand, { text: b.jp || "", script: "jp", stable: true, treatment: "flat" });
+    SignFonts.text(g, b.name, 36, 56, st, b.ink, b.band, 70, b.jp ? 560 : 950);
+    if (b.jp) { g.textAlign = "right"; g.globalAlpha = 0.85; SignFonts.text(g, b.jp, 990, 56, sj, b.ink, b.band, 46, 380); g.globalAlpha = 1; }
+  } else {
+    g.font = "900 70px " + UI; g.fillText(b.name, 36, 56);
+    if (b.jp) { g.textAlign = "right"; g.font = "800 46px " + JP; g.globalAlpha = 0.85; g.fillText(b.jp, 990, 56); g.globalAlpha = 1; }
+  }
   const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return (brandTexCache[brand] = t);
 }
@@ -31784,6 +31869,8 @@ function ytEmbedUrl(src) {
   if ((m = /[?&]v=([\w-]{11})/.exec(src)) || (m = /youtu\.be\/([\w-]{11})/.exec(src)) || (m = /^([\w-]{11})$/.exec(src))) return "https://www.youtube.com/embed/" + m[1] + "?" + tail.slice(1);
   return null;
 }
+// The desktop game wraps each YouTube player in a small local page so it carries a referrer, without which YouTube refuses to play (Error 153).
+function ytFrame(url) { const b = window.KONTO_DESKTOP && window.KONTO_DESKTOP.ytShim; return b && url ? b + "/yt?u=" + encodeURIComponent(url) : url; }
 function ytPost(cmd, args) { try { if (ytRadio.frame && ytRadio.frame.contentWindow) ytRadio.frame.contentWindow.postMessage(JSON.stringify({ event: "command", func: cmd, args: args || [] }), "*"); } catch (e) { /* none */ } }
 function ytStop() {
   if (ytRadio.frame) { try { ytRadio.frame.remove(); } catch (e) { /* none */ } ytRadio.frame = null; }
@@ -31800,7 +31887,7 @@ function ytSync() {
     f.allow = "autoplay; encrypted-media"; f.referrerPolicy = "strict-origin-when-cross-origin";
     f.style.cssText = "position:fixed;left:-300px;top:-300px;width:200px;height:200px;border:0;opacity:0;pointer-events:none";
     f.onload = () => { try { f.contentWindow.postMessage(JSON.stringify({ event: "listening", id: 1 }), "*"); } catch (e) { /* none */ } setTimeout(() => ytPost("setVolume", [78]), 600); };
-    f.src = url; document.body.appendChild(f);
+    f.src = ytFrame(url); document.body.appendChild(f);
     ytRadio.frame = f; ytRadio.src = st.id + "|" + src; ytRadio.t0 = performance.now(); ytRadio.on = false; ytRadio.title = ""; ytRadio.st = st.id; ytRadio.key = st.id + "|" + src;
   }
   return ytRadio.on;
@@ -31892,7 +31979,7 @@ function videoShow(x, y, w, h, where) {
   let f = layer.querySelector("iframe");
   const url = videoUrl();
   if (!f) { f = document.createElement("iframe"); f.allow = "autoplay; encrypted-media; picture-in-picture"; f.setAttribute("allowfullscreen", ""); f.referrerPolicy = "strict-origin-when-cross-origin"; layer.appendChild(f); }
-  if (f.getAttribute("data-url") !== url) { f.src = url; f.setAttribute("data-url", url); }
+  if (f.getAttribute("data-url") !== url) { f.src = ytFrame(url); f.setAttribute("data-url", url); }
   layer.style.cssText = "position:fixed;left:" + x + "px;top:" + y + "px;width:" + w + "px;height:" + h + "px;z-index:40;background:#000;overflow:hidden;border-radius:" + (where === "phone" ? "14px" : "6px") + ";";
   f.style.cssText = "width:100%;height:100%;border:0;display:block;";
   video.on = true; video.where = where;
@@ -38390,7 +38477,7 @@ function ifeDraw() {
   const el = ife.el, a = AIR_DESTS[ife.from], b = AIR_DESTS[ife.to], p = ifeProgress();
   const left = Math.max(0, Math.round(b.hours * 60 * (1 - p))), tabs = [["movies", "Films"], ["map", "Flight map"], ["call", "Call attendant"]];
   let main = "";
-  if (ife.playing) main = "<h2>" + ife.playing.title + "</h2><div class='player'><iframe src='https://www.youtube-nocookie.com/embed/" + ife.playing.id + "?autoplay=1&rel=0&modestbranding=1&playsinline=1' allow='autoplay; encrypted-media; fullscreen' allowfullscreen referrerpolicy='strict-origin-when-cross-origin'></iframe></div><div class='note'>If the picture does not come up the seat cannot reach the film server: try the moving map. · Esc: back to the films</div>";
+  if (ife.playing) main = "<h2>" + ife.playing.title + "</h2><div class='player'><iframe src='" + ytFrame("https://www.youtube-nocookie.com/embed/" + ife.playing.id + "?autoplay=1&rel=0&modestbranding=1&playsinline=1") + "' allow='autoplay; encrypted-media; fullscreen' allowfullscreen referrerpolicy='strict-origin-when-cross-origin'></iframe></div><div class='note'>If the picture does not come up the seat cannot reach the film server: try the moving map. · Esc: back to the films</div>";
   else if (ife.tab === "movies") main = "<h2>Films · short and free</h2><div class='grid'>" + IFE_FILMS.map((f, i) => "<div class='card" + (i === ife.sel ? " sel" : "") + "' data-i='" + i + "'><div class='po' style='background:linear-gradient(160deg," + f.a + "," + f.b + ")'>" + f.title + "</div><div class='in'>" + f.tag + " · " + f.len + "</div></div>").join("") + "</div>";
   else if (ife.tab === "map") main = "<h2>Flight map</h2><canvas id='ifemap' width='1000' height='520'></canvas>";
   else main = "<h2>Cabin crew</h2><p style='font-size:18px'>A flight attendant is on the way with tea. You may also say nothing, which is normal in this airline.</p>";
@@ -38524,7 +38611,8 @@ function planDestinations(world) {
   const at = (x, z) => { for (let i = 0; i < DEST.sites.length; i++) { const s = DEST.sites[i]; if (Math.abs(x - s.cx) < s.hx && Math.abs(z - s.cz) < s.hz) return s; } return null; };
   DEST.at = at;
   world.sampleHeight = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sH(x, z); };
-  world.surfaceY = (x, z) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sY(x, z); };
+  // (refY passes through: without it every elevated deck - the expressway, its ramps, the viaducts - was invisible to whatever stands or drives)
+  world.surfaceY = (x, z, refY) => { const s = at(x, z); return s ? s.h(x - s.cx, z - s.cz) : sY(x, z, refY); };
   world.slopeAt = (x, z) => { const s = at(x, z); if (!s) return sS(x, z); const e = 2, h = (a, b) => s.h(a - s.cx, b - s.cz); return Math.hypot(h(x + e, z) - h(x - e, z), h(x, z + e) - h(x, z - e)) / (2 * e); };
 }
 function smoothstepJS(a, b, x) { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); }
@@ -44454,8 +44542,9 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
   let go = false; const start = () => { if (go) return; go = true; generate(19640101); };
   try {
     if (document.fonts && document.fonts.load) {
-      Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))).then(start, start);
-      setTimeout(start, 4000);
+      Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))
+        .concat(window.SignFonts ? [SignFonts.ready] : [])).then(start, start);
+      setTimeout(start, 6000);
     } else start();
   } catch (e) { start(); }
 })();

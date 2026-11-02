@@ -420,7 +420,57 @@ ipcMain.handle("spotify-auth", (_e, authUrl, redirect) => new Promise(resolve =>
   w.loadURL(authUrl);
 }));
 
-app.whenReady().then(() => {
+// ---- YouTube in the game -------------------------------------------------------------------------------------------------------------------
+// The television, MyGram, the radio and the seat-back screen play YouTube in iframes. YouTube now refuses to play an embed whose request has
+// no HTTP Referer (the player shows "Error 153, video player configuration error"), and Chromium never sends a referrer from a page on a
+// private scheme like konto://, so every video in the desktop game failed while the same page in a browser tab worked. The page keeps its
+// konto:// origin (moving it would lose every save in localStorage); instead each player is wrapped in a tiny page served from a private
+// web server on this machine, http://localhost:<port>/yt, which embeds the real player with an ordinary referrer and relays the player's
+// messages both ways so the radio can still read titles and set the volume. Nothing but that one page is served, and only to this machine.
+const http = require("http");
+let ytShimBase = "";
+const YT_SHIM_HTML = `<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="strict-origin-when-cross-origin">
+<style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{border:0;width:100%;height:100%;display:block}</style></head>
+<body><iframe id="f" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>
+<script>
+(function () {
+  var f = document.getElementById("f"), u;
+  try { u = new URL(new URLSearchParams(location.search).get("u")); } catch (e) { return; }
+  if (u.protocol !== "https:" || !/^(www\\.)?youtube(-nocookie)?\\.com$/i.test(u.hostname)) return;
+  if (u.searchParams.has("origin")) u.searchParams.set("origin", location.origin);
+  f.src = u.href;
+  addEventListener("message", function (e) {
+    try {
+      if (e.source === parent && f.contentWindow) f.contentWindow.postMessage(e.data, "*");
+      else if (e.source === f.contentWindow) parent.postMessage(e.data, "*");
+    } catch (x) { /* the player went away */ }
+  });
+})();
+</script></body></html>`;
+function startYtShim() {
+  return new Promise(done => {
+    const srv = http.createServer((req, res) => {
+      const host = String(req.headers.host || "").replace(/:\d+$/, "");
+      if (req.method !== "GET" || !/^(localhost|127\.0\.0\.1)$/.test(host) || !/^\/yt(\?|$)/.test(req.url)) { res.writeHead(404); res.end(); return; }
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "referrer-policy": "strict-origin-when-cross-origin" });
+      res.end(YT_SHIM_HTML);
+    });
+    srv.on("error", () => done(""));
+    srv.listen(0, "127.0.0.1", () => { ytShimBase = "http://localhost:" + srv.address().port; done(ytShimBase); });
+  });
+}
+ipcMain.on("yt-shim", e => { e.returnValue = ytShimBase; });
+// Belt and braces: any request to YouTube that still leaves without a usable referrer (a link set before this build, the shim failing to
+// start) is given the shim's address as one, which is what YouTube asks an app to send.
+function ytReferrer(ses) {
+  ses.webRequest.onBeforeSendHeaders({ urls: ["*://*.youtube.com/*", "*://*.youtube-nocookie.com/*", "*://youtube.com/*", "*://youtube-nocookie.com/*"] }, (d, cb) => {
+    const h = d.requestHeaders, k = Object.keys(h).find(n => n.toLowerCase() === "referer");
+    if (!k || !/^https?:/i.test(h[k])) { if (k) delete h[k]; h.Referer = (ytShimBase || "https://salaryman.game") + "/"; }
+    cb({ requestHeaders: h });
+  });
+}
+
+app.whenReady().then(async () => {
   dropStaleUpdate();
   protocol.handle("konto", request => {
     if (new URL(request.url).pathname.replace(/^\/+/, "") === "music/index.json") return new Response(JSON.stringify(musicIndex()), { headers: { "content-type": "application/json" } });
@@ -428,6 +478,8 @@ app.whenReady().then(() => {
     if (!file) return new Response("Not found", { status: 404 });
     return net.fetch(url.pathToFileURL(file).toString());
   });
+  await startYtShim();
+  try { ytReferrer(require("electron").session.defaultSession); } catch (e) { /* no referrer fix-up */ }
   createWindow();
   app.on("activate", () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });

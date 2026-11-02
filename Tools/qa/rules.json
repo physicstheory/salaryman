@@ -4,7 +4,7 @@
 
   "pbr": {
     "asset_dirs": ["Web/props", "Web/people/real", "Web/cars"],
-    "texture_dirs": ["Web/art/terrain", "Web/art/interior", "Web/art/road", "Web/art/surfaces"],
+    "texture_dirs": ["Web/art/terrain", "Web/art/interior", "Web/art/road", "Web/art/surfaces", "Web/art/props"],
     "min_texture_px": 512,
     "min_character_texture_px": 1024,
     "normal_map_min_blue": 150,
@@ -50,7 +50,17 @@
     "min_props_per_street_cell": 25,
     "min_prop_types_per_level": 12,
     "required_prop_types": ["vending", "bicycle", "lamp", "pole", "bin", "ac", "planter", "signpost", "bench", "bollard"],
-    "min_count_each_required": 4
+    "min_count_each_required": 4,
+    "min_prop_slots": 40
+  },
+
+  "signs": {
+    "_about": "Every sign painter must letter with SignFonts (Web/art/signfonts.js) so signs and adverts don't share one typeface.",
+    "min_faces": 60,
+    "min_jp_faces": 25,
+    "painters": [["Web/konto.html", "function kanbanTexture("], ["Web/konto.html", "function billboardTexture("], ["Web/konto.html", "function brandSignTex("],
+                 ["Web/konto.html", "function adAtlas("], ["Web/konto.html", "function mallLedTex("], ["Engine/src/world/CellBuilder.js", "  vertical(text, col, seed) {"],
+                 ["Engine/src/world/CellBuilder.js", "  fascia(text, col, seed) {"]]
   },
 
   "lived_in": {

@@ -33,6 +33,8 @@ window.__three = function () {
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
 <script>window.__three();</script>
 <script src="shigoto.js"></script>
+<script src="../art/signfonts/fonts.js"></script>
+<script src="../art/signfonts.js"></script>
 <script>
 (async function () {
   const Q = new URLSearchParams(location.search);
@@ -50,6 +52,7 @@ window.__three = function () {
   const camera = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 5000);
   addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
 
+  if (window.SignFonts) await Promise.race([SignFonts.ready, new Promise(r => setTimeout(r, 5000))]);
   const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: true } });
   window.engine = engine;
   const level = Q.get("level") || "kanda";
