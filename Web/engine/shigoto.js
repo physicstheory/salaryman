@@ -8761,7 +8761,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
   }
 
   // src/core/Engine.js
-  var VERSION = "0.5.0";
+  var VERSION = "0.5.1";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8949,9 +8949,58 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         }
       });
       this._index = map;
+      this._indexedN = (this._solids || []).length;
+    }
+    // The game adds solids after the world is built (the holiday islands, an airport gate, a story set) and takes the odd one away (a gate
+    // arm smashed through). Additions get a collider straight away if their tile is already built, otherwise when the tile is; a removal
+    // drops the physics copy and builds it again around the player, so nothing removed stays solid.
+    syncSolids() {
+      const L3 = this._solids;
+      if (!L3 || !this._index) return 0;
+      const n0 = this._indexedN || 0;
+      if (L3.length === n0) return 0;
+      if (L3.length < n0) {
+        this.solids(L3);
+        this._buildIndex();
+        return -1;
+      }
+      const t2 = this.tile, map = this._index;
+      let boxed = 0;
+      for (let i2 = n0; i2 < L3.length; i2++) {
+        const b2 = L3[i2];
+        const r2 = Math.max(b2.size[0], b2.size[1]) * 0.5;
+        const x0 = Math.floor((b2.c[0] - r2) / t2), x1 = Math.floor((b2.c[0] + r2) / t2), z0 = Math.floor((b2.c[1] - r2) / t2), z1 = Math.floor((b2.c[1] + r2) / t2);
+        for (let z2 = z0; z2 <= z1; z2++) for (let x2 = x0; x2 <= x1; x2++) {
+          const k2 = x2 + "," + z2;
+          let l2 = map.get(k2);
+          if (!l2) map.set(k2, l2 = []);
+          l2.push(i2);
+        }
+        const tx = Math.floor(b2.c[0] / t2), tz = Math.floor(b2.c[1] / t2), key = "host:" + tx + "," + tz;
+        if (this._boxed.has(key)) {
+          const h2 = b2.h || 10, y2 = b2.y || 0;
+          this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+          boxed++;
+        } else if (this.resident) this._buildTile(tx, tz, false);
+      }
+      this._indexedN = L3.length;
+      return boxed;
+    }
+    // Ground for a whole area now (the holiday islands, built behind the loading screen): heightfields for every tile it covers.
+    prebuildArea(x0, z0, x1, z1) {
+      if (!this.ph || !this._ground) return 0;
+      const t2 = this.tile;
+      let n2 = 0;
+      for (let z2 = Math.floor(z0 / t2); z2 <= Math.floor(z1 / t2); z2++) for (let x2 = Math.floor(x0 / t2); x2 <= Math.floor(x1 / t2); x2++) if (this._buildGround(x2, z2)) n2++;
+      try {
+        this.ph.world.step();
+      } catch (e2) {
+      }
+      return n2;
     }
     update(dt, focus) {
       if (!this.ph) return;
+      if (this._solids && this._index) this.syncSolids();
       for (const [, p2] of this.proxies) {
         const s2 = p2.get();
         if (s2) p2.k.set(s2.x, s2.y, s2.z, s2.yaw);

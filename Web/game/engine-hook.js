@@ -41,7 +41,7 @@
       engine.weather.set(savedWeather() || "clear", true);
       engine.surfaces.autoAdopt(scene, 2);
       engine.events.on("weather", w => { try { localStorage.setItem("shigoto.weather", w); } catch (e) { /* private mode */ } });
-      engine.events.on("lightning", () => { try { say && engine.weather.state === "storm" && Math.random() < 0.15 && say("Thunder rolls over Tōkonto.", 3); } catch (e) { /* none */ } });
+      engine.events.on("lightning", () => { try { say && engine.weather.state === "storm" && Math.random() < 0.15 && say("Thunder rolls over " + (typeof DEST !== "undefined" && DEST.active && typeof AIR_DESTS !== "undefined" ? AIR_DESTS[DEST.active.id].name : "Tōkonto") + ".", 3); } catch (e) { /* none */ } });
       S.engine = engine; S.bridge = bridge; S.scene = scene; S._lights = null;
       dressProps(engine);
       console.log("[Shigoto] engine " + SHIGOTO.VERSION + " running under the game");

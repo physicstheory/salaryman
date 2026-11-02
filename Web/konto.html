@@ -9693,6 +9693,7 @@ function buildScene(w) {
   sea.geometry.rotateX(-Math.PI / 2);
   sea.position.set(WORLD_X * 0.5, 0, WORLD_Z * 0.5);
   root.add(sea);
+  water.sea = sea;
   try { waterPatch(root); } catch (e) { console.warn("[Konto] no swell:", e); water.patch = null; }
 
   // Shops are chosen now, before any building goes up, because each one is a
@@ -12216,11 +12217,21 @@ function buildCarparks(root, w) {
 // deep, with a line of white foam and the water thinning to nothing where it meets the beach. That fade is also what hides the shore's
 // shape: the ground is laid out every nineteen metres, and a hard waterline traced its steps.
 const water = { mats: [], heightTex: null, normTex: null, t: 0 };
+// The ground under the water, per heightfield sample. The holiday islands are not in the island's heightfield (they are laid over the open
+// sea with their own height functions), so without this the sea shaders thought they were deep water: no shallows, no surf on their beaches,
+// and the swell ran straight up the sand. Their own heights go in where they stand.
+function waterGroundAt(H, x, z, i) {
+  const h = H[world.idx ? world.idx(x, z) : i];
+  if (typeof DEST === "undefined" || !DEST.sites.length) return h;
+  const wx = x * CELL, wz = z * CELL;
+  for (const s of DEST.sites) if (Math.abs(wx - s.cx) < s.hx && Math.abs(wz - s.cz) < s.hz) return s.h(wx - s.cx, wz - s.cz);
+  return h;
+}
 function waterHeightTexture() {
   if (water.heightTex && water.heightFor === world) return water.heightTex;
   const H = world.height, data = new Uint8Array(GRID_X * GRID_Z * 4);
   for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) {
-    const i = z * GRID_X + x, h = H[world.idx ? world.idx(x, z) : i];
+    const i = z * GRID_X + x, h = waterGroundAt(H, x, z, i);
     data[i * 4] = Math.round(clamp01((h + 25) / 50) * 255); data[i * 4 + 3] = 255;
   }
   // which low ground is the sea: flooded in from the edge of the map through everything below the waterline (and the cells beside it,
@@ -12249,7 +12260,7 @@ function waterHeightTexture() {
 function waterHeightTextureF() {
   if (water.heightTexF && water.heightForF === world) return water.heightTexF;
   const H = world.height, data = new Float32Array(GRID_X * GRID_Z * 4);
-  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = H[world.idx ? world.idx(x, z) : i]; data[i * 4 + 3] = 1; }
+  for (let z = 0; z < GRID_Z; z++) for (let x = 0; x < GRID_X; x++) { const i = z * GRID_X + x; data[i * 4] = waterGroundAt(H, x, z, i); data[i * 4 + 3] = 1; }
   const t = new THREE.DataTexture(data, GRID_X, GRID_Z, THREE.RGBAFormat, THREE.FloatType);
   t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter; t.needsUpdate = true;
   water.heightTexF = t; water.heightForF = world;
@@ -21028,6 +21039,22 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Every station's own footprint: the station building (its platforms and concourse) and the forecourt in front of it. A station claims
+  // its ground before the plots are laid, so without this it was a blank gap in the blocks with nothing to say a station stood there.
+  if (opts.stations !== false) {
+    const sb = P.rail || "#326f65";
+    world.cities.forEach(city => (city.stations || []).forEach(st => {
+      const R = Math.max(st.size[0], st.size[1]);
+      if (st.centre[0] + R < vx0 || st.centre[0] - R > vx1 || st.centre[1] + R < vz0 || st.centre[1] - R > vz1) return;
+      const w = Math.max(st.size[0], 6 * mPerPx), d = Math.max(st.size[1], 3 * mPerPx);
+      ctx.save(); ctx.translate(st.centre[0], st.centre[1]); ctx.rotate(-(st.yaw || 0) * Math.PI / 180);
+      if (across < 6000) { ctx.fillStyle = P.street; ctx.fillRect(-w * 0.62, -d * 1.0, w * 1.24, d * 2.0); }
+      ctx.fillStyle = sb; ctx.fillRect(-w * 0.5, -d * 0.5, w, d);
+      if (across < 2500) { ctx.fillStyle = P.plot; ctx.fillRect(-w * 0.46, -d * 0.08, w * 0.92, d * 0.16); }
+      ctx.restore();
+    }));
+  }
+
   function stroke(pts, loop, width, colour, dash) {
     ctx.strokeStyle = colour;
     ctx.lineWidth = Math.max(width, mPerPx * 1.1);
@@ -21124,6 +21151,17 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     });
   }
 
+  // Station marks at every zoom (they used to vanish once the map was zoomed out past 9 km, so most of the network had no mark at all
+  // on the opening view of the map); the convenience store beside each one only once you are close enough to read it.
+  if (opts.markers !== false && across >= 9000) {
+    const r = Math.max(7 * mPerPx, 11);
+    world.cities.forEach(city => (city.stations || []).forEach(st => {
+      if (st.centre[0] < vx0 || st.centre[0] > vx1 || st.centre[1] < vz0 || st.centre[1] > vz1) return;
+      ctx.save(); ctx.translate(st.centre[0], st.centre[1]); ctx.rotate(-rot);
+      drawBrandMark(ctx, "station", r * 0.9);
+      ctx.restore();
+    }));
+  }
   // Markers: stations, shrines and the places worth going.
   if (opts.markers !== false && across < 9000) {
     const r = Math.max(6 * mPerPx, 11);
@@ -21424,7 +21462,7 @@ function mapAcross() {
 // drawn that the map itself uses.
 function mapPois(across) {
   const out = [];
-  if (across < 9000) world.cities.forEach(city => city.stations.forEach(st =>
+  world.cities.forEach(city => (city.stations || []).forEach(st =>
     out.push({ x: st.centre[0], z: st.centre[1], name: st.name, kind: "Station" })));
   ski.list.forEach(R => {
     const nm = R.name || (R.res && R.res.name) || "Ski resort";
@@ -38720,7 +38758,7 @@ function buildSeoul(site, G) {
   const H = 2.4, step = 8, cx = site.cx, cz = site.cz;
   G.add(destGround(site, step, (x, z, h, c) => { if (h < 0.2) { c[0] = 0.18; c[1] = 0.26; c[2] = 0.3; } else if (h > 6) { c[0] = 0.22; c[1] = 0.36; c[2] = 0.18; } else { c[0] = 0.42; c[1] = 0.41; c[2] = 0.39; } }));
   // the river
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(site.hx * 2, 68), new THREE.MeshLambertMaterial({ color: 0x2c5a72, transparent: true, opacity: 0.88 })); water.rotation.x = -Math.PI / 2; water.position.set(cx, 0.4, cz); G.add(water);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(site.hx * 2, 68, 64, 4), waterMaterial(0.4, 0x0d3040, 0x2c6a72, 0.92));   // the island's water engine, as on the moat water.rotation.x = -Math.PI / 2; water.position.set(cx, 0.4, cz); G.add(water);
   // streets: a grid of 96 m blocks, 16 m streets, either side of the river
   const pitch = 96, st = 16, asph = destAsphalt(), paving = destPaving(), roads = [], walks = [], stripes = [];
   const cols = []; for (let x = -480; x <= 480; x += pitch) cols.push(x);
@@ -38823,11 +38861,65 @@ function buildIsland(site, G) {
     site.spawn = [cx + 300, cz - 120, -Math.PI / 2]; destKiosk(G, site, cx + 330, cz - 100, -Math.PI / 2, "RYŪJIMA  AIRSTRIP  ·  DEPARTURES"); void rs;
   }
 }
+// Where people walk on each holiday island, as polylines in the same shape as a city road ({ pts: [[x, y, z]...], halfWidth }): they walk
+// halfWidth + 2.2 m either side of the line. Seoul's are its streets (the pavements are 2 m in from the kerb); the islands' are the
+// beach path past the huts, the village street and the paths from the airstrip.
+function destWalks(site) {
+  const cx = site.cx, cz = site.cz, W = [];
+  const line = (pts, hw) => W.push({ pts: pts.map(p => [cx + p[0], site.h(p[0], p[1]), cz + p[1]]), halfWidth: hw, holiday: site.id });
+  const arc = (r, a0, a1, n, ox, oz, sz) => { const o = []; for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; o.push([Math.cos(a) * r + (ox || 0), Math.sin(a) * r * (sz || 1) + (oz || 0)]); } return o; };
+  if (site.id === "seoul") {
+    const pitch = 96, cols = []; for (let x = -480; x <= 480; x += pitch) cols.push(x);
+    const rowsN = []; for (let z = -pitch * 4 - 32; z <= -80; z += pitch) rowsN.push(z);
+    const zones = [[-site.hz + 60, -50, rowsN], [50, site.hz - 60, rowsN.map(z => -z)]];
+    zones.forEach(([z0, z1, rows]) => {
+      cols.forEach(x => line([[x, z0], [x, (z0 + z1) / 2], [x, z1]], 8));
+      rows.forEach(z => line(cols.map(x => [x, z]), 8));
+    });
+    [-380, 0, 380].forEach(b => line([[b, -60], [b, 60]], 6.5));
+  } else if (site.id === "kohana") {
+    line(arc(232, -0.75, 4.55, 30, 20, 0, 0.9), 0.9);                                // the beach path past the huts
+    line([[150, 25], [100, -20], [20, -70], [-60, -70]], 1.2);                         // airstrip to the hotel
+    line([[-60, -70], [-120, 40], [-150, 160], [-150, 225]], 1.2);                     // the hotel down to the bar
+    line([[-180, 175], [-30, 175]], 1.0);                                             // along the parasols
+  } else {
+    line(arc(282, 2.62, 5.08, 22, 40, 0, 0.9), 1.4);                                  // the village street
+    line([[330, -100], [250, -80], [170, -60], [120, -50], [90, -36]], 1.2);           // airstrip to the onsen and the torii
+    line([[90, -36], [20, -110], [-140, -160], [-230, -248]], 1.0);                   // up to the lighthouse
+  }
+  // only the stretches on dry land: a path that runs into the sea is cut there
+  site.pedRoads = [];
+  W.forEach(r => { let cur = []; r.pts.forEach(p => { if (site.h(p[0] - cx, p[2] - cz) > 0.5) cur.push(p); else { if (cur.length > 1) site.pedRoads.push({ pts: cur, halfWidth: r.halfWidth, holiday: r.holiday }); cur = []; } }); if (cur.length > 1) site.pedRoads.push({ pts: cur, halfWidth: r.halfWidth, holiday: r.holiday }); });
+}
+// The islands were put up in flat Lambert, which the engines can only half use: no reflections, and in the rain the wet-street patch has no
+// roughness to take down. On a high setting every plain material out there becomes a physically shaded one with the same colour, so the
+// sky probe, the wet weather and the post chain treat the islands exactly as they treat Tōkonto.
+function destShade(G) {
+  if (!gfx.high) return 0;
+  const done = new Map(); let n = 0;
+  G.traverse(o => {
+    if (!o.isMesh || !o.material || Array.isArray(o.material)) return;
+    const m = o.material;
+    if (!m.isMeshLambertMaterial || m.onBeforeCompile !== THREE.Material.prototype.onBeforeCompile || m.userData.shDry) return;
+    let r = done.get(m);
+    if (!r) {
+      r = new THREE.MeshStandardMaterial({ color: m.color, map: m.map, emissive: m.emissive, vertexColors: m.vertexColors, transparent: m.transparent, opacity: m.opacity, side: m.side,
+        roughness: m.transparent ? 0.15 : 0.82, metalness: 0, envMap: gfx.env || null, envMapIntensity: 0.6 });
+      done.set(m, r); m.dispose(); n++;
+    }
+    o.material = r;
+  });
+  return n;
+}
 function destEnsure(id) {
   const s = DEST.by[id]; if (!s || s.built) return s;
   s.built = true; const G = new THREE.Group(); s.group = G; scene.add(G);
   try { (id === "seoul" ? buildSeoul : buildIsland)(s, G); } catch (e) { console.warn("[Konto] could not build " + id + ":", e); }
+  try { destWalks(s); } catch (e) { console.warn("[Konto] no walks on " + id + ":", e); }
+  try { destShade(G); } catch (e) { console.warn("[Konto] could not shade " + id + ":", e); }
   buildSolidGrid();
+  peds.gridFor = null;                                  // the people's grid picks up the new streets
+  if (window.shigoto && shigoto.bridge && shigoto.bridge.syncSolids) shigoto.bridge.syncSolids();   // and the physics their buildings
   streamAdd(G, { x0: s.cx - s.hx, x1: s.cx + s.hx, z0: s.cz - s.hz, z1: s.cz + s.hz, y0: -3, y1: 120 }, 2600);
   return s;
 }
@@ -38839,6 +38931,16 @@ function destArrive(id) {
   camPos.set(player.pos.x - Math.sin(player.yaw) * 4, player.pos.y + 2.4, player.pos.z - Math.cos(player.yaw) * 4);
   DEST.active = s; say("Welcome to " + AIR_DESTS[id].name + ". Local time " + phoneTime().h + ":" + two(phoneTime().m) + ". The departures kiosk is where you landed.", 8);
 }
+// The sea is the island's own water engine (Gerstner swell near you, shallows, surf, foam, reflections, rain rings), so on holiday it stays:
+// the rest of the mainland is hidden, the sea and its swell are lifted out of it until you fly home.
+function destKeepSea(hide) {
+  [water.sea, water.patch && water.patch.mesh].forEach(m => {
+    if (!m) return;
+    if (hide) { if (m.parent && m.parent !== scene) { m.userData.homeParent = m.parent; scene.attach(m); } }
+    else if (m.userData.homeParent) { m.userData.homeParent.attach(m); m.userData.homeParent = null; }
+  });
+  if (DEST.sea) DEST.sea.visible = hide && !water.sea;
+}
 function destFrame(dt) {
   const p = player.pos, s = DEST.at ? DEST.at(p.x, p.z) : null;
   if (DEST.active && !s) DEST.active = null; else if (s && s !== DEST.active) { DEST.active = s; destEnsure(s.id); }
@@ -38846,8 +38948,8 @@ function destFrame(dt) {
   s && s.kiosk && (DEST.near = Math.hypot(p.x - s.kiosk.sx, p.z - s.kiosk.sz) < 5.5 ? s : null);
   if (!s) DEST.near = null;
   // out there the mainland is not in the picture: the island's own sea and sky are all there is
-  if (worldRoot) { const hide = !!DEST.active; if (worldRoot.visible === hide) worldRoot.visible = !hide; }
-  if (DEST.active) {
+  if (worldRoot) { const hide = !!DEST.active; if (worldRoot.visible === hide) { worldRoot.visible = !hide; destKeepSea(hide); } }
+  if (DEST.active && !water.sea) {
     if (!DEST.sea) { DEST.sea = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshLambertMaterial({ color: 0x1c3f4d })); DEST.sea.geometry.rotateX(-Math.PI / 2); scene.add(DEST.sea); }
     DEST.sea.visible = true; DEST.sea.position.set(DEST.active.cx, 0, DEST.active.cz);
   } else if (DEST.sea) DEST.sea.visible = false;
@@ -40018,6 +40120,15 @@ function pedGrid() {
       const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 2) continue;
       const k = Math.floor((a[0] + b[0]) / 2 / C) + "," + Math.floor((a[2] + b[2]) / 2 / C);
       (G.get(k) || G.set(k, []).get(k)).push({ r: r, i: i });
+    }
+  }));
+  // the holiday islands' streets and paths, once they are built: the same people walk there (tourists and locals from the same cast), so
+  // the honor and respect systems, street help requests and crime witnesses work there as they do at home
+  if (typeof DEST !== "undefined") DEST.sites.forEach(site => (site.pedRoads || []).forEach(r => {
+    for (let i = 0; i < r.pts.length - 1; i++) {
+      const a = r.pts[i], b = r.pts[i + 1], len = Math.hypot(b[0] - a[0], b[2] - a[2]); if (len < 2) continue;
+      const n = Math.max(1, Math.ceil(len / C));
+      for (let k = 0; k < n; k++) { const t = (k + 0.5) / n, key = Math.floor((a[0] + (b[0] - a[0]) * t) / C) + "," + Math.floor((a[2] + (b[2] - a[2]) * t) / C); const l = G.get(key) || G.set(key, []).get(key); if (!l.some(e => e.r === r && e.i === i)) l.push({ r: r, i: i }); }
     }
   }));
   peds.grid = G; peds.gridFor = world; peds.gridC = C;
