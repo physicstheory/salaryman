@@ -7,7 +7,7 @@ const path = require('node:path');
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const game = path.resolve(__dirname, '..');
 const output = path.resolve(process.argv[2] || '/tmp/salaryman-readiness');
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.woff2':'font/woff2' };
+const mime = { '.html': 'text/html', '.svg':'image/svg+xml', '.js': 'text/javascript', '.json': 'application/json', '.glb': 'model/gltf-binary', '.css':'text/css', '.png':'image/png', '.jpg':'image/jpeg', '.woff2':'font/woff2' };
 const server = http.createServer((request, response) => {
   const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   if (pathname === '/music/index.json') { response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ stations: {} })); return; }

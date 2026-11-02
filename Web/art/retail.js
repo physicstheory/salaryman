@@ -43,11 +43,11 @@
   }
   let windowMaterial;
   function material(){if(windowMaterial)return windowMaterial;windowMaterial=new T.ShaderMaterial({uniforms:{retailAtlas:{value:atlas()},interiorPhotos:{value:interiorPhotos()},photoReady:{value:photoState.loaded?1:0}},vertexShader:`
-    attribute float retailTheme; varying float theme; varying vec2 paneUV; varying vec3 eye;
-    void main(){mat4 world=modelMatrix*instanceMatrix;vec3 p=(world*vec4(position,1.)).xyz;vec3 d=cameraPosition-p;
+    attribute float retailTheme;attribute float roomType;varying float roomKind; varying float theme; varying vec2 paneUV; varying vec3 eye;
+    void main(){roomKind=roomType;mat4 world=modelMatrix*instanceMatrix;vec3 p=(world*vec4(position,1.)).xyz;vec3 d=cameraPosition-p;
       eye=vec3(dot(d,world[0].xyz)/dot(world[0].xyz,world[0].xyz),dot(d,world[1].xyz)/dot(world[1].xyz,world[1].xyz),dot(d,world[2].xyz)/dot(world[2].xyz,world[2].xyz));
       theme=retailTheme;paneUV=uv;gl_Position=projectionMatrix*viewMatrix*vec4(p,1.);}`,fragmentShader:`
-    uniform sampler2D interiorPhotos;uniform float photoReady;uniform sampler2D retailAtlas; varying float theme; varying vec2 paneUV; varying vec3 eye;
+    varying float roomKind;uniform sampler2D interiorPhotos;uniform float photoReady;uniform sampler2D retailAtlas; varying float theme; varying vec2 paneUV; varying vec3 eye;
     vec3 surface(float tile,vec2 uv){vec2 lo=vec2(tile/4.,theme/6.);return texture2D(retailAtlas,lo+(clamp(uv,.004,.996)*vec2(.25,1./6.))).rgb;}
     void main(){vec3 o=vec3(paneUV-.5,0.);vec3 d=-eye;d.z=min(d.z,-.0001);
       // A room six metres wide, 2.7 high and four deep. Plane instances encode the real proportions.
@@ -62,7 +62,7 @@
       vec3 nearC=min(ca,cb),farC=max(ca,cb);float entry=max(nearC.x,max(nearC.y,nearC.z)),exitT=min(farC.x,min(farC.y,farC.z));
       if(entry>0.&&entry<exitT&&entry<t){vec3 q=o+d*entry;col=surface(2.,vec2(q.x+.5,-q.z/4.));shade=nearC.y>=nearC.x&&nearC.y>=nearC.z?1.05:.58;}
       col*=shade;
-      if(photoReady>.5){
+      if(photoReady>.5 && roomKind<.5){
         // Project the actual ray/box intersection into a photographed room. The
         // camera translates the ray origin, so walls shift in depth as you walk.
         vec3 roomRay=normalize(vec3(p.x*6.,p.y*2.7,p.z+2.));
@@ -70,12 +70,23 @@
         float row=5.-theme;uv.x=fract(uv.x+((row<.5||row>4.5)? .25 : row<1.5? .20 : row<2.5? .25 : 0.));vec2 tile=vec2(mod(row,2.)*.5,(2.-floor(row/2.))/3.);
         col=texture2D(interiorPhotos,tile+clamp(uv,.002,.998)*vec2(.5,1./3.)).rgb;
       }
+      if(roomKind>.5){
+        // Quiet offices and apartments: room walls, floor, ceiling and furniture stay in the parallax box.
+        vec3 wall=roomKind>1.5?vec3(.76,.69,.58):vec3(.71,.76,.78);
+        col=mix(wall*shade,col,.16);
+        if(farT.y<farT.x&&farT.y<farT.z&&p.y<0.){float grain=sin(p.z*60.+sin(p.x*14.))*.025;col=(roomKind>1.5?vec3(.37,.25,.16):vec3(.24,.29,.33))+grain;}
+        if(farT.z<=farT.x&&farT.z<=farT.y){
+          vec2 back=p.xy+.5;
+          if(roomKind<1.5&&back.y>.32&&back.y<.53&&fract(back.x*3.)>.18&&fract(back.x*3.)<.78)col=vec3(.11,.22,.29);
+          if(roomKind>1.5&&back.y>.15&&back.y<.4&&back.x>.14&&back.x<.85)col=vec3(.37,.41,.38);
+        }
+      }
       float rim=step(paneUV.x,.018)+step(.982,paneUV.x)+step(paneUV.y,.028)+step(.972,paneUV.y);
       float mullion=1.-step(.006,abs(paneUV.x-.5));col=mix(col,vec3(.10,.16,.17),clamp(rim+mullion,0.,1.));
       float fres=pow(1.-clamp(eye.z/length(eye),0.,1.),3.);col=mix(col,vec3(.58,.72,.75),.045+fres*.2);
       gl_FragColor=vec4(col,1.);}`});return windowMaterial;}
   function installWindows(root,list,register,lean){const buckets=new Map();list.forEach(o=>{const k=Math.floor(o.x/128)+':'+Math.floor(o.z/128);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(o);});
-    for(const rows of buckets.values()){const geo=new T.PlaneGeometry(1,1);geo.setAttribute('retailTheme',new T.InstancedBufferAttribute(new Float32Array(rows.map(o=>5-o.theme)),1));const mesh=new T.InstancedMesh(geo,material(),rows.length),dummy=new T.Object3D();
+    for(const rows of buckets.values()){const geo=new T.PlaneGeometry(1,1);geo.setAttribute('roomType',new T.InstancedBufferAttribute(new Float32Array(rows.map(o=>o.type||0)),1));geo.setAttribute('retailTheme',new T.InstancedBufferAttribute(new Float32Array(rows.map(o=>5-o.theme)),1));const mesh=new T.InstancedMesh(geo,material(),rows.length),dummy=new T.Object3D();
       rows.forEach((o,i)=>{dummy.position.set(o.x,o.y,o.z);dummy.rotation.set(0,o.ry,0);dummy.scale.set(o.w,o.h,1);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);});mesh.frustumCulled=false;mesh.userData.salaryRetail=true;root.add(mesh);
       register(mesh,{x0:Math.min(...rows.map(o=>o.x))-5,x1:Math.max(...rows.map(o=>o.x))+5,z0:Math.min(...rows.map(o=>o.z))-5,z1:Math.max(...rows.map(o=>o.z))+5,y0:Math.min(...rows.map(o=>o.y))-2,y1:Math.max(...rows.map(o=>o.y))+2},lean?130:220);
     }

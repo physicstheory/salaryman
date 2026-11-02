@@ -98,7 +98,7 @@ test('NHRail lists actual nearby world stations by distance', () => {
   c.world=null;assert.equal(c.nearbyRailStations().length,0);
 });
 test('opaque pause pages skip GPU rendering and still permit camera capture', () => {
-  const c={paused:true,capture:false,frameGrab:{want:false},post:{time:0,on:false},world:null,scene:{},camera:{},renders:0,grabs:0,applyCameraFull(){},fxUsable:()=>false,fx:{on:false},postUsable:()=>false};
+  const c={paused:true,capture:false,gfx:{lost:false},setWeatherShelter(){},frameGrab:{want:false},post:{time:0,on:false},world:null,scene:{},camera:{},renders:0,grabs:0,applyCameraFull(){},fxUsable:()=>false,fx:{on:false},postUsable:()=>false};
   c.wantFrame=()=>c.capture;c.grabFrame=()=>c.grabs++;c.renderer={render:()=>c.renders++};vm.createContext(c);
   vm.runInContext(declaration('function present()', '// THE AAA CHAIN').replace(/\n\/\/ =+\s*$/, ''),c);c.present();assert.equal(c.renders,0);
   c.capture=true;c.present();assert.equal(c.renders,1);assert.equal(c.grabs,1);
@@ -113,7 +113,7 @@ test('every world station gets a unique readable atlas cell beyond the old 16-ro
   assert.throws(()=>c.signRow('Not in world'),/not registered/);
 });
 test('map legend colors describe the rendered transport and waypoint layers', () => {
-  const palette=vm.runInNewContext(declaration('const MAPC =','const nav =')+'MAPC_GTA;');
+  const palette=vm.runInNewContext(declaration('const MAPC =','const nav =')+'MAPC_ROAD;');
   for(const [label,key] of [['Highway','express'],['Rail (overlay)','rail'],['Bus (overlay)','bus'],['Waypoint and route','waypoint']]) {
     assert.ok(html.includes('<i style="background:'+palette[key]+'"></i>'+label),label+' legend must match rendered map');
   }
