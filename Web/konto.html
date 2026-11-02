@@ -7444,8 +7444,35 @@ function facadePhoto(side, style, spec) {
     side.needsUpdate = true;
   }, undefined, () => {});
 }
+function highwaySurface(asphalt) {
+  const m=asphalt?destAsphalt(4):commuterMaterial('concrete',0xb7b5af).clone();
+  m.metalness=0;m.envMapIntensity=.18;m.roughness=asphalt?.94:.86;
+  const prev=m.onBeforeCompile,prevKey=m.customProgramCacheKey;
+  m.onBeforeCompile=(sh,r)=>{if(prev)prev.call(m,sh,r);sh.vertexShader=sh.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+#ifdef USE_UV
+  vec4 roadPoint=vec4(position,1.0);
+#ifdef USE_INSTANCING
+  roadPoint=instanceMatrix*roadPoint;
+#endif
+  roadPoint=modelMatrix*roadPoint;
+  vec3 an=abs(normal);
+  vec2 roadUv=an.y>max(an.x,an.z)?roadPoint.xz:(an.x>an.z?roadPoint.zy:roadPoint.xy);
+  vUv=(uvTransform*vec3(roadUv,1.0)).xy;
+#endif`);};
+  m.customProgramCacheKey=()=> (prevKey?prevKey.call(m):'')+'|highway-world-uv';
+  if(asphalt){roadMarkings(m);const marks=m.onBeforeCompile;m.onBeforeCompile=(sh,r)=>{marks(sh,r);sh.vertexShader=sh.vertexShader.replace('vRoadUV = uv; vRoadAux = aRoad;',`vRoadUV = uv; vRoadAux = aRoad;
+#ifdef USE_INSTANCING
+  float halfW=length(instanceMatrix[0].xyz)*.5;
+  vRoadUV=vec2((position.x+.5)*halfW*2.0,(position.z+.5)*length(instanceMatrix[2].xyz));vRoadAux=vec2(halfW,1.0);
+#endif`);};}
+  else if(window.SalaryRealism)SalaryRealism.facade(m,'deck',{cell:[4,4]});return m;
+}
 function facadeMaterials(style) {
   if (facadeCache[style]) return facadeCache[style];
+  if(style==='deck'||style==='highway'){
+    const concrete=highwaySurface(false),top=style==='highway'?highwaySurface(true):concrete;
+    return facadeCache[style]={mats:[concrete,concrete,top,concrete,concrete,concrete],spec:FACADE_STYLES.deck};
+  }
   const spec = FACADE_STYLES[style] || FACADE_STYLES.office;
   // Glass wants the sky in it and stone does not, which is the whole of what
   // separates a Tokyo office tower from a grey box.
@@ -8460,8 +8487,8 @@ function initThree() {
     if (e.code === "Tab" && gunArmed()) e.preventDefault();
     wakeAudio();
     if (onsens.active) { if (e.code === "Escape" || e.code === "Backspace") endSoak(true); e.preventDefault(); return; }
+    if (!title.on && !e.repeat && cheatKey(e)) {e.preventDefault();return;}
     if (heist.stage === "wire" || heist.stage === "start" || heist.stage === "smash" || heist.stage === "relay") { if (!e.repeat) heistKey(e.code); e.preventDefault(); return; }
-    if (!title.on && !e.repeat) cheatKey(e);
     // The title screen swallows everything while it is up.
     if (title.on) {
       if (e.code === "ArrowUp" || e.code === "KeyW") titleMove(-1);
@@ -9928,7 +9955,7 @@ function buildScene(w) {
         // about X lowers the +Z end, hence the sign.
         const pitch = -Math.atan2(path.profile[i] - path.profile[i - 1], len);
         boxes.push({ c: mid, size: [path.halfWidth * 2 + 1, len * 1.06], yaw: ya, pitch: pitch,
-                     y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
+                     y: deckY - 1.4, h: 1.4, deck: true, style: "highway" });
         const hw = path.halfWidth + 0.5;
         world.bridges.push({ ax: a[0], az: a[2], ux: (b[0] - a[0]) / len, uz: (b[2] - a[2]) / len,
                              len: len, hw: hw, ya: path.profile[i - 1] + 0.04, yb: path.profile[i] + 0.04,
@@ -9968,7 +9995,7 @@ function buildScene(w) {
         const mid = [(a[0] + b[0]) * 0.5, (a[2] + b[2]) * 0.5], ux = (b[0] - a[0]) / len, uz = (b[2] - a[2]) / len;
         const ya = yawFrom([ux, uz]);
         const deckY = (a[1] + b[1]) * 0.5, pitch = -Math.atan2(b[1] - a[1], len), high = deckY - world.sampleHeight(mid[0], mid[1]) > 2.4;
-        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, pitch: pitch, y: deckY - 1.4, h: 1.4, deck: true, style: "deck" });
+        boxes.push({ c: mid, size: [path.halfWidth * 2, len * 1.04], yaw: ya, pitch: pitch, y: deckY - 1.4, h: 1.4, deck: true, style: road ? "highway" : "deck" });
         if (road) {
           const hw = path.halfWidth + 0.3;
           world.bridges.push({ ax: a[0], az: a[2], ux: ux, uz: uz, len: len, hw: hw, ya: a[1] + 0.04, yb: b[1] + 0.04,
@@ -16741,68 +16768,36 @@ function fitCarModel(object3d, kind, entry) {
   return holder;
 }
 
-// The people in the traffic. Seen through a side window at thirty kilometres an hour a driver is a head, a pair of shoulders and two
-// arms out to the wheel, so that is what is built: a dozen boxes and a sphere, coloured from a handful of skins, hair and clothes.
-// Japan drives on the left, so the driver sits on the right (-x, with the nose down +z). A two-wheeler gets a rider sitting up on it.
-const DRIVER_LOOK = {
-  skin: [0xe7c3a4, 0xdcb08e, 0xd2a27e, 0xf0d0b4, 0xc89472, 0xb98466],
-  hair: [0x141210, 0x1c1714, 0x241c16, 0x2f241c, 0x5a5550, 0x8c8780, 0x3a2414],
-  top:  [0xeef0f2, 0xeef0f2, 0x1e2228, 0x2a3140, 0x3a3f46, 0x6b7582, 0x7a2a2e, 0x2f4a3a, 0xc9b48c, 0x15171a],
-  helmet: [0x111214, 0xe8e8e6, 0xa31d22, 0x1c3f8a, 0x707478]
-};
-const driverMats = {};
-function driverMat(c) {
-  if (!driverMats[c]) driverMats[c] = gfx.high ? new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 }) : new THREE.MeshLambertMaterial({ color: c });
-  return driverMats[c];
+// Drivers use the same rigged PBR cast as pedestrians, posed once and cached per visible vehicle.
+function vehicleRidePose() {
+  return {ThighR:[1.35,0,.18],ThighL:[1.35,0,-.18],ShinR:[-1.55,0,0],ShinL:[-1.55,0,0],
+    Spine:[-.24,0,0],Chest:[-.10,0,0],Neck:[.15,0,0],
+    UpperArmR:[.65,0,.65],ForearmR:[0,0,.85],UpperArmL:[.65,0,-.65],ForearmL:[0,0,-.85]};
 }
-let driverGeo = null;
-function carDriver(kind, m) {
-  if (!driverGeo) driverGeo = { head: new THREE.SphereGeometry(0.105, 12, 9), box: new THREE.BoxGeometry(1, 1, 1) };
-  const pick = a => a[(Math.random() * a.length) | 0];
-  const skin = driverMat(pick(DRIVER_LOOK.skin)), top = driverMat(pick(DRIVER_LOOK.top));
-  const g = new THREE.Group();
-  const box = (mat, w, h, d, x, y, z, rx) => { const b = new THREE.Mesh(driverGeo.box, mat); b.scale.set(w, h, d); b.position.set(x, y, z); if (rx) b.rotation.x = rx; g.add(b); return b; };
-  const head = new THREE.Mesh(driverGeo.head, skin); g.add(head);
-  // a box from one point to another: an arm, a thigh, a shin
-  const limb = (mat, a, b, t) => {
-    const d = new THREE.Vector3(b[0] - a[0], b[1] - a[1], b[2] - a[2]), L = d.length();
-    const m3 = new THREE.Mesh(driverGeo.box, mat); m3.scale.set(t, L, t);
-    m3.position.set((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
-    m3.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); g.add(m3); return m3;
-  };
-  if (TWO_WHEELERS[kind.body]) {
-    if (kind.body === "mtb") return null;
-    // a rider, sat on the seat: the seat height, how far forward the bars are and how far the rider leans to them, by kind of bike
-    const k = m.H / kind.H, Lk = m.L / kind.L;
-    const P = { bike: [0.80, 0.70, 0.30, 0.20], cruiser: [0.70, 0.08, 0.34, 0.42], tourer: [0.78, 0.12, 0.34, 0.40],
-                dirtbike: [0.92, 0.40, 0.30, 0.30], scooter: [0.76, 0.15, 0.36, 0.30] }[kind.body] || [0.8, 0.4, 0.3, 0.3];
-    const sy = P[0] * k, lean = P[1], hipZ = -0.12 * Lk * kind.L / 2.1, barZ = P[2] * kind.L * Lk, barY = sy + P[3];
-    const legs = driverMat(pick([0x1d2128, 0x24272c, 0x2b3340, 0x3a3328])), boot = driverMat(0x121315);
-    const hip = [0, sy + 0.1, hipZ];
-    const sh = [0, hip[1] + 0.52 * Math.cos(lean), hip[2] + 0.52 * Math.sin(lean)];
-    limb(top, hip, sh, 0.27);                                                            // the back and chest
-    const hd = new THREE.Vector3(0, sh[1] + 0.2 * Math.cos(lean * 0.6), sh[2] + 0.2 * Math.sin(lean * 0.6));
-    head.position.copy(hd); head.scale.setScalar(1.3); head.material = driverMat(pick(DRIVER_LOOK.helmet));
-    [-1, 1].forEach(sd => {
-      const s0 = [sd * 0.17, sh[1] - 0.04, sh[2]], grip = [sd * 0.3, barY, barZ];
-      limb(top, s0, grip, 0.085);                                                       // arms to the grips
-      const h0 = [sd * 0.12, hip[1], hip[2]], knee = [sd * 0.2, hip[1] + 0.02, hip[2] + 0.42], peg = [sd * 0.18, sy - 0.42, hip[2] + 0.22];
-      limb(legs, h0, knee, 0.13); limb(legs, knee, peg, 0.11);                          // thigh and shin
-      limb(boot, peg, [peg[0], peg[1] - 0.02, peg[2] + 0.2], 0.1);                      // a boot on the peg
-    });
-  } else {
-    // which way along the car the seat is: well forward in a cab-over van, back and low in a supercar
-    const zf = kind.body === "keivan" || kind.body === "onebox" || kind.body === "truck" || kind.body === "bus" ? 0.24 : kind.body === "super" ? -0.06 : kind.body === "sports" ? -0.04 : 0.0;
-    const x = -m.W * 0.21, z = m.L * zf, hy = Math.min(m.H - 0.30, (kind.body === "super" ? 0.88 : 1.12) + (m.H - 1.45) * 0.55);
-    head.position.set(x, hy, z);
-    box(driverMat(pick(DRIVER_LOOK.hair)), 0.2, 0.08, 0.2, x, hy + 0.07, z - 0.01);
-    box(top, 0.4, 0.5, 0.24, x, hy - 0.42, z - 0.04);                       // shoulders and chest
-    box(skin, 0.08, 0.1, 0.08, x, hy - 0.14, z);                            // neck
-    [-1, 1].forEach(sd => box(top, 0.08, 0.08, 0.42, x + sd * 0.17, hy - 0.42, z + 0.2, -0.35));   // arms out to the wheel
-    box(driverMat(0x101214), 0.34, 0.34, 0.04, x, hy - 0.36, z + 0.42, -0.45);                      // the wheel
-  }
-  g.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-  return g;
+function carDriver(kind, dimensions) {
+  const g=new THREE.Group();g.name='Rigged vehicle occupant';g.userData.dimensions=dimensions;return g;
+}
+function carDriverUpdate(g,kind,manned,isPlayer,near) {
+  if(!g)return;
+  g.visible=!!manned&&(isPlayer||near);if(!g.visible)return;
+  const src=isPlayer?player.glb:(g._npcSource||(g._npcSource=pplLib.ready[Math.floor(Math.random()*pplLib.ready.length)]));
+  if(!src){g.visible=false;return;}
+  if(g._driverSource===src)return;
+  // A wardrobe change replaces the cached body; geometries and PBR textures remain shared.
+  for(const c of g.children.slice())g.remove(c);
+  let body,clip;
+  if(isPlayer){body=cloneSkinned(src);body.visible=true;body.position.set(0,0,0);body.rotation.set(0,0,0);body.scale.set(1,1,1);clip=player.clips&&player.clips.ride&&player.clips.ride.getClip();}
+  else {const f=pplFigure(src,1);body=f.holder;clip=src.clips.ride;}
+  if(!clip){g.visible=false;return;}
+  g.add(body);const mixer=new THREE.AnimationMixer(body);mixer.clipAction(clip).play();mixer.update(0);
+  g.updateMatrixWorld(true);
+  let pelvis=null;body.traverse(o=>{if(o.isBone&&(/^(hips|Bip01_Pelvis)$/i.test(o.name)||o.userData.alias==='Hips'))pelvis=o;if(o.isMesh){o.frustumCulled=false;o.receiveShadow=true;o.castShadow=gfx.tier!=='low';}});
+  if(!pelvis){g.remove(body);g.visible=false;return;}
+  const hip=g.worldToLocal(pelvis.getWorldPosition(new THREE.Vector3())),m=g.userData.dimensions,two=!!TWO_WHEELERS[kind.body];
+  const seatY=two?({bike:.8,cruiser:.7,tourer:.78,dirtbike:.92,scooter:.76,mtb:.82}[kind.body]||.8):Math.max(.26,Math.min(m.H-.98,.48));
+  const zf=/^(keivan|onebox|truck|bus)$/.test(kind.body)?.24:kind.body==='super'?-.06:0;
+  body.position.add(new THREE.Vector3(two?0:-m.W*.21,seatY,two?-.12:m.L*zf).sub(hip));
+  body.updateMatrixWorld(true);g._driverSource=src;g.userData.rigged=true;
 }
 
 const carMatCache = {};
@@ -17112,7 +17107,7 @@ function loadCarModels(root) {
 function loadCarModelsNow(root) {
   Object.keys(carMatCache).forEach(k => delete carMatCache[k]);
   const loader = new THREE.GLTFLoader();
-  const cache = {}, jobs=[];
+  const cache = {}, jobs=[];traffic.modelJobs={};
   CAR_KINDS.forEach((kind, ki) => {
     const entry = CAR_MODELS[kind.name];
     if (!entry) return;
@@ -17124,7 +17119,7 @@ function loadCarModelsNow(root) {
       if (entry.user) gltf.scene.traverse(o => { if (o.isMesh && o.geometry) { const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
       const n = entry.user ? (tris > 250000 ? 2 : tris > 120000 ? 4 : cap) : cap;
       for (let i = 0; i < n; i++) {
-        const clone = fitCarModel(gltf.scene.clone(true), kind, entry);
+        const clone = fitCarModel(cloneSkinned(gltf.scene), kind, entry);
         clone.visible = false;
         root.add(clone);
         pool.items.push(clone);
@@ -17141,7 +17136,7 @@ function loadCarModelsNow(root) {
       return;
     }
     cache[entry.url] = { gltf: null, waiting: [build] };
-    jobs.push(new Promise(resolve=>{ loader.load(entry.url, gltf => {
+    const job=new Promise(resolve=>{ loader.load(entry.url, gltf => {
       cache[entry.url].gltf = gltf;
       cache[entry.url].waiting.forEach(fn => fn(gltf));
       cache[entry.url].waiting.length = 0;
@@ -17150,7 +17145,7 @@ function loadCarModelsNow(root) {
     }, undefined, () => {
       console.warn("[Konto] " + entry.url + " did not load; vehicle remains hidden");
       resolve(false);
-    });}));
+    });});jobs.push(job);traffic.modelJobs[kind.name]=job;
   });
   return Promise.all(jobs);
 }
@@ -17763,12 +17758,13 @@ function buildTrafficLanes(city) {
           const src = dir ? road.pts.slice().reverse() : road.pts;
           const pts = [];
           for (let i = 0; i < src.length; i++) {
-            const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+            const prev = src[road.loop?(i-1+src.length)%src.length:Math.max(0,i-1)], next = src[road.loop?(i+1)%src.length:Math.min(src.length-1,i+1)];
             let dx = next[0] - prev[0], dz = next[2] - prev[2];
             const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
             const off = centres[k];
             pts.push([src[i][0] + dz * off, src[i][1] + 0.06, src[i][2] - dx * off]);
           }
+          if (road.loop && pts.length>2) pts.push(pts[0].slice());
           if (pts.length < 4) continue;
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
@@ -17791,7 +17787,7 @@ function buildTrafficLanes(city) {
         let run = [];
         const runs = [];
         for (let i = 0; i < src.length; i++) {
-          const prev = src[Math.max(0, i - 1)], next = src[Math.min(src.length - 1, i + 1)];
+          const prev = src[road.loop?(i-1+src.length)%src.length:Math.max(0,i-1)], next = src[road.loop?(i+1)%src.length:Math.min(src.length-1,i+1)];
           let dx = next[0] - prev[0], dz = next[2] - prev[2];
           const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
           const off = centres[k];
@@ -17817,11 +17813,12 @@ function buildTrafficLanes(city) {
 
         runs.forEach(pts => {
           if (pts.length < 4) return;
+          // Include the last-to-first segment in the arc before wrapping the distance.
+          const whole = runs.length === 1 && pts.length === src.length;
+          if(road.loop&&whole)pts.push(pts[0].slice());
           const arc = [0];
           for (let i = 1; i < pts.length; i++)
             arc.push(arc[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][2] - pts[i - 1][2]));
-          // A loop only stays a loop if none of it was cut away.
-          const whole = runs.length === 1 && pts.length === src.length;
           lanes.push({ pts: pts, arc: arc, length: arc[arc.length - 1], speed: limit,
                        loop: !!road.loop && whole, road: ri, wide: wide, kerb: k === perSide - 1 });
         });
@@ -17845,7 +17842,7 @@ function sampleLane(lane, s) {
   let py = a[1] + (b[1] - a[1]) * t;
   // A road lane that ends on a steep cut can sit well above the ground it
   // meets; a car there would drive along in mid air. Never let one float.
-  if (lane.road !== undefined) py = Math.min(py, world.surfaceY(px, pz) + 2.5);
+  if (lane.road !== undefined && !lane.elevated) py = world.surfaceY(px, pz) + 0.06;
   return {
     x: px, y: py, z: pz,
     yaw: Math.atan2(b[0] - a[0], b[2] - a[2]),
@@ -18283,7 +18280,7 @@ function updateTraffic(dt, at) {
       counts[kindIdx]++;
       const o = pool.items[i];
       if(o.userData.rydeLivery)o.userData.rydeLivery.visible=service==="ryde"||CAR_KINDS[kindIdx].name==="ryde";
-      if (o.userData.driver) o.userData.driver.visible = _carManned;
+      carDriverUpdate(o.userData.driver,CAR_KINDS[kindIdx],_carManned,!!(drive.car&&drive.car.pos===pos),Math.hypot(px-at.x,pz-at.z)<35);
       if (CAR_MODELS[CAR_KINDS[kindIdx].name] && CAR_MODELS[CAR_KINDS[kindIdx].name].user) {
         paint.setMatrixAt(i, _carZero); traffic.trim[kindIdx].setMatrixAt(i, _carZero);
         if (traffic.deco[kindIdx]) traffic.deco[kindIdx].setMatrixAt(i, _carZero);
@@ -19586,8 +19583,8 @@ function buildCentralAtrium(root,st,t,conZ,conY) {
   root.add(g);st.atrium=g;st.architecture={curvedGlass:true,ribs:6,shopMezzanines:2};
 }
 const shopDoors={list:[],root:null};
-function shopDoorBuild(root) {
-  shopDoors.list=[];shopDoors.root=root;
+function shopDoorCreate() {
+  if(!shopDoorCreate.shared){
   // Share the frame, hinge and handle meshes across every shop.
   const frame=new THREE.Group(),metal=commuterMaterial('metal',0x768a98),box=new THREE.BoxGeometry(1,1,1);
   const add=(w,h,d,x,y,z)=>{const m=new THREE.Mesh(box,metal);m.scale.set(w,h,d);m.position.set(x,y,z);frame.add(m);};
@@ -19596,17 +19593,42 @@ function shopDoorBuild(root) {
   frame.traverse(o=>{if(!o.isMesh||o.geometry.attributes.uv)return;const p=o.geometry.attributes.position,n=o.geometry.attributes.normal,uv=new Float32Array(p.count*2);for(let i=0;i<p.count;i++){const x=Math.abs(n.getX(i)),y=Math.abs(n.getY(i)),z=Math.abs(n.getZ(i));uv[i*2]=x>y&&x>z?p.getZ(i):p.getX(i);uv[i*2+1]=y>x&&y>z?p.getZ(i):p.getY(i);}o.geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));});
   const paneGeo=new THREE.BoxGeometry(1.78,2.65,.035),edgeGeo=new THREE.BoxGeometry(.045,2.7,.06),handleGeo=new THREE.CylinderGeometry(.025,.025,.42,6);
   const glass=new THREE.MeshPhysicalMaterial({color:0xc9e8eb,transparent:true,opacity:.22,roughness:.1,metalness:.1,clearcoat:1,depthWrite:false,side:THREE.DoubleSide});if(gfx.env)glass.envMap=gfx.env;
+    shopDoorCreate.shared={frame,metal,glass,paneGeo,edgeGeo,handleGeo};
+  }
+  const {frame,metal,glass,paneGeo,edgeGeo,handleGeo}=shopDoorCreate.shared;
+  const group=new THREE.Group();group.add(frame.clone(true));
+  const hinge=new THREE.Group();hinge.position.set(-.89,0,.04);group.add(hinge);
+  const pane=new THREE.Mesh(paneGeo,glass);pane.position.set(.89,1.4,0);hinge.add(pane);
+  const edge=new THREE.Mesh(edgeGeo,metal);edge.position.set(1.76,1.4,0);hinge.add(edge);
+  const handle=new THREE.Mesh(handleGeo,metal);handle.position.set(1.62,1.35,.1);hinge.add(handle);
+  const back=handle.clone();back.position.z=-.1;hinge.add(back);
+  return {group,hinge,open:0};
+}
+function shopDoorAnimate(d,near,dt) {
+  if(!near&&d.open<.001)return;
+  d.open=lerp(d.open,near?1:0,1-Math.exp(-16*Math.min(dt,.1)));d.hinge.rotation.y=-Math.PI*.52*d.open;
+}
+function interiorDoorAdd(room,x,z,ry,sx,sy) {
+  room.doors=room.doors||[];
+  const existing=room.doors.find(d=>d.x===x&&d.z===z&&d.ry===ry);if(existing)return existing;
+  const d=Object.assign(shopDoorCreate(),{x,z,ry});d.group.name='Indoor opening glass door';
+  d.group.position.set(x,0,z);d.group.rotation.y=ry;d.group.scale.set(sx||1,sy||1,1);
+  d.group.traverse(o=>{if(o.isMesh)o.userData.shDry=true;});
+  room.group.add(d.group);room.doors.push(d);return d;
+}
+function interiorDoorTick(room,dt) {
+  if(!room||interior.room!==room||!interior.active)return;
+  for(const d of room.doors||[])shopDoorAnimate(d,Math.hypot(player.pos.x-room.ox-d.x,player.pos.z-room.oz-d.z)<3.2,dt);
+}
+function shopDoorBuild(root) {
+  shopDoors.list=[];shopDoors.root=root;
   const previews=[];
   try{stationShop();}catch(e){/* no capital */}
   for(const s of shops.list){
     if(!s.door||!interiorSupports(s)||s.parent||s.vend||s.soti)continue;
-    const group=new THREE.Group();group.name='Opening glass door · '+s.name;group.position.set(s.door[0],s.groundY||world.surfaceY(...s.door),s.door[1]);group.rotation.y=s.yaw||0;
-    group.add(frame.clone(true));const hinge=new THREE.Group();hinge.position.set(-.89,0,.04);group.add(hinge);
-    const pane=new THREE.Mesh(paneGeo,glass);pane.position.set(.89,1.4,0);hinge.add(pane);
-    const edge=new THREE.Mesh(edgeGeo,metal);edge.position.set(1.76,1.4,0);hinge.add(edge);
-    const handle=new THREE.Mesh(handleGeo,metal);handle.position.set(1.62,1.35,.1);hinge.add(handle);
-    const back=handle.clone();back.position.z=-.1;hinge.add(back);
-    root.add(group);shopDoors.list.push({shop:s,group,hinge,open:0});
+    const d=shopDoorCreate(),group=d.group;group.name='Opening glass door · '+s.name;
+    group.position.set(s.door[0],s.groundY||world.surfaceY(...s.door),s.door[1]);group.rotation.y=s.yaw||0;
+    root.add(group);shopDoors.list.push(Object.assign(d,{shop:s}));
     streamAdd(group,{x0:s.door[0]-2,x1:s.door[0]+2,z0:s.door[1]-2,z1:s.door[1]+2,y0:group.position.y,y1:group.position.y+3},gfx.tier==='low'?130:220);
     const theme={books:1,ramen:2,clothes:3,plaza:4,petmart:5}[s.brand]||0;
     previews.push({x:s.door[0]-Math.sin(s.yaw||0)*.07,y:group.position.y+1.4,z:s.door[1]-Math.cos(s.yaw||0)*.07,ry:s.yaw||0,w:1.78,h:2.65,theme,type:0});
@@ -19616,8 +19638,7 @@ function shopDoorBuild(root) {
 function shopDoorUpdate(dt) {
   if(!player.placed)return;
   for(const d of shopDoors.list){const near=!interior.active&&!drive.car&&!drive.train&&Math.hypot(player.pos.x-d.shop.door[0],player.pos.z-d.shop.door[1])<4;
-    if(!near&&d.open<.001)continue;
-    d.open=lerp(d.open,near?1:0,1-Math.exp(-16*Math.min(dt,.1)));d.hinge.rotation.y=-Math.PI*.52*d.open;
+    shopDoorAnimate(d,near,dt);
   }
 }
 
@@ -20885,6 +20906,7 @@ function routeSolve(from, to) {
   return [[from.x, from.z]].concat(path, [[to.x, to.z]]);
 }
 function updateRoute() {
+  if(nav.waypoint&&(!Number.isFinite(nav.waypoint.x)||!Number.isFinite(nav.waypoint.z))){clearWaypoint();nav.route=null;return;}
   if (!nav.waypoint || !player.placed) { nav.route = null; navGuideUpdate(); return; }
   const at = flight.active ? flight.pos : drive.car ? drive.car.pos : player.pos;
   if(drive.train){nav.route={pts:[[at.x,at.z],[nav.waypoint.x,nav.waypoint.z]],mode:'rail',off:0};navGuideUpdate();return;}
@@ -20892,6 +20914,7 @@ function updateRoute() {
   if (Math.hypot(at.x - nav.waypoint.x, at.z - nav.waypoint.z) < (drive.car ? 28 : 14)) {
     clearWaypoint(); say("You have arrived.", 2.5); nav.route = null; navGuideUpdate(); return;
   }
+  if(nav.route&&!(nav.route.path||nav.route.pts||[]).every(p=>Array.isArray(p)&&Number.isFinite(p[0])&&Number.isFinite(p[1])))nav.route=null;
   const r = nav.route, now = performance.now();
   let solve = !r || r.wx !== nav.waypoint.x || r.wz !== nav.waypoint.z;
   if (r && !solve) {
@@ -21287,7 +21310,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     const c = Math.cos(rot), s = Math.sin(rot);
     return [pw / 2 + (dx * c - dz * s) * S, ph / 2 + (dx * s + dz * c) * S];
   }
-  const labelBoxes = [];
+  const labelBoxes = [];if(opts.roadmap)nav.labelHits=[];
   function label(text, wx, wz, size, colour) {
     const p = toScreen(wx, wz);
     if (p[0] < -80 || p[0] > pw + 80 || p[1] < -40 || p[1] > ph + 40) return;
@@ -21295,7 +21318,7 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
     if (opts.roadmap) {
       const hw=ctx.measureText(text).width/2+5, hh=size*.65+3;
       if(labelBoxes.some(b=>Math.abs(b.x-p[0])<b.w+hw && Math.abs(b.y-p[1])<b.h+hh))return;
-      labelBoxes.push({x:p[0],y:p[1],w:hw,h:hh});
+      labelBoxes.push({x:p[0],y:p[1],w:hw,h:hh});nav.labelHits.push({sx:p[0],sy:p[1],w:hw,h:hh,q:{x:wx,z:wz,name:text,kind:"Landmark"}});
       colour=P.ink;
     }
     ctx.textAlign = "center";
@@ -21493,32 +21516,47 @@ function mapPois(across) {
 
 // A label by the icon under the cursor: the mouse where there is one, the
 // crosshair otherwise.
-function drawMapTip(g, w, h, across) {
-  const S = w / across;
-  const m = nav.mouse && performance.now() - nav.mouse.t < 5000 ? nav.mouse : null;
-  const spot = m || { x: w / 2, y: h / 2 };
-  let best = null, bd = 1e9;
-  mapPois(across).forEach(q => {
-    const sx = w / 2 + (q.x - nav.mapCx) * S, sy = h / 2 + (q.z - nav.mapCz) * S;
-    const d = Math.hypot(sx - spot.x, sy - spot.y);
-    if (d < bd) { bd = d; best = { q: q, sx: sx, sy: sy }; }
-  });
-  if (!best || bd > 20) return;
-  g.save();
-  g.strokeStyle = "rgba(255,255,255,0.95)"; g.lineWidth = 2;
-  g.beginPath(); g.arc(best.sx, best.sy, 15, 0, Math.PI * 2); g.stroke();
-  g.font = "700 14px " + UI;
-  const t1 = best.q.name, t2 = best.q.kind;
-  const tw = Math.max(g.measureText(t1).width, (g.font = "500 11px " + UI, g.measureText(t2).width)) + 20;
-  let bx = best.sx - tw / 2, by = best.sy - 58;
-  bx = clamp(bx, 6, w - tw - 6); if (by < 6) by = best.sy + 24;
-  g.fillStyle = "rgba(14,17,21,0.92)";
-  roundRect(g, bx, by, tw, 38, 8); g.fill();
-  g.strokeStyle = "rgba(255,255,255,0.25)"; g.lineWidth = 1; roundRect(g, bx, by, tw, 38, 8); g.stroke();
-  g.textAlign = "center"; g.textBaseline = "alphabetic";
-  g.fillStyle = "#ffffff"; g.font = "700 14px " + UI; g.fillText(t1, bx + tw / 2, by + 16);
-  g.fillStyle = "#9aa3ad"; g.font = "500 11px " + UI; g.fillText(t2, bx + tw / 2, by + 31);
-  g.restore();
+// Small, bounded live captures of this seed's actual locations. Capture only after the pointer settles.
+const mapPhotos={cache:new Map(),pending:null,timer:null};
+function mapPhoto(q) {
+  const key=world.seed+':'+Math.round(q.x)+':'+Math.round(q.z);
+  if(mapPhotos.cache.has(key))return mapPhotos.cache.get(key);
+  if(mapPhotos.pending===key)return null;
+  clearTimeout(mapPhotos.timer);mapPhotos.pending=key;
+  mapPhotos.timer=setTimeout(()=>{
+    mapPhotos.pending=null;if(!nav.mapOpen)return;
+    const W=320,H=180,rt=new THREE.WebGLRenderTarget(W,H),view=new THREE.PerspectiveCamera(58,W/H,.5,12000);
+    const shop=shops.list.find(s=>Math.hypot(s.at[0]-q.x,s.at[1]-q.z)<15),plot=(world.cities||[]).flatMap(c=>c.plots||[]).find(p=>Math.hypot(p.centre[0]-q.x,p.centre[1]-q.z)<25);
+    const ry=shop?shop.yaw||0:plot?(plot.yaw||0)*Math.PI/180:0,reach=shop?Math.max(15,(plot?.size?.[1]||20)*.7):plot?Math.max(...plot.size)*.85:55;
+    const focus=shop&&shop.door?{x:shop.door[0],z:shop.door[1]}:q,ground=shop&&Number.isFinite(shop.groundY)?shop.groundY:world.surfaceY(q.x,q.z);
+    const distance=shop?Math.max(20,(shop.size?.[0]||30)*.55):reach;
+    let x=focus.x+Math.sin(ry)*distance,z=focus.z+Math.cos(ry)*distance;
+    for(const side of [0,-.6,.6,-1,1]){const a=ry+side,cx=focus.x+Math.sin(a)*distance,cz=focus.z+Math.cos(a)*distance;if(!insideBuilding(cx,cz,1,world.surfaceY(cx,cz)+3)){x=cx;z=cz;break;}}
+    view.position.set(x,Math.max(ground,world.surfaceY(x,z))+3,z);view.lookAt(focus.x,ground+(shop?4:plot?Math.min((plot.h||plot.height||12)*.2,18):5),focus.z);view.updateMatrixWorld(true);rt.texture.encoding=THREE.sRGBEncoding;
+    const saved=STREAM.reg.map(e=>[e.o,e.o.visible]),target=renderer.getRenderTarget(),shadow=renderer.shadowMap.autoUpdate,near=STREAM.fog.low.n.value,far=STREAM.fog.low.f.value,rn=STREAM.fog.road.n.value,rf=STREAM.fog.road.f.value;
+    try{
+      const fr=new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(view.projectionMatrix,view.matrixWorldInverse));
+      for(const e of STREAM.reg)e.o.visible=e.s.center.distanceTo(view.position)-e.s.radius<2200&&fr.intersectsSphere(e.s);
+      STREAM.fog.low.n.value=1500;STREAM.fog.low.f.value=2400;STREAM.fog.road.n.value=1500;STREAM.fog.road.f.value=2400;
+      renderer.shadowMap.autoUpdate=false;renderer.setRenderTarget(rt);renderer.render(scene,view);
+      const pixels=new Uint8Array(W*H*4);renderer.readRenderTargetPixels(rt,0,0,W,H,pixels);
+      const cv=document.createElement('canvas');cv.width=W;cv.height=H;const g=cv.getContext('2d'),im=g.createImageData(W,H);
+      for(let y=0;y<H;y++)im.data.set(pixels.subarray((H-1-y)*W*4,(H-y)*W*4),y*W*4);g.putImageData(im,0,0);
+      mapPhotos.cache.set(key,cv);if(mapPhotos.cache.size>24)mapPhotos.cache.delete(mapPhotos.cache.keys().next().value);
+    }catch(e){console.warn('[Konto] location preview unavailable',e);}
+    finally{renderer.setRenderTarget(target);renderer.shadowMap.autoUpdate=shadow;STREAM.fog.low.n.value=near;STREAM.fog.low.f.value=far;STREAM.fog.road.n.value=rn;STREAM.fog.road.f.value=rf;for(const [o,v] of saved)o.visible=v;rt.dispose();}
+    if(nav.mapOpen)drawBigMap();
+  },220);return null;
+}
+function drawMapTip(g,w,h,across) {
+  const S=w/across,m=nav.mouse&&performance.now()-nav.mouse.t<5000?nav.mouse:{x:w/2,y:h/2};
+  let best=(nav.labelHits||[]).find(b=>Math.abs(b.sx-m.x)<b.w&&Math.abs(b.sy-m.y)<b.h);
+  if(!best){let bd=20;for(const q of mapPois(across)){const sx=w/2+(q.x-nav.mapCx)*S,sy=h/2+(q.z-nav.mapCz)*S,d=Math.hypot(sx-m.x,sy-m.y);if(d<bd){bd=d;best={q,sx,sy};}}}
+  if(!best){clearTimeout(mapPhotos.timer);mapPhotos.pending=null;return;}
+  const photo=mapPhoto(best.q),tw=Math.min(280,w-16),th=photo?202:66,bx=clamp(best.sx-tw/2,8,w-tw-8),by=clamp(best.sy-th-20,8,h-th-8);
+  g.save();g.fillStyle='#ffffff';g.strokeStyle='#d0d7de';g.lineWidth=1;roundRect(g,bx,by,tw,th,10);g.fill();g.stroke();
+  if(photo){g.save();roundRect(g,bx+4,by+4,tw-8,142,7);g.clip();g.drawImage(photo,bx+4,by+4,tw-8,142);g.restore();}
+  const ty=by+(photo?163:24);g.textAlign='left';g.fillStyle='#243746';g.font='700 13px '+UI;g.fillText(best.q.name,bx+12,ty,tw-24);g.fillStyle='#637383';g.font='500 11px '+UI;g.fillText(best.q.kind+(photo?' · In-game view':' · Loading view…'),bx+12,ty+19,tw-24);g.restore();
 }
 
 function drawBigMap() {
@@ -27618,6 +27656,9 @@ const CHEAT_VEHICLES = {
   LEXUS:     { kind: "lc500",     dial: "5550227" },
   GODZILLA:  { kind: "gtr35",     dial: "5550228" }
 };
+const CHEAT_ALIASES={LAMBO:'LAMBORGHINI',BUGATI:'BUGATTI',PORCHE:'PORSCHE',NISSANGTR:'GODZILLA'};
+for(const [alias,target] of Object.entries(CHEAT_ALIASES))CHEAT_VEHICLES[alias.toUpperCase()]={kind:CHEAT_VEHICLES[target].kind};
+for(const k of CAR_KINDS)if(!CHEAT_VEHICLES[k.name.toUpperCase()])CHEAT_VEHICLES[k.name.toUpperCase()]={kind:k.name};
 // What each kind is, as a car: the model it is drawn with (see Game/tools/cars/cars.json), so a cheat says what it gave you.
 const KIND_MODEL = {"kei": "Honda Fit (GK3)", "keivan": "Suzuki Carry / Every kei van", "hatch": "Toyota Prius 2012", "sedan": "Toyota Camry (XV40)", "saloon": "Nissan Cefiro (A31)", "taxi": "Toyota Corolla (KE80) taxi", "police": "Toyota Crown Athlete S210 patrol car", "suv": "Toyota RAV4 Hybrid 2021", "sports": "Nissan Skyline R34 GT-R", "super": "Honda NSX 1990", "bike": "Suzuki GSX-R750", "cruiser": "Honda CB750 F", "dirtbike": "Honda CRF450", "f8": "Ferrari F8 Tributo", "aventador": "Lamborghini Aventador SVJ", "mc720": "McLaren 720S", "chiron": "Bugatti Chiron Profil\u00e9e", "huayra": "Pagani Huayra", "p918": "Porsche 918 Spyder", "lc500": "Lexus LC 500", "gtr35": "Nissan GT-R (R35)"};
 const CHEAT_ACTIONS = {
@@ -27739,16 +27780,24 @@ function cheatSpawn(kindName) {
   if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
   const kind = CAR_KINDS[ki];
   if(!traffic.pool[ki]){
-    if(traffic.modelsReady){say("Loading the detailed vehicle…",2);traffic.modelsReady.then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
+    if(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady){say("Loading the detailed vehicle…",2);(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady).then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
     else say("The vehicle catalogue is still loading.",3);
     return true;
   }
-  const base = drive.car ? drive.car.pos : player.pos, yaw = drive.car ? drive.car.yaw : player.yaw;
+  if(flight.active)flightAbort();
+  if(heist.stage)heistEnd();
+  for(let i=0;i<6&&interior.active;i++)interiorLeave(true);
+  for(let i=0;i<6&&shops.inside;i++)leaveShop();
+  if(player.mode!=='walk')setMode('walk');
+  if(paused)setPaused(false);
+  if(drive.car)vehicleRecover(drive.car);
+  if(!vehicleFinite(player.pos)){const q=home.door||[2523,1645];player.pos.set(q[0],world.surfaceY(q[0],q[1]),q[1]);}
+  const base = drive.car ? drive.car.pos.clone() : player.pos.clone(), yaw = drive.car ? drive.car.yaw : (Number.isFinite(player.yaw)?player.yaw:0);
   let d = 4 + kind.L * 0.5, x = base.x + Math.sin(yaw) * d, z = base.z + Math.cos(yaw) * d;
   for (let t = 0; t < 8 && (insideBuilding(x, z, kind.W * 0.5) || world.sampleHeight(x, z) < 0.5); t++) { d += 3; x = base.x + Math.sin(yaw) * d; z = base.z + Math.cos(yaw) * d; }
   if (drive.car) leaveCar();
   const pal = PAINTS[Math.floor(Math.random() * PAINTS.length)][1];
-  const rec = { kind: ki, pos: new THREE.Vector3(x, world.surfaceY(x, z) + 0.04, z), yaw: yaw,
+  const rec = { kind: ki, pos: new THREE.Vector3(x, world.surfaceY(x, z, base.y) + 0.04, z), yaw: yaw,
                 colour: (kind.colour || pal).slice(), uv: [0, 0], spawned: true };
   drive.parked.push(rec);
   enterParked(drive.parked.length - 1);
@@ -27756,21 +27805,22 @@ function cheatSpawn(kindName) {
   return true;
 }
 function runCheat(name) {
+  name=String(name).trim().toUpperCase().replace(/[\s_-]+/g,'');
   const v = CHEAT_VEHICLES[name], a = CHEAT_ACTIONS[name];
-  if (v) return cheatSpawn(v.kind);
+  if (v) {setPhone(false);setWheel(false);return cheatSpawn(v.kind);}
   if (a) { a.fn(); if (a.note) say(a.note, 3); return true; }
   return false;
 }
 window.cheat = n => runCheat(String(n).toUpperCase());
 let cheatBuf = "";
 function cheatKey(e) {
-  if (!/^Key[A-Z]$/.test(e.code) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if ((!/^[a-z]$/i.test(e.key||'')&&!/^Key[A-Z]$/.test(e.code)) || e.ctrlKey || e.metaKey || e.altKey) return false;
   const ae = document.activeElement;
   if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA")) return;
   if (phone.open && (phone.entry || phone.app === "MyGram")) return;
-  cheatBuf = (cheatBuf + e.code.slice(3)).slice(-14);
-  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
-  for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ""; if (player.placed) runCheat(all[i]); return; }
+  cheatBuf = (cheatBuf + (/^[a-z]$/i.test(e.key||'')?e.key.toUpperCase():e.code.slice(3))).slice(-24);
+  const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS)).sort((a,b)=>b.length-a.length);
+  for (let i = 0; i < all.length; i++) if (cheatBuf.endsWith(all[i])) { cheatBuf = ''; if (player.placed) return runCheat(all[i]); return false; }
 }
 function cheatDial(num) {
   const all = Object.keys(CHEAT_VEHICLES).concat(Object.keys(CHEAT_ACTIONS));
@@ -28617,7 +28667,11 @@ const KUSTOM_PARTS = [
 ];
 var kustoms = { mods: {} };     // var: perfOf can be asked about a car before this line runs
 try { kustoms.mods = JSON.parse(localStorage.getItem(KUSTOM_KEY) || "{}") || {}; } catch (e) { kustoms.mods = {}; }
-function kustomOf(kind) { return (kind && kustoms && kustoms.mods[kind.name]) || { engine: 0, brakes: 0, tyres: 0, susp: 0 }; }
+function kustomOf(kind) {
+  const stored=kind&&kustoms&&kustoms.mods&&kustoms.mods[kind.name],out={};
+  for(const key of ['engine','brakes','tyres','susp'])out[key]=Number.isFinite(stored&&stored[key])?clamp(stored[key],0,3):0;
+  return out;
+}
 function kustomSave() { try { localStorage.setItem(KUSTOM_KEY, JSON.stringify(kustoms.mods)); } catch (e) {} }
 // The respray. Roll in with the police on you but not watching, and the roller door comes down behind you: a new colour, new plates, and
 // they are looking for a car that is not there any more. Roll in with a patrol watching you do it and nobody will touch the car.
@@ -36238,7 +36292,7 @@ function updateBike(dt, c, kind, inp) {
   const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = perfOf(kind, { top: 30, to100: 6 });
   const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
   const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw);
-  if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z); c.vyG = 0; c.slip = 0; c.downT = 0; }
+  if (c.air === undefined) { c.air = false; c.vy = 0; c.theta = 0; c.omega = 0; c.roll = 0; c.gy = world.surfaceY(c.pos.x, c.pos.z,c.pos.y); c.vyG = 0; c.slip = 0; c.downT = 0; }
   // ---- the ground under each wheel, and under the middle
   const refY = c.air ? c.pos.y : c.gy + 0.5;
   const gC = world.walkY(c.pos.x, c.pos.z, refY), onF = world.walkOn;
@@ -36316,12 +36370,12 @@ function updateBike(dt, c, kind, inp) {
   // ---- move
   const step = c.speed * dt;
   const nx = c.pos.x + sy * step, nz = c.pos.z + cy * step;
-  const onDeck = world.bridgeY(nx, nz) !== null;
+  const onDeck = world.bridgeY(nx, nz,c.pos.y) !== null;
   const gN = world.walkY(nx, nz, c.air ? c.pos.y : c.gy + 0.5);
   const blocked = nx < 50 || nz < 50 || nx > WORLD_X - 50 || nz > WORLD_Z - 50
     || (!onDeck && world.sampleHeight(nx, nz) < 0.4)
-    || insideBuilding(nx, nz, kind.W * 0.45)
-    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z)
+    || insideBuilding(nx, nz, kind.W * 0.45,gN)
+    || treeBlocks(nx, nz, kind.W * 0.42, c.pos.x, c.pos.z,c.pos.y)
     || treeBlocks(nx + sy * kind.L * 0.4 * Math.sign(c.speed || 1), nz + cy * kind.L * 0.4 * Math.sign(c.speed || 1), kind.W * 0.38,
                   c.pos.x + sy * kind.L * 0.4 * Math.sign(c.speed || 1), c.pos.z + cy * kind.L * 0.4 * Math.sign(c.speed || 1));
   if (blocked && c.downT <= 0) {
@@ -36395,8 +36449,23 @@ function moveCarGrounded(c,kind,dt) {
     }
 }
 
+function vehicleFinite(v) {return !!v&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);}
+function vehicleRecover(c) {
+  if(!vehicleFinite(c.pos)){
+    const fallback=c._safePos||drive.safePos;
+    if(vehicleFinite(fallback))c.pos.copy(fallback);
+    else {const q=home.door||[2523,1645];c.pos.set(q[0],world.surfaceY(q[0],q[1])+.06,q[1]);}
+    c.vel=null;c.speed=0;c.air=undefined;c.dmg=null;nav.route=null;
+  }
+  for(const k of ['yaw','speed','steer','pitch','lean','slide','accelPitch','lastSpeed','slope','roll','theta','omega','vy','vyG'])if(!Number.isFinite(c[k]))c[k]=0;
+  if(c.vel&&(!Number.isFinite(c.vel.x)||!Number.isFinite(c.vel.y)))c.vel=null;
+  if(c.dmg)for(const k of ['total','front','rear','left','right'])if(!Number.isFinite(c.dmg[k]))c.dmg[k]=0;
+  if(!Number.isFinite(yaw))yaw=c.yaw+Math.PI;if(!Number.isFinite(pitch))pitch=-.18;
+  if(!vehicleFinite(camPos))camPos.copy(c.pos).add(new THREE.Vector3(0,3,7));
+  c._safePos=c.pos.clone();drive.safePos=c.pos.clone();
+}
 function updateDrive(dt) {
-  const c = drive.car;
+  const c = drive.car;vehicleRecover(c);dt=Number.isFinite(dt)?clamp(dt,0,.1):0;
   const kind = CAR_KINDS[c.kind];
   const w = wish();
   // Pedals. A trigger is analogue, the keyboard is not, and both end up here.
@@ -36512,6 +36581,7 @@ function updateDrive(dt) {
 }
 
   if (!TWO_WHEELERS[kind.body]) driveFeedback(c, kind, dt, throttle, brake, false);
+  vehicleRecover(c);
   // Camera: behind and a little above, swinging round to the heading unless
   // you are turning it yourself.
   if (!look.x && !look.y && Math.abs(c.speed) > 2.5) {
@@ -39849,6 +39919,7 @@ function pedPoseClips(root) {
   // sitting on a chair or a bench: thighs level, knees bent square, hands resting on the thighs, a slight slump
   make("sit", { ThighR: [1.52, 0, 0.06], ThighL: [1.52, 0, -0.06], ShinR: [-1.5, 0, 0], ShinL: [-1.5, 0, 0], Spine: [0.08, 0, 0], Chest: [0.04, 0, 0],
     UpperArmR: [0.25, 0, 0.42], ForearmR: [0, 0, 0.95], UpperArmL: [0.25, 0, -0.42], ForearmL: [0, 0, -0.95] }, 0.44);
+  make("ride", vehicleRidePose(), .4);
   storyPeoplePoses(make);
   return out;
 }
@@ -41562,7 +41633,7 @@ function liftExtra(room, root) {
 }
 function interiorMallLevel(s, idx) {
   const f = MALL_FLOORS[idx];
-  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: liftExtra });
+  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: (room,root,th)=>{liftExtra(room,root,th);interiorDoorAdd(room,IN_W/2-1.55,-3,-Math.PI/2,1,.88);} });
 }
 function plazaExtra(def) {
   return (room, root, th) => {
@@ -41575,6 +41646,9 @@ function plazaExtra(def) {
       inAdd(root, 3.4, 2.5, 0.32, x, 1.25, -IN_D / 2 + 0.22, "#1b1f26");
       inAdd(root, 3.0, 0.05, 0.4, x, 0.02, -IN_D / 2 + 0.6, "#2a2d33");
       const sg = inLabel(br.name, 3.6, 0.5, br.band === "#ffffff" ? "#1272d6" : br.band, br.ink === "#1272d6" ? "#fff" : br.ink); sg.position.set(x, 2.78, -IN_D / 2 + 0.38); root.add(sg);
+      const door=interiorDoorAdd(room,x,-IN_D/2+.55,0,1.45,.88);
+      const theme={books:1,ramen:2,clothes:3,street:3,plaza:4,petmart:5}[b]||0;
+      SalaryRetail.installWindows(root,[{x,y:1.3,z:-IN_D/2+.50,ry:0,w:2.48,h:2.35,theme,type:0}],()=>{},gfx.tier==='low');
       room.spots.push({ x: x, z: -IN_D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
     });
     inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
@@ -41634,6 +41708,7 @@ function interiorEnterStore(sp) {
   const S = { brand: brand, name: SHOP_BRANDS[brand].name, door: P.door, yaw: P.yaw, groundY: P.groundY, city: P.city, parent: P };
   let room;
   try { room = interiorRoom(S); } catch (e) { console.warn("[Konto] a plaza shop could not be built:", e); return; }
+  const door=interiorDoorAdd(room,0,(room.D||IN_D)/2-.15,Math.PI,1,.88);door.open=1;door.hinge.rotation.y=-Math.PI*.52;
   interior.stack = { room: interior.room, spot: sp, shop: P };
   interior.shop = S;
   interiorShowRoom(room, { x: 0, z: IN_D / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
@@ -43184,6 +43259,7 @@ function interiorTick(dt) {
   if (!interior.active) return;
   const R = interior.room;
   interior.said = Math.max(0, interior.said - dt);
+  interiorDoorTick(R,dt);
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (robTick(dt)) { interior.prompt.classList.remove("on"); return; }
   if (R.tick) R.tick(dt);
@@ -43971,6 +44047,7 @@ function rydePassengerTry(car) {
 
 // ---- Seiko's own moves for the story: a bow, a look at the phone, sitting -----------------------------------------------------------------
 function storySeikoClips(make) {
+  const ride=vehicleRidePose();make("ride",1,[{t:0,pose:ride,drop:.4},{t:1,pose:ride,drop:.4}],true);
   make("bow", 2.4, [
     { t: 0.0, pose: {} },
     { t: 0.55, pose: { Spine: [-0.62, 0, 0], Chest: [-0.22, 0, 0], Neck: [-0.18, 0, 0], UpperArmR: [0.08, 0, 0.18], UpperArmL: [0.08, 0, -0.18] } },
