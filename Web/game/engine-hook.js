@@ -72,10 +72,19 @@
     return S._lights;
   }
   function dimLights(cloud, flash) {
+    if (!isFinite(cloud)) cloud = 0;
+    if (!isFinite(flash)) flash = 0;
+    // Lightning lights up the street at night; in daylight a strike a few kilometres off barely shows. At full strength in the day it
+    // tripled the sky light for a third of a second, which read as the whole screen flashing for no reason.
+    const sunUp = typeof sunDir === "object" && sunDir ? sunDir.y : 0;
+    flash *= 0.12 + 0.88 * (1 - Math.min(1, Math.max(0, (sunUp + 0.05) / 0.3)));
     const k = 1 - cloud * 0.62;
     skyLights().forEach(o => {
       let b = lightBase.get(o);
-      if (!b || Math.abs(o.intensity - b.wrote) > 1e-6) { b = { base: o.intensity, wrote: 0 }; lightBase.set(o, b); }
+      if (!b || Math.abs(o.intensity - b.wrote) > 1e-6) {
+        // the game's own value is the base, but never a NaN or a negative one: that would turn every lit thing black for good
+        b = { base: isFinite(o.intensity) && o.intensity >= 0 ? o.intensity : (b ? b.base : 1), wrote: 0 }; lightBase.set(o, b);
+      }
       b.wrote = o.intensity = b.base * (o.isDirectionalLight ? k : 1 - cloud * 0.3) + flash * (o.isHemisphereLight ? 1.5 : 0);
     });
     if (scene.fog && scene.fog.isFog) {

@@ -13660,9 +13660,21 @@ precision highp float;
 varying vec2 vUv;
 uniform sampler2D tColor, tAO;
 uniform float uStrength;
+// A pixel the scene could not shade properly must not reach the bloom. One NaN (a zero-length normal on a degenerate UV patch, the
+// half-vector when the eye looks exactly back down the sun) or one Inf (a sun glint on wet glass past half-float's 65,504) is spread by
+// the five bloom blurs over a block a quarter of the screen wide: an Inf flashes it white for a frame, a NaN turns it, buildings and
+// Seiko with it, black. So NaN becomes nothing, Inf and anything over the cap become the cap (still pure white after the tone map), and
+// the bloom only ever sees finite light. Checked on the bits, which no compiler can optimise away the way it may an isnan().
+float kontoSafe(float x) {
+  uint u = floatBitsToUint(x);
+  if ((u & 0x7f800000u) == 0x7f800000u) return (u & 0x007fffffu) != 0u ? 0.0 : (x > 0.0 ? 32.0 : 0.0);
+  return clamp(x, 0.0, 32.0);
+}
 void main() {
   vec4 c = texture2D(tColor, vUv);
+  c.rgb = vec3(kontoSafe(c.r), kontoSafe(c.g), kontoSafe(c.b));
   float ao = texture2D(tAO, vUv).r;
+  if (!(ao >= 0.0 && ao <= 1.0)) ao = 1.0;
   // occlusion darkens the light that comes from everywhere, not the sun: a pixel in full sunlight keeps more of itself
   float lum = dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
   float k = uStrength * (1.0 - 0.45 * smoothstep(0.5, 2.5, lum));
@@ -13717,7 +13729,7 @@ function fxBuild() {
   }
   class KontoSSAOPass extends P {
     constructor(src) {
-      super(); this.src = src; this.enabled = true;
+      super(); this.src = src; this.useAO = true;   // NOT this.enabled: the composer skips a disabled pass, and this one also copies the scene on
       this.ao = new FSQ(fsMaterial(FX_SSAO_FRAG, { tDepth: { value: null }, uProj: { value: new THREE.Matrix4() }, uProjInv: { value: new THREE.Matrix4() },
         uRes: { value: new THREE.Vector2(1, 1) }, uRadius: { value: fx.ssao.radius }, uIntensity: { value: fx.ssao.intensity }, uBias: { value: fx.ssao.bias } }));
       this.blur = new FSQ(fsMaterial(FX_BLUR_FRAG, { tAO: { value: null }, tDepth: { value: null }, uStep: { value: new THREE.Vector2() }, uNear: { value: 1 }, uFar: { value: 1000 } }));
@@ -13733,7 +13745,7 @@ function fxBuild() {
       const src = this.src.rt, dt = src.depthTexture;
       const ap = this.apply.material.uniforms;
       ap.tColor.value = src.texture;
-      if (this.enabled && fx.ssao.strength > 0) {
+      if (this.useAO && fx.ssao.strength > 0) {
         const u = this.ao.material.uniforms;
         u.tDepth.value = dt; u.uProj.value.copy(camera.projectionMatrix); u.uProjInv.value.copy(camera.projectionMatrixInverse);
         u.uRes.value.set(this.hw, this.hh); u.uRadius.value = fx.ssao.radius; u.uIntensity.value = fx.ssao.intensity; u.uBias.value = fx.ssao.bias;
@@ -13785,7 +13797,10 @@ function fxRender() {
   const b = fx.p.bloom;
   b.strength = fx.bloom.strength * (1 + 0.5 * night); b.radius = fx.bloom.radius; b.threshold = fx.bloom.threshold * (1 - 0.72 * night);
   fx.p.tone.uniforms.uExposure.value = renderer.toneMappingExposure;
-  fx.p.ssao.enabled = gfx.tier === "high" || gfx.tier === "ultra";
+  // occlusion on high and ultra only; the pass itself always runs, because it is what hands the (sanitised) scene to the bloom. Switched
+  // off with .enabled, as it was, the composer skipped it whenever "Finish" forced this chain on at low or medium, and the bloom fed on a
+  // stale buffer from earlier frames, which flickered.
+  fx.p.ssao.useAO = gfx.tier === "high" || gfx.tier === "ultra";
   if (worldReal()) { fx.ssao.strength = 1.0; fx.ssao.intensity = 1.35; b.strength *= 1.25; }
   fx.composer.render(1 / 60);
 }
