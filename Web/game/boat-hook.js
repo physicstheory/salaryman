@@ -421,21 +421,23 @@
     // from a point in the water, walk back to the shore along the bearing, then out until it is deep enough
     const ux = Math.sin(a), uz = Math.cos(a), H = world.sampleHeight;
     let shore = null;
-    for (let r = 0; r < 120; r += 1) { const px = x - ux * r, pz = z - uz * r; if (H(px, pz) > 0.35) { shore = r; break; } }
+    for (let r = 0; r < 160; r += 1) { const px = x - ux * r, pz = z - uz * r; if (H(px, pz) > 0.35) { shore = r; break; } }
     if (shore === null) return null;
     const x0 = x - ux * (shore + 4), z0 = z - uz * (shore + 4);            // four metres onto the land
     if (insideBuilding(x0, z0, 2) || world.bridgeY(x0, z0) !== null) return null;
     let len = 0;
-    for (let r = 8; r <= 90; r += 2) {
+    for (let r = 8; r <= 120; r += 2) {
       const px = x0 + ux * r, pz = z0 + uz * r, h = H(px, pz);
       if (h > 0.35 && r > 14) return null;                                  // back over land: a spit, not the open water
       if (insideBuilding(px, pz, PIER_HW + 1)) return null;
+      if (world.bridgeY(px, pz, 80) !== null) return null;                    // under a viaduct or the expressway
+      world.walkY(px, pz, 80); if (world.walkOn) return null;                // or over another deck
       len = r;
-      if (h < -3.2 && r >= 26) break;
+      if (h < -2.4 && r >= 26) break;
     }
-    if (H(x0 + ux * len, z0 + uz * len) > -2.2) return null;
+    if (H(x0 + ux * len, z0 + uz * len) > -1.8) return null;
     // and the water either side of the outer half must be deep enough to moor in
-    for (let r = len * 0.5; r <= len; r += 4) for (const s of [-1, 1]) { const px = x0 + ux * r + uz * s * 5.5, pz = z0 + uz * r - ux * s * 5.5; if (H(px, pz) > -1.2) return null; }
+    for (let r = len * 0.5; r <= len; r += 4) for (const s of [-1, 1]) { const px = x0 + ux * r + uz * s * 5.5, pz = z0 + uz * r - ux * s * 5.5; if (H(px, pz) > -1.0) return null; }
     return { x0, z0, ux, uz, len, a };
   }
   function overlaps(pl) {
@@ -446,6 +448,7 @@
   }
 
   function buildPier(root, pl, where, seed, kinds) {
+    kinds = kinds.slice();
     const R = k => rnd(seed, k, 7723);
     const { x0, z0, ux, uz, len } = pl, a = pl.a;
     const g0 = Math.max(0.4, world.surfaceY(x0, z0));
@@ -528,23 +531,25 @@
     const P = { x0, z0, ux, uz, a, len, ramp, headHW, cx: mid[0], cz: mid[1], r: len / 2 + headHW + 4, group: G, boats: [], where: where, root: root };
     piers.push(P);
     // berths: alongside the outer part of the jetty, both sides, bows out to sea, and along the T-head's outer face
-    const berths = [];
-    for (const sd of [-1, 1]) for (let s0 = len - headL - 2; s0 > Math.max(ramp + 4, len * 0.35); ) {
-      berths.push({ side: sd, s: s0 }); s0 -= 9.5;
-    }
-    let bi = 0;
-    for (const b of berths) {
-      if (bi >= kinds.length) break;
-      const kind = kinds[bi];
-      const sp = SHIGOTO.BOAT_SPECS[kind], off = PIER_HW + sp.B / 2 + 0.55;
-      const along = b.s - sp.L * 0.5 + (0.5 - sp.cg) * sp.L * 0;              // the bow just short of the berth mark
-      const p = W2(b.side * off, along);
+    // alternating sides, each boat's bow a little short of the one ahead's stern
+    const cursor = { "-1": len - headL - 1, "1": len - headL - 1 }, limit = Math.max(ramp + 4, len * 0.3);
+    let bi = 0, tries = 0, side = -1;
+    while (bi < kinds.length && tries++ < 24) {
+      const kind = kinds[bi], sp = SHIGOTO.BOAT_SPECS[kind], off = PIER_HW + sp.B / 2 + 0.55;
+      if (cursor[-1] - sp.L < limit && cursor[1] - sp.L < limit) break;
+      if (cursor[side] - sp.L < limit) side = -side;
+      const along = cursor[side] - (1 - sp.cg) * sp.L;
       // deep enough under the whole hull?
       let ok = true;
-      for (const t of [-0.5, 0, 0.5]) for (const w of [-0.5, 0.5]) { const q = W2(b.side * off + w * sp.B, along + t * sp.L); if (world.sampleHeight(q[0], q[1]) > -(sp.H * 0.7 + 0.4)) ok = false; }
-      if (!ok) continue;
-      const boat = addBoat(root, kind, seed * 31 + bi, p[0], p[1], a, P);
-      P.boats.push(boat); bi++;
+      for (const t of [0.05, 0.5, 0.95]) for (const w2 of [-0.5, 0.5]) { const q = W2(side * off + w2 * sp.B, cursor[side] - t * sp.L); if (world.sampleHeight(q[0], q[1]) > -(sp.H * 0.45 + 0.15)) ok = false; }
+      if (!ok) {
+        // too shallow for her: a jet ski draws next to nothing; and if not even that, this side is done
+        if (kind !== "jetski") { kinds[bi] = "jetski"; continue; }
+        cursor[side] = -1e9; side = -side; continue;
+      }
+      const p = W2(side * off, along);
+      P.boats.push(addBoat(root, kind, seed * 31 + bi, p[0], p[1], a, P));
+      cursor[side] -= sp.L + 1.6; bi++; side = -side;
     }
     return P;
   }
@@ -590,7 +595,7 @@
       const c = [0, 0]; city.plots.forEach(p => { c[0] += p.centre[0] / city.plots.length; c[1] += p.centre[1] / city.plots.length; });
       const capital = ci === 0, coastal = city.site && city.site.coastal;
       if (!capital && !coastal) return;
-      const spots = shoreSpots(c[0], c[1], capital ? 2800 : 1100, 3.0, capital ? 72 : 36);
+      const spots = shoreSpots(c[0], c[1], capital ? 2800 : 2600, capital ? 3.0 : 1.6, capital ? 72 : 48);
       const want = capital ? 4 : 1 + (rnd(ci, 1, 7731) < 0.5 ? 1 : 0);
       const name = city.name || (capital ? "Tōkonto" : "Harbour");
       let made = 0;
@@ -608,7 +613,7 @@
   function buildIslandPiers(site) {
     if (!site || !site.group || site.piers) return;
     site.piers = [];
-    const spots = shoreSpots(site.cx, site.cz, Math.max(site.hx, site.hz), 3.0, 40);
+    const spots = shoreSpots(site.cx, site.cz, Math.max(site.hx, site.hz), 1.6, 48);
     const want = site.id === "seoul" ? 1 : 2;
     const order = spots.map((s, i) => [s, rnd(i, site.id.length, 7741)]).sort((a, b) => a[1] - b[1]).map(q => q[0]);
     let made = 0;
@@ -1068,7 +1073,7 @@
     if (drive.car && typeof leaveCar === "function") leaveCar();
     if (typeof interiorLeave === "function" && interior && interior.active) interiorLeave(true);
     const s = p.len - 6, x = p.x0 + p.ux * s, z = p.z0 + p.uz * s;
-    player.pos.set(x, world.walkY(x, z, 99), z); player.onWalk = true;
+    player.pos.set(x, world.walkY(x, z, DECK_Y + 0.5), z); player.onWalk = true;
     player.yaw = player.targetYaw = Math.atan2(p.ux, p.uz);
     if (player.obj) player.obj.position.copy(player.pos);
     camPos.set(x - p.ux * 5, player.pos.y + 2.4, z - p.uz * 5);
