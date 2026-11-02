@@ -142,9 +142,10 @@ test('outfit try-ons reuse pristine rig templates and shared source materials',(
 
 test('moat height texture retains terrain above the former 25 metre limit',()=>{
   const THREE=require('../vendor/three.min.js'),c={THREE,water:{},GRID_X:2,GRID_Z:1,world:{height:new Float32Array([32,40]),idx:(x,z)=>z*2+x}};
-  vm.createContext(c);vm.runInContext(declaration('function waterHeightTextureF()', 'function waterMaterial('),c);
+  vm.createContext(c);vm.runInContext(declaration('function waterGroundAt(', 'function waterHeightTexture()')+declaration('function waterHeightTextureF()', 'function waterMaterial('),c);
   const tex=c.waterHeightTextureF();assert.equal(tex.type,THREE.FloatType);assert.equal(tex.image.data[0],32);assert.equal(tex.image.data[4],40);
   assert.equal(c.waterHeightTextureF(),tex,'The world height texture is shared');
+  c.CELL=1;c.DEST={sites:[{cx:1,cz:0,hx:.4,hz:.4,h:()=>58}]};c.water.heightForF=null;const holiday=c.waterHeightTextureF();assert.equal(holiday.image.data[0],32);assert.equal(holiday.image.data[4],58,'Holiday terrain is present in the water height map');
 });
 
 test('retargeting uses the same facing frame for raw and already-adopted animation templates',()=>{

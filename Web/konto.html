@@ -7504,11 +7504,16 @@ function highwaySurface(asphalt) {
   roadPoint=instanceMatrix*roadPoint;
 #endif
   roadPoint=modelMatrix*roadPoint;
-  vec3 an=abs(normal);
+  vec3 roadN=normal;
+#ifdef USE_INSTANCING
+  roadN=mat3(instanceMatrix)*roadN;
+#endif
+  roadN=mat3(modelMatrix)*roadN;
+  vec3 an=abs(roadN);
   vec2 roadUv=an.y>max(an.x,an.z)?roadPoint.xz:(an.x>an.z?roadPoint.zy:roadPoint.xy);
   vUv=(uvTransform*vec3(roadUv,1.0)).xy;
 #endif`);};
-  m.customProgramCacheKey=()=> (prevKey?prevKey.call(m):'')+'|highway-world-uv';
+  m.customProgramCacheKey=()=> (prevKey?prevKey.call(m):'')+'|highway-world-uv-v2';
   if(asphalt){roadMarkings(m);const marks=m.onBeforeCompile;m.onBeforeCompile=(sh,r)=>{marks(sh,r);sh.vertexShader=sh.vertexShader.replace('vRoadUV = uv; vRoadAux = aRoad;',`vRoadUV = uv; vRoadAux = aRoad;
 #ifdef USE_INSTANCING
   float halfW=length(instanceMatrix[0].xyz)*.5;
@@ -9240,6 +9245,7 @@ showPad.had = false;
 function setPaused(on, tabName) {
   if (paused && !on) try { storyObjectiveFlash(); } catch (e) { /* no story yet */ }
   paused = !!on;
+  if(typeof cut!=='undefined'&&cut.video)cut.video.setPaused(paused);
   document.body.classList.toggle("paused", paused);
   const panel = document.getElementById("pause");
   if (panel) {
@@ -18417,7 +18423,7 @@ function updateTraffic(dt, at) {
     // Loading, distant and capacity-limited vehicles stay culled.
   }
   if (drive.car) writeCar(drive.car.kind, drive.car.pos, drive.car.yaw, drive.car.colour,
-                          drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), drive.car.slide || 0, drive.car.dmg, drive.car.livery);
+                          drive.car.uv, (drive.car.pitch || 0) - (drive.car.slope || 0), (TWO_WHEELERS[CAR_KINDS[drive.car.kind].body]?drive.car.slide||0:-((drive.car.roll||0)+(drive.car.roadRoll||0))/.22), drive.car.dmg, drive.car.livery);
   _carManned = false;
   drive.parked.forEach(p => writeCar(p.kind, p.pos, p.yaw, p.colour, p.uv, p.pitch || 0, p.slide || 0, p.dmg, p.livery));   // a bike left lying after a crash has a slide (its lean)
   _carManned = true;
@@ -20447,7 +20453,7 @@ function interiorDoorTick(room,dt) {
 function shopDoorBuild(root) {
   shopDoors.list=[];shopDoors.root=root;
   const previews=[];
-  try{stationShop();}catch(e){/* no capital */}
+  try{stationShop();for(const city of world.cities)for(const st of city.stations||[])stationShop(st,city);}catch(e){/* no stations */}
   for(const s of shops.list){
     if(!s.door||!interiorSupports(s)||s.parent||s.vend||s.soti)continue;
     const d=shopDoorCreate(),group=d.group;group.name='Opening glass door · '+s.name;
@@ -37112,7 +37118,11 @@ function driveFeedback(c, kind, dt, thr, brk, two) {
   }
   if (strong + weak > 0.06) rumble(clamp01(strong), clamp01(weak), 130);
 }
-function updateBike(dt, c, kind, inp) {
+function updateBike(dt,c,kind,inp) {
+  const steps=Math.max(1,Math.ceil(Math.min(.1,Math.max(0,dt))*120));
+  for(let i=0;i<steps;i++)updateBikeStep(Math.min(.1,Math.max(0,dt))/steps,c,kind,inp);
+}
+function updateBikeStep(dt, c, kind, inp) {
   const P = BIKE_PHYS[kind.body] || BIKE_PHYS.bike, perf = perfOf(kind, { top: 30, to100: 6 });
   const top = perf.top, g = 9.81, L = kind.L * P.wb, mtb = kind.body === "mtb";
   const sy = Math.sin(c.yaw), cy = Math.cos(c.yaw);
@@ -37279,7 +37289,7 @@ function vehicleRecover(c) {
     const fallback=c._safePos||drive.safePos;
     if(vehicleFinite(fallback))c.pos.copy(fallback);
     else {const q=home.door||[2523,1645];c.pos.set(q[0],world.surfaceY(q[0],q[1])+.06,q[1]);}
-    c.vel=null;c.speed=0;c.air=undefined;c.dmg=null;nav.route=null;
+    c.vel=null;c.speed=0;c.air=undefined;c.dmg=null;c.dynamics=null;c.roadRoll=0;nav.route=null;
   }
   for(const k of ['yaw','speed','steer','pitch','lean','slide','accelPitch','lastSpeed','slope','roll','theta','omega','vy','vyG'])if(!Number.isFinite(c[k]))c[k]=0;
   if(c.vel&&(!Number.isFinite(c.vel.x)||!Number.isFinite(c.vel.y)))c.vel=null;
@@ -37319,90 +37329,23 @@ function updateDrive(dt) {
     if (c.downT > 0 || !c.air) driveCollisions(c, kind, dt);
     driveFeedback(c, kind, dt, throttle, brake, true);
   } else {
-  const perf = perfOf(kind, { top: kind.top * 1.4, to100: 12 });
-    // Damage takes the edge off: a smashed front end loses power, and a wrecked car will not go at all.
-    const D = c.dmg, hurt = D ? Math.max(D.front * 0.9, D.total) : 0;
-    if (D && D.total >= 1) { throttle = 0; if (!c.deadSaid) { c.deadSaid = true; say("The engine is dead. Get out and find another car.", 4); } }
-    if (D) steer = clamp(steer + (D.right - D.left) * 0.14, -1, 1);
-    const top = perf.top * (1 - 0.45 * hurt);
-    // The car has a velocity of its own, not just a speed along its nose: the tyres push it towards where it points, up to what they can
-    // grip, so it understeers when you ask too much of the front, slides when the back lets go, and the handbrake breaks the rear loose.
-    const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw), rx = -Math.cos(c.yaw), rz = Math.sin(c.yaw);
-    if (!c.vel) c.vel = new THREE.Vector2(fx * c.speed, fz * c.speed);
-    let vf = c.vel.x * fx + c.vel.y * fz, vl = c.vel.x * rx + c.vel.y * rz;
-    const mu = bikeGrip(kind, c.pos.x, c.pos.z) * (kind.body === "sports" || /super|sports|roadster/.test(kind.name) ? 1.08 : kind.body === "truck" || kind.body === "bus" ? 0.82 : 0.95) * (1 + 0.06 * kustomOf(kind).tyres);
-    const g = 9.81;
-    const pull = 27.8 / perf.to100;
-    const fade = 1 - clamp01(Math.abs(vf) / top) * 0.72;
-    // drive: limited by grip (wheelspin), and by the engine
-    let ax = 0;
-    if (throttle > 0) ax += throttle * (vf < 0 ? pull * 2.4 : Math.min(pull * fade, mu * g * 0.85));
-    // the brake pedal builds pressure over a fifth of a second (a key is all or nothing; a foot is not), the car's own brakes decide how
-    // hard it can stop, and at a crawl it simply stops rather than creeping
-    c.brakeP = lerp(c.brakeP || 0, brake, 1 - Math.pow(0.0004, dt));
-    if (brake > 0 && vf > 0.4) ax -= c.brakeP * Math.min(15, mu * g * brakeG(kind));
-    else if (brake > 0) ax -= brake * pull * 0.9;
-    if (brake > 0.2 && vf > 0 && vf < 1.2) { vf = Math.max(0, vf - 6 * dt); }
-    if (throttle === 0 && brake === 0) ax -= vf * 0.38 + Math.sign(vf) * 0.25;     // engine braking and rolling resistance
-    // wind resistance: it grows with the square of the speed and takes about a third of the engine at the top, so the last of the
-    // speed comes slowly, the way it does
-    ax -= 0.35 * pull * vf * Math.abs(vf) / (top * top);
-    c.topNow = top;
-    vf += ax * dt;
-    if (hand) vf *= Math.pow(0.35, dt);
-    vf = clamp(vf, -top * 0.35, top);
-    // steering: a wheel angle that narrows with speed, and the yaw rate the angle asks for (a bicycle model), held to what the front can grip
-    c.steer = lerp(c.steer, steer, 1 - Math.pow(0.0015 / (1 + 2 * kustomOf(kind).susp), dt));
-    const wheelbase = kind.L * 0.6, maxAng = 0.62 / (1 + Math.abs(vf) * 0.045 * (1 - 0.15 * kustomOf(kind).susp));
-    let rate = vf * Math.tan(c.steer * maxAng) / wheelbase;
-    const cap = mu * g * 1.05 / Math.max(Math.abs(vf), 1.5);
-    c.under = Math.abs(rate) > cap ? clamp01((Math.abs(rate) - cap) / cap) : 0;          // understeer: how much more you asked for than you got
-    rate = clamp(rate, -cap, cap);
-    // the back end: the handbrake (or a big lift-off at speed) lets it step out, and the slide feeds into the yaw
-    const rearMu = hand ? 0.32 : 1;
-    rate += (hand ? c.steer * 1.4 * clamp01(Math.abs(vf) / 8) : 0) + vl * 0.06 * (hand ? 1 : 0.3);
-    c.yaw -= rate * dt;
-    // lateral velocity: the tyres scrub it away, up to their grip; on a locked rear it lingers, which is a drift
-    const scrub = mu * g * (1.6 * rearMu + 0.4) * dt;
-    vl = Math.abs(vl) <= scrub ? 0 : vl - Math.sign(vl) * scrub;
-    // turning the nose leaves the velocity behind for a moment: that is what makes the slide
-    const nfx = Math.sin(c.yaw), nfz = Math.cos(c.yaw), nrx = -Math.cos(c.yaw), nrz = Math.sin(c.yaw);
-    c.vel.set(fx * vf + rx * vl, fz * vf + rz * vl);
-    vf = c.vel.x * nfx + c.vel.y * nfz; vl = c.vel.x * nrx + c.vel.y * nrz;
-    c.speed = vf; c.vlat = vl;
-    c.slide = lerp(c.slide || 0, clamp(-vl / 7, -1, 1), 1 - Math.pow(0.004, dt));
-    // tyres: squeal when the slide or the understeer is big, and leave marks
-    const squeal = clamp01(Math.abs(vl) / 4 + c.under * 0.8 + (hand && Math.abs(vf) > 6 ? 0.5 : 0));
-    c.squeal = squeal;
-    if (squeal > 0.35 && Math.abs(vf) > 5) skidMark(c, kind);
-    // body roll in a corner, measured from the lateral acceleration
-    c.roll = lerp(c.roll || 0, clamp(rate * vf / g * 0.06, -0.08, 0.08), 1 - Math.pow(0.01, dt));
-
-    // ---- weight. Push the stick forward and the weight goes over the nose; pull it back and it sits on the rear wheels.
-    const leanIn = clamp(w.y + (keys.ShiftLeft || keys.ShiftRight ? -1 : 0), -1, 1);
-    c.lean = lerp(c.lean || 0, leanIn, 1 - Math.pow(0.004, dt));
-    let wantPitch = -c.accelPitch * 0.045 + c.lean * 0.055;
-    c.pitch = lerp(c.pitch || 0, clamp(wantPitch, -0.72, 0.42), 1 - Math.pow(0.0009, dt));
-    const accel = (c.speed - (c.lastSpeed === undefined ? c.speed : c.lastSpeed)) / Math.max(1e-4, dt);
-    c.lastSpeed = c.speed;
-    c.accelPitch = lerp(c.accelPitch || 0, clamp(accel / 9, -1, 1), 1 - Math.pow(0.02, dt));
-
-    moveCarGrounded(c,kind,dt);
-    carSmoke(c, kind, dt);
-    driveCollisions(c, kind, dt);
-    // the ground, or the deck or ramp it is on (a car park's), and on a ramp the nose follows the slope
-    c.pos.y = world.walkY(c.pos.x, c.pos.z, c.pos.y) + 0.04;
-    c.onWalk = world.walkOn;
-    let slope = 0;
-    {
-      const hl = kind.L * 0.4, gF = world.walkY(c.pos.x + nfx * hl, c.pos.z + nfz * hl, c.pos.y), gR = world.walkY(c.pos.x - nfx * hl, c.pos.z - nfz * hl, c.pos.y);
-      slope = Math.atan2(gF - gR, 2 * hl);
-      const hw=kind.W*.35,lc=world.walkY(c.pos.x-nfz*hw,c.pos.z+nfx*hw,c.pos.y),rc=world.walkY(c.pos.x+nfz*hw,c.pos.z-nfx*hw,c.pos.y);
-      c.pos.y=Math.max(c.pos.y,(gF+gR)*.5+.04,(lc+rc)*.5+.04);
-    }
-    c.slope = lerp(c.slope || 0, slope, 1 - Math.pow(0.0005, dt));
-  
-}
+    const perf=perfOf(kind,{top:kind.top*1.4,to100:12}),D=c.dmg;
+    const hurt=D?Math.max(D.front*.9,D.total):0;if(D&&D.total>=1)throttle=0;
+    if(!c.vel)c.vel=new THREE.Vector2(Math.sin(c.yaw)*c.speed,Math.cos(c.yaw)*c.speed);
+    const weather=window.shigoto?.engine?.weather;
+    SHIGOTO.stepCarDynamics(c,kind,{throttle,brake,steer,hand,lean:w.y},dt,{
+      top:perf.top*(1-.45*hurt),to100:perf.to100,grip:bikeGrip(kind,c.pos.x,c.pos.z)*(1+.06*kustomOf(kind).tyres),
+      engineEnabled:!c.fuelOut&&(!D||D.total<1),wet:weather?.wetness||0,slope:c.slope||0,brakeGrip:brakeG(kind),steerResponse:.16/(1+.18*kustomOf(kind).susp)
+    });
+    if(c.squeal>.35&&Math.abs(c.speed)>5)skidMark(c,kind);
+    moveCarGrounded(c,kind,dt);carSmoke(c,kind,dt);driveCollisions(c,kind,dt);
+    c.pos.y=world.walkY(c.pos.x,c.pos.z,c.pos.y)+.06;c.onWalk=world.walkOn;
+    const fx=Math.sin(c.yaw),fz=Math.cos(c.yaw),hl=kind.L*.4,hw=kind.W*.35;
+    const gf=world.walkY(c.pos.x+fx*hl,c.pos.z+fz*hl,c.pos.y),gr=world.walkY(c.pos.x-fx*hl,c.pos.z-fz*hl,c.pos.y);
+    c.slope=lerp(c.slope||0,Math.atan2(gf-gr,2*hl),1-Math.exp(-dt*8));
+    const left=world.walkY(c.pos.x-fz*hw,c.pos.z+fx*hw,c.pos.y),right=world.walkY(c.pos.x+fz*hw,c.pos.z-fx*hw,c.pos.y);
+    c.roadRoll=Math.atan2(right-left,hw*2);c.lastSpeed=c.speed;
+  }
 
   if (!TWO_WHEELERS[kind.body]) driveFeedback(c, kind, dt, throttle, brake, false);
   vehicleRecover(c);
@@ -41631,7 +41574,7 @@ function propPut(parent, id, x, y, z, ry, opts) {
   });
   return holder;
 }
-// rooms are drawn unlit; the props in them are lit, by a sky light that only exists while the room is on screen
+// Legacy custom-room fill. InteriorEngine replaces this ambient fill when it refurbishes the room.
 function propLight(root) {
   if (window.ShopAAA) { ShopAAA.rig(root); return; }
   if (root.userData.propLight) return;
@@ -41813,7 +41756,7 @@ function inCrowdTick(R, dt) {
       const fig = pplFigure(biz[(Math.random() * biz.length) | 0] || any[0], 1.0); fig.holder.position.set(p.x, 0, p.z); fig.holder.rotation.y = p.ry; root.add(fig.holder); pedPlay(fig, "idle", 0);
       R.crowd.push({ f: fig, staff: true });
     });
-    const n = R.brand === "airport" ? (gfx.tier === "low" ? 8 : gfx.tier === "medium" ? 14 : 22) : (RESTAURANT[R.brand] || R.brand === "home" || R.brand === "police" ? 0 : 2);
+    const n=R.station?(gfx.tier==='low'?(R.glassRoof?6:3):(R.glassRoof?18:7)):R.brand==='airport'?(gfx.tier==='low'?8:gfx.tier==='medium'?14:22):R.brand==='home'||R.brand==='police'?0:gfx.tier==='low'?2:4;
     (R.seats || []).forEach(st => { st.taken = null; });
     for (let i = 0; i < n; i++) {
       const fig = pplFigure(any[(Math.random() * any.length) | 0], 0.95 + Math.random() * 0.08);
@@ -42339,11 +42282,11 @@ document.getElementById("regen").addEventListener("click", () => {
 // Walk through a shop's door and you are in a small blocky room: shelves along the walls, the goods on them, a counter and a clerk. Walk up to
 // something and its name and price come up; press E and the camera comes in close on it. From there: Enter buys it, and T tries it - a phone
 // or a pair of earbuds in a Dokoto Camera, a shirt in a clothes shop, which Seiko puts on so the camera can show you how it looks on him.
-// The rooms are built from boxes and shown with flat, unlit materials, so they cost almost nothing and look the same at any hour. They sit
+// Rooms share photographed PBR finishes, architectural signs and bounded local lighting. They sit
 // far outside the island, so nothing in the world can drive through them. Capsule hotels, the plaza and vending machines keep their old screens.
 const INTERIOR_BRANDS = ["home", "eleven", "petmart", "ramen", "sushi", "sushiya", "police", "arms", "pharmacy", "books", "clothes", "dokoto", "capsule", "airport"];
 const interior = { active: false, modal: null, card: null, pod: null, lift: null, stack: null, bld: null, bridge: false, rooms: {}, count: 0, room: null, shop: null, ret: null, hi: null, sit: null, light: null, floorY: 400, prompt: null, cardEl: null, said: 0 };
-const IN_W = 16, IN_D = 11, IN_H = 3.7;
+const IN_W = 24, IN_D = 17, IN_H = 4.2;
 const IN_THEME = {
   plaza:   { wall: "#f1efe9", floor: "#c9c3b6", trim: "#2a2d33", cap: "#2a2d33" },
   capsule: { wall: "#cfd6de", floor: "#6b7078", trim: "#2a8fb8", cap: "#2a8fb8" },
@@ -42361,7 +42304,18 @@ const IN_THEME = {
 };
 const inBox = new THREE.BoxGeometry(1, 1, 1);
 const inMats = {};
-function inMat(hex) { return inMats[hex] || (inMats[hex] = new THREE.MeshBasicMaterial({ color: new THREE.Color(hex).multiplyScalar(0.74), fog: false })); }
+function retailEngine() {
+  if(!retailEngine.instance)retailEngine.instance=new SHIGOTO.InteriorEngine(THREE,{quality:gfx.tier,environment:gfx.env});
+  return retailEngine.instance;
+}
+function interiorPrepare(room) {
+  if(room&&room.group)retailEngine().refurbish(room,{width:room.W||IN_W,depth:room.D||IN_D,height:room.H||IN_H});
+  return room;
+}
+function inMat(hex) {
+  const wood=['#8a7a62','#9a7a58','#5b4631','#8a6a48','#6a4a2e','#8d6847'].includes(hex),metal=['#8d939c','#59606a','#aeb6c0','#6d7580','#4b5058'].includes(hex);
+  return inMats[hex]||(inMats[hex]=retailEngine().material(wood?'wood':metal?'metal':'paint',hex));
+}
 function inShade(hex, k) { return "#" + new THREE.Color(hex).multiplyScalar(k).getHexString(); }
 function inAdd(parent, w, h, d, x, y, z, hex) {
   const m = new THREE.Mesh(inBox, inMat(hex));
@@ -42370,16 +42324,7 @@ function inAdd(parent, w, h, d, x, y, z, hex) {
   parent.add(m);
   return m;
 }
-function inLabel(text, w, h, bg, fg) {
-  const c = document.createElement("canvas"); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w));
-  const g = c.getContext("2d"); g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = fg; g.globalAlpha = .45; g.fillRect(16, 10, c.width - 32, 2); g.globalAlpha = 1;
-  let size = Math.round(c.height * .43); g.font = "700 " + size + "px " + UI;
-  while (g.measureText(text).width > c.width - 48 && size > 10) { size--; g.font = "700 " + size + "px " + UI; }
-  g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(text, c.width / 2, c.height * .54);
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
-}
+function inLabel(text,w,h,bg,fg) {return retailEngine().sign(text,w,h,bg,fg,window.SignFonts);}
 
 function inHash(s) { let h = 7; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; }
 const IN_PALETTE = ["#d9534f", "#e8a33d", "#4a90d9", "#5fb36b", "#9b6bd3", "#e8d84a", "#3fb8af", "#c97b5a"];
@@ -42457,36 +42402,38 @@ function mallStock(id) {
   return Object.keys(groups).map(n => ({ name: n, items: groups[n] }));
 }
 function liftExtra(room, root) {
-  inAdd(root, 0.14, 2.35, 2.0, IN_W / 2 - 0.12, 1.18, -3.0, "#aeb6c0"); inAdd(root, 0.16, 2.3, 0.04, IN_W / 2 - 0.12, 1.18, -3.0, "#6d7580");
-  inAdd(root, 0.2, 0.3, 0.2, IN_W / 2 - 0.2, 1.2, -4.25, "#2a2d33");
-  const l = inLabel("LIFT  ▲▼", 1.4, 0.36, "#2a2d33", "#ffd21c"); l.position.set(IN_W / 2 - 0.2, 2.7, -3.0); l.rotation.y = -Math.PI / 2; root.add(l);
-  room.spots = (room.spots || []).concat([{ x: IN_W / 2 - 1.3, z: -3.0, label: "take the lift", act: "lift" }]);
+  const W=room.W||IN_W,D=room.D||IN_D;
+  inAdd(root, 0.14, 2.35, 2.0, W / 2 - 0.12, 1.18, -3.0, "#aeb6c0"); inAdd(root, 0.16, 2.3, 0.04, W / 2 - 0.12, 1.18, -3.0, "#6d7580");
+  inAdd(root, 0.2, 0.3, 0.2, W / 2 - 0.2, 1.2, -4.25, "#2a2d33");
+  const l = inLabel("LIFT  ▲▼", 1.4, 0.36, "#2a2d33", "#ffd21c"); l.position.set(W / 2 - 0.2, 2.7, -3.0); l.rotation.y = -Math.PI / 2; root.add(l);
+  room.spots = (room.spots || []).concat([{ x: W / 2 - 1.3, z: -3.0, label: "take the lift", act: "lift" }]);
 }
 function interiorMallLevel(s, idx) {
   const f = MALL_FLOORS[idx];
-  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: (room,root,th)=>{liftExtra(room,root,th);interiorDoorAdd(room,IN_W/2-1.55,-3,-Math.PI/2,1,.88);} });
+  return interiorRoom(Object.assign({}, s, { brand: "dokoto" }), { key: "dokoto:" + f.id, stock: mallStock(f.id), title: "Dokoto Camera  " + f.label, noExit: f.id !== 1, lift: true, extra: (room,root,th)=>{liftExtra(room,root,th);interiorDoorAdd(room,(room.W||IN_W)/2-1.55,-3,-Math.PI/2,1,.88);} });
 }
 function plazaExtra(def) {
   return (room, root, th) => {
-    liftExtra(room, root);
+    const W=room.W||IN_W,D=room.D||IN_D;
+    if(!room.noLift)liftExtra(room, root);
     room.spots = room.spots || [];
     const n = def.stores.length;
     def.stores.forEach((b, i) => {
       const x = (i - (n - 1) / 2) * 5.2 + (n === 1 ? -1.2 : 0), br = SHOP_BRANDS[b];
-      inAdd(root, 4.4, 3.1, 0.3, x, 1.55, -IN_D / 2 + 0.2, br.band === "#ffffff" ? "#e8eef6" : br.band);
-      inAdd(root, 3.4, 2.5, 0.32, x, 1.25, -IN_D / 2 + 0.22, "#1b1f26");
-      inAdd(root, 3.0, 0.05, 0.4, x, 0.02, -IN_D / 2 + 0.6, "#2a2d33");
-      const sg = inLabel(br.name, 3.6, 0.5, br.band === "#ffffff" ? "#1272d6" : br.band, br.ink === "#1272d6" ? "#fff" : br.ink); sg.position.set(x, 2.78, -IN_D / 2 + 0.38); root.add(sg);
-      const door=interiorDoorAdd(room,x,-IN_D/2+.55,0,1.45,.88);
+      inAdd(root, 4.4, 3.1, 0.3, x, 1.55, -D / 2 + 0.2, br.band === "#ffffff" ? "#e8eef6" : br.band);
+      inAdd(root, 3.4, 2.5, 0.32, x, 1.25, -D / 2 + 0.22, "#1b1f26");
+      inAdd(root, 3.0, 0.05, 0.4, x, 0.02, -D / 2 + 0.6, "#2a2d33");
+      const sg = inLabel(br.name, 3.6, 0.5, br.band === "#ffffff" ? "#1272d6" : br.band, br.ink === "#1272d6" ? "#fff" : br.ink); sg.position.set(x, 2.78, -D / 2 + 0.38); root.add(sg);
+      const door=interiorDoorAdd(room,x,-D/2+.55,0,1.45,.88);
       const theme={books:1,ramen:2,clothes:3,street:3,plaza:4,petmart:5}[b]||0;
-      SalaryRetail.installWindows(root,[{x,y:1.3,z:-IN_D/2+.50,ry:0,w:2.48,h:2.35,theme,type:0}],()=>{},gfx.tier==='low');
-      room.spots.push({ x: x, z: -IN_D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
+      SalaryRetail.installWindows(root,[{x,y:1.3,z:-D/2+.50,ry:0,w:2.48,h:2.35,theme,type:0}],()=>{},gfx.tier==='low');
+      room.spots.push({ x: x, z: -D / 2 + 1.1, label: "go into " + br.name, act: "store", brand: b, walk: true });
     });
     inAdd(root, 1.6, 0.45, 0.5, 2.8, 0.22, 1.2, "#8a7a62"); inAdd(root, 1.6, 0.45, 0.5, -3.6, 0.22, 1.2, "#8a7a62");
     if (window.ShopAAA) propPut(root, "potted_plant_01", 0.6, 0, 1.6, 0, { h: 1.35 });
     else { inAdd(root, 0.5, 0.9, 0.5, 0.6, 0.45, 1.6, "#4a7a4a"); inAdd(root, 0.7, 0.5, 0.7, 0.6, 1.1, 1.6, "#5fa05f"); }
     room.colliders.push({ x0: 2.0, x1: 3.6, z0: 0.95, z1: 1.45 }, { x0: -4.4, x1: -2.8, z0: 0.95, z1: 1.45 }, { x0: 0.3, x1: 0.9, z0: 1.3, z1: 1.9 });
-    const dir = inLabel(PLAZA_FLOORS.map(f => f.label + " " + f.name).join("   "), 6.8, 0.4, "#2a2d33", "#ffffff"); dir.position.set(-3.0, 2.3, IN_D / 2 - 0.13); dir.rotation.y = Math.PI; root.add(dir);
+    const dir = inLabel(PLAZA_FLOORS.map(f => f.label + " " + f.name).join("   "), 6.8, 0.4, "#2a2d33", "#ffffff"); dir.position.set(-3.0, 2.3, D / 2 - 0.13); dir.rotation.y = Math.PI; root.add(dir);
   };
 }
 function interiorPlazaLevel(s, idx) {
@@ -42496,10 +42443,12 @@ function interiorPlazaLevel(s, idx) {
 function interiorLevels(s) {
   if (s.mall) return { kind: "mall", floors: MALL_FLOORS, street: 1, make: (i) => interiorMallLevel(s, i) };
   if (s.plaza) return { kind: "plaza", floors: PLAZA_FLOORS, street: 1, make: (i) => interiorPlazaLevel(s, i) };
-  if (s.station) return { kind: "plaza", floors: STATION_FLOORS, street: 1, make: (i) => interiorStationLevel(s, i) };
+  if(s.station){const central=s.central||/central|中央/i.test(s.name||'');return {kind:'station',floors:central?STATION_FLOORS:[STATION_FLOORS[1]],street:1,make:i=>interiorStationLevel(s,central?i:1)};}
   return null;
 }
 function interiorShowRoom(room, at, face) {
+  interiorPrepare(room);
+  if(window.ShopAAA)ShopAAA.enter(room);
   if (interior.room && interior.room !== room) interior.room.group.visible = false;
   interior.room = room; room.group.visible = true; interior.hi = null; interior.spot = null;
   interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz);
@@ -42518,7 +42467,7 @@ function interiorGoLevel(idx) {
   setTimeout(() => {
     const room = b.make(idx);
     b.idx = idx;
-    interiorShowRoom(room, { x: IN_W / 2 - 2.4, z: -3.0 }, -Math.PI / 2);
+    interiorShowRoom(room, { x: (room.W||IN_W) / 2 - 2.4, z: -3.0 }, -Math.PI / 2);
     const f = b.floors[idx];
     say(f.label + "  " + f.name, 3.5);
     if (fade) fade.style.opacity = "0";
@@ -42544,7 +42493,7 @@ function interiorEnterStore(sp) {
   const door=interiorDoorAdd(room,0,(room.D||IN_D)/2-.15,Math.PI,1,.88);door.open=1;door.hinge.rotation.y=-Math.PI*.52;
   interior.stack = { room: interior.room, spot: sp, shop: P };
   interior.shop = S;
-  interiorShowRoom(room, { x: 0, z: IN_D / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
+  interiorShowRoom(room, { x: 0, z: (room.D||IN_D) / 2 - (room.restaurant ? 1.9 : 3.4) }, Math.PI);
   say("Irasshaimase!", 2.5);
   if (brand === "clothes") setTimeout(() => { if (interior.active && interior.shop === S) suitTradeOffer(); }, 1200);
 }
@@ -42608,7 +42557,7 @@ function interiorCapsuleRoom() {
   const side = (IN_W - 2.4) / 2;
   inAdd(root, side, IN_H, 0.2, -(1.2 + side / 2), IN_H / 2, IN_D / 2, th.wall);
   inAdd(root, side, IN_H, 0.2, 1.2 + side / 2, IN_H / 2, IN_D / 2, th.wall);
-  inAdd(root, 2.4, IN_H - 2.5, 0.2, 0, 2.5 + (IN_H - 2.5) / 2, IN_D / 2, th.wall);
+  inAdd(root,2.4,wallH-2.5,.2,0,2.5+(wallH-2.5)/2,IN_D/2,th.wall);
   inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
   inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
   inAdd(root, IN_W, 0.3, 0.22, 0, 2.95, -IN_D / 2 + 0.02, th.trim);
@@ -42822,7 +42771,7 @@ function inCanvasTex(key, w, h, draw) {
 function inPlaneTex(tex, w, h, repX, repY, x, y, z, ry, rx) {
   const t = tex.clone(); t.needsUpdate = true; t.repeat.set(repX, repY);
   if (tex._kon) tex._kon.clones.push(t);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,rx?'tile':'paint'));
   m.position.set(x, y, z); if (ry) m.rotation.y = ry; if (rx) m.rotation.x = rx;
   return m;
 }
@@ -42933,7 +42882,7 @@ function inIcon(g, kind, cx, cy, s, ink) {
 }
 function inPoster(root, brand, i, x, y, z, ry, w, h) {
   const t = inPosterTex(brand, i);
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: t, fog: false }));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h),retailEngine().mapped(t,rx?'tile':'paint'));
   m.position.set(x, y, z); m.rotation.y = ry; root.add(m);
   inAdd(root, w + 0.06, h + 0.06, 0.02, x, y, z + (ry === 0 ? -0.01 : ry === Math.PI ? 0.01 : 0), "#2a2d33").rotation.y = ry;
   return m;
@@ -43095,7 +43044,7 @@ function inBanner(root, brand, i, x, y, z, ry, w) {
 // a unit of stock that is only there to be looked at: built like the real shelves, never in room.items, solid
 function inDecorUnit(room, root, th, x, z, len, face, pool, brand) {
   const unit = new THREE.Group(); unit.position.set(x, 0, z); unit.rotation.y = face; root.add(unit);
-  inAdd(unit, len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c"); inAdd(unit, len + 0.06, 0.06, 0.62, 0, 1.73, 0, th.trim);
+  retailEngine().shelf(unit,len,brand==='books'?'wood':'metal',th.trim);
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
   const tiers = [1.28, 0.84, 0.4], per = Math.max(3, Math.floor((len - 0.3) / 0.6));
   for (let r = 0; r < 3; r++) {
@@ -43133,9 +43082,9 @@ function inLantern(root, x, y, z, hex) { inCyl(root, 0.18, 0.4, x, y, z, hex); i
 
 function interiorDecor(room, root, th, brand, opts) {
   const sk = IN_SKIN[brand] || IN_SKIN.eleven;
-  const W = IN_W, D = IN_D, H = IN_H;
+  const W=room.W||IN_W,D=room.D||IN_D,H=room.profile?.wallHeight||room.H||IN_H;
   // ---- painted surfaces over the plain boxes
-  const floor = inPlaneTex(SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); floor.userData.shopSurface = "floor"; root.add(floor);
+  const floor = inPlaneTex(room.profile?.design==='timber-local'?inFloorTex('books'):SalaryRetail.floorTexture(brand, room.key) || inFloorTex(brand), W, D, W / 2, D / 2, 0, 0.03, 0, 0, -Math.PI / 2); floor.userData.shopSurface="floor";if(room.profile?.design==='timber-local')floor.userData.shopMaterialKind="wood";root.add(floor);
   const wt = inWallTex(brand);
   const wallS = m => { m.userData.shopSurface = "wall"; root.add(m); };
   wallS(inPlaneTex(SalaryRetail.wallTexture(brand,room.key) || (IN_ACCENT[brand] ? inWallTex(brand, true) : wt), W, H, W / 4, 1, 0, H / 2, -D / 2 + 0.105, 0));
@@ -43145,7 +43094,7 @@ function interiorDecor(room, root, th, brand, opts) {
   wallS(inPlaneTex(wt, side, H, side / 4, 1, -(1.2 + side / 2), H / 2, D / 2 - 0.105, Math.PI));
   wallS(inPlaneTex(wt, side, H, side / 4, 1, 1.2 + side / 2, H / 2, D / 2 - 0.105, Math.PI));
   const ceil = inCanvasTex("ceil", 128, 128, (g, w, h) => { g.fillStyle = "#e9ebee"; g.fillRect(0, 0, w, h); g.strokeStyle = "#c4c8ce"; g.lineWidth = 3; g.strokeRect(0, 0, w, h); g.fillStyle = "#cfd3d8"; for (let i = 0; i < 4; i++) g.fillRect(i * 32 + 14, 0, 3, h);  inPhotoDetail(g, "plaster", w, h, 0.4); });
-  { const cm = inPlaneTex(ceil, W, D, W / 2, D / 2, 0, H - 0.006, 0, 0, Math.PI / 2); cm.userData.shopSurface = "ceiling"; root.add(cm); }
+  if(!room.glassRoof){const cm=inPlaneTex(ceil,W,D,W/2,D/2,0,H-.006,0,0,Math.PI/2);cm.userData.shopSurface="ceiling";root.add(cm);}
   // ---- adverts: pillars either side of the door, banners above the shelves
   const lift = !!opts.lift;
   inPoster(root, brand, 0, -1.95, 1.75, D / 2 - 0.13, Math.PI, 0.85, 1.15);
@@ -43157,7 +43106,7 @@ function interiorDecor(room, root, th, brand, opts) {
   inBanner(root, brand, 1, -W / 2 + 0.13, 2.5, -0.2, Math.PI / 2, 3.2);
   if (!lift) { inPoster(root, brand, 3, W / 2 - 0.13, 1.7, -4.2, -Math.PI / 2, 1.0, 1.35); inPoster(root, brand, 4, W / 2 - 0.13, 1.7, -2.6, -Math.PI / 2, 1.0, 1.35); inBanner(root, brand, 0, W / 2 - 0.13, 2.65, -1.0, -Math.PI / 2, 2.6); }
   inPoster(root, brand, 5, -W / 2 + 0.13, 1.7, 3.9, Math.PI / 2, 0.9, 1.25);
-  if (RESTAURANT[brand] || brand === "police") return;            // a restaurant sets its own table; the walls above are all it keeps
+  if (RESTAURANT[brand] || brand === "police" || room.station) return;            // a restaurant sets its own table; the walls above are all it keeps
   // ---- looking-only stock
   const pool = [];
   (room.stock || []).forEach(sh => sh.items.forEach(it => pool.push(it)));
@@ -43308,7 +43257,7 @@ const IN_PROP_SETS = {
   sushiya: [["maneki", 1], ["plant", 3], ["bench", 1], ["umbrella", 1]]
 };
 function inClear(room, x, z, r, gap, placed) {
-  const W = IN_W, D = IN_D;
+  const W=room.W||IN_W,D=room.D||IN_D;
   if (Math.abs(x) > W / 2 - r - 0.05 || z < -D / 2 + r + 0.05 || z > D / 2 - r - 0.05) return false;
   if (Math.abs(x) < 1.6 + r * 0.5 && z > 0.6) return false;                           // the lane from the door
   const ez = room.entry ? room.entry.z - room.oz : D / 2 - 3.4;
@@ -43320,7 +43269,7 @@ function inClear(room, x, z, r, gap, placed) {
 }
 function interiorProps(room, root, th, brand, opts) {
   const set = IN_PROP_SETS[brand]; if (!set) return;
-  const W = IN_W, D = IN_D, sk = IN_SKIN[brand] || IN_SKIN.eleven;
+  const W=room.W||IN_W,D=room.D||IN_D,H=room.H||IN_H,sk=IN_SKIN[brand]||IN_SKIN.eleven;
   const ads = IN_ADS[brand] || IN_ADS.eleven;
   const trimC = th.trim, sale = brand === "clothes" || brand === "books" ? "#c8372d" : trimC;
   // with the AAA finish, stock on pallets and in stacks is shipping cartons (kraft board, printed), not blocks of colour
@@ -43368,15 +43317,16 @@ function interiorProps(room, root, th, brand, opts) {
   const hang = room.restaurant ? 0 : (brand === "arms" ? 2 : 4);
   for (let i = 0; i < hang; i++) {
     const ad = ads[(i * 2 + 1) % ads.length], x = -5.4 + i * 3.6, z = (i % 2 ? 2.0 : -1.4);
-    const s = inLabel(ad[0], 1.5, 0.42, ad[3], "#ffffff"); s.position.set(x, IN_H - 0.38, z); root.add(s);
-    const s2 = inLabel(ad[0], 1.5, 0.42, ad[3], "#ffffff"); s2.position.set(x, IN_H - 0.38, z - 0.01); s2.rotation.y = Math.PI; root.add(s2);
-    inAdd(root, 0.02, 0.2, 0.02, x - 0.6, IN_H - 0.1, z, "#2a2d33"); inAdd(root, 0.02, 0.2, 0.02, x + 0.6, IN_H - 0.1, z, "#2a2d33");
+    const s = inLabel(ad[0], 1.5, 0.42, ad[3], "#ffffff"); s.position.set(x, H - 0.38, z); root.add(s);
+    inAdd(root, 0.02, 0.2, 0.02, x - 0.6, H - 0.1, z, "#2a2d33"); inAdd(root, 0.02, 0.2, 0.02, x + 0.6, H - 0.1, z, "#2a2d33");
   }
 }
 
-function interiorRoom(s, opts) {
+function interiorRoom(s,opts) {return interiorPrepare(interiorRoomRaw(s,opts));}
+function interiorRoomRaw(s, opts) {
   opts = opts || {};
-  const brand = s.brand, key = opts.key || brand;
+  const brand=s.brand,profile=SHIGOTO.retailProfile(s,opts),IN_W=profile.width,IN_D=profile.depth,IN_H=profile.height;
+  const key=opts.key||brand+':'+(s.city||'local');
   if (interior.rooms[key]) return interior.rooms[key];
   if (brand === "capsule") return (interior.rooms[key] = interiorCapsuleRoom());
   if (brand === "home") return (interior.rooms[key] = interiorHomeRoom());
@@ -43384,23 +43334,25 @@ function interiorRoom(s, opts) {
   const slot = interior.count++;
   const ox = -3000 - slot * 60, oz = -3000, fy = interior.floorY;
   const th = Object.assign({}, IN_THEME[brand] || IN_THEME.eleven);
+  if(s.station)th.trim='#'+profile.accent.toString(16).padStart(6,'0');
   if (brand === "dokoto") { th.trim = SalaryRetail.identity(brand,key).accent; th.floor = "#deded3"; }
   const root = new THREE.Group();
   root.position.set(ox, fy, oz);
-  const room = { brand: brand, key: key, group: root, ox: ox, oz: oz, colliders: [], items: [], stock: (RESTAURANT[brand] || brand === "police") ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
+  const room = { brand:brand,key,profile,station:!!s.station,stationRef:s.stationRef,glassRoof:!!profile.glassRoof,noLift:!!opts.noLift,W:IN_W,D:IN_D,H:IN_H,group:root,ox,oz,colliders: [], items: [], stock: (RESTAURANT[brand] || brand === "police") ? [] : (opts.stock || inStock(s)), units: [], noExit: !!opts.noExit };
+  const wallH=profile.wallHeight||IN_H;
   // shell
   inAdd(root, IN_W, 0.2, IN_D, 0, -0.1, 0, th.floor);
   for (let i = -3; i <= 3; i++) for (let j = -2; j <= 2; j++) if ((i + j) % 2 === 0) inAdd(root, IN_W / 8, 0.02, IN_D / 6, i * IN_W / 8, 0.005, j * IN_D / 6, inShade(th.floor, 0.93));
-  inAdd(root, IN_W, 0.1, IN_D, 0, IN_H + 0.05, 0, "#f6f6f3");
-  inAdd(root, IN_W, IN_H, 0.2, 0, IN_H / 2, -IN_D / 2, th.wall);
-  inAdd(root, 0.2, IN_H, IN_D, -IN_W / 2, IN_H / 2, 0, inShade(th.wall, 0.94));
-  inAdd(root, 0.2, IN_H, IN_D, IN_W / 2, IN_H / 2, 0, inShade(th.wall, 0.94));
+  if(!profile.glassRoof)inAdd(root,IN_W,.1,IN_D,0,IN_H+.05,0,"#f6f6f3");
+  inAdd(root, IN_W, wallH, 0.2, 0, wallH / 2, -IN_D / 2, th.wall);
+  inAdd(root, 0.2, wallH, IN_D, -IN_W / 2, wallH / 2, 0, inShade(th.wall, 0.94));
+  inAdd(root, 0.2, wallH, IN_D, IN_W / 2, wallH / 2, 0, inShade(th.wall, 0.94));
   const side = (IN_W - 2.4) / 2;
-  inAdd(root, side, IN_H, 0.2, -(1.2 + side / 2), IN_H / 2, IN_D / 2, th.wall);
-  inAdd(root, side, IN_H, 0.2, 1.2 + side / 2, IN_H / 2, IN_D / 2, th.wall);
-  inAdd(root, 2.4, IN_H - 2.5, 0.2, 0, 2.5 + (IN_H - 2.5) / 2, IN_D / 2, th.wall);
+  inAdd(root, side, wallH, 0.2, -(1.2 + side / 2), wallH / 2, IN_D / 2, th.wall);
+  inAdd(root, side, wallH, 0.2, 1.2 + side / 2, wallH / 2, IN_D / 2, th.wall);
+  inAdd(root,2.4,wallH-2.5,.2,0,2.5+(wallH-2.5)/2,IN_D/2,th.wall);
   // the door: a glass frame you walk through, with the street's light behind it (upper floors have a solid wall instead)
-  if (opts.noExit) inAdd(root, 2.4, IN_H, 0.22, 0, IN_H / 2, IN_D / 2, th.wall);
+  if(opts.noExit)inAdd(root,2.4,wallH,.22,0,wallH/2,IN_D/2,th.wall);
   else {
     inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
     inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
@@ -43419,22 +43371,15 @@ function interiorRoom(s, opts) {
     { x: -4.0, z: -IN_D / 2 + 0.55, len: 6.4, face: 0 },
     { x: 3.2, z: -IN_D / 2 + 0.55, len: 5.2, face: 0 },
     { x: -IN_W / 2 + 0.55, z: -0.2, len: 7.0, face: Math.PI / 2 },
-    { x: -1.6, z: 0.6, len: 5.0, face: 0, island: true },
-    { x: 1.4, z: -2.2, len: 4.6, face: 0, island: true }
+    { x: -3.4, z: 1.8, len: 5.0, face: 0, island: true },
+    { x: 3.4, z: -3.0, len: 4.6, face: 0, island: true }
   ];
   room.stock.slice(0, slots.length).forEach((shelf, si) => {
     const sl = slots[si];
     const unit = new THREE.Group();
     unit.position.set(sl.x, 0, sl.z); unit.rotation.y = sl.face;
     root.add(unit);
-    const backing=inAdd(unit, sl.len, 1.7, 0.5, 0, 0.85, -0.12, "#8d939c");
-    // Use the licensed scanned display case in modular bays. Keep the original
-    // backing until it loads; stock shelves and collision remain at their exact heights.
-    propLoad(brand==='books'?"wooden_bookshelf_worn":"wooden_display_shelves_01",tpl=>{
-      const bays=Math.ceil(sl.len/1.8),width=sl.len/bays,sz=tpl.userData.size;
-      for(let b=0;b<bays;b++){const rack=tpl.clone(true);if(sz.z>sz.x){rack.rotation.y=Math.PI/2;rack.scale.set(.48/sz.x,1.7/sz.y,(width-.025)/sz.z);}else rack.scale.set((width-.025)/sz.x,1.7/sz.y,.48/sz.z);rack.position.set(-sl.len/2+width*(b+.5),0,-.12);rack.userData.salaryScannedFixture=true;unit.add(rack);}
-      backing.visible=false;
-    });
+    retailEngine().shelf(unit,sl.len,brand==='books'?'wood':'metal',th.trim);
     inAdd(unit, sl.len + 0.06, 0.06, 0.62, 0, 1.73, -0.0, th.trim);
     const lab = inLabel(shelf.name, Math.min(2.8, sl.len), 0.34, "#22262d", "#ffffff"); lab.position.set(0, 2.05, 0.3); unit.add(lab);
     inAdd(unit, 0.05, 0.4, 0.05, -sl.len / 2 + 0.2, 1.9, 0.0, "#22262d"); inAdd(unit, 0.05, 0.4, 0.05, sl.len / 2 - 0.2, 1.9, 0.0, "#22262d");
@@ -43460,7 +43405,7 @@ function interiorRoom(s, opts) {
 
   // the counter on the right, with the clerk behind it (a restaurant has its own furniture instead)
   const cx = IN_W / 2 - 1.5, cz = 2.6;
-  if (!RESTAURANT[brand] && brand !== "police") {
+  if (!RESTAURANT[brand] && brand !== "police" && !room.station) {
   inAdd(root, 1.0, 1.05, 3.8, cx, 0.525, cz, "#4b5058"); inAdd(root, 1.1, 0.06, 3.9, cx, 1.08, cz, th.trim);
   inAdd(root, 0.4, 0.3, 0.4, cx, 1.26, cz + 0.8, "#1c1f24"); inAdd(root, 0.34, 0.02, 0.3, cx, 1.42, cz + 0.8, "#6fe0a0");
   room.colliders.push({ x0: cx - 0.55, x1: cx + 0.55, z0: cz - 1.95, z1: cz + 1.95 });
@@ -43486,14 +43431,13 @@ function interiorRoom(s, opts) {
     try { ({ kaiten: kaitenBuild, sushiya: sushiyaBuild, ramen: ramenBuild })[RESTAURANT[brand]](room, root, th); } catch (e) { console.warn("[Konto] the restaurant could not be built:", e); }
   }
   if (opts.extra) opts.extra(room, root, th);
-  try { interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
+  try { if(!room.station)interiorProps(room, root, th, brand, opts); } catch (e) { console.warn("[Konto] the props could not be placed:", e); }
 
   if(['dokoto','clothes','plaza','street'].includes(brand)){
     for(const z of [-3.2,-1.8]){propPut(root,'dining_chair_02',7.15,0,z,-Math.PI/2,{h:.92});room.colliders.push({x0:6.8,x1:7.55,z0:z-.36,z1:z+.36});}
   }
-  SalaryRetail.refurbish(room, root, {add:inAdd,label:inLabel,devices:DEVICES});
-  if (window.ShopAAA) { try { ShopAAA.rig(root); ShopAAA.finish(room, root, IN_H); } catch (e) { console.warn("[Konto] the shop finish failed:", e); } }
-  else SalaryArt.coat(root);
+  if(!room.station)SalaryRetail.refurbish(room,root,{add:inAdd,label:inLabel,devices:DEVICES,width:IN_W,depth:IN_D,height:IN_H,mapped:t=>retailEngine().mapped(t)});
+  if(window.ShopAAA){ShopAAA.rig(root);ShopAAA.finish(room, root, IN_H);}else SalaryArt.coat(root);
   root.visible = false;
   scene.add(root);
   room.entry = new THREE.Vector3(ox, fy, oz + IN_D / 2 - (room.restaurant ? 1.9 : 3.4));
@@ -44008,8 +43952,8 @@ function interiorEnter(s) {
     interior.light = new THREE.PointLight(0xfff2dd, 0.9, 14, 1.6);
     scene.add(interior.light);
   }
-  interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0.9;
-  if (window.ShopAAA) ShopAAA.enter(room);
+  interior.light.position.set(room.ox, interior.floorY + 3.0, room.oz); interior.light.intensity = 0;
+  if(window.ShopAAA)ShopAAA.enter(room);
   // the world's near plane is two metres, which would cut a close look at a shelf to nothing
   interior.nearWas = camera.near; camera.near = 0.08; camera.updateProjectionMatrix();
   player.pos.copy(room.entry);
@@ -44110,6 +44054,8 @@ function interiorTick(dt) {
   const R = interior.room;
   interior.said = Math.max(0, interior.said - dt);
   interiorDoorTick(R,dt);
+  const weather=window.shigoto?.engine?.weather?.cur||{};
+  retailEngine().update(R,dt,{temperature:SHIGOTO.retailTemperature(gameMinutes()/60,weather)});
   if (R.clerk) R.clerk.position.y = Math.abs(Math.sin(clock * 1.3)) * 0.01;
   if (robTick(dt)) { interior.prompt.classList.remove("on"); return; }
   if (R.tick) R.tick(dt);
@@ -44372,7 +44318,7 @@ const SAVE_KEY = "konto.save.v1";
 // The engine underneath: cutPlay(shots, onEnd) plays a cutscene; storyObjective(text) puts up the objective and storyTick() works out when it is
 // done; storyBlip() marks a place on the map, with a lettered marker for a mission that is waiting to be started.
 const story = { m: 0, step: "", flags: {}, blips: [], obj: null, timer: null, owned: {} };
-const cut = { active: false, shots: [], i: -1, t: 0, onEnd: null, hold: 0, padHold: false, keyHold: false, nearWas: 0 };
+const cut = { video:null, active: false, shots: [], i: -1, t: 0, onEnd: null, hold: 0, padHold: false, keyHold: false, nearWas: 0 };
 const actors = { list: [] };
 
 // ---- people in cutscenes ----------------------------------------------------------------------------------------------------------------------
@@ -44431,6 +44377,9 @@ function cutEl(id, cls, parent) {
 }
 function cutPlay(shots, onEnd) {
   if (cut.active) cutFinish(true);
+  if(!cut.video)cut.video=new SHIGOTO.CinematicVideo();
+  cut.sceneId=story.step||'scene';
+  cut.video.setPaused(false);
   cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0;
   if (phone.open) setPhone(false);
   if (nav.mapOpen && typeof setMap === "function") setMap(false);
@@ -44445,10 +44394,12 @@ function cutPlay(shots, onEnd) {
   cutNext();
 }
 function cutNext() {
+  if(cut.video)cut.video.stop();
   cut.i++; cut.t = 0;
   const s = cut.shots[cut.i];
   if (!s) { cutFinish(false); return; }
   cut.said = -1;
+  if(cut.video)cut.video.ready.then(()=>{if(cut.active&&cut.shots[cut.i]===s)cut.video.play(s.videoKey||cut.sceneId+':'+cut.i,()=>cut.t);});
   const ov = cutEl("cutover"); ov.className = s.overlay || ""; ov.innerHTML = s.overlayHtml || "";
   document.getElementById("cutsub").innerHTML = "";
   camera.near = s.near || cut.nearWas;
@@ -44461,6 +44412,7 @@ function cutFinish(skipped) {
   if (!cut.active) return;
   // a skipped scene still sets up everything its shots would have (the place you wake, the clothes you are in)
   if (skipped) for (let k = Math.max(0, cut.i); k < cut.shots.length; k++) { const s = cut.shots[k]; try { if (s.always) s.always(s); } catch (e) { /* on */ } }
+  if(cut.video)cut.video.stop();
   cut.active = false; cut.shots = []; cut.i = -1;
   document.body.classList.remove("cutscene");
   ["cutsub", "cutover"].forEach(id => { const el = document.getElementById(id); if (el) { el.innerHTML = ""; el.className = ""; } });
@@ -44476,14 +44428,15 @@ const _cutA = new THREE.Vector3(), _cutB = new THREE.Vector3(), _cutL = new THRE
 function cutTick(dt) {
   const s = cut.shots[cut.i];
   if (!s) { cutFinish(false); return; }
+  if(cut.video)cut.video.tick(dt);
   // (a recording steps the scene to exact times; otherwise it runs on the clock)
-  if (cut.manual !== undefined) cut.t = cut.manual; else cut.t += dt;
+  if (cut.manual !== undefined) cut.t = cut.manual; else if(cut.video?.active)cut.t=cut.video.element.currentTime;else cut.t += dt;
   // skipping: held for most of a second, so a tap meant for something else does not throw the scene away
   const holding = cut.padHold || cut.keyHold;
   cut.hold = holding ? cut.hold + dt : 0;
   const sk = document.getElementById("cutskip"); if (sk) sk.style.setProperty("--k", Math.min(1, cut.hold / 0.8));
   if (cut.hold > 0.8) { cutFinish(true); return; }
-  const u = clamp01(cut.t / s.dur), e = s.linear ? u : u * u * (3 - 2 * u);
+  const u = clamp01(cut.t / s.dur), e = s.linear ? u : u*u*u*(u*(u*6-15)+10);
   const from = typeof s.from === "function" ? s.from() : s.from, to = typeof s.to === "function" ? s.to() : (s.to || from);
   if (from) {
     _cutA.fromArray(from.pos); _cutB.fromArray(to.pos); camPos.copy(_cutA).lerp(_cutB, e);
@@ -44509,7 +44462,9 @@ function cutTick(dt) {
     el.innerHTML = L ? (L[1] ? "<b>" + L[1] + "</b>" : "") + "<span>" + L[2] + "</span>" : "";
   }
   try { if (s.tick) s.tick(dt, cut.t, s); } catch (err) { console.warn("[Konto] cutscene:", err); }
+  if(interior.active)retailEngine().update(interior.room,dt,{temperature:SHIGOTO.retailTemperature(gameMinutes()/60,window.shigoto?.engine?.weather?.cur||{})});
   clock += dt * (s.timeScale === undefined ? 1 : s.timeScale);
+  if(cut.video?.active){if(cut.video.element.ended||cut.t>=s.dur)cutNext();return;}
   updateWorldSky(dt); followSun();
   streamFrame();
   updateSeikoClip(dt);
@@ -44616,38 +44571,42 @@ const STATION_FLOORS = [
 function stationExtra(def) {
   const base = plazaExtra(def);
   return (room, root, th) => {
+    const W=room.W||IN_W,D=room.D||IN_D;
     base(room, root, th);
     if (def.id !== 1) return;
     // the ticket gates along the left, the departure board over them, and a pillar clock
-    for (let i = 0; i < 6; i++) { const z = -2.6 + i * 0.95; inAdd(root, 1.1, 1.0, 0.18, -IN_W / 2 + 2.4, 0.5, z, "#c9ced4"); inAdd(root, 0.5, 0.06, 0.2, -IN_W / 2 + 2.4, 1.02, z, i % 2 ? "#2a9ad6" : "#15894f"); }
-    room.colliders.push({ x0: -IN_W / 2 + 1.8, x1: -IN_W / 2 + 3.0, z0: -2.8, z1: 2.3 });
-    const board = inCanvasTex("deptboard", 512, 160, (g, w, h) => {
-      g.fillStyle = "#0b0d10"; g.fillRect(0, 0, w, h); g.fillStyle = "#ffb000"; g.font = "700 18px " + UI; g.fillText("発車 DEPARTURES", 12, 24);
-      [["08:02", "Kanjō Loop", "Outer", "3"], ["08:05", "Shinkansen", "Nagisa", "11"], ["08:07", "Mizuho Line", "Mizuho", "6"], ["08:10", "Kanjō Loop", "Inner", "4"], ["08:14", "Coastal", "Hamaura", "8"]]
-        .forEach((r, i) => { g.fillStyle = i % 2 ? "#ffd27a" : "#ffb000"; g.font = "600 16px " + UI; g.fillText(r[0], 12, 50 + i * 22); g.fillText(r[1], 80, 50 + i * 22); g.fillText(r[2], 260, 50 + i * 22); g.fillText(r[3], 470, 50 + i * 22); });
+    for (let i = 0; i < 6; i++) { const z = -2.6 + i * 0.95; inAdd(root, 1.1, 1.0, 0.18, -W / 2 + 2.4, 0.5, z, "#c9ced4"); inAdd(root, 0.5, 0.06, 0.2, -W / 2 + 2.4, 1.02, z, i % 2 ? "#2a9ad6" : "#15894f"); }
+    room.colliders.push({ x0: -W / 2 + 1.8, x1: -W / 2 + 3.0, z0: -2.8, z1: 2.3 });
+    const board=inCanvasTex('departures:'+room.key,1024,320,(g,w,h)=>{
+      g.fillStyle='#11252d';g.fillRect(0,0,w,h);g.fillStyle='#f3f0de';g.font='600 30px '+UI;g.fillText((room.stationRef?.name||'NHRail')+' · DEPARTURES',24,42,w-48);
+      const routes=railDestinations(room.stationRef).slice(0,5);
+      if(!routes.length){g.font='500 24px '+UI;g.fillText('NHRail · Ticket gates and travel information',24,104);}
+      routes.forEach((r,i)=>{const y=100+i*42;g.fillStyle=i%2?'#e9dca2':'#c1e3d8';g.font='500 25px '+UI;g.fillText(r.name,24,y,470);g.fillText(r.kind==='shinkansen'?'Shinkansen':'Local service',520,y,270);g.fillText('¥'+r.fare,830,y);});
     });
+    let boardMinute=-1;const beforeTick=room.tick;room.tick=dt=>{if(beforeTick)beforeTick(dt);const minute=Math.floor(gameMinutes());if(minute!==boardMinute){boardMinute=minute;board._kon.redraw();board.needsUpdate=true;}};
     const bm = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.44), new THREE.MeshBasicMaterial({ map: board, fog: false }));
-    bm.position.set(-IN_W / 2 + 0.14, 2.6, -0.4); bm.rotation.y = Math.PI / 2; root.add(bm);
-    const sg = inLabel("改札口  TICKET GATES  ← Platforms", 4.6, 0.36, "#15894f", "#ffffff"); sg.position.set(-IN_W / 2 + 0.14, 3.45, -0.4); sg.rotation.y = Math.PI / 2; root.add(sg);
+    bm.position.set(-W / 2 + 0.14, 2.6, -0.4); bm.rotation.y = Math.PI / 2; root.add(bm);
+    const sg = inLabel("改札口  TICKET GATES  ← Platforms", 4.6, 0.36, "#15894f", "#ffffff"); sg.position.set(-W / 2 + 0.14, 3.45, -0.4); sg.rotation.y = Math.PI / 2; root.add(sg);
+    propPut(root,"wall_clock",W/2-.2,Math.min(4.1,(room.H||IN_H)-.6),-D*.12,-Math.PI/2,{h:.7});
     room.bench = { x: 2.8, z: 1.2 };
-    room.spots = (room.spots || []).concat([{ x: -IN_W / 2 + 3.7, z: -0.4, label: "go through the gates to the platforms", act: "platforms" }]);
+    room.spots = (room.spots || []).concat([{ x: -W / 2 + 3.7, z: -0.4, label: "go through the gates to the platforms", act: "platforms" }]);
   };
 }
-function interiorStationLevel(s, idx) {
-  const f = STATION_FLOORS[idx];
-  return interiorRoom({ brand: "plaza", name: "Tōkonto Central" }, { key: "station:" + f.id, stock: [], title: "Tōkonto Central  " + f.label + "  " + f.name, noExit: f.id !== 1, lift: true, extra: stationExtra(f) });
+function interiorStationLevel(s,idx) {
+  const central=!!s.central||/central|中央/i.test(s.name||''),f=STATION_FLOORS[idx],name=s.name||'Tōkonto Central';
+  const key=(central?'station':'station:'+name+':'+(s.city||''))+':'+f.id;
+  const shops=central?f.stores:/mizuho/i.test(name+' '+s.city)?['eleven']:['eleven','ramen'];
+  return interiorRoom({brand:'plaza',station:true,central,name,city:s.city,stationRef:s.stationRef},{key,stock:[],title:name+'  '+f.label+'  '+f.name,noExit:f.id!==1,lift:central,noLift:!central,extra:stationExtra({...f,stores:shops})});
 }
-// the terminus and its door, worked out once from the station the rail builder put up
-function stationShop() {
-  if (story.station) return story.station;
-  const city = world.cities[0], st = city && (city.stations.find(s => s.terminus) || city.stations[0]);
-  if (!st) return null;
-  let door, yawO;
-  if (st.conc) { door = st.conc.door; yawO = st.conc.yaw; }
-  else { door = [st.centre[0] + 30, st.centre[1]]; yawO = 0; }
-  const s = { brand: "station", station: true, name: st.name || "Tōkonto Central", at: st.centre.slice(), door: door, yaw: yawO, groundY: world.surfaceY(door[0], door[1]), size: [26, 20], city: city.name, built: true };
-  shops.list.push(s);
-  return (story.station = s);
+// Register an actual station entrance once. The no-argument call remains the story's central terminus.
+function stationShop(station,stationCity) {
+  if(!station&&story.station)return story.station;
+  const city=stationCity||world.cities[0],st=station||(city&&(city.stations.find(s=>s.terminus)||city.stations[0]));if(!st)return null;
+  const existing=shops.list.find(s=>s.stationRef===st);if(existing)return existing;
+  const central=city===world.cities[0]&&st===(city.stations.find(q=>q.terminus)||city.stations[0]);
+  const door=st.conc?st.conc.door:[st.centre[0]+30,st.centre[1]],yawO=st.conc?st.conc.yaw:0;
+  const shop={brand:'station',station:true,stationRef:st,central,name:st.name||city.name+' Station',at:st.centre.slice(),door,yaw:yawO,groundY:world.surfaceY(door[0],door[1]),size:central?[64,44]:[26,19],city:city.name,built:true};
+  shops.list.push(shop);if(central)story.station=shop;return shop;
 }
 
 // ---- the trains, from the concourse -------------------------------------------------------------------------------------------------------
@@ -44655,12 +44614,13 @@ function stationShop() {
 // your train pulls in. You ride it by the window; the dull middle of the journey passes in a fade, and you step off at your station.
 const railTrip = { on: false, dest: null, t: 0, jumped: false };
 function railHome() {
+  if(interior.active&&interior.shop?.stationRef)return interior.shop.stationRef;
   const city = world.cities[0], st = city && (city.stations.find(q => q.terminus) || city.stations[0]);
   return st || null;
 }
 // every station a train from here goes to: the lines that stop at the terminus, and the stops after it on each
-function railDestinations() {
-  const st = railHome(); if (!st || !rail.ready) return [];
+function railDestinations(origin) {
+  const st = origin||railHome(); if (!st || !rail.ready) return [];
   const out = [], seen = {};
   rail.lines.forEach((line, li) => {
     if (!line.stops || !line.stops.length) return;
@@ -45393,7 +45353,7 @@ function storyRoom(key, W, D, H, build) {
   const room = { key: key, group: root, ox: ox, oz: oz, W: W, D: D, H: H, colliders: [], items: [], spots: [] };
   const box = (w, h, d, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); root.add(m); return m; };
   build(root, box, room);root.userData.shDry=true;root.traverse(o=>{if(o.isMesh)o.userData.shDry=true;});
-  return (interior.rooms[key] = room);
+  return interiorPrepare(interior.rooms[key] = room);
 }
 function storySkylineTex(offset, height) {
   offset=offset||0;height=height||SOTI.height-22;

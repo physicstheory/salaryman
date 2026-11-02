@@ -29,11 +29,13 @@ var SHIGOTO = (() => {
     CHAR_QUALITY: () => CHAR_QUALITY,
     CanopyRig: () => CanopyRig,
     Characters: () => Characters,
+    CinematicVideo: () => CinematicVideo,
     Engine: () => Engine,
     GERSTNER_WAVES: () => GERSTNER_WAVES,
     HONOR_TIERS: () => HONOR_TIERS,
     Honor: () => Honor,
     HostBridge: () => HostBridge,
+    InteriorEngine: () => InteriorEngine,
     MEMORY_BUDGET: () => MEMORY_BUDGET,
     Motorcycle: () => Motorcycle,
     Ocean: () => Ocean,
@@ -63,14 +65,19 @@ var SHIGOTO = (() => {
     createEngine: () => createEngine,
     drawProp: () => drawProp,
     estimateBytes: () => estimateBytes,
+    fanDemand: () => fanDemand,
     findRagdollBones: () => findRagdollBones,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
+    retailProfile: () => retailProfile,
+    retailTemperature: () => retailTemperature,
     scanScene: () => scanScene,
     shaderFailures: () => shaderFailures,
+    stepCarDynamics: () => stepCarDynamics,
     subdivideGeometry: () => subdivideGeometry,
     synthesizeMaps: () => synthesizeMaps,
+    vehicleMass: () => vehicleMass,
     warmGPU: () => warmGPU
   });
 
@@ -10616,6 +10623,620 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
+  // Engine/src/interior/Interiors.js
+  var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
+  function retailTemperature(hour = 12, weather = {}) {
+    if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
+    return 24 + 5 * Math.sin((hour - 8) / 24 * Math.PI * 2) - 5 * clamp3(weather.rain || 0, 0, 1);
+  }
+  function fanDemand(temperature, running = false) {
+    if (!Number.isFinite(temperature)) return 0;
+    return temperature < (running ? 22 : 24) ? 0 : clamp3((temperature - 22) / 9, 0.25, 1);
+  }
+  function retailProfile(shop = {}, options = {}) {
+    const station = !!(shop.station || options.station), name = shop.name || "", central = !!shop.central || /central|中央/i.test(name);
+    if (station) {
+      if (central) return { width: 64, depth: 44, height: 14, wallHeight: 9, glassRoof: true, design: "glass-terminus", accent: 2648952 };
+      if (/soti/i.test(name)) return { width: 32, depth: 22, height: 5.8, design: "business-hub", accent: 2913943 };
+      if (/mizuho|瑞穂/i.test(name) || shop.city === "Mizuho") return { width: 22, depth: 16, height: 4.8, design: "timber-local", accent: 6912848 };
+      return { width: 26, depth: 19, height: 5.2, design: /coast|nagisa|hamaura/i.test(name + " " + shop.city) ? "coastal-hall" : "neighbourhood-station", accent: 4881286 };
+    }
+    const spec = { books: [24, 17, 4.2, "reading-house"], clothes: [26, 18, 4.6, "fashion-gallery"], dokoto: [32, 22, 5.2, "technology-showroom"], ramen: [22, 16, 4.2, "noodle-kitchen"], sushi: [24, 18, 4.5, "sushi-bar"], sushiya: [24, 18, 4.5, "sushi-bar"], petmart: [26, 18, 4.4, "pet-market"], pharmacy: [24, 17, 4.2, "health-store"], plaza: [32, 24, 5.8, "retail-arcade"] }[shop.brand] || [24, 17, 4.2, "neighbourhood-market"];
+    return { width: spec[0], depth: spec[1], height: spec[2], design: spec[3], accent: 4745580 };
+  }
+  var InteriorEngine = class {
+    constructor(T2, options = {}) {
+      this.T = T2;
+      this.quality = options.quality || "high";
+      this.environment = options.environment || null;
+      this.materials = /* @__PURE__ */ new Map();
+      this.maps = /* @__PURE__ */ new Map();
+      this.signs = /* @__PURE__ */ new Map();
+      this.serial = 0;
+      this.unit = new T2.BoxGeometry(1, 1, 1);
+    }
+    texture(kind, channel) {
+      const key = kind + ":" + channel;
+      if (this.maps.has(key)) return this.maps.get(key);
+      const T2 = this.T, low = this.quality === "low", name = { paint: "plaster", tile: "concrete", wood: "plaster", fabric: "plaster" }[kind] || kind;
+      const suffix = channel === "map" ? "color" : channel === "normalMap" ? "normal" : "roughness";
+      const file = (kind === "wood" || kind === "fabric") && channel !== "roughnessMap" ? "art/interior/" + (kind === "wood" ? "wood_floor" : "dirty_carpet") + (channel === "normalMap" ? "_nor" : "") + ".jpg" : `art/realism/${name}-${suffix}${low ? "-low" : ""}.jpg`;
+      const t2 = new T2.TextureLoader().load(file);
+      t2.wrapS = t2.wrapT = T2.RepeatWrapping;
+      t2.repeat.set(0.5, 0.5);
+      t2.anisotropy = low ? 2 : 4;
+      if (channel === "map") t2.encoding = T2.sRGBEncoding;
+      this.maps.set(key, t2);
+      return t2;
+    }
+    material(kind = "paint", color = 16777215) {
+      const key = kind + ":" + color;
+      if (this.materials.has(key)) return this.materials.get(key);
+      const T2 = this.T, m2 = new T2.MeshStandardMaterial({ color, map: this.texture(kind, "map"), normalMap: this.texture(kind, "normalMap"), roughnessMap: this.texture(kind, "roughnessMap"), roughness: kind === "metal" ? 0.58 : kind === "tile" ? 0.68 : 0.9, metalness: kind === "metal" ? 0.65 : 0, normalScale: new T2.Vector2(0.28, 0.28), envMap: this.environment, envMapIntensity: 0.2, fog: false });
+      m2.onBeforeCompile = (sh) => {
+        sh.vertexShader = sh.vertexShader.replace("#include <uv_vertex>", `#include <uv_vertex>
+#ifdef USE_UV
+ vec4 roomP=vec4(position,1.0);
+#ifdef USE_INSTANCING
+ roomP=instanceMatrix*roomP;
+#endif
+ roomP=modelMatrix*roomP;
+ vec3 roomN=normal;
+#ifdef USE_INSTANCING
+ roomN=mat3(instanceMatrix)*roomN;
+#endif
+ roomN=mat3(modelMatrix)*roomN;
+ vec3 an=abs(roomN);vec2 roomUV=an.y>max(an.x,an.z)?roomP.xz:an.x>an.z?roomP.zy:roomP.xy;
+ vUv=(uvTransform*vec3(roomUV,1.0)).xy;
+#endif`);
+      };
+      m2.customProgramCacheKey = () => "shigoto-interior-metres-v2";
+      m2.userData.shDry = true;
+      this.materials.set(key, m2);
+      return m2;
+    }
+    mapped(map, kind = "paint") {
+      const key = "mapped:" + map.uuid + ":" + kind;
+      if (this.materials.has(key)) return this.materials.get(key);
+      const base = this.material(kind), m2 = base.clone();
+      m2.map = map;
+      m2.fog = false;
+      m2.userData.shDry = true;
+      this.materials.set(key, m2);
+      return m2;
+    }
+    box(root, w2, h2, d2, x2, y2, z2, kind = "metal", color = 16777215) {
+      const m2 = new this.T.Mesh(this.unit, this.material(kind, color));
+      m2.scale.set(w2, h2, d2);
+      m2.position.set(x2, y2, z2);
+      m2.userData.shDry = true;
+      root.add(m2);
+      return m2;
+    }
+    sign(text, w2, h2, bg2 = "#253c43", fg = "#ffffff", fonts) {
+      const T2 = this.T, key = [text, w2, h2, bg2, fg].join("|");
+      let mat = this.signs.get(key);
+      if (!mat) {
+        const c2 = document.createElement("canvas");
+        c2.width = this.quality === "low" ? 1024 : 2048;
+        c2.height = Math.max(128, Math.round(c2.width * h2 / w2));
+        const g2 = c2.getContext("2d"), W3 = c2.width, H2 = c2.height, pad = Math.round(W3 * 0.035);
+        g2.fillStyle = bg2;
+        g2.fillRect(0, 0, W3, H2);
+        const wash = g2.createLinearGradient(0, 0, 0, H2);
+        wash.addColorStop(0, "rgba(255,255,255,.10)");
+        wash.addColorStop(1, "rgba(0,0,0,.08)");
+        g2.fillStyle = wash;
+        g2.fillRect(0, 0, W3, H2);
+        g2.fillStyle = fg;
+        g2.globalAlpha = 0.65;
+        g2.fillRect(pad, H2 * 0.19, Math.max(3, W3 * 3e-3), H2 * 0.62);
+        g2.globalAlpha = 1;
+        const family = fonts?.style ? fonts.style("interior:" + text, { text, stable: true, prefer: ["gothic", "corporate"], avoid: ["pixel", "cute"] }).family : "'Konto Sans','Yu Gothic',sans-serif";
+        let size = Math.round(H2 * 0.43);
+        g2.font = `600 ${size}px ${family}`;
+        while (g2.measureText(text).width > W3 - pad * 4 && size > H2 * 0.2) {
+          size--;
+          g2.font = `600 ${size}px ${family}`;
+        }
+        g2.textAlign = "center";
+        g2.textBaseline = "middle";
+        g2.fillStyle = fg;
+        g2.fillText(text, W3 * 0.52, H2 * 0.52, W3 - pad * 4);
+        const map = new T2.CanvasTexture(c2);
+        map.encoding = T2.sRGBEncoding;
+        map.anisotropy = 4;
+        mat = new T2.MeshStandardMaterial({ map, normalMap: this.texture("metal", "normalMap"), roughnessMap: this.texture("metal", "roughnessMap"), roughness: 0.65, metalness: 0.05, emissive: 16777215, emissiveMap: map, emissiveIntensity: 0.12, fog: false });
+        mat.userData.shDry = true;
+        this.signs.set(key, mat);
+      }
+      const mesh = new T2.Mesh(new T2.PlaneGeometry(w2, h2), mat);
+      mesh.name = "Architectural sign \xB7 " + text;
+      this.box(mesh, w2 + 0.035, h2 + 0.035, 0.045, 0, 0, -0.028, "metal", 7832458);
+      this.box(mesh, 0.012, h2 + 0.018, 0.012, -w2 / 2 - 8e-3, 0, 1e-3, "metal", 12108486);
+      this.box(mesh, 0.012, h2 + 0.018, 0.012, w2 / 2 + 8e-3, 0, 1e-3, "metal", 12108486);
+      const back = new T2.Mesh(new T2.PlaneGeometry(w2, h2), mat);
+      back.position.z = -0.054;
+      back.rotation.y = Math.PI;
+      mesh.add(back);
+      mesh.userData.shDry = true;
+      return mesh;
+    }
+    shelf(root, width, kind = "metal", accent = 3230539) {
+      const T2 = this.T, group = new T2.Group();
+      group.name = "Open retail gondola";
+      root.add(group);
+      const parts = [], trim = [], push = (a2, w2, h2, d2, x2, y2, z2) => a2.push({ w: w2, h: h2, d: d2, x: x2, y: y2, z: z2 });
+      push(parts, width, 1.6, 0.025, 0, 0.86, -0.245);
+      push(parts, width, 0.12, 0.62, 0, 0.1, 0.045);
+      const bays = Math.ceil(width / 1.25);
+      for (let i2 = 0; i2 <= bays; i2++) push(parts, 0.038, 1.75, 0.065, -width / 2 + width * i2 / bays, 0.9, -0.19);
+      for (const y2 of [0.36, 0.8, 1.24, 1.68]) {
+        push(parts, width, 0.035, 0.64, 0, y2, 0.06);
+        push(trim, width, 0.048, 0.018, 0, y2 - 0.015, 0.39);
+      }
+      for (let i2 = 0; i2 < bays; i2++) for (const y2 of [0.36, 0.8, 1.24]) push(parts, 0.2, 0.035, 0.021, -width / 2 + width * (i2 + 0.5) / bays, y2 - 0.012, 0.405);
+      const batch = (list, mat) => {
+        const im = new T2.InstancedMesh(this.unit, mat, list.length), m2 = new T2.Matrix4(), q2 = new T2.Quaternion(), p2 = new T2.Vector3(), sz = new T2.Vector3();
+        list.forEach((o2, i2) => {
+          p2.set(o2.x, o2.y, o2.z);
+          sz.set(o2.w, o2.h, o2.d);
+          m2.compose(p2, q2, sz);
+          im.setMatrixAt(i2, m2);
+        });
+        im.instanceMatrix.needsUpdate = true;
+        im.receiveShadow = true;
+        im.userData.shDry = true;
+        group.add(im);
+      };
+      batch(parts, this.material(kind, kind === "wood" ? 14009517 : 13028816));
+      batch(trim, this.material("paint", accent));
+      group.userData.openRetailShelf = true;
+      return group;
+    }
+    fan(root, x2, z2, height) {
+      const T2 = this.T, g2 = new T2.Group();
+      g2.name = "Thermostatic ceiling fan";
+      g2.position.set(x2, height, z2);
+      root.add(g2);
+      this.box(g2, 0.16, 0.3, 0.16, 0, 0.16, 0, "metal", 7108219);
+      const rotor = new T2.Group();
+      g2.add(rotor);
+      const hub = new T2.Mesh(new T2.CylinderGeometry(0.13, 0.1, 0.14, 20), this.material("metal", 6911865));
+      rotor.add(hub);
+      const blade = new T2.Shape();
+      blade.moveTo(0.08, -0.045);
+      blade.bezierCurveTo(0.32, -0.12, 0.77, -0.12, 0.88, -0.015);
+      blade.bezierCurveTo(0.86, 0.1, 0.38, 0.13, 0.13, 0.07);
+      blade.closePath();
+      const geo = new T2.ExtrudeGeometry(blade, { depth: 0.014, bevelEnabled: true, bevelSize: 8e-3, bevelThickness: 6e-3, bevelSegments: 1, steps: 1, curveSegments: 10 });
+      geo.rotateX(-Math.PI / 2);
+      for (let i2 = 0; i2 < 4; i2++) {
+        const m2 = new T2.Mesh(geo, this.material("metal", 11578016));
+        m2.rotation.y = i2 * Math.PI / 2;
+        rotor.add(m2);
+      }
+      return { group: g2, rotor, speed: 0, angle: 0, running: false };
+    }
+    identityArchitecture(room, rig, width, depth, height) {
+      const T2 = this.T, design = room.profile?.design;
+      if (design === "reading-house") for (const x2 of [-width * 0.3, 0, width * 0.3]) this.box(rig, 0.16, 0.18, depth - 0.4, x2, height - 0.22, 0, "wood", 10256480);
+      if (design === "fashion-gallery") {
+        const ring = new T2.Mesh(new T2.TorusGeometry(2.1, 0.045, 8, 64), this.material("paint", 14933456).clone());
+        ring.rotation.x = Math.PI / 2;
+        ring.position.y = height - 0.5;
+        ring.material.emissive = new T2.Color(16772047);
+        ring.material.emissiveIntensity = 0.45;
+        rig.add(ring);
+      }
+      if (design === "technology-showroom") for (const sd of [-1, 1]) {
+        const strip = this.box(rig, 0.04, 0.09, depth - 0.6, sd * (width / 2 - 0.18), height - 1, 0, "paint", 11524062);
+        strip.material = strip.material.clone();
+        strip.material.emissive = new T2.Color(10279651);
+        strip.material.emissiveIntensity = 0.4;
+      }
+      if (design === "noodle-kitchen" || design === "sushi-bar") {
+        const shape = [new T2.Vector2(0.08, 0.32), new T2.Vector2(0.12, 0.28), new T2.Vector2(0.28, 0.12), new T2.Vector2(0.34, 0)], geo = new T2.LatheGeometry(shape, 24);
+        for (const x2 of [-4, 0, 4]) {
+          this.box(rig, 0.02, height - 2.9, 0.02, x2, (height + 2.9) / 2, -depth * 0.15, "metal", 6450801);
+          const shade = new T2.Mesh(geo, this.material("paint", 13875856));
+          shade.position.set(x2, 2.75, -depth * 0.15);
+          rig.add(shade);
+        }
+      }
+    }
+    stationSeating(room, rig, width, depth) {
+      const T2 = this.T;
+      if (!this.seatGeo) {
+        const sh = new T2.Shape(), w2 = 0.56, d2 = 0.46, r2 = 0.055;
+        sh.moveTo(-w2 / 2 + r2, -d2 / 2);
+        sh.lineTo(w2 / 2 - r2, -d2 / 2);
+        sh.quadraticCurveTo(w2 / 2, -d2 / 2, w2 / 2, -d2 / 2 + r2);
+        sh.lineTo(w2 / 2, d2 / 2 - r2);
+        sh.quadraticCurveTo(w2 / 2, d2 / 2, w2 / 2 - r2, d2 / 2);
+        sh.lineTo(-w2 / 2 + r2, d2 / 2);
+        sh.quadraticCurveTo(-w2 / 2, d2 / 2, -w2 / 2, d2 / 2 - r2);
+        sh.lineTo(-w2 / 2, -d2 / 2 + r2);
+        sh.quadraticCurveTo(-w2 / 2, -d2 / 2, -w2 / 2 + r2, -d2 / 2);
+        this.seatGeo = new T2.ExtrudeGeometry(sh, { depth: 0.035, bevelEnabled: true, bevelSize: 0.01, bevelThickness: 8e-3, bevelSegments: 2, steps: 1, curveSegments: 6 });
+      }
+      room.seats = room.seats || [];
+      room.colliders = room.colliders || [];
+      for (const x2 of [-width * 0.32, width * 0.32]) for (const z2 of room.glassRoof ? [-depth * 0.18, depth * 0.18] : [depth * 0.18]) {
+        const group = new T2.Group();
+        group.name = "Station seating";
+        group.position.set(x2, 0, z2);
+        group.rotation.y = z2 > 0 ? Math.PI : 0;
+        rig.add(group);
+        this.box(group, 2.05, 0.08, 0.08, 0, 0.32, 0, "metal", 7308686);
+        for (const sx of [-0.82, 0.82]) {
+          this.box(group, 0.07, 0.42, 0.07, sx, 0.22, 0, "metal", 8295064);
+          this.box(group, 0.13, 0.035, 0.5, sx, 0.03, 0, "metal", 8295064);
+        }
+        for (const sx of [-0.62, 0, 0.62]) {
+          const seat = new T2.Mesh(this.seatGeo, this.material("metal", 11912904));
+          seat.rotation.x = -Math.PI / 2;
+          seat.position.set(sx, 0.48, 0);
+          group.add(seat);
+          const back = new T2.Mesh(this.seatGeo, this.material("metal", 11912904));
+          back.position.set(sx, 0.76, -0.23);
+          back.rotation.x = -0.12;
+          group.add(back);
+          room.seats.push({ x: x2 + sx, z: z2 + (z2 > 0 ? -0.02 : 0.02), yaw: group.rotation.y });
+        }
+        room.colliders.push({ x0: x2 - 1.1, x1: x2 + 1.1, z0: z2 - 0.4, z1: z2 + 0.4 });
+      }
+      const strips = [], push = (x2, z2, turned) => {
+        for (let k2 = -2; k2 <= 2; k2++) strips.push({ x: x2 + (turned ? 0 : k2 * 0.055), z: z2 + (turned ? k2 * 0.055 : 0), sx: turned ? 0.52 : 0.022, sz: turned ? 0.022 : 0.52 });
+      };
+      for (let z2 = depth / 2 - 0.7; z2 >= -0.4; z2 -= 0.6) push(0, z2, false);
+      for (let x2 = -0.6; x2 >= -width / 2 + 3.7; x2 -= 0.6) push(x2, -0.4, true);
+      const im = new T2.InstancedMesh(this.unit, this.material("tile", 14469233), strips.length), m2 = new T2.Matrix4(), q2 = new T2.Quaternion(), pos = new T2.Vector3(), scale = new T2.Vector3();
+      strips.forEach((s2, i2) => {
+        pos.set(s2.x, 0.064, s2.z);
+        scale.set(s2.sx, 0.014, s2.sz);
+        m2.compose(pos, q2, scale);
+        im.setMatrixAt(i2, m2);
+      });
+      im.instanceMatrix.needsUpdate = true;
+      im.receiveShadow = true;
+      im.name = "Tactile route to ticket gates";
+      rig.add(im);
+    }
+    stationRoof(room, rig, width, depth, height) {
+      const T2 = this.T, p2 = room.profile, spring = p2.wallHeight || height - 5, rise = height - spring, positions = [], uv = [], indices = [], N3 = 32;
+      for (let z2 = 0; z2 <= 8; z2++) for (let i2 = 0; i2 <= N3; i2++) {
+        const t2 = i2 / N3;
+        positions.push((t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, (z2 / 8 - 0.5) * depth);
+        uv.push(t2, z2 / 8);
+      }
+      for (let z2 = 0; z2 < 8; z2++) for (let i2 = 0; i2 < N3; i2++) {
+        const a2 = z2 * (N3 + 1) + i2;
+        indices.push(a2, a2 + N3 + 1, a2 + 1, a2 + 1, a2 + N3 + 1, a2 + N3 + 2);
+      }
+      const geo = new T2.BufferGeometry();
+      geo.setAttribute("position", new T2.Float32BufferAttribute(positions, 3));
+      geo.setAttribute("uv", new T2.Float32BufferAttribute(uv, 2));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      const glass = new T2.MeshPhysicalMaterial({ color: 13101033, transparent: true, opacity: 0.18, roughness: 0.12, metalness: 0, clearcoat: 1, envMap: this.environment, envMapIntensity: 0.45, side: T2.DoubleSide, depthWrite: false });
+      const roof = new T2.Mesh(geo, glass);
+      roof.name = "T\u014Dkonto vaulted glass roof";
+      roof.userData.rainOccluder = true;
+      roof.userData.shDry = true;
+      rig.add(roof);
+      const endPos = [], endUV = [], endIx = [];
+      for (const z2 of [-depth / 2, depth / 2]) {
+        const base = endPos.length / 3;
+        for (let i2 = 0; i2 <= N3; i2++) {
+          const t2 = i2 / N3;
+          endPos.push((t2 - 0.5) * width, spring, z2, (t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, z2);
+          endUV.push(t2, 0, t2, 1);
+        }
+        for (let i2 = 0; i2 < N3; i2++) {
+          const a2 = base + i2 * 2;
+          endIx.push(a2, a2 + 1, a2 + 2, a2 + 1, a2 + 3, a2 + 2);
+        }
+      }
+      const endGeo = new T2.BufferGeometry();
+      endGeo.setAttribute("position", new T2.Float32BufferAttribute(endPos, 3));
+      endGeo.setAttribute("uv", new T2.Float32BufferAttribute(endUV, 2));
+      endGeo.setIndex(endIx);
+      endGeo.computeVertexNormals();
+      const ends = new T2.Mesh(endGeo, glass);
+      ends.name = "Glazed station gables";
+      rig.add(ends);
+      const pts = [];
+      for (let i2 = 0; i2 <= 32; i2++) {
+        const t2 = i2 / 32;
+        pts.push(new T2.Vector3((t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise, 0));
+      }
+      const ribGeo = new T2.TubeGeometry(new T2.CatmullRomCurve3(pts), 48, 0.23, 8, false), steel = this.material("metal", 12833492);
+      for (let i2 = 0; i2 <= 6; i2++) {
+        const z2 = (i2 / 6 - 0.5) * depth, rib = new T2.Mesh(ribGeo, steel);
+        rib.position.z = z2;
+        rig.add(rib);
+        for (const sd of [-1, 1]) this.box(rig, 0.28, spring, 0.28, sd * (width / 2 - 0.2), spring / 2, z2, "metal", 12044748);
+      }
+      for (const t2 of [0.12, 0.3, 0.5, 0.7, 0.88]) this.box(rig, 0.075, 0.09, depth, (t2 - 0.5) * width, spring + Math.sin(t2 * Math.PI) * rise - 0.12, 0, "metal", 10335674);
+      for (const sd of [-1, 1]) {
+        const duct = new T2.Mesh(new T2.CylinderGeometry(0.25, 0.25, depth * 0.82, 16), this.material("metal", 9084320));
+        duct.rotation.x = Math.PI / 2;
+        duct.position.set(sd * width * 0.31, spring - 0.5, 0);
+        rig.add(duct);
+        this.box(rig, 0.6, 0.1, depth * 0.88, sd * width * 0.22, spring - 0.9, 0, "metal", 7046539);
+        for (const z2 of [-depth * 0.22, depth * 0.22]) {
+          this.box(rig, 0.025, spring - 4.8, 0.025, sd * width * 0.16, (spring + 4.8) / 2, z2, "metal", 8887202);
+          const sign = this.sign(sd < 0 ? "NHRail  \xB7  PLATFORMS  \u2190" : "SHOPS  \xB7  EXIT  \u2192", 5, 0.7, "#173e49", "#f4f3e9");
+          sign.position.set(sd * width * 0.16, 4.8, z2);
+          rig.add(sign);
+        }
+      }
+      return roof;
+    }
+    refurbish(room, { width = 24, depth = 17, height = 4.2 } = {}) {
+      if (room.refurbishment) return room.refurbishment;
+      const T2 = this.T, root = room.group, rig = new T2.Group();
+      rig.name = "Retail lighting and ventilation";
+      root.add(rig);
+      root.userData.shDry = true;
+      const warm = /ramen|sushi|books|home|capsule/.test(room.brand), high = this.quality !== "low", station = !!room.station, lightHeight = station ? Math.min(height - 0.4, 6) : height - 0.4;
+      const fill = new T2.HemisphereLight(warm ? 16772570 : 15266303, 6383210, 0.6);
+      rig.add(fill);
+      const lights = [];
+      for (const x2 of [-width * 0.26, width * 0.26]) for (const z2 of high ? [-depth * 0.26, depth * 0.26] : [0]) {
+        const l2 = new T2.PointLight(warm ? 16769721 : 15857407, 1.15, Math.max(width, depth) * 0.85, 1.5);
+        l2.position.set(x2, lightHeight, z2);
+        rig.add(l2);
+        lights.push(l2);
+        const fixtureY = station ? lightHeight + 0.4 : height - 0.12;
+        const frame = this.box(rig, 1.55, 0.09, 0.42, x2, fixtureY, z2, "metal", 11187382);
+        if (room.glassRoof) this.box(rig, 0.025, 2.3, 0.025, x2, fixtureY + 1.15, z2, "metal", 8953251);
+        const diffuser = this.box(frame, 1, 0.03, 1, 0, -0.7, 0, "paint", 15790828);
+        diffuser.scale.set(0.91, 0.3, 0.83);
+        const dm = this.material("paint", 15790828).clone();
+        dm.emissive = new T2.Color(warm ? 16769199 : 15003903);
+        dm.emissiveIntensity = 0.75;
+        diffuser.material = dm;
+      }
+      if (!room.glassRoof) for (const z2 of [-depth * 0.28, depth * 0.28]) {
+        this.box(rig, 0.85, 0.08, 0.85, 0, height - 0.1, z2, "paint", 13883865);
+        for (let i2 = -3; i2 <= 3; i2++) this.box(rig, 0.6, 0.015, 0.018, 0, height - 0.15, z2 + i2 * 0.075, "metal", 5793901);
+      }
+      this.box(rig, width, 0.13, 0.07, 0, 0.1, -depth / 2 + 0.15, "metal", 9148057);
+      for (const sd of [-1, 1]) this.box(rig, 0.07, 0.13, depth - 0.3, sd * (width / 2 - 0.15), 0.1, 0, "metal", 9148057);
+      this.identityArchitecture(room, rig, width, depth, height);
+      if (room.station) this.stationSeating(room, rig, width, depth);
+      if (room.glassRoof) this.stationRoof(room, rig, width, depth, height);
+      if (room.profile?.design === "timber-local") {
+        for (const x2 of [-width * 0.32, 0, width * 0.32]) this.box(rig, 0.22, 0.28, depth, x2, height - 0.25, 0, "wood", 10190939);
+      }
+      const fanY = room.glassRoof ? room.profile.wallHeight - 0.65 : Math.max(2.3, height - 0.55);
+      const fans = [this.fan(rig, -width * 0.25, 0, fanY), this.fan(rig, width * 0.25, -depth * 0.2, fanY)];
+      root.traverse((o2) => {
+        if (o2.isHemisphereLight && o2 !== fill) o2.intensity = 0;
+        if (!o2.isMesh) return;
+        o2.receiveShadow = true;
+        if (o2.userData.salaryFinish && o2.material?.isMeshBasicMaterial) o2.material = o2.material.map ? this.mapped(o2.material.map) : this.material("paint", o2.userData.salaryFinish);
+        if (!o2.geometry?.attributes.uv) return;
+        for (const m2 of Array.isArray(o2.material) ? o2.material : [o2.material]) {
+          if (!m2?.isMeshStandardMaterial || m2.transparent) continue;
+          if (!m2.map) m2.map = this.texture("paint", "map");
+          if (!m2.normalMap) {
+            m2.normalMap = this.texture("paint", "normalMap");
+            m2.normalScale = new T2.Vector2(0.18, 0.18);
+          }
+          if (!m2.roughnessMap) m2.roughnessMap = this.texture("paint", "roughnessMap");
+          m2.needsUpdate = true;
+        }
+      });
+      const state = { rig, lights, fans, temperature: 24, brand: room.brand, design: room.profile?.design || room.brand };
+      room.refurbishment = state;
+      return state;
+    }
+    update(room, dt, { temperature = 24 } = {}) {
+      const st = room?.refurbishment;
+      if (!st || !room.group.visible) return;
+      dt = Number.isFinite(dt) ? clamp3(dt, 0, 0.1) : 0;
+      st.temperature = Number.isFinite(temperature) ? temperature : 24;
+      for (const f2 of st.fans) {
+        const demand = fanDemand(st.temperature, f2.running);
+        f2.running = demand > 0;
+        f2.speed += (demand * 10 - f2.speed) * (1 - Math.exp(-dt * 2));
+        f2.angle = (f2.angle + f2.speed * dt) % (Math.PI * 2);
+        f2.rotor.rotation.y = f2.angle;
+      }
+    }
+  };
+
+  // Engine/src/physics/VehicleDynamics.js
+  var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
+  var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
+  function vehicleMass(kind = {}) {
+    return { bus: 11e3, truck: 6500, fire: 12500, ambulance: 3200, onebox: 2300, keivan: 1100, kei: 980, suv: 1850 }[kind.body] || (kind.exotic ? 1550 : 1450);
+  }
+  function stepCarDynamics(c2, kind, input, dt, options = {}) {
+    dt = clamp4(finite(dt), 0, 0.1);
+    const mass = finite(options.mass, vehicleMass(kind)), L3 = Math.max(1.5, finite(kind.L, 4.5)), W3 = Math.max(0.8, finite(kind.W, 1.8));
+    const wb = L3 * 0.61, lf = wb * 0.48, lr = wb - lf, Iz = mass * (L3 * L3 + W3 * W3) / 12;
+    const speedLimit = Math.max(4, finite(options.top, 40)), to100 = Math.max(2, finite(options.to100, 10));
+    const wet = clamp4(finite(options.wet), 0, 1), grip = clamp4(finite(options.grip, 1) * (1 - 0.25 * wet), 0.25, 1.6);
+    const throttle = clamp4(finite(input.throttle), 0, 1), brake = clamp4(finite(input.brake), 0, 1), steer = clamp4(finite(input.steer), -1, 1), hand = !!input.hand;
+    let vx = finite(c2.vel?.x, Math.sin(finite(c2.yaw)) * finite(c2.speed)), vz = finite(c2.vel?.y, Math.cos(finite(c2.yaw)) * finite(c2.speed)), yaw = finite(c2.yaw);
+    if (!c2.vel) c2.vel = { x: vx, y: vz };
+    const state = c2.dynamics || (c2.dynamics = { remainder: 0, rate: 0, angle: 0, accel: 0 });
+    for (const k2 of ["remainder", "rate", "angle", "accel"]) state[k2] = finite(state[k2]);
+    state.remainder += dt;
+    let steps = 0, side = 0, under = 0;
+    const STEP2 = 1 / 120;
+    while (state.remainder + 1e-9 >= STEP2 && steps++ < 12) {
+      state.remainder -= STEP2;
+      const fx2 = Math.sin(yaw), fz2 = Math.cos(yaw), rx2 = Math.cos(yaw), rz2 = -Math.sin(yaw);
+      const u2 = vx * fx2 + vz * fz2, v2 = vx * rx2 + vz * rz2, ab = Math.abs(u2), sign = Math.sign(u2) || 1;
+      const maxAngle = 0.52 / (1 + ab * 0.045);
+      state.angle += (steer * maxAngle - state.angle) * (1 - Math.exp(-STEP2 / Math.max(0.09, finite(options.steerResponse, 0.16))));
+      const transfer = mass * state.accel * 0.52 / wb, Nf = clamp4(mass * 9.81 * lr / wb - transfer, mass * 9.81 * 0.18, mass * 9.81 * 0.82), Nr = mass * 9.81 - Nf;
+      const alphaF = Math.atan2(v2 + lf * state.rate, Math.max(ab, 2)) - state.angle * sign, alphaR = Math.atan2(v2 - lr * state.rate, Math.max(ab, 2));
+      const rawF = -alphaF * mass * 35, rawR = -alphaR * mass * 38, capF = grip * Nf, capR = grip * Nr * (hand ? 0.42 : 1);
+      let FyF = clamp4(rawF, -capF, capF), FyR = clamp4(rawR, -capR, capR);
+      const pull = mass * 27.78 / to100, fade = clamp4(1 - Math.pow(ab / speedLimit, 2), 0, 1);
+      let motor = options.engineEnabled === false ? 0 : throttle * pull * fade;
+      if (options.engineEnabled !== false && brake > 0.05 && u2 <= 0.15 && throttle === 0) motor = -brake * pull * 0.48;
+      let Fb = brake * mass * 9.81 * finite(options.brakeGrip, 1.05) * (u2 > 0.15 ? 1 : 0), FxF = -sign * Fb * 0.64, FxR = motor - sign * Fb * 0.36;
+      if (hand) FxR -= Math.sign(u2) * Math.min(mass * 4.5, ab * mass / STEP2);
+      const capLongF = Math.sqrt(Math.max(0, capF * capF - FyF * FyF)), capLongR = Math.sqrt(Math.max(0, capR * capR - FyR * FyR));
+      FxF = clamp4(FxF, -capLongF, capLongF);
+      FxR = clamp4(FxR, -capLongR, capLongR);
+      const drag = 0.5 * 1.225 * 0.32 * W3 * 1.35 * u2 * ab + Math.sign(u2) * mass * 0.12;
+      const slope = finite(options.slope), ax = (FxF + FxR - drag) / mass - 9.81 * Math.sin(slope), ay = (FyF * Math.cos(state.angle) + FyR) / mass;
+      vx += (fx2 * ax + rx2 * ay) * STEP2;
+      vz += (fz2 * ax + rz2 * ay) * STEP2;
+      if (brake > 0.1 && u2 > 0 && vx * fx2 + vz * fz2 < 0 && throttle === 0) {
+        const lateral = vx * rx2 + vz * rz2;
+        vx = rx2 * lateral;
+        vz = rz2 * lateral;
+      }
+      if (throttle === 0 && brake === 0 && ab < 0.12 && Math.abs(slope) < 0.015) {
+        vx *= Math.exp(-STEP2 * 12);
+        vz *= Math.exp(-STEP2 * 12);
+      }
+      const targetKinematic = u2 / wb * Math.tan(state.angle), blend = clamp4((ab - 2) / 4, 0, 1);
+      const dynamic = state.rate + (lf * FyF * Math.cos(state.angle) - lr * FyR) / Iz * STEP2;
+      state.rate = (1 - blend) * (state.rate + (targetKinematic - state.rate) * (1 - Math.exp(-STEP2 * 12))) + blend * dynamic;
+      const rateLimit = Math.min(2.2, grip * 9.81 / Math.max(ab, 3) * (hand ? 1.5 : 1.15));
+      state.rate = clamp4(state.rate, -rateLimit, rateLimit);
+      yaw += state.rate * STEP2;
+      state.accel = ax;
+      side = ay;
+      under = clamp4((Math.abs(rawF) - capF) / Math.max(capF, 1), 0, 1);
+    }
+    state.remainder = Math.max(0, state.remainder);
+    const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+    c2.yaw = yaw;
+    c2.vel.x = finite(vx);
+    c2.vel.y = finite(vz);
+    c2.speed = finite(vx * fx + vz * fz);
+    c2.vlat = finite(vx * rx + vz * rz);
+    c2.steer = state.angle / 0.52;
+    c2.steerRate = state.rate;
+    c2.under = under;
+    c2.topNow = speedLimit;
+    c2.slide = clamp4(c2.vlat / 7, -1, 1);
+    c2.squeal = clamp4(Math.abs(c2.vlat) / 4 + under * 0.6, 0, 1);
+    c2.roll = finite(c2.roll) + (clamp4(side / 9.81 * 0.07, -0.1, 0.1) - finite(c2.roll)) * (1 - Math.exp(-dt * 8));
+    c2.accelPitch = clamp4(state.accel / 9.81, -1, 1);
+    c2.pitch = finite(c2.pitch) + (-c2.accelPitch * 0.045 - finite(input.lean) * 0.035 - finite(c2.pitch)) * (1 - Math.exp(-dt * 9));
+    return { steps, mass, grip, rate: state.rate, understeer: under };
+  }
+
+  // Engine/src/cinematics/CinematicVideo.js
+  var CinematicVideo = class {
+    constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
+      this.document = doc;
+      this.element = null;
+      this.token = 0;
+      this.active = false;
+      this.paused = false;
+      this.failed = [];
+      this.clips = {};
+      this.ready = fetcher ? fetcher(manifest).then((r2) => r2.ok ? r2.json() : {}).then((m2) => {
+        this.clips = m2.clips || {};
+        return this.clips;
+      }).catch(() => this.clips) : Promise.resolve(this.clips);
+    }
+    source(key) {
+      const entry = this.clips[key], src = typeof entry === "string" ? entry : entry?.src;
+      return typeof src === "string" && /^art\/cinematics\/[a-zA-Z0-9_/-]+\.(mp4|webm)$/.test(src) ? src : null;
+    }
+    play(key, at = () => 0) {
+      this.stop();
+      const src = this.source(key);
+      if (!src) return Promise.resolve(false);
+      const token = ++this.token, doc = this.document, v2 = doc.createElement("video");
+      this.element = v2;
+      v2.playsInline = true;
+      v2.preload = "auto";
+      v2.controls = false;
+      v2.style.cssText = "position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:48;display:none;pointer-events:none";
+      v2.setAttribute("aria-label", "Cinematic video");
+      doc.body.appendChild(v2);
+      return new Promise((resolve) => {
+        let finished = false;
+        const settle = (ok) => {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          resolve(ok);
+        };
+        const fail = () => {
+          if (token !== this.token) {
+            settle(false);
+            return;
+          }
+          this.failed.push(key);
+          this.stop();
+          settle(false);
+        };
+        const timer = setTimeout(fail, 3e3);
+        v2.addEventListener("error", fail, { once: true });
+        v2.addEventListener("loadeddata", async () => {
+          if (token !== this.token) {
+            settle(false);
+            return;
+          }
+          try {
+            v2.currentTime = Math.max(0, Math.min(Number.isFinite(v2.duration) ? v2.duration - 0.05 : 0, at() || 0));
+            if (!this.paused) await v2.play();
+            if (token !== this.token) {
+              settle(false);
+              return;
+            }
+            v2.style.display = "block";
+            this.active = true;
+            settle(true);
+          } catch (e2) {
+            fail();
+          }
+        }, { once: true });
+        v2.src = src;
+        v2.load();
+      });
+    }
+    tick(dt) {
+      const v2 = this.element;
+      if (!this.active || this.paused || !v2 || v2.ended) return;
+      if (Math.abs(v2.currentTime - (this.lastTime || 0)) > 5e-3) {
+        this.stalledFor = 0;
+        this.lastTime = v2.currentTime;
+      } else this.stalledFor = (this.stalledFor || 0) + Math.min(0.1, Math.max(0, dt || 0));
+      if (this.stalledFor > 3) {
+        this.failed.push("stalled");
+        this.stop();
+      }
+    }
+    setPaused(on) {
+      this.paused = !!on;
+      const v2 = this.element;
+      if (!v2 || !this.active) return;
+      if (on) v2.pause();
+      else v2.play().catch(() => this.stop());
+    }
+    stop() {
+      this.token++;
+      this.active = false;
+      this.stalledFor = 0;
+      this.lastTime = 0;
+      const v2 = this.element;
+      this.element = null;
+      if (v2) {
+        v2.pause();
+        v2.removeAttribute("src");
+        v2.load();
+        v2.remove();
+      }
+    }
+  };
+
   // Engine/src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
@@ -10766,7 +11387,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       pedal: { power: 1100, force: 700 }
     }
   };
-  var clamp3 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp5 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var sgn = (v2) => v2 < 0 ? -1 : 1;
   function pacejka(x2, B2, C2, E2) {
     const bx = B2 * x2;
@@ -10824,9 +11445,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     // torque at a fraction of the redline, as a fraction of peak torque
     torqueShape(n2) {
       const S4 = this.spec;
-      if (S4 === BIKE_SPECS.cruiser) return clamp3(0.78 + 0.6 * n2 - 0.55 * n2 * n2, 0.5, 1);
-      if (S4 === BIKE_SPECS.dirt) return clamp3(0.62 + 0.95 * n2 - 0.75 * n2 * n2, 0.45, 1);
-      return clamp3(0.48 + 1.15 * n2 - 0.72 * n2 * n2, 0.35, 1);
+      if (S4 === BIKE_SPECS.cruiser) return clamp5(0.78 + 0.6 * n2 - 0.55 * n2 * n2, 0.5, 1);
+      if (S4 === BIKE_SPECS.dirt) return clamp5(0.62 + 0.95 * n2 - 0.75 * n2 * n2, 0.45, 1);
+      return clamp5(0.48 + 1.15 * n2 - 0.72 * n2 * n2, 0.35, 1);
     }
     // put the bike somewhere, upright, rolling at `speed`
     reset(p2) {
@@ -10933,14 +11554,14 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     _substep(h2, inp, world) {
       const S4 = this.spec, m2 = this.m;
-      let thrT = clamp3(inp.throttle || 0, 0, 1);
+      let thrT = clamp5(inp.throttle || 0, 0, 1);
       this._assist = inp.assist !== false && (inp.weight || 0) > -0.25 && !this.air;
-      this.thr += clamp3(thrT - this.thr, -h2 * 9, h2 * 7);
-      this.fb += clamp3(clamp3(inp.front || 0, 0, 1) - this.fb, -h2 * 10, h2 * 6);
-      this.rb += clamp3(clamp3(inp.rear || 0, 0, 1) - this.rb, -h2 * 10, h2 * 8);
-      const shiftT = -clamp3(inp.weight || 0, -1, 1) * S4.shift;
+      this.thr += clamp5(thrT - this.thr, -h2 * 9, h2 * 7);
+      this.fb += clamp5(clamp5(inp.front || 0, 0, 1) - this.fb, -h2 * 10, h2 * 6);
+      this.rb += clamp5(clamp5(inp.rear || 0, 0, 1) - this.rb, -h2 * 10, h2 * 8);
+      const shiftT = -clamp5(inp.weight || 0, -1, 1) * S4.shift;
       const shift0 = this.shift;
-      this.shift += clamp3(-shiftT - this.shift, -h2 * S4.shift * 5, h2 * S4.shift * 5);
+      this.shift += clamp5(-shiftT - this.shift, -h2 * S4.shift * 5, h2 * S4.shift * 5);
       this._shiftVel = (this.shift - shift0) / h2;
       if (inp.clutchPop && this.popT <= 0 && !S4.pedal && this.u < 16 && !this.air) this.popT = 0.22;
       if (this.popT > 0) this.popT -= h2;
@@ -11024,7 +11645,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       this.groundPitch = (this._slope0 + this._slope1) / 2;
       {
         const gl = world.ground(this.x - rx * 0.6, this.z - rz * 0.6, this.y), gr = world.ground(this.x + rx * 0.6, this.z + rz * 0.6, this.y);
-        this.groundRoll = contacts ? clamp3(Math.atan2(gr - gl, 1.2), -0.9, 0.9) : 0;
+        this.groundRoll = contacts ? clamp5(Math.atan2(gr - gl, 1.2), -0.9, 0.9) : 0;
       }
       const Rr = S4.rr, Rf = S4.rf;
       let Tdrive = 0;
@@ -11039,8 +11660,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const cvt = S4.gears === 0;
         let ratio;
         if (cvt) {
-          const wantW = this.idle + (this.red * 0.86 - this.idle) * clamp3(this.thr * 1.15, 0, 1);
-          ratio = clamp3(wantW / Math.max(1, Math.abs(this.wheel[0])), this.ratios[0], this.ratios[0] * 3.1);
+          const wantW = this.idle + (this.red * 0.86 - this.idle) * clamp5(this.thr * 1.15, 0, 1);
+          ratio = clamp5(wantW / Math.max(1, Math.abs(this.wheel[0])), this.ratios[0], this.ratios[0] * 3.1);
         } else {
           ratio = this.ratios[this.gear];
           const wWheelEng = Math.abs(this.wheel[0]) * ratio;
@@ -11061,10 +11682,10 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         if (this.we >= this.red) Te = Math.min(Te, -0.2 * this.Tpk);
         if (this.we <= this.idle && Te < 0) Te = 0.05 * this.Tpk;
         const wWheel = this.wheel[0] * ratio;
-        const launch = cvt ? this.idle + (this.red * 0.86 - this.idle) * clamp3(this.thr * 1.15, 0, 1) * 0.97 : this.idle * 1.5 + this.thr * this.red * 0.42;
+        const launch = cvt ? this.idle + (this.red * 0.86 - this.idle) * clamp5(this.thr * 1.15, 0, 1) * 0.97 : this.idle * 1.5 + this.thr * this.red * 0.42;
         let cap;
         if (this.popT > 0) cap = 0;
-        else if (wWheel < launch) cap = this.Tpk * (0.15 + 1.05 * this.thr) * clamp3((this.we - launch * 0.75) / (launch * 0.25 + 1), 0.04, 1);
+        else if (wWheel < launch) cap = this.Tpk * (0.15 + 1.05 * this.thr) * clamp5((this.we - launch * 0.75) / (launch * 0.25 + 1), 0.04, 1);
         else cap = this.Tpk * 3.5;
         this.clutch = cap >= this.Tpk * 3 ? 1 : 0.5;
         const Ieq = this.Ie * ratio * ratio;
@@ -11076,17 +11697,17 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           this.we = wWheel;
         } else {
           const dW = this.we - wWheel;
-          const Tc = cap * clamp3(dW / 25, -1, 1);
+          const Tc = cap * clamp5(dW / 25, -1, 1);
           this._locked = false;
           Tdrive = Tc * ratio * 0.92;
           this.we += (Te - Tc) / this.Ie * h2;
         }
         if (!this._locked) this.we = Math.max(this.idle * 0.8, Math.min(this.we, this.red * 1.02));
       }
-      if (S4.abs && Tdrive > 0 && this.slip[0] > 0.1) Tdrive *= clamp3(1 - (this.slip[0] - 0.1) * 7, 0.15, 1);
+      if (S4.abs && Tdrive > 0 && this.slip[0] > 0.1) Tdrive *= clamp5(1 - (this.slip[0] - 0.1) * 7, 0.15, 1);
       if (this._assist && Tdrive > 0) {
         const bEff = S4.b + this.shift, Fmax = this.m * G2 * bEff / S4.h * 0.9 + 0.5 * RHO * S4.cda[0] * this.u * this.u;
-        let lim = Fmax * Rr * (this.N[1] > 1 ? 1 : clamp3(1 - (this.pitch - 0.04) * 5 - Math.max(0, this.q) * 0.8, 0.3, 1));
+        let lim = Fmax * Rr * (this.N[1] > 1 ? 1 : clamp5(1 - (this.pitch - 0.04) * 5 - Math.max(0, this.q) * 0.8, 0.3, 1));
         Tdrive = Math.min(Tdrive, lim);
       }
       const Tbf_max = 1.35 * m2 * G2 * Rf, Tbr_max = 0.9 * m2 * G2 * Rr;
@@ -11114,9 +11735,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         let fsum = 0;
         for (let k2 = 0; k2 < NS; k2++) {
           const sigma = 0.22, ve = Math.max(2, Math.abs(vc));
-          const kappa = clamp3((this.slip[i2] + hs * (this.wheel[i2] * R2 - vc) / sigma) / (1 + hs * ve / sigma), -1, 1);
+          const kappa = clamp5((this.slip[i2] + hs * (this.wheel[i2] * R2 - vc) / sigma) / (1 + hs * ve / sigma), -1, 1);
           this.slip[i2] = kappa;
-          let fl = N3 > 0 ? clamp3(muN * pacejka(kappa, BL[0], BL[1], BL[2]), -room, room) : 0;
+          let fl = N3 > 0 ? clamp5(muN * pacejka(kappa, BL[0], BL[1], BL[2]), -room, room) : 0;
           fsum += fl;
           let w1 = this.wheel[i2] + (Td - fl * R2) / I2 * hs;
           if (Tb > 0) {
@@ -11146,7 +11767,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const px = A2[0], py = this.N[i2] > 0 ? P3[i2][1] : A2[1] - this.y;
         tau += px * F2[i2][1] - py * F2[i2][0];
       }
-      if (this.air) tau += -clamp3(inp.weight || 0, -1, 1) * S4.airTorque + (this._wheelReact || 0);
+      if (this.air) tau += -clamp5(inp.weight || 0, -1, 1) * S4.airTorque + (this._wheelReact || 0);
       tau += -(this._shiftVel || 0) * S4.rider * 1.6;
       tau -= this.q * (contacts ? 6 : 1.5);
       this.acc = Fx / m2;
@@ -11161,7 +11782,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         this.wheel[1] = 0;
       }
       const lowSpeed = Math.abs(u2) < 3;
-      const steerIn = clamp3(inp.steer || 0, -1, 1);
+      const steerIn = clamp5(inp.steer || 0, -1, 1);
       const vabs = Math.max(0.5, Math.abs(u2));
       const gyroK = 1 + (this.Iw[0] + this.Iw[1]) * vabs / (S4.rr * m2 * S4.h * 9);
       if (this.air) {
@@ -11176,8 +11797,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           avail[i2] = muN > 1 ? muN * Math.sqrt(Math.max(0, 1 - (lonF[i2] / muN) ** 2)) : 0;
         }
         if (lowSpeed) {
-          this.steer += clamp3(steerIn * 0.6 - this.steer, -h2 * 3, h2 * 3);
-          const leanT = steerIn * 0.22 * clamp3(Math.abs(u2) / 3, 0, 1);
+          this.steer += clamp5(steerIn * 0.6 - this.steer, -h2 * 3, h2 * 3);
+          const leanT = steerIn * 0.22 * clamp5(Math.abs(u2) / 3, 0, 1);
           this.leanRate += ((leanT - this.lean) * 40 - this.leanRate * 12) * h2;
           this.lean += this.leanRate * h2;
           this.r = u2 * Math.tan(this.steer) / S4.wb;
@@ -11187,7 +11808,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         } else {
           const leanCap = Math.min(S4.lean, Math.atan(muS * 0.88 / gyroK));
           const leanT = steerIn * leanCap;
-          const wn = S4.leanRate * clamp3(vabs / 8, 0.5, 1) * clamp3(32 / vabs, 0.55, 1);
+          const wn = S4.leanRate * clamp5(vabs / 8, 0.5, 1) * clamp5(32 / vabs, 0.55, 1);
           const leanAcc = wn * wn * (leanT - this.lean) - 2 * 0.85 * wn * this.leanRate;
           this.leanRate += leanAcc * h2;
           this.lean += this.leanRate * h2;
@@ -11208,7 +11829,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
             this.vl -= dv * sgn(this.vl);
           }
           this._ay = ay;
-          this.steer = Math.atan(S4.wb * rKin / vabs) + clamp3((leanT - this.lean) * -0.08, -0.1, 0.1);
+          this.steer = Math.atan(S4.wb * rKin / vabs) + clamp5((leanT - this.lean) * -0.08, -0.1, 0.1);
           const beta = Math.atan2(this.vl, vabs);
           this.alpha[0] = beta;
           this.alpha[1] = useF > 1 ? (useF - 1) * 0.2 : 0;
@@ -11289,7 +11910,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
   var sub = (a2, b2) => [a2[0] - b2[0], a2[1] - b2[1], a2[2] - b2[2]];
   var cross = (a2, b2) => [a2[1] * b2[2] - a2[2] * b2[1], a2[2] * b2[0] - a2[0] * b2[2], a2[0] * b2[1] - a2[1] * b2[0]];
   var dot = (a2, b2) => a2[0] * b2[0] + a2[1] * b2[1] + a2[2] * b2[2];
-  var clamp4 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp6 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   function qmul(a2, b2) {
     return [
       a2[3] * b2[0] + a2[0] * b2[3] + a2[1] * b2[2] - a2[2] * b2[1],
@@ -11478,12 +12099,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     get heel() {
       const l2 = this.left();
-      return Math.asin(clamp4(l2[1], -1, 1));
+      return Math.asin(clamp6(l2[1], -1, 1));
     }
     // positive: port side up (heeled to starboard)
     get trim() {
       const f2 = this.forward();
-      return Math.asin(clamp4(f2[1], -1, 1));
+      return Math.asin(clamp6(f2[1], -1, 1));
     }
     // positive: bow up
     // Advance by dt (seconds), in fixed sub-steps of 1/120 s. Returns what happened worth telling the host (bumps, slams, grounding).
@@ -11614,14 +12235,14 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const Fa = -0.5 * RHO_AIR * 0.6 * sp.B * sp.H * 1.2 * spd;
         addF([this.vel[0] * Fa, this.vel[1] * Fa, this.vel[2] * Fa], this.pos);
       }
-      const thrIn = clamp4(inp.throttle || 0, -1, 1);
+      const thrIn = clamp6(inp.throttle || 0, -1, 1);
       this.throttleNow += (thrIn - this.throttleNow) * Math.min(1, h2 * (thrIn > this.throttleNow ? 3.5 : 6));
       const steerRate = sp.drive === "jet" ? 5 : 3;
-      this.steerNow += (clamp4(inp.steer || 0, -1, 1) - this.steerNow) * Math.min(1, h2 * steerRate);
-      this.trimNow += (clamp4(inp.trim || 0, -1, 1) - this.trimNow) * Math.min(1, h2 * 0.8);
+      this.steerNow += (clamp6(inp.steer || 0, -1, 1) - this.steerNow) * Math.min(1, h2 * steerRate);
+      this.trimNow += (clamp6(inp.trim || 0, -1, 1) - this.trimNow) * Math.min(1, h2 * 0.8);
       const propW = this.toWorld(this.prop);
       const propD = sea ? sea.height(propW[0], propW[2]) - propW[1] : -propW[1];
-      const subm = clamp4(propD / (sp.drive === "jet" ? 0.12 : 0.22), 0, 1);
+      const subm = clamp6(propD / (sp.drive === "jet" ? 0.12 : 0.22), 0, 1);
       this.vent += (1 - subm - this.vent) * Math.min(1, h2 * 10);
       const P3 = sp.power * 1e3 * Math.abs(this.throttleNow);
       const bollard = sp.power * 1e3 / 17;
@@ -11640,7 +12261,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const mdot = 400 * sp.power / 165 * Math.abs(this.throttleNow);
         const lw = this.left();
         const vp = velAt(propW), slip = Math.abs(Math.atan2(dot(vp, lw), Math.max(1, Math.abs(dot(vp, fwd)))));
-        const side = (Tm + mdot * Math.max(0, vf)) * Math.sin(steerA) * (1 - this.vent) * clamp4(1 - slip / 0.4, 0.15, 1);
+        const side = (Tm + mdot * Math.max(0, vf)) * Math.sin(steerA) * (1 - this.vent) * clamp6(1 - slip / 0.4, 0.15, 1);
         addF([lw[0] * side, lw[1] * side, lw[2] * side], propW);
       }
       {
@@ -11659,7 +12280,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           if (vfo < 0.5) continue;
           const ang = fo.steer ? steerA0 : 0;
           let alpha = Math.atan2(-vla, vfo) + ang;
-          const stall = 0.3, a2 = clamp4(alpha, -stall, stall);
+          const stall = 0.3, a2 = clamp6(alpha, -stall, stall);
           const Lf = 0.5 * RHO2 * vfo * vfo * fo.A * 2 * Math.PI * a2 * Math.min(1, fd / 0.15);
           addF([lw[0] * Lf, lw[1] * Lf, lw[2] * Lf], pw);
           const Dr = 0.5 * RHO2 * vfo * vfo * fo.A * (0.01 + 0.5 * a2 * a2);
@@ -11675,8 +12296,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       }
       if (sp.drive !== "jet") {
         const yawRate = dot(this.w, up);
-        const onPlane = clamp4((vf - 3) / 6, 0, 1) * (wetV ? 1 : 0);
-        const want = Math.atan(clamp4(-yawRate * Math.max(0, vf) / G3, -1.5, 1.5)) * 0.62;
+        const onPlane = clamp6((vf - 3) / 6, 0, 1) * (wetV ? 1 : 0);
+        const want = Math.atan(clamp6(-yawRate * Math.max(0, vf) / G3, -1.5, 1.5)) * 0.62;
         const k2 = this.m * G3 * sp.B * 0.6 * (want - this.heel) * onPlane;
         T2[0] += fwd[0] * k2;
         T2[1] += fwd[1] * k2;
@@ -11684,7 +12305,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       }
       if (sp.drive === "jet") {
         const yawRate = dot(this.w, up);
-        const want = clamp4(Math.atan(clamp4(-yawRate * Math.max(0, vf) / G3, -2, 2)) * 0.8 + (inp.lean || 0) * 0.25, -0.75, 0.75);
+        const want = clamp6(Math.atan(clamp6(-yawRate * Math.max(0, vf) / G3, -2, 2)) * 0.8 + (inp.lean || 0) * 0.25, -0.75, 0.75);
         const rollRate = dot(this.w, fwd);
         this._lean = (this._lean || 0) + (want - (this._lean || 0)) * Math.min(1, h2 * 2.5);
         const k2 = this.m * G3 * 2.2 * (this._lean - this.heel) - this.Ib[2] * 18 * rollRate;
@@ -11775,8 +12396,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       if (this.air === 0 && this._wasAir > 0.25 && vertDrop > 2.5) ev.push({ type: "slam", speed: vertDrop });
       this._wasAir = this.air || this._wasAir * 0;
       if (this.air > 0) this._wasAir = this.air;
-      const load = clamp4(Math.abs(this.throttleNow), 0, 1);
-      const rpmTarget = 750 + (sp.drive === "inboard" ? 2600 : 5400) * (load * (0.45 + 0.55 * clamp4(vf / sp.top, 0, 1)) + this.vent * load * 0.5);
+      const load = clamp6(Math.abs(this.throttleNow), 0, 1);
+      const rpmTarget = 750 + (sp.drive === "inboard" ? 2600 : 5400) * (load * (0.45 + 0.55 * clamp6(vf / sp.top, 0, 1)) + this.vent * load * 0.5);
       this.rpm += (Math.min(rpmTarget, sp.drive === "inboard" ? 3600 : 6600) - this.rpm) * Math.min(1, h2 * 4);
       this.draft = vol > 0 ? vol / Math.max(0.1, sp.L * sp.B * 0.7) : 0;
     }
@@ -11884,9 +12505,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
   };
 
   // Engine/src/ragdoll/Ragdoll.js
-  var clamp5 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
-    t2 = clamp5(t2, 0, 1);
+    t2 = clamp7(t2, 0, 1);
     return t2 * t2 * (3 - 2 * t2);
   };
   var RAGDOLL_JOINTS = [
@@ -12060,7 +12681,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           v2.add(w2.clone().cross(r2));
         }
         if (st) {
-          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp5(hgt / 1.7, 0, 1), sp = st.length();
+          const hgt = pos[i2].y - lowY, k2 = 1.05 - 0.6 * clamp7(hgt / 1.7, 0, 1), sp = st.length();
           v2.addScaledVector(st, k2);
           v2.y += (hgt < 0.7 ? 0.1 : 0.22) * Math.max(0, sp - 8) + (sp > 3 ? 0.6 : 0);
         }
@@ -12207,7 +12828,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     // ---- stepping ----------------------------------------------------------------------------------------------------
     update(dt) {
-      dt = clamp5(dt || 0, 0, 0.1);
+      dt = clamp7(dt || 0, 0, 0.1);
       for (let k2 = this.list.length - 1; k2 >= 0; k2--) {
         const rd = this.list[k2];
         if (!rd.root.parent && rd.state !== "blend") {
@@ -12653,7 +13274,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
 
   // Engine/src/skydive/Wind.js
   var TAU = Math.PI * 2;
-  var clamp6 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
   var WIND_PRESETS = {
     clear: { u10: 3.2, gust: 0.22, veer: 0.35 },
@@ -12703,12 +13324,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
     // the mean wind speed at height h above the ground
     meanSpeed(h2) {
-      return this.u10 * clamp6(Math.pow(Math.max(h2, 2) / 10, this.alpha), 0.55, 2.7);
+      return this.u10 * clamp8(Math.pow(Math.max(h2, 2) / 10, this.alpha), 0.55, 2.7);
     }
     sample(x2, y2, z2, t2, groundY = 0) {
       const h2 = Math.max(0, y2 - groundY);
       const U2 = this.meanSpeed(h2);
-      const dir = this.dir + this.veer * clamp6(h2 / 600, 0, 1.4);
+      const dir = this.dir + this.veer * clamp8(h2 / 600, 0, 1.4);
       const dx = Math.sin(dir), dz = Math.cos(dir);
       const front = 1 + 0.22 * Math.sin(t2 * 0.071 + this.seed) + 0.14 * Math.sin(t2 * 0.193 + 2 * this.seed) + 0.08 * Math.sin(t2 * 0.61);
       let ux = dx * U2 * front, uz = dz * U2 * front, uy = 0;
@@ -12749,7 +13370,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           if (a2 > D2) {
             const s2 = a2 - D2, Lw = Math.min(H2, 2.5 * W3) * 3.2, wid = W3 * (1 + s2 / (Lw * 0.6));
             if (s2 < Lw * 1.6 && Math.abs(c2) < wid) {
-              const def = 0.78 * Math.exp(-s2 / Lw) * (1 - smooth3(clamp6((Math.abs(c2) - W3 * 0.6) / (wid - W3 * 0.6 + 1e-3), 0, 1))) * (rel > 0.85 ? 1 - (rel - 0.85) / 0.15 : 1);
+              const def = 0.78 * Math.exp(-s2 / Lw) * (1 - smooth3(clamp8((Math.abs(c2) - W3 * 0.6) / (wid - W3 * 0.6 + 1e-3), 0, 1))) * (rel > 0.85 ? 1 - (rel - 0.85) / 0.15 : 1);
               res.k *= 1 - def;
               res.kt *= 1 + 2.4 * def;
               const fs = 0.2 * U2 / Math.max(4, 2 * W3), ph = Math.sin(TAU * fs * t2 - s2 / Math.max(6, W3) * 1.7);
@@ -12757,7 +13378,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
               res.z += -dx * ph * def * U2 * 0.45;
             }
           } else if (a2 > -D2 - H2 * 0.55 && Math.abs(c2) < W3 + 4) {
-            const gap = Math.max(0, -D2 - a2), near = 1 - smooth3(clamp6(gap / (H2 * 0.55), 0, 1));
+            const gap = Math.max(0, -D2 - a2), near = 1 - smooth3(clamp8(gap / (H2 * 0.55), 0, 1));
             if (Math.abs(c2) < W3) {
               res.k *= 1 - 0.85 * near;
               const vert = rel > 0.7 ? (rel - 0.7) / 0.3 * 0.65 : -(0.7 - rel) / 0.7 * 0.4;
@@ -12767,16 +13388,16 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
             }
           }
           if (Math.abs(a2) < D2 + 6 && Math.abs(c2) > W3 && Math.abs(c2) < W3 * 1.7 + 8) {
-            const e2 = 1 - clamp6((Math.abs(c2) - W3) / (W3 * 0.7 + 8), 0, 1);
+            const e2 = 1 - clamp8((Math.abs(c2) - W3) / (W3 * 0.7 + 8), 0, 1);
             res.k *= 1 + 0.42 * e2 * (rel < 0.95 ? 1 : 0.4);
             res.kt *= 1 + 0.6 * e2;
           }
         } else {
           const lx = rx * cy - rz * sy, lz = rx * sy + rz * cy;
           if (Math.abs(lx) < b2.hw + 6 && Math.abs(lz) < b2.hl + 6) {
-            const above = clamp6((y2 - b2.top) / (H2 * 0.35), 0, 1);
-            const windward = clamp6(-a2 / Math.max(D2, 1), -1, 1);
-            res.y += U2 * 0.32 * (1 - above) * clamp6(windward + 0.4, 0, 1.4);
+            const above = clamp8((y2 - b2.top) / (H2 * 0.35), 0, 1);
+            const windward = clamp8(-a2 / Math.max(D2, 1), -1, 1);
+            res.y += U2 * 0.32 * (1 - above) * clamp8(windward + 0.4, 0, 1.4);
             res.kt *= 1 + 1.5 * (1 - above);
           }
         }
@@ -12787,10 +13408,10 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
 
   // Engine/src/skydive/Skydiver.js
   var G4 = 9.81;
-  var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
   var smooth4 = (t2) => {
-    t2 = clamp7(t2, 0, 1);
+    t2 = clamp9(t2, 0, 1);
     return t2 * t2 * (3 - 2 * t2);
   };
   var wrap = (a2) => {
@@ -12906,12 +13527,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         this.deployT += dt;
         if (this.deployT > 0.32) this.pcOut = Math.min(1, this.pcOut + dt * Math.max(0.6, V2 / 9));
         const pcDrag = 0.5 * rho * V2 * V2 * this.spec.pc * this.pcOut;
-        if (pcDrag > 45) this.linesOut += dt * clamp7(V2 * 0.7, 4, 24) / (this.spec.lines + 1.2);
+        if (pcDrag > 45) this.linesOut += dt * clamp9(V2 * 0.7, 4, 24) / (this.spec.lines + 1.2);
         if (this.linesOut >= 1 && this.fill === 0) {
           this.fill = 1e-3;
           const unstable = Math.max(this.pullInstab || 0, Math.abs(this.yawRate) * 0.5 + Math.max(0, this.theta - 0.75) * 0.9 + Math.abs(this.roll) * 0.6 + (V2 > 68 ? 0.4 : 0) + this.upright * 0.25);
           this.offHeading = (this.rand() + this.rand() + this.rand() - 1.5) * (0.22 + unstable * 0.9);
-          if (this.exitFrom === "building" && unstable < 0.6) this.offHeading = clamp7(this.offHeading, -0.35, 0.35);
+          if (this.exitFrom === "building" && unstable < 0.6) this.offHeading = clamp9(this.offHeading, -0.35, 0.35);
           if (unstable > 0.75 && this.rand() < unstable * 0.7) {
             this.twists = 1 + Math.floor(this.rand() * (1 + unstable * 2));
             this.twistDir = this.rand() < 0.5 ? -1 : 1;
@@ -13008,15 +13629,15 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     // the body as a lifting surface (freefall, and while the canopy is coming out)
     bodyForces(dt, inp, ax, ay, az, V2, q2) {
       this.upright = Math.max(0, this.upright - dt * this.upright * (0.25 + q2 / 520) - dt * 0.02);
-      const auth = (1 - this.upright) * clamp7(q2 / 900, 0.12, 1.15);
-      const pitch = clamp7(inp.pitch || 0, -1, 1), turn = clamp7(inp.turn || 0, -1, 1);
+      const auth = (1 - this.upright) * clamp9(q2 / 900, 0.12, 1.15);
+      const pitch = clamp9(inp.pitch || 0, -1, 1), turn = clamp9(inp.turn || 0, -1, 1);
       const spread = Math.max(-pitch, 0), fwd = Math.max(pitch, 0);
       const aT = inp.dive ? 0.12 : lerp(1.54, 0.6, fwd) + 0.05 * spread;
-      const wn = 1.1 + 3.6 * clamp7(q2 / 1800, 0, 1) * (1 - this.upright * 0.8);
+      const wn = 1.1 + 3.6 * clamp9(q2 / 1800, 0, 1) * (1 - this.upright * 0.8);
       if (this.alpha === void 0) this.alpha = 1.5;
       this.alphaV = (this.alphaV || 0) + (wn * wn * (aT - this.alpha) - 2 * 0.7 * wn * (this.alphaV || 0)) * dt;
-      this.alpha = clamp7(this.alpha + this.alphaV * dt, 0.02, 1.75);
-      const yrT = -turn * (1.55 + fwd * 0.4) * clamp7(auth, 0, 1.1);
+      this.alpha = clamp9(this.alpha + this.alphaV * dt, 0.02, 1.75);
+      const yrT = -turn * (1.55 + fwd * 0.4) * clamp9(auth, 0, 1.1);
       this.yawRate += (yrT - this.yawRate) * (1 - Math.exp(-dt * (1.8 + 3 * auth)));
       this.yaw = wrap(this.yaw + this.yawRate * dt);
       this.roll += (turn * (0.3 + fwd * 0.5) - this.roll) * (1 - Math.exp(-dt * 4));
@@ -13043,8 +13664,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     // the canopy as a wing
     canopyForces(dt, inp, ax, ay, az, V2, q2, ev) {
       const S4 = this.spec;
-      const rate = 4.2 * dt, toward = (a2, b2) => a2 + clamp7(b2 - a2, -rate, rate);
-      let bl = clamp7(inp.brakeL || 0, 0, 1), br = clamp7(inp.brakeR || 0, 0, 1), rs = clamp7(inp.risers || 0, 0, 1);
+      const rate = 4.2 * dt, toward = (a2, b2) => a2 + clamp9(b2 - a2, -rate, rate);
+      let bl = clamp9(inp.brakeL || 0, 0, 1), br = clamp9(inp.brakeR || 0, 0, 1), rs = clamp9(inp.risers || 0, 0, 1);
       if (this.twists > 0) {
         bl = br = 0;
         rs = 0;
@@ -13076,7 +13697,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       }
       this.clDyn += (clT - this.clDyn) * (1 - Math.exp(-dt / (clT > this.clDyn ? 0.12 : 0.35)));
       const cl = this.clDyn;
-      const bankT = this.twists > 0 ? this.twistDir * 0.35 : clamp7(asym * S4.maxBank * clamp7(V2 / 10.5, 0.45, 1.1) * (1 + 0.4 * this.riser), -1.2, 1.2);
+      const bankT = this.twists > 0 ? this.twistDir * 0.35 : clamp9(asym * S4.maxBank * clamp9(V2 / 10.5, 0.45, 1.1) * (1 + 0.4 * this.riser), -1.2, 1.2);
       const wn = 1.5, zeta = 0.5;
       this.bankV += (wn * wn * (bankT - this.bank) - 2 * zeta * wn * this.bankV) * dt;
       this.bank += this.bankV * dt;
@@ -13107,8 +13728,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       const accel = (along - (this.prevAlong === void 0 ? along : this.prevAlong)) / Math.max(dt, 1e-4);
       this.prevAlong = along;
       const Lp = S4.lines;
-      this.swingPV += (-G4 / Lp * this.swingP - 1.4 * this.swingPV - clamp7(accel, -25, 25) / Lp) * dt;
-      this.swingP = clamp7(this.swingP + this.swingPV * dt, -1.1, 1.1);
+      this.swingPV += (-G4 / Lp * this.swingP - 1.4 * this.swingPV - clamp9(accel, -25, 25) / Lp) * dt;
+      this.swingP = clamp9(this.swingP + this.swingPV * dt, -1.1, 1.1);
       return {
         x: L3 * lx - D2 * vx + sideF * hzz,
         y: L3 * ly - D2 * vy,
@@ -13157,9 +13778,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     harbour: { cells: ["#0d3b66", "#f2efe8", "#0d3b66", "#4d9de0", "#f2efe8", "#4d9de0", "#0d3b66", "#f2efe8", "#0d3b66"], accent: "#f2efe8", under: "#13304f" },
     sakura: { cells: ["#f2efe8", "#e8a0b4", "#f2efe8", "#b8325a", "#f2efe8", "#b8325a", "#f2efe8", "#e8a0b4", "#f2efe8"], accent: "#b8325a", under: "#e5d9d6" }
   };
-  var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+  var clamp10 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth5 = (t2) => {
-    t2 = clamp8(t2, 0, 1);
+    t2 = clamp10(t2, 0, 1);
     return t2 * t2 * (3 - 2 * t2);
   };
   function canvas(w2, h2) {
@@ -13195,7 +13816,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
   function grayCanvas(V2, w2, h2) {
     const c2 = canvas(w2, h2), g2 = c2.getContext("2d"), img = g2.createImageData(w2, h2), d2 = img.data;
     for (let i2 = 0; i2 < w2 * h2; i2++) {
-      const v2 = clamp8(V2[i2], 0, 1) * 255;
+      const v2 = clamp10(V2[i2], 0, 1) * 255;
       d2[i2 * 4] = d2[i2 * 4 + 1] = d2[i2 * 4 + 2] = v2;
       d2[i2 * 4 + 3] = 255;
     }
@@ -13252,9 +13873,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     const id = g2.getImageData(0, 0, W3, Hh), d2 = id.data;
     for (let i2 = 0; i2 < d2.length; i2 += 4) {
       const n2 = (R2() - 0.5) * 9;
-      d2[i2] = clamp8(d2[i2] + n2, 0, 255);
-      d2[i2 + 1] = clamp8(d2[i2 + 1] + n2, 0, 255);
-      d2[i2 + 2] = clamp8(d2[i2 + 2] + n2, 0, 255);
+      d2[i2] = clamp10(d2[i2] + n2, 0, 255);
+      d2[i2 + 1] = clamp10(d2[i2 + 1] + n2, 0, 255);
+      d2[i2 + 2] = clamp10(d2[i2 + 2] + n2, 0, 255);
     }
     g2.putImageData(id, 0, 0);
     const H2 = new Float32Array(W3 * Hh), Rg2 = new Float32Array(W3 * Hh);
@@ -13274,9 +13895,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       const over = Math.floor(x2 / coarse) + Math.floor(y2 / coarse) & 1 ? 1 : 0;
       const t2 = over ? Math.sin(x2 % coarse / coarse * Math.PI) : Math.sin(y2 % coarse / coarse * Math.PI);
       const n2 = (R2() - 0.5) * 14 + t2 * 10 - 5, i2 = (y2 * w2 + x2) * 4;
-      d2[i2] = clamp8(r0 + n2, 0, 255);
-      d2[i2 + 1] = clamp8(g0 + n2, 0, 255);
-      d2[i2 + 2] = clamp8(b0 + n2, 0, 255);
+      d2[i2] = clamp10(r0 + n2, 0, 255);
+      d2[i2 + 1] = clamp10(g0 + n2, 0, 255);
+      d2[i2 + 2] = clamp10(b0 + n2, 0, 255);
       d2[i2 + 3] = 255;
       H2[y2 * w2 + x2] = t2;
       Rg2[y2 * w2 + x2] = roughBase + (R2() - 0.5) * 0.1 - t2 * 0.06;
@@ -13472,7 +14093,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         const geo = new T2.BoxGeometry(w2, h2, d2, 6, 8, 3), p2 = geo.attributes.position;
         for (let i2 = 0; i2 < p2.count; i2++) {
           const x2 = p2.getX(i2), y2 = p2.getY(i2), z2 = p2.getZ(i2);
-          const ix = clamp8(x2, -w2 / 2 + r2, w2 / 2 - r2), iy = clamp8(y2, -h2 / 2 + r2, h2 / 2 - r2), iz = clamp8(z2, -d2 / 2 + r2, d2 / 2 - r2);
+          const ix = clamp10(x2, -w2 / 2 + r2, w2 / 2 - r2), iy = clamp10(y2, -h2 / 2 + r2, h2 / 2 - r2), iz = clamp10(z2, -d2 / 2 + r2, d2 / 2 - r2);
           const dx = x2 - ix, dy = y2 - iy, dz = z2 - iz, l2 = Math.hypot(dx, dy, dz) || 1;
           p2.setXYZ(i2, ix + dx / l2 * Math.min(r2, l2), iy + dy / l2 * Math.min(r2, l2), iz + dz / l2 * Math.min(r2, l2));
         }
@@ -13501,8 +14122,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     update(st) {
       const S4 = this.spec, NU = this.NU, NV = this.NV, cells = this.cells;
       st.flutter = st.phase === "canopy" ? 1 : 3;
-      const fill = st.phase === "canopy" ? 1 : st.phase === "deploy" ? clamp8(st.fill || 0, 0, 1) : 1;
-      const stretch = st.phase === "deploy" ? clamp8(st.linesOut || 0, 0, 1) : 1;
+      const fill = st.phase === "canopy" ? 1 : st.phase === "deploy" ? clamp10(st.fill || 0, 0, 1) : 1;
+      const stretch = st.phase === "deploy" ? clamp10(st.linesOut || 0, 0, 1) : 1;
       const H2 = S4.lines + 0.55;
       const cellFill = (s2) => smooth5((fill - Math.abs(s2) * 0.45) / 0.55);
       const P3 = (s2, v2, top) => {
@@ -13590,7 +14211,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
           seg(cas, te);
         }
       }
-      const sl = st.phase === "deploy" ? clamp8(st.slider !== void 0 ? st.slider : 1, 0, 1) : 0;
+      const sl = st.phase === "deploy" ? clamp10(st.slider !== void 0 ? st.slider : 1, 0, 1) : 0;
       if (this.sliderMesh.visible) {
         const sy = 0.65 + sl * (H2 * stretch - 1.2);
         this.sliderMesh.position.set(0, sy, 0);
@@ -13603,10 +14224,10 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         this.sliderMesh.geometry.attributes.position.needsUpdate = true;
         this.sliderMesh.geometry.computeVertexNormals();
       }
-      const top0 = P3(0, 0.35, true), pcY = st.phase === "deploy" ? Math.max(top0[1], H2 * stretch) + 1.6 + 1.8 * clamp8(st.pcOut || 0, 0, 1) : top0[1] + 0.9;
+      const top0 = P3(0, 0.35, true), pcY = st.phase === "deploy" ? Math.max(top0[1], H2 * stretch) + 1.6 + 1.8 * clamp10(st.pcOut || 0, 0, 1) : top0[1] + 0.9;
       this.pilot.position.set(0, pcY, top0[2] - (st.phase === "canopy" ? 2.6 : 0.6));
       this.pilot.rotation.set(st.phase === "canopy" ? -1.2 : 0, 0, 0);
-      this.pilot.scale.setScalar(st.phase === "canopy" ? 0.55 : 0.6 + 0.4 * clamp8(st.pcOut || 0, 0, 1));
+      this.pilot.scale.setScalar(st.phase === "canopy" ? 0.55 : 0.6 + 0.4 * clamp10(st.pcOut || 0, 0, 1));
       const ba = this.bridle.geometry.attributes.position.array;
       ba.set([top0[0], top0[1], top0[2], this.pilot.position.x, this.pilot.position.y - 0.4, this.pilot.position.z]);
       this.bridle.geometry.attributes.position.needsUpdate = true;

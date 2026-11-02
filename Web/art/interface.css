@@ -137,7 +137,11 @@ body #expedio .pass { background: #fff9ee; border: 1px dashed #688e83; border-le
 /* These opacity/transform timelines run on the compositor while world generation occupies JS. */
 #bootshow.compositor .slide { opacity:0;transform-origin:50% 50%;transition:none;animation-fill-mode:both; }
 #bootshow.compositor .slide:first-child { opacity:1; }
-@keyframes salary-load-pan { from{transform:scale(1.08) translate3d(-2%,0,0)}to{transform:scale(1.14) translate3d(2%,0,0)} }
+/* Overscan keeps the screen covered through every portrait's alternating camera move. */
+@keyframes salary-load-pan { from{transform:translate3d(-2.8%,.6%,0) scale(1.12)}to{transform:translate3d(2.8%,-.6%,0) scale(1.18)} }
+@keyframes salary-load-pan-reverse { from{transform:translate3d(2.8%,-.6%,0) scale(1.18)}to{transform:translate3d(-2.8%,.6%,0) scale(1.12)} }
+@keyframes salary-load-dolly { from{transform:translate3d(-.8%,.8%,0) scale(1.09)}to{transform:translate3d(.8%,-.8%,0) scale(1.23)} }
+@keyframes salary-load-rise { from{transform:translate3d(1%,1.8%,0) scale(1.18)}to{transform:translate3d(-1%,-1.8%,0) scale(1.12)} }
 #bootshow.compositor.still .slide { animation-play-state:paused; }
 #boot.reduce-motion #bootshow.compositor .slide,body[data-reduced-motion="true"] #bootshow.compositor .slide { animation:none!important; }
 @media(prefers-reduced-motion:reduce){#bootshow.compositor .slide{animation:none!important}}

@@ -13,7 +13,9 @@ var ready=manifest.then(function(j){var files=Array.isArray(j.slides)?j.slides.f
  var style=document.createElement('style');style.id='salary-loading-timeline';style.textContent='@keyframes salary-load-cycle{0%{opacity:0}'+(fade/period*100)+'%{opacity:1}'+(dwell/period*100)+'%{opacity:1}'+((dwell+fade)/period*100)+'%{opacity:0}100%{opacity:0}}';document.head.appendChild(style);
  box.replaceChildren();box.classList.add('compositor');
  for(var i=0;i<n;i++){var file=files[(offset+i)%n],slide=document.createElement('div');slide.className='slide';slide.dataset.artwork=file;slide.setAttribute('aria-hidden','true');slide.style.backgroundImage='url("loading/'+file+'")';slide.style.backgroundPosition=/^\d{1,3}% \d{1,3}%$/.test(j.focus[file]||'')?j.focus[file]:'50% 45%';
-  slide.style.animation=n===1?'salary-load-pan 12s ease-in-out infinite alternate':'salary-load-pan 12s ease-in-out infinite alternate, salary-load-cycle '+period+'ms linear infinite';slide.style.animationDelay=n===1?'0ms':'0ms,'+(-fade-((n-i)%n)*dwell)+'ms';box.appendChild(slide);
+  var move=['salary-load-pan','salary-load-pan-reverse','salary-load-dolly','salary-load-rise'][i%4],duration=14000+(i%3)*2000;
+  slide.dataset.motion=move;slide.style.transformOrigin=slide.style.backgroundPosition;
+  slide.style.animation=move+' '+duration+'ms linear infinite alternate'+(n===1?'':', salary-load-cycle '+period+'ms linear infinite');slide.style.animationDelay=n===1?'0ms':'0ms,'+(-fade-((n-i)%n)*dwell)+'ms';box.appendChild(slide);
  }
  state.ready=true;state.slides=n;sync();
 });

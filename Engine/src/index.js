@@ -24,6 +24,10 @@ export { Persistence, ResidentSet, estimateBytes, scanScene, shaderFailures, war
 export { Honor, HONOR_TIERS } from "./standing/Honor.js";
 export { Respect, RESPECT_TIERS, TEMPERS } from "./standing/Respect.js";
 export { StandingHud, STANDING_ICONS } from "./standing/StandingHud.js";
+// Retail architecture and fixed-step vehicle handling can be used without starting the physics world.
+export { InteriorEngine, retailProfile, retailTemperature, fanDemand } from './interior/Interiors.js';
+export { stepCarDynamics, vehicleMass } from './physics/VehicleDynamics.js';
+export { CinematicVideo } from './cinematics/CinematicVideo.js';
 // Vehicles: motorcycle and bicycle dynamics (sprung wheels, magic-formula tyres, engine and clutch, wheelies, stoppies, jumps, crashes).
 export { Motorcycle, BIKE_SPECS } from "./vehicles/Motorcycle.js";
 // Boats: a lofted hull cut into faces, each pressed on by the real swell (buoyancy, planing lift, drag), a propeller or jet that can
