@@ -13,7 +13,7 @@ import { WaterSystem } from "../env/Water.js";
 import { Surfaces } from "../render/Surfaces.js";
 import { Streamer } from "../world/Streamer.js";
 
-export const VERSION = "0.5.1";
+export const VERSION = "0.6.0";
 
 export class Engine {
   constructor(opts) {
@@ -29,6 +29,7 @@ export class Engine {
     this.focus = new THREE.Vector3();
     this.systems = [];
     this.stats = { physicsMs: 0, streamMs: 0, bodies: 0, cells: 0, colliders: 0 };
+    this.perf = opts.perf || null;     // a PerformanceEngine, if the host runs one: systems ask it for their per-frame work budgets
   }
 
   async init() {

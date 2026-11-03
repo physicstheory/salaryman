@@ -87,7 +87,7 @@
         const texBudget = opts.texBudget || (safe ? 160e6 : (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1));
         const A = [[camera.position.x, camera.position.z]].concat(anchors()), _w = new THREE.Vector3();   // what the camera sees first (the title's view of the capital)
         const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
-        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority,
+        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority, between: opts.between || null,
           shouldStop: opts.background ? () => bgStop || (typeof gfx !== "undefined" && gfx.lost) : null });
         if (!r.lost) break;
         console.warn("[Konto] the graphics driver reset while warming up; waiting for it to come back");
@@ -483,7 +483,12 @@
     // first frame that happens to look at it (a frame like that, on the title's view over the whole capital, reset the driver).
     bgResume = () => { if (bgRunning || (typeof gfx !== "undefined" && gfx.lost)) return;
       const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
-      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : Infinity, limits: { programs: 1, texBytes: safe ? 6e6 : 12e6, tris: 60e3, items: 80, targetMs: 30, maxMs: 120 } })
+      // In play every batch waits for the performance engine (perf-hook.js): it runs straight after a frame that had room to spare and no
+      // hitch for the last 45 frames, and is small (one new shader at most, 4 MB of texture), so the upload never becomes the stutter.
+      const KP = window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF : null;
+      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : Infinity,
+        limits: KP ? { programs: 1, texBytes: safe ? 3e6 : 4e6, tris: 30e3, items: 24, targetMs: 6, maxMs: 24 } : { programs: 1, texBytes: safe ? 6e6 : 12e6, tris: 60e3, items: 80, targetMs: 30, maxMs: 120 },
+        between: KP ? () => KP.idle({ headroom: 0.35, quiet: 45 }) : null })
         .then(r => { if (r && !r.stopped) { bgResume = null; console.log("[Konto] background upload done:", r.objects, "meshes,", r.texMb, "MB"); } }, () => {});
     };
     setTimeout(() => bgResume && bgResume(), 500);

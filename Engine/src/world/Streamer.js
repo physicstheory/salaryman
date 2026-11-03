@@ -81,7 +81,10 @@ export class Streamer {
     for (const l of this.levels) this._level(l, focus, t0);
     this._lights(dt, focus);
     const s = this.engine.stats;
-    s.cells = this.levels.reduce((n, l) => n + [...l.cells.values()].filter(c => c.state === "built").length, 0);
+    // counted without building arrays every frame (garbage made every frame is what makes the collector stall the game)
+    let built = 0;
+    for (const l of this.levels) for (const c of l.cells.values()) if (c.state === "built") built++;
+    s.cells = built;
     s.streamMs = performance.now() - t0;
   }
 
@@ -109,10 +112,13 @@ export class Streamer {
       }).catch(err => { l.inFlight--; console.warn("[Shigoto] cell " + k + " failed", err); l.cells.delete(k); l.have.delete(k); });
     }
     // build ready cells, nearest first, within the frame budget
-    const ready = [...l.cells.entries()].filter(([, c]) => c.state === "ready");
-    ready.sort((a, b) => cellDist(a[0], cs, fx, fz) - cellDist(b[0], cs, fx, fz));
-    for (const [k, c] of ready) {
-      if (performance.now() - t0 > this.buildBudgetMs && this.engine.frame > 2) break;
+    let ready = null;
+    for (const e of l.cells) if (e[1].state === "ready") (ready || (ready = [])).push(e);
+    if (ready) ready.sort((a, b) => cellDist(a[0], cs, fx, fz) - cellDist(b[0], cs, fx, fz));
+    // the performance engine (if the host runs one) shrinks this when the frame is already full or has just hitched
+    const budgetMs = this.engine.perf ? this.engine.perf.budget("stream", this.buildBudgetMs) : this.buildBudgetMs;
+    if (ready) for (const [k, c] of ready) {
+      if (performance.now() - t0 > budgetMs && this.engine.frame > 2) break;
       try {
         const out = this.builder.build(c.data, l.base + k, this.root, l.offset);
         c.state = "built"; c.out = out; c.data = null;

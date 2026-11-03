@@ -64,6 +64,13 @@ Severity *error* shows a card; *warn* only counts on the small pill in the corne
 | `SM-BOOT-001` | error | **Loading screen never finished**. The game has been loading for a very long time. | #boot still visible after 12 minutes. The log shows the last stage reached; look at generate() / persistLoad progress. |
 | `SM-BOOT-002` | error | **The game stopped drawing**. The picture froze although the game is still running. | No requestAnimationFrame callback for 8 s while the window is visible: the frame loop threw before rescheduling. See the first error before it. |
 
+## Performance and stutter
+
+| Code | Severity | What the player sees | Where to look |
+|---|---|---|---|
+| `SM-PRF-001` | warn | **The game is stuttering**. Some frames are taking much longer than the rest. The game is adjusting; the report says what caused them. | Shigoto performance engine (Web/game/perf-hook.js, Engine/src/perf/Performance.js): 6+ frames over 50 ms in a minute. Message names the main cause (shader compile, texture upload, garbage collection, game code + the part, graphics card / driver); Detail has shigoto.perf() with every recent hitch. |
+| `SM-PRF-002` | warn | **Frame rate well under target**. This computer cannot hold the frame rate even with the automatic adjustments. A lower graphics setting will help. | perf-hook.js governor: 90th-percentile frame over 1.5x the target for 20 s with resolution and levers used. Bottleneck (gpu/cpu), scale and hardware class in Message/Detail. |
+
 ## Memory
 
 | Code | Severity | What the player sees | Where to look |

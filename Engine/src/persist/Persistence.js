@@ -339,7 +339,8 @@ export async function warmGPUChunked(renderer, scene, camera, opts) {
       cur.tris = Math.max(20e3, Math.min(lim.tris, cur.tris * k));
       cur.items = Math.max(8, Math.min(lim.items, Math.round(cur.items * k)));
       if (opts.progress) try { opts.progress(i / items.length); } catch (e) { /* cosmetic */ }
-      await breathe();
+      // between batches: a frame, or (in play) whatever the host says, e.g. the performance engine's idle(): straight after a frame with room
+      if (opts.between) { try { await opts.between(); } catch (e) { await breathe(); } } else await breathe();
     }
     // one shadow pass over the whole scene at the end, now that every depth program exists, so the first frame's shadow map is ready
     if (!res.lost && opts.finalShadow !== false) { renderer.shadowMap.needsUpdate = true; }

@@ -18,7 +18,7 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/index.js
+  // Engine/src/index.js
   var index_exports = {};
   __export(index_exports, {
     BIKE_SPECS: () => BIKE_SPECS,
@@ -31,6 +31,9 @@ var SHIGOTO = (() => {
     Characters: () => Characters,
     CinematicVideo: () => CinematicVideo,
     Engine: () => Engine,
+    FrameBudget: () => FrameBudget,
+    FramePacer: () => FramePacer,
+    FrameProfiler: () => FrameProfiler,
     GERSTNER_WAVES: () => GERSTNER_WAVES,
     HONOR_TIERS: () => HONOR_TIERS,
     Honor: () => Honor,
@@ -41,7 +44,9 @@ var SHIGOTO = (() => {
     Ocean: () => Ocean,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
+    PerformanceEngine: () => PerformanceEngine,
     Persistence: () => Persistence,
+    QualityGovernor: () => QualityGovernor,
     RAGDOLL_JOINTS: () => RAGDOLL_JOINTS,
     RAIN_QUALITY: () => RAIN_QUALITY,
     RESPECT_TIERS: () => RESPECT_TIERS,
@@ -72,6 +77,7 @@ var SHIGOTO = (() => {
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
+    probeHardware: () => probeHardware,
     retailProfile: () => retailProfile,
     retailTemperature: () => retailTemperature,
     scanScene: () => scanScene,
@@ -84,7 +90,7 @@ var SHIGOTO = (() => {
     warmGPUChunked: () => warmGPUChunked
   });
 
-  // src/core/Events.js
+  // Engine/src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -115,7 +121,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5280,7 +5286,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // src/physics/Physics.js
+  // Engine/src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5579,7 +5585,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // src/env/Environment.js
+  // Engine/src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5734,7 +5740,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // src/rain/Occlusion.js
+  // Engine/src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5826,14 +5832,14 @@ var SHIGOTO = (() => {
     }
     // The skip list is rebuilt now and then (walking a resident open world is not free), not every pass.
     _skipList(scene, force) {
-      const now2 = this.engine.time;
-      if (!force && this._list && now2 - this._listAt < 8) return this._list;
+      const now3 = this.engine.time;
+      if (!force && this._list && now3 - this._listAt < 8) return this._list;
       const list = [];
       scene.traverse((o2) => {
         if (o2.visible && o2 !== scene && this._skip(o2)) list.push(o2);
       });
       this._list = list;
-      this._listAt = now2;
+      this._listAt = now3;
       return list;
     }
     needs(dt, center) {
@@ -5917,7 +5923,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // src/rain/RainShaders.js
+  // Engine/src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5978,7 +5984,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // src/rain/Streaks.js
+  // Engine/src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6080,7 +6086,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Splashes.js
+  // Engine/src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6255,7 +6261,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Atmosphere.js
+  // Engine/src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6397,7 +6403,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/RainEngine.js
+  // Engine/src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6728,9 +6734,9 @@ vec3 rOut(vec3 c) {
       if (this.indoors) return;
       const linear = !!(this.linearOut && this.linearOut());
       if (raining || dripping || (wetness || 0) > 0.05) {
-        const now2 = performance.now();
-        if (now2 - this._lightScanAt > (this._lights.length ? 4e3 : 1e3)) {
-          this._lightScanAt = now2;
+        const now3 = performance.now();
+        if (now3 - this._lightScanAt > (this._lights.length ? 4e3 : 1e3)) {
+          this._lightScanAt = now3;
           this._scanLights(e2.scene);
         }
         this._pickAt -= dt;
@@ -6753,7 +6759,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Weather.js
+  // Engine/src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6917,7 +6923,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Water.js
+  // Engine/src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7053,7 +7059,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // src/render/Surfaces.js
+  // Engine/src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7256,7 +7262,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // src/world/Batcher.js
+  // Engine/src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7342,7 +7348,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // src/world/PropSlots.js
+  // Engine/src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7417,7 +7423,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // src/world/Props.js
+  // Engine/src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7762,7 +7768,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // src/world/CellBuilder.js
+  // Engine/src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -8336,7 +8342,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // src/render/Materials.js
+  // Engine/src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8596,7 +8602,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/world/Streamer.js
+  // Engine/src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8672,7 +8678,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       for (const l2 of this.levels) this._level(l2, focus, t0);
       this._lights(dt, focus);
       const s2 = this.engine.stats;
-      s2.cells = this.levels.reduce((n2, l2) => n2 + [...l2.cells.values()].filter((c2) => c2.state === "built").length, 0);
+      let built = 0;
+      for (const l2 of this.levels) for (const c2 of l2.cells.values()) if (c2.state === "built") built++;
+      s2.cells = built;
       s2.streamMs = performance.now() - t0;
     }
     _level(l2, focus, t0) {
@@ -8704,10 +8712,12 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
           l2.have.delete(k2);
         });
       }
-      const ready = [...l2.cells.entries()].filter(([, c2]) => c2.state === "ready");
-      ready.sort((a2, b2) => cellDist(a2[0], cs, fx, fz) - cellDist(b2[0], cs, fx, fz));
-      for (const [k2, c2] of ready) {
-        if (performance.now() - t0 > this.buildBudgetMs && this.engine.frame > 2) break;
+      let ready = null;
+      for (const e2 of l2.cells) if (e2[1].state === "ready") (ready || (ready = [])).push(e2);
+      if (ready) ready.sort((a2, b2) => cellDist(a2[0], cs, fx, fz) - cellDist(b2[0], cs, fx, fz));
+      const budgetMs = this.engine.perf ? this.engine.perf.budget("stream", this.buildBudgetMs) : this.buildBudgetMs;
+      if (ready) for (const [k2, c2] of ready) {
+        if (performance.now() - t0 > budgetMs && this.engine.frame > 2) break;
         try {
           const out = this.builder.build(c2.data, l2.base + k2, this.root, l2.offset);
           c2.state = "built";
@@ -8787,8 +8797,8 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // src/core/Engine.js
-  var VERSION = "0.5.1";
+  // Engine/src/core/Engine.js
+  var VERSION = "0.6.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8803,6 +8813,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       this.focus = new THREE.Vector3();
       this.systems = [];
       this.stats = { physicsMs: 0, streamMs: 0, bodies: 0, cells: 0, colliders: 0 };
+      this.perf = opts.perf || null;
     }
     async init() {
       const THREE = this.THREE;
@@ -8845,7 +8856,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // src/host/HostBridge.js
+  // Engine/src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -9059,7 +9070,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/characters/CharacterShader.js
+  // Engine/src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9187,7 +9198,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // src/characters/Subdivide.js
+  // Engine/src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9306,7 +9317,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // src/characters/MapSynth.js
+  // Engine/src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9412,7 +9423,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // src/characters/Characters.js
+  // Engine/src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9713,7 +9724,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // src/persist/Persistence.js
+  // Engine/src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -10122,7 +10133,13 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
           opts.progress(i2 / items.length);
         } catch (e2) {
         }
-        await breathe();
+        if (opts.between) {
+          try {
+            await opts.between();
+          } catch (e2) {
+            await breathe();
+          }
+        } else await breathe();
       }
       if (!res.lost && opts.finalShadow !== false) {
         renderer.shadowMap.needsUpdate = true;
@@ -10276,7 +10293,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Honor.js
+  // Engine/src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10421,7 +10438,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Respect.js
+  // Engine/src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10653,7 +10670,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/StandingHud.js
+  // Engine/src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10841,7 +10858,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/interior/Interiors.js
+  // Engine/src/interior/Interiors.js
   var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
   function retailTemperature(hour = 12, weather = {}) {
     if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
@@ -11267,7 +11284,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/physics/VehicleDynamics.js
+  // Engine/src/physics/VehicleDynamics.js
   var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
   var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
   function vehicleMass(kind = {}) {
@@ -11347,7 +11364,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return { steps, mass, grip, rate: state.rate, understeer: under };
   }
 
-  // src/cinematics/CinematicVideo.js
+  // Engine/src/cinematics/CinematicVideo.js
   var CinematicVideo = class {
     constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
       this.document = doc;
@@ -11455,7 +11472,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Motorcycle.js
+  // Engine/src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -12112,7 +12129,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Boat.js
+  // Engine/src/vehicles/Boat.js
   var RHO2 = 1025;
   var G3 = 9.81;
   var RHO_AIR = 1.2;
@@ -12642,7 +12659,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Ocean.js
+  // Engine/src/vehicles/Ocean.js
   var GERSTNER_WAVES = [
     // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
     [0.94, 0.342, 64, 0.13],
@@ -12722,7 +12739,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/ragdoll/Ragdoll.js
+  // Engine/src/ragdoll/Ragdoll.js
   var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
     t2 = clamp7(t2, 0, 1);
@@ -13490,7 +13507,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/Wind.js
+  // Engine/src/skydive/Wind.js
   var TAU = Math.PI * 2;
   var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
@@ -13624,7 +13641,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/Skydiver.js
+  // Engine/src/skydive/Skydiver.js
   var G4 = 9.81;
   var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
@@ -13988,7 +14005,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/CanopyModel.js
+  // Engine/src/skydive/CanopyModel.js
   var CANOPY_SCHEMES = {
     // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
     ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },
@@ -14460,6 +14477,665 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         ["map", "normalMap", "roughnessMap"].forEach((k2) => m2[k2] && m2[k2].dispose());
         m2.dispose();
       });
+    }
+  };
+
+  // Engine/src/perf/Performance.js
+  var now2 = () => typeof performance !== "undefined" ? performance.now() : Date.now();
+  var COMMON_RATES = [30, 48, 50, 60, 72, 75, 85, 90, 100, 120, 144, 160, 165, 170, 180, 200, 240, 360];
+  var _scratch = new Float64Array(1024);
+  function percentile(arr, n2, p2) {
+    n2 = Math.min(n2, arr.length, _scratch.length);
+    if (n2 <= 0) return 0;
+    for (let i2 = 0; i2 < n2; i2++) _scratch[i2] = arr[i2];
+    const s2 = _scratch.subarray(0, n2).sort();
+    const k2 = Math.min(n2 - 1, Math.max(0, Math.round((n2 - 1) * p2)));
+    return s2[k2];
+  }
+  var FramePacer = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.targetFps = opts.targetFps || 60;
+      this.cap = opts.cap === void 0 ? "auto" : opts.cap;
+      this.minFps = opts.minFps || 55;
+      this.maxDebt = opts.maxDebt || 0.25;
+      this.vs = new Float64Array(120);
+      this.vsN = 0;
+      this.vsI = 0;
+      this.interval = 1e3 / 60;
+      this.refresh = 60;
+      this.hintHz = opts.refreshHz || 0;
+      this.bestHz = 0;
+      this.swap = 1;
+      this.extraSwap = 0;
+      this.lastCb = 0;
+      this.lastRun = 0;
+      this.debt = 0;
+      this.frames = 0;
+      this.out = { run: false, dt: 0, elapsed: 0, hitch: false, severe: false, period: 1e3 / 60, swap: 1, refresh: 60 };
+    }
+    // the frame period the game is aiming for, in ms
+    period() {
+      return this.interval * this.swap;
+    }
+    _estimate() {
+      if (this.vsN < 20) return;
+      let ms = percentile(this.vs, this.vsN, 0.25);
+      if (!(ms > 2 && ms < 60)) return;
+      let hz = 1e3 / ms;
+      for (const r2 of COMMON_RATES) if (Math.abs(hz - r2) / r2 < 0.04) {
+        hz = r2;
+        break;
+      }
+      if (this.hintHz > 0 && hz < this.hintHz * 1.1) hz = this.hintHz;
+      else if (hz < this.bestHz) hz = this.bestHz;
+      if (hz < 50) hz = 60;
+      this.bestHz = Math.max(this.bestHz, hz);
+      this.refresh = hz;
+      this.interval = 1e3 / hz;
+      let swap = 1;
+      const cap = this.cap === "auto" ? this.targetFps : +this.cap || 0;
+      if (cap > 0) swap = Math.max(1, Math.floor(hz / cap + 0.03));
+      if (this.extraSwap && hz / (swap + this.extraSwap) >= this.minFps) swap += this.extraSwap;
+      this.swap = swap;
+    }
+    frame(t2) {
+      const o2 = this.out;
+      if (this.lastCb) {
+        const d2 = t2 - this.lastCb;
+        if (d2 > 0 && d2 < 100) {
+          this.vs[this.vsI] = d2;
+          this.vsI = (this.vsI + 1) % this.vs.length;
+          this.vsN = Math.min(this.vsN + 1, this.vs.length);
+        }
+      }
+      this.lastCb = t2;
+      if ((++this.frames & 31) === 0 || this.vsN === 20) this._estimate();
+      if (!this.lastRun) {
+        this.lastRun = t2;
+        o2.run = true;
+        o2.dt = this.interval / 1e3;
+        o2.elapsed = this.interval;
+        o2.hitch = o2.severe = false;
+        return this._fill(o2);
+      }
+      const e2 = t2 - this.lastRun;
+      const P3 = this.period();
+      if (this.swap > 1 && e2 < P3 - this.interval * 0.5) {
+        o2.run = false;
+        return this._fill(o2);
+      }
+      this.lastRun = t2;
+      const k2 = Math.max(1, Math.round(e2 / this.interval));
+      let dt = Math.abs(e2 - k2 * this.interval) < this.interval * 0.3 ? k2 * this.interval : e2;
+      this.debt += e2 - dt;
+      o2.hitch = e2 > P3 * 1.9 + 4;
+      o2.severe = e2 > Math.max(50, P3 * 3);
+      if (dt > P3 * 2) {
+        this.debt += dt - P3 * 2;
+        dt = P3 * 2;
+      }
+      if (this.debt > this.maxDebt * 1e3) this.debt = this.maxDebt * 1e3;
+      if (this.debt < -P3) this.debt = -P3;
+      const pay = Math.max(-P3 * 0.25, Math.min(P3 * 0.5, this.debt * 0.2));
+      if (!o2.hitch) {
+        dt += pay;
+        this.debt -= pay;
+      }
+      o2.run = true;
+      o2.dt = dt / 1e3;
+      o2.elapsed = e2;
+      return this._fill(o2);
+    }
+    _fill(o2) {
+      o2.period = this.period();
+      o2.swap = this.swap;
+      o2.refresh = this.refresh;
+      return o2;
+    }
+    reset() {
+      this.lastRun = 0;
+      this.debt = 0;
+    }
+    // the screen changed (another monitor, a new refresh rate): measure again
+    hint(hz) {
+      this.hintHz = hz > 0 ? hz : 0;
+      this.bestHz = 0;
+      this.vsN = Math.min(this.vsN, 19);
+    }
+  };
+  var CAUSES = ["shader compile", "texture upload", "geometry upload", "garbage collection", "game code", "graphics card / driver"];
+  var FrameProfiler = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.sections = /* @__PURE__ */ new Map();
+      this.stack = [];
+      this.depth = 0;
+      this.frameStart = 0;
+      this.cpuMs = 0;
+      this.ring = { elapsed: new Float64Array(240), cpu: new Float64Array(240), i: 0, n: 0 };
+      this.hitches = [];
+      this.maxHitches = opts.maxHitches || 40;
+      this.last = null;
+      this.counters = { programs: 0, textures: 0, geometries: 0, heap: 0 };
+      this.causeCount = /* @__PURE__ */ Object.create(null);
+      this.wrapped = [];
+      this.enabled = true;
+    }
+    _sec(name) {
+      let s2 = this.sections.get(name);
+      if (!s2) {
+        s2 = { name, ms: 0, ema: 0, max: 0, calls: 0, child: 0 };
+        this.sections.set(name, s2);
+      }
+      return s2;
+    }
+    // time a call as a named section (self time: time spent in nested sections is taken off the parent)
+    enter(name) {
+      if (!this.enabled) return;
+      const s2 = this._sec(name);
+      const fr = this.stack[this.depth] || (this.stack[this.depth] = { s: null, t: 0, child: 0 });
+      fr.s = s2;
+      fr.t = now2();
+      fr.child = 0;
+      this.depth++;
+    }
+    leave() {
+      if (!this.enabled || this.depth <= 0) return;
+      const fr = this.stack[--this.depth], el = now2() - fr.t;
+      fr.s.ms += el - fr.child;
+      fr.s.calls++;
+      if (this.depth > 0) this.stack[this.depth - 1].child += el;
+    }
+    // replace owner[key] (a function) by a timed version; returns false if it is not a function
+    wrap(owner, key, label) {
+      const fn = owner && owner[key];
+      if (typeof fn !== "function" || fn.__shigotoTimed) return false;
+      const self2 = this, name = label || key;
+      const timed = function() {
+        self2.enter(name);
+        try {
+          return fn.apply(this, arguments);
+        } finally {
+          self2.leave();
+        }
+      };
+      timed.__shigotoTimed = true;
+      timed.__orig = fn;
+      try {
+        owner[key] = timed;
+      } catch (e2) {
+        return false;
+      }
+      if (owner[key] !== timed) return false;
+      this.wrapped.push([owner, key, fn]);
+      return true;
+    }
+    unwrapAll() {
+      for (const [o2, k2, f2] of this.wrapped) try {
+        o2[k2] = f2;
+      } catch (e2) {
+      }
+      this.wrapped.length = 0;
+    }
+    begin(t2) {
+      this.frameStart = t2 || now2();
+      this.depth = 0;
+      for (const s2 of this.sections.values()) s2.ms = 0;
+    }
+    // end of the game's work for this frame; info: { programs, textures, geometries, heap } as read now
+    end(info, elapsed, period) {
+      const t2 = now2();
+      this.cpuMs = t2 - this.frameStart;
+      const r2 = this.ring;
+      r2.elapsed[r2.i] = elapsed || 0;
+      r2.cpu[r2.i] = this.cpuMs;
+      r2.i = (r2.i + 1) % r2.elapsed.length;
+      r2.n = Math.min(r2.n + 1, r2.elapsed.length);
+      let top = null, top2 = null;
+      for (const s2 of this.sections.values()) {
+        s2.ema += (s2.ms - s2.ema) * 0.05;
+        if (s2.ms > s2.max) s2.max = s2.ms;
+        if (!top || s2.ms > top.ms) {
+          top2 = top;
+          top = s2;
+        } else if (!top2 || s2.ms > top2.ms) top2 = s2;
+      }
+      const untimed = this.cpuMs - this._total();
+      const U2 = this._untimed || (this._untimed = { name: "untimed code", ms: 0 });
+      U2.ms = untimed;
+      if (this.sections.size && untimed > (top ? top.ms : 0)) {
+        top2 = top;
+        top = U2;
+      } else if (this.sections.size && (!top2 || untimed > top2.ms)) top2 = U2;
+      const c2 = this.counters;
+      const L3 = this.last || (this.last = { cpu: 0, top: "", topMs: 0, top2: "", top2Ms: 0, programs: 0, textures: 0, geometries: 0, heapDrop: 0, at: 0, period: 16.7 });
+      L3.sumAtEnd = this._total();
+      L3.cpu = this.cpuMs;
+      L3.top = top ? top.name : "";
+      L3.topMs = top ? top.ms : 0;
+      L3.top2 = top2 ? top2.name : "";
+      L3.top2Ms = top2 ? top2.ms : 0;
+      L3.at = t2;
+      L3.period = period || 16.7;
+      if (info) {
+        L3.programs = info.programs != null && c2.programs ? info.programs - c2.programs : 0;
+        L3.textures = info.textures != null && c2.textures ? info.textures - c2.textures : 0;
+        L3.geometries = info.geometries != null && c2.geometries ? info.geometries - c2.geometries : 0;
+        L3.heapDrop = info.heap && c2.heap ? Math.max(0, c2.heap - info.heap) : 0;
+        if (info.programs != null) c2.programs = info.programs;
+        if (info.textures != null) c2.textures = info.textures;
+        if (info.geometries != null) c2.geometries = info.geometries;
+        if (info.heap) c2.heap = info.heap;
+      }
+    }
+    _total() {
+      let n2 = 0;
+      for (const s2 of this.sections.values()) n2 += s2.ms;
+      return n2;
+    }
+    // the frame that just ended took `elapsed` ms from the one before: if that was a hitch, blame the previous frame's work
+    hitch(elapsed, period, heapNow) {
+      const L3 = this.last;
+      if (!L3) return null;
+      const outside = this._total() - (L3.sumAtEnd || 0);
+      if (outside > period * 0.8) {
+        let top = null;
+        for (const s2 of this.sections.values()) if (!top || s2.ms > top.ms) top = s2;
+        const h3 = { at: Math.round(now2()), ms: Math.round(elapsed), cpu: Math.round(L3.cpu), cause: "background work", top: top ? top.name : "", topMs: Math.round(outside), top2: L3.top, top2Ms: Math.round(L3.topMs), programs: L3.programs, textures: L3.textures, gcMb: 0 };
+        this.hitches.push(h3);
+        if (this.hitches.length > this.maxHitches) this.hitches.shift();
+        this.causeCount[h3.cause] = (this.causeCount[h3.cause] || 0) + 1;
+        return h3;
+      }
+      const gcDrop = Math.max(L3.heapDrop, heapNow && this.counters.heap ? this.counters.heap - heapNow : 0);
+      let cause;
+      if (L3.programs > 0) cause = CAUSES[0];
+      else if (L3.cpu > elapsed * 0.5 && L3.textures > 0) cause = CAUSES[1];
+      else if (L3.cpu > elapsed * 0.5 && L3.geometries > 2) cause = CAUSES[2];
+      else if (gcDrop > 2e6 && L3.cpu < elapsed * 0.6) cause = CAUSES[3];
+      else if (L3.cpu > elapsed * 0.5) cause = CAUSES[4];
+      else cause = CAUSES[5];
+      const h2 = {
+        at: Math.round(now2()),
+        ms: Math.round(elapsed),
+        cpu: Math.round(L3.cpu),
+        cause,
+        top: L3.top,
+        topMs: Math.round(L3.topMs),
+        top2: L3.top2,
+        top2Ms: Math.round(L3.top2Ms),
+        programs: L3.programs,
+        textures: L3.textures,
+        gcMb: +(gcDrop / 1e6).toFixed(1)
+      };
+      this.hitches.push(h2);
+      if (this.hitches.length > this.maxHitches) this.hitches.shift();
+      this.causeCount[cause] = (this.causeCount[cause] || 0) + 1;
+      return h2;
+    }
+    // stats over the last n frames
+    stats(n2) {
+      const r2 = this.ring;
+      n2 = Math.min(n2 || 60, r2.n);
+      if (!n2) return { n: 0, p50: 0, p90: 0, p99: 0, cpu50: 0, cpu90: 0 };
+      const a2 = new Float64Array(n2), b2 = new Float64Array(n2);
+      for (let k2 = 0; k2 < n2; k2++) {
+        const i2 = (r2.i - 1 - k2 + r2.elapsed.length) % r2.elapsed.length;
+        a2[k2] = r2.elapsed[i2];
+        b2[k2] = r2.cpu[i2];
+      }
+      return { n: n2, p50: percentile(a2, n2, 0.5), p90: percentile(a2, n2, 0.9), p99: percentile(a2, n2, 0.99), cpu50: percentile(b2, n2, 0.5), cpu90: percentile(b2, n2, 0.9) };
+    }
+    topSections(k2) {
+      return [...this.sections.values()].sort((a2, b2) => b2.ema - a2.ema).slice(0, k2 || 6).map((s2) => ({ name: s2.name, ms: +s2.ema.toFixed(2), max: +s2.max.toFixed(1) }));
+    }
+    recentHitches(withinMs) {
+      const t2 = now2();
+      return this.hitches.filter((h2) => t2 - h2.at <= withinMs);
+    }
+  };
+  var FrameBudget = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.factor = 1;
+      this.cpuBound = 1;
+      this.sinceHitch = 999;
+      this.headroom = 1;
+      this.spent = /* @__PURE__ */ Object.create(null);
+      this.waiters = [];
+      this.playing = false;
+    }
+    update(cpuMs, period, hitch) {
+      const free = Math.max(0, 1 - cpuMs / period);
+      this.headroom += (free - this.headroom) * 0.1;
+      this.sinceHitch = hitch ? 0 : this.sinceHitch + 1;
+      let f2 = Math.max(0.25, Math.min(1.5, this.headroom * 2));
+      if (this.sinceHitch < 20) f2 = Math.min(f2, 0.35);
+      this.factor = this.playing ? f2 * this.cpuBound : 1;
+      for (const k2 in this.spent) this.spent[k2] = 0;
+    }
+    // ms that workload `name` may spend this frame (it asks once a frame and stops when the time is up)
+    get(name, baseMs) {
+      return Math.max(0.5, baseMs * this.factor);
+    }
+    // resolve the next time a frame ends with this much headroom and no hitch for `quiet` frames
+    idle(opts) {
+      opts = opts || {};
+      return new Promise((res) => this.waiters.push({ res, head: opts.headroom != null ? opts.headroom : 0.3, quiet: opts.quiet || 30, until: opts.timeout ? now2() + opts.timeout : 0 }));
+    }
+    _release() {
+      if (!this.waiters.length) return;
+      const t2 = now2();
+      for (let i2 = 0; i2 < this.waiters.length; i2++) {
+        const w2 = this.waiters[i2];
+        if (this.headroom >= w2.head && this.sinceHitch >= w2.quiet || w2.until && t2 > w2.until || !this.playing) {
+          this.waiters.splice(i2, 1);
+          w2.res(true);
+          return;
+        }
+      }
+    }
+  };
+  var QualityGovernor = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.scale = 1;
+      this.maxScale = opts.maxScale || 1;
+      this.softFloor = opts.softFloor || 0.85;
+      this.floor = opts.floor || 0.67;
+      this.setScale = opts.setScale || null;
+      this.levers = [];
+      this.engaged = [];
+      this.cool = 2;
+      this.good = 0;
+      this.bad = 0;
+      this.capped = 0;
+      this.ceil = 1;
+      this.lastUpAt = -99;
+      this.t = 0;
+      this.enabled = true;
+      this.bound = "-";
+      this.lowFor = 0;
+      this.log = [];
+    }
+    lever(def) {
+      this.levers.push(Object.assign({ kind: "gpu", on: false }, def));
+      return this;
+    }
+    _note(s2) {
+      this.log.push(Math.round(this.t) + "s " + s2);
+      if (this.log.length > 30) this.log.shift();
+    }
+    _apply(m2) {
+      m2 = Math.max(this.floor, Math.min(this.maxScale, this.ceil, m2));
+      if (Math.abs(m2 - this.scale) < 4e-3) return false;
+      this.scale = m2;
+      if (this.setScale) this.setScale(m2);
+      return true;
+    }
+    hold(s2) {
+      this.cool = Math.max(this.cool, s2);
+      this.good = this.bad = 0;
+    }
+    // called about twice a second with the recent frame stats; budget is the FrameBudget (squeezed when processor-bound)
+    step(st, period, dtSec, budget, pacer) {
+      this.t += dtSec;
+      if (!this.enabled || st.n < 20) return;
+      if (this.cool > 0) {
+        this.cool -= dtSec;
+        return;
+      }
+      const over = st.p90 > period * 1.08, under = st.p90 < period * 1.04 && st.cpu90 < period * 0.6;
+      const cpuBound = st.cpu90 > period * 0.85 && st.cpu90 > st.p90 * 0.5;
+      this.bound = over ? cpuBound ? "cpu" : "gpu" : "-";
+      this.lowFor = st.p90 > period * 1.5 ? this.lowFor + dtSec : 0;
+      if (over) {
+        this.good = 0;
+        this.bad++;
+        if (this.bad < 2) return;
+        this.bad = 0;
+        if (cpuBound) {
+          if (budget.cpuBound > 0.5) {
+            budget.cpuBound = Math.max(0.5, budget.cpuBound * 0.8);
+            this._note("cpu-bound: budgets x" + budget.cpuBound.toFixed(2));
+            this.cool = 1;
+            return;
+          }
+          if (this._engage("cpu")) return;
+          return;
+        }
+        const hard = st.p90 > period * 1.4;
+        if (this.t - this.lastUpAt < 4) this.ceil = Math.min(this.ceil, this.scale);
+        if (this.scale > this.softFloor + 5e-3) {
+          this._apply(Math.max(this.softFloor, this.scale * (hard ? 0.86 : 0.93)));
+          this._note("res x" + this.scale.toFixed(2));
+          this.cool = 1;
+          return;
+        }
+        if (this._engage("gpu")) return;
+        if (this.scale > this.floor + 5e-3) {
+          this._apply(this.scale * (hard ? 0.88 : 0.94));
+          this._note("res x" + this.scale.toFixed(2));
+          this.cool = 1;
+          return;
+        }
+        if (pacer && !pacer.extraSwap && pacer.refresh / (pacer.swap + 1) >= pacer.minFps) {
+          pacer.extraSwap = 1;
+          this._note("pace: one more refresh per frame");
+          this.cool = 3;
+        }
+        return;
+      }
+      this.bad = 0;
+      if (!under) {
+        this.good = 0;
+        return;
+      }
+      if (++this.good < 4) return;
+      this.good = 0;
+      if (pacer && pacer.extraSwap) {
+        pacer.extraSwap = 0;
+        this._note("pace: back to full rate");
+        this.cool = 3;
+        return;
+      }
+      if (this.scale < this.softFloor - 5e-3) {
+        this._apply(Math.min(this.softFloor, this.scale * 1.05));
+        this.lastUpAt = this.t;
+        this.cool = 1.5;
+        return;
+      }
+      if (this.engaged.length) {
+        const name = this.engaged.pop(), L3 = this.levers.find((l2) => l2.name === name);
+        if (L3) {
+          L3.on = false;
+          try {
+            L3.apply(false);
+          } catch (e2) {
+          }
+          this._note("lever off: " + name);
+        }
+        this.lastUpAt = this.t;
+        this.cool = 2;
+        return;
+      }
+      if (budget.cpuBound < 1) {
+        budget.cpuBound = Math.min(1, budget.cpuBound * 1.15);
+        this.cool = 1;
+        return;
+      }
+      if (this.scale < Math.min(this.maxScale, this.ceil) - 5e-3) {
+        this._apply(this.scale * 1.04);
+        this.lastUpAt = this.t;
+        this.cool = 1.5;
+      } else if (this.ceil < this.maxScale && ++this.capped >= 4) {
+        this.capped = 0;
+        this.ceil = Math.min(this.maxScale, this.ceil * 1.04);
+      }
+    }
+    _engage(kind) {
+      const L3 = this.levers.find((l2) => !l2.on && l2.kind === kind && (!l2.available || l2.available()));
+      if (!L3) return false;
+      L3.on = true;
+      this.engaged.push(L3.name);
+      try {
+        L3.apply(true);
+      } catch (e2) {
+      }
+      this._note("lever on: " + L3.name);
+      this.cool = 2;
+      return true;
+    }
+    restore() {
+      while (this.engaged.length) {
+        const L3 = this.levers.find((l2) => l2.name === this.engaged.pop());
+        if (L3) {
+          L3.on = false;
+          try {
+            L3.apply(false);
+          } catch (e2) {
+          }
+        }
+      }
+      this.ceil = this.maxScale;
+      this._apply(this.maxScale);
+      this.hold(3);
+    }
+  };
+  function probeHardware(renderer) {
+    const h2 = { gpu: "", vendor: "", software: false, integrated: false, cores: 0, memGB: 0, maxTex: 0, screen: "", dpr: 1, webgl2: false, parallelCompile: false, timerQuery: false, cls: "mid", score: 50 };
+    try {
+      const nav = typeof navigator !== "undefined" ? navigator : {};
+      h2.cores = nav.hardwareConcurrency || 0;
+      h2.memGB = nav.deviceMemory || 0;
+      if (typeof screen !== "undefined") h2.screen = screen.width + "x" + screen.height;
+      h2.dpr = typeof devicePixelRatio !== "undefined" && devicePixelRatio || 1;
+      const gl = renderer && renderer.getContext ? renderer.getContext() : null;
+      if (gl) {
+        h2.webgl2 = typeof WebGL2RenderingContext !== "undefined" && gl instanceof WebGL2RenderingContext;
+        const ext = gl.getExtension("WEBGL_debug_renderer_info");
+        h2.gpu = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+        h2.vendor = String(ext ? gl.getParameter(ext.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR));
+        h2.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE) || 0;
+        h2.parallelCompile = !!gl.getExtension("KHR_parallel_shader_compile");
+        h2.timerQuery = !!gl.getExtension(h2.webgl2 ? "EXT_disjoint_timer_query_webgl2" : "EXT_disjoint_timer_query");
+      }
+    } catch (e2) {
+    }
+    const g2 = h2.gpu.toLowerCase();
+    h2.software = /swiftshader|llvmpipe|software|basic render/.test(g2);
+    h2.integrated = !h2.software && /intel|uhd|iris|hd graphics|radeon\(tm\) graphics|radeon graphics|vega \d|adreno|mali|apple m1(?! (pro|max|ultra))/.test(g2) && !/arc a\d/.test(g2);
+    let s2 = 50;
+    if (h2.software) s2 = 5;
+    else if (/rtx (40|50)\d0|rx (7|9)\d00|apple m[2-9] (max|ultra)/.test(g2)) s2 = 95;
+    else if (/rtx|rx [56]\d00|apple m\d (pro|max)|arc a7/.test(g2)) s2 = 80;
+    else if (/gtx|rx \d{3}\b|radeon rx|radeon pro|arc/.test(g2)) s2 = 62;
+    else if (h2.integrated) s2 = /iris.? xe|780m|680m|apple m/.test(g2) ? 40 : 25;
+    if (h2.cores && h2.cores <= 4) s2 -= 10;
+    if (h2.memGB && h2.memGB <= 4) s2 -= 10;
+    h2.score = Math.max(0, Math.min(100, s2));
+    h2.cls = h2.score < 20 ? "potato" : h2.score < 35 ? "low" : h2.score < 60 ? "mid" : h2.score < 85 ? "high" : "ultra";
+    return h2;
+  }
+  var PerformanceEngine = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.pacer = new FramePacer(opts);
+      this.profiler = new FrameProfiler(opts);
+      this.budgets = new FrameBudget(opts);
+      this.governor = new QualityGovernor(opts);
+      this.hw = null;
+      this.onHitch = opts.onHitch || null;
+      this.win = 0;
+      this.frames = 0;
+      this.started = now2();
+      this.f = null;
+      this.inFrame = false;
+    }
+    get playing() {
+      return this.budgets.playing;
+    }
+    set playing(v2) {
+      v2 = !!v2;
+      if (v2 !== this.budgets.playing) {
+        this.budgets.playing = v2;
+        this.governor.hold(2);
+      }
+    }
+    probe(renderer) {
+      this.hw = probeHardware(renderer);
+      return this.hw;
+    }
+    _heap() {
+      const m2 = typeof performance !== "undefined" && performance.memory;
+      return m2 ? m2.usedJSHeapSize : 0;
+    }
+    frame(t2) {
+      const f2 = this.pacer.frame(t2);
+      this.f = f2;
+      if (!f2.run) return f2;
+      if (f2.hitch && this.lastStats && this.lastStats.p50 > 0 && f2.elapsed < this.lastStats.p50 * 1.8) f2.hitch = f2.severe = false;
+      if (f2.hitch && this.playing && this.frames > 30) {
+        const h2 = this.profiler.hitch(f2.elapsed, f2.period, this._heap());
+        if (h2 && this.onHitch) try {
+          this.onHitch(h2, this);
+        } catch (e2) {
+        }
+      }
+      this.profiler.begin(t2);
+      this.inFrame = true;
+      return f2;
+    }
+    // after the game's work (and its render call) for a frame that ran
+    end(renderer) {
+      if (!this.inFrame) return;
+      this.inFrame = false;
+      const f2 = this.f;
+      let info = null;
+      if (renderer && renderer.info) {
+        const i2 = renderer.info;
+        info = { programs: i2.programs ? i2.programs.length : null, textures: i2.memory.textures, geometries: i2.memory.geometries, heap: this._heap() };
+      } else info = { heap: this._heap() };
+      this.profiler.end(info, f2.elapsed, f2.period);
+      this.budgets.update(this.profiler.cpuMs, f2.period, f2.hitch);
+      this.frames++;
+      this.win += f2.elapsed / 1e3;
+      if (this.win >= 0.5) {
+        const st = this.profiler.stats(Math.max(20, Math.round(1 / (f2.period / 1e3))));
+        if (this.playing) this.governor.step(st, f2.period, this.win, this.budgets, this.pacer);
+        this.win = 0;
+        this.lastStats = st;
+      }
+      this.budgets._release();
+    }
+    budget(name, baseMs) {
+      return this.budgets.get(name, baseMs);
+    }
+    idle(opts) {
+      return this.budgets.idle(opts);
+    }
+    report() {
+      const st = this.profiler.stats(240), p2 = this.pacer, g2 = this.governor;
+      return {
+        refresh: p2.refresh,
+        swap: p2.swap,
+        targetFps: +(1e3 / p2.period()).toFixed(1),
+        p50: +st.p50.toFixed(1),
+        p90: +st.p90.toFixed(1),
+        p99: +st.p99.toFixed(1),
+        cpu90: +st.cpu90.toFixed(1),
+        bound: g2.bound,
+        scale: +g2.scale.toFixed(2),
+        levers: g2.engaged.slice(),
+        budgetFactor: +this.budgets.factor.toFixed(2),
+        hitches: this.profiler.hitches.length,
+        causes: Object.assign({}, this.profiler.causeCount),
+        top: this.profiler.topSections(6),
+        recent: this.profiler.hitches.slice(-8),
+        governorLog: g2.log.slice(-10),
+        hardware: this.hw
+      };
     }
   };
   return __toCommonJS(index_exports);

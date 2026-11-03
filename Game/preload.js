@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("KONTO_DESKTOP", {
   // Where YouTube players are wrapped so they carry a referrer (see main.js, startYtShim). Empty if it could not start.
   ytShim: (() => { try { return ipcRenderer.sendSync("yt-shim") || ""; } catch (e) { return ""; } })(),
   update: () => ipcRenderer.send("update-game"),
+  // the refresh rate of the screen the window is on (the performance engine paces frames to it; measuring it from frame times fails when
+  // the game is already missing refreshes)
+  displayHz: () => { try { return +ipcRenderer.sendSync("display-hz") || 0; } catch (e) { return 0; } },
   // Spotify sign-in: the main process opens Spotify's own page in a window and hands back the address it redirects to (nothing else)
   spotifyAuth: (url, redirect) => ipcRenderer.invoke("spotify-auth", url, redirect),
   // The error engine (Web/game/error-engine.js, main.js "error engine"): versions and GPU for its reports, the log file in userData, the

@@ -13,6 +13,10 @@ Full rules: `docs/AAA_GATE.md`.
 
 Hyper-realistic world and hyper-realistic characters. No anime or toon assets. Every surface uses full PBR: base colour, normal and roughness/ORM maps.
 
+## Performance engine (stutter / 60 fps)
+
+`Engine/src/perf/Performance.js` (frame pacer, hitch profiler, per-frame budgets, governor) and `Web/game/perf-hook.js` (the game side). Frames are paced to whole screen refreshes (144 Hz runs at a steady 72), deferrable work asks `KONTO_PERF.budget(name, ms)`, background work waits on `KONTO_PERF.idle()`, and the governor only touches resolution and cheap levers, never the tier. New per-frame work that can be spread out should take a budget instead of a fixed ms. Each long frame is blamed (F3 overlay, console `shigoto.perf()`); repeated hitches raise SM-PRF-001. Tests: `node Engine/tools/perf-test.mjs` and `Game/tools/perf-engine-test.mjs`. Off switch `?perf=0`.
+
 ## Error codes (SM-...)
 
 The game's error engine (`Web/game/error-engine.js`, plus the "error engine" section of `Game/main.js`) shows codes like `SM-GPU-001-3FA2` with a Copy report button. When Duncan pastes one, look it up in `docs/ERROR_CODES.md` (where to look for each kind) and use the pasted report. Adding a code: add it to the `CODES` table in error-engine.js, then run `node Tools/qa/error-codes.mjs` to regenerate the doc (`--check` verifies it). Test: `node Game/tools/error-engine-test.cjs`.

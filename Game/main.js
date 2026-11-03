@@ -319,6 +319,10 @@ async function updateGame() {
   } finally { updating = false; win.setProgressBar(-1); }
 }
 ipcMain.on("update-game", () => { updateGame(); });
+ipcMain.on("display-hz", e => {
+  try { const w = BrowserWindow.fromWebContents(e.sender); const d = w ? screen.getDisplayMatching(w.getBounds()) : screen.getPrimaryDisplay(); e.returnValue = d.displayFrequency || 0; }
+  catch (x) { e.returnValue = 0; }
+});
 
 function resolve(request) {
   const u = new URL(request.url);
@@ -397,7 +401,11 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 // room for the people and the city.
 app.disableDomainBlockingFor3DAPIs();
 app.commandLine.appendSwitch("disable-gpu-process-crash-limit");
-app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096");
+// --max-semi-space-size: a larger young generation, so the garbage collector's quick sweeps come several times less often (each one is
+// a pause in the middle of a frame; fewer of them is less stutter). Precise memory numbers let the performance engine tell a collector
+// pause from a slow frame.
+app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096 --max-semi-space-size=64");
+app.commandLine.appendSwitch("enable-precise-memory-info");
 // Chromium's own GPU watchdog kills the GPU process when one GPU task runs long (a big upload, a slow driver compiling shaders), which the
 // page sees as a driver reset even when Windows itself was fine. Windows' TDR still protects the machine from a real hang.
 app.commandLine.appendSwitch("disable-gpu-watchdog");

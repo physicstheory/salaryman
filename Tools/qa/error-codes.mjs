@@ -12,7 +12,7 @@ const m = /const CODES = (\{[\s\S]*?\n  \});/.exec(src);
 if (!m) { console.error("error-codes: no CODES table in error-engine.js"); process.exit(1); }
 const CODES = vm.runInNewContext("(" + m[1] + ")");
 
-const AREAS = { JS: "Scripts", ENG: "Shigoto engine", GPU: "Graphics", AST: "Assets", PER: "World preload (persistence)", BOOT: "Loading and frame loop",
+const AREAS = { JS: "Scripts", ENG: "Shigoto engine", GPU: "Graphics", AST: "Assets", PER: "World preload (persistence)", BOOT: "Loading and frame loop", PRF: "Performance and stutter",
   MEM: "Memory", SAV: "Saving", ELC: "Desktop app (Electron)" };
 const esc = s => String(s).replace(/\|/g, "\\|");
 const L = [];

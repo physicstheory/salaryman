@@ -41,3 +41,6 @@ export { RagdollSystem, RAGDOLL_JOINTS, findRagdollBones } from "./ragdoll/Ragdo
 export { Skydiver, CANOPY_SPECS, airDensity } from "./skydive/Skydiver.js";
 export { WindField, WIND_PRESETS } from "./skydive/Wind.js";
 export { CanopyRig, CANOPY_SCHEMES } from "./skydive/CanopyModel.js";
+// Performance: frame pacing locked to whole screen refreshes, per-frame work budgets, hitch profiling (what caused each long frame),
+// and a governor that holds the frame rate by the 90th-percentile frame (resolution, then the host's cheap levers). Knows nothing of the game.
+export { PerformanceEngine, FramePacer, FrameProfiler, FrameBudget, QualityGovernor, probeHardware } from "./perf/Performance.js";

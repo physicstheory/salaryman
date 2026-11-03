@@ -14001,7 +14001,8 @@ function fxRender() {
   // occlusion on high and ultra only; the pass itself always runs, because it is what hands the (sanitised) scene to the bloom. Switched
   // off with .enabled, as it was, the composer skipped it whenever "Finish" forced this chain on at low or medium, and the bloom fed on a
   // stale buffer from earlier frames, which flickered.
-  fx.p.ssao.useAO = gfx.tier === "high" || gfx.tier === "ultra";
+  // (the performance engine may switch occlusion off for a while when the graphics card cannot hold the frame rate; it comes back with room)
+  fx.p.ssao.useAO = (gfx.tier === "high" || gfx.tier === "ultra") && !(window.KONTO_PERF && KONTO_PERF.noAO);
   if (worldReal()) { fx.ssao.strength = 1.0; fx.ssao.intensity = 1.35; b.strength *= 1.25; }
   fx.composer.render(1 / 60);
 }
@@ -14557,12 +14558,15 @@ function detailTick() {
   if (!near.length) return;
   near.sort((a, b) => a[0] - b[0]);
   // as many as fit in a few milliseconds, nearest first: standing still builds the street round you at once, and walking never waits on it
+  // (the time allowed comes from the performance engine when it runs: less when the frame is already full or has just hitched)
   const t0 = performance.now(), cap = DETAIL.rush > 0 ? 14 : 6;
+  const lim = DETAIL.rush > 0 ? 14 : (window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF.budget("detail", 5) : 5);
   for (let i = 0, made = 0; i < near.length && made < cap; i++) {
     const b = near[i][1], kept = keep && keep.get(b);
     if (kept) { kept.visible = true; DETAIL.active.set(b, kept); continue; }       // already built: showing it again costs nothing
+    if (made && performance.now() - t0 > lim) break;
     const g = detailMake(b); DETAIL.active.set(b, g); made++;
-    if (performance.now() - t0 > (DETAIL.rush > 0 ? 14 : 5)) break;
+    if (performance.now() - t0 > lim) break;
   }
   if (DETAIL.rush > 0) DETAIL.rush--;
 }
@@ -42244,29 +42248,40 @@ function frameLoop() {
     // Rescheduled first: one exception in a frame used to end the frame loop for good, and the picture froze (white, in a cutscene) while
     // the rest of the game ran on underneath it.
     requestAnimationFrame(loop);
-    const raw = now - last;
+    // The Shigoto performance engine (game/perf-hook.js) paces the frames: on a 120 or 144 Hz screen it draws every second refresh (a steady
+    // 60 or 72 rather than a judder between the two), snaps the time step to whole refreshes, and spreads a one-off long frame over the next
+    // few. Without it, every callback is a frame, as before.
+    const KP = window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF : null;
+    let pf = null;
+    try { pf = KP ? KP.frame(now) : null; } catch (e) { pf = null; }
+    if (pf && !pf.run) return;
+    const raw = pf ? pf.elapsed : now - last;
     // Picking from a wheel takes the world down to a third speed, eased in and out.
     const want = (radio.wheel || wheel.open) ? 0.33 : 1;
     slow += (want - slow) * Math.min(1, raw / 1000 * 12);
-    const dt = Math.min(raw / 1000, 0.1) * slow;
+    const dt = Math.min(pf ? pf.dt : raw / 1000, 0.1) * slow;
     last = now;
     // The opaque loading slideshow covers the entire world. Leave the main
     // thread and GPU available for model decoding/retargeting until it goes away.
     // Timers and loader callbacks continue; last is updated above, so resuming
     // never advances the simulation by the time spent loading.
     const bootScreen = document.getElementById("boot");
-    if (world && scene && (!bootScreen || bootScreen.hidden)) {
-      try { tick(dt); tickErrors = 0; }
-      catch (err) {
-        tickErrors++;
-        if (tickErrors === 1 || tickErrors % 120 === 0) { console.error("[Konto] a frame failed (" + tickErrors + " in a row):", err); setTimeout(() => { throw err; }, 0); }   // rethrown outside the frame so the error engine gives it its own code
-        // keep a picture on the screen whatever part of the frame failed
-        try { present(); } catch (e2) { /* the draw itself failed: the error engine has it */ }
-        // a cutscene whose shot keeps throwing is skipped rather than left frozen on its overlay
-        if (tickErrors >= 3 && typeof cut !== "undefined" && cut.active) { console.warn("[Konto] the cutscene kept failing; skipping it"); try { cutFinish(true); } catch (e3) { cut.active = false; } tickErrors = 0; }
-      }
-      if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden && !cut.active) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
-    } else perfHold(1.5);
+    let playing = false;
+    try {
+      if (world && scene && (!bootScreen || bootScreen.hidden)) {
+        try { tick(dt); tickErrors = 0; }
+        catch (err) {
+          tickErrors++;
+          if (tickErrors === 1 || tickErrors % 120 === 0) { console.error("[Konto] a frame failed (" + tickErrors + " in a row):", err); setTimeout(() => { throw err; }, 0); }   // rethrown outside the frame so the error engine gives it its own code
+          // keep a picture on the screen whatever part of the frame failed
+          try { present(); } catch (e2) { /* the draw itself failed: the error engine has it */ }
+          // a cutscene whose shot keeps throwing is skipped rather than left frozen on its overlay
+          if (tickErrors >= 3 && typeof cut !== "undefined" && cut.active) { console.warn("[Konto] the cutscene kept failing; skipping it"); try { cutFinish(true); } catch (e3) { cut.active = false; } tickErrors = 0; }
+        }
+        playing = player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden && !cut.active;
+        if (playing) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
+      } else perfHold(1.5);
+    } finally { if (pf) try { KP.end(playing); } catch (e) { /* the performance engine never stops the game */ } }
   }
   requestAnimationFrame(loop);
 }
@@ -45675,5 +45690,6 @@ radioLoadMusic();
 <script src="game/ragdoll-hook.js"></script>
 <script src="game/boat-hook.js"></script>
 <script src="game/skydive-hook.js"></script>
+<script src="game/perf-hook.js"></script>
 </body>
 </html>
