@@ -1,6 +1,13 @@
 # Salary Man case cover
 
-The current cover is the **DHInc / SOTI street edition**:
+The current cover is the **DHInc / cinematic anime SOTI edition**:
+
+- `Salary-Man-DHInc-cinematic-anime-A4-print.pdf`: A4 landscape print sheet, 273 × 171 mm insert. Print at 100% / Actual size, with Fit to page disabled.
+- `Salary-Man-DHInc-cinematic-anime-cover.png`: full-wrap illustrated cover.
+
+This edition uses cinematic anime illustration based on the actual SOTI tower, street composition and Seiko reference renders from the game. Lighting, reflections and painted detail are artistic interpretations; it is promotional artwork rather than a gameplay screenshot. It retains DHInc branding and the station-sign identity.
+
+The earlier **DHInc / actual-render SOTI street edition** remains available:
 
 - `Salary-Man-DHInc-A4-print.pdf`: A4 landscape sheet, crop marks, 273 × 171 mm insert with a 13 mm spine. Print at 100% / Actual size and disable Fit to page; check your physical case dimensions.
 - `Salary-Man-DHInc-cover.pdf`: trim-size vector master.
