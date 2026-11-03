@@ -42239,7 +42239,11 @@ function buildVillage(root, city) {
 function frameLoop() {
   let last = performance.now();
   let slow = 1;
+  let tickErrors = 0;
   function loop(now) {
+    // Rescheduled first: one exception in a frame used to end the frame loop for good, and the picture froze (white, in a cutscene) while
+    // the rest of the game ran on underneath it.
+    requestAnimationFrame(loop);
     const raw = now - last;
     // Picking from a wheel takes the world down to a third speed, eased in and out.
     const want = (radio.wheel || wheel.open) ? 0.33 : 1;
@@ -42252,10 +42256,17 @@ function frameLoop() {
     // never advances the simulation by the time spent loading.
     const bootScreen = document.getElementById("boot");
     if (world && scene && (!bootScreen || bootScreen.hidden)) {
-      tick(dt);
+      try { tick(dt); tickErrors = 0; }
+      catch (err) {
+        tickErrors++;
+        if (tickErrors === 1 || tickErrors % 120 === 0) { console.error("[Konto] a frame failed (" + tickErrors + " in a row):", err); setTimeout(() => { throw err; }, 0); }   // rethrown outside the frame so the error engine gives it its own code
+        // keep a picture on the screen whatever part of the frame failed
+        try { present(); } catch (e2) { /* the draw itself failed: the error engine has it */ }
+        // a cutscene whose shot keeps throwing is skipped rather than left frozen on its overlay
+        if (tickErrors >= 3 && typeof cut !== "undefined" && cut.active) { console.warn("[Konto] the cutscene kept failing; skipping it"); try { cutFinish(true); } catch (e3) { cut.active = false; } tickErrors = 0; }
+      }
       if (player.placed && !title.on && !paused && !nav.mapOpen && !document.hidden && !cut.active) { if (gameSet.pcMode) pcModeFrame(raw); else perfFrame(raw); } else perfHold(1.5);
     } else perfHold(1.5);
-    requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
 }
