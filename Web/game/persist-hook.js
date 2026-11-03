@@ -18,6 +18,8 @@
   if (!window.SHIGOTO || !SHIGOTO.Persistence) { console.warn("[Konto] persistence engine not in this build; streaming as before"); return; }
   const off = /[?&]persist=0\b/.test(location.search) || (() => { try { return localStorage.getItem("konto.persist") === "0"; } catch (e) { return false; } })();
   if (off) { console.log("[Konto] persistence turned off; streaming as before"); return; }
+  // on the second step of the safe-graphics ladder (after graphics driver resets) nothing is kept resident: the world streams as it used to
+  if (window.GFX_SAFE && GFX_SAFE.level >= 2) { console.log("[Konto] safe graphics " + GFX_SAFE.level + ": persistence off, streaming as before"); return; }
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
   let last = null;
@@ -63,26 +65,30 @@
     const on = () => done(true);
     c.addEventListener("webglcontextrestored", on); t = setTimeout(() => done(!renderer.getContext().isContextLost()), ms);
   });
-  let warming = null;
+  let warming = null, bgStop = false, bgRunning = false, bgResume = null;
   window.gpuWarm = async function (opts) {
     opts = opts || {};
     if (!window.SHIGOTO || !SHIGOTO.warmGPUChunked || typeof renderer === "undefined" || !renderer) return { skipped: true };
+    if (!opts.background && bgRunning) bgStop = true;   // a warm someone is waiting for goes ahead of the background upload
     while (warming) await warming;
+    if (opts.background) { bgStop = false; bgRunning = true; }
     let fin;
     warming = new Promise(r => { fin = r; });
     try {
       const lean = typeof gfx !== "undefined" && (gfx.lean || gfx.tier === "low");
-      let limits = Object.assign(lean ? { programs: 3, texBytes: 24e6, tris: 150e3, items: 250 } : {}, opts.limits || {});
+      let limits = Object.assign(lean ? { programs: 3, texBytes: 24e6, tris: 150e3, items: 250 } : {}, window.GFX_SAFE && GFX_SAFE.level ? { programs: 2, texBytes: 12e6, tris: 80e3, items: 120, targetMs: 60, maxMs: 200 } : {}, opts.limits || {});
       let r = null;
       for (let attempt = 0; attempt < 3; attempt++) {
         // the scene, and the people's templates the street and the cutscenes clone from (they live outside it)
         const roots = opts.roots || [scene].concat(typeof pplLib !== "undefined" ? pplLib.ready.map(e => e.root).filter(o => o && !o.parent) : []);
         // video memory for textures, by tier (halved after a driver reset); the nearest things to where the story starts go first
         const VRAM = { low: 450e6, medium: 800e6, high: 1300e6, ultra: 2000e6 };
-        const texBudget = opts.texBudget || (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1);
-        const A = anchors(), _w = new THREE.Vector3();
+        const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
+        const texBudget = opts.texBudget || (safe ? 160e6 : (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1));
+        const A = [[camera.position.x, camera.position.z]].concat(anchors()), _w = new THREE.Vector3();   // what the camera sees first (the title's view of the capital)
         const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
-        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority });
+        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority,
+          shouldStop: opts.background ? () => bgStop || (typeof gfx !== "undefined" && gfx.lost) : null });
         if (!r.lost) break;
         console.warn("[Konto] the graphics driver reset while warming up; waiting for it to come back");
         const back = await waitRestore(5500);
@@ -92,7 +98,9 @@
         limits = { programs: Math.max(1, (limits.programs || 6) >> 1), texBytes: (limits.texBytes || 64e6) / 2, tris: (limits.tris || 400e3) / 2, items: Math.max(20, (limits.items || 600) >> 1) };
       }
       return r;
-    } finally { if (warmRender.rt) { warmRender.rt.dispose(); warmRender.rt = null; } warming = null; fin(); }
+    } finally { if (warmRender.rt) { warmRender.rt.dispose(); warmRender.rt = null; } warming = null; if (opts.background) bgRunning = false; fin();
+      // the background upload picks up again after whatever interrupted it
+      if (!opts.background && bgResume && !(typeof gfx !== "undefined" && gfx.lost)) setTimeout(bgResume, 1000); }
   };
   // After a driver reset in play, the game's own handler brings the picture back; everything is then warmed again behind it, in
   // small batches, instead of being uploaded all at once by the first frame (which is what reset the driver a second time).
@@ -471,6 +479,14 @@
 
     const report = await P.run(onProgress);
     last = report;
+    // What the video memory budget left out is uploaded afterwards a little at a time, in the background, instead of all at once by the
+    // first frame that happens to look at it (a frame like that, on the title's view over the whole capital, reset the driver).
+    bgResume = () => { if (bgRunning || (typeof gfx !== "undefined" && gfx.lost)) return;
+      const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
+      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : Infinity, limits: { programs: 1, texBytes: safe ? 6e6 : 12e6, tris: 60e3, items: 80, targetMs: 30, maxMs: 120 } })
+        .then(r => { if (r && !r.stopped) { bgResume = null; console.log("[Konto] background upload done:", r.objects, "meshes,", r.texMb, "MB"); } }, () => {});
+    };
+    setTimeout(() => bgResume && bgResume(), 500);
     // the first frames of play: build the street round Seiko at once (it is mostly showing what is already built)
     DETAIL.rush = 40;
     return report;

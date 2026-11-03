@@ -294,6 +294,7 @@ export async function warmGPUChunked(renderer, scene, camera, opts) {
   let i = 0;
   try {
     while (i < items.length) {
+      if (opts.shouldStop && opts.shouldStop()) { res.stopped = true; break; }
       // the next batch, within this round's ceilings (always at least one item)
       const batch = [];
       let progs = 0, texB = 0, tris = 0;

@@ -10051,6 +10051,10 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     let i2 = 0;
     try {
       while (i2 < items.length) {
+        if (opts.shouldStop && opts.shouldStop()) {
+          res.stopped = true;
+          break;
+        }
         const batch = [];
         let progs = 0, texB = 0, tris = 0;
         while (i2 < items.length && batch.length < cur.items) {

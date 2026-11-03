@@ -8444,6 +8444,28 @@ let yaw = 0, pitch = -0.18, speed = 260;
 const camPos = new THREE.Vector3();
 let flyTo = null;
 
+// ---- safe graphics: a ladder that only goes down after a graphics driver reset ---------------------------------------------------------
+// A machine whose driver resets once is put on safer settings at once, and the game is restarted on them (most of what costs video
+// memory - drawn textures, the post chain, anti-aliasing - is fixed when the world is built, so it has to be a fresh start):
+//   1  low quality, no shadows or post chain, 80% resolution, the warm-up kept small
+//   2  60% resolution, and the world streamed as it was before the persistence engine (nothing kept resident)
+//   3  50% resolution, short draw distance; past this the game stops restarting itself and says what it found
+// The step is remembered (localStorage konto.gfxSafe). Picking a quality yourself in Settings clears it.
+const GFX_SAFE = (() => {
+  let level = 0, raised = false;
+  try { level = Math.max(0, Math.min(3, parseInt(localStorage.getItem("konto.gfxSafe") || "0", 10) || 0)); } catch (e) { /* none */ }
+  if (/[?&]safe=([0-3])\b/.test(location.search)) level = +RegExp.$1;
+  let gpu = "";
+  try { const c = document.createElement("canvas"), gl = c.getContext("webgl"); const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
+    gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : ""; const lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext(); } catch (e) { /* none */ }
+  return {
+    get level() { return level; }, get raised() { return raised; }, gpu,
+    raise() { if (raised || level >= 3) return false; level++; raised = true; try { localStorage.setItem("konto.gfxSafe", String(level)); } catch (e) { /* none */ } return true; },
+    clear() { level = 0; try { localStorage.removeItem("konto.gfxSafe"); } catch (e) { /* none */ } }
+  };
+})();
+window.GFX_SAFE = GFX_SAFE;
+
 function boot(stageText, t) {
   const bar = document.querySelector("#bootbar i");
   const label = document.getElementById("bootstage");
@@ -8456,6 +8478,7 @@ function initThree() {
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
   let startTier = savedTier() || guessTier();
+  if (GFX_SAFE.level >= 1) { startTier = "low"; gfx.lean = true; post.forced = false; gfx.scale = GFX_SAFE.level >= 3 ? 0.5 : GFX_SAFE.level >= 2 ? 0.6 : 0.8; }
   // back from a graphics reset the quality stays what it was (stepping it down each time left a good laptop looking like a bad one);
   // only the picture's memory is held in for this session: the resolution at the window's own and the shadow map at 2048
   try { if (sessionStorage.getItem("konto.glLost")) { sessionStorage.removeItem("konto.glLost"); gfx.lean = true;
@@ -8481,18 +8504,27 @@ function initThree() {
     console.warn("[Konto] the graphics context was lost");
     try { saveGame(null, true); } catch (x) { /* nothing to save yet */ }
     gfx.lost = true;
-    try { say("Graphics driver reset \u2014 recovering\u2026", 5); } catch (x) { /* none */ }
+    // One step down the safe-graphics ladder, and a fresh start on it. Coming back in place on the same settings only reset the driver
+    // again (the title screen kept going black). At the bottom of the ladder the game stops restarting itself and says so.
+    const stepped = GFX_SAFE.raise();
     clearTimeout(gfx.lostTimer);
+    if (!stepped && GFX_SAFE.level >= 3) {
+      try { say("The graphics driver keeps resetting" + (GFX_SAFE.gpu ? " on " + GFX_SAFE.gpu.replace(/^ANGLE \(|\)$/g, "").slice(0, 70) : "") + ". Updating the graphics driver usually fixes this.", 30); } catch (x) { /* none */ }
+      gfx.lostTimer = setTimeout(() => { if (gfx.lost) say("Still waiting for the graphics card. Close the game, update the graphics driver and start it again.", 60); }, 8000);
+      return;
+    }
+    try { say(stepped ? "Graphics driver reset \u2014 restarting on safe graphics\u2026" : "Graphics driver reset \u2014 recovering\u2026", 6); } catch (x) { /* none */ }
     gfx.lostTimer = setTimeout(() => {
-      if (!gfx.lost) return;
+      if (!gfx.lost && !stepped) return;
       try { sessionStorage.setItem("konto.glLost", "1"); } catch (x) { /* none */ }
       const f = document.getElementById("fade"); if (f) f.style.opacity = "1";
-      gfx.reloadTimer=setTimeout(() => {if(gfx.lost)location.reload();}, 800);
-    }, 6000);
+      gfx.reloadTimer=setTimeout(() => location.reload(), 800);
+    }, stepped ? 1500 : 6000);
   }, false);
   renderer.domElement.addEventListener("webglcontextrestored", () => {
     console.warn("[Konto] the graphics context came back");
-    gfx.lost = false; clearTimeout(gfx.lostTimer);clearTimeout(gfx.reloadTimer); gfx.lean = true;
+    gfx.lost = false; if (GFX_SAFE.raised) return;   // restarting on safer settings already
+    clearTimeout(gfx.lostTimer);clearTimeout(gfx.reloadTimer); gfx.lean = true;
     fx.broken=true;fx.on=false;post.broken=true;post.on=false;
     if(typeof FX_LIN!=='undefined')FX_LIN.on.value=0;
     renderer.setRenderTarget(null);renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.outputEncoding=THREE.sRGBEncoding;renderer.autoClear=true;
@@ -8504,7 +8536,9 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
   sizeRenderer();
   applyTier(startTier, { quiet: true });
-  if (gameSet.pcMode && typeof PC_MODES !== "undefined" && PC_MODES[gameSet.pcMode]) { const M = PC_MODES[gameSet.pcMode]; applyTier(M.tier, { quiet: true }); if (gameSet.pcMode === "low") TEXQ.scale = 2; gfx.scale = M.scale; }
+  if (GFX_SAFE.level >= 1) { setTimeout(() => { try { say("Safe graphics are on after a graphics driver reset" + (GFX_SAFE.gpu ? " (" + GFX_SAFE.gpu.replace(/^ANGLE \(|\)$/g, "").slice(0, 70) + ")" : "") + ". Raise the quality in Settings when you want to.", 9); } catch (x) { /* none */ } }, 5000);
+    if (GFX_SAFE.level >= 3) { TIERS.low.far = 700; } }
+  else if (gameSet.pcMode && typeof PC_MODES !== "undefined" && PC_MODES[gameSet.pcMode]) { const M = PC_MODES[gameSet.pcMode]; applyTier(M.tier, { quiet: true }); if (gameSet.pcMode === "low") TEXQ.scale = 2; gfx.scale = M.scale; }
   window.addEventListener("resize", sizeRenderer);
 
   initTouch();
@@ -14223,6 +14257,7 @@ function savedTier() {
   } catch (e) { return null; }
 }
 function rememberTier(name) {
+  try { if (typeof GFX_SAFE !== "undefined" && GFX_SAFE.level) { GFX_SAFE.clear(); post.forced = null; gfx.scale = null; } } catch (e) { /* none */ }
   try { window.localStorage.setItem("konto.tier", name); window.localStorage.setItem("konto.tierPicked", "1"); } catch (e) {}
 }
 
@@ -14295,7 +14330,7 @@ function streamAdd(obj, bb, far) {
   STREAM.reg.push({ o: obj, s: new THREE.Sphere(new THREE.Vector3(cx, (y0 + y1) / 2, cz), r), far: far });
 }
 // How far the bubble reaches, as a multiple: on foot as set, in a car faster so you do not drive into the edge of it, and wide open in the free camera and on the title.
-function streamReach() { return (title && title.on) || player.mode !== "walk" || tour || flight.active || chute.active ? 3.2 : (drive.car ? 1.8 : 1); }
+function streamReach() { if (title && title.on && typeof GFX_SAFE !== "undefined" && GFX_SAFE.level) return 1.2; return (title && title.on) || player.mode !== "walk" || tour || flight.active || chute.active ? 3.2 : (drive.car ? 1.8 : 1); }
 function streamFrame() {
   if (!camera || !STREAM.reg.length) return;
   STREAM.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);

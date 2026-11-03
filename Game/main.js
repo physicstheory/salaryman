@@ -397,7 +397,20 @@ app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.disableDomainBlockingFor3DAPIs();
 app.commandLine.appendSwitch("disable-gpu-process-crash-limit");
 app.commandLine.appendSwitch("js-flags", "--max-old-space-size=4096");
-app.on("child-process-gone", (_e, d) => { console.warn("[Salary Man] a child process went:", d && d.type, d && d.reason); });
+// Chromium's own GPU watchdog kills the GPU process when one GPU task runs long (a big upload, a slow driver compiling shaders), which the
+// page sees as a driver reset even when Windows itself was fine. Windows' TDR still protects the machine from a real hang.
+app.commandLine.appendSwitch("disable-gpu-watchdog");
+// What the GPU is, and every time its process goes, in "<userData>/gpu-log.txt", so a reset can be traced to a card and a driver.
+const GPU_LOG = (() => { try { return path.join(app.getPath("userData"), "gpu-log.txt"); } catch (e) { return null; } })();
+function gpuLog(line) { if (!GPU_LOG) return; try { fs.mkdirSync(path.dirname(GPU_LOG), { recursive: true }); fs.appendFileSync(GPU_LOG, new Date().toISOString() + " " + line + "\n"); } catch (e) { /* no log */ } }
+app.whenReady().then(() => app.getGPUInfo("basic")).then(info => {
+  const dev = info && info.gpuDevice ? info.gpuDevice.map(g => (g.active ? "*" : "") + (g.vendorId || 0).toString(16) + ":" + (g.deviceId || 0).toString(16) + " driver " + (g.driverVersion || "?")).join(", ") : "?";
+  gpuLog("start " + app.getVersion() + " electron " + process.versions.electron + " gpu " + dev);
+}).catch(() => {});
+app.on("child-process-gone", (_e, d) => {
+  console.warn("[Salary Man] a child process went:", d && d.type, d && d.reason);
+  if (d && d.type === "GPU") gpuLog("GPU process gone: " + d.reason + " (exit " + d.exitCode + ")");
+});
 
 ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(paths.filter(p => typeof p === "string")); });
 
