@@ -62,6 +62,10 @@ function main() {
     "<!-- web fonts dropped for the desktop build; system faces stand in -->\n");
 
   fs.writeFileSync(path.join(OUT, "index.html"), page);
+  // which commit this build is, for the error engine's reports (Game/main.js buildInfo)
+  let commit = process.env.GITHUB_SHA || "";
+  if (!commit) try { commit = require("child_process").execSync("git rev-parse HEAD", { cwd: REPO, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch (e) { /* not a checkout */ }
+  fs.writeFileSync(path.join(OUT, "build.json"), JSON.stringify({ commit, staged: new Date().toISOString() }));
 
   const glb = path.join(SRC, "seiko.glb");
   if (fs.existsSync(glb)) fs.copyFileSync(glb, path.join(OUT, "seiko.glb"));

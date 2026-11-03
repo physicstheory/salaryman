@@ -13,6 +13,10 @@ Full rules: `docs/AAA_GATE.md`.
 
 Hyper-realistic world and hyper-realistic characters. No anime or toon assets. Every surface uses full PBR: base colour, normal and roughness/ORM maps.
 
+## Error codes (SM-...)
+
+The game's error engine (`Web/game/error-engine.js`, plus the "error engine" section of `Game/main.js`) shows codes like `SM-GPU-001-3FA2` with a Copy report button. When Duncan pastes one, look it up in `docs/ERROR_CODES.md` (where to look for each kind) and use the pasted report. Adding a code: add it to the `CODES` table in error-engine.js, then run `node Tools/qa/error-codes.mjs` to regenerate the doc (`--check` verifies it). Test: `node Game/tools/error-engine-test.cjs`.
+
 ## Where things are
 
 - Game: `Web/konto.html` (Three.js r128), run in Electron from `Game/`.

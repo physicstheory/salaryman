@@ -362,6 +362,7 @@ function createWindow() {
   win.setMenuBarVisibility(false);
   win.once("ready-to-show", () => win.show());
   win.on("leave-full-screen", () => { if (!win.isDestroyed()) win.maximize(); });
+  watchWindow(win);
   win.loadURL("konto://app/index.html");
   const target = shotPath();
   if (target) win.webContents.once("did-finish-load", () => takeShot(target));
@@ -411,6 +412,133 @@ app.on("child-process-gone", (_e, d) => {
   console.warn("[Salary Man] a child process went:", d && d.type, d && d.reason);
   if (d && d.type === "GPU") gpuLog("GPU process gone: " + d.reason + " (exit " + d.exitCode + ")");
 });
+
+// ---- error engine -------------------------------------------------------------------------------------------------------------------------
+// The page has its own (Web/game/error-engine.js): it gives every problem a code like SM-GPU-001-3FA2 and a "Copy report" button. This side
+// adds what the page cannot see for itself - the page crashing or running out of memory, the GPU process going, the window hanging, the page
+// failing to load, an error in this file - and keeps every report in "<userData>/error-log.txt" (rolled over at 2 MB). A crash is remembered
+// in "<userData>/errors-pending.json" and shown by the page after it is restarted. Nothing is sent anywhere: the player copies the report, or
+// opens a prefilled GitHub issue page in the browser and submits it himself. Codes: docs/ERROR_CODES.md.
+const ERR_LOG = (() => { try { return path.join(app.getPath("userData"), "error-log.txt"); } catch (e) { return null; } })();
+const ERR_PENDING = ERR_LOG ? path.join(path.dirname(ERR_LOG), "errors-pending.json") : null;
+const errT0 = Date.now();
+const errRecent = [];                      // the main process's own recent lines, for its reports
+let gpuSummary = { gpu: "", driver: "", detail: "" };
+function errHash4(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return ((h >>> 16) ^ (h & 0xffff)).toString(16).toUpperCase().padStart(4, "0"); }
+function errNote(line) { errRecent.push(new Date().toISOString().slice(11, 19) + " " + line); if (errRecent.length > 40) errRecent.shift(); }
+function errAppend(text) {
+  if (!ERR_LOG) return;
+  try {
+    fs.mkdirSync(path.dirname(ERR_LOG), { recursive: true });
+    try { if (fs.statSync(ERR_LOG).size > 2e6) fs.renameSync(ERR_LOG, ERR_LOG.replace(/\.txt$/, ".old.txt")); } catch (e) { /* no log yet */ }
+    fs.appendFileSync(ERR_LOG, text + "\n\n");
+  } catch (e) { /* no log */ }
+}
+function buildInfo() {
+  let b = {}; try { b = JSON.parse(fs.readFileSync(path.join(APP_DIR, "build.json"), "utf8")); } catch (e) { /* not stamped */ }
+  let up = ""; try { const m = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "Update", "manifest.json"), "utf8")); up = m && m.commit ? m.commit.slice(0, 7) : ""; } catch (e) { /* no update */ }
+  return { build: b.commit ? b.commit.slice(0, 7) : "", update: up };
+}
+function errInfo() {
+  const os = require("os");
+  return Object.assign({ version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome,
+    os: process.platform + " " + process.arch + " " + os.release() + " · " + Math.round(os.totalmem() / 1073741824) + " GB RAM", gpu: gpuSummary.gpu, driver: gpuSummary.driver,
+    logPath: ERR_LOG || "" }, buildInfo());
+}
+function errMainReport(code, message, extra) {
+  extra = extra || {};
+  const rec = { code, fp: errHash4(code + "|" + (extra.key || message.replace(/\d+/g, "#"))), message, stack: extra.stack || "", detail: extra.detail || null,
+    at: new Date().toISOString(), uptime: Math.round((Date.now() - errT0) / 1000), log: errRecent.slice(-25) };
+  const i = errInfo();
+  errAppend(["==== " + rec.at + "  " + code + "-" + rec.fp + "  (desktop app)", "Message: " + message,
+    "Version: " + i.version + (i.build ? " (build " + i.build + ")" : "") + (i.update ? " + update " + i.update : "") + " · Electron " + i.electron + " · " + i.os,
+    "GPU: " + (i.gpu || "?") + (i.driver ? " · driver " + i.driver : "") + (gpuSummary.detail ? " · " + gpuSummary.detail : ""),
+    rec.stack ? "Stack:\n" + rec.stack : "", "Recent:", rec.log.join("\n")].filter(Boolean).join("\n"));
+  errNote(code + " " + message);
+  return rec;
+}
+function errRemember(rec) {           // for the page to show after it is restarted
+  if (!ERR_PENDING) return;
+  try { let a = []; try { a = JSON.parse(fs.readFileSync(ERR_PENDING, "utf8")); } catch (e) { /* none */ } a.push(rec); fs.writeFileSync(ERR_PENDING, JSON.stringify(a.slice(-10))); } catch (e) { /* none */ }
+}
+function errToPage(rec) { try { if (win && !win.isDestroyed() && !win.webContents.isCrashed()) win.webContents.send("err-main", rec); else errRemember(rec); } catch (e) { errRemember(rec); } }
+function errReportText(rec) {
+  const i = errInfo();
+  return ["Salary Man error report", "Code: " + rec.code + "-" + rec.fp + "  (desktop app)", "When: " + rec.at, "Message: " + rec.message,
+    "Version: " + i.version + (i.build ? " (build " + i.build + ")" : "") + (i.update ? " + update " + i.update : "") + " · Electron " + i.electron + " · " + i.os,
+    "GPU: " + (i.gpu || "?") + (i.driver ? " · driver " + i.driver : ""), rec.stack ? "Stack:\n" + rec.stack : "", "Recent:", rec.log.join("\n"),
+    ERR_LOG ? "Full log on this PC: " + ERR_LOG : ""].filter(Boolean).join("\n");
+}
+// when the page cannot show it (it failed to load, or keeps crashing), a plain dialog does
+async function errDialog(rec, what) {
+  try {
+    const r = await dialog.showMessageBox(win && !win.isDestroyed() ? win : undefined, { type: "error", noLink: true, title: "Salary Man", message: what + "\n\nError code " + rec.code + "-" + rec.fp,
+      detail: rec.message + "\n\nCopy the report and paste it to Claude.", buttons: ["Copy report", "Open log folder", "Restart game", "Quit"], defaultId: 0, cancelId: 3 });
+    if (r.response === 0) { clipboard.writeText("```\n" + errReportText(rec) + "\n```"); return errDialog(rec, what + "\n\n(The report is on the clipboard.)"); }
+    if (r.response === 1 && ERR_LOG) { shell.showItemInFolder(ERR_LOG); return errDialog(rec, what); }
+    if (r.response === 2 && win && !win.isDestroyed()) { crashTimes.length = 0; win.loadURL("konto://app/index.html"); return; }
+    if (r.response === 3) app.quit();
+  } catch (e) { /* no dialog */ }
+}
+const crashTimes = [];
+function watchWindow(w) {
+  const wc = w.webContents;
+  wc.on("render-process-gone", (_e, d) => {
+    const reason = d && d.reason || "unknown";
+    if (reason === "clean-exit") return;
+    const code = reason === "oom" ? "SM-ELC-002" : "SM-ELC-001";
+    const rec = errMainReport(code, "the game page stopped: " + reason + " (exit " + (d && d.exitCode) + ")", { key: reason });
+    errRemember(rec);
+    crashTimes.push(Date.now()); while (crashTimes.length && Date.now() - crashTimes[0] > 120e3) crashTimes.shift();
+    // restarted once or twice; a page that keeps crashing gets a dialog instead of a loop
+    if (crashTimes.length >= 3) { errDialog(rec, "The game keeps crashing."); return; }
+    setTimeout(() => { if (!w.isDestroyed()) w.loadURL("konto://app/index.html"); }, 1200);
+  });
+  let hungAt = 0;
+  w.on("unresponsive", () => { hungAt = Date.now(); errNote("window unresponsive"); });
+  w.on("responsive", () => {
+    if (!hungAt) return; const s = Math.round((Date.now() - hungAt) / 1000); hungAt = 0;
+    if (s >= 5) errToPage(errMainReport("SM-ELC-003", "the window did not respond for " + s + " s", { key: "hang" }));
+  });
+  wc.on("did-fail-load", (_e, codeNum, desc, u, isMain) => {
+    if (!isMain || codeNum === -3) return;           // -3: navigation replaced by another, not a failure
+    const rec = errMainReport("SM-ELC-004", "could not load " + u + ": " + desc + " (" + codeNum + ")", { key: String(codeNum) });
+    errDialog(rec, "The game's page could not be opened.");
+  });
+  wc.on("preload-error", (_e, p, err) => { errToPage(errMainReport("SM-ELC-005", (err && err.message) || String(err), { stack: err && err.stack })); });
+  wc.on("console-message", (_e, level, message) => { if (level >= 3) errNote("page error: " + String(message).slice(0, 200)); });
+}
+app.on("child-process-gone", (_e, d) => {
+  if (!d || d.reason === "clean-exit") return;
+  if (d.type === "GPU") errToPage(errMainReport("SM-GPU-002", "GPU process gone: " + d.reason + " (exit " + d.exitCode + ")", { key: d.reason }));
+  else errToPage(errMainReport("SM-ELC-006", d.type + (d.name ? " (" + d.name + ")" : "") + " process gone: " + d.reason + " (exit " + d.exitCode + ")", { key: d.type + d.reason }));
+});
+process.on("uncaughtException", err => {
+  const rec = errMainReport("SM-ELC-007", (err && err.message) || String(err), { stack: err && err.stack, key: (err && err.message || "").replace(/\d+/g, "#") });
+  console.error("[Salary Man] uncaught in main:", err);
+  if (app.isReady()) errDialog(rec, "The desktop app hit an error.");
+});
+app.whenReady().then(() => app.getGPUInfo("complete")).then(info => {
+  const g = info && info.gpuDevice ? (info.gpuDevice.find(x => x.active) || info.gpuDevice[0]) : null;
+  const a = info && info.auxAttributes || {};
+  gpuSummary = { gpu: (a.glRenderer || (g ? (g.vendorString || g.vendorId.toString(16)) + " " + (g.deviceString || g.deviceId.toString(16)) : "")),
+    driver: (g && g.driverVersion) || a.driverVersion || "", detail: [a.glVersion, a.inProcessGpu ? "in-process GPU" : ""].filter(Boolean).join(" · ") };
+  try { const fsx = app.getGPUFeatureStatus(); gpuSummary.detail += (gpuSummary.detail ? " · " : "") + "webgl " + fsx.webgl + ", webgl2 " + fsx.webgl2; } catch (e) { /* none */ }
+}).catch(() => {});
+ipcMain.on("err-info", e => { try { e.returnValue = errInfo(); } catch (x) { e.returnValue = {}; } });
+ipcMain.on("err-pending", e => {
+  let a = []; try { a = JSON.parse(fs.readFileSync(ERR_PENDING, "utf8")); fs.rmSync(ERR_PENDING, { force: true }); } catch (x) { /* none */ }
+  e.returnValue = Array.isArray(a) ? a.filter(r => Date.now() - Date.parse(r.at) < 6 * 3600e3) : [];
+});
+ipcMain.on("err-write", (_e, rec) => {
+  if (!rec || typeof rec.text !== "string") return;
+  errNote("page " + String(rec.code).slice(0, 24) + " " + String(rec.title || "").slice(0, 80));
+  errAppend("==== " + new Date().toISOString() + "  " + String(rec.code).slice(0, 24) + "  (" + String(rec.sev || "") + ")\n" + rec.text.slice(0, 60000));
+});
+ipcMain.on("err-copy", (_e, text) => { if (typeof text === "string") clipboard.writeText(text.slice(0, 200000)); });
+ipcMain.on("err-open-log", () => { if (ERR_LOG) { if (!fs.existsSync(ERR_LOG)) errAppend("(no problems logged yet)"); shell.showItemInFolder(ERR_LOG); } });
+// only GitHub's new-issue page for this game's repository: the player reads it and presses Submit himself
+ipcMain.on("err-issue", (_e, u) => { if (typeof u === "string" && u.startsWith("https://github.com/physicstheory/salaryman/issues/new?") && u.length < 9000) shell.openExternal(u); });
 
 ipcMain.on("add-files", (_e, paths) => { if (Array.isArray(paths)) addFiles(paths.filter(p => typeof p === "string")); });
 

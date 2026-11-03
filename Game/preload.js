@@ -11,7 +11,18 @@ contextBridge.exposeInMainWorld("KONTO_DESKTOP", {
   ytShim: (() => { try { return ipcRenderer.sendSync("yt-shim") || ""; } catch (e) { return ""; } })(),
   update: () => ipcRenderer.send("update-game"),
   // Spotify sign-in: the main process opens Spotify's own page in a window and hands back the address it redirects to (nothing else)
-  spotifyAuth: (url, redirect) => ipcRenderer.invoke("spotify-auth", url, redirect)
+  spotifyAuth: (url, redirect) => ipcRenderer.invoke("spotify-auth", url, redirect),
+  // The error engine (Web/game/error-engine.js, main.js "error engine"): versions and GPU for its reports, the log file in userData, the
+  // clipboard, a prefilled GitHub issue page for the player to submit, and what the main process saw (a crash, the GPU process going).
+  errors: {
+    info: () => { try { return ipcRenderer.sendSync("err-info") || {}; } catch (e) { return {}; } },
+    pending: () => { try { return ipcRenderer.sendSync("err-pending") || []; } catch (e) { return []; } },
+    write: rec => ipcRenderer.send("err-write", rec),
+    copy: text => { ipcRenderer.send("err-copy", String(text)); return true; },
+    openLog: () => ipcRenderer.send("err-open-log"),
+    openIssue: url => ipcRenderer.send("err-issue", String(url)),
+    onMain: cb => ipcRenderer.on("err-main", (_e, rec) => { try { cb(rec); } catch (x) { /* none */ } })
+  }
 });
 
 // Files dropped on the window are handed to the main process, which asks where they belong (see main.js, addFiles). Only the paths go across.
