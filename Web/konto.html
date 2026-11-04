@@ -1274,10 +1274,21 @@
 
 <div id="boot">
   <div id="bootshow"></div>
-  <div id="bootintro" aria-label="Ink Games, technology and creator credits">
-    <section class="intro-card intro-ink"><p class="intro-eyebrow">Developed by</p><img src="art/ink-games.svg" alt="Ink Games"><p class="intro-line">Every day has a story.</p></section>
-    <section class="intro-card intro-engine"><p class="intro-eyebrow">Powered by</p><img src="art/shigoto-engine.svg" alt="Shigoto Engine"><p class="intro-line">A world of work. A life of your own.</p></section>
-    <section class="intro-card intro-creators"><p class="intro-eyebrow">Made with the work of many</p><h2>A world built together.</h2><div class="intro-credits"><p><b>Characters</b>Microsoft Rocketbox · MakeHuman / MPFB</p><p><b>World &amp; materials</b>Poly Haven · Kenney</p><p><b>Vehicles</b>Independent Sketchfab artists</p><p><b>Technology</b>Three.js · Rapier</p></div><p class="intro-line">With thanks to every artist and open-source contributor.</p></section>
+  <div id="bootintro" aria-label="Salary Man production notices and startup credits">
+    <section class="intro-card intro-notice">
+      <div class="startup-notice">
+        <h2>PRODUCTION &amp; TECHNOLOGY NOTICE</h2>
+        <p><strong>SALARY MAN</strong> is developed by <strong>DHInc</strong> and powered by <strong>Shigoto Engine</strong>.</p>
+        <p>Konto and its locations are fictional. Character names, employers and story events form part of the game's fictional setting.</p>
+        <p>This software incorporates third-party models, materials and open-source components. Each is subject to its respective license. Third-party names and trademarks belong to their respective owners.</p>
+        <p>Character assets include Microsoft Rocketbox and MakeHuman / MPFB. Environment assets include Poly Haven and Kenney. Vehicle assets include work by independent Sketchfab artists.</p>
+        <p>Technology includes Three.js and Rapier. Full artist attribution, source information and license notices are available under <strong>Credits &amp; licenses</strong>.</p>
+        <p class="startup-reference">DHInc / SALARY MAN / SHIGOTO ENGINE</p>
+      </div>
+    </section>
+    <section class="intro-card intro-studio"><img src="art/dhinc.svg" alt="DHInc"><p class="startup-caption">A DHInc production</p></section>
+    <section class="intro-card intro-engine"><img src="art/shigoto-startup.svg" alt="Shigoto Engine"><p class="startup-caption">Three.js · Rapier</p></section>
+    <section class="intro-card intro-save"><div class="startup-save-mark" aria-hidden="true"><i></i><i></i><i></i></div><h2>PROGRESS &amp; LOCAL STORAGE</h2><p>This game saves progress automatically.</p><p>Allow the save indicator to finish before closing the game.<br>Saved progress is stored on this device.</p><p class="startup-reference">Your commute begins in Mizuho.</p></section>
   </div>
   <button id="bootcredits" type="button" onclick="document.getElementById('assetcredits').showModal()">Credits &amp; licenses</button>
   <div id="bootname"><img src="art/logo.png" alt="Salary Man"></div>
@@ -1286,7 +1297,7 @@
     <div id="bootbar" role="progressbar" aria-label="Loading progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i></i></div>
   </div>
 </div>
-<dialog id="assetcredits" onkeydown="event.stopPropagation()" onkeyup="event.stopPropagation()"><div class="credits-toolbar"><b>Ink Games · Credits &amp; licenses</b><button type="button" onclick="this.closest('dialog').close()">Close</button></div><iframe src="art/credits.html" title="Full asset credits and licenses" loading="lazy"></iframe></dialog>
+<dialog id="assetcredits" onkeydown="event.stopPropagation()" onkeyup="event.stopPropagation()"><div class="credits-toolbar"><b>DHInc · Credits &amp; licenses</b><button type="button" onclick="this.closest('dialog').close()">Close</button></div><iframe src="art/credits.html" title="Full asset credits and licenses" loading="lazy"></iframe></dialog>
 <script src="art/loading-slideshow.js"></script>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>

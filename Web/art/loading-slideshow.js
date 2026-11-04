@@ -3,7 +3,7 @@
 'use strict';
 var boot=document.getElementById('boot'),box=document.getElementById('bootshow');if(!boot||!box)return;
 var fallback=['seiko_mizuho.jpg','akio.jpg','mother.jpg','receptionist.jpg','yakuza_crew.jpg','yakuza_enforcer.jpg','oyabun.jpg'];
-var state={ready:false,active:false,slides:0,compositor:true,intro:true},dwell=8000,fade=1500;
+var state={ready:false,active:false,slides:0,compositor:true,intro:true,introDuration:16000},dwell=8000,fade=1500;
 function motion(){try{boot.classList.toggle('reduce-motion',!!JSON.parse(localStorage.getItem('konto.settings.v1')||'{}').reduceMotion);}catch(e){}}
 function sync(){motion();state.active=!boot.hidden&&!document.hidden;box.classList.toggle('still',!state.active);}
 function decode(file){return new Promise(function(resolve){var im=new Image(),done=false,timer=setTimeout(function(){finish(false);},5000);function finish(ok){if(done)return;done=true;clearTimeout(timer);im.onload=im.onerror=null;resolve(ok?file:null);}im.onload=function(){if(im.decode)im.decode().then(function(){finish(true);},function(){finish(true);});else finish(true);};im.onerror=function(){finish(false);};im.src='loading/'+file;});}
@@ -26,7 +26,7 @@ var ready=manifest.then(function(j){var files=Array.isArray(j.slides)?j.slides.f
  state.ready=true;state.slides=n;sync();
 });
 // Generation starts as soon as art is ready; only the title handoff waits for the cards.
-var introDone=new Promise(function(resolve){setTimeout(function(){state.intro=false;boot.classList.add('intro-finished');resolve();},20000);});
+var introDone=new Promise(function(resolve){setTimeout(function(){state.intro=false;boot.classList.add('intro-finished');resolve();},state.introDuration);});
 window.SalaryLoading={ready:ready,introDone:introDone,state:state};
 window.loadShow=function(on,text,t){boot.hidden=!on;boot.setAttribute('aria-hidden',String(!on));if(on){if(text!=null)document.getElementById('bootstage').textContent=text;if(t!=null){var v=Math.round(Math.max(0,Math.min(1,t))*100),bar=document.getElementById('bootbar');bar.setAttribute('aria-valuenow',String(v));bar.firstElementChild.style.width=v+'%';}}sync();};
 new MutationObserver(sync).observe(boot,{attributes:true,attributeFilter:['hidden']});document.addEventListener('visibilitychange',sync);sync();
