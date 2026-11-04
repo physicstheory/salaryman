@@ -677,7 +677,7 @@
      takes no pointer events. */
 
   /* ---- the story: cutscenes, objectives, the job card, mission passed ------------------------------------------------------------ */
-  body.cutscene #hud, body.cutscene #phone, body.cutscene #prompt, body.cutscene #radiotoast, body.cutscene #notice, body.cutscene #objective { visibility: hidden !important; }
+  body.cutscene #hud, body.cutscene #phone, body.cutscene #prompt, body.cutscene #radiotoast, body.cutscene #notice, body.cutscene #objective, body.cutscene #navhud { visibility: hidden !important; }
   #cutbars { position: fixed; inset: 0; z-index: 29; pointer-events: none; display: none; }
   body.cutscene #cutbars { display: block; }
   #cutbars i { position: absolute; left: 0; right: 0; height: 11vh; background: #000; animation: cutbar 0.7s ease-out both; }
@@ -9283,6 +9283,7 @@ function setPaused(on, tabName) {
   if (paused && !on) try { storyObjectiveFlash(); } catch (e) { /* no story yet */ }
   paused = !!on;
   if(typeof cut!=='undefined'&&cut.video)cut.video.setPaused(paused);
+  if(typeof cut!=='undefined'&&cut.active&&window.cutVoice)cutVoice.pause(paused);
   document.body.classList.toggle("paused", paused);
   const panel = document.getElementById("pause");
   if (panel) {
@@ -44403,7 +44404,7 @@ function actorAdd(o) {
   const e = named || (pool.length ? pool[(o.pick || 0) % pool.length] : null);
   const f = e ? pplFigure(e, o.h || 1) : pedFigure(o.shirt || 0, o.h || 1);
   if (!f) return { holder: new THREE.Group(), mixer: new THREE.AnimationMixer(new THREE.Group()), acts: {}, x: o.x, y: o.y || 0, z: o.z, yaw: 0, pose: "idle", missing: true };
-  const a = Object.assign(f, { x: o.x, y: o.y, z: o.z, yaw: o.yaw || 0, pose: o.pose || "idle", path: o.path || null, pi: 0, sp: o.sp || 1.35, tag: o.tag || "", fixedY: o.y !== undefined, wait: o.wait || 0, vanish: !!o.vanish });
+  const a = Object.assign(f, { x: o.x, y: o.y, z: o.z, yaw: o.yaw || 0, pose: o.pose || "idle", path: o.path || null, pi: 0, sp: o.sp || 1.35, tag: o.tag || "", want: o.look || null, fixedY: o.y !== undefined, wait: o.wait || 0, vanish: !!o.vanish });
   if (a.y === undefined) a.y = o.tag==="commute"?world.walkY(a.x,a.z,player.pos.y):world.surfaceY(a.x, a.z);
   a.holder.position.set(a.x, a.y, a.z); a.holder.rotation.y = a.yaw;
   scene.add(a.holder); pedPlay(a, a.pose, 0);
@@ -44470,6 +44471,8 @@ function cutNext() {
   const s = cut.shots[cut.i];
   if (!s) { cutFinish(false); return; }
   cut.said = -1;
+  if (window.cutVoice) cutVoice.stop();
+  cutSchedule(s);
   if(cut.video)cut.video.ready.then(()=>{if(cut.active&&cut.shots[cut.i]===s)cut.video.play(s.videoKey||cut.sceneId+':'+cut.i,()=>cut.t);});
   const ov = cutEl("cutover"); ov.className = s.overlay || ""; ov.innerHTML = s.overlayHtml || "";
   document.getElementById("cutsub").innerHTML = "";
@@ -44479,8 +44482,22 @@ function cutNext() {
   if (s.fadeIn) { const f = document.getElementById("fade"); if (f) { f.style.transition = "none"; f.style.opacity = "1"; void f.offsetWidth; f.style.transition = "opacity " + s.fadeIn + "s"; f.style.opacity = "0"; } }
   try { if (s.enter) s.enter(s); } catch (e) { console.warn("[Konto] cutscene shot:", e); }
 }
+// A shot's lines are spoken (Web/game/cutvoice.js). A line never starts over the one before it, and the shot holds until the last word
+// is out, so the camera move is stretched over the time the voices need instead of cutting them off.
+function cutSchedule(s) {
+  const lines = s.lines || [], at = []; let end = 0;
+  const voiced = window.cutVoice && cut.manual === undefined;
+  for (let k = 0; k < lines.length; k++) {
+    const L = lines[k], v = voiced ? cutVoice.info(L[1], L[2]) : null;
+    const t = Math.max(L[0], end > 0 ? end + 0.2 : 0);
+    at.push(t);
+    if (v) end = t + v.dur; else if (end > 0) end = Math.max(end, t);
+  }
+  cut.at = at; cut.dur = Math.max(s.dur, end > 0 ? end + 0.45 : 0);
+}
 function cutFinish(skipped) {
   if (!cut.active) return;
+  if (window.cutVoice) cutVoice.stop();
   // a skipped scene still sets up everything its shots would have (the place you wake, the clothes you are in)
   if (skipped) for (let k = Math.max(0, cut.i); k < cut.shots.length; k++) { const s = cut.shots[k]; try { if (s.always) s.always(s); } catch (e) { /* on */ } }
   if(cut.video)cut.video.stop();
@@ -44507,7 +44524,8 @@ function cutTick(dt) {
   cut.hold = holding ? cut.hold + dt : 0;
   const sk = document.getElementById("cutskip"); if (sk) sk.style.setProperty("--k", Math.min(1, cut.hold / 0.8));
   if (cut.hold > 0.8) { cutFinish(true); return; }
-  const u = clamp01(cut.t / s.dur), e = s.linear ? u : u*u*u*(u*(u*6-15)+10);
+  const sd = cut.dur || s.dur;
+  const u = clamp01(cut.t / sd), e = s.linear ? u : u*u*u*(u*(u*6-15)+10);
   const from = typeof s.from === "function" ? s.from() : s.from, to = typeof s.to === "function" ? s.to() : (s.to || from);
   if (from) {
     _cutA.fromArray(from.pos); _cutB.fromArray(to.pos); camPos.copy(_cutA).lerp(_cutB, e);
@@ -44526,11 +44544,13 @@ function cutTick(dt) {
   }
   // the lines, each on screen from its time to the next one's
   const lines = s.lines || [];
-  let li = -1; for (let k = 0; k < lines.length; k++) if (cut.t >= lines[k][0]) li = k;
+  const at = cut.at || [];
+  let li = -1; for (let k = 0; k < lines.length; k++) if (cut.t >= (at[k] !== undefined ? at[k] : lines[k][0])) li = k;
   if (li !== cut.said) {
     cut.said = li;
     const L = lines[li], el = document.getElementById("cutsub");
     el.innerHTML = L ? (L[1] ? "<b>" + L[1] + "</b>" : "") + "<span>" + L[2] + "</span>" : "";
+    if (L && window.cutVoice && cut.manual === undefined && !cut.video?.active) cutVoice.say(L[1], L[2]);
   }
   try { if (s.tick) s.tick(dt, cut.t, s); } catch (err) { console.warn("[Konto] cutscene:", err); }
   if(interior.active)retailEngine().update(interior.room,dt,{temperature:SHIGOTO.retailTemperature(gameMinutes()/60,window.shigoto?.engine?.weather?.cur||{})});
@@ -44540,6 +44560,7 @@ function cutTick(dt) {
   streamFrame();
   updateSeikoClip(dt);
   actorsTick(dt);
+  if (window.cutVoice) cutVoice.tick(dt);         // after the body clips, so the mouth sits on top of them
   if (story.step === "intro") {
     updateWater(dt);
     // Background vehicles need not be resimulated at the frame rate of a close-up.
@@ -44549,7 +44570,7 @@ function cutTick(dt) {
   const exposure = renderer.toneMappingExposure;
   try { renderer.toneMappingExposure = Math.min(1.4, exposure * 1.06); present(); }
   finally { renderer.toneMappingExposure = exposure; }
-  if (cut.t >= s.dur && cut.manual === undefined) cutNext();
+  if (cut.t >= sd && cut.manual === undefined) cutNext();
 }
 // the camera, looking from a place to a place, in a frame turned by yaw around a point: [right, up, forward] offsets
 function framePt(f, r, up, fw) { const sy = Math.sin(f.yaw), cy = Math.cos(f.yaw); return [f.x + cy * r + sy * fw, f.y + up, f.z - sy * r + cy * fw]; }
@@ -45679,6 +45700,7 @@ radioLoadMusic();
 <script src="game/engine-hook.js"></script>
 <script src="game/persist-hook.js"></script>
 <script src="game/standing-hook.js"></script>
+<script src="game/cutvoice.js"></script>
 <script src="game/career.js"></script>
 <script src="game/career-office.js"></script>
 <script src="game/career-content.js"></script>

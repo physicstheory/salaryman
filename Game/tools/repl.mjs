@@ -9,7 +9,7 @@ const WEB = path.resolve(here, "../../Web"), VENDOR = path.resolve(here, "../ven
 const DIR = path.resolve(process.argv[2] || "repl"); fs.mkdirSync(DIR, { recursive: true });
 let chromium;
 try { ({ chromium } = await import("playwright")); } catch (e) { const m = await import(process.env.PLAYWRIGHT || "playwright"); chromium = m.chromium || (m.default && m.default.chromium); }
-const mime = { ".html": "text/html", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".js": "text/javascript", ".json": "application/json", ".wasm": "application/wasm" };
+const mime = { ".ogg": "audio/ogg", ".html": "text/html", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".js": "text/javascript", ".json": "application/json", ".wasm": "application/wasm" };
 const srv = http.createServer((q, r) => {
   let f = path.join(WEB, decodeURIComponent(q.url.split("?")[0]));
   if (f.endsWith(path.sep) || f === WEB) f = path.join(WEB, "konto.html");
@@ -18,7 +18,7 @@ const srv = http.createServer((q, r) => {
 process.on("uncaughtException", e => console.log("[repl]", String(e).slice(0, 300)));
 const port = srv.address().port;
 const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"] });
-const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
+const page = await (await browser.newContext({ viewport: { width: +(process.env.VW || 960), height: +(process.env.VH || 540) } })).newPage();
 page.on("pageerror", e => console.log("[pageerror]", String(e).slice(0, 200)));
 await page.route("**/three.min.js", r => r.fulfill({ path: path.join(VENDOR, "three.min.js"), contentType: "text/javascript" }));
 await page.route("**/GLTFLoader.js", r => r.fulfill({ path: path.join(VENDOR, "GLTFLoader.js"), contentType: "text/javascript" }));
