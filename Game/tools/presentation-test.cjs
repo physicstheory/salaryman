@@ -65,7 +65,7 @@ test('anime social feed keeps authored scenes and player photographs offline', (
 });
 test('loading overlay leaves simulation idle and resumes without a time jump', () => {
   const boot = { hidden: false }, callbacks = [], ticks = [];
-  const c = { performance: { now: () => 0 }, radio: {}, wheel: {}, world: {}, scene: {}, player: { placed: false },
+  const c = { window: {}, performance: { now: () => 0 }, radio: {}, wheel: {}, world: {}, scene: {}, player: { placed: false },
     document: { getElementById: () => boot }, requestAnimationFrame: fn => callbacks.push(fn),
     tick: dt => ticks.push(dt), perfHold() {} };
   vm.runInNewContext(declaration('function frameLoop()', 'function generate(seed)'), c);
