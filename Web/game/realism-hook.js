@@ -82,7 +82,8 @@
           hs.forEach(h => {
             const at = xzOf(h.pos) || p.centre, door = xzOf(h.door);
             plots.push({ id: 9000000 + (hid++), kind: h.shop ? "shop" : "houses", x: at[0], z: at[1], w: 8, d: 8, yaw: (h.yaw || 0) * (Math.abs(h.yaw || 0) <= 6.3 ? 180 / Math.PI : 1),
-              floors: h.floors || 2, ward: ci * 1000 + (p.ward | 0), district: w ? w.kind : "default", city: ci, village, door, units: h.empty ? 0 : h.shop ? 1 : 1, label: h.shop ? h.label : null, hours: h.hours || null });
+              floors: h.floors || 2, ward: ci * 1000 + (p.ward | 0), district: w ? w.kind : "default", city: ci, village, door, units: h.empty ? 0 : 1, label: h.shop ? h.label : null, hours: h.hours || null,
+              surname: h.empty ? null : (h.family || h.surname || null), household: h.empty ? null : (Array.isArray(h.household) ? h.household : null) });
             ref.push(p); p.realismHouses = p.realismHouses || []; p.realismHouses[houseIdx(h)] = plots.length - 1;
           });
           return;

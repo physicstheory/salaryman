@@ -55,20 +55,23 @@ export class Census {
   *steps() {
     const P = this.places, S = this.seed;
     const home = [], hhOf = [], age = [], sex = [], role = [], flags = [];
-    const hhPlace = [], hhFirst = [], hhCount = [], hhType = [], hhUnit = [];
+    const hhPlace = [], hhFirst = [], hhCount = [], hhType = [], hhUnit = [], hhName = [];
     let n = 0;
     for (let pi = 0; pi < P.length; pi++) {
       const pl = P[pi]; pl.resFirst = n; pl.hhFirst = hhPlace.length;
       const shopHome = pl.kind === "shop" && pl.units > 0;
       for (let u = 0; u < pl.units; u++) {
         const R = rng(hash32(S, pl.id | 0, u, 9100));
-        const type = weighted(shopHome ? HH_SHOP : pl.kind === "houses" ? HH_HOUSE : HH_FLAT, R());
+        // the host may already know who lives here (a house whose nameplate is lettered): keep its surname, head count and ages
+        const given = u === 0 && Array.isArray(pl.household) && pl.household.length ? pl.household : null;
+        const type = given ? "given" : weighted(shopHome ? HH_SHOP : pl.kind === "houses" ? HH_HOUSE : HH_FLAT, R());
         const hid = hhPlace.length;
         hhPlace.push(pi); hhFirst.push(n); hhType.push(type);
         // a flat number: floor and door (302 is the second door on the third floor)
         const perFloor = Math.max(1, Math.ceil(pl.units / Math.max(1, (pl.floors || 1) - (pl.kind === "midrise" ? 1 : 0))));
         hhUnit.push(pl.kind === "houses" || shopHome ? 0 : (Math.floor(u / perFloor) + (pl.kind === "midrise" ? 2 : 1)) * 100 + (u % perFloor) + 1);
-        const members = household(type, R);
+        hhName.push(u === 0 && pl.surname ? pl.surname : null);
+        const members = given ? given.map(m => fromHost(m, R, shopHome)) : household(type, R);
         for (const m of members) { home.push(pi); hhOf.push(hid); age.push(m.age); sex.push(m.female ? 1 : 0); role.push(ROLE[m.role]); flags.push(traitsFor(m, R, pl)); n++; }
         hhCount.push(members.length);
       }
@@ -78,7 +81,7 @@ export class Census {
     this.n = n;
     this.home = Int32Array.from(home); this.hh = Int32Array.from(hhOf); this.age = Uint8Array.from(age); this.sex = Uint8Array.from(sex);
     this.role = Uint8Array.from(role); this.flags = Uint16Array.from(flags); this.work = new Int32Array(n).fill(-1);
-    this.hhPlace = Int32Array.from(hhPlace); this.hhFirst = Int32Array.from(hhFirst); this.hhCount = Uint8Array.from(hhCount); this.hhType = hhType; this.hhUnit = Int32Array.from(hhUnit);
+    this.hhPlace = Int32Array.from(hhPlace); this.hhFirst = Int32Array.from(hhFirst); this.hhCount = Uint8Array.from(hhCount); this.hhType = hhType; this.hhUnit = Int32Array.from(hhUnit); this.hhName = hhName;
     yield 0.65;
     // ---- jobs and schools ----
     const cats = {};
@@ -146,7 +149,7 @@ export class Census {
   person(i) {
     if (i < 0 || i >= this.n) return null;
     const S = this.seed, h = this.hh[i], female = !!this.sex[i], a = this.age[i];
-    const surname = pick(SURNAMES, r01(S, h, 31));
+    const surname = (this.hhName && this.hhName[h]) || pick(SURNAMES, r01(S, h, 31));
     const gen = a >= 60 ? "old" : a >= 30 ? "mid" : "young";
     const given = pick((female ? FEMALE : MALE)[gen], r01(S, i, 32));
     const roleName = ROLES[this.role[i]], f = this.flags[i];
@@ -212,6 +215,28 @@ function household(type, R) {
     case "shopfamily": { const a = adult(38, 72, false), b = { age: a.age - Math.round(R() * 5), female: true, role: "shopworker" }; a.role = "shopworker"; out.push(a, b); if (R() < 0.45) { const c = kid(b.age); if (!c.role) c.role = R() < 0.4 ? "shopworker" : workerRole(c, R); out.push(c); } break; }
   }
   return out;
+}
+// a household member as the host described it ({ role, age, job, female? }): its age and role kept, the rest ours
+function fromHost(m, R, shopHome) {
+  const age = Math.max(0, Math.min(99, Math.round(+m.age || (20 + R() * 40))));
+  const txt = String((m.role || "") + " " + (m.job || "")).toLowerCase();
+  let female = m.female != null ? !!m.female : m.sex ? /^f/i.test(m.sex) : /wife|mother|grandmother|daughter|homemaker|housewife|lady|woman|girl|mrs/.test(txt) ? true : /husband|father|grandfather|son\b|man\b|boy|mr\b/.test(txt) ? false : R() < 0.5;
+  let role;
+  if (age < 6 || /baby|infant|toddler/.test(txt)) role = "infant";
+  else if (/retir|pension/.test(txt) || age >= 72) role = "retiree";
+  else if (/pupil|school|child|kid/.test(txt) || age < 18) role = age < 18 ? "schoolchild" : "student";
+  else if (/student|universit|college/.test(txt)) role = "student";
+  else if (/homemaker|housewife|househusband|home/.test(txt)) role = "homemaker";
+  else if (shopHome || /shop|store|owner|keeper|baker|grocer|butcher|fishmonger|florist|barber|cook|chef|ramen|cafe/.test(txt)) role = "shopworker";
+  else if (/nurse|doctor|care|pharmac|dent/.test(txt)) role = "carer";
+  else if (/teach/.test(txt)) role = "teacher";
+  else if (/night|bar|club|snack|hostess|taxi/.test(txt)) role = "nightworker";
+  else if (/factory|dock|port|construct|builder|driver|warehouse|labou?r|mechanic|plumb|electrician|carpenter/.test(txt)) role = "manual";
+  else if (/civil|ward|post|police|city hall|library/.test(txt)) role = "civil";
+  else if (/part[- ]?time|freeter|konbini/.test(txt)) role = "freeter";
+  else if (/salary|office|company|bank|clerk|account|sales|engineer|manager/.test(txt)) role = female ? "officeworker" : "salaryman";
+  else role = workerRole({ age, female }, R);
+  return { age, female, role };
 }
 function workerRole(m, R) {
   const a = m.age, f = m.female, r = R();
