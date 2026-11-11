@@ -1,0 +1,102 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Salary Man - house designer</title>
+<!--
+  The house designer's viewer (Web/game/houses.js). Serve the repo root over http and open
+  Web/engine/houses.html. Options: ?region=nara|coast  ?purpose=barber  ?seed=7  ?hour=20  ?n=12 (houses in the row)
+  ?cam=street|aerial|close. Drag to orbit, wheel to zoom.
+-->
+<style>
+  html, body { margin: 0; height: 100%; background: #9fb4c4; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; }
+  #info { position: absolute; left: 12px; top: 10px; color: #fff; text-shadow: 0 1px 2px #000; max-width: 46vw; white-space: pre-wrap; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="info">loading...</div>
+<script>
+window.__three = function () { if (!window.THREE) document.write('<script src="../../Game/vendor/three.min.js"><\/script>'); };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script src="../art/signfonts/fonts.js"></script>
+<script src="../art/signfonts.js"></script>
+<script src="../game/houses.js"></script>
+<script>
+(function () {
+  const Q = new URLSearchParams(location.search);
+  const H = window.KONTO_HOUSES; H.base = "../art/houses/";
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  const hour = +(Q.get("hour") || 15), night = hour < 6 || hour > 18.5;
+  scene.background = new THREE.Color(night ? 0x0a1020 : 0xa9c0d2);
+  scene.fog = new THREE.Fog(scene.background, 80, 260);
+  const cam = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 800);
+  const hemi = new THREE.HemisphereLight(night ? 0x1a2238 : 0xd8e4ef, night ? 0x0a0806 : 0x6a5a48, night ? 0.25 : 0.75); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(night ? 0x8090b0 : 0xfff0dc, night ? 0.15 : 2.4);
+  sun.position.set(-40, 60, 50); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -70, right: 70, top: 70, bottom: -70, near: 1, far: 300 }); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+  scene.add(sun);
+  // a simple PMREM sky for reflections
+  const pm = new THREE.PMREMGenerator(renderer), envScene = new THREE.Scene();
+  envScene.background = new THREE.Color(night ? 0x101828 : 0xb8cce0);
+  const env = pm.fromScene(envScene).texture;
+  // ground: road, pavement, lots
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ color: 0x8a8478, roughness: 0.95 }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const road = new THREE.Mesh(new THREE.PlaneGeometry(400, 7), new THREE.MeshStandardMaterial({ color: 0x3a3a3c, roughness: 0.9 }));
+  road.rotation.x = -Math.PI / 2; road.position.set(0, 0.01, 12.5); road.receiveShadow = true; scene.add(road);
+
+  const night_ = [];
+  const ctx = { hi: true, env: env, night: night_, nightLit: night ? 1 : 0 };
+  const n = +(Q.get("n") || 10), region = Q.get("region") || "", seed0 = +(Q.get("seed") || 11);
+  const ids = Q.get("purpose") ? Q.get("purpose").split(",") : null;
+  let x = -n * 6.5, t0 = performance.now(), tris = 0;
+  const lines = [];
+  for (let i = 0; i < n; i++) {
+    const lotW = 10 + ((i * 37) % 5), lotD = 16;
+    const purpose = ids ? ids[i % ids.length] : undefined;
+    const lay = H.layout({ seed: seed0 * 1000 + i, region: region, lot: [lotW, lotD], front: 0, maxH: 10.5 });
+    const b = { c: [x + lotW / 2 + lay.off[0], 1.0 + lay.off[1]], y: 0, yaw: 0, size: lay.size, h: lay.h,
+                house: { seed: seed0 * 1000 + i, region: region, front: 0, purpose: purpose || lay.purpose, floors: lay.floors, lot: [lotW, lotD], lotOff: [-lay.off[0], -lay.off[1]], size0: lay.size.slice() } };
+    if (region === "nara") { b.size = [lotW - 0.6, 11]; b.c = [x + lotW / 2, 3.5]; b.house.lot = [lotW, 12]; b.house.lotOff = [0, 0]; b.house.size0 = b.size.slice(); b.h = 6.8; b.house.floors = 2; }
+    H.register(b);
+    const g = H.build(b, ctx); scene.add(g); tris += g.userData.tris;
+    const D = b.house.plan;
+    lines.push((i + 1) + ". " + D.label + " · " + D.surname + " · " + D.folk.map(m => m.role + " " + m.age).join(", "));
+    x += lotW;
+  }
+  const ms = performance.now() - t0;
+  night_.forEach(o => o.m.emissiveIntensity = (night ? 1 : 0) * o.gain);
+  H.lit.value = night ? 0.7 : 0.1;
+  document.getElementById("info").textContent = n + " houses in " + ms.toFixed(0) + " ms (" + (ms / n).toFixed(1) + " ms each), " + Math.round(tris / n) + " tris each\n" + lines.join("\n");
+  window.__houses = { n: n, ms: ms, tris: tris, lines: lines };
+
+  // camera
+  const mode = Q.get("cam") || "street";
+  let yaw = 0.35, pitch = 0.18, dist = 26, tgt = new THREE.Vector3(+(Q.get("x") || 0), 3, 0);
+  if (mode === "aerial") { pitch = 0.75; dist = 70; }
+  if (mode === "close") { dist = 11; pitch = 0.12; tgt.y = 2.2; }
+  if (Q.get("yaw")) yaw = +Q.get("yaw");
+  if (Q.get("dist")) dist = +Q.get("dist");
+  if (Q.get("pitch")) pitch = +Q.get("pitch");
+  const place = () => { cam.position.set(tgt.x + Math.sin(yaw) * Math.cos(pitch) * dist, tgt.y + Math.sin(pitch) * dist, tgt.z + Math.cos(yaw) * Math.cos(pitch) * dist); cam.lookAt(tgt); };
+  let drag = null;
+  addEventListener("pointerdown", e => drag = [e.clientX, e.clientY]);
+  addEventListener("pointerup", () => drag = null);
+  addEventListener("pointermove", e => { if (!drag) return; yaw -= (e.clientX - drag[0]) * 0.005; pitch = Math.max(0.02, Math.min(1.4, pitch + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; });
+  addEventListener("wheel", e => { dist = Math.max(3, Math.min(300, dist * (1 + Math.sign(e.deltaY) * 0.1))); });
+  addEventListener("keydown", e => { if (e.key === "a") tgt.x -= 4; if (e.key === "d") tgt.x += 4; });
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+  (function loop() { place(); H.tick(cam.position); renderer.render(scene, cam); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>

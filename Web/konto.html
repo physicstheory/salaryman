@@ -1313,6 +1313,8 @@
 <script src="art/signfonts.js"></script>
 <!-- the Shigoto engine: physics, weather, streaming (Engine/ builds it); the game runs without it if it is missing -->
 <script src="engine/shigoto.js"></script>
+<!-- the house designer: every house gets a household and a purpose, and is built to fit them (game/houses.js) -->
+<script src="game/houses.js"></script>
 <script>
 /* The post-processing library of three.js r128 (EffectComposer, UnrealBloomPass, SMAAPass and the shaders they use), inlined so the desktop
    build and the F9 updater carry it with the page. MIT licence, Copyright 2010-2021 three.js authors. */
@@ -7844,7 +7846,9 @@ function finishShops(boxes) {
 function addGableRoofs(root, boxes) {
   const byKind = {};
   boxes.forEach(b => {
-    const kind = GABLED[b.style];
+    // a designed house wears a stand-in of its own roof from afar (its real one, with every tile, replaces it up close)
+    const hp = b.house && b.house.plan;
+    const kind = hp ? (hp.roof.type === "flat" ? null : hp.roof.cover === "kawara" ? "kawara" : "tin") : GABLED[b.style];
     if (!kind || b.deck) return;
     // Only a building a person could live in one of. A seven storey block in
     // the country style wearing a domestic gable reads as a pagoda with
@@ -7873,6 +7877,7 @@ function addGableRoofs(root, boxes) {
       m.compose(new THREE.Vector3(b.c[0], b.y + b.h - 0.10, b.c[1]), q,
                 new THREE.Vector3(ridge, rise, span));
       inst.setMatrixAt(i, m);
+      if (b.house) b.roofRef = { inst: inst, i: i, m: m.clone() };
       const slope = Math.hypot(span * 0.5, rise);
       tiles[i * 2] = Math.max(1, Math.round(ridge / 2.6));
       tiles[i * 2 + 1] = Math.max(1, Math.round(slope / 2.2));
@@ -9942,6 +9947,8 @@ function buildScene(w) {
       }
       if (p.kind === "houses") {
         const nx = clamp(Math.floor(p.size[0] / 9.5), 1, 6), nz = clamp(Math.floor(p.size[1] / 9.5), 1, 6);
+        const HD = window.KONTO_HOUSES && KONTO_HOUSES.on ? KONTO_HOUSES : null;
+        let hIdx = 0;
         for (let ix = 0; ix < nx; ix++) for (let iz = 0; iz < nz; iz++) {
           const hr = rnd(Math.round(p.centre[0]) + ix, Math.round(p.centre[1]) + iz, 9187);
           if (hr > 0.91) continue;
@@ -9974,8 +9981,16 @@ function buildScene(w) {
             hs = [cellX * 0.78, cellZ * 0.78];
             hh = lerp(5.5, p.height, hr * 0.7);
           }
-          const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5),
-                     -p.size[1] * 0.5 + cellZ * (iz + 0.5) + back];
+          // Which way the house faces: the nearest edge of the block, which is where the street is.
+          const eL = ix, eR = nx - 1 - ix, eB = iz, eF = nz - 1 - iz, eMin = Math.min(eL, eR, eB, eF);
+          const front = eF === eMin ? 0 : eB === eMin ? 1 : eR === eMin ? 2 : 3;
+          const seed = (Math.round(p.centre[0] * 7) * 73856093 ^ Math.round(p.centre[1] * 7) * 19349663 ^ (ix * 31 + iz) * 83492791) >>> 0;
+          // The house designer gives the household its house: the footprint and storeys it needs, set back on its lot with room
+          // for the drive and the garden. (The old towns keep their terraces; only the purpose and the dressing are designed.)
+          let hOff = [0, 0], lay = null;
+          if (HD && !region) { lay = HD.layout({ seed: seed, region: "", lot: [cellX, cellZ], front: front, maxH: Math.max(6.5, Math.min(10.5, p.height)) }); hs = lay.size; hh = lay.h; hOff = lay.off; }
+          const l = [-p.size[0] * 0.5 + cellX * (ix + 0.5) + hOff[0],
+                     -p.size[1] * 0.5 + cellZ * (iz + 0.5) + back + hOff[1]];
           const wc = fromRectLocal(l[0], l[1], p.centre[0], p.centre[1], p.yaw);
           if (homeReserve.on && city.name === homeReserve.city) {
             const hr2 = toRectLocal(wc[0], wc[1], homeReserve.cx, homeReserve.cz, homeReserve.yawDeg);
@@ -9987,8 +10002,14 @@ function buildScene(w) {
             if (Math.abs(lr[0]) < garageReserve.w * 0.5 + hs[0] * 0.5 + 0.4 &&
                 Math.abs(lr[1]) < garageReserve.d * 0.5 + hs[1] * 0.5 + 0.4) continue;
           }
-          boxes.push({ c: wc, size: hs, yaw: p.yaw, y: p.groundY, h: hh,
-                       style: facadeStyleFor("houses", region) });
+          const hb = { c: wc, size: hs, yaw: p.yaw, y: p.groundY, h: hh,
+                       style: facadeStyleFor("houses", region) };
+          if (HD) {
+            hb.house = { seed: seed, region: region || "", front: front, plot: p, idx: hIdx++, lot: [cellX, cellZ],
+                         lotOff: [-hOff[0], -hOff[1] - back], size0: hs.slice(), purpose: lay ? lay.purpose : null, floors: lay ? lay.floors : null };
+            if (!lay) hb.house.purpose = HD.layout({ seed: seed, region: region, lot: [cellX, cellZ], front: front }).purpose;
+          }
+          boxes.push(hb);
         }
         return;
       }
@@ -12006,6 +12027,8 @@ function buildStreetLife(root, w) {
       dist += len;
     }
   }));
+  // the households' own cars, on their drives (the house designer decides who has one and what it is)
+  if (window.KONTO_HOUSES && KONTO_HOUSES.on) KONTO_HOUSES.bays().forEach(b => parking.bays.push(b));
   if (pos.length) {
     const g = new THREE.BufferGeometry();
     g.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
@@ -14452,6 +14475,7 @@ function dbMesh(B, mat) {
 }
 function hash2(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return (h ^ (h >>> 16)) >>> 0; }
 function buildingDetail(b) {
+  if (b.house && window.KONTO_HOUSES && KONTO_HOUSES.on) return KONTO_HOUSES.build(b, { hi: gfx.high, env: gfx.env || null, night: nightMats, nightLit: nightState.lit });
   const st = DET_STYLE[b.style] || DET_STYLE.office, hi = hash2(Math.round(b.c[0]), Math.round(b.c[1]));
   const W = b.size[0], D = b.size[1], H = b.h, S = dbNew(), G = dbNew(), L = dbNew();
   const tone = 0.93 + (hi % 100) / 100 * 0.14, wall = st.wall.map(v => clamp01(v * tone)), shade = (c, k) => c.map(v => v * k);
@@ -14550,6 +14574,15 @@ function detailMake(b) {
 }
 function detailRegister(boxes) {
   boxes.forEach(b => {
+    // a house is designed and built by the house designer (game/houses.js), through this same close-up detail system
+    if (b.house && window.KONTO_HOUSES && KONTO_HOUSES.on && b.h <= GABLE_MAX_H && !b.deck) {
+      KONTO_HOUSES.register(b);
+      const k = Math.floor(b.c[0] / 128) + "," + Math.floor(b.c[1] / 128);
+      let c = DETAIL.cells.get(k); if (!c) DETAIL.cells.set(k, c = []);
+      c.push(b);
+      return;
+    }
+    if (b.house) delete b.house;
     if (b.deck || b.shopRef || b.shoulder || b.plantFor || b.landmark || b.h < 4 || b.h > 70 || Math.min(b.size[0], b.size[1]) < 5 || b.pitch) return;
     if (b.style === "glass" || b.style === "deck") return;
     const k = Math.floor(b.c[0] / 128) + "," + Math.floor(b.c[1] / 128);
@@ -14557,12 +14590,20 @@ function detailRegister(boxes) {
     c.push(b);
   });
 }
+// A designed house brings its own roof: while it is shown, the town's stand-in gable over its box is folded away (scaled to nothing).
+const ROOF_HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+function detailRoof(b, show) {
+  const rf = b.roofRef; if (!rf || !b.house) return;
+  if (show) rf.inst.setMatrixAt(rf.i, rf.m); else rf.inst.setMatrixAt(rf.i, ROOF_HIDE);
+  rf.inst.instanceMatrix.needsUpdate = true;
+}
 function detailTick() {
   const cam = camera.position, reach = STREAM.on ? ((title && title.on) || player.mode !== "walk" || flight.active || (chute.active && chute.state === "fall") ? 0 : (drive.car ? 0.8 : 1)) : 0, R = STREAM.detail * reach;
   const keep = PERSIST.keep && PERSIST.detail;
   // Out of range: with the persistence engine on, the building is only hidden and stays built (back in range it is shown again, nothing is
   // rebuilt); without it, it is taken apart as before.
-  DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { if (keep && keep.has(b)) g.visible = false; else { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } DETAIL.active.delete(b); } });
+  DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { if (keep && keep.has(b)) g.visible = false; else { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } DETAIL.active.delete(b); detailRoof(b, true); } });
+  if (window.KONTO_HOUSES && KONTO_HOUSES.on) KONTO_HOUSES.tick(cam);
   if (keep && (DETAIL.t = (DETAIL.t || 0) + 1) % 60 === 0) keep.enforce(cam.x, cam.z);
   if (!R) return;
   const near = [], cx0 = Math.floor((cam.x - R) / 128), cx1 = Math.floor((cam.x + R) / 128), cz0 = Math.floor((cam.z - R) / 128), cz1 = Math.floor((cam.z + R) / 128);
@@ -14575,9 +14616,9 @@ function detailTick() {
   const lim = DETAIL.rush > 0 ? 14 : (window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF.budget("detail", 5) : 5);
   for (let i = 0, made = 0; i < near.length && made < cap; i++) {
     const b = near[i][1], kept = keep && keep.get(b);
-    if (kept) { kept.visible = true; DETAIL.active.set(b, kept); continue; }       // already built: showing it again costs nothing
+    if (kept) { kept.visible = true; DETAIL.active.set(b, kept); detailRoof(b, false); continue; }       // already built: showing it again costs nothing
     if (made && performance.now() - t0 > lim) break;
-    const g = detailMake(b); DETAIL.active.set(b, g); made++;
+    const g = detailMake(b); DETAIL.active.set(b, g); detailRoof(b, false); made++;
     if (performance.now() - t0 > lim) break;
   }
   if (DETAIL.rush > 0) DETAIL.rush--;
