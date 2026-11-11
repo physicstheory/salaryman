@@ -10,23 +10,26 @@ var SHIGOTO = (() => {
   };
   var __copyProps = (to, from, except, desc) => {
     if (from && typeof from === "object" || typeof from === "function") {
-      for (let key of __getOwnPropNames(from))
-        if (!__hasOwnProp.call(to, key) && key !== except)
-          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+      for (let key2 of __getOwnPropNames(from))
+        if (!__hasOwnProp.call(to, key2) && key2 !== except)
+          __defProp(to, key2, { get: () => from[key2], enumerable: !(desc = __getOwnPropDesc(from, key2)) || desc.enumerable });
     }
     return to;
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // Engine/src/index.js
+  // src/index.js
   var index_exports = {};
   __export(index_exports, {
+    ACTS: () => ACTS,
+    ACT_LABEL: () => ACT_LABEL,
     BIKE_SPECS: () => BIKE_SPECS,
     BOAT_SPECS: () => BOAT_SPECS,
     Boat: () => Boat,
     CANOPY_SCHEMES: () => CANOPY_SCHEMES,
     CANOPY_SPECS: () => CANOPY_SPECS,
     CHAR_QUALITY: () => CHAR_QUALITY,
+    Calendar: () => Calendar,
     CanopyRig: () => CanopyRig,
     Characters: () => Characters,
     CinematicVideo: () => CinematicVideo,
@@ -44,14 +47,18 @@ var SHIGOTO = (() => {
     Ocean: () => Ocean,
     PROP_DEFS: () => PROP_DEFS,
     PROP_SLOTS: () => PROP_SLOTS,
+    PURPOSES: () => PURPOSES,
     PerformanceEngine: () => PerformanceEngine,
     Persistence: () => Persistence,
     QualityGovernor: () => QualityGovernor,
     RAGDOLL_JOINTS: () => RAGDOLL_JOINTS,
     RAIN_QUALITY: () => RAIN_QUALITY,
+    REALISM_VERSION: () => REALISM_VERSION,
     RESPECT_TIERS: () => RESPECT_TIERS,
+    ROLES: () => ROLES,
     RagdollSystem: () => RagdollSystem,
     RainEngine: () => RainEngine,
+    RealismEngine: () => RealismEngine,
     ResidentSet: () => ResidentSet,
     Respect: () => Respect,
     SLOT_MATERIALS: () => SLOT_MATERIALS,
@@ -59,8 +66,10 @@ var SHIGOTO = (() => {
     Skydiver: () => Skydiver,
     StandingHud: () => StandingHud,
     TEMPERS: () => TEMPERS,
+    TRAITS: () => TRAITS,
     VERSION: () => VERSION,
     WEATHER: () => PRESETS,
+    WINDOW_LIFE_GLSL: () => WINDOW_LIFE_GLSL,
     WIND_PRESETS: () => WIND_PRESETS,
     WindField: () => WindField,
     airDensity: () => airDensity,
@@ -74,6 +83,7 @@ var SHIGOTO = (() => {
     findRagdollBones: () => findRagdollBones,
     forgetWarm: () => forgetWarm,
     gpuSettle: () => gpuSettle,
+    holidays: () => holidays,
     kindOf: () => kindOf,
     makeParts: () => makeParts,
     memoryBudget: () => memoryBudget,
@@ -84,13 +94,14 @@ var SHIGOTO = (() => {
     shaderFailures: () => shaderFailures,
     stepCarDynamics: () => stepCarDynamics,
     subdivideGeometry: () => subdivideGeometry,
+    sunTimes: () => sunTimes,
     synthesizeMaps: () => synthesizeMaps,
     vehicleMass: () => vehicleMass,
     warmGPU: () => warmGPU,
     warmGPUChunked: () => warmGPUChunked
   });
 
-  // Engine/src/core/Events.js
+  // src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -121,7 +132,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5286,7 +5297,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // Engine/src/physics/Physics.js
+  // src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5315,13 +5326,13 @@ var SHIGOTO = (() => {
       this._e = new T2.Euler();
     }
     // ---- ownership ---------------------------------------------------------------------------------------------
-    _own(key) {
-      let o2 = this.owners.get(key);
-      if (!o2) this.owners.set(key, o2 = { colliders: [], bodies: [] });
+    _own(key2) {
+      let o2 = this.owners.get(key2);
+      if (!o2) this.owners.set(key2, o2 = { colliders: [], bodies: [] });
       return o2;
     }
-    removeOwner(key) {
-      const o2 = this.owners.get(key);
+    removeOwner(key2) {
+      const o2 = this.owners.get(key2);
       if (!o2) return;
       for (const c2 of o2.colliders) if (this.world.getCollider(c2.handle)) this.world.removeCollider(c2, false);
       for (const b2 of o2.bodies) {
@@ -5333,24 +5344,24 @@ var SHIGOTO = (() => {
         }
         if (this.world.getRigidBody(b2.handle)) this.world.removeRigidBody(b2);
       }
-      this.owners.delete(key);
+      this.owners.delete(key2);
     }
-    hasOwner(key) {
-      return this.owners.has(key);
+    hasOwner(key2) {
+      return this.owners.has(key2);
     }
     // ---- static geometry -------------------------------------------------------------------------------------
     // A box: centre [x,y,z], size [w,h,d] (full extents), yaw in radians about +Y.
-    addStaticBox(key, c2, size, yaw, opts) {
+    addStaticBox(key2, c2, size, yaw, opts) {
       const R2 = this.R;
       const d2 = R2.ColliderDesc.cuboid(Math.max(0.01, size[0] / 2), Math.max(0.01, size[1] / 2), Math.max(0.01, size[2] / 2)).setTranslation(c2[0], c2[1], c2[2]).setFriction(opts && opts.friction != null ? opts.friction : 0.8);
       if (yaw) d2.setRotation(yawQuat(yaw));
       const col = this.world.createCollider(d2);
       col.userData = opts && opts.tag;
-      this._own(key).colliders.push(col);
+      this._own(key2).colliders.push(col);
       return col;
     }
     // A heightfield: n x n quads covering `size` metres centred on (cx, cz). heights(i, j) gives y at x index i, z index j.
-    addHeightfield(key, cx, cz, size, n2, heightAt) {
+    addHeightfield(key2, cx, cz, size, n2, heightAt) {
       const R2 = this.R;
       const h2 = new Float32Array((n2 + 1) * (n2 + 1));
       for (let ix = 0; ix <= n2; ix++) for (let iz = 0; iz <= n2; iz++) {
@@ -5359,19 +5370,19 @@ var SHIGOTO = (() => {
       }
       const d2 = R2.ColliderDesc.heightfield(n2, n2, h2, { x: size, y: 1, z: size }).setTranslation(cx, 0, cz).setFriction(0.9);
       const col = this.world.createCollider(d2);
-      this._own(key).colliders.push(col);
+      this._own(key2).colliders.push(col);
       return col;
     }
-    addTrimesh(key, vertices, indices, opts) {
+    addTrimesh(key2, vertices, indices, opts) {
       const d2 = this.R.ColliderDesc.trimesh(vertices, indices).setFriction(opts && opts.friction != null ? opts.friction : 0.8);
       const col = this.world.createCollider(d2);
-      this._own(key).colliders.push(col);
+      this._own(key2).colliders.push(col);
       return col;
     }
     // ---- dynamic props ---------------------------------------------------------------------------------------
     // spec: { shape: "box"|"sphere"|"cylinder"|"capsule", size: [..], pos: [x,y,z], yaw, mass, friction, restitution,
     //         mesh (THREE.Object3D to drive), buoyancy (0..2, 1 = floats level), sleeping, damping }
-    addDynamic(key, spec) {
+    addDynamic(key2, spec) {
       const R2 = this.R;
       const s2 = spec.size || [0.5, 0.5, 0.5];
       let cd;
@@ -5420,27 +5431,27 @@ var SHIGOTO = (() => {
       rec.curQ.set(r2.x, r2.y, r2.z, r2.w);
       rec.prevQ.copy(rec.curQ);
       this.dynamics.push(rec);
-      this._own(key).bodies.push(body);
-      this._own(key).colliders.push(col);
+      this._own(key2).bodies.push(body);
+      this._own(key2).colliders.push(col);
       return rec;
     }
     // A body the game moves by hand (Seiko's capsule, the car he is in). It pushes dynamic props; nothing pushes it.
-    addKinematic(key, shape, size) {
+    addKinematic(key2, shape, size) {
       const R2 = this.R;
       const body = this.world.createRigidBody(R2.RigidBodyDesc.kinematicPositionBased());
       let cd = shape === "capsule" ? R2.ColliderDesc.capsule(Math.max(0.01, size[1] / 2 - size[0]), size[0]) : R2.ColliderDesc.cuboid(size[0] / 2, size[1] / 2, size[2] / 2);
       const col = this.world.createCollider(cd, body);
-      const k2 = { body, col, key, set: (x2, y2, z2, yaw) => {
+      const k2 = { body, col, key: key2, set: (x2, y2, z2, yaw) => {
         body.setNextKinematicTranslation({ x: x2, y: y2, z: z2 });
         if (yaw != null) body.setNextKinematicRotation(yawQuat(yaw));
       } };
       this.kinematics.push(k2);
-      this._own(key).bodies.push(body);
-      this._own(key).colliders.push(col);
+      this._own(key2).bodies.push(body);
+      this._own(key2).colliders.push(col);
       return k2;
     }
     // A walking character: capsule, steps up kerbs, slides along walls, snaps to the ground, pushes props.
-    createCharacter(key, opts) {
+    createCharacter(key2, opts) {
       const R2 = this.R;
       const radius = opts && opts.radius || 0.35, height = opts && opts.height || 1.75;
       const body = this.world.createRigidBody(R2.RigidBodyDesc.kinematicPositionBased().setTranslation(...opts && opts.pos || [0, 2, 0]));
@@ -5479,8 +5490,8 @@ var SHIGOTO = (() => {
         }
       };
       this.characters.push(ch);
-      this._own(key).bodies.push(body);
-      this._own(key).colliders.push(col);
+      this._own(key2).bodies.push(body);
+      this._own(key2).colliders.push(col);
       return ch;
     }
     // Cast a ray; returns { point:[x,y,z], normal:[x,y,z], toi, collider } or null.
@@ -5585,7 +5596,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // Engine/src/env/Environment.js
+  // src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5740,7 +5751,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // Engine/src/rain/Occlusion.js
+  // src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5923,7 +5934,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // Engine/src/rain/RainShaders.js
+  // src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5984,7 +5995,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // Engine/src/rain/Streaks.js
+  // src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6086,7 +6097,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Splashes.js
+  // src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6261,7 +6272,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/Atmosphere.js
+  // src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6403,7 +6414,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // Engine/src/rain/RainEngine.js
+  // src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6759,7 +6770,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Weather.js
+  // src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6876,7 +6887,7 @@ vec3 rOut(vec3 c) {
     }
     update(dt, focus) {
       const c2 = this.cur, t2 = this.target, k2 = Math.min(1, this.blend * dt * 3);
-      for (const key in t2) c2[key] += (t2[key] - c2[key]) * k2;
+      for (const key2 in t2) c2[key2] += (t2[key2] - c2[key2]) * k2;
       const env = this.engine.env, S4 = this.engine.surfaces.uniforms;
       env.cloud = c2.cloud;
       env.fogBoost = c2.fog;
@@ -6923,7 +6934,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // Engine/src/env/Water.js
+  // src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7059,7 +7070,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // Engine/src/render/Surfaces.js
+  // src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7262,7 +7273,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // Engine/src/world/Batcher.js
+  // src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7271,9 +7282,9 @@ void shSurface(vec3 wp, vec3 wn) {
       this._n = new THREE.Matrix3();
     }
     // geo: a BufferGeometry. matrix: placement. colour: [r,g,b] (0..1). extra: { name: [values per vertex, constant] }
-    add(key, material, geo, matrix, colour, extra) {
-      let g2 = this.groups.get(key);
-      if (!g2) this.groups.set(key, g2 = { material, parts: [], extraSizes: {} });
+    add(key2, material, geo, matrix, colour, extra) {
+      let g2 = this.groups.get(key2);
+      if (!g2) this.groups.set(key2, g2 = { material, parts: [], extraSizes: {} });
       const src = geo.index ? geo.toNonIndexed() : geo;
       if (extra) for (const k2 in extra) g2.extraSizes[k2] = extra[k2].length;
       const lin = colour ? [Math.pow(colour[0], 2.2), Math.pow(colour[1], 2.2), Math.pow(colour[2], 2.2)] : [1, 1, 1];
@@ -7281,7 +7292,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
     build(parent, opts) {
       const T2 = this.T, out = [];
-      for (const [key, g2] of this.groups) {
+      for (const [key2, g2] of this.groups) {
         let n2 = 0;
         for (const p2 of g2.parts) n2 += p2.geo.attributes.position.count;
         if (!n2) continue;
@@ -7337,9 +7348,9 @@ void shSurface(vec3 wp, vec3 wn) {
         for (const k2 in extras) geo.setAttribute(k2, new T2.BufferAttribute(extras[k2], g2.extraSizes[k2]));
         geo.computeBoundingSphere();
         const mesh = new T2.Mesh(geo, g2.material);
-        mesh.castShadow = !(opts && opts.noShadow && opts.noShadow.has(key));
+        mesh.castShadow = !(opts && opts.noShadow && opts.noShadow.has(key2));
         mesh.receiveShadow = true;
-        mesh.name = key;
+        mesh.name = key2;
         parent.add(mesh);
         out.push(mesh);
       }
@@ -7348,7 +7359,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // Engine/src/world/PropSlots.js
+  // src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7423,7 +7434,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // Engine/src/world/Props.js
+  // src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7565,7 +7576,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return P3;
   }
   var W2 = [1, 1, 1];
-  function drawProp(T2, type, add, rng, opts) {
+  function drawProp(T2, type, add, rng2, opts) {
     const P3 = makeParts(T2, add), tint = opts && opts.tint;
     switch (type) {
       case "cone": {
@@ -7575,7 +7586,7 @@ void shSurface(vec3 wp, vec3 wn) {
         break;
       }
       case "bin": {
-        const c2 = tint || (rng() < 0.5 ? [0.32, 0.55, 0.36] : [0.34, 0.42, 0.68]);
+        const c2 = tint || (rng2() < 0.5 ? [0.32, 0.55, 0.36] : [0.34, 0.42, 0.68]);
         P3.lathe("bin_body", [[0.24, 0], [0.25, 0.04], [0.27, 0.78], [0.28, 0.8], [0.28, 0.82]], 24, 0, 0, 0, c2);
         P3.lathe("bin_lid", [[0.3, 0.82], [0.3, 0.86], [0.25, 0.9], [0.12, 0.92], [0.12, 0.9], [0, 0.9]], 24, 0, 0, 0, W2);
         P3.cyl("bin_lid", 0.12, 0.12, 0.08, 18, 0, 0.88, 0, [0.05, 0.05, 0.05], 0, 0, 0, true);
@@ -7617,7 +7628,7 @@ void shSurface(vec3 wp, vec3 wn) {
         break;
       }
       case "bicycle": {
-        const c2 = tint || [[0.8, 0.2, 0.18], [0.24, 0.36, 0.7], [0.94, 0.94, 0.94], [0.25, 0.25, 0.26]][rng() * 4 | 0];
+        const c2 = tint || [[0.8, 0.2, 0.18], [0.24, 0.36, 0.7], [0.94, 0.94, 0.94], [0.25, 0.25, 0.26]][rng2() * 4 | 0];
         for (const z2 of [-0.55, 0.55]) {
           P3.torus("bicycle_tyre", 0.33, 0.024, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
           P3.torus("bicycle_steel", 0.3, 8e-3, 0, 0.35, z2, W2, Math.PI / 2, 0, 28);
@@ -7654,7 +7665,7 @@ void shSurface(vec3 wp, vec3 wn) {
         break;
       }
       case "vending": {
-        const body = tint || [[0.9, 0.24, 0.22], [0.26, 0.48, 0.82], [0.95, 0.95, 0.95], [0.92, 0.62, 0.22]][rng() * 4 | 0];
+        const body = tint || [[0.9, 0.24, 0.22], [0.26, 0.48, 0.82], [0.95, 0.95, 0.95], [0.92, 0.62, 0.22]][rng2() * 4 | 0];
         P3.rbox("vending_body", 1, 1.78, 0.8, 0.03, 0, 0.96, -0, body);
         P3.box("vending_body", 1.04, 0.12, 0.84, 0, 1.86, 0, body);
         P3.box("vending_trim", 1, 0.08, 0.78, 0, 0.04, 0, W2);
@@ -7710,24 +7721,24 @@ void shSurface(vec3 wp, vec3 wn) {
         break;
       }
       case "tree": {
-        const s2 = 0.8 + rng() * 0.5;
+        const s2 = 0.8 + rng2() * 0.5;
         P3.lathe("tree_bark", [[0.22 * s2, 0], [0.18 * s2, 0.3 * s2], [0.14 * s2, 2 * s2], [0.12 * s2, 3 * s2], [0.06 * s2, 3.4 * s2]], 9, 0, 0, 0, W2);
         for (let i2 = 0; i2 < 3; i2++) {
-          const a2 = rng() * 6.28;
+          const a2 = rng2() * 6.28;
           P3.tube("tree_bark", [[0, 2.4 * s2, 0], [Math.cos(a2) * 0.5 * s2, 3.1 * s2, Math.sin(a2) * 0.5 * s2], [Math.cos(a2) * 0.9 * s2, 3.6 * s2, Math.sin(a2) * 0.9 * s2]], 0.05 * s2, W2);
         }
         for (let i2 = 0; i2 < 18; i2++) {
-          const a2 = rng() * 6.28, r2 = Math.sqrt(rng()) * 1.5 * s2, up = rng();
+          const a2 = rng2() * 6.28, r2 = Math.sqrt(rng2()) * 1.5 * s2, up = rng2();
           P3.blob(
             "tree_leaves",
-            (0.45 + rng() * 0.4) * s2 * (1.2 - up * 0.4),
+            (0.45 + rng2() * 0.4) * s2 * (1.2 - up * 0.4),
             Math.cos(a2) * r2 * (1 - up * 0.5),
             (2.9 + up * 2) * s2,
             Math.sin(a2) * r2 * (1 - up * 0.5),
-            [0.85 + rng() * 0.25, 0.88 + rng() * 0.2, 0.8 + rng() * 0.2],
+            [0.85 + rng2() * 0.25, 0.88 + rng2() * 0.2, 0.8 + rng2() * 0.2],
             2,
             0.35,
-            rng() * 10
+            rng2() * 10
           );
         }
         P3.face("tree_grate", 1.2, 1.2, 0, 0.024, 0, W2, 0, -Math.PI / 2);
@@ -7738,7 +7749,7 @@ void shSurface(vec3 wp, vec3 wn) {
         P3.rbox("planter_box", 1.6, 0.5, 0.6, 0.04, 0, 0.25, 0, W2);
         P3.box("planter_box", 1.66, 0.06, 0.66, 0, 0.5, 0, [0.92, 0.92, 0.9]);
         P3.box("planter_shrub", 1.5, 0.02, 0.5, 0, 0.52, 0, [0.35, 0.28, 0.22]);
-        for (let i2 = 0; i2 < 8; i2++) P3.blob("planter_shrub", 0.2 + rng() * 0.08, -0.68 + i2 * 0.195, 0.62 + rng() * 0.06, (rng() - 0.5) * 0.18, W2, 2, 0.3, rng() * 10);
+        for (let i2 = 0; i2 < 8; i2++) P3.blob("planter_shrub", 0.2 + rng2() * 0.08, -0.68 + i2 * 0.195, 0.62 + rng2() * 0.06, (rng2() - 0.5) * 0.18, W2, 2, 0.3, rng2() * 10);
         break;
       }
       case "signpost": {
@@ -7768,7 +7779,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // Engine/src/world/CellBuilder.js
+  // src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -7786,23 +7797,23 @@ void shSurface(vec3 wp, vec3 wn) {
       this.mat = materials;
       this.protos = /* @__PURE__ */ new Map();
     }
-    build(cell, key, root, offset) {
+    build(cell, key2, root, offset) {
       const T2 = this.T, eng = this.engine, ph = eng.physics;
       const ox = offset ? offset.x : 0, oz = offset ? offset.z : 0, oy = offset ? offset.y || 0 : 0;
       const group = new T2.Group();
-      group.name = "cell " + key;
+      group.name = "cell " + key2;
       group.position.set(ox, oy, oz);
       const B2 = new Batcher(T2);
       const add = (mname, geo, m2, colour, extra) => B2.add(mname, this.mat.get(mname), geo, m2, colour, extra);
       const P3 = (x2, z2) => [x2 + ox, z2 + oz];
-      const rng = seeded(hashStr(key));
+      const rng2 = seeded(hashStr(key2));
       const lights = [];
       const signs = new SignAtlas(T2, 1024);
       for (const g2 of cell.ground || []) {
         const [x0, z0, x1, z1] = g2.rect, y2 = g2.y || 0;
         const geo = new T2.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2);
         add(g2.surface || "asphalt", geo, new T2.Matrix4().makeTranslation((x0 + x1) / 2, y2, (z0 + z1) / 2));
-        if (ph) ph.addStaticBox(key, [(x0 + x1) / 2 + ox, y2 - 0.5 + oy, (z0 + z1) / 2 + oz], [x1 - x0, 1, z1 - z0], 0, { tag: "ground" });
+        if (ph) ph.addStaticBox(key2, [(x0 + x1) / 2 + ox, y2 - 0.5 + oy, (z0 + z1) / 2 + oz], [x1 - x0, 1, z1 - z0], 0, { tag: "ground" });
       }
       for (const b2 of cell.blocks || []) {
         const k2 = b2.kerb != null ? b2.kerb : 0.15, y2 = b2.y || 0;
@@ -7811,7 +7822,7 @@ void shSurface(vec3 wp, vec3 wn) {
           const m2 = new T2.Matrix4().compose(new T2.Vector3(r2.c[0], y2 + k2 / 2, r2.c[1]), new T2.Quaternion().setFromEuler(new T2.Euler(0, r2.yaw, 0)), new T2.Vector3(1, 1, 1));
           add(b2.surface || "paving", topOnly(T2, r2.size[0], r2.size[1], k2), m2);
           add("paint", sidesOnly(T2, r2.size[0], r2.size[1], k2), m2, [0.62, 0.61, 0.58]);
-          if (ph) ph.addStaticBox(key, [r2.c[0] + ox, y2 + k2 / 2 + oy, r2.c[1] + oz], [r2.size[0], k2, r2.size[1]], r2.yaw, { tag: "kerb" });
+          if (ph) ph.addStaticBox(key2, [r2.c[0] + ox, y2 + k2 / 2 + oy, r2.c[1] + oz], [r2.size[0], k2, r2.size[1]], r2.yaw, { tag: "kerb" });
         } else if (b2.poly) {
           const sh = new T2.Shape(b2.poly.map((p2) => new T2.Vector2(p2[0], -p2[1])));
           const geo = new T2.ExtrudeGeometry(sh, { depth: k2, bevelEnabled: false }).rotateX(-Math.PI / 2);
@@ -7826,7 +7837,7 @@ void shSurface(vec3 wp, vec3 wn) {
             }
             const idx = new Uint32Array(pos.count);
             for (let i2 = 0; i2 < idx.length; i2++) idx[i2] = i2;
-            ph.addTrimesh(key, v2, idx);
+            ph.addTrimesh(key2, v2, idx);
           }
         }
       }
@@ -7834,7 +7845,7 @@ void shSurface(vec3 wp, vec3 wn) {
         const dx = w2.b[0] - w2.a[0], dz = w2.b[1] - w2.a[1], len = Math.hypot(dx, dz), th = w2.thick || 0.4, y0 = w2.y0 != null ? w2.y0 : 0, y1 = w2.y1 != null ? w2.y1 : 1.2;
         const c2 = [(w2.a[0] + w2.b[0]) / 2, (y0 + y1) / 2, (w2.a[1] + w2.b[1]) / 2], yaw = Math.atan2(dx, dz);
         add("paint", new T2.BoxGeometry(th, y1 - y0, len), new T2.Matrix4().compose(new T2.Vector3(c2[0], c2[1], c2[2]), new T2.Quaternion().setFromEuler(new T2.Euler(0, yaw, 0)), new T2.Vector3(1, 1, 1)), w2.colour ? hexToRgb(w2.colour) : [0.58, 0.57, 0.54]);
-        if (ph) ph.addStaticBox(key, [c2[0] + ox, c2[1] + oy, c2[2] + oz], [th, y1 - y0, len], yaw, { tag: "wall" });
+        if (ph) ph.addStaticBox(key2, [c2[0] + ox, c2[1] + oy, c2[2] + oz], [th, y1 - y0, len], yaw, { tag: "wall" });
       }
       const W3 = [0.95, 0.95, 0.92], Y2 = [0.95, 0.72, 0.1];
       for (const r2 of cell.roads || []) {
@@ -7873,7 +7884,7 @@ void shSurface(vec3 wp, vec3 wn) {
           zebra(len - 2);
         }
       }
-      for (const b2 of cell.buildings || []) this._building(b2, key, add, B2, signs, rng, ox, oy, oz, lights);
+      for (const b2 of cell.buildings || []) this._building(b2, key2, add, B2, signs, rng2, ox, oy, oz, lights);
       for (const p2 of cell.props || []) {
         const def = PROP_DEFS[p2.type] || PROP_DEFS.crate;
         const dyn = p2.dynamic != null ? p2.dynamic : def.dynamic;
@@ -7887,7 +7898,7 @@ void shSurface(vec3 wp, vec3 wn) {
           holder.position.set(pos[0] + ox, pos[1] + oy + (def.shape === "sphere" ? def.size[0] : def.size[1] / 2), pos[2] + oz);
           holder.rotation.y = yaw;
           eng.scene.add(holder);
-          ph.addDynamic(key, {
+          ph.addDynamic(key2, {
             shape: def.shape,
             size: def.shape === "sphere" ? [def.size[0]] : def.shape === "cylinder" || def.shape === "cone" ? [def.size[0], def.size[1]] : def.size,
             pos: [holder.position.x, holder.position.y, holder.position.z],
@@ -7901,10 +7912,10 @@ void shSurface(vec3 wp, vec3 wn) {
           });
         } else {
           const m2 = new T2.Matrix4().compose(new T2.Vector3(pos[0], pos[1], pos[2]), new T2.Quaternion().setFromEuler(new T2.Euler(0, yaw, 0)), new T2.Vector3(1, 1, 1));
-          drawProp(T2, p2.type, (mn, g2, mm, col) => add(mn, g2, mm ? m2.clone().multiply(mm) : m2, col), rng);
+          drawProp(T2, p2.type, (mn, g2, mm, col) => add(mn, g2, mm ? m2.clone().multiply(mm) : m2, col), rng2);
           if (ph && def.shape) {
             const s2 = def.size;
-            ph.addStaticBox(key, [pos[0] + ox, pos[1] + s2[1] / 2 + oy, pos[2] + oz], def.shape === "box" ? s2 : [s2[0] * 2, s2[1], s2[0] * 2], yaw, { tag: p2.type });
+            ph.addStaticBox(key2, [pos[0] + ox, pos[1] + s2[1] / 2 + oy, pos[2] + oz], def.shape === "box" ? s2 : [s2[0] * 2, s2[1], s2[0] * 2], yaw, { tag: p2.type });
           }
         }
         if (def.light && p2.type === "lamp") lights.push({ pos: [pos[0] + ox + Math.sin(yaw) * 1.45, pos[1] + 6.1 + oy, pos[2] + oz + Math.cos(yaw) * 1.45], colour: 16767400, range: 18, intensity: 1.6 });
@@ -7925,7 +7936,7 @@ void shSurface(vec3 wp, vec3 wn) {
       }
       for (const l2 of cell.lights || []) lights.push({ pos: [l2.pos[0] + ox, l2.pos[1] + oy, l2.pos[2] + oz], colour: l2.colour || 16765600, range: l2.range || 15, intensity: l2.intensity || 1.5 });
       if (eng.water) for (const w2 of cell.water || []) {
-        const body = Object.assign({}, w2, { owner: key });
+        const body = Object.assign({}, w2, { owner: key2 });
         if (w2.rect) {
           body.shape = "rect";
           body.rect = [w2.rect[0] + ox, w2.rect[1] + oz, w2.rect[2] + ox, w2.rect[3] + oz];
@@ -8009,7 +8020,7 @@ void shSurface(vec3 wp, vec3 wn) {
       this.protos.set(type, g2);
       return g2;
     }
-    _building(b2, key, add, B2, signs, rng, ox, oy, oz, lights) {
+    _building(b2, key2, add, B2, signs, rng2, ox, oy, oz, lights) {
       const T2 = this.T, ph = this.engine.physics;
       const styleName = b2.style || "apartment";
       const style = STYLE_IDS[styleName] != null ? STYLE_IDS[styleName] : 0;
@@ -8017,7 +8028,7 @@ void shSurface(vec3 wp, vec3 wn) {
       const H2 = groundH + (floors - 1) * floorH;
       const parapet = b2.parapet != null ? b2.parapet : 1;
       const y0 = b2.y || 0;
-      const seed = hashStr(b2.id || key + ":" + (b2.c || b2.poly[0]).join(",")) % 997;
+      const seed = hashStr(b2.id || key2 + ":" + (b2.c || b2.poly[0]).join(",")) % 997;
       const brng = seeded(seed + 11);
       const colours = STYLE_COLOURS[styleName] || STYLE_COLOURS.apartment;
       const colour = b2.colour ? hexToRgb(b2.colour) : colours[brng() * colours.length | 0];
@@ -8098,18 +8109,18 @@ void shSurface(vec3 wp, vec3 wn) {
           const h2 = s2.height || Math.min(H2 - groundH - 1, Math.max(3, text.length * 1 + 0.6));
           const t2 = s2.at != null ? s2.at : 0.85;
           const x2 = p0[0] + ex * t2 + nx * 0.75, z2 = p0[1] + ez * t2 + nz * 0.75, y2 = y0 + groundH + 0.5 + h2 / 2;
-          const slot = signs.vertical(text, col, key + "|" + (b2.id || b2.c) + "|v|" + (s2.at || 0));
+          const slot = signs.vertical(text, col, key2 + "|" + (b2.id || b2.c) + "|v|" + (s2.at || 0));
           signs.blade(slot, x2, y2, z2, tx, tz, 0.12, h2, 1);
           lights.push({ pos: [x2 + ox + nx * 0.6, y2 + oy, z2 + oz + nz * 0.6], colour: new T2.Color(col).getHex(), range: 9, intensity: 0.6, sign: true });
         } else {
           const w2 = Math.min(len * 0.8, s2.width || len - 1), t2 = s2.at != null ? s2.at : 0.5;
           const x2 = p0[0] + ex * t2 + nx * 0.18, z2 = p0[1] + ez * t2 + nz * 0.18, y2 = y0 + groundH - 0.55;
-          const slot = signs.fascia(text, col, key + "|" + (b2.id || b2.c) + "|f");
+          const slot = signs.fascia(text, col, key2 + "|" + (b2.id || b2.c) + "|f");
           signs.panel(slot, x2, y2, z2, tx, tz, nx, nz, w2, 0.9);
         }
       }
       if (ph) {
-        if (r2) ph.addStaticBox(key, [r2.c[0] + ox, y0 + (H2 + parapet) / 2 + oy, r2.c[1] + oz], [r2.size[0], H2 + parapet, r2.size[1]], r2.yaw, { tag: "building" });
+        if (r2) ph.addStaticBox(key2, [r2.c[0] + ox, y0 + (H2 + parapet) / 2 + oy, r2.c[1] + oz], [r2.size[0], H2 + parapet, r2.size[1]], r2.yaw, { tag: "building" });
         else {
           const pts = new Float32Array(poly.length * 6);
           poly.forEach((p2, i2) => {
@@ -8118,7 +8129,7 @@ void shSurface(vec3 wp, vec3 wn) {
           const d2 = ph.R.ColliderDesc.convexHull(pts);
           if (d2) {
             const c2 = ph.world.createCollider(d2);
-            ph._own(key).colliders.push(c2);
+            ph._own(key2).colliders.push(c2);
           }
         }
       }
@@ -8248,10 +8259,10 @@ void shSurface(vec3 wp, vec3 wn) {
       return mesh;
     }
   };
-  function autoSigns(rng, floors) {
+  function autoSigns(rng2, floors) {
     const out = [{ kind: "fascia" }];
-    if (floors >= 3) out.push({ kind: "vertical", at: 0.12 + rng() * 0.15 });
-    if (floors >= 5 && rng() < 0.6) out.push({ kind: "vertical", at: 0.8 + rng() * 0.1 });
+    if (floors >= 3) out.push({ kind: "vertical", at: 0.12 + rng2() * 0.15 });
+    if (floors >= 5 && rng2() < 0.6) out.push({ kind: "vertical", at: 0.8 + rng2() * 0.1 });
     return out;
   }
   function isLight(hex2) {
@@ -8342,7 +8353,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // Engine/src/render/Materials.js
+  // src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8602,7 +8613,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/world/Streamer.js
+  // src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8741,9 +8752,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       const c2 = l2.cells.get(k2);
       l2.cells.delete(k2);
       if (!c2 || !c2.out) return;
-      const key = l2.base + k2;
-      if (this.engine.physics) this.engine.physics.removeOwner(key);
-      if (this.engine.water) this.engine.water.remove(key);
+      const key2 = l2.base + k2;
+      if (this.engine.physics) this.engine.physics.removeOwner(key2);
+      if (this.engine.water) this.engine.water.remove(key2);
       c2.out.group.parent && c2.out.group.parent.remove(c2.out.group);
       c2.out.group.traverse((o2) => {
         if (o2.isMesh) {
@@ -8797,8 +8808,8 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // Engine/src/core/Engine.js
-  var VERSION = "0.6.0";
+  // src/core/Engine.js
+  var VERSION = "0.7.0";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8856,7 +8867,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // Engine/src/host/HostBridge.js
+  // src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -8905,26 +8916,26 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       return { tiles: this._tiles.size, boxes, groundTiles: ground, solids: this._solids ? this._solids.length : 0 };
     }
     _buildGround(x2, z2) {
-      const t2 = this.tile, key = "host:" + x2 + "," + z2;
-      if (!this._ground || this._hf.has(key)) return false;
-      this._hf.add(key);
-      if (!this._tiles.has(key)) this._tiles.set(key, true);
-      this.ph.addHeightfield(key, (x2 + 0.5) * t2, (z2 + 0.5) * t2, t2, 20, this._ground);
+      const t2 = this.tile, key2 = "host:" + x2 + "," + z2;
+      if (!this._ground || this._hf.has(key2)) return false;
+      this._hf.add(key2);
+      if (!this._tiles.has(key2)) this._tiles.set(key2, true);
+      this.ph.addHeightfield(key2, (x2 + 0.5) * t2, (z2 + 0.5) * t2, t2, 20, this._ground);
       return true;
     }
     _buildTile(x2, z2, withGround) {
-      const t2 = this.tile, key = "host:" + x2 + "," + z2;
+      const t2 = this.tile, key2 = "host:" + x2 + "," + z2;
       if (withGround !== false) this._buildGround(x2, z2);
-      if (this._boxed.has(key)) return 0;
-      this._boxed.add(key);
-      this._tiles.set(key, true);
+      if (this._boxed.has(key2)) return 0;
+      this._boxed.add(key2);
+      this._tiles.set(key2, true);
       let n2 = 0;
       const l2 = this._index && this._index.get(x2 + "," + z2);
       if (l2) for (const i2 of l2) {
         const b2 = this._solids[i2];
         if (Math.floor(b2.c[0] / t2) !== x2 || Math.floor(b2.c[1] / t2) !== z2) continue;
         const h2 = b2.h || 10, y2 = b2.y || 0;
-        this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+        this.ph.addStaticBox(key2, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
         n2++;
       }
       return n2;
@@ -8962,11 +8973,11 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
         const y2 = this._ground ? this._ground(px, pz) : 0;
         cell.props.push({ type, pos: [px, y2 + 0.02, pz], yaw: Math.random() * 360, dynamic: true });
       }
-      const key = "scatter:" + (this._sc = (this._sc || 0) + 1);
-      P3.build(cell, key, st.root, null);
-      this.props.push(key);
+      const key2 = "scatter:" + (this._sc = (this._sc || 0) + 1);
+      P3.build(cell, key2, st.root, null);
+      this.props.push(key2);
       while (this.props.length > Math.ceil(this.maxProps / Math.max(1, n2))) this.ph.removeOwner(this.props.shift());
-      return key;
+      return key2;
     }
     _dropAll() {
       for (const k2 of this._tiles.keys()) this.ph.removeOwner(k2);
@@ -9014,10 +9025,10 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
           if (!l2) map.set(k2, l2 = []);
           l2.push(i2);
         }
-        const tx = Math.floor(b2.c[0] / t2), tz = Math.floor(b2.c[1] / t2), key = "host:" + tx + "," + tz;
-        if (this._boxed.has(key)) {
+        const tx = Math.floor(b2.c[0] / t2), tz = Math.floor(b2.c[1] / t2), key2 = "host:" + tx + "," + tz;
+        if (this._boxed.has(key2)) {
           const h2 = b2.h || 10, y2 = b2.y || 0;
-          this.ph.addStaticBox(key, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
+          this.ph.addStaticBox(key2, [b2.c[0], y2 + h2 / 2, b2.c[1]], [b2.size[0], h2, b2.size[1]], (b2.yaw || 0) * Math.PI / 180, { tag: "host" });
           boxed++;
         } else if (this.resident) this._buildTile(tx, tz, false);
       }
@@ -9053,9 +9064,9 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
       for (let z2 = iz - n2; z2 <= iz + n2; z2++) for (let x2 = ix - n2; x2 <= ix + n2; x2++) {
         const cx = (x2 + 0.5) * t2, cz = (z2 + 0.5) * t2;
         if (Math.hypot(cx - focus.x, cz - focus.z) > R2 + t2 * 0.7) continue;
-        const key = "host:" + x2 + "," + z2;
-        keep.add(key);
-        if (this._boxed.has(key) && (this._hf.has(key) || !this._ground) || built >= 2) continue;
+        const key2 = "host:" + x2 + "," + z2;
+        keep.add(key2);
+        if (this._boxed.has(key2) && (this._hf.has(key2) || !this._ground) || built >= 2) continue;
         built++;
         this._buildTile(x2, z2);
       }
@@ -9070,7 +9081,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // Engine/src/characters/CharacterShader.js
+  // src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9198,7 +9209,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // Engine/src/characters/Subdivide.js
+  // src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9317,7 +9328,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // Engine/src/characters/MapSynth.js
+  // src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9423,7 +9434,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // Engine/src/characters/Characters.js
+  // src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9519,8 +9530,8 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     material(src, opts = {}) {
       const T2 = this.T, Q2 = CHAR_QUALITY[opts.quality || this.quality] || CHAR_QUALITY.high;
       if (!src || src.isShaderMaterial || src.userData.shigotoChar) return src;
-      const key = src.uuid + ":" + (opts.skinned ? 1 : 0) + ":" + (opts.quality || this.quality);
-      if (this.cache.has(key)) return this.cache.get(key);
+      const key2 = src.uuid + ":" + (opts.skinned ? 1 : 0) + ":" + (opts.quality || this.quality);
+      if (this.cache.has(key2)) return this.cache.get(key2);
       const kind = kindOf(src);
       const m2 = new T2.MeshStandardMaterial({
         name: src.name,
@@ -9606,7 +9617,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
       const reportKey = (opts.model || "?") + ": " + (src.name || "?");
       if (kind !== "hair" && kind !== "glass" && unresolved.length) this.missing.set(reportKey, unresolved);
       else this.missing.delete(reportKey);
-      this.cache.set(key, m2);
+      this.cache.set(key2, m2);
       return m2;
     }
     // Upgrade every mesh under root. opts: quality, hero (a close-up character: Seiko, the story's people), model (a name for the report)
@@ -9724,7 +9735,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // Engine/src/persist/Persistence.js
+  // src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -9787,33 +9798,33 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     get size() {
       return this.map.size;
     }
-    has(key) {
-      return this.map.has(key);
+    has(key2) {
+      return this.map.has(key2);
     }
-    get(key) {
-      const e2 = this.map.get(key);
+    get(key2) {
+      const e2 = this.map.get(key2);
       if (e2) e2.seen = ++this._tick;
       return e2 ? e2.obj : void 0;
     }
     // x, z: where it is (for eviction by distance). bytes: what it costs (estimated if left out).
-    add(key, obj, x2, z2, bytes) {
-      if (this.map.has(key)) this.remove(key, true);
+    add(key2, obj, x2, z2, bytes) {
+      if (this.map.has(key2)) this.remove(key2, true);
       const b2 = bytes != null ? bytes : obj ? estimateBytes(obj).total : 0;
-      this.map.set(key, { obj, x: x2 || 0, z: z2 || 0, bytes: b2, seen: ++this._tick });
+      this.map.set(key2, { obj, x: x2 || 0, z: z2 || 0, bytes: b2, seen: ++this._tick });
       this.bytes += b2;
       return obj;
     }
     // Mark an entry as seen (shown this frame): it is the last to go if memory runs short.
-    touch(key) {
-      const e2 = this.map.get(key);
+    touch(key2) {
+      const e2 = this.map.get(key2);
       if (e2) e2.seen = ++this._tick;
     }
-    remove(key, quiet) {
-      const e2 = this.map.get(key);
+    remove(key2, quiet) {
+      const e2 = this.map.get(key2);
       if (!e2) return;
-      this.map.delete(key);
+      this.map.delete(key2);
       this.bytes -= e2.bytes;
-      if (!quiet && this.onEvict) this.onEvict(key, e2.obj);
+      if (!quiet && this.onEvict) this.onEvict(key2, e2.obj);
     }
     // Over budget: drop hidden entries, furthest from (fx, fz) and longest unseen first, until it fits. Visible ones stay.
     enforce(fx, fz) {
@@ -10293,7 +10304,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Honor.js
+  // src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10438,7 +10449,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/Respect.js
+  // src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10670,7 +10681,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // Engine/src/standing/StandingHud.js
+  // src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10847,9 +10858,9 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         }
         return;
       }
-      const key = JSON.stringify([info.honor, info.respect, info.rank, (info.ledger || []).length, info.keys]);
-      if (key === this.cardKey) return;
-      this.cardKey = key;
+      const key2 = JSON.stringify([info.honor, info.respect, info.rank, (info.ledger || []).length, info.keys]);
+      if (key2 === this.cardKey) return;
+      this.cardKey = key2;
       const h2 = info.honor, r2 = info.respect;
       const hist = (info.ledger || []).slice(-4).reverse().map((x2) => "<div><span>" + esc(x2.label) + '</span><em style="color:' + (x2.delta < 0 ? "#e3252d" : "#f0c76a") + '">' + fmt(x2.delta) + "</em></div>").join("");
       this.cardEl.style.borderLeftColor = h2 < 0 ? "#e3252d" : "#f0c76a";
@@ -10858,7 +10869,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/interior/Interiors.js
+  // src/interior/Interiors.js
   var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
   function retailTemperature(hour = 12, weather = {}) {
     if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
@@ -10891,8 +10902,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       this.unit = new T2.BoxGeometry(1, 1, 1);
     }
     texture(kind, channel) {
-      const key = kind + ":" + channel;
-      if (this.maps.has(key)) return this.maps.get(key);
+      const key2 = kind + ":" + channel;
+      if (this.maps.has(key2)) return this.maps.get(key2);
       const T2 = this.T, low = this.quality === "low", name = { paint: "plaster", tile: "concrete", wood: "plaster", fabric: "plaster" }[kind] || kind;
       const suffix = channel === "map" ? "color" : channel === "normalMap" ? "normal" : "roughness";
       const file = (kind === "wood" || kind === "fabric") && channel !== "roughnessMap" ? "art/interior/" + (kind === "wood" ? "wood_floor" : "dirty_carpet") + (channel === "normalMap" ? "_nor" : "") + ".jpg" : `art/realism/${name}-${suffix}${low ? "-low" : ""}.jpg`;
@@ -10901,12 +10912,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       t2.repeat.set(0.5, 0.5);
       t2.anisotropy = low ? 2 : 4;
       if (channel === "map") t2.encoding = T2.sRGBEncoding;
-      this.maps.set(key, t2);
+      this.maps.set(key2, t2);
       return t2;
     }
     material(kind = "paint", color = 16777215) {
-      const key = kind + ":" + color;
-      if (this.materials.has(key)) return this.materials.get(key);
+      const key2 = kind + ":" + color;
+      if (this.materials.has(key2)) return this.materials.get(key2);
       const T2 = this.T, m2 = new T2.MeshStandardMaterial({ color, map: this.texture(kind, "map"), normalMap: this.texture(kind, "normalMap"), roughnessMap: this.texture(kind, "roughnessMap"), roughness: kind === "metal" ? 0.58 : kind === "tile" ? 0.68 : 0.9, metalness: kind === "metal" ? 0.65 : 0, normalScale: new T2.Vector2(0.28, 0.28), envMap: this.environment, envMapIntensity: 0.2, fog: false });
       m2.onBeforeCompile = (sh) => {
         sh.vertexShader = sh.vertexShader.replace("#include <uv_vertex>", `#include <uv_vertex>
@@ -10927,17 +10938,17 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       };
       m2.customProgramCacheKey = () => "shigoto-interior-metres-v2";
       m2.userData.shDry = true;
-      this.materials.set(key, m2);
+      this.materials.set(key2, m2);
       return m2;
     }
     mapped(map, kind = "paint") {
-      const key = "mapped:" + map.uuid + ":" + kind;
-      if (this.materials.has(key)) return this.materials.get(key);
+      const key2 = "mapped:" + map.uuid + ":" + kind;
+      if (this.materials.has(key2)) return this.materials.get(key2);
       const base = this.material(kind), m2 = base.clone();
       m2.map = map;
       m2.fog = false;
       m2.userData.shDry = true;
-      this.materials.set(key, m2);
+      this.materials.set(key2, m2);
       return m2;
     }
     box(root, w2, h2, d2, x2, y2, z2, kind = "metal", color = 16777215) {
@@ -10949,8 +10960,8 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       return m2;
     }
     sign(text, w2, h2, bg2 = "#253c43", fg = "#ffffff", fonts) {
-      const T2 = this.T, key = [text, w2, h2, bg2, fg].join("|");
-      let mat = this.signs.get(key);
+      const T2 = this.T, key2 = [text, w2, h2, bg2, fg].join("|");
+      let mat = this.signs.get(key2);
       if (!mat) {
         const c2 = document.createElement("canvas");
         c2.width = this.quality === "low" ? 1024 : 2048;
@@ -10983,7 +10994,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         map.anisotropy = 4;
         mat = new T2.MeshStandardMaterial({ map, normalMap: this.texture("metal", "normalMap"), roughnessMap: this.texture("metal", "roughnessMap"), roughness: 0.65, metalness: 0.05, emissive: 16777215, emissiveMap: map, emissiveIntensity: 0.12, fog: false });
         mat.userData.shDry = true;
-        this.signs.set(key, mat);
+        this.signs.set(key2, mat);
       }
       const mesh = new T2.Mesh(new T2.PlaneGeometry(w2, h2), mat);
       mesh.name = "Architectural sign \xB7 " + text;
@@ -11284,7 +11295,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/physics/VehicleDynamics.js
+  // src/physics/VehicleDynamics.js
   var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
   var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
   function vehicleMass(kind = {}) {
@@ -11364,7 +11375,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return { steps, mass, grip, rate: state.rate, understeer: under };
   }
 
-  // Engine/src/cinematics/CinematicVideo.js
+  // src/cinematics/CinematicVideo.js
   var CinematicVideo = class {
     constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
       this.document = doc;
@@ -11379,13 +11390,13 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         return this.clips;
       }).catch(() => this.clips) : Promise.resolve(this.clips);
     }
-    source(key) {
-      const entry = this.clips[key], src = typeof entry === "string" ? entry : entry?.src;
+    source(key2) {
+      const entry = this.clips[key2], src = typeof entry === "string" ? entry : entry?.src;
       return typeof src === "string" && /^art\/cinematics\/[a-zA-Z0-9_/-]+\.(mp4|webm)$/.test(src) ? src : null;
     }
-    play(key, at = () => 0) {
+    play(key2, at = () => 0) {
       this.stop();
-      const src = this.source(key);
+      const src = this.source(key2);
       if (!src) return Promise.resolve(false);
       const token = ++this.token, doc = this.document, v2 = doc.createElement("video");
       this.element = v2;
@@ -11408,7 +11419,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
             settle(false);
             return;
           }
-          this.failed.push(key);
+          this.failed.push(key2);
           this.stop();
           settle(false);
         };
@@ -11472,7 +11483,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Motorcycle.js
+  // src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -12129,7 +12140,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Boat.js
+  // src/vehicles/Boat.js
   var RHO2 = 1025;
   var G3 = 9.81;
   var RHO_AIR = 1.2;
@@ -12659,7 +12670,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/vehicles/Ocean.js
+  // src/vehicles/Ocean.js
   var GERSTNER_WAVES = [
     // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
     [0.94, 0.342, 64, 0.13],
@@ -12739,7 +12750,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/ragdoll/Ragdoll.js
+  // src/ragdoll/Ragdoll.js
   var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
     t2 = clamp7(t2, 0, 1);
@@ -12794,14 +12805,14 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     });
     if (!all.length) return null;
     const out = {};
-    for (const key in BONE_NAMES) {
+    for (const key2 in BONE_NAMES) {
       let hit = null;
-      for (const want of BONE_NAMES[key]) {
+      for (const want of BONE_NAMES[key2]) {
         hit = all.find((e2) => e2.n === want) || all.find((e2) => e2.n.endsWith(want));
         if (hit) break;
       }
       if (!hit) return null;
-      out[key] = hit.b;
+      out[key2] = hit.b;
     }
     const spine = [];
     for (let b2 = out.neck.parent; b2 && b2 !== out.pelvis; b2 = b2.parent) {
@@ -13507,7 +13518,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/Wind.js
+  // src/skydive/Wind.js
   var TAU = Math.PI * 2;
   var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
@@ -13641,7 +13652,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/Skydiver.js
+  // src/skydive/Skydiver.js
   var G4 = 9.81;
   var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
@@ -14005,7 +14016,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/skydive/CanopyModel.js
+  // src/skydive/CanopyModel.js
   var CANOPY_SCHEMES = {
     // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
     ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },
@@ -14480,7 +14491,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // Engine/src/perf/Performance.js
+  // src/perf/Performance.js
   var now2 = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var COMMON_RATES = [30, 48, 50, 60, 72, 75, 85, 90, 100, 120, 144, 160, 165, 170, 180, 200, 240, 360];
   var _scratch = new Float64Array(1024);
@@ -14648,10 +14659,10 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       if (this.depth > 0) this.stack[this.depth - 1].child += el;
     }
     // replace owner[key] (a function) by a timed version; returns false if it is not a function
-    wrap(owner, key, label) {
-      const fn = owner && owner[key];
+    wrap(owner, key2, label) {
+      const fn = owner && owner[key2];
       if (typeof fn !== "function" || fn.__shigotoTimed) return false;
-      const self2 = this, name = label || key;
+      const self2 = this, name = label || key2;
       const timed = function() {
         self2.enter(name);
         try {
@@ -14663,12 +14674,12 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
       timed.__shigotoTimed = true;
       timed.__orig = fn;
       try {
-        owner[key] = timed;
+        owner[key2] = timed;
       } catch (e2) {
         return false;
       }
-      if (owner[key] !== timed) return false;
-      this.wrapped.push([owner, key, fn]);
+      if (owner[key2] !== timed) return false;
+      this.wrapped.push([owner, key2, fn]);
       return true;
     }
     unwrapAll() {
@@ -15137,6 +15148,2015 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
         hardware: this.hw
       };
     }
+  };
+
+  // src/realism/Rng.js
+  function hash32(a2, b2, c2, d2) {
+    let h2 = 2166136261 ^ (a2 | 0);
+    h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
+    h2 = h2 + (b2 | 0) * 2654435761 | 0;
+    h2 = Math.imul(h2 ^ h2 >>> 13, 3266489909);
+    h2 = h2 + (c2 | 0) * 668265263 | 0;
+    h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
+    h2 = h2 + (d2 | 0) * 374761393 | 0;
+    h2 = Math.imul(h2 ^ h2 >>> 13, 3266489909);
+    return (h2 ^ h2 >>> 16) >>> 0;
+  }
+  function r01(a2, b2, c2, d2) {
+    return hash32(a2, b2, c2, d2) / 4294967296;
+  }
+  function rng(seed) {
+    let s2 = seed >>> 0 || 1831565813;
+    return function() {
+      s2 = s2 + 1831565813 | 0;
+      let t2 = Math.imul(s2 ^ s2 >>> 15, 1 | s2);
+      t2 = t2 + Math.imul(t2 ^ t2 >>> 7, 61 | t2) ^ t2;
+      return ((t2 ^ t2 >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function pick(arr, r2) {
+    return arr[Math.min(arr.length - 1, Math.floor(r2 * arr.length))];
+  }
+  function weighted(weights, r2) {
+    const list = Array.isArray(weights) ? weights : Object.entries(weights);
+    let sum = 0;
+    for (const e2 of list) sum += e2[1];
+    let x2 = r2 * sum;
+    for (const e2 of list) {
+      x2 -= e2[1];
+      if (x2 < 0) return e2[0];
+    }
+    return list[list.length - 1][0];
+  }
+  function strSeed(s2) {
+    let h2 = 2166136261;
+    for (let i2 = 0; i2 < s2.length; i2++) {
+      h2 ^= s2.charCodeAt(i2);
+      h2 = Math.imul(h2, 16777619);
+    }
+    return h2 >>> 0;
+  }
+  var clamp11 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
+
+  // src/realism/Calendar.js
+  var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  function nthMonday(y2, m2, n2) {
+    const d2 = new Date(Date.UTC(y2, m2, 1));
+    const first = (8 - d2.getUTCDay()) % 7 + 1;
+    return first + (n2 - 1) * 7;
+  }
+  var key = (m2, d2) => m2 * 100 + d2;
+  var holidayCache = /* @__PURE__ */ new Map();
+  function holidays(y2) {
+    if (holidayCache.has(y2)) return holidayCache.get(y2);
+    const H2 = /* @__PURE__ */ new Map();
+    const add = (m2, d2, n2) => H2.set(key(m2, d2), n2);
+    add(0, 1, "New Year's Day");
+    add(0, nthMonday(y2, 0, 2), "Coming of Age Day");
+    add(1, 11, "Foundation Day");
+    add(1, 23, "Emperor's Birthday");
+    add(2, y2 % 4 === 0 || y2 % 4 === 1 ? 20 : 21, "Vernal Equinox Day");
+    add(3, 29, "Sh\u014Dwa Day");
+    add(4, 3, "Constitution Day");
+    add(4, 4, "Greenery Day");
+    add(4, 5, "Children's Day");
+    add(6, nthMonday(y2, 6, 3), "Marine Day");
+    add(7, 11, "Mountain Day");
+    add(8, nthMonday(y2, 8, 3), "Respect for the Aged Day");
+    add(8, y2 % 4 === 0 ? 22 : 23, "Autumnal Equinox Day");
+    add(9, nthMonday(y2, 9, 2), "Sports Day");
+    add(10, 3, "Culture Day");
+    add(10, 23, "Labour Thanksgiving Day");
+    for (const k2 of [...H2.keys()]) {
+      const m2 = Math.floor(k2 / 100), d2 = k2 % 100;
+      if (H2.has(key(m2, d2 + 2)) && !H2.has(key(m2, d2 + 1))) {
+        const dow = new Date(Date.UTC(y2, m2, d2 + 1)).getUTCDay();
+        if (dow !== 0) H2.set(key(m2, d2 + 1), "Citizens' Holiday");
+      }
+    }
+    for (const k2 of [...H2.keys()].sort((a2, b2) => a2 - b2)) {
+      const m2 = Math.floor(k2 / 100), d2 = k2 % 100;
+      if (new Date(Date.UTC(y2, m2, d2)).getUTCDay() !== 0) continue;
+      let dd = d2 + 1;
+      while (H2.has(key(m2, dd))) dd++;
+      H2.set(key(m2, dd), "Substitute Holiday");
+    }
+    holidayCache.set(y2, H2);
+    return H2;
+  }
+  var Calendar = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.epoch = opts.epoch || Date.UTC(2026, 3, 6);
+      this.seed = opts.seed >>> 0;
+    }
+    date(day) {
+      return new Date(this.epoch + day * 864e5);
+    }
+    // everything a routine needs to know about a day
+    info(day) {
+      const dt = this.date(day), y2 = dt.getUTCFullYear(), m2 = dt.getUTCMonth(), d2 = dt.getUTCDate(), dow = dt.getUTCDay();
+      const H2 = holidays(y2), holiday = H2.get(key(m2, d2)) || null;
+      const newYear = m2 === 11 && d2 >= 29 || m2 === 0 && d2 <= 3;
+      const obon = m2 === 7 && d2 >= 13 && d2 <= 16;
+      const goldenWeek = m2 === 3 && d2 >= 29 || m2 === 4 && d2 <= 6;
+      const weekend = dow === 0 || dow === 6;
+      const offWork = weekend || !!holiday || newYear;
+      const schoolBreak = m2 === 6 && d2 >= 20 || m2 === 7 || m2 === 11 && d2 >= 25 || m2 === 0 && d2 <= 7 || m2 === 2 && d2 >= 25 || m2 === 3 && d2 <= 6;
+      const pd = new Date(Date.UTC(y2, m2, 25)), pdow = pd.getUTCDay(), payDay = 25 - (pdow === 6 ? 1 : pdow === 0 ? 2 : 0);
+      const season = m2 <= 1 || m2 === 11 ? "winter" : m2 <= 4 ? "spring" : m2 <= 7 ? "summer" : "autumn";
+      const tomorrow = this.date(day + 1), tdow = tomorrow.getUTCDay(), tH = holidays(tomorrow.getUTCFullYear()).get(key(tomorrow.getUTCMonth(), tomorrow.getUTCDate()));
+      const beforeOff = tdow === 6 || tdow === 0 || !!tH;
+      return {
+        day,
+        y: y2,
+        m: m2,
+        d: d2,
+        dow,
+        weekday: WEEKDAYS[dow],
+        holiday,
+        weekend,
+        offWork,
+        newYear,
+        obon,
+        goldenWeek,
+        schoolBreak,
+        schoolDay: !offWork && !schoolBreak,
+        payday: d2 === payDay,
+        afterPayday: d2 >= payDay && d2 <= payDay + 3,
+        bonus: (m2 === 5 || m2 === 11) && d2 >= 10 && d2 <= 20,
+        beforeOff,
+        season,
+        hanami: m2 === 2 && d2 >= 25 || m2 === 3 && d2 <= 10,
+        festival: (m2 === 6 || m2 === 7) && weekend,
+        hatsumode: m2 === 0 && d2 <= 3,
+        shrineDay: d2 === 1 || d2 === 15,
+        christmasEve: m2 === 11 && d2 === 24,
+        halloween: m2 === 9 && d2 === 31,
+        label: WEEKDAYS[dow] + " " + d2 + " " + ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][m2] + (holiday ? " \xB7 " + holiday : "")
+      };
+    }
+    // Rubbish goes out by half past eight on the ward's days: burnable twice a week, plastic once, cans and bottles once,
+    // paper every other week. Each ward has its own rota, as each real ward does.
+    garbage(ward, day) {
+      const dow = this.date(day).getUTCDay(), r2 = hash32(this.seed, ward | 0, 7711);
+      const burn = [[1, 4], [2, 5], [3, 6]][r2 % 3], plastic = [3, 1, 2][r2 % 3] === burn[0] ? 6 : [3, 1, 2][r2 % 3];
+      const cans = [5, 6, 2][(r2 >>> 3) % 3], paper = [6, 2, 3][(r2 >>> 5) % 3];
+      if (dow === 0) return "none";
+      if (burn.indexOf(dow) >= 0) return "burnable";
+      if (dow === plastic) return "plastic";
+      if (dow === cans && cans !== plastic) return "cans";
+      if (dow === paper && Math.floor(day / 7) % 2 === 0) return "paper";
+      return "none";
+    }
+  };
+  function sunTimes(cal, day) {
+    const dt = cal.date(day), start = Date.UTC(dt.getUTCFullYear(), 0, 1), doy = Math.floor((dt - start) / 864e5);
+    const decl = -23.44 * Math.cos(2 * Math.PI * (doy + 10) / 365) * Math.PI / 180, lat = 35.7 * Math.PI / 180;
+    const h0 = -0.833 * Math.PI / 180;
+    const cosH = (Math.sin(h0) - Math.sin(lat) * Math.sin(decl)) / (Math.cos(lat) * Math.cos(decl));
+    const half = Math.acos(Math.max(-1, Math.min(1, cosH))) * 180 / Math.PI * 4;
+    const noon = 11 * 60 + 40;
+    return { rise: noon - half, set: noon + half };
+  }
+
+  // src/realism/Places.js
+  var PURPOSES = {
+    konbini: { name: "Convenience store", hours: [0, 1440], off: -1, staff: 2, sign: "konbini", busy: { 7: 0.9, 8: 1, 12: 1, 13: 0.7, 18: 0.9, 19: 0.8, 23: 0.5, 2: 0.25 } },
+    ramen: { name: "Ramen", hours: [660, 1380], off: 3, staff: 3, busy: { 12: 1, 13: 0.7, 19: 0.9, 20: 0.8, 22: 0.6 }, queue: true },
+    teishoku: { name: "Set-meal diner", hours: [660, 1260], off: 0, staff: 3, busy: { 12: 1, 13: 0.6, 19: 0.7 }, queue: true },
+    soba: { name: "Soba stand", hours: [390, 1260], off: 0, staff: 2, busy: { 7: 0.8, 8: 0.9, 12: 1, 18: 0.6 } },
+    izakaya: { name: "Izakaya", hours: [1020, 1500], off: 0, staff: 4, busy: { 19: 0.9, 20: 1, 21: 1, 22: 0.8, 23: 0.5 }, night: true },
+    bar: { name: "Bar", hours: [1140, 1620], off: 0, staff: 2, busy: { 21: 0.7, 22: 0.9, 23: 1, 0: 0.8, 1: 0.5 }, night: true },
+    snack: { name: "Snack bar", hours: [1200, 1560], off: 0, staff: 2, busy: { 21: 0.6, 22: 0.9, 23: 1, 0: 0.7 }, night: true },
+    karaoke: { name: "Karaoke", hours: [660, 1740], off: -1, staff: 3, busy: { 16: 0.5, 20: 0.8, 22: 1, 0: 0.9, 2: 0.6 }, night: true },
+    cafe: { name: "Caf\xE9", hours: [450, 1260], off: 1, staff: 2, busy: { 8: 0.8, 10: 0.6, 13: 0.8, 15: 1, 16: 0.8 } },
+    kissaten: { name: "Kissaten", hours: [480, 1140], off: 0, staff: 1, busy: { 8: 0.7, 10: 0.8, 14: 0.7 } },
+    bakery: { name: "Bakery", hours: [420, 1170], off: 1, staff: 2, busy: { 7: 0.8, 8: 1, 12: 0.6, 17: 0.5 } },
+    bento: { name: "Bent\u014D shop", hours: [600, 1200], off: 0, staff: 2, busy: { 11: 0.8, 12: 1, 18: 0.7 } },
+    pharmacy: { name: "Pharmacy", hours: [570, 1290], off: -1, staff: 3, busy: { 12: 0.5, 18: 0.8, 19: 0.7 } },
+    supermarket: { name: "Supermarket", hours: [540, 1380], off: -1, staff: 8, busy: { 10: 0.6, 16: 0.8, 17: 1, 18: 1, 19: 0.8, 21: 0.5 } },
+    greengrocer: { name: "Greengrocer", hours: [540, 1140], off: 0, staff: 2, busy: { 10: 0.7, 16: 0.9, 17: 0.8 } },
+    fishmonger: { name: "Fishmonger", hours: [480, 1110], off: 3, staff: 2, busy: { 10: 0.7, 16: 0.9 } },
+    butcher: { name: "Butcher (korokke too)", hours: [600, 1140], off: 0, staff: 2, busy: { 11: 0.6, 16: 1, 17: 0.9 } },
+    barber: { name: "Barber", hours: [540, 1140], off: 1, staff: 2, busy: { 10: 0.6, 14: 0.5, 17: 0.6 } },
+    salon: { name: "Hair salon", hours: [600, 1200], off: 2, staff: 4, busy: { 11: 0.7, 14: 0.9, 18: 0.7 } },
+    laundromat: { name: "Coin laundry", hours: [360, 1440], off: -1, staff: 0, busy: { 8: 0.4, 20: 0.7, 22: 0.6 } },
+    drycleaner: { name: "Dry cleaner", hours: [570, 1170], off: 0, staff: 1, busy: { 8: 0.5, 19: 0.7 } },
+    bookshop: { name: "Bookshop", hours: [600, 1260], off: -1, staff: 2, busy: { 13: 0.5, 18: 0.7 } },
+    florist: { name: "Florist", hours: [600, 1140], off: 3, staff: 1, busy: { 12: 0.4, 17: 0.6 } },
+    tobacco: { name: "Tobacconist", hours: [480, 1200], off: 0, staff: 1, busy: { 8: 0.5, 18: 0.5 } },
+    electronics: { name: "Electronics", hours: [600, 1260], off: -1, staff: 6, busy: { 13: 0.6, 15: 0.8, 19: 0.7 } },
+    hardware: { name: "Hardware store", hours: [540, 1140], off: 0, staff: 2, busy: { 10: 0.6, 14: 0.5 } },
+    pachinko: { name: "Pachinko", hours: [600, 1365], off: -1, staff: 6, busy: { 10: 0.9, 13: 0.7, 19: 0.9 } },
+    sento: { name: "Sent\u014D bathhouse", hours: [900, 1440], off: 1, staff: 2, busy: { 16: 0.6, 19: 0.8, 21: 0.9 } },
+    clinic: { name: "Clinic", hours: [540, 1110], off: 0, staff: 4, busy: { 9: 1, 10: 0.9, 15: 0.6 }, lunchClose: true },
+    dentist: { name: "Dentist", hours: [570, 1140], off: 4, staff: 3, busy: { 10: 0.7, 17: 0.8 }, lunchClose: true },
+    realestate: { name: "Estate agent", hours: [600, 1140], off: 3, staff: 3, busy: { 13: 0.5, 15: 0.6 } },
+    tailor: { name: "Tailor", hours: [600, 1140], off: 0, staff: 2, busy: { 13: 0.4 } },
+    cram: { name: "Cram school", hours: [900, 1320], off: 0, staff: 4, busy: { 18: 1, 19: 1, 20: 0.9 } },
+    gym: { name: "Gym", hours: [420, 1380], off: -1, staff: 2, busy: { 7: 0.6, 19: 1, 20: 0.9 } },
+    bank: { name: "Bank", hours: [540, 900], off: -1, weekdaysOnly: true, staff: 8, busy: { 9: 0.6, 12: 1, 14: 0.7 } },
+    post: { name: "Post office", hours: [540, 1020], off: -1, weekdaysOnly: true, staff: 5, busy: { 10: 0.6, 12: 0.8 } },
+    // civic and work places
+    office: { name: "Offices", hours: [480, 1260], off: -1, weekdaysOnly: true, work: true },
+    wardoffice: { name: "Ward office", hours: [510, 1035], off: -1, weekdaysOnly: true, staff: 40, busy: { 9: 0.8, 10: 1, 14: 0.8 } },
+    library: { name: "Library", hours: [540, 1200], off: 1, staff: 8, busy: { 10: 0.6, 16: 0.9 } },
+    school: { name: "School", hours: [480, 1080], off: -1, weekdaysOnly: true, staff: 30, school: true },
+    hospital: { name: "Hospital", hours: [0, 1440], off: -1, staff: 60, busy: { 9: 1, 10: 1, 14: 0.7 } },
+    koban: { name: "K\u014Dban", hours: [0, 1440], off: -1, staff: 2 },
+    community: { name: "Community hall", hours: [540, 1260], off: 1, staff: 2, busy: { 10: 0.6, 19: 0.6 } },
+    university: { name: "University", hours: [510, 1260], off: -1, weekdaysOnly: true, staff: 120, school: true },
+    workshop: { name: "Workshop", hours: [480, 1050], off: 0, staff: 8, work: true },
+    warehouse: { name: "Warehouse", hours: [360, 1320], off: -1, staff: 12, work: true },
+    port: { name: "Port", hours: [360, 1200], off: -1, staff: 20, work: true },
+    shrine: { name: "Shrine", hours: [360, 1020], off: -1, staff: 1, busy: { 7: 0.4, 10: 0.5, 16: 0.4 } },
+    park: { name: "Park", hours: [0, 1440], off: -1, staff: 0, busy: { 6: 0.8, 7: 0.6, 10: 0.5, 15: 0.9, 16: 1, 17: 0.7 } },
+    parking: { name: "Car park", hours: [0, 1440], off: -1, staff: 0 },
+    home: { name: "Home", hours: [0, 1440], off: -1, staff: 0, home: true }
+  };
+  var SHOP_MIX = {
+    Station: { konbini: 5, ramen: 4, soba: 3, izakaya: 4, cafe: 4, bakery: 2, pharmacy: 3, bookshop: 1, bento: 2, realestate: 2, karaoke: 2, pachinko: 1, bank: 1, clinic: 1, cram: 2, gym: 1, tobacco: 1, salon: 2, teishoku: 2 },
+    Retail: { konbini: 3, cafe: 4, bakery: 2, pharmacy: 3, electronics: 2, bookshop: 2, salon: 3, florist: 1, supermarket: 1, ramen: 2, teishoku: 2, tailor: 1, realestate: 1, karaoke: 1, drycleaner: 1 },
+    Night: { izakaya: 6, bar: 5, snack: 4, karaoke: 3, ramen: 3, konbini: 2, pachinko: 1, tobacco: 1 },
+    Core: { konbini: 3, cafe: 4, teishoku: 3, bento: 3, soba: 2, ramen: 2, bank: 2, post: 1, izakaya: 2, drycleaner: 1, tailor: 1 },
+    Office: { konbini: 3, cafe: 3, teishoku: 3, bento: 3, soba: 2, ramen: 2, izakaya: 3, drycleaner: 1, post: 1, clinic: 1 },
+    House: { konbini: 2, greengrocer: 2, fishmonger: 1, butcher: 1, barber: 2, laundromat: 2, drycleaner: 1, kissaten: 1, clinic: 2, dentist: 1, sento: 1, hardware: 1, tobacco: 1, bakery: 1, supermarket: 1, ramen: 1 },
+    Suburb: { konbini: 3, supermarket: 2, barber: 1, laundromat: 2, clinic: 1, dentist: 1, ramen: 1, hardware: 1, cram: 1, pharmacy: 1 },
+    Village: { greengrocer: 2, konbini: 1, tobacco: 1, kissaten: 1, soba: 1, hardware: 1, barber: 1 },
+    default: { konbini: 3, ramen: 2, cafe: 2, izakaya: 2, pharmacy: 1, barber: 1, laundromat: 1, bakery: 1, clinic: 1, realestate: 1 }
+  };
+  var SHOP_NAMES_A = ["Sakura", "Matsu", "Fuji", "Kiku", "Hinode", "Asahi", "Midori", "Komorebi", "Tsubaki", "Yamato", "Kaede", "Hoshi", "Nami", "Ume", "Take", "Tora", "Shiro", "Kuro", "Aoi", "Hana", "Daikoku", "Fukuya", "Marumi", "Yamaya", "Kawaguchi", "\u014Cmori", "Suzuran"];
+  var SHOP_NAMES_B = {
+    ramen: ["Ramen", "Menya", "Ch\u016Bka Soba"],
+    izakaya: ["Izakaya", "Sakaba", "Torikizoku-ya"],
+    bar: ["Bar", "Lounge"],
+    snack: ["Snack"],
+    cafe: ["Coffee", "Caf\xE9"],
+    kissaten: ["Kissa"],
+    bakery: ["Bakery", "Pan-ya"],
+    pharmacy: ["Drug", "Pharmacy"],
+    barber: ["Barber", "Rihatsu"],
+    salon: ["Hair", "Salon"],
+    greengrocer: ["Yaoya"],
+    fishmonger: ["Sakana-ya"],
+    butcher: ["Seiniku"],
+    laundromat: ["Coin Laundry"],
+    drycleaner: ["Cleaning"],
+    florist: ["Flowers", "Hanaya"],
+    realestate: ["Fud\u014Dsan"],
+    tailor: ["Y\u014Dfuku"],
+    bookshop: ["Shoten"],
+    teishoku: ["Shokud\u014D", "Teishoku"],
+    soba: ["Soba"],
+    bento: ["Bent\u014D"],
+    cram: ["Seminar", "Juku"],
+    gym: ["Fitness"],
+    karaoke: ["Karaoke", "Utahiroba"],
+    pachinko: ["Pachinko", "Hall"],
+    clinic: ["Clinic", "Naika"],
+    dentist: ["Dental"],
+    sento: ["-yu"],
+    electronics: ["Denki"],
+    hardware: ["Hardware", "Kanamono"],
+    tobacco: ["Tabako"]
+  };
+  var COMPANY_A = ["S\u014Dwa", "Nichiy\u014D", "K\u014Dsei", "Dait\u014D", "T\u014Dkon", "Shinwa", "Meiji", "Taiy\u014D", "Heisei", "Fujimi", "Hikari", "\u014Ckura", "Mirai", "Ky\u014Dei", "Sanwa", "Nippa", "Marunaka"];
+  var COMPANY_B = ["Trading", "Insurance", "Logistics", "Systems", "Securities", "Printing", "Construction", "Pharmaceuticals", "Electric", "Foods", "Advertising", "Shipping", "Consulting", "Real Estate", "Textiles"];
+  function hourly(table, minute) {
+    if (!table) return 0;
+    const h2 = Math.floor(minute / 60) % 24, f2 = minute % 60 / 60;
+    const at = (x2) => {
+      x2 = (x2 % 24 + 24) % 24;
+      return table[x2] != null ? table[x2] : null;
+    };
+    let a2 = h2, b2 = h2 + 1, va = at(a2), vb = at(b2);
+    if (va == null) va = at(a2 - 1) != null ? at(a2 - 1) * 0.5 : 0.15;
+    if (vb == null) vb = at(b2 + 1) != null ? at(b2 + 1) * 0.5 : 0.15;
+    return va + (vb - va) * f2;
+  }
+  var Place = class {
+    constructor(src, seed, index) {
+      Object.assign(this, src);
+      this.index = index;
+      this.seed = hash32(seed, src.id | 0, 4021);
+      this.purpose = choosePurpose(src, this.seed);
+      if (src.kind === "midrise") {
+        const flats = (src.floors || 1) > 2 && r01(this.seed, 8) < 0.6;
+        if (!flats) this.purpose = "office";
+        else if (r01(this.seed, 14) < 0.55) this.groundShop = weighted(SHOP_MIX[src.district] || SHOP_MIX.default, r01(this.seed, 15));
+      }
+      const P3 = PURPOSES[this.purpose] || PURPOSES.home;
+      this.def = P3;
+      const j2 = r01(this.seed, 3);
+      this.open = P3.hours[0] === 0 && P3.hours[1] === 1440 ? 0 : P3.hours[0] + Math.round((j2 - 0.5) * 2) * 15;
+      this.close = P3.hours[0] === 0 && P3.hours[1] === 1440 ? 1440 : P3.hours[1] + Math.round((r01(this.seed, 4) - 0.4) * 2) * 30;
+      this.dayOff = P3.off >= 0 ? r01(this.seed, 5) < 0.7 ? P3.off : Math.floor(r01(this.seed, 6) * 7) : -1;
+      this.name = src.label || placeName(this);
+      this.units = 0;
+      this.households = 0;
+      const area = Math.max(30, (src.w || 10) * (src.d || 10)), floors = Math.max(1, src.floors || 1);
+      if (src.kind === "houses") this.units = area > 360 && floors <= 2 ? r01(this.seed, 7) < 0.3 ? 2 : 1 : 1;
+      else if (src.kind === "flats") this.units = clamp11(Math.round(floors * area / 70), 2, 240);
+      else if (src.kind === "midrise") this.units = this.purpose === "home" ? clamp11(Math.round((floors - 1) * area / 75), 1, 120) : 0;
+      else if (src.kind === "shop" && floors >= 2 && r01(this.seed, 9) < 0.55) this.units = 1;
+      if (src.units != null) this.units = src.units;
+      if (src.hours && src.hours.open != null) {
+        const m2 = (v2) => v2 <= 30 ? Math.round(v2 * 60) : v2;
+        this.open = m2(src.hours.open);
+        this.close = m2(src.hours.close);
+        if (this.close <= this.open) this.close += 1440;
+      }
+      if (src.kind === "office" || src.kind === "tower") this.jobs = clamp11(Math.round(floors * area / 14), 10, 4e3);
+      else if (src.kind === "midrise" && !this.units) this.jobs = clamp11(Math.round(floors * area / 22), 4, 300);
+      else this.jobs = P3.staff ? Math.max(1, Math.round(P3.staff * (1 + r01(this.seed, 10)))) : 0;
+      if (this.jobs && (src.kind === "office" || src.kind === "tower" || src.kind === "midrise")) this.company = pick(COMPANY_A, r01(this.seed, 11)) + " " + pick(COMPANY_B, r01(this.seed, 12));
+      this.overtime = src.kind === "office" || src.kind === "tower" ? 0.3 + r01(this.seed, 13) * 0.9 : 0.2;
+      this.workers = null;
+      this.residents = null;
+    }
+    get home() {
+      return this.units > 0;
+    }
+    // Open at this minute on this day? (with the calendar's day info)
+    isOpen(minute, info) {
+      const P3 = this.def;
+      if (this.purpose === "home") return true;
+      if (P3.weekdaysOnly && info && info.offWork) return false;
+      if (info && this.dayOff === info.dow) return false;
+      if (info && info.newYear && !(this.purpose === "konbini" || this.purpose === "shrine" || this.purpose === "hospital" || this.purpose === "koban" || this.purpose === "park")) return false;
+      if (P3.lunchClose && minute >= 750 && minute < 870) return false;
+      const o2 = this.open, c2 = this.close;
+      if (o2 === 0 && c2 >= 1440) return true;
+      if (minute >= o2 && minute < Math.min(c2, 1440)) return true;
+      if (c2 > 1440 && minute < c2 - 1440) return true;
+      return false;
+    }
+    // What the front of the place looks like now: "open", "preparing" (half an hour before: shutter half up, someone sweeping),
+    // "closing" (the last half hour: noren coming in), "closed" (shutter down), with how busy it is.
+    state(minute, info) {
+      if (this.purpose === "home") return { open: true, phase: "home", busy: 0 };
+      const open = this.isOpen(minute, info), P3 = this.def;
+      const to = (t2) => ((t2 - minute) % 1440 + 1440) % 1440;
+      let phase = open ? "open" : "closed";
+      if (!open && to(this.open) <= 40 && !(info && this.dayOff === info.dow) && !(P3.weekdaysOnly && info && info.offWork)) phase = "preparing";
+      else if (open && this.close < 1440 + 600 && to(this.close % 1440) <= 30 && this.close !== 1440) phase = "closing";
+      const busy = open ? clamp11(hourly(P3.busy, minute) * (info && info.offWork && !P3.night ? 1.15 : 1) * (info && (info.beforeOff || info.afterPayday) && P3.night ? 1.25 : 1), 0, 1) : 0;
+      return { open, phase, busy, closesAt: this.close % 1440, opensAt: this.open };
+    }
+    hoursText() {
+      if (this.open === 0 && this.close >= 1440) return "Open 24 hours";
+      const f2 = (m2) => {
+        m2 = (m2 % 1440 + 1440) % 1440;
+        return String(Math.floor(m2 / 60)).padStart(2, "0") + ":" + String(m2 % 60).padStart(2, "0");
+      };
+      const off = this.dayOff >= 0 ? " \xB7 closed " + ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"][this.dayOff] : this.def.weekdaysOnly ? " \xB7 weekdays" : "";
+      return f2(this.open) + "\u2013" + f2(this.close) + off;
+    }
+  };
+  function choosePurpose(src, seed) {
+    const r2 = r01(seed, 1), k2 = src.kind;
+    const district = src.district || "default";
+    switch (k2) {
+      case "houses":
+      case "flats":
+        return "home";
+      case "midrise":
+        return "home";
+      // the ground floor may still be a shop: see groundShop
+      case "office":
+      case "tower":
+        return "office";
+      case "shop": {
+        const mix = SHOP_MIX[src.village ? "Village" : district] || SHOP_MIX.default;
+        return weighted(mix, r2);
+      }
+      case "civic":
+        return weighted(src.village ? { community: 3, post: 1, koban: 1, clinic: 1 } : { wardoffice: 1, library: 2, school: 4, hospital: 1, koban: 2, community: 2, post: 2 }, r2);
+      case "campus":
+        return r2 < 0.6 ? "university" : "school";
+      case "factory":
+        return "workshop";
+      case "shed":
+        return r2 < 0.6 ? "warehouse" : "workshop";
+      case "wharf":
+        return "port";
+      case "shrine":
+        return "shrine";
+      case "park":
+        return "park";
+      case "parking":
+        return "parking";
+      default:
+        return "home";
+    }
+  }
+  function placeName(p2) {
+    const s2 = p2.seed;
+    if (p2.purpose === "home") return null;
+    if (p2.purpose === "office") return null;
+    const A2 = pick(SHOP_NAMES_A, r01(s2, 21)), B2 = SHOP_NAMES_B[p2.purpose];
+    if (p2.purpose === "konbini") return pick(["Konto Mart", "Daily Eleven", "Sunny Lawson-ya", "FamiPort"], r01(s2, 22));
+    if (p2.purpose === "sento") return A2 + "-yu";
+    if (B2) return r01(s2, 23) < 0.5 ? A2 + " " + pick(B2, r01(s2, 24)) : pick(B2, r01(s2, 24)) + " " + A2;
+    return A2 + " " + PURPOSES[p2.purpose].name;
+  }
+
+  // src/realism/Census.js
+  var ROLES = ["salaryman", "officeworker", "shopworker", "student", "schoolchild", "infant", "retiree", "homemaker", "nightworker", "manual", "carer", "freeter", "teacher", "idle", "civil"];
+  var ROLE = Object.fromEntries(ROLES.map((r2, i2) => [r2, i2]));
+  var ROLE_LABEL = {
+    salaryman: "Salaryman",
+    officeworker: "Office worker",
+    shopworker: "Shop staff",
+    student: "University student",
+    schoolchild: "Schoolchild",
+    infant: "Little one",
+    retiree: "Retired",
+    homemaker: "Homemaker",
+    nightworker: "Works nights",
+    manual: "Works the docks and yards",
+    carer: "Nurse",
+    freeter: "Part-timer",
+    teacher: "Teacher",
+    idle: "Between jobs",
+    civil: "Civil servant"
+  };
+  var TRAITS = ["smoker", "drinker", "dog", "jogger", "gardener", "devout", "cyclist", "car", "earlyBird", "nightOwl", "gambler", "gym", "sociable", "taiso", "reader", "cat"];
+  var TRAIT = Object.fromEntries(TRAITS.map((t2, i2) => [t2, 1 << i2]));
+  var SURNAMES = [
+    "Sat\u014D",
+    "Suzuki",
+    "Takahashi",
+    "Tanaka",
+    "Watanabe",
+    "It\u014D",
+    "Yamamoto",
+    "Nakamura",
+    "Kobayashi",
+    "Kat\u014D",
+    "Yoshida",
+    "Yamada",
+    "Sasaki",
+    "Yamaguchi",
+    "Matsumoto",
+    "Inoue",
+    "Kimura",
+    "Hayashi",
+    "Shimizu",
+    "Yamazaki",
+    "Mori",
+    "Abe",
+    "Ikeda",
+    "Hashimoto",
+    "Yamashita",
+    "Ishikawa",
+    "Nakajima",
+    "Maeda",
+    "Fujita",
+    "Ogawa",
+    "Got\u014D",
+    "Okada",
+    "Hasegawa",
+    "Murakami",
+    "Kond\u014D",
+    "Ishii",
+    "Sait\u014D",
+    "Sakamoto",
+    "End\u014D",
+    "Aoki",
+    "Fujii",
+    "Nishimura",
+    "Fukuda",
+    "\u014Cta",
+    "Miura",
+    "Okamoto",
+    "Matsuda",
+    "Nakagawa",
+    "Nakano",
+    "Harada",
+    "Ono",
+    "Tamura",
+    "Takeuchi",
+    "Kaneko",
+    "Wada",
+    "Nakayama",
+    "Ishida",
+    "Ueda",
+    "Morita",
+    "Hara",
+    "Shibata",
+    "Sakai",
+    "Kud\u014D",
+    "Yokoyama",
+    "Miyazaki",
+    "Uchida",
+    "Takagi",
+    "And\u014D",
+    "Taniguchi",
+    "\u014Cno",
+    "Maruyama",
+    "Imai",
+    "K\u014Dno",
+    "Fujiwara",
+    "Murata",
+    "Takeda",
+    "Ueno",
+    "Sugiyama",
+    "Masuda",
+    "Hirano",
+    "\u014Ctsuka",
+    "Chiba",
+    "Kubo",
+    "Matsui",
+    "Iwasaki",
+    "Sakurai",
+    "Kinoshita",
+    "Noguchi",
+    "Matsuo",
+    "Kikuchi",
+    "Nomura",
+    "Arai",
+    "Watanabe",
+    "Sano",
+    "\u014Cshima",
+    "Sugawara",
+    "Ichikawa",
+    "Hirata",
+    "Kojima",
+    "Kumagai"
+  ];
+  var MALE = {
+    old: ["Shigeru", "Hiroshi", "Isamu", "Minoru", "Osamu", "Takeshi", "Yoshio", "Masao", "Kazuo", "Tadashi", "Akira", "Sabur\u014D", "Kiyoshi", "Toshio", "Haruo"],
+    mid: ["Makoto", "Takashi", "Kenji", "Hiroyuki", "Tetsuya", "Naoki", "Masahiro", "Kazuya", "Daisuke", "Satoshi", "Y\u016Bji", "Tomoya", "Shinji", "K\u014Dji", "Hideki", "Atsushi", "Yasuhiro"],
+    young: ["Haruto", "Ren", "S\u014Dta", "Y\u016Bto", "Riku", "Hinata", "Minato", "Kaito", "Takumi", "Sho", "Yamato", "Daiki", "Ry\u014Dta", "K\u014Dki", "Y\u016Bma", "Asahi", "Itsuki"]
+  };
+  var FEMALE = {
+    old: ["Kazuko", "Michiko", "Yoshiko", "Fumiko", "Sachiko", "Hiroko", "Setsuko", "Keiko", "Toshiko", "Chiyo", "Hanako", "Masako", "Y\u014Dko", "Teruko"],
+    mid: ["Yumiko", "Naomi", "Tomoko", "Kumiko", "Megumi", "Mayumi", "Akiko", "Yuka", "Ayako", "Noriko", "Junko", "Kaori", "Emi", "Mika", "Satomi", "Rie", "Chie"],
+    young: ["Himari", "Yui", "Aoi", "Mei", "Sakura", "Hina", "Rin", "Yuna", "Mio", "Akari", "Riko", "Haruka", "Nanami", "Saki", "Misaki", "Kokona", "Tsumugi"]
+  };
+  var HH_HOUSE = [["family", 34], ["elderly2", 22], ["elderly1", 12], ["threegen", 10], ["couple", 13], ["single", 5], ["singleparent", 4]];
+  var HH_FLAT = [["single", 36], ["couple", 18], ["family", 22], ["elderly1", 9], ["elderly2", 5], ["students", 5], ["singleparent", 5]];
+  var HH_SHOP = [["shopfamily", 1]];
+  var ROLE_WORK = {
+    salaryman: ["office"],
+    officeworker: ["office"],
+    civil: ["civic"],
+    shopworker: ["shop"],
+    freeter: ["konbini", "shop"],
+    nightworker: ["night"],
+    manual: ["yard"],
+    carer: ["care"],
+    teacher: ["school"],
+    student: ["university"],
+    schoolchild: ["school"]
+  };
+  var PURPOSE_CAT = {
+    office: "office",
+    wardoffice: "civic",
+    library: "civic",
+    post: "civic",
+    koban: "civic",
+    community: "civic",
+    bank: "office",
+    school: "school",
+    university: "university",
+    hospital: "care",
+    clinic: "care",
+    dentist: "care",
+    pharmacy: "care",
+    workshop: "yard",
+    warehouse: "yard",
+    port: "yard",
+    izakaya: "night",
+    bar: "night",
+    snack: "night",
+    karaoke: "night",
+    konbini: "konbini",
+    pachinko: "shop",
+    supermarket: "shop",
+    shrine: "shop"
+  };
+  var Census = class {
+    constructor(places, seed) {
+      this.places = places;
+      this.seed = seed >>> 0;
+      this.built = false;
+    }
+    // Build in slices (a generator: each yield is a breath for the loading screen). build() runs it to the end.
+    *steps() {
+      const P3 = this.places, S4 = this.seed;
+      const home = [], hhOf = [], age = [], sex = [], role = [], flags = [];
+      const hhPlace = [], hhFirst = [], hhCount = [], hhType = [], hhUnit = [];
+      let n2 = 0;
+      for (let pi = 0; pi < P3.length; pi++) {
+        const pl = P3[pi];
+        pl.resFirst = n2;
+        pl.hhFirst = hhPlace.length;
+        const shopHome = pl.kind === "shop" && pl.units > 0;
+        for (let u2 = 0; u2 < pl.units; u2++) {
+          const R3 = rng(hash32(S4, pl.id | 0, u2, 9100));
+          const type = weighted(shopHome ? HH_SHOP : pl.kind === "houses" ? HH_HOUSE : HH_FLAT, R3());
+          const hid = hhPlace.length;
+          hhPlace.push(pi);
+          hhFirst.push(n2);
+          hhType.push(type);
+          const perFloor = Math.max(1, Math.ceil(pl.units / Math.max(1, (pl.floors || 1) - (pl.kind === "midrise" ? 1 : 0))));
+          hhUnit.push(pl.kind === "houses" || shopHome ? 0 : (Math.floor(u2 / perFloor) + (pl.kind === "midrise" ? 2 : 1)) * 100 + u2 % perFloor + 1);
+          const members = household(type, R3);
+          for (const m2 of members) {
+            home.push(pi);
+            hhOf.push(hid);
+            age.push(m2.age);
+            sex.push(m2.female ? 1 : 0);
+            role.push(ROLE[m2.role]);
+            flags.push(traitsFor(m2, R3, pl));
+            n2++;
+          }
+          hhCount.push(members.length);
+        }
+        pl.resEnd = n2;
+        pl.hhEnd = hhPlace.length;
+        if ((pi & 1023) === 1023) yield pi / P3.length * 0.6;
+      }
+      this.n = n2;
+      this.home = Int32Array.from(home);
+      this.hh = Int32Array.from(hhOf);
+      this.age = Uint8Array.from(age);
+      this.sex = Uint8Array.from(sex);
+      this.role = Uint8Array.from(role);
+      this.flags = Uint16Array.from(flags);
+      this.work = new Int32Array(n2).fill(-1);
+      this.hhPlace = Int32Array.from(hhPlace);
+      this.hhFirst = Int32Array.from(hhFirst);
+      this.hhCount = Uint8Array.from(hhCount);
+      this.hhType = hhType;
+      this.hhUnit = Int32Array.from(hhUnit);
+      yield 0.65;
+      const cats = {};
+      for (let pi = 0; pi < P3.length; pi++) {
+        const pl = P3[pi];
+        let cat = PURPOSE_CAT[pl.purpose] || (pl.def && pl.def.staff ? "shop" : null);
+        if (pl.purpose === "office" || pl.kind === "office" || pl.kind === "tower") cat = "office";
+        if (pl.groundShop) addCat(cats, "shop", pl, 3, pi);
+        if (!cat || !pl.jobs) continue;
+        addCat(cats, cat, pl, cat === "school" ? 600 : cat === "university" ? 2500 : pl.jobs, pi);
+        if (cat === "konbini") addCat(cats, "shop", pl, pl.jobs, pi);
+      }
+      for (const k2 in cats) finishCat(cats[k2]);
+      this.cats = cats;
+      const work = this.work, R2 = rng(hash32(S4, 7, 7, 9200));
+      for (let i2 = 0; i2 < n2; i2++) {
+        if ((i2 & 8191) === 8191) yield 0.65 + i2 / n2 * 0.3;
+        const rname = ROLES[role[i2]], wants = ROLE_WORK[rname];
+        if (!wants) continue;
+        const hp = P3[home[i2]];
+        if (hp.kind === "shop" && rname === "shopworker") {
+          work[i2] = home[i2];
+          continue;
+        }
+        if (hp.groundShop && rname === "shopworker" && R2() < 0.5) {
+          work[i2] = home[i2];
+          continue;
+        }
+        let best = -1, bs = -1e9;
+        for (const cname of wants) {
+          const c2 = cats[cname];
+          if (!c2) continue;
+          const near = rname === "schoolchild" ? 4 : rname === "salaryman" || rname === "officeworker" ? 7 : 5;
+          for (let t2 = 0; t2 < near; t2++) {
+            const k2 = sampleCat(c2, R2());
+            const pl = P3[c2.idx[k2]], d2 = Math.hypot(pl.x - hp.x, pl.z - hp.z);
+            const scale = rname === "schoolchild" ? 250 : rname === "salaryman" || rname === "officeworker" || rname === "civil" ? 9e3 : rname === "student" ? 15e3 : 1800;
+            const full = c2.used[k2] >= c2.cap[k2] ? 2.5 : 0;
+            const s2 = -d2 / scale - full + (pl.city === hp.city ? 0.6 : 0) + R2() * 0.15;
+            if (s2 > bs) {
+              bs = s2;
+              best = c2.idx[k2];
+            }
+          }
+          if (best >= 0) {
+            const cc = cats[cname];
+            const kk = cc.pos.get(best);
+            if (kk != null) cc.used[kk]++;
+            break;
+          }
+        }
+        if (best < 0) {
+          if (rname === "salaryman" || rname === "officeworker") role[i2] = ROLE.idle;
+          continue;
+        }
+        work[i2] = best;
+      }
+      const cnt = new Int32Array(P3.length + 1);
+      for (let i2 = 0; i2 < n2; i2++) if (work[i2] >= 0) cnt[work[i2] + 1]++;
+      for (let k2 = 1; k2 <= P3.length; k2++) cnt[k2] += cnt[k2 - 1];
+      const fill = cnt.slice(), list = new Int32Array(cnt[P3.length]);
+      for (let i2 = 0; i2 < n2; i2++) if (work[i2] >= 0) list[fill[work[i2]]++] = i2;
+      this.workStart = cnt;
+      this.workList = list;
+      for (const pl of P3) {
+        const s2 = cnt[pl.index], e2 = cnt[pl.index + 1];
+        pl.staffCount = e2 - s2;
+        if (pl.company === void 0 && pl.purpose === "office" && pl.staffCount) pl.company = null;
+      }
+      this.built = true;
+      yield 1;
+    }
+    build() {
+      for (const _2 of this.steps()) {
+      }
+      return this;
+    }
+    // ---- asking about people ----
+    residentsOf(place) {
+      const out = [];
+      for (let i2 = place.resFirst; i2 < place.resEnd; i2++) out.push(i2);
+      return out;
+    }
+    workersOf(place) {
+      const s2 = this.workStart[place.index], e2 = this.workStart[place.index + 1];
+      return Array.from(this.workList.subarray(s2, e2));
+    }
+    householdsOf(place) {
+      const out = [];
+      for (let h2 = place.hhFirst; h2 < place.hhEnd; h2++) out.push(this.household(h2));
+      return out;
+    }
+    household(h2) {
+      const first = this.hhFirst[h2], count = this.hhCount[h2], members = [];
+      for (let i2 = first; i2 < first + count; i2++) members.push(this.person(i2));
+      return { id: h2, place: this.places[this.hhPlace[h2]], unit: this.hhUnit[h2], type: this.hhType[h2], surname: members.length ? members[0].surname : "", members };
+    }
+    person(i2) {
+      if (i2 < 0 || i2 >= this.n) return null;
+      const S4 = this.seed, h2 = this.hh[i2], female = !!this.sex[i2], a2 = this.age[i2];
+      const surname = pick(SURNAMES, r01(S4, h2, 31));
+      const gen = a2 >= 60 ? "old" : a2 >= 30 ? "mid" : "young";
+      const given = pick((female ? FEMALE : MALE)[gen], r01(S4, i2, 32));
+      const roleName = ROLES[this.role[i2]], f2 = this.flags[i2];
+      const traits = TRAITS.filter((t2) => f2 & TRAIT[t2]);
+      const tr = r01(S4, i2, 33);
+      const temper = roleName === "salaryman" || roleName === "officeworker" || roleName === "civil" ? tr < 0.18 ? "meek" : tr < 0.74 ? "polite" : tr < 0.93 ? "proud" : "hothead" : a2 >= 65 ? tr < 0.15 ? "meek" : tr < 0.7 ? "polite" : tr < 0.9 ? "proud" : "hothead" : tr < 0.22 ? "meek" : tr < 0.6 ? "polite" : tr < 0.84 ? "proud" : "hothead";
+      const work = this.work[i2] >= 0 ? this.places[this.work[i2]] : null;
+      return {
+        id: i2,
+        surname,
+        given,
+        name: given + " " + surname,
+        family: surname + " " + given,
+        age: a2,
+        female,
+        role: roleName,
+        roleLabel: jobLabel(roleName, work, female, a2),
+        traits,
+        temper,
+        home: this.places[this.home[i2]],
+        household: h2,
+        unit: this.hhUnit[h2],
+        work,
+        business: roleName === "salaryman" || roleName === "officeworker" || roleName === "civil" || roleName === "shopworker" && work && /realestate|bank|tailor|electronics/.test(work.purpose),
+        seed: hash32(S4, i2, 34)
+      };
+    }
+    has(i2, trait) {
+      return !!(this.flags[i2] & TRAIT[trait]);
+    }
+    stats() {
+      const byRole = {};
+      for (let i2 = 0; i2 < this.n; i2++) {
+        const r2 = ROLES[this.role[i2]];
+        byRole[r2] = (byRole[r2] || 0) + 1;
+      }
+      let employed = 0;
+      for (let i2 = 0; i2 < this.n; i2++) if (this.work[i2] >= 0) employed++;
+      return { people: this.n, households: this.hhPlace.length, employed, byRole };
+    }
+  };
+  function addCat(cats, name, pl, cap, pi) {
+    const c2 = cats[name] || (cats[name] = { idx: [], cap: [], used: [], pos: /* @__PURE__ */ new Map() });
+    c2.pos.set(pi, c2.idx.length);
+    c2.idx.push(pi);
+    c2.cap.push(cap);
+    c2.used.push(0);
+  }
+  function finishCat(c2) {
+    const pre = new Float64Array(c2.cap.length);
+    let s2 = 0;
+    for (let k2 = 0; k2 < c2.cap.length; k2++) {
+      s2 += c2.cap[k2];
+      pre[k2] = s2;
+    }
+    c2.pre = pre;
+    c2.total = s2;
+  }
+  function sampleCat(c2, r2) {
+    const x2 = r2 * c2.total, pre = c2.pre;
+    let lo = 0, hi = pre.length - 1;
+    while (lo < hi) {
+      const m2 = lo + hi >> 1;
+      if (pre[m2] > x2) hi = m2;
+      else lo = m2 + 1;
+    }
+    return lo;
+  }
+  function jobLabel(role, work, female, age) {
+    if (!work) return ROLE_LABEL[role] || role;
+    const p2 = work.purpose;
+    if (role === "salaryman" || role === "officeworker") return (role === "salaryman" ? "Salaryman" : "Office worker") + (work.company ? " at " + work.company : "");
+    if (role === "shopworker") return (age > 45 ? "Runs " : "Works at ") + (work.name || work.def.name);
+    if (role === "freeter") return "Part-time at " + (work.name || work.def.name);
+    if (role === "nightworker") return (p2 === "snack" && female ? "Mama-san at " : "Works nights at ") + (work.name || work.def.name);
+    if (role === "carer") return (p2 === "pharmacy" ? "Pharmacist at " : p2 === "dentist" ? "Dental nurse at " : "Nurse at ") + (work.name || work.def.name);
+    if (role === "schoolchild") return age < 12 ? "Primary school pupil" : age < 15 ? "Middle-school pupil" : "High-school student";
+    if (role === "teacher") return "Teacher";
+    if (role === "civil") return work.def.name === "K\u014Dban" ? "Police officer" : "Works at the " + work.def.name.toLowerCase();
+    if (role === "manual") return "Works at the " + work.def.name.toLowerCase();
+    return ROLE_LABEL[role] || role;
+  }
+  function household(type, R2) {
+    const out = [], adult = (lo, hi, female) => ({ age: Math.round(lo + R2() * (hi - lo)), female });
+    const worker = (m2, R3) => {
+      m2.role = workerRole(m2, R3);
+      return m2;
+    };
+    const kid = (parentAge) => {
+      const a2 = Math.max(0, Math.round(parentAge - 26 - R2() * 12));
+      return { age: a2, female: R2() < 0.5, role: a2 < 6 ? "infant" : a2 < 18 ? "schoolchild" : a2 < 23 && R2() < 0.6 ? "student" : null };
+    };
+    switch (type) {
+      case "single": {
+        const m2 = adult(22, 58, R2() < 0.45);
+        out.push(worker(m2, R2));
+        break;
+      }
+      case "couple": {
+        const a2 = adult(26, 60, false), b2 = { age: clamp11(a2.age + Math.round((R2() - 0.6) * 8), 22, 70), female: true };
+        out.push(worker(a2, R2), worker(b2, R2));
+        break;
+      }
+      case "family":
+      case "threegen": {
+        const a2 = adult(32, 55, false), b2 = { age: clamp11(a2.age - Math.round(R2() * 5), 28, 60), female: true };
+        out.push(worker(a2, R2));
+        b2.role = R2() < 0.42 ? "homemaker" : workerRole(b2, R2);
+        out.push(b2);
+        const kids = 1 + (R2() < 0.55 ? 1 : 0) + (R2() < 0.15 ? 1 : 0);
+        for (let k2 = 0; k2 < kids; k2++) {
+          const c2 = kid(b2.age);
+          if (!c2.role) c2.role = workerRole(c2, R2);
+          out.push(c2);
+        }
+        if (type === "threegen") {
+          const g2 = { age: Math.round(a2.age + 26 + R2() * 6), female: R2() < 0.7 };
+          g2.role = "retiree";
+          out.push(g2);
+        }
+        break;
+      }
+      case "singleparent": {
+        const a2 = adult(28, 50, R2() < 0.85);
+        out.push(worker(a2, R2));
+        const c2 = kid(a2.age);
+        if (!c2.role) c2.role = workerRole(c2, R2);
+        out.push(c2);
+        break;
+      }
+      case "elderly1":
+        out.push({ age: Math.round(68 + R2() * 22), female: R2() < 0.68, role: "retiree" });
+        break;
+      case "elderly2": {
+        const a2 = Math.round(66 + R2() * 18);
+        out.push({ age: a2, female: false, role: a2 < 70 && R2() < 0.3 ? "manual" : "retiree" }, { age: a2 - Math.round(R2() * 4), female: true, role: "retiree" });
+        break;
+      }
+      case "students": {
+        const k2 = 2 + (R2() < 0.3 ? 1 : 0);
+        for (let i2 = 0; i2 < k2; i2++) out.push({ age: Math.round(19 + R2() * 4), female: R2() < 0.45, role: "student" });
+        break;
+      }
+      case "shopfamily": {
+        const a2 = adult(38, 72, false), b2 = { age: a2.age - Math.round(R2() * 5), female: true, role: "shopworker" };
+        a2.role = "shopworker";
+        out.push(a2, b2);
+        if (R2() < 0.45) {
+          const c2 = kid(b2.age);
+          if (!c2.role) c2.role = R2() < 0.4 ? "shopworker" : workerRole(c2, R2);
+          out.push(c2);
+        }
+        break;
+      }
+    }
+    return out;
+  }
+  function workerRole(m2, R2) {
+    const a2 = m2.age, f2 = m2.female, r2 = R2();
+    if (a2 >= 67) return r2 < 0.2 ? "shopworker" : "retiree";
+    if (a2 < 18) return "schoolchild";
+    if (a2 < 23 && r2 < 0.55) return "student";
+    if (f2) return weighted([["officeworker", 34], ["shopworker", 14], ["carer", 10], ["freeter", 12], ["teacher", 4], ["civil", 5], ["nightworker", 3], ["homemaker", a2 > 28 ? 12 : 2], ["idle", 3], ["manual", 2]], r2);
+    return weighted([["salaryman", 52], ["manual", 11], ["shopworker", 8], ["freeter", 7], ["civil", 6], ["teacher", 3], ["nightworker", 4], ["carer", 2], ["idle", 3]], r2);
+  }
+  function traitsFor(m2, R2, pl) {
+    let f2 = 0;
+    const a2 = m2.age, role = m2.role, adult = a2 >= 20;
+    if (adult && R2() < (m2.female ? 0.08 : 0.27)) f2 |= TRAIT.smoker;
+    if (adult && R2() < (role === "salaryman" ? 0.7 : 0.35)) f2 |= TRAIT.drinker;
+    if (adult && R2() < (pl.kind === "houses" ? 0.16 : 0.07)) f2 |= TRAIT.dog;
+    if (a2 >= 20 && a2 < 60 && R2() < 0.1) f2 |= TRAIT.jogger;
+    if (a2 >= 45 && R2() < (pl.kind === "houses" ? 0.4 : 0.15)) f2 |= TRAIT.gardener;
+    if (R2() < (a2 >= 60 ? 0.35 : 0.08)) f2 |= TRAIT.devout;
+    if (R2() < 0.45) f2 |= TRAIT.cyclist;
+    if (adult && R2() < (pl.kind === "houses" ? 0.55 : 0.18)) f2 |= TRAIT.car;
+    if (a2 >= 60 || R2() < 0.15) f2 |= TRAIT.earlyBird;
+    else if (a2 < 35 && R2() < 0.25) f2 |= TRAIT.nightOwl;
+    if (adult && R2() < (m2.female ? 0.03 : 0.11)) f2 |= TRAIT.gambler;
+    if (a2 >= 20 && a2 < 55 && R2() < 0.12) f2 |= TRAIT.gym;
+    if (R2() < 0.35) f2 |= TRAIT.sociable;
+    if (a2 >= 62 && R2() < 0.45) f2 |= TRAIT.taiso;
+    if (R2() < 0.2) f2 |= TRAIT.reader;
+    if (R2() < 0.08) f2 |= TRAIT.cat;
+    return f2;
+  }
+
+  // src/realism/Routines.js
+  var DAY_START = 240;
+  var WALK = 78;
+  var TRAIN = 650;
+  var BIKE = 220;
+  var ACTS = {
+    sleep: "inside",
+    home: "inside",
+    work: "inside",
+    school: "inside",
+    lunch: "inside",
+    shop: "inside",
+    drinks: "inside",
+    gym: "inside",
+    clinic: "inside",
+    library: "inside",
+    pachinko: "inside",
+    bath: "inside",
+    karaoke: "inside",
+    cafe: "inside",
+    cram: "inside",
+    konbini: "inside",
+    travel: "out",
+    smoke: "out",
+    walk_dog: "out",
+    jog: "out",
+    taiso: "out",
+    stroll: "out",
+    bench: "out",
+    garden: "out",
+    chat: "out",
+    garbage: "out",
+    shrine: "out",
+    queue: "out",
+    sweep: "out",
+    play: "out",
+    away: "away"
+  };
+  var ACT_LABEL = {
+    sleep: "asleep",
+    home: "at home",
+    work: "at work",
+    school: "at school",
+    lunch: "on lunch",
+    shop: "shopping",
+    drinks: "out drinking",
+    gym: "at the gym",
+    clinic: "at the clinic",
+    library: "at the library",
+    pachinko: "playing pachinko",
+    bath: "at the bathhouse",
+    karaoke: "at karaoke",
+    cafe: "having coffee",
+    cram: "at cram school",
+    konbini: "at the konbini",
+    travel: "on the way",
+    smoke: "on a smoke break",
+    walk_dog: "walking the dog",
+    jog: "out for a run",
+    taiso: "doing radio exercises",
+    stroll: "out for a walk",
+    bench: "sitting in the park",
+    garden: "tending the garden",
+    chat: "chatting with the neighbours",
+    garbage: "putting the rubbish out",
+    shrine: "praying at the shrine",
+    queue: "queueing",
+    sweep: "sweeping the shopfront",
+    play: "playing",
+    away: "out of town"
+  };
+  var Planner = class {
+    constructor(world) {
+      this.w = world;
+      this.cache = /* @__PURE__ */ new Map();
+      this.max = 6e3;
+    }
+    plan(i2, day) {
+      const key2 = i2 * 4096 + (day & 4095);
+      const hit = this.cache.get(key2);
+      if (hit) {
+        this.cache.delete(key2);
+        this.cache.set(key2, hit);
+        return hit;
+      }
+      const p2 = this.build(i2, day);
+      this.cache.set(key2, p2);
+      if (this.cache.size > this.max) this.cache.delete(this.cache.keys().next().value);
+      return p2;
+    }
+    // where this person is at this minute: { a, p, seg, travel?: { from, to, mode, k, leg, x, z } }
+    at(i2, minute, day) {
+      let t2 = minute, d2 = day;
+      if (t2 < DAY_START) {
+        t2 += 1440;
+        d2 -= 1;
+      }
+      const plan = this.plan(i2, d2);
+      for (const s2 of plan.segs) if (t2 >= s2.t0 && t2 < s2.t1) return this.resolve(s2, t2);
+      return { a: "sleep", p: plan.home, seg: null };
+    }
+    resolve(s2, t2) {
+      if (s2.a !== "travel") return { a: s2.a, p: s2.p, seg: s2, out: ACTS[s2.a] === "out" };
+      const k2 = (t2 - s2.t0) / Math.max(1, s2.t1 - s2.t0), P3 = this.w.places, A2 = P3[s2.from], B2 = P3[s2.p];
+      const tr = { from: s2.from, to: s2.p, mode: s2.mode, k: k2, leg: "walk", x: 0, z: 0 };
+      if (s2.mode === "train" && s2.st1 && s2.st2) {
+        const w1 = s2.w1 / s2.dur, w2 = s2.w2 / s2.dur;
+        if (k2 < w1) {
+          const u2 = k2 / w1;
+          tr.leg = "walk";
+          tr.x = A2.dx + (s2.st1.x - A2.dx) * u2;
+          tr.z = A2.dz + (s2.st1.z - A2.dz) * u2;
+          tr.ax = A2.dx;
+          tr.az = A2.dz;
+          tr.bx = s2.st1.x;
+          tr.bz = s2.st1.z;
+          tr.toStation = true;
+        } else if (k2 > 1 - w2) {
+          const u2 = (k2 - (1 - w2)) / w2;
+          tr.leg = "walk";
+          tr.x = s2.st2.x + (B2.dx - s2.st2.x) * u2;
+          tr.z = s2.st2.z + (B2.dz - s2.st2.z) * u2;
+          tr.ax = s2.st2.x;
+          tr.az = s2.st2.z;
+          tr.bx = B2.dx;
+          tr.bz = B2.dz;
+          tr.fromStation = true;
+        } else {
+          tr.leg = "train";
+          tr.x = NaN;
+          tr.z = NaN;
+        }
+      } else {
+        tr.leg = s2.mode;
+        tr.x = A2.dx + (B2.dx - A2.dx) * k2;
+        tr.z = A2.dz + (B2.dz - A2.dz) * k2;
+        tr.ax = A2.dx;
+        tr.az = A2.dz;
+        tr.bx = B2.dx;
+        tr.bz = B2.dz;
+      }
+      return { a: "travel", p: s2.p, seg: s2, travel: tr, out: tr.leg === "walk" };
+    }
+    build(i2, day) {
+      const W3 = this.w, C2 = W3.census, P3 = W3.places, info = W3.cal.info(day);
+      const R2 = rng(hash32(C2.seed, i2, day, 5150)), week = rng(hash32(C2.seed, i2, Math.floor((day + 3) / 7), 5151));
+      const role = ROLES[C2.role[i2]], age = C2.age[i2], flags = C2.flags[i2], has = (t3) => !!(flags & TRAIT[t3]);
+      const home = C2.home[i2], H2 = P3[home], work = C2.work[i2];
+      const segs = [];
+      let t2 = DAY_START, at = home;
+      const stay = (a2, until, p2) => {
+        until = Math.max(t2, Math.round(until));
+        if (until > t2) segs.push({ a: a2, p: p2 == null ? at : p2, t0: t2, t1: until });
+        t2 = until;
+      };
+      const go = (to, mode) => {
+        if (to == null || to < 0 || to === at) return false;
+        const tr = this.travel(at, to, mode, flags);
+        segs.push(Object.assign({ a: "travel", from: at, p: to, t0: t2, t1: t2 + tr.dur }, tr));
+        t2 += tr.dur;
+        at = to;
+        return true;
+      };
+      const fav = (purposes, x2, z2, r2) => W3.favourite(i2, purposes, x2, z2, r2);
+      const wake = (base, spread) => base + (R2() - 0.35) * spread + (has("earlyBird") ? -25 : 0) + (has("nightOwl") ? 40 : 0);
+      const garbageDay = W3.cal.garbage(H2.ward | 0, day) !== "none";
+      const rain = 0;
+      const out = (a2, mins, p2) => {
+        const s2 = t2;
+        stay(a2, s2 + mins, p2);
+      };
+      const walkDog = (mins) => {
+        if (has("dog")) {
+          const park = fav(["park"], H2.dx, H2.dz, 500);
+          if (park >= 0) {
+            go(park, "walk");
+            out("walk_dog", mins);
+            go(home, "walk");
+          } else out("walk_dog", mins, home);
+        }
+      };
+      const sleepUntil = (w2) => stay("sleep", w2, home);
+      const bed = (b2) => {
+        if (at !== home) go(home);
+        stay("home", b2);
+        stay("sleep", DAY_START + 1440, home);
+      };
+      const workday = !info.offWork;
+      if (role === "infant") {
+        sleepUntil(wake(390, 30));
+        stay("home", DAY_START + 1440 - 120);
+        stay("sleep", DAY_START + 1440);
+        return finish();
+      }
+      if (role === "salaryman" || role === "officeworker" || role === "civil" || role === "teacher") {
+        if (workday && work >= 0) {
+          const tr = this.travel(home, work, null, flags), arrive = (role === "teacher" ? 470 : 500) + R2() * 40 - (R2() < 0.08 ? 25 : 0);
+          const leave = arrive - tr.dur, up = Math.min(leave - 30 - R2() * 25, wake(375, 30));
+          sleepUntil(up);
+          if (has("dog") && up < leave - 45) {
+            walkDog(15 + R2() * 10);
+          }
+          if (garbageDay && R2() < 0.22) {
+            out("garbage", 4, home);
+          }
+          stay("home", leave);
+          go(work);
+          const Wp = P3[work];
+          if (has("smoker")) {
+            stay("work", 620 + R2() * 15);
+            out("smoke", 8 + R2() * 6);
+          }
+          stay("work", 715 + R2() * 15);
+          if (R2() < 0.62) {
+            const l2 = fav(["ramen", "teishoku", "soba", "bento", "cafe", "konbini"], Wp.dx, Wp.dz, 450);
+            if (l2 >= 0) {
+              go(l2, "walk");
+              if (P3[l2].def.queue && R2() < 0.6) out("queue", 4 + R2() * 12);
+              stay("lunch", t2 + 25 + R2() * 20);
+              go(work, "walk");
+            }
+          }
+          if (has("smoker")) {
+            stay("work", 900 + R2() * 20);
+            out("smoke", 8 + R2() * 6);
+          }
+          const ot = role === "teacher" ? 1110 + R2() * 90 : role === "civil" ? 1050 + R2() * 70 : (role === "salaryman" ? 1080 : 1050) + R2() * 60 + R2() * (Wp.overtime || 0.4) * (role === "salaryman" ? 210 : 120);
+          stay("work", ot - (info.beforeOff ? 25 : 0));
+          let drinkP = (has("drinker") ? 0.22 : 0.05) + (info.beforeOff ? 0.3 : 0) + (info.payday ? 0.15 : 0) + (info.bonus ? 0.1 : 0) + (has("sociable") ? 0.08 : 0);
+          if (role === "teacher") drinkP *= 0.5;
+          if (R2() < drinkP) {
+            const near = R2() < 0.65 ? Wp : H2;
+            const iz = fav(["izakaya"], near.dx, near.dz, 700);
+            if (iz >= 0) {
+              go(iz);
+              stay("drinks", t2 + 80 + R2() * 100);
+              if (R2() < 0.3) {
+                const second = fav(["bar", "snack", "karaoke"], P3[iz].dx, P3[iz].dz, 500);
+                if (second >= 0) {
+                  go(second, "walk");
+                  stay(P3[second].purpose === "karaoke" ? "karaoke" : "drinks", t2 + 50 + R2() * 70);
+                }
+              }
+            }
+          } else if (has("gym") && week() < 0.45) {
+            const g2 = fav(["gym"], Wp.dx, Wp.dz, 900);
+            if (g2 >= 0) {
+              go(g2);
+              stay("gym", t2 + 60 + R2() * 30);
+            }
+          }
+          if (at !== home) go(home);
+          if (R2() < 0.3) {
+            const k2 = fav(["konbini", "supermarket"], H2.dx, H2.dz, 300);
+            if (k2 >= 0) {
+              go(k2, "walk");
+              stay("konbini", t2 + 5 + R2() * 10);
+              go(home, "walk");
+            }
+          }
+          if (has("dog") && t2 < 1290) walkDog(15 + R2() * 10);
+          bed(Math.max(t2 + 50, 1410 + R2() * 60 + (info.beforeOff ? 30 : 0)));
+        } else {
+          weekend();
+        }
+        return finish();
+      }
+      if (role === "retiree" || role === "homemaker" || role === "idle") {
+        if (role === "idle") {
+          sleepUntil(wake(600, 120));
+          stay("home", 780 + R2() * 60);
+          const k2 = fav(["konbini"], H2.dx, H2.dz, 400);
+          if (k2 >= 0) {
+            go(k2, "walk");
+            stay("konbini", t2 + 8 + R2() * 10);
+            go(home, "walk");
+          }
+          if (has("gambler") && R2() < 0.5) {
+            const pk = fav(["pachinko"], H2.dx, H2.dz, 1500);
+            if (pk >= 0) {
+              go(pk);
+              stay("pachinko", t2 + 120 + R2() * 180);
+              go(home);
+            }
+          }
+          if (has("nightOwl") && R2() < 0.7) {
+            stay("home", 1500 + R2() * 40);
+            const k22 = fav(["konbini"], H2.dx, H2.dz, 400);
+            if (k22 >= 0) {
+              go(k22, "walk");
+              stay("konbini", t2 + 10 + R2() * 12);
+              go(home, "walk");
+            }
+          }
+          bed(Math.max(t2 + 30, 1500 + R2() * 60));
+          return finish();
+        }
+        const old = role === "retiree";
+        sleepUntil(wake(old ? 320 : 345, 40));
+        if (old && has("taiso")) {
+          const park = fav(["park"], H2.dx, H2.dz, 600);
+          if (park >= 0) {
+            stay("home", 375);
+            go(park, "walk");
+            stay("taiso", Math.max(t2 + 2, 405));
+            if (R2() < 0.6) out("stroll", 15 + R2() * 25);
+            go(home, "walk");
+          }
+        }
+        walkDog(20 + R2() * 15);
+        if (garbageDay && t2 < 500) {
+          stay("home", Math.max(t2, 435 + R2() * 45));
+          out("garbage", 4 + R2() * 3, home);
+          if (has("sociable") && R2() < 0.55) out("chat", 5 + R2() * 12, home);
+        }
+        if (old && has("gardener")) {
+          stay("home", Math.max(t2, 500 + R2() * 60));
+          out("garden", 35 + R2() * 50, home);
+        }
+        if (has("devout") && (R2() < 0.45 || info.shrineDay)) {
+          const sh = fav(["shrine"], H2.dx, H2.dz, 900);
+          if (sh >= 0) {
+            stay("home", Math.max(t2, 530 + R2() * 90));
+            go(sh, "walk");
+            out("shrine", 6 + R2() * 10);
+            go(home, "walk");
+          }
+        }
+        if (old && R2() < 0.16 && workday) {
+          const cl = fav(["clinic", "hospital"], H2.dx, H2.dz, 1500);
+          if (cl >= 0) {
+            stay("home", Math.max(t2, 540));
+            go(cl);
+            stay("clinic", t2 + 60 + R2() * 70);
+            go(home);
+          }
+        }
+        if (!old && R2() < 0.5) {
+          stay("home", Math.max(t2, 600 + R2() * 40));
+          shopRun();
+        }
+        if (!old && has("sociable") && R2() < 0.45) {
+          stay("home", Math.max(t2, 650));
+          out("chat", 10 + R2() * 25, home);
+        }
+        stay("home", Math.max(t2, 800 + R2() * 60));
+        if (old) {
+          const r2 = R2();
+          if (has("reader") && r2 < 0.35) {
+            const lb = fav(["library"], H2.dx, H2.dz, 1500);
+            if (lb >= 0) {
+              go(lb);
+              stay("library", t2 + 90 + R2() * 60);
+              go(home);
+            }
+          } else if (r2 < 0.6) {
+            const park = fav(["park"], H2.dx, H2.dz, 600);
+            if (park >= 0) {
+              go(park, "walk");
+              out("bench", 40 + R2() * 60);
+              go(home, "walk");
+            }
+          } else if (r2 < 0.75) {
+            const k2 = fav(["kissaten", "cafe"], H2.dx, H2.dz, 800);
+            if (k2 >= 0) {
+              go(k2, "walk");
+              stay("cafe", t2 + 40 + R2() * 40);
+              go(home, "walk");
+            }
+          }
+          if (has("sociable") && R2() < 0.5) {
+            stay("home", Math.max(t2, 920));
+            out("chat", 10 + R2() * 25, home);
+          }
+          if (R2() < 0.22) {
+            const b2 = fav(["sento"], H2.dx, H2.dz, 1e3);
+            if (b2 >= 0) {
+              stay("home", Math.max(t2, 960));
+              go(b2, "walk");
+              stay("bath", t2 + 40 + R2() * 30);
+              go(home, "walk");
+            }
+          }
+        }
+        stay("home", Math.max(t2, 940 + R2() * 50));
+        if (R2() < (old ? 0.4 : 0.65)) shopRun();
+        if (has("dog")) {
+          stay("home", Math.max(t2, 1050 + R2() * 40));
+          walkDog(20 + R2() * 15);
+        }
+        bed(old ? 1250 + R2() * 60 : 1380 + R2() * 50);
+        return finish();
+      }
+      if (role === "schoolchild") {
+        const sch = work, young = age < 12;
+        if (info.schoolDay && sch >= 0) {
+          const tr = this.travel(home, sch, "walk", flags), arrive = (young ? 475 : 490) + R2() * 15, leave = arrive - tr.dur;
+          sleepUntil(Math.min(leave - 35, wake(395, 25)));
+          stay("home", leave);
+          go(sch, "walk");
+          stay("school", young ? 885 + R2() * 25 : 925 + R2() * 15);
+          if (!young && R2() < 0.65) stay("school", 1050 + R2() * 30);
+          if (young && R2() < 0.4) {
+            const park = fav(["park"], H2.dx, H2.dz, 400);
+            if (park >= 0) {
+              go(park, "walk");
+              out("play", 40 + R2() * 40);
+            }
+          }
+          if (!young && week() < 0.55) {
+            const cr = fav(["cram"], H2.dx, H2.dz, 1500);
+            if (cr >= 0) {
+              go(cr);
+              stay("cram", Math.max(t2 + 60, 1230 + R2() * 30));
+            }
+          }
+          if (age >= 13 && R2() < 0.2) {
+            const k2 = fav(["konbini"], H2.dx, H2.dz, 500);
+            if (k2 >= 0) {
+              go(k2, "walk");
+              stay("konbini", t2 + 8 + R2() * 10);
+            }
+          }
+          bed(young ? 1260 + R2() * 30 : 1380 + R2() * 50);
+        } else {
+          sleepUntil(wake(480, 90));
+          stay("home", 600 + R2() * 60);
+          if (info.weekend && !young && R2() < 0.4 && sch >= 0) {
+            go(sch);
+            stay("school", 720 + R2() * 40);
+          }
+          const park = fav(["park"], H2.dx, H2.dz, 500);
+          if (park >= 0 && R2() < 0.5) {
+            go(park, "walk");
+            out("play", 60 + R2() * 60);
+          }
+          bed(young ? 1260 + R2() * 30 : 1400 + R2() * 50);
+        }
+        return finish();
+      }
+      if (role === "student") {
+        sleepUntil(wake(500, 120));
+        const lectures = workday && !info.schoolBreak && work >= 0 && week() < 0.85 && R2() < 0.8;
+        if (lectures) {
+          stay("home", 560 + R2() * 80);
+          go(work);
+          stay("school", t2 + 180 + R2() * 240);
+        }
+        if (week() < 0.75 && R2() < 0.55) {
+          const job = fav(["konbini", "izakaya", "cafe", "karaoke", "ramen"], H2.dx, H2.dz, 900);
+          if (job >= 0) {
+            go(job);
+            stay("work", Math.max(t2 + 120, 1080 + R2() * 60) + 180 + R2() * 60);
+          }
+        } else if (R2() < 0.35) {
+          const k2 = fav(["karaoke", "izakaya", "cafe"], at === home ? H2.dx : P3[at].dx, at === home ? H2.dz : P3[at].dz, 1200);
+          if (k2 >= 0) {
+            go(k2);
+            stay(P3[k2].purpose === "karaoke" ? "karaoke" : P3[k2].purpose === "cafe" ? "cafe" : "drinks", t2 + 90 + R2() * 100);
+          }
+        }
+        if (at !== home) go(home);
+        if (R2() < 0.35) {
+          const k2 = fav(["konbini"], H2.dx, H2.dz, 300);
+          if (k2 >= 0) {
+            stay("home", Math.max(t2, 1430));
+            go(k2, "walk");
+            stay("konbini", t2 + 8 + R2() * 8);
+            go(home, "walk");
+          }
+        }
+        bed(Math.max(t2 + 60, 1500 + R2() * 80));
+        return finish();
+      }
+      if (work >= 0) {
+        const Wp = P3[work], open = Wp.open, close = Wp.close;
+        const off = Wp.dayOff === info.dow || Wp.def.weekdaysOnly && info.offWork || week() < 0.28 && hash32(C2.seed, i2, day, 61) % 7 < 2;
+        let s0, s1;
+        if (role === "shopworker") {
+          const owner = age > 45 || C2.home[i2] === work;
+          s0 = owner ? open - 40 : Math.max(open - 15, 540 + R2() * 60);
+          s1 = owner ? Math.min(close + 30, DAY_START + 1440 - 30) : Math.min(close + 10, s0 + 480 + R2() * 60);
+        } else if (role === "freeter") {
+          const sh = hash32(C2.seed, i2, Math.floor(day / 7), 62) % 3;
+          s0 = [360, 840, 1320][sh];
+          s1 = s0 + 480;
+          if (Wp.purpose !== "konbini") {
+            s0 = Math.max(open, 1020);
+            s1 = Math.min(close, s0 + 300);
+          }
+        } else if (role === "nightworker") {
+          s0 = Math.max(open - 30, 1020);
+          s1 = Math.min(close + 20, DAY_START + 1440 - 10);
+        } else if (role === "carer") {
+          const sh = Wp.purpose === "hospital" ? hash32(C2.seed, i2, Math.floor(day / 4), 63) % 3 : 0;
+          s0 = [510, 960, 1440][sh];
+          s1 = s0 + [540, 510, 540][sh];
+          if (Wp.purpose !== "hospital") {
+            s0 = open - 20;
+            s1 = close + 20;
+          }
+        } else {
+          s0 = 450 + R2() * 30;
+          s1 = 1020 + R2() * 60;
+        }
+        if (off) {
+          weekend();
+          return finish();
+        }
+        if (s0 >= 1440 && role === "carer") {
+          sleepUntil(wake(800, 60));
+          stay("home", 960);
+          shopRun();
+          stay("home", s0 - this.travel(home, work, null, flags).dur);
+          go(work);
+          stay("work", DAY_START + 1440 - 1);
+          return finish();
+        }
+        if (s0 >= 900) {
+          sleepUntil(wake(role === "nightworker" ? 660 : 540, 80));
+          if (R2() < 0.45) shopRun();
+          walkDog(15);
+        } else sleepUntil(Math.min(s0 - this.travel(home, work, null, flags).dur - 30, wake(s0 - 90, 30)));
+        stay("home", s0 - (C2.home[i2] === work ? 0 : this.travel(home, work, null, flags).dur));
+        go(work);
+        if (Wp.def && Wp.def.staff && s0 < Wp.open && role === "shopworker" && C2.home[i2] === work) {
+          out("sweep", 10 + R2() * 8, work);
+        }
+        if (has("smoker") && s1 - t2 > 300) {
+          stay("work", t2 + 200 + R2() * 60);
+          out("smoke", 7 + R2() * 5);
+        }
+        stay("work", Math.min(s1, DAY_START + 1440 - 5));
+        if (role === "manual" && has("drinker") && R2() < 0.3 + (info.payday ? 0.2 : 0)) {
+          const iz = fav(["izakaya", "soba"], Wp.dx, Wp.dz, 600);
+          if (iz >= 0) {
+            go(iz);
+            stay("drinks", t2 + 60 + R2() * 60);
+          }
+        }
+        if (t2 < DAY_START + 1440 - 20) bed(Math.max(t2 + 30, role === "nightworker" ? t2 + 40 : 1350 + R2() * 60));
+        return finish();
+      }
+      weekend();
+      return finish();
+      function shopRun() {
+        const k2 = fav(["supermarket", "greengrocer", "butcher", "fishmonger", "konbini", "pharmacy", "drycleaner", "bakery"], H2.dx, H2.dz, 600);
+        if (k2 >= 0) {
+          go(k2, "walk");
+          stay("shop", t2 + 15 + R2() * 30);
+          go(home, "walk");
+        }
+      }
+      function weekend() {
+        sleepUntil(wake(age > 60 ? 360 : 500, 100));
+        walkDog(25 + R2() * 20);
+        if (has("jogger") && R2() < 0.6) {
+          out("jog", 30 + R2() * 30, home);
+        }
+        stay("home", Math.max(t2, 640 + R2() * 60));
+        const r2 = R2();
+        if (has("gambler") && r2 < 0.45) {
+          const pk = fav(["pachinko"], H2.dx, H2.dz, 1500);
+          if (pk >= 0) {
+            go(pk);
+            stay("pachinko", t2 + 180 + R2() * 240);
+            go(home);
+          }
+        } else if (r2 < 0.5) shopRun();
+        else if (r2 < 0.7) {
+          const park = fav(["park", "shrine"], H2.dx, H2.dz, 900);
+          if (park >= 0) {
+            go(park, "walk");
+            out(P3[park].purpose === "shrine" ? "shrine" : "stroll", 30 + R2() * 60);
+            go(home, "walk");
+          }
+        } else if (r2 < 0.85) {
+          segs.push({ a: "away", p: -1, t0: t2, t1: t2 + 180 + R2() * 200 });
+          t2 = segs[segs.length - 1].t1;
+        }
+        if (has("gym") && R2() < 0.4) {
+          const g2 = fav(["gym"], H2.dx, H2.dz, 1200);
+          if (g2 >= 0) {
+            go(g2);
+            stay("gym", t2 + 70);
+            go(home);
+          }
+        }
+        if (has("drinker") && info.beforeOff && R2() < 0.3) {
+          const iz = fav(["izakaya", "bar"], H2.dx, H2.dz, 800);
+          if (iz >= 0) {
+            stay("home", Math.max(t2, 1110));
+            go(iz);
+            stay("drinks", t2 + 100 + R2() * 80);
+            go(home);
+          }
+        }
+        if (has("dog") && t2 < 1080) {
+          stay("home", Math.max(t2, 1050));
+          walkDog(20 + R2() * 10);
+        }
+        bed(Math.max(t2 + 30, 1410 + R2() * 80));
+      }
+      function finish() {
+        const out2 = [];
+        for (const s2 of segs) {
+          s2.t0 = Math.max(DAY_START, Math.round(s2.t0));
+          s2.t1 = Math.min(DAY_START + 1440, Math.round(s2.t1));
+          if (s2.t1 > s2.t0) out2.push(s2);
+        }
+        return { i: i2, day, home, segs: out2 };
+      }
+    }
+    // how someone gets from one place to another: walking, cycling or the train, with the time it takes
+    travel(a2, b2, force, flags) {
+      const P3 = this.w.places, A2 = P3[a2], B2 = P3[b2];
+      const d2 = Math.hypot(B2.dx - A2.dx, B2.dz - A2.dz) * 1.3;
+      if (force === "walk" || d2 < 1300) return { mode: "walk", dur: Math.max(2, Math.round(d2 / WALK)) };
+      if (flags & TRAIT.cyclist && d2 < 4e3) return { mode: "bike", dur: Math.max(3, Math.round(d2 / BIKE)) };
+      const s1 = this.w.station(A2.dx, A2.dz), s2 = this.w.station(B2.dx, B2.dz);
+      if (s1 && s2 && s1 !== s2) {
+        const w1 = Math.round(Math.hypot(s1.x - A2.dx, s1.z - A2.dz) * 1.3 / WALK), w2 = Math.round(Math.hypot(B2.dx - s2.x, B2.dz - s2.z) * 1.3 / WALK);
+        const ride = Math.round(Math.hypot(s2.x - s1.x, s2.z - s1.z) / TRAIN) + 6;
+        const dur = w1 + ride + w2;
+        if (w1 + w2 < d2 / WALK) return { mode: "train", dur, w1, w2, st1: s1, st2: s2 };
+      }
+      if (flags & TRAIT.car) return { mode: "car", dur: Math.max(4, Math.round(d2 / 500) + 4) };
+      return { mode: "walk", dur: Math.max(2, Math.round(d2 / WALK)) };
+    }
+  };
+
+  // src/realism/Realism.js
+  var REALISM_VERSION = "1.0.0";
+  var FAIR_WEATHER = { stroll: 1, bench: 1, garden: 1, chat: 1, play: 1, taiso: 1, jog: 1 };
+  var RealismEngine = class {
+    constructor(opts) {
+      opts = opts || {};
+      this.seed = typeof opts.seed === "string" ? strSeed(opts.seed) : opts.seed >>> 0 || 1964;
+      this.cal = new Calendar({ epoch: opts.epoch, seed: this.seed });
+      this.places = [];
+      this.stations = [];
+      this.census = null;
+      this.planner = null;
+      this.cell = 120;
+      this.grid = /* @__PURE__ */ new Map();
+      this.byPurpose = /* @__PURE__ */ new Map();
+      this.weather = { rain: 0 };
+      this.local = { x: NaN, z: NaN, ids: [], out: [], scan: 0, at: -1, day: -1, r: opts.localRadius || 420, cap: opts.localCap || 3600 };
+      this.windowSample = null;
+      this.windowCache = { key: "", v: null };
+      this.listeners = {};
+      this.ready = false;
+    }
+    on(name, fn) {
+      (this.listeners[name] || (this.listeners[name] = [])).push(fn);
+      return () => {
+        const L3 = this.listeners[name];
+        const k2 = L3.indexOf(fn);
+        if (k2 >= 0) L3.splice(k2, 1);
+      };
+    }
+    emit(name, ev) {
+      (this.listeners[name] || []).forEach((f2) => {
+        try {
+          f2(ev);
+        } catch (e2) {
+        }
+      });
+    }
+    // ---- building ----
+    // plots: [{ id, kind, x, z, w, d, yaw, floors, ward, district, city, village?, door?: [x, z] }], stations: [{ x, z, name }]
+    *buildSteps(plots, stations) {
+      this.stations = (stations || []).map((s2) => ({ x: s2.x, z: s2.z, name: s2.name || "" }));
+      this.places = plots.map((p2, k2) => new Place(p2, this.seed, k2));
+      for (const pl of this.places) {
+        pl.dx = pl.door ? pl.door[0] : pl.x;
+        pl.dz = pl.door ? pl.door[1] : pl.z;
+        const key2 = this.key(pl.x, pl.z);
+        (this.grid.get(key2) || this.grid.set(key2, []).get(key2)).push(pl.index);
+        const add = (pp) => {
+          (this.byPurpose.get(pp) || this.byPurpose.set(pp, []).get(pp)).push(pl.index);
+        };
+        add(pl.purpose);
+        if (pl.groundShop) add(pl.groundShop);
+      }
+      yield 0.05;
+      this.census = new Census(this.places, this.seed);
+      for (const k2 of this.census.steps()) yield 0.05 + k2 * 0.9;
+      for (const pl of this.places) if (pl.purpose === "office" && !pl.company) pl.company = null;
+      this.planner = new Planner({ places: this.places, census: this.census, cal: this.cal, favourite: (i2, P3, x2, z2, r2) => this.favourite(i2, P3, x2, z2, r2), station: (x2, z2) => this.station(x2, z2) });
+      this.planner.max = this.local.cap * 2 + 2e3;
+      this.buildWindowSample();
+      this.ready = true;
+      yield 1;
+    }
+    build(plots, stations) {
+      for (const _2 of this.buildSteps(plots, stations)) {
+      }
+      return this;
+    }
+    key(x2, z2) {
+      return Math.floor(x2 / this.cell) + "," + Math.floor(z2 / this.cell);
+    }
+    // ---- finding places ----
+    placesNear(x2, z2, r2, filter) {
+      const out = [], c2 = this.cell, i0 = Math.floor((x2 - r2) / c2), i1 = Math.floor((x2 + r2) / c2), j0 = Math.floor((z2 - r2) / c2), j1 = Math.floor((z2 + r2) / c2);
+      for (let j2 = j0; j2 <= j1; j2++) for (let i2 = i0; i2 <= i1; i2++) {
+        const L3 = this.grid.get(i2 + "," + j2);
+        if (!L3) continue;
+        for (const k2 of L3) {
+          const p2 = this.places[k2];
+          if (Math.hypot(p2.x - x2, p2.z - z2) <= r2 && (!filter || filter(p2))) out.push(p2);
+        }
+      }
+      return out;
+    }
+    placeAt(x2, z2) {
+      let best = null, bd = 1e9;
+      for (const p2 of this.placesNear(x2, z2, 60)) {
+        const a2 = (p2.yaw || 0) * Math.PI / 180, dx = x2 - p2.x, dz = z2 - p2.z, lx = dx * Math.cos(a2) - dz * Math.sin(a2), lz = dx * Math.sin(a2) + dz * Math.cos(a2);
+        const inside = Math.abs(lx) <= (p2.w || 10) / 2 + 1 && Math.abs(lz) <= (p2.d || 10) / 2 + 1, d2 = Math.hypot(dx, dz);
+        if (inside && d2 < bd) {
+          bd = d2;
+          best = p2;
+        }
+      }
+      return best;
+    }
+    // A person's favourite of a kind of place near somewhere: not always the nearest (people have their ramen shop), but one of
+    // the three nearest, the same one every time.
+    favourite(i2, purposes, x2, z2, r2) {
+      const near = [];
+      for (const pp of purposes) {
+        const L3 = this.byPurpose.get(pp);
+        if (!L3) continue;
+        if (L3.length > 60) {
+          for (const p2 of this.placesNear(x2, z2, r2, (q2) => q2.purpose === pp || q2.groundShop === pp)) near.push([Math.hypot(p2.dx - x2, p2.dz - z2), p2.index]);
+        } else for (const k3 of L3) {
+          const p2 = this.places[k3], d2 = Math.hypot(p2.dx - x2, p2.dz - z2);
+          if (d2 <= r2) near.push([d2, k3]);
+        }
+      }
+      if (!near.length) return -1;
+      near.sort((a2, b2) => a2[0] - b2[0]);
+      const k2 = Math.min(near.length, 3), pickK = hash32(this.seed, i2, purposes.length * 31 + purposes[0].length, Math.round(x2 / 50) ^ Math.round(z2 / 50) * 7) % k2;
+      return near[pickK][1];
+    }
+    station(x2, z2) {
+      let best = null, bd = 1e18;
+      for (const s2 of this.stations) {
+        const d2 = (s2.x - x2) * (s2.x - x2) + (s2.z - z2) * (s2.z - z2);
+        if (d2 < bd) {
+          bd = d2;
+          best = s2;
+        }
+      }
+      return best && bd < 2600 * 2600 ? best : null;
+    }
+    // ---- time ----
+    // the logical day (it turns over at four in the morning, when the city is quietest) and the minute
+    dayOf(absMinutes) {
+      return Math.floor((absMinutes - DAY_START) / 1440);
+    }
+    info(day) {
+      return this.cal.info(day);
+    }
+    sun(day) {
+      return sunTimes(this.cal, day);
+    }
+    setWeather(w2) {
+      this.weather = Object.assign(this.weather, w2 || {});
+    }
+    // Where person i is at this minute on this (calendar) day, with the weather applied.
+    whereAt(i2, minute, day) {
+      const r2 = this.planner.at(i2, minute, day);
+      if (r2.a in FAIR_WEATHER && this.weather.rain > 0.35 && r01(this.seed, i2, day, 77) < 0.85) return { a: "home", p: this.census.home[i2], seg: r2.seg, out: false, rained: true };
+      return r2;
+    }
+    person(i2) {
+      return this.census.person(i2);
+    }
+    // "Kenji Watanabe, 42 · Salaryman at Sōwa Trading · on the way home"
+    describe(i2, minute, day) {
+      const p2 = this.census.person(i2), w2 = this.whereAt(i2, minute, day);
+      let doing = ACT_LABEL[w2.a] || w2.a;
+      if (w2.a === "travel" && w2.travel) {
+        const to = this.places[w2.travel.to];
+        doing = to.index === p2.home.index ? "on the way home" : to === p2.work ? p2.role === "schoolchild" || p2.role === "student" ? "on the way to school" : "on the way to work" : "on the way to " + (to.name || (to.company ? to.company : PURPOSES[to.purpose].name).toLowerCase());
+        if (w2.travel.toStation) doing += " (to the station)";
+      } else if (w2.p >= 0 && this.places[w2.p] && w2.a !== "home" && w2.a !== "sleep") {
+        const pl = this.places[w2.p];
+        if (pl.name && (w2.a === "queue" || w2.a === "drinks" || w2.a === "lunch" || w2.a === "shop")) doing += " at " + pl.name;
+      }
+      return { name: p2.name, age: p2.age, job: p2.roleLabel, doing, temper: p2.temper, traits: p2.traits, female: p2.female, business: p2.business, line: p2.name + ", " + p2.age + " \xB7 " + p2.roleLabel, person: p2, where: w2 };
+    }
+    // ---- the people out near the player ----
+    // focus() picks the population that could be on these streets (who lives and works within the radius); tick() works through
+    // them a slice at a time (budgetMs), keeping a list of who is out of doors now and where.
+    focus(x2, z2) {
+      const L3 = this.local;
+      if (Number.isFinite(L3.x) && Math.hypot(x2 - L3.x, z2 - L3.z) < L3.r * 0.3) return false;
+      L3.x = x2;
+      L3.z = z2;
+      const ids = [], C2 = this.census;
+      for (const p2 of this.placesNear(x2, z2, L3.r)) {
+        for (let i2 = p2.resFirst; i2 < p2.resEnd; i2++) ids.push(i2);
+        const s2 = C2.workStart[p2.index], e2 = C2.workStart[p2.index + 1];
+        for (let k2 = s2; k2 < e2; k2++) ids.push(C2.workList[k2]);
+      }
+      let sel = ids;
+      if (ids.length > L3.cap) {
+        const step = ids.length / L3.cap;
+        sel = [];
+        for (let k2 = 0; k2 < L3.cap; k2++) sel.push(ids[Math.floor(k2 * step)]);
+      }
+      L3.ids = Array.from(new Set(sel));
+      L3.scan = 0;
+      L3.fresh = [];
+      return true;
+    }
+    tick(minute, day, budgetMs, now3) {
+      const L3 = this.local;
+      if (!L3.ids.length) return;
+      const clock = now3 || (() => typeof performance !== "undefined" ? performance.now() : Date.now());
+      const t0 = clock(), budget = budgetMs == null ? 2 : budgetMs;
+      if (L3.scan === 0) L3.fresh = [];
+      let n2 = 0;
+      while (L3.scan < L3.ids.length) {
+        const i2 = L3.ids[L3.scan++], w2 = this.whereAt(i2, minute, day);
+        if (w2.out) L3.fresh.push({ i: i2, w: w2 });
+        if ((++n2 & 3) === 0 && clock() - t0 > budget) break;
+      }
+      if (L3.scan >= L3.ids.length) {
+        L3.out = L3.fresh;
+        L3.fresh = [];
+        L3.scan = 0;
+        L3.at = minute;
+        L3.day = day;
+        L3.passes = (L3.passes || 0) + 1;
+      }
+    }
+    // everyone out of doors near (x, z): [{ i, w, x, z }] (position is where they would be: on their walk, or at the place)
+    peopleOut(x2, z2, r2) {
+      const out = [];
+      for (const e2 of this.local.out) {
+        const pos = this.posOf(e2.w);
+        if (!pos) continue;
+        if (Math.hypot(pos[0] - x2, pos[1] - z2) <= r2) out.push({ i: e2.i, w: e2.w, x: pos[0], z: pos[1] });
+      }
+      return out;
+    }
+    posOf(w2) {
+      if (w2.travel) return Number.isFinite(w2.travel.x) && w2.travel.leg === "walk" ? [w2.travel.x, w2.travel.z] : null;
+      const p2 = this.places[w2.p];
+      if (!p2) return null;
+      return [p2.dx, p2.dz];
+    }
+    // How lively the street is compared with an ordinary afternoon (0.4 .. 1.6), for the host's crowd sizes.
+    streetLife(x2, z2) {
+      const near = this.peopleOut(x2, z2, 220).length, pop = this.local.ids.length;
+      if (!pop || this.local.passes == null) return 1;
+      const expect = Math.max(4, pop * 0.035);
+      return clamp11(0.4 + near / expect * 0.6, 0.4, 1.6);
+    }
+    // ---- scenes: people out at a place, grouped so the host can stage them ----
+    // [{ id, kind, place, people: [i...], x, z }]: kinds are the activities (taiso, smoke, queue, chat, garbage, sweep, bench, shrine, ...)
+    scenes(x2, z2, r2) {
+      const groups = /* @__PURE__ */ new Map();
+      for (const e2 of this.peopleOut(x2, z2, r2)) {
+        if (e2.w.a === "travel" || e2.w.a === "walk_dog" || e2.w.a === "jog" || e2.w.a === "stroll") continue;
+        const k2 = e2.w.a + ":" + e2.w.p;
+        const g2 = groups.get(k2) || groups.set(k2, { id: k2, kind: e2.w.a, place: this.places[e2.w.p], people: [], x: e2.x, z: e2.z }).get(k2);
+        g2.people.push(e2.i);
+      }
+      return [...groups.values()];
+    }
+    // what the front of a place looks like now (open/preparing/closing/closed, busy) and the props of the hour
+    placeState(place, minute, day) {
+      const info = this.cal.info(day), s2 = place.state(minute, info);
+      s2.hours = place.hoursText();
+      s2.name = place.name || place.company || PURPOSES[place.purpose].name;
+      s2.delivery = /konbini|ramen|teishoku|soba|izakaya|bakery|bento|supermarket|greengrocer|fishmonger|butcher|cafe/.test(place.purpose) && minute >= place.open - 120 && minute < place.open + (place.purpose === "konbini" ? 600 : 30) && (hash32(this.seed, place.id | 0, day, 41) % 3 === 0 || place.purpose === "konbini" && minute % 240 < 30);
+      return s2;
+    }
+    // Rubbish bags: on a ward's collection days they go out at the collection point under a crow net from about six, and the truck
+    // takes them around half nine (the host draws the pile: realism-hook.js propGarbage).
+    garbageAt(place, minute, day) {
+      const kind = this.cal.garbage(place.ward | 0, day);
+      if (kind === "none") return null;
+      const pickup = 540 + hash32(this.seed, place.ward | 0, day, 43) % 90;
+      if (minute < 330 || minute > pickup) return null;
+      return { kind, pickup, bags: Math.min(14, Math.round((minute - 330) / (pickup - 330) * 6 + 2 + (place.units || 1) * 0.2)) };
+    }
+    // ---- lit windows ----
+    // A fixed sample of households and office workers, walked through their routines: the share of homes with somebody home and
+    // awake, of office desks still occupied, of shops and public buildings open. The host's window shader lights that share.
+    buildWindowSample() {
+      const C2 = this.census, homes = [], desks = [], shops = [], civic = [];
+      const H2 = C2.hhPlace.length;
+      for (let k2 = 0; k2 < Math.min(360, H2); k2++) homes.push(Math.floor((k2 + 0.5) * H2 / Math.min(360, H2)));
+      for (let i2 = 0, step = Math.max(1, Math.floor(C2.n / 3e3)); i2 < C2.n && desks.length < 320; i2 += step) {
+        const w2 = C2.work[i2];
+        if (w2 >= 0 && this.places[w2].purpose === "office") desks.push(i2);
+      }
+      for (const p2 of this.places) {
+        if (p2.def && p2.def.staff && !p2.home && p2.purpose !== "park" && p2.purpose !== "parking") (/wardoffice|library|school|hospital|community|university|post/.test(p2.purpose) ? civic : shops).push(p2.index);
+      }
+      this.windowSample = { homes, desks, shops: shops.filter((_2, k2) => k2 % Math.max(1, Math.floor(shops.length / 300)) === 0), civic };
+    }
+    // { home, office, shop, civic } in 0..1 at this minute, plus the day (for the shader's per-window shuffle)
+    windowLife(minute, day) {
+      const key2 = day + ":" + Math.floor(minute / 4);
+      if (this.windowCache.key === key2) return this.windowCache.v;
+      const S4 = this.windowSample, C2 = this.census, P3 = this.places, info = this.cal.info(day);
+      if (!S4) return { home: 0.5, office: 0.4, shop: 0.6, civic: 0.3, day };
+      let lit = 0;
+      for (const h2 of S4.homes) {
+        const f2 = C2.hhFirst[h2], n2 = C2.hhCount[h2];
+        for (let i2 = f2; i2 < f2 + n2; i2++) {
+          const w2 = this.planner.at(i2, minute, day);
+          if (w2.a === "home" || w2.a !== "sleep" && w2.a !== "travel" && w2.p === C2.home[i2] && ACTS[w2.a] === "inside") {
+            lit++;
+            break;
+          }
+        }
+      }
+      let at = 0;
+      for (const i2 of S4.desks) {
+        const w2 = this.planner.at(i2, minute, day);
+        if (w2.a === "work" || w2.a === "smoke") at++;
+      }
+      let open = 0;
+      for (const k2 of S4.shops) if (P3[k2].isOpen(minute, info)) open++;
+      let copen = 0;
+      for (const k2 of S4.civic) if (P3[k2].isOpen(minute, info)) copen++;
+      const v2 = {
+        // vacant flats, people in the back room: never every window. Insomniacs and night shifts: never none.
+        home: clamp11(lit / Math.max(1, S4.homes.length) * 0.88 + 0.03, 0.03, 0.92),
+        office: clamp11(at / Math.max(1, S4.desks.length) * 0.95 + (info.offWork ? 0.02 : 0.04), 0.02, 0.97),
+        shop: clamp11(open / Math.max(1, S4.shops.length), 0.04, 1),
+        civic: clamp11(copen / Math.max(1, S4.civic.length) * 0.9 + 0.05, 0.05, 0.95),
+        day
+      };
+      this.windowCache = { key: key2, v: v2 };
+      return v2;
+    }
+    // ---- for houses: who lives here, what it looks like from the street, which rooms are lit ----
+    householdsAt(place) {
+      return this.census.householdsOf(place);
+    }
+    // Things a house's front would show because of who lives there and what they are doing today.
+    dressing(place, minute, day) {
+      const C2 = this.census, info = this.cal.info(day), out = { nameplates: [], bikes: 0, childBikes: 0, car: false, dogHouse: false, plants: 0, laundry: false, futons: false, umbrellas: 0, shoes: 0, mailboxes: Math.max(1, place.units), letters: 0, garden: null, kamidana: false, lightsOn: 0, unitsHome: 0 };
+      const dry = (this.weather.rain || 0) < 0.15;
+      for (let h2 = place.hhFirst; h2 < place.hhEnd; h2++) {
+        const f2 = C2.hhFirst[h2], n2 = C2.hhCount[h2], hh = C2.household(h2);
+        out.nameplates.push(hh.surname);
+        let home = 0, awake = 0, homemaker = false, kids = 0;
+        for (let i2 = f2; i2 < f2 + n2; i2++) {
+          const w2 = minute == null ? null : this.planner.at(i2, minute, day), fl = C2.flags[i2], role = ROLES[C2.role[i2]];
+          if (fl & TRAIT.cyclist && (!w2 || w2.p === C2.home[i2])) out.bikes++;
+          if (role === "schoolchild" && C2.age[i2] < 12) kids++;
+          if (fl & TRAIT.car) out.car = true;
+          if (fl & TRAIT.dog) out.dogHouse = place.kind === "houses";
+          if (fl & TRAIT.gardener) {
+            out.plants += 6;
+            out.garden = C2.age[i2] > 60 ? "vegetables" : "flowers";
+          }
+          if (fl & TRAIT.devout) out.kamidana = true;
+          if (role === "homemaker" || role === "retiree") homemaker = true;
+          if (w2 && w2.p === C2.home[i2] && w2.a !== "travel") {
+            home++;
+            out.shoes += 1;
+            if (w2.a !== "sleep") awake++;
+          }
+        }
+        out.plants += hash32(this.seed, h2, 51) % 4;
+        out.childBikes += kids;
+        out.umbrellas += n2;
+        if (dry && homemaker && minute >= 480 && minute < 900 && hash32(this.seed, h2, day, 52) % 3 !== 0) out.laundry = true;
+        if (dry && info.weekend && minute >= 540 && minute < 840 && hash32(this.seed, h2, day, 53) % 4 === 0) out.futons = true;
+        if (home) out.unitsHome++;
+        if (awake) out.lightsOn++;
+        out.letters += hash32(this.seed, h2, day, 54) % 3;
+      }
+      return out;
+    }
+    // Rooms lit in one household now: genkan, living, kitchen, bedroom(s), bath. For a house's own windows.
+    homeLights(householdId, minute, day) {
+      const C2 = this.census, f2 = C2.hhFirst[householdId], n2 = C2.hhCount[householdId], R2 = { genkan: false, living: false, kitchen: false, bedroom: false, bath: false, tv: false };
+      const dark = (() => {
+        const s2 = this.sun(day);
+        return minute < s2.rise + 20 || minute > s2.set - 30;
+      })();
+      for (let i2 = f2; i2 < f2 + n2; i2++) {
+        const w2 = this.planner.at(i2, minute, day);
+        if (w2.p !== C2.home[i2] || w2.a === "travel") continue;
+        if (w2.a === "sleep") continue;
+        const r2 = r01(this.seed, i2, Math.floor(minute / 20), 55);
+        if (minute >= 1020 && minute < 1170 && r2 < 0.6) R2.kitchen = true;
+        else if (minute >= 360 && minute < 480 && r2 < 0.5) R2.kitchen = true;
+        if (r2 < 0.65) R2.living = true;
+        else R2.bedroom = true;
+        if (minute >= 1200 && r2 > 0.8) R2.bath = true;
+        if (R2.living && r2 < 0.4) R2.tv = true;
+        const s2 = w2.seg;
+        if (s2 && (minute - s2.t0 < 3 || s2.t1 - minute < 3)) R2.genkan = true;
+      }
+      if (!dark) {
+        for (const k2 in R2) if (k2 !== "tv") R2[k2] = R2[k2] && k2 === "bath";
+      }
+      return R2;
+    }
+    stats() {
+      const s2 = this.census ? this.census.stats() : {};
+      const kinds = {};
+      for (const p2 of this.places) kinds[p2.purpose] = (kinds[p2.purpose] || 0) + 1;
+      return Object.assign(s2, { places: this.places.length, purposes: kinds, stations: this.stations.length, local: this.local.ids.length, out: this.local.out.length });
+    }
+  };
+  var WINDOW_LIFE_GLSL = {
+    vertexHead: "varying vec3 vRealPos;\nvarying vec3 vRealN;\n",
+    vertexBody: `
+  {
+    vec4 rwp = vec4(transformed, 1.0);
+    vec3 rwn = objectNormal;
+    #ifdef USE_INSTANCING
+      rwp = instanceMatrix * rwp; rwn = mat3(instanceMatrix) * rwn;
+    #endif
+    rwp = modelMatrix * rwp;
+    vRealPos = rwp.xyz; vRealN = normalize(mat3(modelMatrix) * rwn);
+  }`,
+    fragmentHead: `varying vec3 vRealPos;
+varying vec3 vRealN;
+uniform vec4 uRealLife;
+uniform vec2 uRealClock;
+uniform vec4 uRealGrid;
+float realHash(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+vec3 realWindow(float profile) {
+  vec3 n = normalize(vRealN);
+  if (profile > 3.5) return vec3(0.0);
+  if (abs(n.y) > 0.6) return vec3(1.0);
+#ifdef USE_UV
+  bool xFace = abs(n.x) > abs(n.z);
+  float along = xFace ? vRealPos.z : vRealPos.x;
+  float face = xFace ? vRealPos.x : vRealPos.z;
+  // the wall's own corner, found by walking back along u: one id per building face, so no two buildings share a pattern
+#ifdef REAL_NO_DERIVATIVES
+  float s = 1.0;
+#else
+  float s = sign(dFdx(along) * dFdx(vUv.x) + dFdy(along) * dFdy(vUv.x));
+  if (s == 0.0) s = 1.0;
+#endif
+  float corner = floor((along - s * vUv.x * uRealGrid.z) * 0.25 + 0.5);
+  // one cell is about one room: uRealGrid.xy windows per unit of the facade's texture coordinates
+  vec2 cell = floor(vUv * uRealGrid.xy);
+  vec3 id = vec3(cell.x + corner * 7.13, cell.y, floor(face * 0.5) + (xFace ? 0.0 : 517.0));
+  float h = realHash(id), h2 = realHash(id.yzx + 19.7);
+  float share = profile < 0.5 ? uRealLife.x : profile < 1.5 ? uRealLife.y : profile < 2.5 ? (cell.y >= 1.0 ? uRealLife.x : uRealLife.z) : uRealLife.w;
+  // offices empty floor by floor more than desk by desk
+  if (profile > 0.5 && profile < 1.5) h = mix(h, realHash(vec3(cell.y, corner, floor(face * 0.5))), 0.7);
+  float lit = step(fract(h + uRealClock.y * 0.6180339), share);
+  vec3 warm = vec3(1.0, 0.80, 0.56), cool = vec3(0.86, 0.94, 1.0);
+  bool homeLike = profile < 0.5 || (profile > 1.5 && profile < 2.5 && cell.y >= 1.0);
+  vec3 tint = homeLike ? mix(warm, cool, step(0.58, h2)) : mix(cool, warm, step(0.8, h2));
+  float tv = homeLike ? step(0.86, h2) : 0.0;
+  float flick = 0.55 + 0.45 * sin(uRealClock.x * 6.1 + h * 40.0) * sin(uRealClock.x * 1.7 + h2 * 23.0);
+  vec3 c = mix(vec3(1.0), tint, 0.65);
+  c = mix(c, vec3(0.55, 0.68, 1.0) * (0.45 + 0.4 * flick), tv);
+  return c * lit * (0.75 + 0.5 * h2);
+#else
+  return vec3(1.0);
+#endif
+}
+`,
+    // multiply the emissive by this after emissivemap_fragment
+    fragmentBody: "totalEmissiveRadiance *= realWindow(REAL_PROFILE);"
   };
   return __toCommonJS(index_exports);
 })();

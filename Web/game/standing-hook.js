@@ -119,12 +119,16 @@
     if (!p._sid) {
       p._sid = ++S.sid;
       const r = Math.random();
-      p._temper = p.commuter ? (r < 0.2 ? "meek" : r < 0.72 ? "polite" : r < 0.92 ? "proud" : "hothead") : (r < 0.22 ? "meek" : r < 0.62 ? "polite" : r < 0.84 ? "proud" : "hothead");
+      const rw = window.realism && realism.who && realism.who(p);
+      p._temper = rw && rw.temper ? rw.temper : p.commuter ? (r < 0.2 ? "meek" : r < 0.72 ? "polite" : r < 0.92 ? "proud" : "hothead") : (r < 0.22 ? "meek" : r < 0.62 ? "polite" : r < 0.84 ? "proud" : "hothead");
       p._standing = (p.commuter ? 0.3 : 0.15) + Math.random() * 0.3;
     }
     return { id: p._sid, temper: p._temper, standing: p._standing, warmth: honor.effects().warmth };
   }
   function who(p) {
+    // the realism engine knows who everyone is (realism-hook.js): a name, an age, a job
+    const real = window.realism && realism.label && realism.label(p);
+    if (real) return real;
     const f = p.female || /woman|lady|girl/i.test(p.real || "");
     return p.commuter ? (f ? "Office worker" : "Salaryman") : (f ? "Woman" : "Passer-by");
   }
@@ -191,6 +195,7 @@
 #rgdmark { position: fixed; z-index: 33; pointer-events: none; transform: translate(-50%, -100%); display: none; text-align: center; font-family: 'Konto Sans', Arial, sans-serif; }
 #rgdmark .ch { width: 22px; height: 12px; margin: 0 auto 4px; border: solid #f3f1ec; border-width: 0 2.5px 2.5px 0; transform: rotate(45deg) translate(-3px,-3px); width: 10px; height: 10px; filter: drop-shadow(0 1px 2px #000); }
 #rgdmark .nm { color: #f3f1ec; font-size: 12px; font-weight: 600; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+#rgdmark .dg { color: rgba(243,241,236,0.78); font-size: 11px; font-weight: 500; text-shadow: 0 1px 3px #000; white-space: nowrap; margin-top: 1px; }
 #rgdmark .tp { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: rgba(243,241,236,0.7); text-shadow: 0 1px 2px #000; }
 #rgdmark .tp.hothead { color: #ff8a6a; } #rgdmark .tp.proud { color: #e7c37a; } #rgdmark .tp.meek { color: #a9c9e8; }
 #rgdkeys { position: fixed; left: 50%; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 33; pointer-events: none; display: none;
@@ -203,7 +208,7 @@
 #helpprompt em { font-style: normal; color: rgba(243,241,236,0.72); display: block; font-size: 12.5px; margin-bottom: 5px; }
 body.titleup #rgdmark, body.paused #rgdmark, body.cutscene #rgdmark, body.titleup #rgdkeys, body.paused #rgdkeys, body.cutscene #rgdkeys, body.paused #helpprompt, body.cutscene #helpprompt, body.titleup #helpprompt { visibility: hidden; }`;
     document.head.appendChild(st);
-    const mark = document.createElement("div"); mark.id = "rgdmark"; mark.innerHTML = '<div class="nm"></div><div class="tp"></div><div class="ch"></div>'; document.body.appendChild(mark);
+    const mark = document.createElement("div"); mark.id = "rgdmark"; mark.innerHTML = '<div class="nm"></div><div class="dg"></div><div class="tp"></div><div class="ch"></div>'; document.body.appendChild(mark);
     const keysEl = document.createElement("div"); keysEl.id = "rgdkeys"; document.body.appendChild(keysEl);
     const hp = document.createElement("div"); hp.id = "helpprompt"; document.body.appendChild(hp);
     return (S.ui = { mark: mark, keys: keysEl, help: hp, padKeys: null });
@@ -217,6 +222,8 @@ body.titleup #rgdmark, body.paused #rgdmark, body.cutscene #rgdmark, body.titleu
       u.mark.style.display = "block"; u.mark.style.left = ((v.x + 1) / 2 * innerWidth) + "px"; u.mark.style.top = ((1 - v.y) / 2 * innerHeight) + "px";
       const ps = person(p);
       u.mark.querySelector(".nm").textContent = who(p);
+      const dg = u.mark.querySelector(".dg"), doing = window.realism && realism.doing && realism.doing(p);
+      dg.textContent = doing ? doing.charAt(0).toUpperCase() + doing.slice(1) : ""; dg.style.display = doing ? "block" : "none";
       const tp = u.mark.querySelector(".tp"); tp.textContent = TEMPER_NAME[ps.temper]; tp.className = "tp " + ps.temper;
     }
     const gp = pad.index >= 0;

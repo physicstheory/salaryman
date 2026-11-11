@@ -651,11 +651,6 @@
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xc6c9c9, side: THREE.DoubleSide })",
    "where": "Web/konto.html:23781"
   },
-  "code-bare:Web/konto.html:ccaf1f103b:1": {
-   "cat": "pbr",
-   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x2c5a72, transparent: true, opacity: 0.88 })",
-   "where": "Web/konto.html:38375"
-  },
   "code-bare:Web/konto.html:cf0f12d949:1": {
    "cat": "pbr",
    "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: 0xd8b090 })",
@@ -695,11 +690,6 @@
    "cat": "pbr",
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0xf4f2ec })",
    "where": "Web/konto.html:8029"
-  },
-  "code-bare:Web/konto.html:e2d6837356:1": {
-   "cat": "pbr",
-   "problem": "colour-only material on generated geometry: new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, metalness: 0 })",
-   "where": "Web/konto.html:16605"
   },
   "code-bare:Web/konto.html:e477155755:1": {
    "cat": "pbr",
@@ -745,11 +735,6 @@
    "cat": "pbr",
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
    "where": "Web/konto.html:38514"
-  },
-  "code-bare:Web/konto.html:f7beb14f81:13": {
-   "cat": "pbr",
-   "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: c })",
-   "where": "Web/konto.html:39078"
   },
   "code-bare:Web/konto.html:f7beb14f81:2": {
    "cat": "pbr",
@@ -855,16 +840,6 @@
    "cat": "street",
    "problem": "street cell has only 13 props (need 25+): it reads empty",
    "where": "Web/levels/kanda cell 3_3"
-  },
-  "element:birds": {
-   "cat": "lived_in",
-   "problem": "missing: birds",
-   "where": "world code + levels"
-  },
-  "element:rubbish bags / litter on the street": {
-   "cat": "lived_in",
-   "problem": "missing: rubbish bags / litter on the street",
-   "where": "world code + levels"
   },
   "lowpoly-kit:Web/kenney/city": {
    "cat": "buildings",

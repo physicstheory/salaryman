@@ -44,3 +44,11 @@ export { CanopyRig, CANOPY_SCHEMES } from "./skydive/CanopyModel.js";
 // Performance: frame pacing locked to whole screen refreshes, per-frame work budgets, hitch profiling (what caused each long frame),
 // and a governor that holds the frame rate by the 90th-percentile frame (resolution, then the host's cheap levers). Knows nothing of the game.
 export { PerformanceEngine, FramePacer, FrameProfiler, FrameBudget, QualityGovernor, probeHardware } from "./perf/Performance.js";
+// Realism: a lived-in city. Every plot given a purpose and hours, every home its households, every person a job, a school and a
+// day of their own (the same every time it is asked for); who is out on the street now and why, scenes at places, lit windows
+// from who is actually in, and what a house's front shows of who lives there. Plain data in and out: needs no THREE.
+export { RealismEngine, REALISM_VERSION, WINDOW_LIFE_GLSL } from "./realism/Realism.js";
+export { Calendar, sunTimes, holidays } from "./realism/Calendar.js";
+export { PURPOSES } from "./realism/Places.js";
+export { ROLES, TRAITS } from "./realism/Census.js";
+export { ACTS, ACT_LABEL } from "./realism/Routines.js";
