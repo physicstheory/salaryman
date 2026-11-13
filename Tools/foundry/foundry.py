@@ -27,7 +27,9 @@ def modules():
         try:
             out[c] = importlib.import_module(c)
         except ModuleNotFoundError as e:
-            if e.name != c:
+            if e.name == "bpy":
+                print("(%s needs Blender: run with the bpy module or inside blender -b)" % c)
+            elif e.name != c:
                 raise
     return out
 
@@ -53,13 +55,13 @@ def main(argv):
                     jobs.append((m, w))
         if not jobs:
             print("nothing matches %s" % want); return 1
-        import core
         fails = []
         for m, t in jobs:
             t0 = time.time()
             print("[foundry] %s" % t)
-            core.reset()
-            import mats; mats._made.clear()
+            if "bpy" in sys.modules:
+                import core, mats
+                core.reset(); mats._made.clear()
             try:
                 m.build(t)
             except Exception as e:

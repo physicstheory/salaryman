@@ -1,0 +1,73 @@
+# The Foundry: rebuild game models in headless Blender (Tools/foundry, docs in Tools/foundry/README.md).
+# Downloads the CC0 photoscanned texture sets (Poly Haven), builds the models with Blender 5.3 (the bpy module),
+# packs them (meshopt), runs the AAA gate and commits Web/foundry to `branch`.
+#   gh workflow run foundry.yml --ref claude/friendly-cannon-alnk4v -f targets="trains props"
+name: Foundry (Blender)
+
+on:
+  workflow_dispatch:
+    inputs:
+      targets:
+        description: "what to build: all, a category (trains props station buildings interiors cars people) or model ids, space separated"
+        required: false
+        type: string
+        default: all
+      branch:
+        description: "branch to commit the models to"
+        required: false
+        type: string
+        default: claude/friendly-cannon-alnk4v
+
+permissions:
+  contents: write
+
+concurrency:
+  group: foundry-${{ inputs.branch }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Blender (bpy) and tools
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libxkbcommon0 libsm6 > /dev/null
+          python -m pip install -q bpy==5.3.0 pillow numpy
+          python -c "import bpy; print('Blender', bpy.app.version_string)"
+          cd Tools/foundry && npm install --no-audit --no-fund -q
+      - uses: actions/cache@v4
+        with:
+          path: Tools/foundry/cache/scan
+          key: foundry-scans-${{ hashFiles('Tools/foundry/lib/mats.py', 'Tools/foundry/gen/*.py') }}
+          restore-keys: foundry-scans-
+      - name: Photoscanned textures (Poly Haven, CC0)
+        run: python Tools/foundry/fetch_textures.py --res 2k
+      - name: Build
+        run: python Tools/foundry/foundry.py build ${{ inputs.targets }}
+      - name: AAA gate
+        run: |
+          python -m pip install -q pillow numpy
+          python Tools/qa/aaa_gate.py
+      - name: Commit
+        run: |
+          git config user.name "Salary Man Foundry"
+          git config user.email "foundry@users.noreply.github.com"
+          git add Web/foundry Web/people Web/cars Web/props Web/kenney 2>/dev/null || true
+          if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
+          git commit -q -m "Foundry: rebuilt ${{ inputs.targets }} in Blender with photoscanned textures"
+          for i in 1 2 3 4; do
+            git pull -q --rebase origin "${{ inputs.branch }}" && git push -q origin HEAD:"${{ inputs.branch }}" && exit 0
+            sleep $((i * 10))
+          done
+          exit 1
