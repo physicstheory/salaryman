@@ -73,6 +73,14 @@ LIB = {
     "leather_black":  dict(recipe=("leather", dict(col="#141210")), tile=0.4, px=512),
     "floor_vinyl":    dict(recipe=("terrazzo", dict(col="#6e6a62", rough=0.5)), tile=1.0, px=1024),
     # special
+    # interiors (the rooms seen through every city window, Tools/foundry/gen/rooms.py)
+    "carpet_tile":    dict(recipe=("fabric", dict(col="#4a4e56", weave=60)), tile=0.5, px=512),
+    "carpet_blue":    dict(recipe=("fabric", dict(col="#2e3a52", weave=60)), tile=0.5, px=512),
+    "carpet_warm":    dict(recipe=("fabric", dict(col="#7a6248", weave=80)), tile=0.5, px=512),
+    "tatami":         dict(recipe=("fabric", dict(col="#b5a86a", weave=40)), tile=0.9, px=512),
+    "wallpaper":      dict(recipe=("concrete", dict(col="#e6e1d6", rough=0.92)), tile=1.5, px=512),
+    "ceiling_board":  dict(recipe=("tiles", dict(col="#e8e6e0", grout="#c8c6c0", count=2, rough=0.9)), tile=1.2, px=512),
+    "floor_lino":     dict(recipe=("terrazzo", dict(col="#c9c6bc", rough=0.4)), tile=1.0, px=512),
     "glass":          dict(kind="glass", col=(0.04, 0.05, 0.055), alpha=0.42, rough=0.04),
     "glass_dark":     dict(kind="glass", col=(0.01, 0.012, 0.014), alpha=0.82, rough=0.04),
     "glass_clear":    dict(kind="glass", col=(0.6, 0.66, 0.68), alpha=0.18, rough=0.03),
@@ -83,6 +91,7 @@ LIB = {
 }
 
 _made = {}
+PX_CAP = [4096]          # a generator can lower this (small or far-seen models: 512); the gate's floor is 512
 
 
 def _scan_maps(sid, px):
@@ -115,9 +124,9 @@ def _scan_maps(sid, px):
 def texture_set(key):
     """-> paths {albedo, normal, orm} on disk (cached)."""
     spec = LIB[key]
-    px = spec.get("px", 1024)
+    px = max(512, min(spec.get("px", 1024), PX_CAP[0]))
     os.makedirs(TEXDIR, exist_ok=True)
-    paths = {k: os.path.join(TEXDIR, "%s_%s.jpg" % (key, k)) for k in ("albedo", "normal", "orm")}
+    paths = {k: os.path.join(TEXDIR, "%s_%d_%s.jpg" % (key, px, k)) for k in ("albedo", "normal", "orm")}
     src = "scan:" + spec["scan"] if spec.get("scan") and os.path.isdir(os.path.join(SCANDIR, spec["scan"])) else "gen"
     stamp = os.path.join(TEXDIR, key + ".src")
     if all(os.path.exists(p) for p in paths.values()) and os.path.exists(stamp) and open(stamp).read() == src + str(px):

@@ -61,6 +61,286 @@
    "end": false,
    "credit": "Foundry (Blender), original design"
   },
+  "roof_billboard": {
+   "id": "roof_billboard",
+   "category": "roofs",
+   "file": "roofs/roof_billboard.glb",
+   "bytes": 374272,
+   "lods": [
+    {
+     "tris": 864,
+     "dist": 0
+    },
+    {
+     "tris": 300,
+     "dist": 50
+    },
+    {
+     "tris": 53,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    10.4,
+    6.08,
+    3.0
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_chiller": {
+   "id": "roof_chiller",
+   "category": "roofs",
+   "file": "roofs/roof_chiller.glb",
+   "bytes": 590576,
+   "lods": [
+    {
+     "tris": 3236,
+     "dist": 0
+    },
+    {
+     "tris": 1128,
+     "dist": 50
+    },
+    {
+     "tris": 255,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    2.6,
+    2.3,
+    5.875
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_condensers": {
+   "id": "roof_condensers",
+   "category": "roofs",
+   "file": "roofs/roof_condensers.glb",
+   "bytes": 535048,
+   "lods": [
+    {
+     "tris": 1580,
+     "dist": 0
+    },
+    {
+     "tris": 530,
+     "dist": 50
+    },
+    {
+     "tris": 131,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.4,
+    1.05,
+    1.08
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_coolingtower": {
+   "id": "roof_coolingtower",
+   "category": "roofs",
+   "file": "roofs/roof_coolingtower.glb",
+   "bytes": 482972,
+   "lods": [
+    {
+     "tris": 1316,
+     "dist": 0
+    },
+    {
+     "tris": 456,
+     "dist": 50
+    },
+    {
+     "tris": 97,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.4,
+    3.285,
+    5.1
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_helipad": {
+   "id": "roof_helipad",
+   "category": "roofs",
+   "file": "roofs/roof_helipad.glb",
+   "bytes": 244244,
+   "lods": [
+    {
+     "tris": 1764,
+     "dist": 0
+    },
+    {
+     "tris": 612,
+     "dist": 50
+    },
+    {
+     "tris": 168,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    18.0,
+    0.16,
+    18.0
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_liftroom": {
+   "id": "roof_liftroom",
+   "category": "roofs",
+   "file": "roofs/roof_liftroom.glb",
+   "bytes": 572700,
+   "lods": [
+    {
+     "tris": 1136,
+     "dist": 0
+    },
+    {
+     "tris": 396,
+     "dist": 50
+    },
+    {
+     "tris": 107,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    4.4,
+    3.65,
+    4.2
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_mast": {
+   "id": "roof_mast",
+   "category": "roofs",
+   "file": "roofs/roof_mast.glb",
+   "bytes": 455424,
+   "lods": [
+    {
+     "tris": 2532,
+     "dist": 0
+    },
+    {
+     "tris": 884,
+     "dist": 50
+    },
+    {
+     "tris": 216,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    2.742,
+    11.45,
+    2.237
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_solar": {
+   "id": "roof_solar",
+   "category": "roofs",
+   "file": "roofs/roof_solar.glb",
+   "bytes": 322388,
+   "lods": [
+    {
+     "tris": 1192,
+     "dist": 0
+    },
+    {
+     "tris": 414,
+     "dist": 50
+    },
+    {
+     "tris": 71,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    6.51,
+    1.363,
+    2.4
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_vents": {
+   "id": "roof_vents",
+   "category": "roofs",
+   "file": "roofs/roof_vents.glb",
+   "bytes": 117456,
+   "lods": [
+    {
+     "tris": 944,
+     "dist": 0
+    },
+    {
+     "tris": 330,
+     "dist": 50
+    },
+    {
+     "tris": 94,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.26,
+    1.29,
+    2.685
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "roof_watertank": {
+   "id": "roof_watertank",
+   "category": "roofs",
+   "file": "roofs/roof_watertank.glb",
+   "bytes": 373812,
+   "lods": [
+    {
+     "tris": 904,
+     "dist": 0
+    },
+    {
+     "tris": 312,
+     "dist": 50
+    },
+    {
+     "tris": 72,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    2.6,
+    3.35,
+    2.64
+   ],
+   "credit": "Foundry (Blender), original"
+  },
   "shinkansen_end": {
    "id": "shinkansen_end",
    "category": "trains",

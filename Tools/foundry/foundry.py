@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "lib"))
 sys.path.insert(0, os.path.join(HERE, "gen"))
 
-CATEGORIES = ["trains", "props", "station", "buildings", "interiors", "cars", "people"]
+CATEGORIES = ["trains", "roofs", "facades", "rooms", "props", "station", "buildings", "interiors", "cars", "people"]
 
 
 def modules():
@@ -61,7 +61,7 @@ def main(argv):
             print("[foundry] %s" % t)
             if "bpy" in sys.modules:
                 import core, mats
-                core.reset(); mats._made.clear()
+                core.reset(); mats._made.clear(); mats.PX_CAP[0] = 4096
             try:
                 m.build(t)
             except Exception as e:

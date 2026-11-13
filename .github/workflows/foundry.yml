@@ -22,7 +22,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: foundry-${{ inputs.branch }}
+  group: foundry-${{ inputs.branch }}-${{ inputs.targets }}
   cancel-in-progress: false
 
 jobs:
@@ -63,7 +63,7 @@ jobs:
         run: |
           git config user.name "Salary Man Foundry"
           git config user.email "foundry@users.noreply.github.com"
-          git add Web/foundry Web/people Web/cars Web/props Web/kenney 2>/dev/null || true
+          git add Web/foundry Web/people Web/cars Web/props Web/kenney Web/art/facades Web/art/rooms 2>/dev/null || true
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -q -m "Foundry: rebuilt ${{ inputs.targets }} in Blender with photoscanned textures"
           for i in 1 2 3 4; do
