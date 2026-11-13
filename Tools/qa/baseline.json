@@ -801,46 +801,6 @@
    "problem": "colour-only material on generated geometry: new THREE.MeshLambertMaterial({ color: 0x5d5a55 })",
    "where": "Web/konto.html:7463"
   },
-  "density:kanda:0_2": {
-   "cat": "street",
-   "problem": "street cell has only 5 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 0_2"
-  },
-  "density:kanda:1_2": {
-   "cat": "street",
-   "problem": "street cell has only 8 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 1_2"
-  },
-  "density:kanda:2_0": {
-   "cat": "street",
-   "problem": "street cell has only 7 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 2_0"
-  },
-  "density:kanda:2_2": {
-   "cat": "street",
-   "problem": "street cell has only 9 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 2_2"
-  },
-  "density:kanda:2_3": {
-   "cat": "street",
-   "problem": "street cell has only 14 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 2_3"
-  },
-  "density:kanda:3_0": {
-   "cat": "street",
-   "problem": "street cell has only 2 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 3_0"
-  },
-  "density:kanda:3_2": {
-   "cat": "street",
-   "problem": "street cell has only 5 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 3_2"
-  },
-  "density:kanda:3_3": {
-   "cat": "street",
-   "problem": "street cell has only 13 props (need 25+): it reads empty",
-   "where": "Web/levels/kanda cell 3_3"
-  },
   "maps-missing:Web/people/real/man_03.glb:m009_head": {
    "cat": "pbr",
    "problem": "has a base colour texture but no roughness/ORM map",
@@ -945,21 +905,6 @@
    "cat": "pbr",
    "problem": "has a base colour texture but no normal or roughness/ORM map",
    "where": "Web/props/standing_picture_frame_01.glb  material 'standing_picture_frame_01_artwork'"
-  },
-  "need:kanda:ac": {
-   "cat": "street",
-   "problem": "only 0 'ac' props in the whole level",
-   "where": "Web/levels/kanda"
-  },
-  "need:kanda:bin": {
-   "cat": "street",
-   "problem": "only 2 'bin' props in the whole level",
-   "where": "Web/levels/kanda"
-  },
-  "need:kanda:signpost": {
-   "cat": "street",
-   "problem": "only 2 'signpost' props in the whole level",
-   "where": "Web/levels/kanda"
   },
   "texset:Web/art/interior/dirty_carpet": {
    "cat": "pbr",
