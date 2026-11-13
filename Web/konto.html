@@ -33865,15 +33865,18 @@ function gtnBuild() {
   const park = kit ? { "4,3": 1, "4,4": 1 } : { "3,3": 1, "3,4": 1 };
   const padMat = new THREE.MeshStandardMaterial({ color: 0x30333b, roughness: 0.9 });
   const treeG = new THREE.ConeGeometry(2.2, 6, 7), trunkG = new THREE.CylinderGeometry(0.3, 0.4, 2, 6), treeM = new THREE.MeshStandardMaterial({ color: 0x1c4a2c, roughness: 1 }), trunkM = new THREE.MeshStandardMaterial({ color: 0x3a2a1c });
+  // the city's own photoreal facades (with their parallax rooms), instanced per style; the boxes below are the fallback
+  const facades = typeof facadeTexture === "function" ? {} : null;
   for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
     const x0 = i * P + 6, z0 = j * P + 6, s = P - 12;
     const pad = new THREE.Mesh(new THREE.BoxGeometry(s, 0.3, s), park[i + "," + j] ? new THREE.MeshStandardMaterial({ color: 0x1a3a22, roughness: 1 }) : padMat); pad.position.set(x0 + s / 2, 0.15, z0 + s / 2); sc.add(pad);
     if (park[i + "," + j]) { for (let t = 0; t < 9; t++) { const tx = x0 + 6 + rnd() * (s - 12), tz = z0 + 6 + rnd() * (s - 12); const c = new THREE.Mesh(treeG, treeM); c.position.set(tx, 5, tz); sc.add(c); const tr = new THREE.Mesh(trunkG, trunkM); tr.position.set(tx, 1.3, tz); sc.add(tr); } continue; }
     const mid = Math.abs(i - 3.5) + Math.abs(j - 3.5), hmax = 70 - mid * 6;
-    if (kit) { if (i !== 3) gtnKitLot(sc, kit, boxes, signs, rnd, x0 + 1, z0 + 1, s - 2, mid); continue; }
+    if (kit && i === 3) continue;
     const parts = rnd() < 0.5 ? [[0, 0, s - 4, s - 4]] : rnd() < 0.5 ? [[0, 0, (s - 6) / 2, s - 4], [(s - 6) / 2 + 2, 0, (s - 6) / 2, s - 4]] : [[0, 0, s - 4, (s - 6) / 2], [0, (s - 6) / 2 + 2, s - 4, (s - 6) / 2]];
     parts.forEach(pt => {
       const bw = pt[2], bd = pt[3], bh = 14 + rnd() * Math.max(10, hmax);
+      if (facades) { gtnFacadeBox(facades, rnd, x0 + 2 + pt[0] + bw / 2, z0 + 2 + pt[1] + bd / 2, bw, bd, bh, mid, boxes, signs, sc); return; }
       const geo = new THREE.BoxGeometry(bw, bh, bd), uv = geo.attributes.uv;
       for (let v = 0; v < uv.count; v++) { const face = (v / 4) | 0; if (face === 0 || face === 1) uv.setXY(v, uv.getX(v) * bd / 8, uv.getY(v) * bh / 8); else if (face === 4 || face === 5) uv.setXY(v, uv.getX(v) * bw / 8, uv.getY(v) * bh / 8); }
       const wm = wallMats[(rnd() * 3) | 0], mesh = new THREE.Mesh(geo, [wm, wm, roofMat, roofMat, wm, wm]);
@@ -33882,6 +33885,7 @@ function gtnBuild() {
       if (rnd() < 0.7) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), signs[(rnd() * 7) | 0]); const side = (rnd() * 4) | 0; const dx = [1, -1, 0, 0][side], dz = [0, 0, 1, -1][side]; sg.position.set(cx + dx * (bw / 2 + 0.1), 4.2 + rnd() * 3, cz + dz * (bd / 2 + 0.1)); sg.rotation.y = Math.atan2(dx, dz); sc.add(sg); }
     });
   }
+  if (facades) gtnFacadeFlush(facades, sc, roofMat);
   if (kit) gtnRail(sc, kit, boxes, signs);
   // street lamps
   const lampN = (N + 1) * (N + 1) * 2, pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.15, 7, 5), new THREE.MeshStandardMaterial({ color: 0x20242c }), lampN), head = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe2a0 }), lampN);
@@ -33907,10 +33911,9 @@ function gtnBuild() {
   GTN.pedMesh = col => { const g = new THREE.Group(); const b = new THREE.Mesh(pedG, new THREE.MeshStandardMaterial({ color: col, roughness: 0.8 })); b.position.y = 0.85; g.add(b); const h = new THREE.Mesh(headG, new THREE.MeshStandardMaterial({ color: 0xd8b090 })); h.position.y = 1.65; g.add(h); return g; };
 }
 
-// Kenney's City Kit (Commercial) and Train Kit, both CC0, in Web/kenney/. Loaded once;
-// if they can't be fetched the city is built from plain boxes instead.
+// Kenney's Train Kit (CC0, Web/kenney/train) for the track and trains. Loaded once; the buildings are the
+// main city's photoreal facades (gtnFacadeBox), and if the kit can't be fetched there is no railway.
 const GTN_KIT_FILES = {
-  city: ["building-a", "building-b", "building-c", "building-d", "building-e", "building-f", "building-g", "building-h", "building-i", "building-j", "building-k", "building-l", "building-m", "building-n", "building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e"],
   train: ["railroad-straight", "train-electric-city-a", "train-electric-city-b", "train-electric-city-c", "train-electric-bullet-a", "train-electric-bullet-b", "train-electric-bullet-c"]
 };
 function gtnLoadKit() {
@@ -33932,23 +33935,38 @@ function gtnLoadKit() {
   });
   return GTN.kitP;
 }
-function gtnKitPlace(sc, kit, name, cx, cz, yaw, target, boxes, signs, rnd) {
-  const k = kit[name]; if (!k) return;
-  const m = k.scene.clone(true), s = target / Math.max(k.size.x, k.size.z);
-  m.scale.setScalar(s); m.rotation.y = yaw; m.position.set(cx, 0.3 - k.minY * s, cz); sc.add(m);
-  const q = Math.round(yaw / (Math.PI / 2)) & 1, hw = k.size.x * s / 2, hd = k.size.z * s / 2, bw = q ? hd : hw, bd = q ? hw : hd;
-  boxes.push({ x0: cx - bw, x1: cx + bw, z0: cz - bd, z1: cz + bd });
-  if (rnd() < 0.55) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.9), signs[(rnd() * 7) | 0]), fx = Math.sin(yaw), fz = Math.cos(yaw); sg.position.set(cx + fx * (hd + 0.12), 3.6 + rnd() * 1.6, cz + fz * (hd + 0.12)); sg.rotation.y = yaw; sc.add(sg); }
+// One GTN building from the main city's facade styles: tall glass and offices in the middle, flats and
+// shops at the edges. Heights snap to whole storeys of the texture so no window is cut in half.
+const GTN_FACADE_MATS = {};
+function gtnFacadeMat(style) {
+  if (GTN_FACADE_MATS[style]) return GTN_FACADE_MATS[style];
+  const spec = FACADE_STYLES[style], map = facadeTexture(style);
+  // own material (not facadeMaterials): this is a second renderer, and the main one's PMREM sky can't be shared
+  const m = new THREE.MeshStandardMaterial({ map, roughness: style === "glass" ? 0.18 : 0.74, metalness: 0.02 });
+  m.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nattribute vec3 aTile;")
+      .replace("#include <uv_vertex>", "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = (uvTransform * vec3(uv.x * tileH, uv.y * aTile.z, 1.0)).xy;\n#endif");
+  };
+  m.customProgramCacheKey = () => "konto-facade";
+  try { if (window.interiors && window.interiors.patch) window.interiors.patch(m, style, spec); } catch (e) { /* plain facade then */ }
+  return GTN_FACADE_MATS[style] = { mat: m, cell: spec.cell };
 }
-function gtnKitLot(sc, kit, boxes, signs, rnd, x, z, sz, mid) {
-  const tall = ["building-skyscraper-a", "building-skyscraper-b", "building-skyscraper-c", "building-skyscraper-d", "building-skyscraper-e", "building-m", "building-l"],
-    low = ["building-a", "building-b", "building-c", "building-d", "building-f", "building-g", "building-h"], wide = ["building-e", "building-i", "building-j", "building-k", "building-n"];
-  const pick = a => a[(rnd() * a.length) | 0], r = rnd(), cx = x + sz / 2, cz = z + sz / 2;
-  if (r < 0.26) { gtnKitPlace(sc, kit, pick(wide), cx, cz, (rnd() < 0.5 ? 0 : Math.PI) + (rnd() < 0.5 ? 0 : Math.PI / 2), sz - 1, boxes, signs, rnd); return; }
-  for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
-    const dx = a ? 1 : -1, dz = b ? 1 : -1, yaw = rnd() < 0.5 ? Math.atan2(dx, 0) : Math.atan2(0, dz);
-    gtnKitPlace(sc, kit, pick(mid < 3 && rnd() < 0.75 ? tall : rnd() < 0.15 ? tall : low), x + sz * (0.25 + 0.5 * a), z + sz * (0.25 + 0.5 * b), yaw, sz / 2 - 1.8, boxes, signs, rnd);
-  }
+function gtnFacadeBox(F, rnd, cx, cz, bw, bd, bh, mid, boxes, signs, sc) {
+  const r = rnd(), style = mid < 2.5 ? (r < 0.55 ? "glass" : "office") : mid < 4.5 ? (r < 0.4 ? "office" : r < 0.75 ? "civic" : "flats") : (r < 0.6 ? "flats" : "shop");
+  const fm = gtnFacadeMat(style), c = fm.cell, n = Math.max(1, Math.round(bh / c[1])), h = n * c[1];
+  (F[style] = F[style] || []).push({ cx, cz, bw, bd, h, t: [Math.max(1, Math.round(bw / c[0])), Math.max(1, Math.round(bd / c[0])), n] });
+  boxes.push({ x0: cx - bw / 2, x1: cx + bw / 2, z0: cz - bd / 2, z1: cz + bd / 2 });
+  if (rnd() < 0.7) { const sg = new THREE.Mesh(new THREE.PlaneGeometry(7, 2.6), signs[(rnd() * 7) | 0]); const side = (rnd() * 4) | 0; const dx = [1, -1, 0, 0][side], dz = [0, 0, 1, -1][side]; sg.position.set(cx + dx * (bw / 2 + 0.1), 4.2 + rnd() * 3, cz + dz * (bd / 2 + 0.1)); sg.rotation.y = Math.atan2(dx, dz); sc.add(sg); }
+}
+function gtnFacadeFlush(F, sc, roofMat) {
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3();
+  Object.keys(F).forEach(style => {
+    const list = F[style], wall = gtnFacadeMat(style).mat, geo = new THREE.BoxGeometry(1, 1, 1), tiles = new Float32Array(list.length * 3);
+    const inst = new THREE.InstancedMesh(geo, [wall, wall, roofMat, roofMat, wall, wall], list.length);
+    list.forEach((b, i) => { m.compose(p.set(b.cx, b.h / 2 + 0.3, b.cz), q, s.set(b.bw, b.h, b.bd)); inst.setMatrixAt(i, m); tiles.set(b.t, i * 3); });
+    geo.setAttribute("aTile", new THREE.InstancedBufferAttribute(tiles, 3));
+    sc.add(inst);
+  });
 }
 // The railway: a fenced cutting down the fourth block column, two tracks, a station,
 // and a level crossing wherever it meets a street. Trains run on GTN.rail.

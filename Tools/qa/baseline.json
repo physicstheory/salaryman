@@ -841,11 +841,6 @@
    "problem": "street cell has only 13 props (need 25+): it reads empty",
    "where": "Web/levels/kanda cell 3_3"
   },
-  "lowpoly-kit:Web/kenney/city": {
-   "cat": "buildings",
-   "problem": "19 low-poly toy-kit buildings (median 1704 triangles, one colour-atlas texture) are still loaded by the game",
-   "where": "Web/kenney/city"
-  },
   "maps-missing:Web/people/real/man_03.glb:m009_head": {
    "cat": "pbr",
    "problem": "has a base colour texture but no roughness/ORM map",
@@ -925,61 +920,6 @@
    "cat": "pbr",
    "problem": "has a base colour texture but no roughness/ORM map",
    "where": "Web/people/real/salaryman_10.glb  material 'm025_head'"
-  },
-  "maps-missing:Web/people/real/seiko_blue_shirt.glb:m014_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_blue_shirt.glb  material 'm014_head'"
-  },
-  "maps-missing:Web/people/real/seiko_player.glb:m025_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_player.glb  material 'm025_head'"
-  },
-  "maps-missing:Web/people/real/seiko_polo.glb:m002_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_polo.glb  material 'm002_head'"
-  },
-  "maps-missing:Web/people/real/seiko_suit_black.glb:m005_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_suit_black.glb  material 'm005_head'"
-  },
-  "maps-missing:Web/people/real/seiko_suit_charcoal.glb:m020_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_suit_charcoal.glb  material 'm020_head'"
-  },
-  "maps-missing:Web/people/real/seiko_suit_check.glb:m016_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_suit_check.glb  material 'm016_head'"
-  },
-  "maps-missing:Web/people/real/seiko_track.glb:m024_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_track.glb  material 'm024_head'"
-  },
-  "maps-missing:Web/people/real/seiko_tshirt.glb:m017_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_tshirt.glb  material 'm017_head'"
-  },
-  "maps-missing:Web/people/real/seiko_village.glb:m106_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_village.glb  material 'm106_head'"
-  },
-  "maps-missing:Web/people/real/seiko_village_denim.glb:m110_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_village_denim.glb  material 'm110_head'"
-  },
-  "maps-missing:Web/people/real/seiko_waistcoat.glb:m015_head": {
-   "cat": "pbr",
-   "problem": "has a base colour texture but no roughness/ORM map",
-   "where": "Web/people/real/seiko_waistcoat.glb  material 'm015_head'"
   },
   "maps-missing:Web/people/real/woman_04.glb:f001_head": {
    "cat": "pbr",
