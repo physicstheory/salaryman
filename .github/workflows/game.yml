@@ -75,6 +75,16 @@ jobs:
         if: matrix.name == 'linux'
         run: cp Game/dist/*.AppImage SalaryMan-linux.AppImage && chmod +x SalaryMan-linux.AppImage
 
+      # Kept as an artifact first (fixed-name file), so a build is never lost if the release upload is refused.
+      - name: Keep the build
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: SalaryMan-${{ matrix.name }}
+          path: SalaryMan-${{ matrix.name }}.*
+          if-no-files-found: error
+          retention-days: 2
+
       - name: Put it on the latest-build release
         if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
@@ -88,15 +98,6 @@ jobs:
           overwrite_files: true
           body: "The newest hand-run build of Salary Man (commit ${{ github.sha }}). Windows: download SalaryMan-windows.zip, unzip it and run Salary Man.exe. Linux: download SalaryMan-linux.AppImage and run it."
           files: SalaryMan-${{ matrix.name }}.*
-
-      - name: Keep the build
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: SalaryMan-${{ matrix.name }}
-          path: ${{ matrix.out }}
-          if-no-files-found: error
-          retention-days: 1
 
       - name: Attach it to the release
         if: startsWith(github.ref, 'refs/tags/')
