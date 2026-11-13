@@ -25,7 +25,8 @@ import export
 M = mats.get
 OUT = os.path.join(export.REPO, "Web", "art", "facades")
 TARGETS = ["facade_office", "facade_glass", "facade_flats", "facade_civic",
-           "facadewin_office", "facadewin_glass", "facadewin_flats", "facadewin_civic"]
+           "facadewin_office", "facadewin_glass", "facadewin_flats", "facadewin_civic",
+           "facadeglaze_office", "facadeglaze_glass", "facadeglaze_flats", "facadeglaze_civic"]
 OCCL = []          # what stands in front of the glass (balcony fronts, laundry): kept out of the mask
 WINS = []          # every window opening (x0, z0, w, h) in metres, for the interior-mapping mask
 # metres covered by one texture (whole bays x whole floors) - FACADE_PHOTOS sizes in konto.html
@@ -268,8 +269,38 @@ def write_winmask(style, W, H, px=1024):
     print("  -> Web/art/facades/%s_win.png (%d openings)" % (style, len(WINS)))
 
 
+def glaze(style):
+    """Daylight glass in the colour map: what a pane shows from the street when interior mapping is not drawing it (far off,
+    or switched off) is the sky and the street reflected, lighter at the top, a little different in every pane."""
+    from PIL import Image
+    cp = os.path.join(OUT, style + "_color.jpg")
+    col = np.asarray(Image.open(cp).convert("RGB"), np.float32) / 255
+    n = col.shape[0]
+    w = np.asarray(Image.open(os.path.join(OUT, style + "_win.png")).convert("RGBA").resize((n, n), Image.NEAREST), np.float32) / 255
+    m = (w[..., 3] > 0.02).astype(np.float32)
+    v = w[..., 1]                                   # 0 at the sill, 1 at the head
+    rng = np.random.default_rng(sum(map(ord, style)))
+    # one tone per opening: the opening is the run of glass a pixel sits in, along its row and down its column
+    def run_start(mm):
+        idx = np.arange(mm.shape[1])[None, :].repeat(mm.shape[0], 0)
+        st = np.where((mm > 0) & (np.pad(mm, ((0, 0), (1, 0)))[:, :-1] == 0), idx, 0)
+        return np.maximum.accumulate(st, axis=1)
+    cx = run_start(m)
+    cy = run_start(m.T).T
+    h = np.sin(cx * 12.9898 + cy * 78.233) * 43758.5453
+    h = h - np.floor(h)
+    sky_top, sky_low = np.array([0.62, 0.70, 0.78]), np.array([0.30, 0.34, 0.38])
+    tone = sky_low + (sky_top - sky_low) * (v[..., None] ** 1.5)
+    tone = tone * (0.7 + 0.45 * h[..., None])
+    out = col * (1 - m[..., None]) + (col * 0.25 + tone * 0.75) * m[..., None]
+    Image.fromarray((np.clip(out, 0, 1) * 255 + 0.5).astype(np.uint8)).save(cp, quality=90)
+    print("  -> glazed %s_color.jpg" % style)
+
+
 def build(which):
     style = which.split("_", 1)[1]
+    if which.startswith("facadeglaze_"):
+        return glaze(style)
     W, H = SIZES[style]
     rng = random.Random(sum(map(ord, style)))
     parts, glass = [], []
@@ -354,6 +385,7 @@ def build(which):
     # the lit map: room light seen through the glass, with the warm/cool colour and a falloff from the ceiling
     lit = lights * (0.75 + 0.25 * col.mean(-1, keepdims=True))
     save(out, os.path.join(OUT, style + "_color.jpg"))
+    glaze(style)
     save(nor, os.path.join(OUT, style + "_normal.jpg"))
     save(np.repeat(rough[..., None], 3, -1), os.path.join(OUT, style + "_rough.jpg"))
     save(lit, os.path.join(OUT, style + "_lights.jpg"))
