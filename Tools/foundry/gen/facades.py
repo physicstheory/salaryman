@@ -277,6 +277,14 @@ def build(which):
         if p.modifiers:
             apply_all(p)
     export.world_uv_all(parts)
+    # the library materials multiply their colour by the 'AO' colour attribute (baked for models); a facade bakes its own
+    # AO, so give every part a white one, or the colour pass reads every library material as black
+    for p in parts + [g for g, _ in glass]:
+        me = p.data
+        if "AO" not in me.color_attributes:
+            me.color_attributes.new("AO", "BYTE_COLOR", "CORNER")
+        a = me.color_attributes["AO"]
+        a.data.foreach_set("color", [1.0] * (4 * len(a.data)))
     # the low plane the maps are baked onto: x 0..W, z 0..H at y = -1.6 (in front of everything), facing -y
     import bmesh
     bm = bmesh.new()
