@@ -26,6 +26,7 @@ M = mats.get
 OUT = os.path.join(export.REPO, "Web", "art", "facades")
 TARGETS = ["facade_office", "facade_glass", "facade_flats", "facade_civic",
            "facadewin_office", "facadewin_glass", "facadewin_flats", "facadewin_civic"]
+OCCL = []          # what stands in front of the glass (balcony fronts, laundry): kept out of the mask
 WINS = []          # every window opening (x0, z0, w, h) in metres, for the interior-mapping mask
 # metres covered by one texture (whole bays x whole floors) - FACADE_PHOTOS sizes in konto.html
 SIZES = {"office": (12.8, 16.0), "glass": (12.8, 16.8), "flats": (12.4, 12.4), "civic": (14.0, 13.8)}
@@ -166,6 +167,7 @@ def build_flats(rng, W, H, parts, glass):
             parts.append(box("wall", (unit, 0.1, floor), (x + unit / 2, 0.05, z + floor / 2), wall))
             # balcony front: frosted panels in a frame and a top rail
             parts.append(box("balcfront", (unit - 0.3, 0.06, 0.95), (x + unit / 2, -1.45, z + 0.22 + 0.5), frosted))
+            OCCL.append((x + 0.15, z + 0.2, unit - 0.3, 1.1))
             parts.append(box("rail", (unit - 0.2, 0.08, 0.06), (x + unit / 2, -1.48, z + 1.22), frame))
             for k in range(5):
                 parts.append(box("post", (0.05, 0.05, 1.0), (x + 0.2 + k * (unit - 0.4) / 4, -1.47, z + 0.72), frame))
@@ -178,8 +180,10 @@ def build_flats(rng, W, H, parts, glass):
                 parts.append(cyl("pole", 0.015, unit - 1.0, (x + unit / 2, -1.0, z + 2.3), M("aluminium"), 8, "X"))
                 for k in range(int(rng.random() * 5) + 1):
                     c = rng.choice([(0.9, 0.9, 0.88), (0.2, 0.3, 0.5), (0.7, 0.3, 0.3), (0.8, 0.75, 0.6), (0.3, 0.5, 0.35)])
-                    parts.append(box("laundry", (0.45 + rng.random() * 0.3, 0.02, 0.5 + rng.random() * 0.3), (x + 1.0 + k * 0.85, -1.0, z + 1.95),
+                    lw, lh = 0.45 + rng.random() * 0.3, 0.5 + rng.random() * 0.3
+                    parts.append(box("laundry", (lw, 0.02, lh), (x + 1.0 + k * 0.85, -1.0, z + 1.95),
                                      flat_mat("cloth_%d" % int(c[0] * 10 + c[2]), c, 0.95)))
+                    OCCL.append((x + 1.0 + k * 0.85 - lw / 2, z + 1.95 - lh / 2, lw, lh))
             if rng.random() < 0.3:
                 parts.append(box("futon", (1.6, 0.06, 0.5), (x + 2.2, -1.5, z + 1.25), flat_mat("futon", (0.85, 0.8, 0.75), 0.95), rot=(0.2, 0, 0)))
 
@@ -191,7 +195,7 @@ def build_civic(rng, W, H, parts, glass):
     frame = M("paint_black")
     for f in range(int(H / floor)):
         z = f * floor
-        for k in range(int(floor / 0.92)):
+        for k in range(int(round(floor / 0.92))):
             parts.append(box("course", (W, 0.12, 0.88), (W / 2, -0.06, z + 0.46 + k * 0.92), stone, 0.015))
         nb = int(W / 3.5)
         for b in range(nb):
@@ -258,6 +262,8 @@ def write_winmask(style, W, H, px=1024):
         a[m, 1] = (Z[m] - z0) / h
         a[m, 2] = w / 6.4
         a[m, 3] = h / 6.4
+    for x0, z0, w, h in OCCL:
+        a[(X >= x0) & (X < x0 + w) & (Z >= z0) & (Z < z0 + h)] = 0
     Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA").save(os.path.join(OUT, style + "_win.png"), optimize=True)
     print("  -> Web/art/facades/%s_win.png (%d openings)" % (style, len(WINS)))
 
@@ -267,7 +273,7 @@ def build(which):
     W, H = SIZES[style]
     rng = random.Random(sum(map(ord, style)))
     parts, glass = [], []
-    WINS.clear()
+    WINS.clear(); OCCL.clear()
     BUILDERS[style](rng, W, H, parts, glass)
     os.makedirs(OUT, exist_ok=True)
     write_winmask(style, W, H)
