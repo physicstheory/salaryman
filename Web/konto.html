@@ -16933,6 +16933,7 @@ function fitCarModel(object3d, kind, entry) {
     const out = mats.map(m => {
       if (!m) return m;
       const name = (m.name || "").split(".")[0];
+      if (/^(head|tail)light_/.test(name)) return carLampMat(m, name[0] === "h");
       if (name === "paint") {
         if (!paint) {
           // automotive paint: a metallic base coat (flake under a tinted binder, so half-metal and not very smooth) under a clear coat
@@ -17023,6 +17024,23 @@ function carGlass() {
     : new THREE.MeshLambertMaterial({ color: 0x1a2128, transparent: true, opacity: 0.5, depthWrite: false });
   carMatCache.glass = m;
   return m;
+}
+// Head and tail lamps, as Tools/cars/split_lights.py named them: the lens keeps its look by day and
+// glows with the world clock (nightMats), white at the front and red at the back.
+const carLampCache = {};
+function carLampMat(src, head) {
+  const hit = carLampCache[src.uuid];
+  if (hit) { if (typeof nightMats !== "undefined" && !nightMats.some(n => n.m === hit)) nightMats.push(hit.userData.night); return hit; }
+  const glassy = /glass/i.test(src.name) || src.transparent || src.opacity < 0.95 || !src.isMeshStandardMaterial;
+  const m = glassy ? new THREE.MeshStandardMaterial({ color: head ? 0xe6eaf0 : 0x6a080a, roughness: 0.06, metalness: 0.15, envMap: gfx.env || null, envMapIntensity: 1.1 }) : src.clone();
+  m.name = src.name;
+  m.emissive = new THREE.Color(head ? 0xfff0d8 : 0xff1c12);
+  if (!glassy && m.map) m.emissiveMap = m.map;
+  const day = head ? 0.03 : 0.1, night = head ? 2.4 : 1.5;
+  m.emissiveIntensity = day + (typeof nightState !== "undefined" ? nightState.lit : 0) * (night - day);
+  m.userData.night = { m, floor: day, gain: night - day };
+  if (typeof nightMats !== "undefined") nightMats.push(m.userData.night);
+  return carLampCache[src.uuid] = m;
 }
 function sharedCarMat(name, colour, metal, rough, envI) {
   if (carMatCache[name]) return carMatCache[name];
