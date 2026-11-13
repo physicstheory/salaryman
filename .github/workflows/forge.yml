@@ -110,7 +110,7 @@ jobs:
             echo "FORGE_TOKEN=$t" >> "$GITHUB_ENV"
             FORGE_TOKEN=$t
           fi
-          [ -n "$FORGE_TOKEN" ] || miss="$miss FORGE_TOKEN"
+          [ -n "$FORGE_TOKEN" ] || [ -z "$FORGE_URL" ] || miss="$miss FORGE_TOKEN"
           if [ -z "$FORGE_URL" ] || [ "${{ inputs.action }}" = deploy ] || [ "${{ inputs.action }}" = download ]; then
             [ -n "$MODAL_TOKEN_ID" ] || miss="$miss MODAL_TOKEN_ID"
             [ -n "$MODAL_TOKEN_SECRET" ] || miss="$miss MODAL_TOKEN_SECRET"
