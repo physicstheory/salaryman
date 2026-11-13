@@ -400,6 +400,118 @@
    "kind": "shinkansen",
    "end": false,
    "credit": "Foundry (Blender), original design"
+  },
+  "station_bay": {
+   "id": "station_bay",
+   "category": "station",
+   "file": "station/station_bay.glb",
+   "bytes": 3035716,
+   "lods": [
+    {
+     "tris": 2840,
+     "dist": 0
+    },
+    {
+     "tris": 983,
+     "dist": 50
+    },
+    {
+     "tris": 178,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    8.992,
+    4.85,
+    12.03
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "station_bay_bench": {
+   "id": "station_bay_bench",
+   "category": "station",
+   "file": "station/station_bay_bench.glb",
+   "bytes": 3629532,
+   "lods": [
+    {
+     "tris": 4440,
+     "dist": 0
+    },
+    {
+     "tris": 1539,
+     "dist": 50
+    },
+    {
+     "tris": 320,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    8.992,
+    5.15,
+    12.03
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "station_bay_vend": {
+   "id": "station_bay_vend",
+   "category": "station",
+   "file": "station/station_bay_vend.glb",
+   "bytes": 3647364,
+   "lods": [
+    {
+     "tris": 5072,
+     "dist": 0
+    },
+    {
+     "tris": 1759,
+     "dist": 50
+    },
+    {
+     "tris": 380,
+     "dist": 160
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    8.992,
+    4.85,
+    12.03
+   ],
+   "credit": "Foundry (Blender), original"
+  },
+  "station_concourse": {
+   "id": "station_concourse",
+   "category": "station",
+   "file": "station/station_concourse.glb",
+   "bytes": 3107184,
+   "lods": [
+    {
+     "tris": 4552,
+     "dist": 0
+    },
+    {
+     "tris": 1580,
+     "dist": 70
+    },
+    {
+     "tris": 372,
+     "dist": 220
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    26.5,
+    7.55,
+    22.95
+   ],
+   "credit": "Foundry (Blender), original"
   }
  }
 }

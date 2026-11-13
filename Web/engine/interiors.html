@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interior mapping viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; color: #eee; }
+  #hud { position: fixed; left: 12px; top: 12px; background: rgba(10, 12, 16, 0.75); padding: 8px 10px; border-radius: 8px; }
+  body.shot #hud { display: none; }
+</style>
+</head>
+<body>
+<!-- A street of city blocks with the game's interior-mapped windows (Web/game/interiors-hook.js, rooms from
+     Tools/foundry/gen/rooms.py). Serve the repo root and open Web/engine/interiors.html?night=0|1&x=&y=&z=&tx=&ty=&tz=&shot -->
+<div id="hud">INTERIORS · drag to look, wheel to move · ?night=1</div>
+<script>
+window.__three = function () { if (!window.THREE) document.write('<script src="../../Game/vendor/three.min.js"><\/script>'); };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script>
+const Q = new URLSearchParams(location.search);
+if (Q.has("shot")) document.body.classList.add("shot");
+const nightState = { lit: +(Q.get("night") || 0) };
+const gfx = { tier: "high", high: true };
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = nightState.lit ? 0.9 : 1.0;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const sky = nightState.lit ? 0x0b1020 : 0xa8bfd8;
+scene.background = new THREE.Color(sky);
+scene.fog = new THREE.Fog(sky, 120, 700);
+const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.3, 2000);
+const P = k => +(Q.get(k));
+camera.position.set(Q.has("x") ? P("x") : -3, Q.has("y") ? P("y") : 1.7, Q.has("z") ? P("z") : 30);
+const target = new THREE.Vector3(Q.has("tx") ? P("tx") : 8, Q.has("ty") ? P("ty") : 8, Q.has("tz") ? P("tz") : -10);
+camera.lookAt(target);
+scene.add(new THREE.HemisphereLight(nightState.lit ? 0x203050 : 0xcfe0ff, 0x404040, nightState.lit ? 0.15 : 0.7));
+const sun = new THREE.DirectionalLight(nightState.lit ? 0x8090c0 : 0xfff2e0, nightState.lit ? 0.1 : 2.2);
+sun.position.set(-60, 90, 40); scene.add(sun);
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene(); envScene.background = new THREE.Color(nightState.lit ? 0x101420 : 0x9ab4d0);
+const env = pmrem.fromScene(envScene).texture;
+
+const SIZES = { office: [12.8, 16.0], glass: [12.8, 16.8], flats: [12.4, 12.4], civic: [14.0, 13.8] };
+const CELL = { office: [12.8, 16.0], glass: [12.8, 16.8], flats: [12.4, 12.4], civic: [14.0, 13.8] };
+const cache = {};
+window.facadeMaterials = function (style) {
+  if (cache[style]) return cache[style];
+  const L = new THREE.TextureLoader(), base = "../art/facades/" + style;
+  const prep = (t, srgb) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(CELL[style][0] / SIZES[style][0], CELL[style][1] / SIZES[style][1]); if (srgb) t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; return t; };
+  const side = new THREE.MeshStandardMaterial({ map: prep(L.load(base + "_color.jpg"), true), normalMap: prep(L.load(base + "_normal.jpg")),
+    roughnessMap: prep(L.load(base + "_rough.jpg")), roughness: 1, metalness: 0, envMap: env, envMapIntensity: style === "glass" ? 1.2 : 0.5 });
+  side.onBeforeCompile = shader => {
+    shader.vertexShader = shader.vertexShader.replace("#include <common>", "#include <common>\nattribute vec3 aTile;")
+      .replace("#include <uv_vertex>", "#include <uv_vertex>\n#ifdef USE_UV\n  float tileH = (abs(normal.x) > 0.5) ? aTile.y : aTile.x;\n  vUv = (uvTransform * vec3(uv.x * tileH, uv.y * aTile.z, 1.0)).xy;\n#endif");
+  };
+  side.customProgramCacheKey = () => "konto-facade";
+  const roof = new THREE.MeshStandardMaterial({ color: 0x77736c, roughness: 0.9 });
+  return cache[style] = { mats: [side, side, roof, roof, side, side], spec: { cell: CELL[style] } };
+};
+</script>
+<script>window.__interiorsBase = "../";</script>
+<script src="../game/interiors-hook.js"></script>
+<script>
+// two rows of buildings either side of a street running along z
+const styles = ["office", "flats", "glass", "civic"];
+const boxes = [];
+let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+for (const side of [-1, 1]) {
+  let z = 40;
+  while (z > -400) {
+    const st = styles[Math.floor(rnd() * 4)], c = CELL[st];
+    const w = c[0] * (1 + Math.floor(rnd() * 2)), d = 14 + rnd() * 10, h = c[1] * (1 + Math.floor(rnd() * 4));
+    boxes.push({ style: st, x: side * (9 + d / 2), z: z - w / 2, sx: d, sz: w, h });
+    z -= w + 0.5;
+  }
+}
+for (const st of styles) {
+  const list = boxes.filter(b => b.style === st); if (!list.length) continue;
+  const set = window.facadeMaterials(st), geo = new THREE.BoxGeometry(1, 1, 1);
+  const inst = new THREE.InstancedMesh(geo, set.mats, list.length), tiles = new Float32Array(list.length * 3), m = new THREE.Matrix4();
+  list.forEach((b, i) => {
+    m.compose(new THREE.Vector3(b.x, b.h / 2, b.z), new THREE.Quaternion(), new THREE.Vector3(b.sx, b.h, b.sz));
+    inst.setMatrixAt(i, m);
+    tiles[i * 3] = Math.max(1, Math.round(b.sx / set.spec.cell[0])); tiles[i * 3 + 1] = Math.max(1, Math.round(b.sz / set.spec.cell[0])); tiles[i * 3 + 2] = Math.max(1, Math.round(b.h / set.spec.cell[1]));
+  });
+  geo.setAttribute("aTile", new THREE.InstancedBufferAttribute(tiles, 3));
+  scene.add(inst);
+}
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: 0x3a3a3c, roughness: 0.95 }));
+ground.rotation.x = -Math.PI / 2; scene.add(ground);
+let yaw = Math.atan2(target.x - camera.position.x, target.z - camera.position.z), drag = null;
+addEventListener("pointerdown", e => drag = [e.clientX, e.clientY]); addEventListener("pointerup", () => drag = null);
+addEventListener("pointermove", e => { if (!drag) return; camera.rotation.order = "YXZ"; camera.rotation.y -= (e.clientX - drag[0]) * 0.004; camera.rotation.x -= (e.clientY - drag[1]) * 0.004; drag = [e.clientX, e.clientY]; });
+addEventListener("wheel", e => { const f = new THREE.Vector3(); camera.getWorldDirection(f); camera.position.addScaledVector(f, -e.deltaY * 0.02); });
+let frames = 0;
+renderer.setAnimationLoop(() => { renderer.render(scene, camera); if (++frames === 90) window.__ready = true; });
+</script>
+</body>
+</html>

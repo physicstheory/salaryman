@@ -318,6 +318,69 @@
     }
   }
 
+  // ---- stations ------------------------------------------------------------------------------------------------------------------------
+  // NHRail stations (Tools/foundry/gen/station.py): 12 m platform bays (plain, with seats, with vending machines) down both side
+  // platforms, stretched a little so whole bays fill the platform, and the concourse at its end. konto.html skips its own
+  // boxes when stationsOn is set and leaves the layout in window.__stationKits. One merged group per station, LOD by distance.
+  F.stationsOn = true;
+  const ST = F.stations = { groups: [], ready: false };
+  const ST_IDS = ["station_bay", "station_bay_bench", "station_bay_vend", "station_concourse"];
+  function stationsBuild(parent) {
+    const kits = window.__stationKits || [];
+    window.__stationKits = [];
+    if (!kits.length) return;
+    Promise.all(ST_IDS.map(id => F.load(id).catch(() => null))).then(models => {
+      const byId = {}, matByName = new Map();
+      models.forEach(m => { if (!m) return; byId[m.id] = m; m.lods.forEach(parts => parts.forEach(pt => { const k = pt.material.name || pt.material.uuid; if (!matByName.has(k)) matByName.set(k, pt.material); })); });
+      if (!byId.station_bay) return;
+      const list = kits.slice(), Y = new THREE.Vector3(0, 1, 0);
+      const step = () => {
+        const t0 = performance.now();
+        while (list.length && performance.now() - t0 < 8) {
+          const k = list.shift(), near = [], far = [];
+          const frame = new THREE.Matrix4().makeRotationY(k.yaw).setPosition(k.x, k.y, k.z);
+          const put = (id, lx, ly, lz, rot, sz) => {
+            const m = byId[id]; if (!m) return;
+            const local = new THREE.Matrix4().compose(new THREE.Vector3(lx, ly, lz), new THREE.Quaternion().setFromAxisAngle(Y, rot), new THREE.Vector3(1, 1, sz || 1));
+            const mat = frame.clone().multiply(local);
+            near.push({ parts: m.lods[0], matrix: mat });
+            far.push({ parts: m.lods[m.lods.length - 1], matrix: mat });
+          };
+          const n = Math.max(1, Math.ceil(k.PL / 12 - 0.15)), stretch = k.PL / (n * 12);
+          [-1, 1].forEach(side => {
+            for (let i = 0; i < n; i++) {
+              const z = (i - (n - 1) / 2) * 12 * stretch;
+              const id = i % 3 === 1 ? "station_bay_bench" : i % 4 === 2 ? "station_bay_vend" : "station_bay";
+              put(byId[id] ? id : "station_bay", side * 6.7, 0, z, side > 0 ? 0 : Math.PI, stretch);
+            }
+          });
+          put("station_concourse", 0, k.conY, k.conZ, k.fz > 0 ? 0 : Math.PI);
+          const g = new THREE.Group(), gn = new THREE.Group(), gf = new THREE.Group();
+          mergeByMaterial(near, matByName).forEach(m => gn.add(m));
+          mergeByMaterial(far, matByName).forEach(m => gf.add(m));
+          g.add(gn, gf); gn.visible = false;
+          g.userData.foundryStation = true;
+          parent.add(g);
+          const c = new THREE.Vector3(k.x, k.y, k.z), r = k.PL / 2 + 25;
+          ST.groups.push({ g, near: gn, far: gf, c, r });
+          if (typeof streamAdd === "function" && typeof STREAM === "object") streamAdd(g, { x0: k.x - r, x1: k.x + r, z0: k.z - r, z1: k.z + r, y0: k.y - 20, y1: k.y + 10 }, STREAM.low);
+        }
+        if (list.length) setTimeout(step, 0);
+        else { ST.ready = true; console.log("[Foundry] stations: " + ST.groups.length + " rebuilt from the Blender kit"); }
+      };
+      step();
+    });
+  }
+  function stationsTick() {
+    if (!ST.groups.length || typeof camera === "undefined" || !camera) return;
+    const cp = camera.position;
+    for (const s of ST.groups) {
+      if (!s.g.visible) continue;
+      const near = cp.distanceTo(s.c) - s.r < 140;
+      if (s.near.visible !== near) { s.near.visible = near; s.far.visible = !near; }
+    }
+  }
+
   const _detailRegister = window.detailRegister;
   if (typeof _detailRegister === "function") {
     window.detailRegister = function (boxes) {
@@ -331,8 +394,12 @@
       RF.chunks.forEach(ch => { if (ch.g.parent) ch.g.parent.remove(ch.g); });
       if (typeof STREAM === "object" && STREAM.reg) STREAM.reg = STREAM.reg.filter(e => !(e.o.userData && e.o.userData.foundryRoofs));
       RF.chunks = []; RF.boxes = []; RF.items = 0; RF.tris = 0; RF.ready = false;
+      ST.groups.forEach(s => { if (s.g.parent) s.g.parent.remove(s.g); });
+      if (typeof STREAM === "object" && STREAM.reg) STREAM.reg = STREAM.reg.filter(e => !(e.o.userData && e.o.userData.foundryStation));
+      ST.groups = []; ST.ready = false; window.__stationKits = [];
       const r = _buildScene.apply(this, arguments);
       try { roofsBuild(scene); } catch (e) { console.warn("[Foundry] rooftops:", e); }
+      try { stationsBuild(scene); } catch (e) { console.warn("[Foundry] stations:", e); }
       return r;
     };
   }
@@ -340,7 +407,7 @@
   if (typeof _streamFrame === "function") {
     window.streamFrame = function () {
       const r = _streamFrame.apply(this, arguments);
-      try { roofsTick(); } catch (e) { /* next frame */ }
+      try { roofsTick(); stationsTick(); } catch (e) { /* next frame */ }
       return r;
     };
   }

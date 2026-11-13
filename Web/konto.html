@@ -7497,7 +7497,8 @@ const facadeCache = {};
 // The glass set is painted (Tools/facades/make_glass_curtain_wall.py): storey-high panes between 1.5 m mullions,
 // spandrel bands and a half-seen office, because the photographed mosaic it replaced averaged to one flat blue on a
 // tower and read as a bare mirror. Every set has a roughness map (glass smooth, walls rough).
-const FACADE_PHOTOS = { office: { size: [18, 29] }, glass: { size: [12, 14.4], lights: true }, flats: { size: [14.4, 19.8], lights: true }, civic: { size: [16, 21], lights: true } };
+// The four city sets are modelled in Blender and baked (Tools/foundry/gen/facades.py); sizes are the metres each bake covers.
+const FACADE_PHOTOS = { office: { size: [12.8, 16.0], lights: true }, glass: { size: [12.8, 16.8], lights: true }, flats: { size: [12.4, 12.4], lights: true }, civic: { size: [14.0, 13.8], lights: true } };
 function facadePhoto(side, style, spec) {
   const P = FACADE_PHOTOS[style]; if (!P || gameSet.drawnFacades) return;
   const L = new THREE.TextureLoader(), base = "art/facades/" + style;
@@ -20636,6 +20637,8 @@ function buildStreetFurniture(w, city, root, boxes) {
     const PL = clamp(st.size[0] * 0.62, 84, 158);        // platform length
     const row = signRow(st.name);
     const railY = t.y;
+    // the Foundry's Blender station kit (game/foundry-hook.js) stands in for the platform, canopy, furniture and concourse boxes
+    const FST = !!(window.foundry && window.foundry.stationsOn);
     solid.frame(t.x, railY, t.z, t.yaw);
     badges.frame(t.x, railY, t.z, t.yaw);
     signs.frame(t.x, railY, t.z, t.yaw);
@@ -20647,6 +20650,7 @@ function buildStreetFurniture(w, city, root, boxes) {
     // strip and its yellow tactile line.
     [-1, 1].forEach(sideIdx => {
       const px = sideIdx * 6.7;
+      if (!FST) {
       solid.colour(FURN.concrete).box(px, 0.55, 0, 8.0, 1.10, PL);
       solid.colour(FURN.tile).box(px, 1.12, 0, 7.6, 0.06, PL - 0.4);
       solid.colour([0.88, 0.76, 0.18])
@@ -20659,14 +20663,17 @@ function buildStreetFurniture(w, city, root, boxes) {
         solid.post(px + sideIdx * 2.6, 1.15, z, 0.10, 3.45);
       }
       solid.colour(FURN.white).box(px, 4.80, 0, 8.6, 0.22, PL * 0.90);
+      }
       // Name boards hung from the canopy, which is where you read them from a
       // train window, and one at each end for the platform itself.
       const cell = signUV(row);
       [-PL * 0.26, PL * 0.26].forEach(z => {
         solid.colour(FURN.steel).box(px - sideIdx * 0.1, 3.52, z, 0.10, 0.62, 3.40);
+        if (FST) [-1.4, 1.4].forEach(dz => solid.box(px - sideIdx * 0.1, 4.2, z + dz, 0.04, 0.8, 0.04));
         signs.back(px - sideIdx * 0.1, 3.52, z, 3.36, 0.56, cell, false);
       });
       // Benches, a few vending machines and a bin: the furniture of a platform.
+      if (FST) return;
       solid.colour(FURN.timber);
       solid.box(px + sideIdx * 2.9, 1.42, PL * 0.10, 0.50, 0.50, 2.00);
       solid.box(px + sideIdx * 2.9, 1.42, -PL * 0.14, 0.50, 0.50, 2.00);
@@ -20697,9 +20704,12 @@ function buildStreetFurniture(w, city, root, boxes) {
     { const zs = conZ - fz * 15.5; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
       st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw }; }
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
+    if (FST) (window.__stationKits || (window.__stationKits = [])).push({ x: t.x, y: railY, z: t.z, yaw: t.yaw, PL, conZ, conY, fz });
+    else {
     solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
     solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1 * fz, 20, 3.4, 0.30);
     solid.colour(FURN.green).box(0, conY + 6.8, conZ, 26.4, 0.5, 20.4);
+    }
     badges.panel(0, conY + 5.3, conZ + 10.3 * fz, 4.2, 1.9, face, badgeUV("nhrail"), false);
     signs.panel(0, conY + 2.9, conZ + 10.3 * fz, 7.0, 1.1, face, signUV(row), false);
     if (t.elevated) {
@@ -45772,5 +45782,6 @@ radioLoadMusic();
 <script src="game/forge-hook.js"></script>
 <script src="game/lib/meshopt_decoder.js"></script>
 <script src="game/foundry-hook.js"></script>
+<script src="game/interiors-hook.js"></script>
 </body>
 </html>
