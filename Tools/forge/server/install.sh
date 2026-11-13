@@ -44,8 +44,11 @@ if [[ " $ONLY " == *" hy "* ]]; then
   P="$FORGE/venv/hy/bin/pip"
   $P install -q torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cu124
   # Hunyuan3D-2.1's own list, minus the training/demo-only parts (gradio, deepspeed, tensorboard, cupy) and the Chinese mirrors
-  grep -v -E '^(--extra-index-url|gradio|deepspeed|tb_nightly|cupy|pythreejs|open3d)' "$FORGE/src/Hunyuan3D-2.1/requirements.txt" > /tmp/hy-req.txt
-  $P install -q -r /tmp/hy-req.txt
+  # bpy (Blender) is only used by the OBJ->GLB converter, which the forge replaces with its own GLB writer; bpy 4.0 is gone from PyPI
+  grep -v -E '^(--extra-index-url|gradio|deepspeed|tb_nightly|cupy|pythreejs|open3d|bpy)' "$FORGE/src/Hunyuan3D-2.1/requirements.txt" > /tmp/hy-req.txt
+  $P install -q --no-build-isolation -r /tmp/hy-req.txt
+  SP=$("$FORGE/venv/hy/bin/python" -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
+  mkdir -p "$SP/bpy" && printf '# stand-in: Hunyuan imports bpy at module level for a converter the forge never calls\n' > "$SP/bpy/__init__.py"
   $P install -q "peft==0.13.2" jaxtyping typeguard sentencepiece protobuf "onnxruntime-gpu==1.19.2"
   $P install -q --no-build-isolation diso
   ( cd "$FORGE/src/Hunyuan3D-2.1/hy3dpaint/custom_rasterizer" && $P install -q --no-build-isolation -e . )

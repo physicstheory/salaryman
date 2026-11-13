@@ -14,7 +14,7 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 export FORGE_MODELS=${FORGE_MODELS:-$DEF}
 
 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-  python3.10 python3.10-venv python3.10-dev git curl wget build-essential ninja-build cmake libgl1 libegl1 libgles2 libglib2.0-0 \
+  python3.10 python3.10-venv python3.10-dev python3-dev git curl wget build-essential ninja-build cmake libgl1 libegl1 libgles2 libglib2.0-0 \
   libsm6 libxrender1 libxext6 libeigen3-dev libjpeg-dev pkg-config
 if ! command -v nvcc >/dev/null && [ ! -x /usr/local/cuda/bin/nvcc ]; then
   wget -q https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb && dpkg -i cuda-keyring_1.1-1_all.deb
