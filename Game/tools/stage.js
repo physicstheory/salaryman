@@ -75,7 +75,7 @@ function main() {
   // models and user.json, the list that says which of them to fit - without it no imported or exotic car appears), people/ (the
   // pedestrians and Seiko's own model and outfits), props/ (the furniture in the interiors) and kenney/. Only the author's notes stay.
   let cars = 0;
-  ["art", "audio", "cars", "people", "props", "kenney", "loading", "engine", "levels", "game"].forEach(dir => {
+  ["art", "audio", "cars", "people", "props", "kenney", "loading", "engine", "levels", "game", "foundry"].forEach(dir => {
     const from = path.join(SRC, dir);
     if (!fs.existsSync(from)) { console.warn(dir + "/ is not there; the game will do without it."); return; }
     const to = path.join(OUT, dir);

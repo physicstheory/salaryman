@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundry model viewer</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #111; overflow: hidden; font: 13px/1.4 system-ui, sans-serif; color: #eee; }
+  #hud { position: fixed; left: 12px; top: 12px; background: rgba(10, 12, 16, 0.75); padding: 10px 12px; border-radius: 8px; max-width: 420px; max-height: 90vh; overflow: auto; }
+  #hud h1 { font-size: 14px; margin: 0 0 6px; }
+  #hud button { background: #2a3038; color: #eee; border: 1px solid #444c56; border-radius: 4px; padding: 3px 7px; margin: 2px 2px 2px 0; cursor: pointer; font-size: 12px; }
+  #hud button.on { background: #c8102e; border-color: #e0304a; }
+  #info { font: 12px/1.45 ui-monospace, monospace; color: #b8c4d0; margin-top: 6px; white-space: pre-wrap; }
+  body.shot #hud { display: none; }
+</style>
+</head>
+<body>
+<!-- Models rebuilt in headless Blender by the Foundry (Tools/foundry), loaded exactly the way the game loads them
+     (foundry-hook.js: meshopt + quantized geometry, LOD nodes). Serve the repo root (python3 -m http.server) and open
+     Web/engine/foundry.html. ?model=<id>&lod=0|1|2&hour=15&az=0.6&el=0.25&dist=12&ty=1.5&shot -->
+<div id="hud"><h1>FOUNDRY · Blender-built models</h1><div id="list"></div>
+<div>LOD <button data-l="0">0</button><button data-l="1">1</button><button data-l="2">2</button> &nbsp; Time <input id="hour" type="range" min="0" max="24" step="0.1" style="width:130px;vertical-align:middle"></div><div id="info"></div></div>
+<script>
+window.__three = function () { if (!window.THREE) document.write('<script src="../../Game/vendor/three.min.js"><\/script><script src="../../Game/vendor/GLTFLoader.js"><\/script>'); };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js" onerror="window.__three()"></script>
+<script>window.__three();</script>
+<script>if (!THREE.GLTFLoader) document.write('<script src="../../Game/vendor/GLTFLoader.js"><\/script>');</script>
+<script src="shigoto.js"></script>
+<script src="../game/lib/meshopt_decoder.js"></script>
+<script>window.__foundryBase = "../";</script>
+<script src="../game/foundry-hook.js"></script>
+<script>
+(async function () {
+  const Q = new URLSearchParams(location.search);
+  if (Q.has("shot")) document.body.classList.add("shot");
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(Math.min(2, devicePixelRatio)); renderer.setSize(innerWidth, innerHeight);
+  renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 0.05, 3000);
+  addEventListener("resize", () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+  const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: true, physics: false, weather: true, water: false } });
+  engine.env.setHour(parseFloat(Q.get("hour") || "15"));
+  engine.weather.set("clear", true); engine.weather.auto = false;
+  const Mt = engine.streamer.materials;
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), Mt.get("paving")); ground.receiveShadow = true; scene.add(ground);
+  const F = window.foundry, ix = await F.ready, ids = Object.keys(ix);
+  const holder = new THREE.Group(); scene.add(holder);
+  let cur = null, lod = +(Q.get("lod") || 0), size = 5;
+  let target = new THREE.Vector3(0, 1, 0), dist = 12, az = parseFloat(Q.get("az") || "0.6"), el = parseFloat(Q.get("el") || "0.22");
+  async function show(id) {
+    cur = id; holder.clear();
+    [...document.querySelectorAll("#list button")].forEach(b => b.classList.toggle("on", b.textContent === id));
+    const m = await F.load(id);
+    const parts = m.lods[Math.min(lod, m.lods.length - 1)];
+    for (const p of parts) { const me = new THREE.Mesh(p.geometry, p.material); me.castShadow = !p.material.transparent; me.receiveShadow = true; holder.add(me); }
+    const box = new THREE.Box3().setFromObject(holder), s = new THREE.Vector3(); box.getSize(s);
+    size = Math.max(s.x, s.y, s.z);
+    target.set(0, Q.has("ty") ? parseFloat(Q.get("ty")) : s.y * 0.45, Q.has("tz") ? parseFloat(Q.get("tz")) : 0);
+    dist = Q.has("dist") ? parseFloat(Q.get("dist")) : size * 1.3;
+    const e = m.entry;
+    document.getElementById("info").textContent = id + "\n" + e.category + "  " + (e.bytes / 1e6).toFixed(1) + " MB\nLOD tris " + e.lods.map(l => l.tris).join(" / ") +
+      "\nsize " + e.size.join(" x ") + " m\nparts " + parts.length + " (draw calls)";
+    window.__ready = true;
+  }
+  ids.forEach(id => { const b = document.createElement("button"); b.textContent = id; b.onclick = () => show(id); document.getElementById("list").appendChild(b); });
+  document.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { lod = +b.dataset.l; if (cur) show(cur); });
+  await Mt.texturesReady(20000);
+  show(Q.get("model") && ix[Q.get("model")] ? Q.get("model") : ids[0]);
+  let drag = null;
+  addEventListener("pointerdown", e => { if (e.target === renderer.domElement) drag = [e.clientX, e.clientY]; });
+  addEventListener("pointerup", () => drag = null);
+  addEventListener("pointermove", e => { if (!drag) return; az -= (e.clientX - drag[0]) * 0.006; el = Math.max(-0.2, Math.min(1.4, el + (e.clientY - drag[1]) * 0.005)); drag = [e.clientX, e.clientY]; });
+  addEventListener("wheel", e => { dist = Math.max(0.5, Math.min(200, dist * (e.deltaY > 0 ? 1.1 : 0.9))); });
+  const hour = document.getElementById("hour"); hour.value = Q.get("hour") || "15"; hour.oninput = () => engine.env.setHour(parseFloat(hour.value));
+  let last = performance.now();
+  (function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    camera.position.set(target.x + Math.sin(az) * Math.cos(el) * dist, target.y + Math.sin(el) * dist, target.z + Math.cos(az) * Math.cos(el) * dist);
+    camera.lookAt(target);
+    engine.update(dt, camera.position);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  })(last);
+})();
+</script>
+</body>
+</html>

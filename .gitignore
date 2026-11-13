@@ -48,3 +48,8 @@ Engine/node_modules/
 
 # AAA gate cache
 .qa-cache/
+
+# Foundry (Tools/foundry): texture cache and npm packages are rebuilt on demand
+Tools/foundry/cache/
+Tools/foundry/node_modules/
+Tools/foundry/**/__pycache__/

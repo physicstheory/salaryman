@@ -3,7 +3,7 @@
   "budget_seconds": 60,
 
   "pbr": {
-    "asset_dirs": ["Web/props", "Web/people/real", "Web/cars"],
+    "asset_dirs": ["Web/props", "Web/people/real", "Web/cars", "Web/foundry"],
     "texture_dirs": ["Web/art/terrain", "Web/art/interior", "Web/art/road", "Web/art/surfaces", "Web/art/props", "Web/art/houses"],
     "min_texture_px": 512,
     "min_character_texture_px": 1024,

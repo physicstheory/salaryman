@@ -1,0 +1,125 @@
+{
+ "about": "Models built by the Foundry (Tools/foundry, headless Blender). Do not edit by hand: rebuild with python3 Tools/foundry/foundry.py build <id>.",
+ "models": {
+  "commuter_end": {
+   "id": "commuter_end",
+   "category": "trains",
+   "file": "trains/commuter_end.glb",
+   "bytes": 5437040,
+   "lods": [
+    {
+     "tris": 36728,
+     "dist": 0
+    },
+    {
+     "tris": 10913,
+     "dist": 60
+    },
+    {
+     "tris": 3353,
+     "dist": 220
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.006,
+    17.699,
+    20.6
+   ],
+   "kind": "commuter",
+   "end": true,
+   "credit": "Foundry (Blender), original design"
+  },
+  "commuter_mid": {
+   "id": "commuter_mid",
+   "category": "trains",
+   "file": "trains/commuter_mid.glb",
+   "bytes": 5685836,
+   "lods": [
+    {
+     "tris": 53264,
+     "dist": 0
+    },
+    {
+     "tris": 15881,
+     "dist": 60
+    },
+    {
+     "tris": 4828,
+     "dist": 220
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.006,
+    13.714,
+    20.6
+   ],
+   "kind": "commuter",
+   "end": false,
+   "credit": "Foundry (Blender), original design"
+  },
+  "shinkansen_end": {
+   "id": "shinkansen_end",
+   "category": "trains",
+   "file": "trains/shinkansen_end.glb",
+   "bytes": 4445628,
+   "lods": [
+    {
+     "tris": 46734,
+     "dist": 0
+    },
+    {
+     "tris": 14004,
+     "dist": 60
+    },
+    {
+     "tris": 3648,
+     "dist": 220
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.47,
+    3.875,
+    25.11
+   ],
+   "kind": "shinkansen",
+   "end": true,
+   "credit": "Foundry (Blender), original design"
+  },
+  "shinkansen_mid": {
+   "id": "shinkansen_mid",
+   "category": "trains",
+   "file": "trains/shinkansen_mid.glb",
+   "bytes": 5218036,
+   "lods": [
+    {
+     "tris": 55476,
+     "dist": 0
+    },
+    {
+     "tris": 16630,
+     "dist": 60
+    },
+    {
+     "tris": 4346,
+     "dist": 220
+    }
+   ],
+   "built": "2026-11-13",
+   "blender": "5.3.0",
+   "size": [
+    3.47,
+    5.414,
+    25.6
+   ],
+   "kind": "shinkansen",
+   "end": false,
+   "credit": "Foundry (Blender), original design"
+  }
+ }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "salaryman-foundry",
+  "private": true,
+  "description": "Post-processing for Foundry models: weld, quantize and meshopt-compress the geometry (three.js r128 decodes it with Web/game/lib/meshopt_decoder.js).",
+  "dependencies": {
+    "@gltf-transform/core": "4.5.1",
+    "@gltf-transform/extensions": "4.5.1",
+    "@gltf-transform/functions": "4.5.1",
+    "meshoptimizer": "1.3.0"
+  }
+}
