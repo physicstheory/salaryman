@@ -15,6 +15,9 @@ PY=${PY:-python3.10}
 ONLY=${ONLY:-"hy tr2 server"}
 export TORCH_CUDA_ARCH_LIST=${TORCH_CUDA_ARCH_LIST:-"8.0;8.6;8.9;9.0"}
 export CUDA_HOME=${CUDA_HOME:-/usr/local/cuda}
+export CPATH=$CUDA_HOME/include${CPATH:+:$CPATH}            # some extensions compile .cpp files that include cuda_runtime.h with plain g++
+export LIBRARY_PATH=$CUDA_HOME/lib64${LIBRARY_PATH:+:$LIBRARY_PATH}
+export PATH=$CUDA_HOME/bin:$PATH
 export MAX_JOBS=${MAX_JOBS:-8}
 mkdir -p "$FORGE/src" "$FORGE/venv"
 
