@@ -65,7 +65,7 @@ jobs:
         run: |
           git config user.name "Salary Man Foundry"
           git config user.email "foundry@users.noreply.github.com"
-          git add Web/foundry Web/people Web/cars Web/props Web/kenney Web/art/facades Web/art/rooms 2>/dev/null || true
+          for d in Web/foundry Web/people Web/cars Web/props Web/kenney Web/art/facades Web/art/rooms; do [ -e "$d" ] && git add "$d"; done; true
           if git diff --cached --quiet; then echo "nothing changed"; exit 0; fi
           git commit -q -m "Foundry: rebuilt ${{ inputs.targets }} in Blender with photoscanned textures"
           for i in 1 2 3 4; do
