@@ -17032,7 +17032,9 @@ function carLampMat(src, head) {
   const hit = carLampCache[src.uuid];
   if (hit) { if (typeof nightMats !== "undefined" && !nightMats.some(n => n.m === hit)) nightMats.push(hit.userData.night); return hit; }
   const glassy = /glass/i.test(src.name) || src.transparent || src.opacity < 0.95 || !src.isMeshStandardMaterial;
-  const m = glassy ? new THREE.MeshStandardMaterial({ color: head ? 0xe6eaf0 : 0x6a080a, roughness: 0.06, metalness: 0.15, envMap: gfx.env || null, envMapIntensity: 1.1 }) : src.clone();
+  // the model's own lens material, kept (with its maps); a clear lens is made a solid tinted one so it can glow
+  const m = src.isMeshStandardMaterial ? src.clone() : new THREE.MeshStandardMaterial({ map: src.map || null, normalMap: src.normalMap || null });
+  if (glassy) { m.color.set(head ? 0xe6eaf0 : 0x6a080a); m.transparent = false; m.opacity = 1; m.roughness = 0.06; m.metalness = 0.15; m.envMap = gfx.env || null; m.envMapIntensity = 1.1; if (m.transmission) m.transmission = 0; }
   m.name = src.name;
   m.emissive = new THREE.Color(head ? 0xfff0d8 : 0xff1c12);
   if (!glassy && m.map) m.emissiveMap = m.map;
