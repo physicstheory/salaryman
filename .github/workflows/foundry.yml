@@ -54,7 +54,9 @@ jobs:
       - name: Photoscanned textures (Poly Haven, CC0)
         run: python Tools/foundry/fetch_textures.py --res 2k
       - name: Build
-        run: python Tools/foundry/foundry.py build ${{ inputs.targets }}
+        env:
+          FACADE_ROOMS: "0"
+        run: python -u Tools/foundry/foundry.py build ${{ inputs.targets }}
       - name: AAA gate
         run: |
           python -m pip install -q pillow numpy

@@ -9,7 +9,7 @@ const b = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsaf
 const p = await b.newPage({ viewport: { width: 1000, height: 620 } });
 p.on("console", m => { if (/error|warn|Foundry/i.test(m.text())) console.log("console:", m.text().slice(0, 300)); });
 p.on("pageerror", e => console.log("pageerror:", e.message));
-await p.goto("http://localhost:8765/Web/engine/foundry.html?shot&" + q);
+await p.goto("http://localhost:8765/Web/engine/" + (process.env.PAGE || "foundry.html") + "?shot&" + q);
 await p.waitForFunction(() => window.__ready, null, { timeout: 180000 }).catch(() => console.log("not ready"));
 await p.waitForTimeout(+(wait || 6000));
 await p.screenshot({ path: out });

@@ -60,6 +60,12 @@ def window(x0, z0, w, h, depth, parts, glass, rooms, rng, kind, frame_mat, mull=
     """A recessed window opening at (x0..x0+w, z0..z0+h) on the wall plane y=0, rooms behind it at +y."""
     r = Room(rng, kind)
     WINS.append((x0, z0, w, h))
+    if os.environ.get("FACADE_ROOMS", "1") == "0":
+        # interior mapping draws the rooms in the game: bake only the glass, its frame and the sill
+        g = box("glass", (w, 0.02, h), (x0 + w / 2, depth, z0 + h / 2), M_glass())
+        glass.append((g, r))
+        _frame(x0, z0, w, h, depth, parts, frame_mat, mull)
+        return r
     # room box behind (back wall, ceiling with a light strip, floor), seen through the glass
     back = 3.5
     parts.append(box("roomback", (w + 0.6, 0.05, h + 0.6), (x0 + w / 2, back, z0 + h / 2), flat_mat("room_%d" % (rng.random() * 4 // 1), (0.30, 0.29, 0.27), 0.9)))
@@ -87,6 +93,11 @@ def window(x0, z0, w, h, depth, parts, glass, rooms, rng, kind, frame_mat, mull=
     # the pane itself (hidden for the colour bake, present for roughness/normal), and the mask/light emitters
     g = box("glass", (w, 0.02, h), (x0 + w / 2, depth, z0 + h / 2), M_glass())
     glass.append((g, r))
+    _frame(x0, z0, w, h, depth, parts, frame_mat, mull)
+    return r
+
+
+def _frame(x0, z0, w, h, depth, parts, frame_mat, mull):
     # frame and sill
     fm = frame_mat
     t = 0.05
@@ -96,7 +107,6 @@ def window(x0, z0, w, h, depth, parts, glass, rooms, rng, kind, frame_mat, mull=
     parts.append(box("frameB", (w, depth + 0.04, t), (x0 + w / 2, depth / 2, z0 + t / 2), fm))
     for k in range(1, mull + 1):
         parts.append(box("mull", (0.04, 0.06, h), (x0 + w * k / (mull + 1), depth - 0.02, z0 + h / 2), fm))
-    return r
 
 
 def M_glass():
@@ -288,7 +298,24 @@ def build(which):
     # colour: glass out of the way, so the rays see the rooms; then dim the rooms as glass would and add AO
     for g in panes:
         g.hide_render = True
+    # the colour pass reads a metal as black (it has no diffuse): bake every material as a dielectric for it
+    saved = []
+    for mt in bpy.data.materials:
+        b = mt.node_tree and mt.node_tree.nodes.get("Principled BSDF")
+        if not b:
+            continue
+        inp = b.inputs["Metallic"]
+        links = [(l.from_socket, l.to_socket) for l in inp.links]
+        saved.append((mt, inp.default_value, links))
+        for l in list(inp.links):
+            mt.node_tree.links.remove(l)
+        inp.default_value = 0.0
     col = bake(target, parts, "DIFFUSE", PX)
+    for mt, v, links in saved:
+        b = mt.node_tree.nodes.get("Principled BSDF")
+        b.inputs["Metallic"].default_value = v
+        for fs, ts in links:
+            mt.node_tree.links.new(fs, ts)
     ao = bake(target, parts, "AO", PX, samples=24)
     for g in panes:
         g.hide_render = False
