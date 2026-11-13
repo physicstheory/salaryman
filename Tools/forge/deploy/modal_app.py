@@ -18,7 +18,9 @@ FORGE_DIR = os.path.abspath(os.path.join(HERE, ".."))
 GPU = os.environ.get("FORGE_GPU", "L40S")
 
 image = (
-    modal.Image.from_dockerfile(os.path.join(FORGE_DIR, "server", "Dockerfile"), context_dir=FORGE_DIR)
+    # Modal's own runtime needs Python 3.11+; the GPU workers keep their 3.10 environments in /opt/forge/venv
+    modal.Image.from_dockerfile(os.path.join(FORGE_DIR, "server", "Dockerfile"), context_dir=FORGE_DIR, add_python="3.12")
+    .pip_install("fastapi==0.115.12", "huggingface_hub==0.30.2", "numpy", "pillow")
     .env({"FORGE_MODELS": "/models", "FORGE_JOBS": "/models/jobs"})
 )
 models = modal.Volume.from_name("salaryman-forge-models", create_if_missing=True)

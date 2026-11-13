@@ -21,8 +21,6 @@ RUN ONLY=hy bash /opt/forge/app/server/install.sh && rm -rf /root/.cache/pip
 RUN ONLY=tr2 bash /opt/forge/app/server/install.sh && rm -rf /root/.cache/pip
 
 COPY . /opt/forge/app
-# Modal (and anything else that runs "python") needs a plain python on PATH
-RUN ln -sf /usr/bin/python3.10 /usr/local/bin/python
 WORKDIR /opt/forge/app/server
 EXPOSE 8000
 CMD ["/opt/forge/venv/server/bin/uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
