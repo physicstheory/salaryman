@@ -1,0 +1,207 @@
+# Model Forge: make game models with our own GPU (Tools/forge, docs in Tools/forge/README.md).
+#
+#   deploy     build the GPU image and deploy the forge to Modal (needs MODAL_TOKEN_ID + MODAL_TOKEN_SECRET; FORGE_TOKEN; HF_TOKEN optional)
+#   download   fetch model weights onto the forge's own volume (CPU only, no GPU billed)
+#   make       one model from a description and/or image URLs  -> Web/props/<id>.glb, committed to `branch`
+#   batch      every model in a JSON spec file in the repo        -> Web/props, committed to `branch`
+#   health     is the forge up, what is installed
+#
+# FORGE_URL is optional: without it the address of the deployed Modal app is looked up with the Modal token. Set it to use a RunPod/VM forge instead.
+# Claude runs this with: gh workflow run forge.yml --ref claude/friendly-cannon-alnk4v -f action=make -f prompt=... -f id=... -f height=...
+name: Model Forge
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "deploy | download | make | batch | health"
+        required: true
+        default: make
+        type: choice
+        options: [make, batch, deploy, download, health]
+      prompt:
+        description: "make: what to build (photoreal, one object)"
+        required: false
+        type: string
+      id:
+        description: "make: prop id (lower_snake_case) -> Web/props/<id>.glb"
+        required: false
+        type: string
+      images:
+        description: "make: optional reference image(s), https URLs or repo paths, comma separated (front,left,back,right)"
+        required: false
+        type: string
+      size:
+        description: "make: real size, e.g. height=1.83 or width=0.9 or length=4.2 (metres)"
+        required: false
+        type: string
+        default: "height=1.0"
+      pipeline:
+        description: "make: hunyuan21 | hunyuan2mv | hunyuan2turbo | trellis2 | triposg"
+        required: false
+        type: string
+        default: hunyuan21
+      options:
+        description: "make: extra settings, e.g. faces=80000 seed=7 yaw=180 octree=512"
+        required: false
+        type: string
+      spec:
+        description: "batch: path of a JSON spec list in the repo (see Tools/forge/requests/)"
+        required: false
+        type: string
+      models:
+        description: "download: which models (space separated, empty = the default set)"
+        required: false
+        type: string
+        default: "hunyuan21 flux-schnell"
+      branch:
+        description: "branch to commit new models to"
+        required: false
+        type: string
+        default: claude/friendly-cannon-alnk4v
+      gpu:
+        description: "deploy: Modal GPU type (L40S, A100-80GB, H100, A10G)"
+        required: false
+        type: string
+        default: L40S
+
+permissions:
+  contents: write
+
+concurrency:
+  group: forge-${{ inputs.action }}
+  cancel-in-progress: false
+
+jobs:
+  forge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+      FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      FORGE_URL: ${{ secrets.FORGE_URL }}
+      FORGE_GPU: ${{ inputs.gpu }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: python -m pip install --quiet numpy pillow modal
+
+      - name: Check the setup
+        run: |
+          miss=""
+          [ -n "$FORGE_TOKEN" ] || miss="$miss FORGE_TOKEN"
+          if [ -z "$FORGE_URL" ] || [ "${{ inputs.action }}" = deploy ] || [ "${{ inputs.action }}" = download ]; then
+            [ -n "$MODAL_TOKEN_ID" ] || miss="$miss MODAL_TOKEN_ID"
+            [ -n "$MODAL_TOKEN_SECRET" ] || miss="$miss MODAL_TOKEN_SECRET"
+          fi
+          if [ -n "$miss" ]; then
+            echo "::error::Missing repository secrets:$miss. See Tools/forge/README.md (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+
+      - name: Deploy to Modal
+        if: inputs.action == 'deploy'
+        run: |
+          args="FORGE_TOKEN=$FORGE_TOKEN"
+          [ -n "$HF_TOKEN" ] && args="$args HF_TOKEN=$HF_TOKEN"
+          modal secret create salaryman-forge $args --force
+          modal deploy Tools/forge/deploy/modal_app.py
+          echo "Forge address: $FORGE_URL" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Find the forge on Modal
+        if: env.FORGE_URL == '' && inputs.action != 'download'
+        run: |
+          url=$(python - <<'EOF'
+          import modal
+          f = modal.Function.from_name("salaryman-forge", "serve")
+          try:
+              print(f.get_web_url())
+          except AttributeError:
+              f.hydrate(); print(f.web_url)
+          EOF
+          )
+          [ -n "$url" ] || { echo "::error::The forge is not deployed on Modal yet: run this workflow with action=deploy first."; exit 1; }
+          echo "FORGE_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Download weights
+        if: inputs.action == 'download' || inputs.action == 'deploy'
+        run: modal run Tools/forge/deploy/modal_app.py::download --names "${{ inputs.models }}"
+
+      - name: Health
+        if: inputs.action == 'health' || inputs.action == 'deploy'
+        run: |
+          python Tools/forge/forge.py health | tee -a "$GITHUB_STEP_SUMMARY"
+          python Tools/forge/forge.py models >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Make one model
+        if: inputs.action == 'make'
+        env:
+          PROMPT: ${{ inputs.prompt }}
+          PID: ${{ inputs.id }}
+          IMAGES: ${{ inputs.images }}
+          SIZE: ${{ inputs.size }}
+          PIPE: ${{ inputs.pipeline }}
+          OPTS: ${{ inputs.options }}
+        run: |
+          python - <<'EOF'
+          import json, os, re
+          spec = {"id": os.environ["PID"].strip(), "pipeline": os.environ.get("PIPE") or "hunyuan21"}
+          if not re.fullmatch(r"[a-z0-9_]{2,48}", spec["id"]):
+              raise SystemExit("id must be lower_snake_case")
+          if os.environ.get("PROMPT", "").strip():
+              spec["prompt"] = os.environ["PROMPT"].strip()
+          imgs = [s.strip() for s in os.environ.get("IMAGES", "").split(",") if s.strip()]
+          if imgs:
+              spec["images"] = [p if p.startswith("https://") else os.path.abspath(p) for p in imgs]
+          for kv in (os.environ.get("SIZE", "") + " " + os.environ.get("OPTS", "")).split():
+              k, _, v = kv.partition("=")
+              if k in ("height", "width", "length", "yaw"):
+                  spec[k] = float(v)
+              elif k in ("faces", "seed", "octree", "views", "tex_res", "steps", "tex"):
+                  spec[k] = int(v)
+          json.dump([spec], open("/tmp/forge-spec.json", "w"))
+          print(json.dumps(spec, indent=1))
+          EOF
+          python Tools/forge/forge.py batch /tmp/forge-spec.json
+
+      - name: Make a batch
+        if: inputs.action == 'batch'
+        run: python Tools/forge/forge.py batch "${{ inputs.spec }}"
+
+      - name: AAA gate
+        if: inputs.action == 'make' || inputs.action == 'batch'
+        run: python Tools/qa/aaa_gate.py
+
+      - name: Commit the new models
+        if: inputs.action == 'make' || inputs.action == 'batch'
+        run: |
+          git config user.name "Model Forge"
+          git config user.email "forge@users.noreply.github.com"
+          git add Web/props Tools/forge/made
+          if git diff --cached --quiet; then echo "nothing new"; exit 0; fi
+          ids=$(git diff --cached --name-only -- 'Web/props/*.glb' | sed 's#.*/##; s#\.glb##' | tr '\n' ' ')
+          git commit -q -m "Model Forge: $ids" -m "Made on our own GPU with ${{ inputs.pipeline || 'the forge' }} (workflow run ${{ github.run_id }})."
+          for i in 1 2 3 4; do
+            git pull -q --rebase origin "${{ inputs.branch }}" && git push -q origin "HEAD:${{ inputs.branch }}" && break
+            sleep $((i * 10))
+          done
+          echo "Committed: $ids" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the job record
+        if: always() && (inputs.action == 'make' || inputs.action == 'batch')
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: forge-${{ github.run_id }}
+          path: Tools/forge/made
+          retention-days: 3

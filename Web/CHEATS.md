@@ -80,6 +80,7 @@ Every model on the road has a cheat of its own, by its name:
 | GOPOLICE / GOAIRPORT | 5550173 / 5550174 | the nearest police station / airport |
 | CHEATLIST | 5550190 | show every code |
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |
+| FORGE | 5553674 | put the next model made by the Model Forge (Tools/forge) in front of you |
 
 From the browser console, `cheat("roadster")` does the same.
 

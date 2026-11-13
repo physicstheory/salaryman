@@ -1,0 +1,76 @@
+{
+  "_about": "Model Forge catalogue: every open-weight model the forge can download and run on its own GPU. Weights are fetched once into the models volume (FORGE_MODELS) and then used offline; nothing runs on Hugging Face Spaces or any hosted inference API. `worker` names the Python environment and worker script that runs it (server/workers/<worker>.py in venv /opt/forge/venv/<venv>).",
+
+  "pipelines": {
+    "hunyuan21": {
+      "name": "Tencent Hunyuan3D 2.1 (shape + PBR paint)",
+      "does": ["image-to-3d", "pbr-texture"],
+      "worker": "hunyuan", "venv": "hy",
+      "vram_gb": 29,
+      "quality": "Best all-round detail with true PBR (albedo + metallic + roughness). Default.",
+      "licence": "Tencent Hunyuan Community Licence: free under 1M MAU, but NOT licensed in the EU, UK or South Korea.",
+      "weights": ["hunyuan21", "dinov2-giant", "realesrgan-x4", "u2net"]
+    },
+    "hunyuan2mv": {
+      "name": "Tencent Hunyuan3D 2mv (shape from front/left/back photos) + 2.1 PBR paint",
+      "does": ["multiview-to-3d", "pbr-texture"],
+      "worker": "hunyuan", "venv": "hy",
+      "vram_gb": 29,
+      "quality": "Use when you have several views of the same object (front, left, back, right): the most faithful shapes.",
+      "licence": "Tencent Hunyuan Community Licence (same territory limits as 2.1).",
+      "weights": ["hunyuan2mv", "hunyuan21", "dinov2-giant", "realesrgan-x4", "u2net"]
+    },
+    "hunyuan2turbo": {
+      "name": "Tencent Hunyuan3D 2.0 Turbo + FlashVDM (fast drafts) + 2.1 PBR paint",
+      "does": ["image-to-3d", "pbr-texture"],
+      "worker": "hunyuan", "venv": "hy",
+      "vram_gb": 24,
+      "quality": "About 5x faster shape step. Good for blocking out lots of props quickly.",
+      "licence": "Tencent Hunyuan Community Licence (same territory limits as 2.1).",
+      "weights": ["hunyuan2", "hunyuan21", "dinov2-giant", "realesrgan-x4", "u2net"]
+    },
+    "trellis2": {
+      "name": "Microsoft TRELLIS.2 4B (shape + PBR in one pass)",
+      "does": ["image-to-3d", "pbr-texture"],
+      "worker": "trellis2", "venv": "tr2",
+      "vram_gb": 24,
+      "quality": "Very high resolution geometry (up to 1536^3 voxels) with PBR. MIT licence, fine everywhere.",
+      "licence": "MIT (helper models: DINOv3 under Meta's DINOv3 licence, BiRefNet MIT).",
+      "weights": ["trellis2"]
+    },
+    "triposg": {
+      "name": "VAST TripoSG 1.5B (sharp shape) + Hunyuan3D 2.1 PBR paint",
+      "does": ["image-to-3d", "pbr-texture"],
+      "worker": "hunyuan", "venv": "hy",
+      "vram_gb": 29,
+      "quality": "Crisp hard-surface geometry (furniture, machines, signs). Shape is MIT; paint step is Hunyuan.",
+      "licence": "MIT shape; Hunyuan Community Licence for the paint step.",
+      "weights": ["triposg", "hunyuan21", "dinov2-giant", "realesrgan-x4", "u2net"]
+    }
+  },
+
+  "text_to_image": {
+    "flux-schnell": {
+      "name": "FLUX.1 [schnell] (text to reference image, 4 steps)",
+      "worker": "hunyuan", "venv": "hy",
+      "licence": "Apache 2.0",
+      "weights": ["flux-schnell"],
+      "prompt_template": "{prompt}. Single object, whole object in frame, centred, three-quarter front view, photorealistic product photograph, physically accurate materials, soft even studio lighting, plain pure white background, no shadow, no text, no people"
+    }
+  },
+
+  "default_pipeline": "hunyuan21",
+  "default_text_to_image": "flux-schnell",
+
+  "weights": {
+    "hunyuan21":     {"hf": "tencent/Hunyuan3D-2.1", "include": ["hunyuan3d-dit-v2-1/*", "hunyuan3d-vae-v2-1/*", "hunyuan3d-paintpbr-v2-1/*"], "link_hy3dgen": true, "ms": "Tencent-Hunyuan/Hunyuan3D-2.1", "gb": 15},
+    "hunyuan2mv":    {"hf": "tencent/Hunyuan3D-2mv", "include": ["hunyuan3d-dit-v2-mv/*", "hunyuan3d-dit-v2-mv-turbo/*", "hunyuan3d-vae-v2-0/*", "hunyuan3d-vae-v2-0-turbo/*"], "link_hy3dgen": true, "gb": 9},
+    "hunyuan2":      {"hf": "tencent/Hunyuan3D-2", "include": ["hunyuan3d-dit-v2-0-turbo/*", "hunyuan3d-vae-v2-0-turbo/*", "hunyuan3d-vae-v2-0/*"], "link_hy3dgen": true, "gb": 8},
+    "dinov2-giant":  {"hf": "facebook/dinov2-giant", "include": ["*.json", "*.safetensors"], "gb": 4.5},
+    "realesrgan-x4": {"url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth", "to": "ckpt/RealESRGAN_x4plus.pth", "gb": 0.07},
+    "u2net":         {"url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx", "to": "u2net/u2net.onnx", "gb": 0.17},
+    "triposg":       {"hf": "VAST-AI/TripoSG", "gb": 6},
+    "trellis2":      {"hf": "microsoft/TRELLIS.2-4B", "follow_pipeline_json": true, "gated_helpers": ["facebook/dinov3-vitl16-pretrain-lvd1689m"], "gb": 18},
+    "flux-schnell":  {"hf": "black-forest-labs/FLUX.1-schnell", "include": ["*.json", "*.txt", "model_index.json", "scheduler/*", "text_encoder/*", "text_encoder_2/*", "tokenizer/*", "tokenizer_2/*", "transformer/*", "vae/*"], "gb": 34}
+  }
+}

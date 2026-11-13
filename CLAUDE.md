@@ -27,3 +27,10 @@ The game's error engine (`Web/game/error-engine.js`, plus the "error engine" sec
 - Engine: `Engine/src` (Shigoto). After changing it, run `node Engine/build.mjs` and commit `Web/engine/shigoto.js`.
 - Realistic cast: `Web/people/real` with its `index.json`.
 - Levels: edit `Web/levels/<name>/src`, then run `node Engine/tools/bake-level.mjs <name>`.
+
+## Model Forge (making 3D models)
+
+When Duncan asks for a new model (prop, furniture, vehicle part, building piece), make it with our own GPU, not Meshy/Tripo:
+`gh workflow run forge.yml --ref claude/friendly-cannon-alnk4v -f action=make -f prompt="<one object, material, age>" -f id=<snake_id> -f size=height=<m>`
+(or `action=batch` with a spec in `Tools/forge/requests/`). It commits `Web/props/<id>.glb` + `props/index.json` after the AAA gate.
+Locally: `python3 Tools/forge/forge.py make ...`. Docs: `Tools/forge/README.md`. Test without a GPU: `python3 Tools/forge/test_forge.py`.

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Model Forge</title>
+<script type="module" src="https://unpkg.com/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+:root{--bg:#f6f5f2;--fg:#1c1c1c;--mut:#6b6b6b;--card:#fff;--line:#dedbd4;--acc:#b33a2b}
+@media (prefers-color-scheme:dark){:root{--bg:#141414;--fg:#ececec;--mut:#9a9a9a;--card:#1d1d1d;--line:#333;--acc:#e0644f}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px}h1{font-size:22px;margin:0 0 4px}p.sub{color:var(--mut);margin:0 0 18px}
+.grid{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:16px}@media(max-width:800px){.grid{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+label{display:block;font-size:13px;color:var(--mut);margin:10px 0 4px}input,select,textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font:inherit}
+textarea{min-height:80px}.row{display:flex;gap:8px}.row>*{flex:1}button{margin-top:14px;width:100%;padding:10px;border:0;border-radius:6px;background:var(--acc);color:#fff;font-weight:600;cursor:pointer}
+model-viewer{width:100%;height:420px;background:var(--bg);border-radius:8px}.jobs{margin-top:12px;font-size:13px}.jobs div{padding:6px 0;border-top:1px solid var(--line);cursor:pointer}
+pre{white-space:pre-wrap;font-size:12px;max-height:200px;overflow:auto;color:var(--mut)}.st{font-weight:600}
+</style>
+</head>
+<body>
+<main>
+<h1>Model Forge</h1>
+<p class="sub">Open-weight 3D generators running on our own GPU. Describe a prop or drop in photos (front, left, back, right).</p>
+<div class="grid">
+<div class="card">
+  <label>Token</label><input id="tok" type="password" placeholder="FORGE_TOKEN">
+  <label>Describe it</label><textarea id="prompt" placeholder="a weathered Japanese drink vending machine, 2020s, white body"></textarea>
+  <label>…or photos (first = front)</label><input id="files" type="file" accept="image/*" multiple>
+  <div class="row"><div><label>Model</label><select id="pipeline"></select></div><div><label>Name</label><input id="name" placeholder="vending_drinks_02"></div></div>
+  <div class="row"><div><label>Faces</label><input id="faces" type="number" value="60000"></div><div><label>Seed</label><input id="seed" type="number" value="1234"></div></div>
+  <button id="go">Make it</button>
+  <div class="jobs" id="jobs"></div>
+</div>
+<div class="card">
+  <div><span class="st" id="state">No job selected</span> <span id="links"></span></div>
+  <model-viewer id="mv" camera-controls auto-rotate shadow-intensity="1" exposure="1" environment-image="neutral"></model-viewer>
+  <pre id="log"></pre>
+</div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let cur=null;
+try{$('tok').value=localStorage.getItem('forgeTok')||new URLSearchParams(location.search).get('token')||''}catch(e){}
+const H=()=>({'Authorization':'Bearer '+$('tok').value,'Content-Type':'application/json'});
+const q=p=>p+(p.includes('?')?'&':'?')+'token='+encodeURIComponent($('tok').value);
+async function api(p,o){const r=await fetch(p,Object.assign({headers:H()},o||{}));if(!r.ok)throw new Error(await r.text());return r.json()}
+async function models(){try{const m=await api('/models');$('pipeline').innerHTML=Object.entries(m.models).filter(([k,v])=>v.does).map(([k,v])=>`<option value="${k}" ${k==m.default?'selected':''}>${v.name}${v.installed?'':' (downloads '+v.download_gb+' GB first)'}</option>`).join('')}catch(e){$('state').textContent='Enter the token'}}
+async function jobs(){try{const l=await api('/jobs');$('jobs').innerHTML=l.map(j=>`<div data-id="${j.id}">${j.state} · ${j.name} · ${j.pipeline}</div>`).join('');[...$('jobs').children].forEach(d=>d.onclick=()=>{cur=d.dataset.id;poll()})}catch(e){}}
+async function poll(){if(!cur)return;const j=await api('/jobs/'+cur);$('state').textContent=j.state+' · '+j.name+(j.error?' · '+j.error.slice(0,200):'');$('log').textContent=j.log||'';
+ const f=j.files||[];$('links').innerHTML=f.map(x=>`<a href="${q('/jobs/'+cur+'/files/'+x)}">${x}</a>`).join(' ');
+ if(f.includes('model.glb')&&$('mv').dataset.job!==cur){$('mv').src=q('/jobs/'+cur+'/files/model.glb');$('mv').dataset.job=cur}
+ if(!['done','failed'].includes(j.state))setTimeout(poll,4000);else jobs()}
+const b64=f=>new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(',')[1]);fr.readAsDataURL(f)});
+$('go').onclick=async()=>{try{localStorage.setItem('forgeTok',$('tok').value)}catch(e){}
+ const files=[...$('files').files],views=['front','left','back','right'];
+ const body={prompt:$('prompt').value,pipeline:$('pipeline').value,name:$('name').value,faces:+$('faces').value,seed:+$('seed').value,images:await Promise.all(files.map(async(f,i)=>({view:views[i]||'front',data:await b64(f)})))};
+ if(body.images.length>1&&body.pipeline==='hunyuan21')body.pipeline='hunyuan2mv';
+ try{const r=await api('/jobs',{method:'POST',body:JSON.stringify(body)});cur=r.id;$('mv').removeAttribute('src');poll();jobs()}catch(e){$('state').textContent=e.message}};
+$('tok').onchange=()=>{models();jobs()};models();jobs();
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+  "about": "A batch for the Model Forge: every entry becomes Web/props/<id>.glb. Run: gh workflow run forge.yml -f action=batch -f spec=Tools/forge/requests/example.json. Fields: id, prompt and/or images (https URLs or paths relative to this file, front/left/back/right), height|width|length in metres, yaw (degrees to turn its front to +Z), pipeline, faces, seed.",
+  "models": [
+    {"id": "vending_drinks_forge_01", "prompt": "a white Japanese outdoor drink vending machine, rows of illuminated plastic bottle dummies, coin slot, slightly weathered, rain streaks", "height": 1.83},
+    {"id": "bin_burnable_forge_01", "prompt": "a grey plastic Japanese street rubbish bin with a burnable-waste sticker, scuffed", "height": 0.9},
+    {"id": "bicycle_mamachari_forge_01", "prompt": "a silver Japanese mamachari city bicycle with a front wire basket and kickstand, used", "length": 1.75, "pipeline": "triposg"}
+  ]
+}
