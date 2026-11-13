@@ -1,6 +1,6 @@
 # Model Forge: make game models with our own GPU (Tools/forge, docs in Tools/forge/README.md).
 #
-#   deploy     build the GPU image and deploy the forge to Modal (needs MODAL_TOKEN_ID + MODAL_TOKEN_SECRET; FORGE_TOKEN; HF_TOKEN optional)
+#   deploy     build the GPU image and deploy the forge to Modal (needs the MODAL_TOKEN_ID + MODAL_TOKEN_SECRET secrets; FORGE_TOKEN and HF_TOKEN optional)
 #   download   fetch model weights onto the forge's own volume (CPU only, no GPU billed)
 #   make       one model from a description and/or image URLs  -> Web/props/<id>.glb, committed to `branch`
 #   batch      every model in a JSON spec file in the repo        -> Web/props, committed to `branch`
@@ -79,9 +79,9 @@ jobs:
     env:
       MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
       MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
-      FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
+      SECRET_FORGE_TOKEN: ${{ secrets.FORGE_TOKEN }}
+      SECRET_FORGE_URL: ${{ secrets.FORGE_URL }}
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      FORGE_URL: ${{ secrets.FORGE_URL }}
       FORGE_GPU: ${{ inputs.gpu }}
     steps:
       - uses: actions/checkout@v4
@@ -99,6 +99,17 @@ jobs:
       - name: Check the setup
         run: |
           miss=""
+          FORGE_TOKEN=$SECRET_FORGE_TOKEN
+          FORGE_URL=$SECRET_FORGE_URL
+          if [ -n "$FORGE_TOKEN" ]; then echo "FORGE_TOKEN=$FORGE_TOKEN" >> "$GITHUB_ENV"; fi
+          if [ -n "$FORGE_URL" ]; then echo "FORGE_URL=$FORGE_URL" >> "$GITHUB_ENV"; fi
+          if [ -z "$FORGE_TOKEN" ] && [ -n "$MODAL_TOKEN_SECRET" ]; then
+            # no FORGE_TOKEN secret: derive a stable one from the Modal secret (same value in every run, never printed)
+            t=$(python -c "import hmac,hashlib,os;print(hmac.new(os.environ['MODAL_TOKEN_SECRET'].encode(),b'salaryman-forge',hashlib.sha256).hexdigest())")
+            echo "::add-mask::$t"
+            echo "FORGE_TOKEN=$t" >> "$GITHUB_ENV"
+            FORGE_TOKEN=$t
+          fi
           [ -n "$FORGE_TOKEN" ] || miss="$miss FORGE_TOKEN"
           if [ -z "$FORGE_URL" ] || [ "${{ inputs.action }}" = deploy ] || [ "${{ inputs.action }}" = download ]; then
             [ -n "$MODAL_TOKEN_ID" ] || miss="$miss MODAL_TOKEN_ID"
@@ -116,11 +127,11 @@ jobs:
           [ -n "$HF_TOKEN" ] && args="$args HF_TOKEN=$HF_TOKEN"
           modal secret create salaryman-forge $args --force
           modal deploy Tools/forge/deploy/modal_app.py
-          echo "Forge address: $FORGE_URL" | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Find the forge on Modal
-        if: env.FORGE_URL == '' && inputs.action != 'download'
+        if: inputs.action != 'download'
         run: |
+          [ -z "$FORGE_URL" ] || exit 0
           url=$(python - <<'EOF'
           import modal
           f = modal.Function.from_name("salaryman-forge", "serve")
@@ -132,6 +143,7 @@ jobs:
           )
           [ -n "$url" ] || { echo "::error::The forge is not deployed on Modal yet: run this workflow with action=deploy first."; exit 1; }
           echo "FORGE_URL=$url" >> "$GITHUB_ENV"
+          echo "Forge address: $url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Download weights
         if: inputs.action == 'download' || inputs.action == 'deploy'

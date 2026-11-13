@@ -50,7 +50,9 @@ around 10-15 cents each. Modal's Starter plan includes monthly free credit.
 
 1. Make a Modal account, then **Settings > API Tokens > New Token**. Copy the token id and secret.
 2. In GitHub: **physicstheory/salaryman > Settings > Secrets and variables > Actions > New repository secret**, add
-   `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. (`FORGE_TOKEN`, the password between GitHub and the forge, is already set.)
+   `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`. That is all the workflow needs: the password between GitHub and the forge is
+   derived from the Modal secret. To use the forge's web page yourself, also add a `FORGE_TOKEN` secret of your own choosing
+   (any long random string) and deploy again; that string is then the page's token.
 3. Optional, for TRELLIS.2 only: accept the licence on the `facebook/dinov3-vitl16-pretrain-lvd1689m` model page and add a
    read token as `HF_TOKEN`.
 4. Run **Actions > Model Forge > Run workflow** with `action = deploy` (or ask Claude). The first deploy builds the GPU image
