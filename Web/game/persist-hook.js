@@ -36,16 +36,33 @@
   const WHOLE = !/[?&]wholemap=0\b/.test(location.search) && (navigator.deviceMemory || 8) >= 8;
   const FRONT = { draw: 0, gpu: 900, upload: 0, released: 0, back: 0 };   // metres: kept detail further than `gpu` and hidden leaves the card
   window.persistWhole = WHOLE;
-  // Memory for the whole map, by tier. Every building except the designed houses now costs about 40 KB (instanced boxes), so all ~5,000 of
-  // them fit in a few hundred MB on any tier; the ~10,000 designed houses (about 250 KB each) fill what is left, nearest the story first,
-  // and on a machine that cannot hold them all the rest are built in a ring well outside what you can see, so none is built in sight.
-  // After a driver reset (safe graphics) or on integrated graphics the budget is smaller: their memory is the graphics card's memory too.
-  function wholeBudget() {
-    const B = { low: 1.3e9, medium: 2.2e9, high: 3.4e9, ultra: 4.4e9 };
-    let b = B[gfx.tier] || B.medium;
-    if (gfx.lean || (window.GFX_SAFE && GFX_SAFE.level)) b = Math.min(b, 0.8e9);
-    return b;
+  // Memory for the whole map. Every building except the designed houses now costs about 40 KB (instanced boxes), so all ~5,000 of them fit
+  // in a few hundred MB; the ~10,000 designed houses (about 250 KB each) fill what is left, nearest the story first, and on a machine that
+  // cannot hold them all the rest are built in a ring well outside what you can see, so none is built in sight.
+  // The hard limit is the page's JS heap (4 GB in the desktop build), and typed arrays count against it: the budget is at most a third of
+  // the heap still free when the load starts, whatever the tier. Integrated graphics (Intel Iris/UHD, AMD APUs) share the machine's memory
+  // with the card, and a driver reset or a crashed page there was the result of asking for too much, so they get the small budget.
+  function integratedGPU() {
+    try {
+      const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info");
+      const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+      return /intel|iris|uhd|hd graphics|radeon\(tm\) (vega|graphics)|radeon graphics|vega \d|swiftshader|llvmpipe|microsoft basic/i.test(name) && !/arc/i.test(name);
+    } catch (e) { return false; }
   }
+  function heapFree() {
+    try { const m = performance.memory; if (m && m.jsHeapSizeLimit) return m.jsHeapSizeLimit - m.usedJSHeapSize; } catch (e) { /* not chromium */ }
+    return 3e9;
+  }
+  function wholeBudget() {
+    const B = { low: 1.0e9, medium: 1.4e9, high: 1.8e9, ultra: 2.2e9 };
+    let b = B[gfx.tier] || B.medium;
+    if (gfx.lean || (window.GFX_SAFE && GFX_SAFE.level) || integratedGPU()) b = Math.min(b, 0.6e9);
+    return Math.max(250e6, Math.min(b, heapFree() / 3));
+  }
+  // past this share of the heap, nothing more is built ahead and the farthest hidden detail is let go (persistFront)
+  const HEAP_HIGH = 0.72;
+  const heapHigh = () => { try { const m = performance.memory; return !!(m && m.jsHeapSizeLimit && m.usedJSHeapSize > m.jsHeapSizeLimit * HEAP_HIGH); } catch (e) { return false; } };
+  window.persistHeapHigh = heapHigh;
   // how far from the camera kept detail stays on the graphics card: smaller on weak or integrated graphics
   FRONT.gpu = gfx && (gfx.lean || gfx.tier === "low") ? 650 : gfx && gfx.tier === "medium" ? 800 : 1000;
 
@@ -100,7 +117,8 @@
     let fin;
     warming = new Promise(r => { fin = r; });
     try {
-      const lean = typeof gfx !== "undefined" && (gfx.lean || gfx.tier === "low");
+      const igpu = integratedGPU();
+      const lean = typeof gfx !== "undefined" && (gfx.lean || gfx.tier === "low") || igpu;
       let limits = Object.assign(lean ? { programs: 3, texBytes: 24e6, tris: 150e3, items: 250 } : {}, window.GFX_SAFE && GFX_SAFE.level ? { programs: 2, texBytes: 12e6, tris: 80e3, items: 120, targetMs: 60, maxMs: 200 } : {}, opts.limits || {});
       let r = null;
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -109,7 +127,8 @@
         // video memory for textures, by tier (halved after a driver reset); the nearest things to where the story starts go first
         const VRAM = { low: 450e6, medium: 800e6, high: 1300e6, ultra: 2000e6 };
         const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
-        const texBudget = opts.texBudget || (safe ? 160e6 : (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1));
+        // integrated graphics: its video memory is the machine's own, shared with the page, so the warm-up asks for little
+        const texBudget = opts.texBudget || (safe ? 160e6 : Math.min(igpu ? 300e6 : Infinity, (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1)));
         const A = [[camera.position.x, camera.position.z]].concat(anchors()), _w = new THREE.Vector3();   // what the camera sees first (the title's view of the capital)
         const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
         // kept buildings far from every place the story starts stay off the card until you get near them (persistFront below)
@@ -270,6 +289,7 @@
         if ((i & 15) === 0) ctx.progress(WHOLE ? i / ranked.length : Math.min(1, detail.bytes / stopAt));
         await ctx.slice();
         if (detail.bytes > stopAt) { stopped = "memory budget"; break; }
+        if ((i & 63) === 0 && heapHigh()) { stopped = "heap"; break; }
       }
       facts.detailBuilt = detail.size;
       return { built, of: all.length, mb: +(detail.bytes / 1e6).toFixed(0), whole: WHOLE, stopped };
@@ -571,7 +591,7 @@
       // In play every batch waits for the performance engine (perf-hook.js): it runs straight after a frame that had room to spare and no
       // hitch for the last 45 frames, and is small (one new shader at most, 4 MB of texture), so the upload never becomes the stutter.
       const KP = window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF : null;
-      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : Infinity,
+      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : integratedGPU() ? 700e6 : Infinity,
         limits: KP ? { programs: 1, texBytes: safe ? 3e6 : 4e6, tris: 30e3, items: 24, targetMs: 6, maxMs: 24 } : { programs: 1, texBytes: safe ? 6e6 : 12e6, tris: 60e3, items: 80, targetMs: 30, maxMs: 120 },
         between: KP ? () => KP.idle({ headroom: 0.35, quiet: 45 }) : null })
         .then(r => { if (r && !r.stopped) { bgResume = null; console.log("[Konto] background upload done:", r.objects, "meshes,", r.texMb, "MB"); } }, () => {});
@@ -590,6 +610,8 @@
     const d = PERSIST.keep && PERSIST.detail;
     if (!d) return;
     const far = FRONT.gpu * FRONT.gpu;
+    // the page's heap running high: the farthest hidden detail goes (it is built again, out of sight, if you come back)
+    if (heapHigh()) { const was = d.budget; d.budget = Math.min(d.budget, d.bytes * 0.85); d.enforce(cx, cz); d.budget = was; FRONT.trimmed = (FRONT.trimmed || 0) + 1; }
     let n = 0;
     for (const [b, e] of d.map) {
       const g = e.obj;

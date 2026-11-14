@@ -14661,7 +14661,7 @@ function detailTick() {
     const b = near[i][1], kept = keep && keep.get(b);
     if (kept) { kept.visible = true; kept.userData.onCard = true; DETAIL.active.set(b, kept); detailRoof(b, false); continue; }       // already built: showing it again costs nothing
     if (made && performance.now() - t0 > lim) break;
-    if (near[i][0] >= R) { const g = detailMake(b); g.visible = false; g.userData.onCard = false; made++; if (performance.now() - t0 > lim) break; continue; }   // ahead of you: built, kept, hidden
+    if (near[i][0] >= R) { if (window.persistHeapHigh && persistHeapHigh()) continue; const g = detailMake(b); g.visible = false; g.userData.onCard = false; made++; if (performance.now() - t0 > lim) break; continue; }   // ahead of you: built, kept, hidden
     const g = detailMake(b); DETAIL.active.set(b, g); detailRoof(b, false); made++;
     if (performance.now() - t0 > lim) break;
   }
