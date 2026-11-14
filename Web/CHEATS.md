@@ -81,6 +81,7 @@ Every model on the road has a cheat of its own, by its name:
 | CHEATLIST | 5550190 | show every code |
 | REFRESH | 5550199 | get the latest version of the game (same as F9) |
 | FORGE | 5553674 | put the next model made by the Model Forge (Tools/forge) in front of you |
+| LANDMARK | 5550999 | go to the next countryside landmark (lighthouses, shrines, lookouts, farms, campgrounds, roadside stations) |
 
 From the browser console, `cheat("roadster")` does the same.
 

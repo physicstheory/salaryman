@@ -3921,6 +3921,7 @@ function makeWorld(seed, report) {
   planLinks(world);
   planSki(world);
   planAirports(world);
+  planCountry(world);
   planDestinations(world);
   return world;
 }
@@ -3984,6 +3985,84 @@ function planLinks(world) {
     const out = []; for (let v = li(g0[0], g0[1]); v >= 0; v = from[v]) { out.push([(v % W + x0) * CELL, (Math.floor(v / W) + z0) * CELL]); if (v === li(s0[0], s0[1])) break; }
     return out.reverse();
   };
+  // One country road, from a start out to the network: the route, its profile, the bed cut into the ground and the record. The roads out of the
+  // towns are laid with it here, and planCountry lays the roads to the airfields, the ski lifts, the hot springs and the landmarks with it too.
+  const linkJoins = [];
+  const lay = (c, start, lean, opts) => {
+    opts = opts || {};
+    // the nearest place the expressway is at grade, leaning the way the road was going...
+    let bi = -1, bd = 1e30;
+    for (const i of joins) { const q = hwy.pts[i], d = Math.hypot(q[0] - lean[0], q[2] - lean[2]) + Math.hypot(q[0] - start[0], q[2] - start[2]) * 0.5; if (d < bd) { bd = d; bi = i; } }
+    // ...or a country road already laid, when that is the shorter way: two roads out of one town no longer run side by side to the coast
+    let lj = null; { let ld = bd * 0.8; for (const q of linkJoins) { if (Math.hypot(q[0] - start[0], q[2] - start[2]) < 160) continue; const d = Math.hypot(q[0] - lean[0], q[2] - lean[2]) + Math.hypot(q[0] - start[0], q[2] - start[2]) * 0.5; if (d < ld) { ld = d; lj = q; } } if (lj) { bd = ld; bi = -1; } }
+    if ((bi < 0 && !lj) || bd > (opts.reach || 6000)) return null;
+    let goal, pts, side = 0;
+    // (a road stops at the first country road it meets: the search likes a bed that is already cut, and without this it ran along on top of it)
+    const meet = path => { for (let i = 2; i < path.length - 1; i++) { if (Math.hypot(path[i][0] - start[0], path[i][1] - start[2]) < 160) continue; const hit = linkJoins.find(q => Math.hypot(q[0] - path[i][0], q[2] - path[i][1]) < 22); if (hit) return [i, hit]; } return null; };
+    const lead0 = lj ? null : (() => { const g = hwy.pts[bi], ta = hwy.pts[(bi - 1 + hwy.pts.length) % hwy.pts.length], tb = hwy.pts[(bi + 1) % hwy.pts.length]; let tx = tb[0] - ta[0], tz = tb[2] - ta[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl; const sd = Math.sign((start[0] - g[0]) * -tz + (start[2] - g[2]) * tx) || 1; return [g[0] - tz * sd * (hwy.hw + 40), g[2] + tx * sd * (hwy.hw + 40)]; })();
+    const path0 = lj ? route(start[0], start[2], lj[0], lj[2]) : route(start[0], start[2], lead0[0], lead0[1]);
+    if (!path0 || path0.length < 2) return null;
+    const hit = meet(path0);
+    if (hit) { lj = hit[1]; bi = -1; }
+    if (lj) {
+      goal = lj;
+      const path = hit ? path0.slice(0, hit[0] + 1) : path0.slice(0, -1);
+      pts = [[start[0], start[2]]].concat(path.slice(1)).concat([[goal[0], goal[2]]]);
+    } else {
+      goal = hwy.pts[bi];
+      // come in square to the expressway: the last stretch runs straight out from its edge
+      const ta = hwy.pts[(bi - 1 + hwy.pts.length) % hwy.pts.length], tb = hwy.pts[(bi + 1) % hwy.pts.length];
+      let tx = tb[0] - ta[0], tz = tb[2] - ta[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
+      side = Math.sign((start[0] - goal[0]) * -tz + (start[2] - goal[2]) * tx) || 1;
+      const nx = -tz * side, nz = tx * side, edge = [goal[0] + nx * (hwy.hw + 0.3), goal[2] + nz * (hwy.hw + 0.3)], lead = [goal[0] + nx * (hwy.hw + 40), goal[2] + nz * (hwy.hw + 40)];
+      pts = [[start[0], start[2]]].concat(path0.slice(1, -1)).concat([lead, edge]);
+    }
+    // take the grid's zig-zag out of it, then round the corners off, keeping both ends where they are
+    if (pts.length > 9) for (let it = 0; it < 2; it++) pts = pts.map((q, i) => { if (i < 2 || i > pts.length - 3) return q; let sx = 0, sz = 0; for (let k = -2; k <= 2; k++) { sx += pts[i + k][0]; sz += pts[i + k][1]; } return [sx / 5, sz / 5]; });
+    for (let it = 0; it < 3; it++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (i > 0) o.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]); if (i < pts.length - 2) o.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } o.push(pts[pts.length - 1]); pts = o; }
+    const res = [pts[0]];
+    for (let i = 1; i < pts.length; i++) { const a = res[res.length - 1], d = Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); if (d >= LINK.step || i === pts.length - 1) res.push(pts[i]); }
+    // the profile: the ground, smoothed, held to a grade, pinned to the town at one end and the expressway at the other
+    const n = res.length, gnd = res.map(q => world.sampleHeight(q[0], q[1]));
+    let prof = gnd.map(h => Math.max(h, 1.8));
+    for (let pass = 0; pass < 4; pass++) prof = prof.map((_, i) => { let s = 0, m = 0; for (let q = -4; q <= 4; q++) { const j = clamp(i + q, 0, n - 1); s += prof[j]; m++; } return s / m; });
+    prof[0] = start[1]; prof[n - 1] = goal[1] + 0.02;
+    for (let pass = 0; pass < 4; pass++) {
+      for (let i = 1; i < n; i++) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i - 1][0], res[i][1] - res[i - 1][1]); prof[i] = clamp(prof[i], prof[i - 1] - gm, prof[i - 1] + gm); }
+      for (let i = n - 2; i >= 0; i--) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i + 1][0], res[i][1] - res[i + 1][1]); prof[i] = clamp(prof[i], prof[i + 1] - gm, prof[i + 1] + gm); }
+      // (both ends are fixed; when the grade limit cannot bring them together the difference is spread along the road, not left as a step at the end)
+      { const d0 = start[1] - prof[0], d1 = goal[1] + 0.02 - prof[n - 1]; for (let i = 0; i < n; i++) { const t = n > 1 ? i / (n - 1) : 0; prof[i] += d0 * (1 - t) + d1 * t; } }
+    }
+    // cut it into the ground, as the expressway was: the bed level with the road, the verges blended out to the hillside
+    const bedR = LINK.hw + 2.5, edgeR = LINK.hw + 22, bestD = new Map();
+    for (let s = 0; s < n; s++) {
+      const px = res[s][0], pz = res[s][1];
+      for (let z = Math.max(0, Math.floor((pz - edgeR) / CELL)); z <= Math.min(GZ - 1, Math.ceil((pz + edgeR) / CELL)); z++)
+        for (let x = Math.max(0, Math.floor((px - edgeR) / CELL)); x <= Math.min(GX - 1, Math.ceil((px + edgeR) / CELL)); x++) {
+          const d = Math.hypot(x * CELL - px, z * CELL - pz), i = at(x, z), cur = bestD.get(i);
+          if (!cur || d < cur[0]) bestD.set(i, [d, prof[s]]);
+        }
+    }
+    const inAnyTown = (x, z) => world.cities.some(cc => cc.bounds && cc.footprint && x > cc.bounds.x0 && x < cc.bounds.x1 && z > cc.bounds.z0 && z < cc.bounds.z1 && cc.footprint(x, z) > 0.12);
+    // (the expressway cut its own bed: within reach of it the ground is only ever taken down, never built up through its deck)
+    const hwyD = (x, z) => { let m = 1e9; if (bi < 0) return m; for (let q = Math.max(0, bi - 40); q < Math.min(hwy.pts.length, bi + 40); q++) { const a = hwy.pts[q], b = hwy.pts[(q + 1) % hwy.pts.length]; m = Math.min(m, distToSeg(x, z, a[0], a[2], b[0], b[2])); } return m; };
+    bestD.forEach(([d, y], i) => {
+      if (d >= edgeR || H[i] < 0.6) return;
+      const x = (i % GX) * CELL, z = Math.floor(i / GX) * CELL; if (inAnyTown(x, z)) return;
+      if (hwyD(x, z) < hwy.hw + 30) { H[i] = Math.min(H[i], lerp(H[i], y - 0.12, 1 - sstep(bedR, edgeR, d))); return; }
+      const wgt = 1 - sstep(bedR, edgeR, d);
+      H[i] = lerp(H[i], y - 0.12, wgt);
+      if (world.river[i] > 0 && wgt > 0.5) world.river[i] *= 1 - wgt;
+    });
+    const road = { pts: res.map((q, i) => [q[0], prof[i], q[1]]), halfWidth: LINK.hw, elevated: false, loop: false, link: true, name: opts.name || c.name + " Kaidō" }; if (opts.spur) road.spur = opts.spur;
+    c.roads.push(road); world.links.push({ city: c, road: road, hwyAt: bi, side: side });
+    if (bi >= 0) hwy.junctions.push({ i: bi, side: side });
+    // every stretch of it is a road the next one can end on
+    for (let i = 1; i < n; i++) segs.push([res[i - 1][0], res[i - 1][1], res[i][0], res[i][1], LINK.hw, road]);
+    for (let i = 8; i < n - 4; i += 2) linkJoins.push([res[i][0], prof[i], res[i][1]]);
+    return road;
+  };
+  world._layLink = hwy && joins.length ? lay : null;
   let joined = 0, linked = 0;
   world.cities.forEach(c => {
     if (!c.bounds || !c.footprint) return;
@@ -4011,64 +4090,157 @@ function planLinks(world) {
         if (k < 0) continue;
         if (end) { if (k < 1) continue; r.pts = P.slice(0, k + 1); if (r.profile) r.profile = r.profile.slice(0, k + 1); } else { if (k > P.length - 2) continue; r.pts = P.slice(k); if (r.profile) r.profile = r.profile.slice(k); }
         const start = end ? r.pts[r.pts.length - 1] : r.pts[0];
-        // ...and on to the nearest place the expressway is at grade, leaning the way the road was going
-        let bi = -1, bd = 1e30;
-        for (const i of joins) { const q = hwy.pts[i], d = Math.hypot(q[0] - p[0], q[2] - p[2]) + Math.hypot(q[0] - start[0], q[2] - start[2]) * 0.5; if (d < bd) { bd = d; bi = i; } }
-        if (bi < 0 || bd > 6000) continue;
-        const goal = hwy.pts[bi];
-        // come in square to the expressway: the last stretch runs straight out from its edge
-        const ta = hwy.pts[(bi - 1 + hwy.pts.length) % hwy.pts.length], tb = hwy.pts[(bi + 1) % hwy.pts.length];
-        let tx = tb[0] - ta[0], tz = tb[2] - ta[2]; const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl;
-        let side = Math.sign((start[0] - goal[0]) * -tz + (start[2] - goal[2]) * tx) || 1;
-        const nx = -tz * side, nz = tx * side, edge = [goal[0] + nx * (hwy.hw + 0.3), goal[2] + nz * (hwy.hw + 0.3)], lead = [goal[0] + nx * (hwy.hw + 40), goal[2] + nz * (hwy.hw + 40)];
-        const path = route(start[0], start[2], lead[0], lead[1]);
-        if (!path || path.length < 2) continue;
-        let pts = [[start[0], start[2]]].concat(path.slice(1, -1)).concat([lead, edge]);
-        // round the corners off, keeping both ends where they are
-        for (let it = 0; it < 3; it++) { const o = [pts[0]]; for (let i = 0; i < pts.length - 1; i++) { const a = pts[i], b = pts[i + 1]; if (i > 0) o.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]); if (i < pts.length - 2) o.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } o.push(pts[pts.length - 1]); pts = o; }
-        const res = [pts[0]];
-        for (let i = 1; i < pts.length; i++) { const a = res[res.length - 1], d = Math.hypot(pts[i][0] - a[0], pts[i][1] - a[1]); if (d >= LINK.step || i === pts.length - 1) res.push(pts[i]); }
-        // the profile: the ground, smoothed, held to a grade, pinned to the town at one end and the expressway at the other
-        const n = res.length, gnd = res.map(q => world.sampleHeight(q[0], q[1]));
-        let prof = gnd.map(h => Math.max(h, 1.8));
-        for (let pass = 0; pass < 4; pass++) prof = prof.map((_, i) => { let s = 0, m = 0; for (let q = -4; q <= 4; q++) { const j = clamp(i + q, 0, n - 1); s += prof[j]; m++; } return s / m; });
-        prof[0] = start[1]; prof[n - 1] = goal[1] + 0.02;
-        for (let pass = 0; pass < 4; pass++) {
-          for (let i = 1; i < n; i++) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i - 1][0], res[i][1] - res[i - 1][1]); prof[i] = clamp(prof[i], prof[i - 1] - gm, prof[i - 1] + gm); }
-          for (let i = n - 2; i >= 0; i--) { const gm = LINK.maxGrade * Math.hypot(res[i][0] - res[i + 1][0], res[i][1] - res[i + 1][1]); prof[i] = clamp(prof[i], prof[i + 1] - gm, prof[i + 1] + gm); }
-          prof[0] = start[1]; prof[n - 1] = goal[1] + 0.02;
-        }
-        // cut it into the ground, as the expressway was: the bed level with the road, the verges blended out to the hillside
-        const bedR = LINK.hw + 2.5, edgeR = LINK.hw + 22, bestD = new Map();
-        for (let s = 0; s < n; s++) {
-          const px = res[s][0], pz = res[s][1];
-          for (let z = Math.max(0, Math.floor((pz - edgeR) / CELL)); z <= Math.min(GZ - 1, Math.ceil((pz + edgeR) / CELL)); z++)
-            for (let x = Math.max(0, Math.floor((px - edgeR) / CELL)); x <= Math.min(GX - 1, Math.ceil((px + edgeR) / CELL)); x++) {
-              const d = Math.hypot(x * CELL - px, z * CELL - pz), i = at(x, z), cur = bestD.get(i);
-              if (!cur || d < cur[0]) bestD.set(i, [d, prof[s]]);
-            }
-        }
-        const inAnyTown = (x, z) => world.cities.some(cc => cc.bounds && cc.footprint && x > cc.bounds.x0 && x < cc.bounds.x1 && z > cc.bounds.z0 && z < cc.bounds.z1 && cc.footprint(x, z) > 0.12);
-        // (the expressway cut its own bed: within reach of it the ground is only ever taken down, never built up through its deck)
-        const hwyD = (x, z) => { let m = 1e9; for (let q = Math.max(0, bi - 40); q < Math.min(hwy.pts.length, bi + 40); q++) { const a = hwy.pts[q], b = hwy.pts[(q + 1) % hwy.pts.length]; m = Math.min(m, distToSeg(x, z, a[0], a[2], b[0], b[2])); } return m; };
-        bestD.forEach(([d, y], i) => {
-          if (d >= edgeR || H[i] < 0.6) return;
-          const x = (i % GX) * CELL, z = Math.floor(i / GX) * CELL; if (inAnyTown(x, z)) return;
-          if (hwyD(x, z) < hwy.hw + 30) { H[i] = Math.min(H[i], lerp(H[i], y - 0.12, 1 - sstep(bedR, edgeR, d))); return; }
-          const wgt = 1 - sstep(bedR, edgeR, d);
-          H[i] = lerp(H[i], y - 0.12, wgt);
-          if (world.river[i] > 0 && wgt > 0.5) world.river[i] *= 1 - wgt;
-        });
-        const road = { pts: res.map((q, i) => [q[0], prof[i], q[1]]), halfWidth: LINK.hw, elevated: false, loop: false, link: true, name: c.name + " Kaidō" };
-        c.roads.push(road); world.links.push({ city: c, road: road, hwyAt: bi, side: side });
-        hwy.junctions.push({ i: bi, side: side });
-        // the end the road was cut from now starts the link, so it is joined
-        segs.push([start[0], start[2], res[1][0], res[1][1], LINK.hw, road]);
-        linked++;
+        if (lay(c, start, p)) linked++;
       }
     });
   });
   console.log("[Konto] roads out of town: " + linked + " country roads to the expressway, " + joined + " short ends joined in town");
+}
+
+// ---- the country ------------------------------------------------------------------------------------------------------------------------------
+// Measured against the big open-world maps, Konto's towns held up and its countryside did not: two thirds of the island was grass with an
+// expressway round the edge. Four airfields, three ski resorts and six hot springs stood in open fields with no road to any of them, the route
+// finder drew a straight line to them across the hills, and between the towns there was nothing to come across. So the country is planned
+// here, before anything is built: where the hot springs go, a set of landmarks (lighthouses on the capes, a wind farm, summit shrines, a
+// relay mast, lookouts, farms, campsites, roadside stations), an inland trunk road through the hill towns, and a country road to every one
+// of them that a road can reach. game/country-hook.js builds what stands at each place and what you can do there.
+const COUNTRY = {
+  cape: ["Shirasu", "Ōiwa", "Tatsumi", "Inubō"], hill: ["Kumotori", "Hinode", "Tengu", "Asama", "Myōjin", "Kasumi", "Ōgi", "Nokogiri"],
+  farm: ["Tanaka", "Aozora", "Komorebi", "Hinata", "Minori", "Inaho"], camp: ["Kawasemi", "Hotaru", "Mori no Ie", "Tanigawa"],
+  rest: ["Umikaze", "Sato no Eki", "Yūhi", "Shiokaze"],
+  // the same names as written on the signs
+  capeJp: ["白洲", "大岩", "巽", "犬吠"], hillJp: ["雲取", "日の出", "天狗", "浅間", "明神", "霞", "扇", "鋸"],
+  farmJp: ["田中", "青空", "木漏れ日", "日向", "実り", "稲穂"], campJp: ["川蝉", "蛍", "森の家", "谷川"],
+  restJp: ["海風", "里の駅", "夕日", "潮風"]
+};
+function planCountry(world) {
+  const lay = world._layLink, H = world.height, hAt = world.sampleHeight, GX = GRID_X, GZ = GRID_Z;
+  const sites = world.onsenSites = [], marks = world.landmarks = [];
+  // how far a spot is from the nearest road or line, from a grid of their points
+  const RG = 160, rgrid = new Map(), hgrid = new Map();
+  const rput = (g, x, z) => { const k = Math.floor(x / RG) + "," + Math.floor(z / RG); let l = g.get(k); if (!l) { l = []; g.set(k, l); } l.push(x, z); };
+  const rdist = (g, x, z, cap) => { let m = cap; const r = Math.ceil(cap / RG), ci = Math.floor(x / RG), cj = Math.floor(z / RG); for (let i = ci - r; i <= ci + r; i++) for (let j = cj - r; j <= cj + r; j++) { const l = g.get(i + "," + j); if (!l) continue; for (let k = 0; k < l.length; k += 2) { const d = Math.hypot(l[k] - x, l[k + 1] - z); if (d < m) m = d; } } return m; };
+  const roadPts = r => { if (!r.pts) return; for (let i = 0; i < r.pts.length; i++) { rput(rgrid, r.pts[i][0], r.pts[i][2]); if (i) { const a = r.pts[i - 1], b = r.pts[i], n = Math.floor(Math.hypot(b[0] - a[0], b[2] - a[2]) / 40); for (let k = 1; k <= n; k++) rput(rgrid, a[0] + (b[0] - a[0]) * k / (n + 1), a[2] + (b[2] - a[2]) * k / (n + 1)); } } };
+  if (world.highway) world.highway.pts.forEach(p => { rput(rgrid, p[0], p[2]); rput(hgrid, p[0], p[2]); });
+  world.cities.forEach(c => { c.roads.forEach(roadPts); (c.rails || []).forEach(roadPts); });
+  const townIn = (x, z, m) => world.cities.some(c => c.bounds && x > c.bounds.x0 - m && x < c.bounds.x1 + m && z > c.bounds.z0 - m && z < c.bounds.z1 + m && (!c.footprint || c.footprint(x, z) > 0.06 || (m > 0 && [[m, 0], [-m, 0], [0, m], [0, -m]].some(o => c.footprint(x + o[0], z + o[1]) > 0.06))));
+  const airIn = (x, z, m) => (world.airports || []).some(a => { const l = toRectLocal(x, z, a.cx, a.cz, a.yaw); return Math.abs(l[0]) < a.sx / 2 + m && l[1] > -90 - m && l[1] < a.sz - 90 + m; });
+  const skiIn = (x, z, m) => ((world.ski && world.ski.resorts) || []).some(r => distToSeg(x, z, r.summit[0], r.summit[1], r.base[0], r.base[1]) < m);
+  const taken = [];
+  const free = (x, z, r) => taken.every(t => Math.hypot(t[0] - x, t[1] - z) > t[2] + r);
+  const flat = (x, z, R, tol) => { const h = hAt(x, z); for (let k = 0; k < 8; k++) { const hh = hAt(x + Math.cos(k * 0.7854) * R, z + Math.sin(k * 0.7854) * R); if (Math.abs(hh - h) > tol || hh < 1.2) return false; } return true; };
+  const seaRound = (x, z, R) => { let n = 0; for (let k = 0; k < 16; k++) if (hAt(x + Math.cos(k * 0.3927) * R, z + Math.sin(k * 0.3927) * R) < 0.5) n++; return n; };
+  const open = (x, z) => x > 500 && z > 500 && x < WORLD_X - 500 && z < WORLD_Z - 500 && world.sampleLand(x, z) > 0.98 && world.sampleRiver(x, z) < 0.1;
+  // a level pad for something to stand on, eased back into the slope
+  const pad = (cx, cz, r0, r1) => {
+    const ph = hAt(cx, cz);
+    for (let z = Math.max(0, Math.floor((cz - r1) / CELL)); z <= Math.min(GZ - 1, Math.ceil((cz + r1) / CELL)); z++) for (let x = Math.max(0, Math.floor((cx - r1) / CELL)); x <= Math.min(GX - 1, Math.ceil((cx + r1) / CELL)); x++) {
+      const d = Math.hypot(x * CELL - cx, z * CELL - cz); if (d > r1) continue;
+      const i = z * GX + x; if (H[i] < 0.6) continue; H[i] = lerp(ph, H[i], sstep(r0, r1, d));
+    }
+    return ph;
+  };
+  // the best few of everything a test lets through, kept apart from each other and from whatever is already placed
+  const pick = (n, step, sep, test, clear) => {
+    const c = [];
+    for (let x = 600; x < WORLD_X - 600; x += step) for (let z = 600; z < WORLD_Z - 600; z += step) { if (!open(x, z)) continue; const s = test(x, z); if (s > -1e8) c.push([x, z, s + rnd(Math.round(x), Math.round(z), 5527) * 0.001]); }
+    c.sort((a, b) => b[2] - a[2]);
+    const out = [];
+    for (const q of c) { if (out.length >= n) break; if (out.every(o => Math.hypot(o[0] - q[0], o[1] - q[1]) > sep) && free(q[0], q[1], clear)) out.push(q); }
+    out.forEach(q => taken.push([q[0], q[1], clear]));
+    return out;
+  };
+  const NO = -1e9;
+  const downhill = (x, z) => { const gx = hAt(x + 8, z) - hAt(x - 8, z), gz = hAt(x, z + 8) - hAt(x, z - 8); return Math.atan2(-gx, -gz); };
+  const seaward = (x, z) => { let sx = 0, sz = 0; for (let k = 0; k < 16; k++) { const a = k * 0.3927; for (const R of [120, 260, 420]) if (hAt(x + Math.cos(a) * R, z + Math.sin(a) * R) < 0.5) { sx += Math.cos(a); sz += Math.sin(a); } } return Math.atan2(sx, sz); };
+  (world.airports || []).forEach(a => taken.push([a.cx, a.cz, Math.max(a.sx, a.sz) * 0.6]));
+  ((world.ski && world.ski.resorts) || []).forEach(r => { taken.push([r.base[0], r.base[1], 110]); taken.push([r.top[0], r.top[1], 110]); });
+
+  // ---- the hot springs: where buildOnsens used to look for them, chosen now so a road can be brought to the door
+  pick(6, 120, 1500, (x, z) => {
+    const h = hAt(x, z);
+    if (h < 70 || h > 640 || world.sampleUrban(x, z) > 0.004 || world.slopeAt(x, z) > 0.17 || !flat(x, z, 14, 3.6)) return NO;
+    if (rdist(rgrid, x, z, 90) < 90 || airIn(x, z, 120) || skiIn(x, z, 260) || townIn(x, z, 60)) return NO;
+    return rnd(Math.round(x), Math.round(z), 9411) * 80 + Math.min(h, 320) * 0.25;
+  }, 60).forEach((q, i) => { const yaw = downhill(q[0], q[1]); sites.push({ x: q[0], z: q[1], yaw: yaw, h: pad(q[0], q[1], 16, 44), name: ONSEN_NAMES[i % ONSEN_NAMES.length] }); });
+
+  // ---- the landmarks
+  const mark = (kind, q, name, jp, extra) => { const m = Object.assign({ id: kind + marks.filter(o => o.kind === kind).length, kind: kind, name: name, jp: jp, x: q[0], z: q[1], yaw: 0, y: 0 }, extra || {}); marks.push(m); return m; };
+  // lighthouses: headlands with the sea on most sides
+  pick(3, 100, 3200, (x, z) => {
+    const h = hAt(x, z); if (h < 5 || h > 80 || townIn(x, z, 500) || airIn(x, z, 150) || rdist(hgrid, x, z, 70) < 70) return NO;
+    const s = seaRound(x, z, 260) + seaRound(x, z, 420) * 0.6; if (s < 8.5 || !flat(x, z, 12, 5)) return NO;
+    return s + Math.min(h, 40) * 0.05;
+  }, 80).forEach((q, i) => { const m = mark("lighthouse", q, "Cape " + COUNTRY.cape[i] + " Lighthouse", COUNTRY.capeJp[i] + "埼灯台", { yaw: seaward(q[0], q[1]) }); m.y = pad(q[0], q[1], 14, 40); });
+  // the wind farm: the broadest open upland on the island, turbines in a line along the ridge
+  pick(1, 150, 0, (x, z) => {
+    const h = hAt(x, z); if (h < 25 || h > 260 || townIn(x, z, 700) || airIn(x, z, 500) || skiIn(x, z, 400)) return NO;
+    let rough = 0; for (let k = 0; k < 12; k++) { const hh = hAt(x + Math.cos(k * 0.5236) * 380, z + Math.sin(k * 0.5236) * 380); if (hh < 3) return NO; rough += Math.abs(hh - h); }
+    if (rough / 12 > 38) return NO;
+    return Math.min(rdist(rgrid, x, z, 1200), 1200) * 0.02 + h * 0.03 - rough * 0.05;
+  }, 420).forEach(q => {
+    // along the contour: the line that changes height least
+    let best = 0, bv = 1e9; for (let k = 0; k < 12; k++) { const a = k * 0.2618; let v = 0; for (const s of [-360, -180, 180, 360]) v += Math.abs(hAt(q[0] + Math.sin(a) * s, q[1] + Math.cos(a) * s) - hAt(q[0], q[1])); if (v < bv) { bv = v; best = a; } }
+    const m = mark("windfarm", q, "Kazenooka Wind Farm", "風の丘風力発電所", { yaw: best, turbines: [] });
+    for (let k = -3; k <= 3; k++) for (const row of [-1, 1]) { if ((k + 3) % 2 === (row > 0 ? 1 : 0) && Math.abs(k) === 3) continue; const u = k * 130, v = row * 85 + (k % 2 ? 22 : -22), x = q[0] + Math.sin(best) * u + Math.cos(best) * v, z = q[1] + Math.cos(best) * u - Math.sin(best) * v; if (open(x, z) && hAt(x, z) > 6 && rdist(rgrid, x, z, 40) >= 40) m.turbines.push([x, z]); }
+    m.y = pad(q[0], q[1], 18, 46);
+  });
+  // summit shrines: the high tops that are not ski hills
+  pick(2, 100, 2600, (x, z) => {
+    const h = hAt(x, z); if (h < 240 || skiIn(x, z, 420) || world.slopeAt(x, z) > 0.5) return NO;
+    for (let k = 0; k < 12; k++) for (const R of [120, 300]) if (hAt(x + Math.cos(k * 0.5236) * R, z + Math.sin(k * 0.5236) * R) > h + 1) return NO;
+    return h;
+  }, 120).forEach((q, i) => { const nm = COUNTRY.hill[i]; const m = mark("shrine", q, "Mount " + nm + " Summit Shrine", COUNTRY.hillJp[i] + "山奥宮", { yaw: downhill(q[0], q[1]) }); m.y = pad(q[0], q[1], 13, 38); });
+  // the relay mast: the hill that looks down on the capital
+  { const cc = world.cities[0].centre;
+    pick(1, 100, 0, (x, z) => { const h = hAt(x, z), d = Math.hypot(x - cc[0], z - cc[1]); if (h < 90 || d > 4200 || townIn(x, z, 250) || skiIn(x, z, 300) || world.slopeAt(x, z) > 0.45) return NO; for (let k = 0; k < 8; k++) if (hAt(x + Math.cos(k * 0.7854) * 150, z + Math.sin(k * 0.7854) * 150) > h + 2) return NO; return h - d * 0.03; }, 150)
+      .forEach(q => { const m = mark("mast", q, "Konto Broadcasting Relay", "コント放送中継所", { yaw: Math.atan2(cc[0] - q[0], cc[1] - q[1]) }); m.y = pad(q[0], q[1], 13, 36); }); }
+  // lookouts: a shoulder of hill with the ground falling away in front of it
+  pick(6, 100, 1900, (x, z) => {
+    const h = hAt(x, z); if (h < 45 || h > 420 || townIn(x, z, 250) || airIn(x, z, 200) || skiIn(x, z, 200) || world.slopeAt(x, z) > 0.32 || !flat(x, z, 9, 4.5)) return NO;
+    const a = downhill(x, z), drop = h - hAt(x + Math.sin(a) * 260, z + Math.cos(a) * 260), far = h - hAt(x + Math.sin(a) * 600, z + Math.cos(a) * 600);
+    if (drop < 28 || far < 40) return NO;
+    return drop * 0.6 + far * 0.3 + seaRound(x, z, 1500) * 4 - Math.min(rdist(rgrid, x, z, 1500), 1500) * 0.02;
+  }, 70).forEach((q, i) => { const nm = COUNTRY.hill[2 + i]; const m = mark("lookout", q, nm + " Lookout", COUNTRY.hillJp[2 + i] + "展望台", { yaw: downhill(q[0], q[1]) }); m.y = pad(q[0], q[1], 18, 40); });
+  // farms: level low ground out of town
+  pick(6, 100, 1300, (x, z) => {
+    const h = hAt(x, z); if (h < 5 || h > 110 || townIn(x, z, 220) || airIn(x, z, 260) || world.sampleUrban(x, z) > 0.004 || !flat(x, z, 70, 5) || !flat(x, z, 130, 9)) return NO;
+    const d = rdist(rgrid, x, z, 900); if (d < 150) return NO;
+    return -d * 0.01 + rnd(Math.round(x), Math.round(z), 733) * 6 + (x > WORLD_X * 0.6 ? 3 : 0);
+  }, 170).forEach((q, i) => { let best = 0, bv = 1e9; for (let k = 0; k < 8; k++) { const a = k * 0.3927; const v = Math.abs(hAt(q[0] + Math.sin(a) * 110, q[1] + Math.cos(a) * 110) - hAt(q[0] - Math.sin(a) * 110, q[1] - Math.cos(a) * 110)); if (v < bv) { bv = v; best = a; } }
+    const m = mark("farm", q, COUNTRY.farm[i] + " Farm", COUNTRY.farmJp[i] + "農園", { yaw: best }); m.y = pad(q[0], q[1], 95, 150); });
+  // campsites: a level clearing in the hills, off the road
+  pick(4, 100, 2400, (x, z) => {
+    const h = hAt(x, z); if (h < 60 || h > 420 || townIn(x, z, 500) || airIn(x, z, 300) || skiIn(x, z, 250) || !flat(x, z, 26, 3.5)) return NO;
+    const d = rdist(rgrid, x, z, 1400); if (d < 250) return NO;
+    return Math.min(d, 900) * 0.01 + world.sampleRiver(x + 60, z) * 4 + rnd(Math.round(x), Math.round(z), 911) * 5;
+  }, 80).forEach((q, i) => { const m = mark("camp", q, COUNTRY.camp[i] + " Campground", COUNTRY.campJp[i] + "キャンプ場", { yaw: downhill(q[0], q[1]) }); m.y = pad(q[0], q[1], 30, 60); });
+  // roadside stations: a lay-by with a hall, a little way back from the expressway, well out of town
+  pick(4, 80, 5200, (x, z) => {
+    const h = hAt(x, z), d = rdist(hgrid, x, z, 200); if (d < 75 || d > 150 || h < 4 || h > 160 || townIn(x, z, 1100) || airIn(x, z, 300) || !flat(x, z, 34, 3)) return NO;
+    return -Math.abs(d - 100) * 0.05 + seaRound(x, z, 500) * 0.5 + rnd(Math.round(x), Math.round(z), 177) * 4;
+  }, 90).forEach((q, i) => { const l = hgrid.get(Math.floor(q[0] / RG) + "," + Math.floor(q[1] / RG)); let hx = q[0], hz = q[1] + 1, bd = 1e9; for (let ci = -2; ci <= 2; ci++) for (let cj = -2; cj <= 2; cj++) { const g = hgrid.get((Math.floor(q[0] / RG) + ci) + "," + (Math.floor(q[1] / RG) + cj)); if (g) for (let k = 0; k < g.length; k += 2) { const d = Math.hypot(g[k] - q[0], g[k + 1] - q[1]); if (d < bd) { bd = d; hx = g[k]; hz = g[k + 1]; } } }
+    const m = mark("rest", q, "Michi-no-Eki " + COUNTRY.rest[i], "道の駅 " + COUNTRY.restJp[i], { yaw: Math.atan2(hx - q[0], hz - q[1]) }); m.y = pad(q[0], q[1], 40, 70); });
+
+  // ---- the roads
+  if (!lay) { console.log("[Konto] the country: " + sites.length + " hot springs, " + marks.length + " landmarks, no roads (no expressway to join)"); return; }
+  const cityNear = (x, z) => { let b = world.cities[0], bd = 1e30; world.cities.forEach(c => { if (!c.centre) return; const d = Math.hypot(c.centre[0] - x, c.centre[1] - z); if (d < bd) { bd = d; b = c; } }); return b; };
+  let roads = 0, km = 0;
+  const count = r => { if (!r) return null; roads++; for (let i = 1; i < r.pts.length; i++) km += Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][2] - r.pts[i - 1][2]) / 1000; return r; };
+  // an inland trunk through the hill towns, so the middle of the island is not only reached from the coast
+  const town = n => world.cities.find(c => c.name === n);
+  const edge = (c, to) => { let best = null, bs = -1e30; const dx = to[0] - c.centre[0], dz = to[1] - c.centre[1], dl = Math.hypot(dx, dz) || 1; c.roads.forEach(r => { if (r.link || r.elevated || !r.pts || r.halfWidth < 4) return; r.pts.forEach(p => { const s = ((p[0] - c.centre[0]) * dx + (p[2] - c.centre[1]) * dz) / dl; if (s > bs) { bs = s; best = p; } }); }); return best; };
+  [["Tomari", "Hamaura"], ["Kaido", "Tomari"], ["Hamaura", "Nagisa"], ["Mizuho", "Isobe"]].forEach(([a, b]) => {
+    const A = town(a), B = town(b); if (!A || !B || !A.centre || !B.centre) return; const s = edge(A, B.centre); if (!s) return;
+    count(lay(A, [s[0], s[1], s[2]], [B.centre[0], 0, B.centre[1]], { name: "Konto Jūkan-dō", spur: "trunk", reach: 7000 }));
+  });
+  const spur = (x, z, y, name, kind, reach) => count(lay(cityNear(x, z), [x, y, z], [x, y, z], { name: name, spur: kind, reach: reach || 3600 }));
+  (world.airports || []).forEach(a => { if (a.big) return; const p = fromRectLocal(0, a.sz - 100 + 8, a.cx, a.cz, a.yaw); a.road = spur(p[0], p[1], a.y, a.name + " Road", "airfield", 5200); });
+  ((world.ski && world.ski.resorts) || []).forEach(r => { const x = r.base[0] + r.dir[0] * 40, z = r.base[1] + r.dir[1] * 40; r.road = spur(x, z, r.baseY, r.name + " Ski Road", "ski", 5200); });
+  sites.forEach(s => { const x = s.x + Math.sin(s.yaw) * 22, z = s.z + Math.cos(s.yaw) * 22; s.road = !!spur(x, z, s.h, s.name + " Road", "onsen", 4200); });
+  const REACH = { lighthouse: 4200, windfarm: 4800, mast: 4200, rest: 900, farm: 2600, lookout: 2200, camp: 1600, shrine: 2600 };
+  marks.forEach(m => { const off = m.kind === "farm" ? 62 : m.kind === "rest" ? 30 : m.kind === "windfarm" ? 20 : 16, a = m.kind === "lighthouse" || m.kind === "lookout" ? m.yaw + Math.PI : m.yaw; m.gate = [m.x + Math.sin(a) * off, m.z + Math.cos(a) * off]; m.road = !!spur(m.gate[0], m.gate[1], m.y, m.name.replace(/ (Lighthouse|Summit Shrine|Lookout|Campground)$/, "") + " Road", m.kind, REACH[m.kind]); });
+  console.log("[Konto] the country: " + sites.length + " hot springs, " + marks.length + " landmarks, " + roads + " country roads to them (" + km.toFixed(1) + " km)");
 }
 
 // The country roads, as geometry: tarmac between white edge lines, a dashed centre line, a gravel shoulder, and a deck where one crosses water.
@@ -4121,7 +4293,7 @@ function buildLinkRoads(root) {
 // and pays dearly to cross open water (which is where the bridges come from).
 // It is routed through a via point at every town, so it passes them all, then
 // smoothed, given a gradient-limited profile, and cut into the ground.
-const HWY = { hw: 10, name: "Konto Coastal Expressway", maxGrade: 0.042, step: 12 };
+const HWY = { hw: 10, name: "Konto Coastal Expressway", maxGrade: 0.042, step: 12, ringReach: 40 };
 
 function planHighway(world) {
   const GX = GRID_X, GZ = GRID_Z, n = GX * GZ, H = world.height;
@@ -4275,6 +4447,10 @@ function planHighway(world) {
       }
     }
     if (best < 0 || dSea[best] > 150) return;
+    // A town that stands well inland is not a stop on the ring. Taking the loop in to it and back out again laid two or three carriageways side
+    // by side across the east of the island and made the "coastal" road 61 km long. The ring keeps to the coast, and planLinks carries a country
+    // road out from the town to meet it.
+    if (!city.site.capital && dSea[best] > HWY.ringReach) { (world.offRing = world.offRing || []).push(city.name); return; }
     towns.push({ name: city.name, cell: best, lat: world.arcLat[best], t: world.arcT[best], big: !!city.site.capital });
   });
 
@@ -4588,6 +4764,20 @@ function planAirports(world) {
     }
     list.push({ name: sp.name, code: sp.code, len: sp.len, wid: sp.wid, big: big, cx: best.cx, cz: best.cz, yaw: best.yaw, y: y, sx: sx0, sz: sz0, spread: best.spread });
   });
+  // An airfield is called after the town it is actually beside. The sites are wherever the island had flat ground, which put "Mizuho Airstrip" at
+  // the far end of the island from Mizuho and "Kaido Airfield" beside Hamaura; the nearest pairs take each other's names, closest first.
+  {
+    const pairs = [], doneA = new Set(), doneC = new Set();
+    list.forEach(a => { if (!a.big) world.cities.forEach(c => { if (c.centre && !c.site.capital) pairs.push([Math.hypot(c.centre[0] - a.cx, c.centre[1] - a.cz), a, c]); }); });
+    pairs.sort((p, q) => p[0] - q[0]).forEach(([d, a, c]) => {
+      if (doneA.has(a) || doneC.has(c)) return; doneA.add(a); doneC.add(c);
+      const what = a.len >= 1800 ? " Airport" : a.len >= 1200 ? " Airfield" : " Airstrip";
+      if (d < 3600) { a.name = c.name + what; a.code = c.code || a.code; a.town = c.name; return; }
+      // nowhere near a town that is still free: it takes the name of its end of the island
+      const ex = (a.cx - WORLD_X / 2) / WORLD_X, ez = (a.cz - WORLD_Z / 2) / WORLD_Z, R = Math.abs(ex) > Math.abs(ez) ? (ex > 0 ? ["Higashi", "HKO"] : ["Nishi", "NKO"]) : (ez > 0 ? ["Minami", "MKO"] : ["Kita", "KKO"]);
+      a.name = R[0] + "-Konto" + what; a.code = R[1];
+    });
+  }
 }
 const apTex = {};
 function apCanvas(key, w, h, draw, repeat) {
@@ -22466,9 +22656,11 @@ function drawMapView(ctx, pw, ph, cx, cz, across, rot, opts) {
   }
 
   if (opts.labels !== false) {
+    // (the towns' names go down first: a label that would overlap an earlier one is dropped, and a ski resort's used to take Tomari's off the map)
+    world.cities.forEach(city => { if (across > 2600) { const b = city.bounds; label(city.name, (b.x0 + b.x1) * 0.5, (b.z0 + b.z1) * 0.5 - (b.z1 - b.z0) * 0.09, clamp(across / 260, 14, 32), "#fdfdfb"); } });
     if (across < 16000) ski.list.forEach(R => label(R.name + " Ski Resort", R.res.top[0], R.res.top[1] + Math.max(34 * mPerPx, 70), clamp(across / 330, 12, 22), "#cfe6ff"));
     world.cities.forEach(city => {
-      if (across > 2600) {
+      if (false) {
         const b = city.bounds;
         // Above the middle, because the middle is where the core ward's own
         // name is and two labels on one point is neither of them.
@@ -31712,8 +31904,9 @@ function buildOnsens(root) {
   onsens.list.length = 0; onsens.steam = null;
   if (!world.cities || !world.cities.length) return;
   const w = world;
-  const cands = [];
-  for (let x = 700; x < WORLD_X - 700; x += 120) for (let z = 700; z < WORLD_Z - 700; z += 120) {
+  // (planCountry chooses the sites now, so that a road can be laid to each door before the ground is built; the search below is the fallback)
+  const cands = [], planned = world.onsenSites && world.onsenSites.length ? world.onsenSites : null;
+  if (!planned) for (let x = 700; x < WORLD_X - 700; x += 120) for (let z = 700; z < WORLD_Z - 700; z += 120) {
     const h = world.sampleHeight(x, z);
     if (h < 70 || h > 640) continue;
     if (world.sampleUrban(x, z) > 0.004 || world.sampleRiver(x, z) > 0.1) continue;
@@ -31730,6 +31923,7 @@ function buildOnsens(root) {
   cands.sort((a, b) => b.sc - a.sc);
   const chosen = [];
   cands.forEach(c => { if (chosen.length < 6 && chosen.every(q => Math.hypot(q.x - c.x, q.z - c.z) > 1500)) chosen.push(c); });
+  if (planned) planned.forEach(s => chosen.push({ x: s.x, z: s.z, h: world.sampleHeight(s.x, s.z), yaw: s.yaw }));
   if (!chosen.length) return;
   const solid = solidMesh(), tile = pbrMat("tile", new THREE.Color(0.14, 0.15, 0.21));
   const grp = new THREE.Group(); root.add(grp);
@@ -31743,7 +31937,7 @@ function buildOnsens(root) {
   chosen.forEach((c, i) => {
     // face the house down the slope, so the way in looks out over the valley
     const gx = world.sampleHeight(c.x + 8, c.z) - world.sampleHeight(c.x - 8, c.z), gz = world.sampleHeight(c.x, c.z + 8) - world.sampleHeight(c.x, c.z - 8);
-    const yaw = Math.atan2(-gx, -gz), gy = c.h, out = [Math.sin(yaw), Math.cos(yaw)], lat = [Math.cos(yaw), -Math.sin(yaw)];
+    const yaw = c.yaw !== undefined ? c.yaw : Math.atan2(-gx, -gz), gy = c.h, out = [Math.sin(yaw), Math.cos(yaw)], lat = [Math.cos(yaw), -Math.sin(yaw)];
     const W = (u, v) => [c.x + lat[0] * u + out[0] * v, c.z + lat[1] * u + out[1] * v];
     solid.frame(c.x, gy, c.z, yaw);
     const WOOD = [0.30, 0.19, 0.11], WOOD2 = [0.46, 0.31, 0.18], PLASTER = [0.86, 0.83, 0.76], ROCK = [0.42, 0.42, 0.40];
@@ -46133,6 +46327,7 @@ radioLoadMusic();
 <script src="game/luxury-data.js"></script>
 <script src="game/luxury-watch.js"></script>
 <script src="game/luxury.js"></script>
+<script src="game/country-hook.js"></script>
 <script src="game/perf-hook.js"></script>
 <script src="game/forge-hook.js"></script>
 <script src="game/lib/meshopt_decoder.js"></script>
