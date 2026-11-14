@@ -226,7 +226,7 @@ function triCost(o) {
   const g = o.geometry;
   if (!g) return 0;
   const n = g.index ? g.index.count : g.attributes && g.attributes.position ? g.attributes.position.count : 0;
-  return (n / 3) * (o.isInstancedMesh ? Math.max(1, o.count) : 1);
+  return (n / 3) * (o.isInstancedMesh ? Math.max(1, o.count) : g.isInstancedBufferGeometry ? Math.max(1, g.instanceCount || 1) : 1);
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Wait until the GPU has done everything sent so far, without blocking the page (the slideshow keeps moving).
@@ -264,9 +264,10 @@ export async function warmGPUChunked(renderer, scene, camera, opts) {
   scene.updateMatrixWorld(true);
   for (const root of roots) if (root !== scene && root.parent === null) root.updateMatrixWorld(true);
   const items = [];
+  // opts.skip(o): kept in memory but left off the card for now (the host decides what sits at the front; the rest uploads when it gets there)
   for (const root of roots) root.traverse(o => {
     if (o.userData && o.userData.persistBroken) return;
-    if ((o.isMesh || o.isLine || o.isPoints || o.isSprite) && o.material && !WARMED.has(o)) items.push(o);
+    if ((o.isMesh || o.isLine || o.isPoints || o.isSprite) && o.material && !WARMED.has(o)) { if (opts.skip && opts.skip(o)) { res.back = (res.back || 0) + 1; return; } items.push(o); }
   });
   // Order: what matters first (the host's priority, e.g. distance from where the story starts, in bands), and within a band by
   // material, so a batch compiles few programs and shares what it uploads.

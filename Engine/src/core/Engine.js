@@ -13,7 +13,7 @@ import { WaterSystem } from "../env/Water.js";
 import { Surfaces } from "../render/Surfaces.js";
 import { Streamer } from "../world/Streamer.js";
 
-export const VERSION = "0.7.0";
+export const VERSION = "0.7.1";
 
 export class Engine {
   constructor(opts) {

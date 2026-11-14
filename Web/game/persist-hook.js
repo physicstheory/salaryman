@@ -24,6 +24,31 @@
   const wait = ms => new Promise(r => setTimeout(r, ms));
   let last = null;
 
+  // ---- the whole map -------------------------------------------------------------------------------------------------------------------
+  // On a machine with 8 GB of memory or more, everything on the map is built behind the loading screen and kept for the whole game: every
+  // building's close-up detail (all ~15,000, Seoul and the islands included), every tree, every shop room (the airports' terminals too),
+  // every Blender and Forge model and prop. Nothing is built in play and nothing is thrown away. What changes as you move is only what sits
+  // at the front:
+  //   drawn         what is near you (and in view) is drawn; the rest is hidden, still built
+  //   on the card   what is near you is also on the graphics card; built things far away keep only their memory copy and go back on the
+  //                 card (an upload, no building) on the way back, so a 4 GB card is never asked to hold the whole country
+  // With less memory (or ?wholemap=0) the old plan holds: the story's places first, as much as the budget allows, the rest built on approach.
+  const WHOLE = !/[?&]wholemap=0\b/.test(location.search) && (navigator.deviceMemory || 8) >= 8;
+  const FRONT = { draw: 0, gpu: 900, upload: 0, released: 0, back: 0 };   // metres: kept detail further than `gpu` and hidden leaves the card
+  window.persistWhole = WHOLE;
+  // Memory for the whole map, by tier. Every building except the designed houses now costs about 40 KB (instanced boxes), so all ~5,000 of
+  // them fit in a few hundred MB on any tier; the ~10,000 designed houses (about 250 KB each) fill what is left, nearest the story first,
+  // and on a machine that cannot hold them all the rest are built in a ring well outside what you can see, so none is built in sight.
+  // After a driver reset (safe graphics) or on integrated graphics the budget is smaller: their memory is the graphics card's memory too.
+  function wholeBudget() {
+    const B = { low: 1.3e9, medium: 2.2e9, high: 3.4e9, ultra: 4.4e9 };
+    let b = B[gfx.tier] || B.medium;
+    if (gfx.lean || (window.GFX_SAFE && GFX_SAFE.level)) b = Math.min(b, 0.8e9);
+    return b;
+  }
+  // how far from the camera kept detail stays on the graphics card: smaller on weak or integrated graphics
+  FRONT.gpu = gfx && (gfx.lean || gfx.tier === "low") ? 650 : gfx && gfx.tier === "medium" ? 800 : 1000;
+
   // The places the story sends Seiko, nearest-first targets for the buildings' close-up detail and the grass.
   function anchors() {
     const a = [];
@@ -87,7 +112,15 @@
         const texBudget = opts.texBudget || (safe ? 160e6 : (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1));
         const A = [[camera.position.x, camera.position.z]].concat(anchors()), _w = new THREE.Vector3();   // what the camera sees first (the title's view of the capital)
         const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
-        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority, between: opts.between || null,
+        // kept buildings far from every place the story starts stay off the card until you get near them (persistFront below)
+        const skip = o => {
+          const b = o.userData.detailOf;
+          if (!b) return false;
+          if (nearest(A, b.c[0], b.c[1]) > FRONT.gpu) return true;
+          const e = PERSIST.detail && PERSIST.detail.map.get(b); if (e && e.obj) e.obj.userData.onCard = true;   // warmed: it is on the card
+          return false;
+        };
+        r = await SHIGOTO.warmGPUChunked(renderer, scene, camera, { THREE, render: warmRender, roots, progress: opts.progress, limits, texBudget, priority, skip, between: opts.between || null,
           shouldStop: opts.background ? () => bgStop || (typeof gfx !== "undefined" && gfx.lost) : null });
         if (!r.lost) break;
         console.warn("[Konto] the graphics driver reset while warming up; waiting for it to come back");
@@ -115,12 +148,13 @@
   window.persistLoad = async function (seed, onProgress) {
     release();
     hookRestore();
-    const P = new SHIGOTO.Persistence({ tier: gfx.tier });
+    // the whole map needs about 3 GB of memory (mostly the designed houses); the old budget was a story-places share of the tier's
+    const P = new SHIGOTO.Persistence({ tier: gfx.tier, budget: WHOLE ? wholeBudget() : undefined });
     PERSIST.engine = P;
     // the budget is shared out: most of it to buildings' detail, then grass, then trees (which are cheap)
-    const detail = PERSIST.detail = P.residentSet("buildings", 0.62);
-    const trees = PERSIST.trees = P.residentSet("trees", 0.10);
-    const grass = PERSIST.grass = P.residentSet("grass", 0.14);
+    const detail = PERSIST.detail = P.residentSet("buildings", WHOLE ? 0.8 : 0.62);
+    const trees = PERSIST.trees = P.residentSet("trees", WHOLE ? 0.04 : 0.10);
+    const grass = PERSIST.grass = P.residentSet("grass", WHOLE ? 0.08 : 0.14);
     detail.onEvict = (b, g) => { if (g.parent) g.parent.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); };
     const vegEvict = map => (key, obj) => { if (!obj) return; trunkDrop(obj); if (obj.parent) obj.parent.remove(obj); obj.traverse(o => { if (o.dispose) o.dispose(); }); map.delete(key); };
     trees.onEvict = vegEvict(veg.trees);
@@ -216,15 +250,16 @@
       return { tiles: built };
     }, { label: "Growing the grass" });
 
-    P.stage("buildings", 6, async ctx => {
-      // every building with close-up detail, nearest to the story's places first, until three quarters of their budget is used:
-      // the rest of the budget keeps whatever you build by travelling (and nothing you have seen is thrown away)
+    P.stage("buildings", WHOLE ? 14 : 6, async ctx => {
+      // every building with close-up detail, nearest to the story's places first. On the whole map that is all of them; otherwise until three
+      // quarters of their budget is used, and the rest of the budget keeps whatever you build by travelling
       const all = [];
       DETAIL.cells.forEach(c => { for (const b of c) all.push(b); });
       const ranked = all.map(b => [nearest(A, b.c[0], b.c[1]), b]).sort((p, q) => p[0] - q[0]);
       facts.buildings = all.length;
       DETAIL.active.forEach((g, b) => { if (!detail.has(b)) detail.add(b, g, b.c[0], b.c[1]); });   // what was built before the load is kept too
-      let built = 0;
+      const stopAt = detail.budget * (WHOLE ? 0.97 : 0.75);
+      let built = 0, stopped = null;
       for (let i = 0; i < ranked.length; i++) {
         const b = ranked[i][1];
         if (!detail.has(b)) {
@@ -232,27 +267,39 @@
           if (!DETAIL.active.has(b)) g.visible = false;
           built++;
         }
-        if ((i & 15) === 0) ctx.progress(Math.min(1, detail.bytes / (detail.budget * 0.75)));
+        if ((i & 15) === 0) ctx.progress(WHOLE ? i / ranked.length : Math.min(1, detail.bytes / stopAt));
         await ctx.slice();
-        if (detail.bytes > detail.budget * 0.75) break;
+        if (detail.bytes > stopAt) { stopped = "memory budget"; break; }
       }
       facts.detailBuilt = detail.size;
-      return { built, of: all.length, mb: +(detail.bytes / 1e6).toFixed(0) };
+      return { built, of: all.length, mb: +(detail.bytes / 1e6).toFixed(0), whole: WHOLE, stopped };
     }, { label: "Raising the buildings" });
 
-    P.stage("interiors", 2, async ctx => {
-      // one room of each kind of shop, built now rather than at its door (interiorPrewarm did this slowly during play)
+    P.stage("interiors", WHOLE ? 3 : 2, async ctx => {
+      // Every shop's room (each kind once per town, as the game shares them), every floor of the malls, plazas and stations, and the
+      // airports' landside and airside halls; built now and kept hidden, so no doorway ever builds a room. Without the whole map: one room
+      // of each kind of shop, as before.
       if (typeof interiorRoom !== "function") return { skipped: "no interiors" };
       interiorPrewarm.started = true;
       const seen = {}, list = [];
-      shops.list.forEach(s => { const key=s.station?"station":s.mall?"mall":s.plaza?"plaza":s.brand;if (interiorSupports(s) && s.brand !== "airport" && !seen[key]) { seen[key] = 1; list.push(s); } });
+      shops.list.forEach(s => {
+        if (!interiorSupports(s)) return;
+        const kind = s.station ? "station" : s.mall ? "mall" : s.plaza ? "plaza" : s.brand;
+        const key = WHOLE ? (s.brand === "airport" ? "airport:" + (s.ap ? s.ap.code : "x") + ":" + (s.term || 1) : kind + ":" + (s.station || s.mall || s.plaza ? s.name || s.door.join(",") : s.city || "local")) : kind;
+        if ((WHOLE || s.brand !== "airport") && !seen[key]) { seen[key] = 1; list.push(s); }
+      });
       let built = 0, failed = [];
+      const hide = room => { if (room && room.group) { room.group.visible = false; built++; } };
       for (let i = 0; i < list.length; i++) {
         const s = list[i];
-        try { const levels=interiorLevels(s);if(levels){for(let f=0;f<levels.floors.length;f++){const room=levels.make(f);if(room?.group){room.group.visible=false;built++;}await ctx.breathe();}}else { const room = interiorRoom(s); if (room && room.group) { room.group.visible = false; built++; } } }
+        try {
+          const levels = interiorLevels(s);
+          if (levels) { for (let f = 0; f < levels.floors.length; f++) { hide(levels.make(f)); await ctx.slice(); } }
+          else { const room = interiorRoom(s); hide(room); if (s.brand === "airport" && room && typeof airAirside === "function") hide(airAirside(room)); }
+        }
         catch (e) { failed.push(s.brand); }
         ctx.progress((i + 1) / list.length);
-        await ctx.breathe();
+        await ctx.slice();
       }
       facts.interiors = { built, failed, kinds: list.length };
       return facts.interiors;
@@ -347,7 +394,10 @@
     });
     P.check("world", "buildings kept resident", () => {
       const d = PERSIST.detail;
-      return { ok: d.size > 0, detail: d.size + " of " + (facts.buildings || 0) + " buildings built in detail (" + Math.round(d.bytes / 1e6) + " MB); the rest are built as you reach them and then kept" };
+      const all = facts.buildings || 0, rest = all - d.size;
+      // a machine whose memory budget cannot hold every designed house is not a failure: the rest are built out of sight, in the ring ahead
+      if (WHOLE && rest > 0) return { ok: true, detail: d.size + " of " + all + " buildings built in detail (" + Math.round(d.bytes / 1e6) + " MB, this machine's budget); the other " + rest + " are built out of sight, half as far again as detail is drawn, and then kept" };
+      return { ok: d.size > 0, detail: d.size + " of " + all + " buildings built in detail (" + Math.round(d.bytes / 1e6) + " MB)" + (rest > 0 ? "; the rest are built as you reach them and then kept" : ", the whole map") };
     });
     P.check("world", "holiday islands built and walkable", () => {
       const h = facts.holidays;
@@ -363,6 +413,12 @@
         ok.push(AIR_DESTS[s.id].name + " (" + s.solids.length + " solids, " + (s.pedRoads || []).length + " walks)");
       }
       return bad.length ? bad.join("; ") : { ok: true, detail: ok.join(", ") };
+    });
+    P.check("world", "every model and prop in memory", () => {
+      const m = facts.models;
+      if (!m) return { ok: true, detail: "skipped" };
+      const d = m.foundry + " of " + m.foundryOf + " Blender models, " + m.props + " of " + m.propsOf + " props" + (m.roofs === false ? ", rooftop kit unfinished" : "") + (m.stations === false ? ", station kits unfinished" : "");
+      return m.failed.length ? { ok: true, repaired: true, detail: d + "; did not load: " + m.failed.slice(0, 6).join(", ") } : { ok: true, detail: d };
     });
     P.check("world", "shop rooms ready", () => {
       const r = facts.interiors;
@@ -414,6 +470,35 @@
     // ---- the last builds, then the graphics card -----------------------------------------------------------------
     // These run after every other part of the game has added its stages (the office, the flat, boats, after-hours venues,
     // parachutes), so the warm-up below covers everything that was built, not just the city.
+    P.stage("models", 1, async ctx => {
+      // Every model the Foundry (cloud Blender) and the Model Forge have made, and every prop: decoded and in memory before play, read from
+      // their index files, so whatever the Blender rebuild adds next is included without touching this list. The Foundry's rooftop kit and
+      // station kits finish building here too, instead of a few seconds into the title.
+      const out = { foundry: 0, foundryOf: 0, props: 0, propsOf: 0, failed: [] };
+      const jobs = [];
+      if (window.foundry && foundry.ready) {
+        const ix = await Promise.race([foundry.ready, wait(20000)]) || {};
+        const ids = Object.keys(ix); out.foundryOf = ids.length;
+        ids.forEach(id => jobs.push(foundry.load(id).then(() => { out.foundry++; }, () => { out.failed.push(id); })));
+      }
+      if (typeof propLoad === "function") {
+        let ix = null;
+        try { const r = await fetch("props/index.json", { cache: "no-cache" }); ix = r.ok ? await r.json() : null; } catch (e) { /* offline */ }
+        const ids = ix ? Object.keys(ix).filter(k => ix[k] && typeof ix[k] === "object") : []; out.propsOf = ids.length;
+        ids.forEach(id => jobs.push(new Promise(res => { let done = false; const fin = ok => { if (done) return; done = true; if (ok) out.props++; else out.failed.push(id); res(); };
+          try { propLoad(id, () => fin(true)); } catch (e) { fin(false); } setTimeout(() => fin(false), 60000); })));
+      }
+      let n = 0; jobs.forEach(j => j.then(() => ctx.progress(++n / Math.max(1, jobs.length + 2))));
+      await Promise.race([Promise.allSettled(jobs), wait(90000)]);
+      if (window.foundry) {
+        const t0 = performance.now();
+        while (performance.now() - t0 < 60000 && ((foundry.roofs && foundry.roofs.boxes && foundry.roofs.boxes.length && !foundry.roofs.ready) || (foundry.stations && window.__stationKits && __stationKits.length && !foundry.stations.ready))) await wait(150);
+        out.roofs = !!(foundry.roofs && foundry.roofs.ready); out.stations = !!(foundry.stations && foundry.stations.ready);
+      }
+      facts.models = out;
+      return out;
+    }, { label: "Unpacking the models" });
+
     P.stage("vehicles", 1, async ctx => {
       // every car, van, bike and police car model in memory before play (they used to pop in a few seconds after the title)
       const jobs = typeof traffic !== "undefined" && traffic.modelJobs ? Object.values(traffic.modelJobs) : [];
@@ -497,7 +582,29 @@
     return report;
   };
 
+  // ---- the front: what is on the graphics card ----------------------------------------------------------------------------------------
+  // Called by detailTick about once a second. Kept buildings that are hidden and further than FRONT.gpu metres from the camera give their
+  // geometry back to the graphics card (geometry.dispose frees the card's copy only; the memory copy stays, so nothing is rebuilt). When one
+  // is shown again, the next frame uploads it: a few hundred kilobytes, no building, no shader.
+  window.persistFront = function (cx, cz) {
+    const d = PERSIST.keep && PERSIST.detail;
+    if (!d) return;
+    const far = FRONT.gpu * FRONT.gpu;
+    let n = 0;
+    for (const [b, e] of d.map) {
+      const g = e.obj;
+      if (!g || g.visible || !g.userData.onCard) continue;
+      const dx = b.c[0] - cx, dz = b.c[1] - cz;
+      if (dx * dx + dz * dz < far) continue;
+      g.traverse(o => { if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
+      g.userData.onCard = false; FRONT.released++;
+      if (++n >= 60) break;            // a little at a time
+    }
+  };
+
   // console: shigoto.persist()
   const S = window.shigoto || (window.shigoto = {});
+  S.front = () => ({ whole: WHOLE, gpuMetres: FRONT.gpu, released: FRONT.released, kept: PERSIST.detail ? PERSIST.detail.size : 0,
+    onCard: PERSIST.detail ? [...PERSIST.detail.map.values()].filter(e => e.obj && e.obj.userData.onCard).length : 0 });
   S.persist = () => { const P = PERSIST.engine; if (!P) return "persistence not run"; const t = P.summary(); console.log(t); return last; };
 })();

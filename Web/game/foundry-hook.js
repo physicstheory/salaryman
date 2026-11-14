@@ -258,6 +258,24 @@
     return meshes;
   }
 
+  // Rooftop kit pieces are drawn instanced: one InstancedMesh per model part per chunk, each piece a 64-byte matrix. (They were merged
+  // into one copy of every vertex per piece: 19,000 pieces were 13 million triangles and about 600 MB of memory and video memory, which
+  // is what a laptop with integrated graphics ran out of at the end of the loading screen.)
+  function instanceParts(list) {
+    const by = new Map();
+    for (const it of list) for (const pt of it.parts) { let e = by.get(pt.geometry); if (!e) by.set(pt.geometry, e = { pt, ms: [] }); e.ms.push(it.matrix); }
+    const meshes = [];
+    by.forEach(({ pt, ms }) => {
+      const im = new THREE.InstancedMesh(pt.geometry, pt.material, ms.length);
+      for (let i = 0; i < ms.length; i++) im.setMatrixAt(i, ms[i]);
+      im.instanceMatrix.needsUpdate = true;
+      im.receiveShadow = true; im.castShadow = false;
+      im.frustumCulled = false;            // the model's own bounds sit at the origin; the chunk is culled as a whole (streamAdd)
+      meshes.push(im);
+      const g = pt.geometry; RF.tris += (g.index ? g.index.count : g.attributes.position.count) / 3 * ms.length;
+    });
+    return meshes;
+  }
   function roofsBuild(parent) {
     const boxes = RF.boxes.filter(flatRoof);
     RF.boxes = [];
@@ -297,8 +315,8 @@
         while (list.length && performance.now() - t0 < 8) {
           const ch = list.shift();
           const g = new THREE.Group(), near = new THREE.Group(), far = new THREE.Group();
-          mergeByMaterial(ch.near, matByName).forEach(m => near.add(m));
-          mergeByMaterial(ch.far, matByName).forEach(m => far.add(m));
+          instanceParts(ch.near).forEach(m => near.add(m));
+          instanceParts(ch.far).forEach(m => far.add(m));
           g.add(near, far); near.visible = false;
           g.userData.foundryRoofs = true;
           parent.add(g);

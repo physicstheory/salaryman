@@ -13329,24 +13329,27 @@ function vegUpdate(px, pz, budget) {
   let built = 0;
   const maxBuild = budget || 2;
   const sweep = (map, size, radius, make) => {
-    const x0 = Math.floor((px - radius) / size), x1 = Math.floor((px + radius) / size);
-    const z0 = Math.floor((pz - radius) / size), z1 = Math.floor((pz + radius) / size);
+    const keep = PERSIST.keep && (map === veg.trees ? PERSIST.trees : PERSIST.grass);
+    // with the persistence engine on, tiles are built ahead of you, hidden, out to half as far again as they are drawn: by the time one
+    // comes into sight it was built long ago, so nothing ever pops in
+    const ahead = keep ? radius * 1.5 : radius;
+    const x0 = Math.floor((px - ahead) / size), x1 = Math.floor((px + ahead) / size);
+    const z0 = Math.floor((pz - ahead) / size), z1 = Math.floor((pz + ahead) / size);
     const want = [];
     for (let gz = z0; gz <= z1; gz++) for (let gx = x0; gx <= x1; gx++) {
       if (gx < 0 || gz < 0 || gx * size > WORLD_X || gz * size > WORLD_Z) continue;
       const d = Math.hypot((gx + 0.5) * size - px, (gz + 0.5) * size - pz);
-      if (d > radius + size * 0.5) continue;
+      if (d > ahead + size * 0.5) continue;
       want.push([d, gx, gz]);
     }
     want.sort((a, b) => a[0] - b[0]);
-    const keep = PERSIST.keep && (map === veg.trees ? PERSIST.trees : PERSIST.grass);
     want.forEach(w => {
-      const key = w[1] + "," + w[2];
-      if (map.has(key)) { const o = map.get(key); if (o && !o.visible) { o.visible = true; if (keep) keep.touch(key); } return; }
+      const key = w[1] + "," + w[2], inner = w[0] <= radius + size * 0.5;
+      if (map.has(key)) { const o = map.get(key); if (o && inner && !o.visible) { o.visible = true; if (keep) keep.touch(key); } return; }
       if (built >= maxBuild) return;
       const obj = make(w[1], w[2]);
       map.set(key, obj || null);
-      if (obj) { veg.group.add(obj); if (keep) keep.add(key, obj, (w[1] + 0.5) * size, (w[2] + 0.5) * size); }
+      if (obj) { obj.visible = inner; veg.group.add(obj); if (keep) keep.add(key, obj, (w[1] + 0.5) * size, (w[2] + 0.5) * size); }
       built++;
     });
     map.forEach((obj, key) => {
@@ -14450,28 +14453,63 @@ const dbUnit = (() => {
   });
   return { p: p, n: n, ix: ix };
 })();
-function dbNew() { return { p: [], n: [], c: [], ix: [] }; }
+// A building's close-up detail is almost all boxes (walls, ledges, frames, sills, rails, outdoor units) and flat panes of glass. They are
+// recorded as boxes, not as triangles: a centre, a size and a colour (27 bytes) instead of 24 vertices and 36 indices (about 700 bytes),
+// and drawn instanced, one unit cube per box. That makes a building's detail about twenty times smaller, which is what lets the
+// persistence engine build every building in the country behind the loading screen and keep it (game/persist-hook.js).
+function dbNew() { return { b: [], c: [], n: 0 }; }
 function dbBox(B, x, y, z, sx, sy, sz, col) {                 // a box about (x, y, z) in the building's own frame
-  const base = B.p.length / 3, c = col || [0.7, 0.7, 0.7];
-  for (let i = 0; i < 24; i++) { B.p.push(x + dbUnit.p[i * 3] * sx, y + dbUnit.p[i * 3 + 1] * sy, z + dbUnit.p[i * 3 + 2] * sz); B.n.push(dbUnit.n[i * 3], dbUnit.n[i * 3 + 1], dbUnit.n[i * 3 + 2]); B.c.push(c[0], c[1], c[2]); }
-  for (let i = 0; i < 36; i++) B.ix.push(base + dbUnit.ix[i]);
+  const c = col || [0.7, 0.7, 0.7];
+  B.b.push(x, y, z, Math.abs(sx), Math.abs(sy), Math.abs(sz)); B.c.push(c[0], c[1], c[2]); B.n++;
 }
+// a pane: a box with no depth (its back faces the wall and is never drawn; its edges have no area)
 function dbQuad(B, a, b, c, d, nm) {
-  const base = B.p.length / 3;
-  [a, b, c, d].forEach(v => { B.p.push(v[0], v[1], v[2]); B.n.push(nm[0], nm[1], nm[2]); B.c.push(1, 1, 1); });
-  B.ix.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (const v of [a, b, c, d]) for (let k = 0; k < 3; k++) { if (v[k] < lo[k]) lo[k] = v[k]; if (v[k] > hi[k]) hi[k] = v[k]; }
+  dbBox(B, (lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2, hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], [1, 1, 1]);
+}
+// The materials draw instanced boxes: the unit cube's corner is scaled by the box's size and moved to its centre (`transformed`, which lighting,
+// shadows, fog and the wet-weather patch read, and the window glass's world-space projection), and the box's colour stands in for the vertex
+// colour.
+function dbInstanced(m) {
+  if (m.userData.dbInst) return m; m.userData.dbInst = true;
+  const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey;
+  m.onBeforeCompile = function (sh, r) {
+    if (prev) prev.call(this, sh, r);
+    // (not a #define: Lambert's lighting has a struct with a field called position)
+    sh.vertexShader = "attribute vec3 iOff;\nattribute vec3 iSize;\nattribute vec3 iCol;\n" + sh.vertexShader
+      .replace("void main() {", "void main() {\n  vec3 dbPos = position * iSize + iOff;")
+      .split("vec4(position, 1.0)").join("vec4(dbPos, 1.0)")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\n  transformed = dbPos;")
+      .replace("#include <color_vertex>", "#include <color_vertex>\n#ifdef USE_COLOR\n  vColor.xyz = iCol;\n#endif");
+  };
+  m.customProgramCacheKey = function () { return (prevKey ? prevKey.call(this) : "") + "|db-instanced"; };
+  m.needsUpdate = true;
+  return m;
 }
 function dbMesh(B, mat) {
-  if (!B.ix.length) return null;
-  const g = new THREE.BufferGeometry();
-  // packed: normals as signed bytes and colours as bytes (both normalised) instead of floats, so a building's close-up detail takes about
-  // half the memory and the persistence engine can keep twice as many of them built (see PERSIST)
-  const nn = new Int8Array(B.n.length), cc = new Uint8Array(B.c.length);
-  for (let i = 0; i < nn.length; i++) nn[i] = Math.round(Math.max(-1, Math.min(1, B.n[i])) * 127);
-  for (let i = 0; i < cc.length; i++) cc[i] = Math.round(clamp01(B.c[i]) * 255);
-  g.setAttribute("position", new THREE.Float32BufferAttribute(B.p, 3)); g.setAttribute("normal", new THREE.BufferAttribute(nn, 3, true)); g.setAttribute("color", new THREE.BufferAttribute(cc, 3, true));
-  g.setIndex(B.p.length / 3 > 65000 ? new THREE.Uint32BufferAttribute(B.ix, 1) : new THREE.Uint16BufferAttribute(B.ix, 1));
-  const m = new THREE.Mesh(g, mat); m.castShadow = false; m.receiveShadow = true; return m;
+  if (!B.n) return null;
+  const g = new THREE.InstancedBufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(dbUnit.p, 3));
+  g.setAttribute("normal", new THREE.Float32BufferAttribute(dbUnit.n, 3));
+  g.setIndex(new THREE.Uint16BufferAttribute(dbUnit.ix, 1));
+  const n = B.n, off = new Float32Array(n * 3), size = new Float32Array(n * 3), col = new Uint8Array(n * 3);
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) {
+    const c = B.b[i * 6 + k], h = B.b[i * 6 + 3 + k] / 2;
+    off[i * 3 + k] = c; size[i * 3 + k] = B.b[i * 6 + 3 + k]; col[i * 3 + k] = Math.round(clamp01(B.c[i * 3 + k]) * 255);
+    if (c - h < lo[k]) lo[k] = c - h; if (c + h > hi[k]) hi[k] = c + h;
+  }
+  g.setAttribute("iOff", new THREE.InstancedBufferAttribute(off, 3));
+  g.setAttribute("iSize", new THREE.InstancedBufferAttribute(size, 3));
+  g.setAttribute("iCol", new THREE.InstancedBufferAttribute(col, 3, true));
+  g.instanceCount = n;
+  // the bounds of the boxes, not of the unit cube (frustum culling and the persistence engine's checks read them)
+  g.boundingBox = new THREE.Box3(new THREE.Vector3(lo[0], lo[1], lo[2]), new THREE.Vector3(hi[0], hi[1], hi[2]));
+  g.boundingSphere = g.boundingBox.getBoundingSphere(new THREE.Sphere());
+  const m = new THREE.Mesh(g, dbInstanced(mat)); m.castShadow = false; m.receiveShadow = true;
+  m.userData.rainSkip = true;          // the rain's overhead map draws without these attributes; the building's own box covers it
+  return m;
 }
 function hash2(a, b) { let h = (a * 374761393 + b * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return (h ^ (h >>> 16)) >>> 0; }
 function buildingDetail(b) {
@@ -14558,13 +14596,15 @@ function buildingDetail(b) {
   const g = new THREE.Group(), mats = detailMats();
   [[S, mats.solid], [G, mats.glass], [L, mats.lit]].forEach(([B, mt]) => { const m = dbMesh(B, mt); if (m) g.add(m); });
   g.position.set(b.c[0], b.y, b.c[1]); g.rotation.y = b.yaw * Math.PI / 180;
-  g.userData.tris = (S.ix.length + G.ix.length + L.ix.length) / 3;
+  g.userData.tris = (S.n + G.n + L.n) * 12;
   return g;
 }
 // Build one building's close-up detail and put it in the scene; with the persistence engine on it is also kept (a resident piece), and only
 // the memory budget can take it away again.
 function detailMake(b) {
   const g = buildingDetail(b); scene.add(g); DETAIL.built++;
+  g.traverse(o => { if (o.isMesh) o.userData.detailOf = b; });      // the persistence engine's front (persist-hook.js) reads it
+  g.userData.onCard = g.visible;
   const keep = PERSIST.keep && PERSIST.detail;
   if (keep) {
     let n = 0; g.traverse(o => { const G = o.geometry; if (!G) return; if (G.index) n += G.index.array.byteLength; for (const k in G.attributes) n += G.attributes[k].array.byteLength; });
@@ -14604,10 +14644,13 @@ function detailTick() {
   // rebuilt); without it, it is taken apart as before.
   DETAIL.active.forEach((g, b) => { if (!R || Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) > R * 1.3 + Math.max(b.size[0], b.size[1])) { if (keep && keep.has(b)) g.visible = false; else { scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); }); } DETAIL.active.delete(b); detailRoof(b, true); } });
   if (window.KONTO_HOUSES && KONTO_HOUSES.on) KONTO_HOUSES.tick(cam);
-  if (keep && (DETAIL.t = (DETAIL.t || 0) + 1) % 60 === 0) keep.enforce(cam.x, cam.z);
+  if (keep && (DETAIL.t = (DETAIL.t || 0) + 1) % 60 === 0) { keep.enforce(cam.x, cam.z); if (window.persistFront) persistFront(cam.x, cam.z); }
   if (!R) return;
-  const near = [], cx0 = Math.floor((cam.x - R) / 128), cx1 = Math.floor((cam.x + R) / 128), cz0 = Math.floor((cam.z - R) / 128), cz1 = Math.floor((cam.z + R) / 128);
-  for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const c = DETAIL.cells.get(cx + "," + cz); if (!c) continue; for (const b of c) { if (DETAIL.active.has(b)) continue; const d = Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) - Math.max(b.size[0], b.size[1]) * 0.5; if (d < R) near.push([d, b]); } }
+  // with the persistence engine on, anything not yet built (only on a machine whose memory could not hold the whole map) is built hidden
+  // in a ring half as far again as detail is drawn, so it is ready before it comes into range and nothing is ever built in sight
+  const RA = keep ? R * 1.5 : R;
+  const near = [], cx0 = Math.floor((cam.x - RA) / 128), cx1 = Math.floor((cam.x + RA) / 128), cz0 = Math.floor((cam.z - RA) / 128), cz1 = Math.floor((cam.z + RA) / 128);
+  for (let cx = cx0; cx <= cx1; cx++) for (let cz = cz0; cz <= cz1; cz++) { const c = DETAIL.cells.get(cx + "," + cz); if (!c) continue; for (const b of c) { if (DETAIL.active.has(b)) continue; const d = Math.hypot(b.c[0] - cam.x, b.c[1] - cam.z) - Math.max(b.size[0], b.size[1]) * 0.5; if (d < R || (d < RA && !keep.has(b))) near.push([d, b]); } }
   if (!near.length) return;
   near.sort((a, b) => a[0] - b[0]);
   // as many as fit in a few milliseconds, nearest first: standing still builds the street round you at once, and walking never waits on it
@@ -14616,8 +14659,9 @@ function detailTick() {
   const lim = DETAIL.rush > 0 ? 14 : (window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF.budget("detail", 5) : 5);
   for (let i = 0, made = 0; i < near.length && made < cap; i++) {
     const b = near[i][1], kept = keep && keep.get(b);
-    if (kept) { kept.visible = true; DETAIL.active.set(b, kept); detailRoof(b, false); continue; }       // already built: showing it again costs nothing
+    if (kept) { kept.visible = true; kept.userData.onCard = true; DETAIL.active.set(b, kept); detailRoof(b, false); continue; }       // already built: showing it again costs nothing
     if (made && performance.now() - t0 > lim) break;
+    if (near[i][0] >= R) { const g = detailMake(b); g.visible = false; g.userData.onCard = false; made++; if (performance.now() - t0 > lim) break; continue; }   // ahead of you: built, kept, hidden
     const g = detailMake(b); DETAIL.active.set(b, g); detailRoof(b, false); made++;
     if (performance.now() - t0 > lim) break;
   }
@@ -45954,7 +45998,9 @@ window.addEventListener("keydown", e => { if (e.code === "F5" && player.placed &
 // The game's typeface is waited for (a few seconds at most) before the world is built: the signs, the shop fronts, the adverts and the phone
 // are painted onto canvases once, and painted before Konto Sans had arrived they kept the system face for good.
 (function startWhenTheFontIsIn() {
-  let go = false; const start = () => { if (go) return; go = true; generate(19640101); };
+  // ...and never before the page's last script has run: the font can arrive in the gap between two script tags, and a world generated then
+  // was built without the hooks below it (the persistence load in game/persist-hook.js was skipped, so the map streamed in during play)
+  let go = false; const start = () => { if (go) return; go = true; if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => generate(19640101), { once: true }); else generate(19640101); };
   try {
     if (document.fonts && document.fonts.load) {
       Promise.all(["400", "500", "700", "800", "900"].map(w => document.fonts.load(w + " 24px 'Konto Sans'", "SALARY MAN Seiko 東京 サラリーマン あア 0123"))

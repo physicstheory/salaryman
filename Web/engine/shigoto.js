@@ -18,7 +18,7 @@ var SHIGOTO = (() => {
   };
   var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
-  // src/index.js
+  // Engine/src/index.js
   var index_exports = {};
   __export(index_exports, {
     ACTS: () => ACTS,
@@ -101,7 +101,7 @@ var SHIGOTO = (() => {
     warmGPUChunked: () => warmGPUChunked
   });
 
-  // src/core/Events.js
+  // Engine/src/core/Events.js
   var Events = class {
     constructor() {
       this.map = /* @__PURE__ */ new Map();
@@ -132,7 +132,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // node_modules/@dimforge/rapier3d-compat/rapier.mjs
+  // Engine/node_modules/@dimforge/rapier3d-compat/rapier.mjs
   var A;
   var I = new Array(128).fill(void 0);
   function g(A2) {
@@ -5297,7 +5297,7 @@ var SHIGOTO = (() => {
     return QI;
   }, PidController: Ng, DynamicRayCastVehicleController: Fg });
 
-  // src/physics/Physics.js
+  // Engine/src/physics/Physics.js
   var STEP = 1 / 60;
   var Physics = class {
     constructor(engine) {
@@ -5596,7 +5596,7 @@ var SHIGOTO = (() => {
     return shape === "sphere" ? s2[0] : s2[1] / 2;
   }
 
-  // src/env/Environment.js
+  // Engine/src/env/Environment.js
   var Environment = class {
     constructor(engine) {
       this.engine = engine;
@@ -5751,7 +5751,7 @@ var SHIGOTO = (() => {
     return t2 * t2 * (3 - 2 * t2);
   }
 
-  // src/rain/Occlusion.js
+  // Engine/src/rain/Occlusion.js
   var CLEAR = -1e3;
   var RainOcclusion = class {
     constructor(engine, uniforms, opts) {
@@ -5934,7 +5934,7 @@ var SHIGOTO = (() => {
     }
   };
 
-  // src/rain/RainShaders.js
+  // Engine/src/rain/RainShaders.js
   var MAX_RAIN_LIGHTS = 8;
   var RAIN_COMMON = (
     /* glsl */
@@ -5995,7 +5995,7 @@ vec3 rOut(vec3 c) {
   );
   var COLLAPSE = "gl_Position = vec4(2.0, 2.0, 2.0, 1.0);";
 
-  // src/rain/Streaks.js
+  // Engine/src/rain/Streaks.js
   var STREAK_LAYERS = {
     //       box (m)          size  alpha  glint
     near: { box: [9, 7, 9], k: 1.15, a: 0.85, glint: 1 },
@@ -6097,7 +6097,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Splashes.js
+  // Engine/src/rain/Splashes.js
   function cardGeometry(T2, count) {
     const g2 = new T2.InstancedBufferGeometry();
     g2.setAttribute("position", new T2.BufferAttribute(new Float32Array([-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 1, 0]), 3));
@@ -6272,7 +6272,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/Atmosphere.js
+  // Engine/src/rain/Atmosphere.js
   function makeSheets(T2, rings, shared) {
     const radii = [25, 55, 110].slice(0, Math.max(1, rings));
     const seg = 72, rows = 6;
@@ -6414,7 +6414,7 @@ vec3 rOut(vec3 c) {
     return mesh;
   }
 
-  // src/rain/RainEngine.js
+  // Engine/src/rain/RainEngine.js
   var RAIN_QUALITY = {
     low: { near: 1e3, mid: 4500, far: 0, splash: 280, drips: 120, mist: 12, rings: 1, occRes: 256, occEvery: 2 },
     medium: { near: 1800, mid: 8e3, far: 4e3, splash: 650, drips: 260, mist: 24, rings: 2, occRes: 384, occEvery: 1.4 },
@@ -6770,7 +6770,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Weather.js
+  // Engine/src/env/Weather.js
   var PRESETS = {
     clear: { cloud: 0.1, rain: 0, fog: 0, wind: 2, storm: 0 },
     cloudy: { cloud: 0.62, rain: 0, fog: 8e-4, wind: 3.5, storm: 0 },
@@ -6934,7 +6934,7 @@ vec3 rOut(vec3 c) {
     }
   };
 
-  // src/env/Water.js
+  // Engine/src/env/Water.js
   var WaterSystem = class {
     constructor(engine) {
       this.engine = engine;
@@ -7070,7 +7070,7 @@ vec3 rOut(vec3 c) {
     return inside;
   }
 
-  // src/render/Surfaces.js
+  // Engine/src/render/Surfaces.js
   var RIPPLE_GLSL = (
     /* glsl */
     `
@@ -7273,7 +7273,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return t2;
   };
 
-  // src/world/Batcher.js
+  // Engine/src/world/Batcher.js
   var Batcher = class {
     constructor(THREE) {
       this.T = THREE;
@@ -7359,7 +7359,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   };
 
-  // src/world/PropSlots.js
+  // Engine/src/world/PropSlots.js
   var SLOT_MATERIALS = {
     paint: { metalness: 0.15, roughness: 0.62 },
     metal: { metalness: 0.9, roughness: 0.38 },
@@ -7434,7 +7434,7 @@ void shSurface(vec3 wp, vec3 wn) {
     ball_skin: S2("ball", "football", "leather", "wrap", { size: 512, base: "#eeeeee", brief: "A worn football's panels unrolled (white with black pentagons), scuffed and grass-stained." })
   };
 
-  // src/world/Props.js
+  // Engine/src/world/Props.js
   var PROP_DEFS = {
     cone: { dynamic: true, shape: "cone", size: [0.18, 0.72, 0.18], mass: 2.5, offsetY: 0 },
     bin: { dynamic: true, shape: "cylinder", size: [0.28, 0.9, 0.28], mass: 9 },
@@ -7779,7 +7779,7 @@ void shSurface(vec3 wp, vec3 wn) {
     }
   }
 
-  // src/world/CellBuilder.js
+  // Engine/src/world/CellBuilder.js
   var STYLE_IDS = { apartment: 0, office: 1, concrete: 2, brick: 3, shops: 4 };
   var STYLE_COLOURS = {
     apartment: [[0.86, 0.83, 0.76], [0.78, 0.74, 0.68], [0.9, 0.88, 0.84], [0.74, 0.66, 0.58]],
@@ -8353,7 +8353,7 @@ void shSurface(vec3 wp, vec3 wn) {
     return out;
   }
 
-  // src/render/Materials.js
+  // Engine/src/render/Materials.js
   var FACADE_V = (
     /* glsl */
     `
@@ -8613,7 +8613,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/world/Streamer.js
+  // Engine/src/world/Streamer.js
   var Streamer = class {
     constructor(engine) {
       this.engine = engine;
@@ -8808,8 +8808,8 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return Math.hypot((i2 + 0.5) * cs - fx, (j2 + 0.5) * cs - fz);
   }
 
-  // src/core/Engine.js
-  var VERSION = "0.7.0";
+  // Engine/src/core/Engine.js
+  var VERSION = "0.7.1";
   var Engine = class {
     constructor(opts) {
       const THREE = this.THREE = opts.THREE || window.THREE;
@@ -8867,7 +8867,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     return e2;
   }
 
-  // src/host/HostBridge.js
+  // Engine/src/host/HostBridge.js
   var HostBridge = class {
     constructor(engine, opts) {
       this.engine = engine;
@@ -9081,7 +9081,7 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
     }
   };
 
-  // src/characters/CharacterShader.js
+  // Engine/src/characters/CharacterShader.js
   var CHAR_COMMON = (
     /* glsl */
     `
@@ -9209,7 +9209,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
 `
   );
 
-  // src/characters/Subdivide.js
+  // Engine/src/characters/Subdivide.js
   function subdivideGeometry(T2, geo, opts = {}) {
     if (!geo.index || geo.morphAttributes && Object.keys(geo.morphAttributes).length) return null;
     const pos = geo.attributes.position, nor = geo.attributes.normal;
@@ -9328,7 +9328,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return g2;
   }
 
-  // src/characters/MapSynth.js
+  // Engine/src/characters/MapSynth.js
   var KIND_ROUGH = { skin: 0.55, head: 0.55, lip: 0.35, eye: 0.08, hair: 0.45, leather: 0.38, cloth: 0.85, glass: 0.06, other: 0.7 };
   var KIND_DEPTH = { skin: 1.2, head: 1.2, lip: 1, eye: 0.2, hair: 3, leather: 2.2, cloth: 1.6, glass: 0, other: 1.6 };
   function canvasOf(img, max) {
@@ -9434,7 +9434,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return res;
   }
 
-  // src/characters/Characters.js
+  // Engine/src/characters/Characters.js
   var CHAR_QUALITY = {
     low: { subdiv: 0, heroSubdiv: 0, pores: 0, synth: 0, synthSize: 256 },
     medium: { subdiv: 0, heroSubdiv: 0, pores: 1, synth: 1, synthSize: 512 },
@@ -9735,7 +9735,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     return n2;
   }
 
-  // src/persist/Persistence.js
+  // Engine/src/persist/Persistence.js
   var now = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var breathe = () => new Promise((r2) => typeof requestAnimationFrame === "function" && !(typeof document !== "undefined" && document.hidden) ? requestAnimationFrame(() => r2()) : setTimeout(r2, 0));
   var MEMORY_BUDGET = { low: 7e8, medium: 13e8, high: 22e8, ultra: 32e8 };
@@ -9980,7 +9980,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     const g2 = o2.geometry;
     if (!g2) return 0;
     const n2 = g2.index ? g2.index.count : g2.attributes && g2.attributes.position ? g2.attributes.position.count : 0;
-    return n2 / 3 * (o2.isInstancedMesh ? Math.max(1, o2.count) : 1);
+    return n2 / 3 * (o2.isInstancedMesh ? Math.max(1, o2.count) : g2.isInstancedBufferGeometry ? Math.max(1, g2.instanceCount || 1) : 1);
   }
   var sleep = (ms) => new Promise((r2) => setTimeout(r2, ms));
   async function gpuSettle(gl, maxMs) {
@@ -10037,7 +10037,13 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     const items = [];
     for (const root of roots) root.traverse((o2) => {
       if (o2.userData && o2.userData.persistBroken) return;
-      if ((o2.isMesh || o2.isLine || o2.isPoints || o2.isSprite) && o2.material && !WARMED.has(o2)) items.push(o2);
+      if ((o2.isMesh || o2.isLine || o2.isPoints || o2.isSprite) && o2.material && !WARMED.has(o2)) {
+        if (opts.skip && opts.skip(o2)) {
+          res.back = (res.back || 0) + 1;
+          return;
+        }
+        items.push(o2);
+      }
     });
     const firstMat = (o2) => (Array.isArray(o2.material) ? o2.material[0] : o2.material) || {};
     const pri = /* @__PURE__ */ new Map();
@@ -10304,7 +10310,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Honor.js
+  // Engine/src/standing/Honor.js
   var clamp = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var HONOR_TIERS = [
     { id: "disgraced", at: -100, name: "Disgraced", line: "People cross the street when they see you coming." },
@@ -10449,7 +10455,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/Respect.js
+  // Engine/src/standing/Respect.js
   var clamp2 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var RESPECT_TIERS = [
     { id: "nobody", at: 0, name: "Nobody", line: "Just another suit on the pavement." },
@@ -10681,7 +10687,7 @@ void RE_Direct_Char(const in IncidentLight dl, const in GeometricContext g, cons
     }
   };
 
-  // src/standing/StandingHud.js
+  // Engine/src/standing/StandingHud.js
   var SVG = (body) => '<svg viewBox="0 0 24 24" width="100%" height="100%" aria-hidden="true">' + body + "</svg>";
   var P2 = (d2, extra) => '<path d="' + d2 + '" fill="currentColor" ' + (extra || "") + "/>";
   var S3 = (d2, w2) => '<path d="' + d2 + '" fill="none" stroke="currentColor" stroke-width="' + (w2 || 2) + '" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -10869,7 +10875,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/interior/Interiors.js
+  // Engine/src/interior/Interiors.js
   var clamp3 = (x2, a2, b2) => Math.max(a2, Math.min(b2, x2));
   function retailTemperature(hour = 12, weather = {}) {
     if (Number.isFinite(weather.temperature)) return clamp3(weather.temperature, -20, 48);
@@ -11295,7 +11301,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/physics/VehicleDynamics.js
+  // Engine/src/physics/VehicleDynamics.js
   var clamp4 = (v2, a2, b2) => Math.max(a2, Math.min(b2, v2));
   var finite = (v2, f2 = 0) => Number.isFinite(v2) ? v2 : f2;
   function vehicleMass(kind = {}) {
@@ -11375,7 +11381,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return { steps, mass, grip, rate: state.rate, understeer: under };
   }
 
-  // src/cinematics/CinematicVideo.js
+  // Engine/src/cinematics/CinematicVideo.js
   var CinematicVideo = class {
     constructor({ manifest = "art/cinematics/manifest.json", document: doc = globalThis.document, fetch: fetcher = globalThis.fetch } = {}) {
       this.document = doc;
@@ -11483,7 +11489,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Motorcycle.js
+  // Engine/src/vehicles/Motorcycle.js
   var G2 = 9.81;
   var RHO = 1.2;
   var BIKE_SPECS = {
@@ -12140,7 +12146,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Boat.js
+  // Engine/src/vehicles/Boat.js
   var RHO2 = 1025;
   var G3 = 9.81;
   var RHO_AIR = 1.2;
@@ -12670,7 +12676,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/vehicles/Ocean.js
+  // Engine/src/vehicles/Ocean.js
   var GERSTNER_WAVES = [
     // direction x, direction z, wavelength (m), steepness: the shader's table, in the same order
     [0.94, 0.342, 64, 0.13],
@@ -12750,7 +12756,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/ragdoll/Ragdoll.js
+  // Engine/src/ragdoll/Ragdoll.js
   var clamp7 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth2 = (t2) => {
     t2 = clamp7(t2, 0, 1);
@@ -13518,7 +13524,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/Wind.js
+  // Engine/src/skydive/Wind.js
   var TAU = Math.PI * 2;
   var clamp8 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var smooth3 = (t2) => t2 * t2 * (3 - 2 * t2);
@@ -13652,7 +13658,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/Skydiver.js
+  // Engine/src/skydive/Skydiver.js
   var G4 = 9.81;
   var clamp9 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
   var lerp = (a2, b2, t2) => a2 + (b2 - a2) * t2;
@@ -14016,7 +14022,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/skydive/CanopyModel.js
+  // Engine/src/skydive/CanopyModel.js
   var CANOPY_SCHEMES = {
     // original designs: colours in sRGB hex, one per cell from the left tip; "accent" for the stabilisers and tapes
     ink: { cells: ["#13161c", "#1d2330", "#c8102e", "#f2efe8", "#c8102e", "#1d2330", "#13161c", "#1d2330", "#13161c"], accent: "#c8102e", under: "#1b1f27" },
@@ -14491,7 +14497,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/perf/Performance.js
+  // Engine/src/perf/Performance.js
   var now2 = () => typeof performance !== "undefined" ? performance.now() : Date.now();
   var COMMON_RATES = [30, 48, 50, 60, 72, 75, 85, 90, 100, 120, 144, 160, 165, 170, 180, 200, 240, 360];
   var _scratch = new Float64Array(1024);
@@ -15150,7 +15156,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/realism/Rng.js
+  // Engine/src/realism/Rng.js
   function hash32(a2, b2, c2, d2) {
     let h2 = 2166136261 ^ (a2 | 0);
     h2 = Math.imul(h2 ^ h2 >>> 16, 2246822507);
@@ -15198,7 +15204,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
   }
   var clamp11 = (v2, a2, b2) => v2 < a2 ? a2 : v2 > b2 ? b2 : v2;
 
-  // src/realism/Calendar.js
+  // Engine/src/realism/Calendar.js
   var WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
   function nthMonday(y2, m2, n2) {
     const d2 = new Date(Date.UTC(y2, m2, 1));
@@ -15320,7 +15326,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return { rise: noon - half, set: noon + half };
   }
 
-  // src/realism/Places.js
+  // Engine/src/realism/Places.js
   var PURPOSES = {
     konbini: { name: "Convenience store", hours: [0, 1440], off: -1, staff: 2, sign: "konbini", busy: { 7: 0.9, 8: 1, 12: 1, 13: 0.7, 18: 0.9, 19: 0.8, 23: 0.5, 2: 0.25 } },
     ramen: { name: "Ramen", hours: [660, 1380], off: 3, staff: 3, busy: { 12: 1, 13: 0.7, 19: 0.9, 20: 0.8, 22: 0.6 }, queue: true },
@@ -15562,7 +15568,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return A2 + " " + PURPOSES[p2.purpose].name;
   }
 
-  // src/realism/Census.js
+  // Engine/src/realism/Census.js
   var ROLES = ["salaryman", "officeworker", "shopworker", "student", "schoolchild", "infant", "retiree", "homemaker", "nightworker", "manual", "carer", "freeter", "teacher", "idle", "civil"];
   var ROLE = Object.fromEntries(ROLES.map((r2, i2) => [r2, i2]));
   var ROLE_LABEL = {
@@ -16104,7 +16110,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     return f2;
   }
 
-  // src/realism/Routines.js
+  // Engine/src/realism/Routines.js
   var DAY_START = 240;
   var WALK = 78;
   var TRAIN = 650;
@@ -16735,7 +16741,7 @@ body.titleup #stndg, body.paused #stndg, body.cutscene #stndg, body.titleup #stn
     }
   };
 
-  // src/realism/Realism.js
+  // Engine/src/realism/Realism.js
   var REALISM_VERSION = "1.0.0";
   var FAIR_WEATHER = { stroll: 1, bench: 1, garden: 1, chat: 1, play: 1, taiso: 1, jog: 1 };
   var RealismEngine = class {
