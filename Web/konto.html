@@ -7541,6 +7541,34 @@ function highwaySurface(asphalt) {
 #endif`);};}
   else if(window.SalaryRealism)SalaryRealism.facade(m,'deck',{cell:[4,4]});return m;
 }
+// A unit box for the instanced facade chunks with its faces in two runs instead of six: the four walls (material 0) then the roof (2), and the
+// underside (3) only for decks and piers, which you see from below. three.js draws one call per group even when the groups share a material,
+// so the old box cost six draw calls per chunk, and 128 chunks in view were 768 calls before a single window was drawn.
+function facadeBoxGeometry(keepBottom) {
+  const g = new THREE.BoxGeometry(1, 1, 1), src = g.index.array;
+  const face = f => Array.from(src.slice(f * 6, f * 6 + 6));   // BoxGeometry faces run +X, -X, +Y, -Y, +Z, -Z
+  const idx = [...face(0), ...face(1), ...face(4), ...face(5), ...face(2)].concat(keepBottom ? face(3) : []);
+  g.setIndex(idx); g.clearGroups();
+  g.addGroup(0, 24, 0); g.addGroup(24, 6, 2); if (keepBottom) g.addGroup(30, 6, 3);
+  return g;
+}
+// An instanced chunk whose mesh sits at the origin gets its instances' bounds as the geometry's sphere, so three.js culls it against the camera
+// and the shadow camera like any mesh. The sphere is pinned: nothing may recompute it from the unit geometry.
+function cullAsChunk(mesh, bb, pad) {
+  const p = pad || 0, y0 = bb.y0 !== undefined ? bb.y0 : 0, y1 = bb.y1 !== undefined ? bb.y1 : 40;
+  const geo = mesh.geometry;
+  if (!geo.boundingSphere) geo.computeBoundingSphere();
+  const own = geo.boundingSphere.clone();       // one instance's, which picking (raycast per instance) needs
+  mesh.raycast = function (rc, hits) {
+    const pinned = geo.boundingSphere; geo.boundingSphere = own;
+    try { THREE.InstancedMesh.prototype.raycast.call(this, rc, hits); } finally { geo.boundingSphere = pinned; }
+  };
+  geo.boundingSphere = new THREE.Sphere(new THREE.Vector3((bb.x0 + bb.x1) / 2, (y0 + y1) / 2, (bb.z0 + bb.z1) / 2), Math.hypot(bb.x1 - bb.x0, y1 - y0, bb.z1 - bb.z0) / 2 + p);
+  geo.computeBoundingSphere = function () {};
+  geo.userData.pinnedSphere = true;
+  mesh.frustumCulled = true;
+  return mesh;
+}
 function facadeMaterials(style) {
   if (facadeCache[style]) return facadeCache[style];
   if(style==='deck'||style==='highway'){
@@ -9713,7 +9741,9 @@ function buildScene(w) {
     scene.add(sun);
     scene.add(sun.target);
     sunLight = sun;
-    hemiLight = new THREE.HemisphereLight(0xa8c6e0, 0x3a382f, 0.42);
+    // the ground colour is the light the sunlit street throws back up: under an expressway deck, an eave or a balcony that bounce is most
+    // of the light there is (at 0x3a382f, about a tenth of the sky's, every underside in the city was black)
+    hemiLight = new THREE.HemisphereLight(0xa8c6e0, 0x6b665b, 0.42);
     scene.add(hemiLight);
     scene.add(makeSky());
   }
@@ -10175,12 +10205,12 @@ function buildScene(w) {
         });
         Object.keys(buckets).forEach(key => {
         const list = buckets[key].list;
-        const geo = new THREE.BoxGeometry(1, 1, 1);
+        const geo = facadeBoxGeometry(style === "deck" || style === "highway");
         const inst = new THREE.InstancedMesh(geo, set.mats, list.length);
         const tiles = new Float32Array(list.length * 3);
         const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
         const col = new THREE.Color();
-        const bb = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y1: 0 };
+        const bb = { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y0: 1e9, y1: 0 };
         list.forEach((b, i) => {
           e.set(b.pitch || 0, b.yaw * Math.PI / 180, 0, "YXZ");
           q.setFromEuler(e);
@@ -10191,7 +10221,7 @@ function buildScene(w) {
           );
           inst.setMatrixAt(i, m);
           const reach = Math.hypot(b.size[0], b.size[1]) * 0.5;
-          bb.x0 = Math.min(bb.x0, b.c[0] - reach); bb.x1 = Math.max(bb.x1, b.c[0] + reach); bb.z0 = Math.min(bb.z0, b.c[1] - reach); bb.z1 = Math.max(bb.z1, b.c[1] + reach); bb.y1 = Math.max(bb.y1, b.y + b.h);
+          bb.x0 = Math.min(bb.x0, b.c[0] - reach); bb.x1 = Math.max(bb.x1, b.c[0] + reach); bb.z0 = Math.min(bb.z0, b.c[1] - reach); bb.z1 = Math.max(bb.z1, b.c[1] + reach); bb.y1 = Math.max(bb.y1, b.y + b.h); bb.y0 = Math.min(bb.y0, b.y);
           // Whole bays only: a window sliced in half at a corner reads as a bug.
           tiles[i * 3] = Math.max(1, Math.round(b.size[0] / set.spec.cell[0]));
           tiles[i * 3 + 1] = Math.max(1, Math.round(b.size[1] / set.spec.cell[0]));
@@ -10206,7 +10236,9 @@ function buildScene(w) {
         geo.setAttribute("aTile", new THREE.InstancedBufferAttribute(tiles, 3));
         inst.instanceMatrix.needsUpdate = true;
         if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-        inst.frustumCulled = false;
+        // The chunk's own bounds, in world space (the mesh sits at the origin), so the camera AND the sun's shadow camera skip it when it is
+        // outside their view. Unculled, every chunk in the bubble was drawn into the 640 m shadow map as well: 720 draw calls a frame.
+        cullAsChunk(inst, bb);
         inst.castShadow = true;
         inst.receiveShadow = true;
         root.add(inst);
@@ -19680,8 +19712,9 @@ function* pedNetBuild() {
 function pedNetTick() {
   if (pedNet.ready || !xing.ready) return;
   if (!pedNet.gen) { pedNet.x = []; pedNet.z = []; pedNet.adj = []; pedNet.grid = new Map(); pedNet.gen = pedNetBuild(); }
-  const t0 = performance.now();
-  while (performance.now() - t0 < 5) { if (pedNet.gen.next().done) { pedNet.gen = null; break; } }
+  // the frame's spare time, from the performance engine (a fixed 5 ms was a third of a frame on a laptop already at its limit)
+  const t0 = performance.now(), ms = window.KONTO_PERF && KONTO_PERF.on ? Math.max(0.5, KONTO_PERF.budget("pedNet", 5)) : 5;
+  while (performance.now() - t0 < ms) { if (pedNet.gen.next().done) { pedNet.gen = null; break; } }
 }
 function pedNetEdgeX(a, b) { const e = pedNet.adj[a].find(t => t[0] === b); return e && e[1] >= 0 ? xing.list[e[1]] : null; }
 // A* over the footways, from the node nearest one point to the node nearest another

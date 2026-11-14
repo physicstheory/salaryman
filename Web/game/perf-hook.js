@@ -43,6 +43,7 @@
       frameNo++;
       const r = R();
       if (r && !setup) init(r);
+      if (frameNo % 30 === 0) cullTier();
       if (!wrapsDone && playing) installWraps();
       // shadows every other frame (the sun barely moves in a frame, and on a struggling card the shadow pass is a large share of it)
       if (r && r.shadowMap) {
@@ -93,8 +94,55 @@
         return out;
       };
     }
+    installDrawCull(r);
+    G.lever({ name: "fewer far details", kind: "cpu", available: () => !!(K.cull && K.cull.on),
+      apply: on => { K.cull.boost = on ? 1.8 : 1; } });
     if (r.domElement) r.domElement.addEventListener("webglcontextrestored", () => { P.pacer.reset(); G.hold(3); });
     document.addEventListener("visibilitychange", () => { P.pacer.reset(); G.hold(2); });
+  }
+
+  // ---- draw-call culling (2026-11-14) ---------------------------------------------------------------------------------------------------
+  // On integrated graphics (Iris Xe through ANGLE/Direct3D 11) every draw call costs the processor a fixed slice of the frame, and a
+  // Tōkonto street was asking for 4,000+ of them. Two kinds were pure waste, and are skipped at the last moment before they reach the driver:
+  //   EMPTY   an InstancedMesh with nothing in it (count 0) still went to the driver as a draw of zero instances, with all its state set up;
+  //           pools of cars, people, signs and lit windows that are empty most of the time were over a hundred calls a frame.
+  //   SPECKS  a mesh that covers less than about two pixels from where the camera is (a vending machine 1.5 km off, a bollard across the
+  //           bay): the threshold is the sphere's radius over its distance, by tier, scaled with the lens so a zoomed camera keeps them.
+  //           Only for the eye's (perspective) camera: shadow maps, post passes and anything with userData.noSizeCull are left alone, and so are
+  //           skinned meshes and instanced meshes (their bounds are one instance's, not the set's) unless a chunk's bounds were pinned.
+  // Both only in the game's own scene, so the graphics warm-up (which draws through a proxy of it) still compiles and uploads everything.
+  // Off: ?cull=0. Console: shigoto.cull() for the counts.
+  function installDrawCull(r) {
+    if (/[?&]cull=0\b/.test(location.search) || store("konto.cull") === "0" || typeof THREE !== "object") return;
+    const orig = r.renderBufferDirect;
+    const sph = new THREE.Sphere(), C = K.cull = { on: true, boost: 1, empty: 0, small: 0, k: 0.002 };
+    const T29 = Math.tan(29 * Math.PI / 180);
+    const mainScene = () => (typeof scene !== "undefined" ? scene : null);
+    r.renderBufferDirect = function (cam, sc, geo, mat, obj, grp) {
+      // only the game's own scene: the graphics warm-up renders through a proxy of it and must still reach every program and texture
+      const own = sc === mainScene();
+      if (C.on && obj && (own || sc === null)) {        // (shadow maps pass no scene)
+        if (obj.isInstancedMesh && obj.count === 0) { C.empty++; return; }
+        if (own && cam && cam.isPerspectiveCamera && obj.isMesh && geo && !obj.isSkinnedMesh && !(obj.userData && obj.userData.noSizeCull) && (!obj.isInstancedMesh || geo.userData.pinnedSphere)) {
+          let bs = geo.boundingSphere;
+          if (!bs) { geo.computeBoundingSphere(); bs = geo.boundingSphere; }
+          if (bs && bs.radius > 0) {
+            sph.copy(bs).applyMatrix4(obj.matrixWorld);
+            const e = cam.matrixWorld.elements, dx = sph.center.x - e[12], dy = sph.center.y - e[13], dz = sph.center.z - e[14];
+            const d = Math.sqrt(dx * dx + dy * dy + dz * dz) - sph.radius;
+            if (d > 40 && sph.radius < d * C.k * C.boost * Math.tan((cam.fov || 58) * Math.PI / 360) / T29) { C.small++; return; }
+          }
+        }
+      }
+      return orig.call(this, cam, sc, geo, mat, obj, grp);
+    };
+    (window.shigoto || (window.shigoto = {})).cull = () => ({ on: C.on, k: C.k, boost: C.boost, emptySkipped: C.empty, specksSkipped: C.small });
+  }
+  function cullTier() {
+    if (!K.cull) return;
+    const t = typeof gfx === "object" && gfx ? gfx.tier : "medium";
+    K.cull.k = ({ low: 0.0032, medium: 0.0022, high: 0.0014, ultra: 0.0009 })[t] || 0.0022;
+    if (typeof gfx === "object" && gfx && gfx.cinematic) K.cull.k *= 0.5;
   }
 
   // ---- the parts of a frame that get timed (by name, so a hitch can say which) ---------------------------------------------------------

@@ -9,8 +9,16 @@ function canvasMap(im,spec,srgb,base){const n=size(),c=document.createElement('c
   const nx=Math.max(1,Math.round(spec.cell[0]/4)),ny=Math.max(1,Math.round(spec.cell[1]/4));
   for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)g.drawImage(im,x*n/nx,y*n/ny,n/nx+1,n/ny+1);
   if(base){g.globalCompositeOperation='multiply';g.globalAlpha=.90;g.drawImage(base,0,0,n,n);}
+  if(srgb&&TARGET[kindOf(im)])level(g,n,TARGET[kindOf(im)]);
   const t=new T.CanvasTexture(c);t.encoding=srgb?T.sRGBEncoding:T.LinearEncoding;t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=tier()==='low'?2:4;return t;
 }
+// Multiplying the photograph over the drawn facade (both mid-grey) left it far too dark: a shopfront came out at an sRGB mean of 30 and the
+// expressway's concrete at 68, which under the sun's shadow is black on screen (the elevated decks and the shop blocks were pitch black).
+// Each colour map is levelled back to the brightness the real material has (sRGB mean; concrete ~0.35 albedo), keeping its contrast.
+const TARGET={brick:112,plaster:168,metal:132,concrete:150};
+function kindOf(im){const m=/realism\/(\w+)-color/.exec(im&&im.src||'');return m?m[1]:'';}
+function level(g,n,target){try{const d=g.getImageData(0,0,n,n),a=d.data;let s=0;for(let i=0;i<a.length;i+=4)s+=a[i]+a[i+1]+a[i+2];const mean=s/(a.length/4)/3;if(!(mean>1)||Math.abs(mean-target)<6)return;
+  const k=target/mean;for(let i=0;i<a.length;i+=4){a[i]=Math.min(255,a[i]*k);a[i+1]=Math.min(255,a[i+1]*k);a[i+2]=Math.min(255,a[i+2]*k);}g.globalCompositeOperation='copy';g.globalAlpha=1;g.putImageData(d,0,0);}catch(e){/* a tainted canvas keeps its colour */}}
 function facade(side,style,spec){const kind={shop:'brick',houses:'plaster',shed:'metal',deck:'concrete',coast:'plaster',kura:'plaster'}[style];if(!kind)return;
   const base=side.map?.image;
   image(kind+'-color').then(im=>{if(!im)return;side.map=canvasMap(im,spec,true,base);side.userData.salaryPhotographic=kind;side.needsUpdate=true;});

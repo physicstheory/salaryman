@@ -156,8 +156,8 @@
   // ---- rooftops -------------------------------------------------------------------------------------------
   // Every flat city roof gets what real ones carry (Tools/foundry/gen/roofs.py): plant rooms, chillers, condenser racks,
   // water tanks, cooling towers, masts, solar, rooftop sign frames and helipads on the tallest towers. Placed once per
-  // world from the building boxes, merged per 256 m chunk and per material (a dozen draw calls a chunk), streamed with
-  // the buildings, LOD1 within 260 m and LOD2 beyond. Replaces the coloured boxes the close-up detail used to put there.
+  // world from the building boxes and drawn instanced in a ring round the camera (see ringFill below), LOD1 within 260 m
+  // and the last LOD beyond. Replaces the coloured boxes the close-up detail used to put there.
   const RF = F.roofs = { boxes: [], chunks: [], ready: false, items: 0, tris: 0 };
   F.roofsOn = true;
   const ROOF_IDS = ["roof_chiller", "roof_condensers", "roof_watertank", "roof_liftroom", "roof_coolingtower", "roof_mast", "roof_solar", "roof_helipad", "roof_vents", "roof_billboard"];
@@ -258,88 +258,90 @@
     return meshes;
   }
 
-  // Rooftop kit pieces are drawn instanced: one InstancedMesh per model part per chunk, each piece a 64-byte matrix. (They were merged
-  // into one copy of every vertex per piece: 19,000 pieces were 13 million triangles and about 600 MB of memory and video memory, which
-  // is what a laptop with integrated graphics ran out of at the end of the loading screen.)
-  function instanceParts(list) {
-    const by = new Map();
-    for (const it of list) for (const pt of it.parts) { let e = by.get(pt.geometry); if (!e) by.set(pt.geometry, e = { pt, ms: [] }); e.ms.push(it.matrix); }
-    const meshes = [];
-    by.forEach(({ pt, ms }) => {
-      const im = new THREE.InstancedMesh(pt.geometry, pt.material, ms.length);
-      for (let i = 0; i < ms.length; i++) im.setMatrixAt(i, ms[i]);
-      im.instanceMatrix.needsUpdate = true;
-      im.receiveShadow = true; im.castShadow = false;
-      im.frustumCulled = false;            // the model's own bounds sit at the origin; the chunk is culled as a whole (streamAdd)
-      meshes.push(im);
-      const g = pt.geometry; RF.tris += (g.index ? g.index.count : g.attributes.position.count) / 3 * ms.length;
-    });
-    return meshes;
+  // Rooftop kit pieces are drawn instanced, and since 2026-11-14 as ONE InstancedMesh per model part per LOD band for the whole map (it was one
+  // per part per 256 m chunk: 2,100 draw calls and 1.3 million triangles a frame on a Tōkonto street, the largest single cost of the frame
+  // on integrated graphics). Every part of a model shares that model's instance-matrix buffer, and the buffers are refilled with only the
+  // pieces in a ring round the camera whenever the camera has moved far enough: LOD1 inside 260 m, the last LOD out to a distance set by the
+  // quality tier, nothing beyond (a condenser on a roof a kilometre away is under a pixel).
+  const RING = { models: [], at: null, k: 0, group: null, far: 0 };
+  function roofFar() {
+    const tier = typeof gfx === "object" && gfx ? gfx.tier : "medium";
+    const base = { low: 520, medium: 760, high: 1100, ultra: 1500 }[tier] || 760;
+    let k = 1; try { k = Math.min(1.6, typeof streamReach === "function" ? streamReach() : 1); } catch (e) { k = 1; }
+    return base * k;
+  }
+  function ringModel(id, m, pieces, group) {
+    const n = pieces.length, X = new Float32Array(n), Z = new Float32Array(n), M = new Float32Array(n * 16);
+    pieces.forEach((p, i) => { X[i] = p.x; Z[i] = p.z; M.set(p.matrix.elements, i * 16); });
+    const band = parts => {
+      const attr = new THREE.InstancedBufferAttribute(new Float32Array(n * 16), 16);
+      if (attr.setUsage) attr.setUsage(THREE.DynamicDrawUsage);
+      const meshes = parts.map(pt => {
+        const im = new THREE.InstancedMesh(pt.geometry, pt.material, n);
+        im.instanceMatrix = attr; im.count = 0; im.visible = false;
+        im.receiveShadow = true; im.castShadow = false; im.frustumCulled = false; im.matrixAutoUpdate = false;
+        group.add(im);
+        const g = pt.geometry; RF.tris += (g.index ? g.index.count : g.attributes.position.count) / 3 * n;
+        return im;
+      });
+      return { attr, meshes, count: 0 };
+    };
+    return { id, n, X, Z, M, near: band(m.lods[Math.min(1, m.lods.length - 1)]), far: band(m.lods[m.lods.length - 1]) };
+  }
+  function ringFill(force) {
+    if (!RING.models.length || typeof camera === "undefined" || !camera) return;
+    const cp = camera.position, far = roofFar();
+    if (!force && RING.at && Math.abs(far - RING.far) < 1 && (cp.x - RING.at.x) ** 2 + (cp.z - RING.at.z) ** 2 < 36 * 36) return;
+    RING.at = { x: cp.x, z: cp.z }; RING.far = far;
+    const nearR2 = 260 * 260, farR2 = far * far;
+    for (const md of RING.models) {
+      const na = md.near.attr.array, fa = md.far.attr.array;
+      let nn = 0, nf = 0;
+      for (let i = 0; i < md.n; i++) {
+        const dx = md.X[i] - cp.x, dz = md.Z[i] - cp.z, d2 = dx * dx + dz * dz;
+        if (d2 < nearR2) { na.set(md.M.subarray(i * 16, i * 16 + 16), nn * 16); nn++; }
+        else if (d2 < farR2) { fa.set(md.M.subarray(i * 16, i * 16 + 16), nf * 16); nf++; }
+      }
+      for (const [b, c] of [[md.near, nn], [md.far, nf]]) {
+        b.count = c;
+        if (c) { b.attr.updateRange.offset = 0; b.attr.updateRange.count = c * 16; b.attr.needsUpdate = true; }
+        for (const im of b.meshes) { im.count = c; im.visible = c > 0; }
+      }
+    }
   }
   function roofsBuild(parent) {
     const boxes = RF.boxes.filter(flatRoof);
     RF.boxes = [];
     if (!boxes.length) return;
     Promise.all(ROOF_IDS.map(id => F.load(id).catch(() => null))).then(models => {
-      const byId = {}, sizes = {}, matByName = new Map();
-      models.forEach(m => {
-        if (!m) return;
-        byId[m.id] = m; sizes[m.id] = m.entry.size;
-        m.lods.forEach(parts => parts.forEach(pt => { const k = pt.material.name || pt.material.uuid; if (!matByName.has(k)) matByName.set(k, pt.material); }));
-      });
+      const byId = {}, sizes = {};
+      models.forEach(m => { if (!m) return; byId[m.id] = m; sizes[m.id] = m.entry.size; });
       if (!Object.keys(byId).length) return;
-      // plan every roof, bucket by chunk
-      const chunks = new Map(), M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1);
+      const pieces = {}, q = new THREE.Quaternion(), e = new THREE.Euler(), one = new THREE.Vector3(1, 1, 1);
       for (const b of boxes) {
         const plan = roofPlan(b, sizes);
         if (!plan.length) continue;
-        const key = Math.floor(b.c[0] / RCH) + "," + Math.floor(b.c[1] / RCH);
-        let ch = chunks.get(key);
-        if (!ch) chunks.set(key, ch = { near: [], far: [], bb: { x0: 1e9, x1: -1e9, z0: 1e9, z1: -1e9, y0: 1e9, y1: -1e9 } });
         const by = b.yaw * Math.PI / 180, cs = Math.cos(by), sn = Math.sin(by), top = b.y + b.h;
         for (const it of plan) {
-          const m = byId[it.id]; if (!m) continue;
+          if (!byId[it.id]) continue;
           const wx = b.c[0] + it.lx * cs + it.lz * sn, wz = b.c[1] - it.lx * sn + it.lz * cs;
           e.set(0, by + it.yaw, 0); q.setFromEuler(e);
-          const mat = new THREE.Matrix4().compose(new THREE.Vector3(wx, top, wz), q, one);
-          ch.near.push({ parts: m.lods[Math.min(1, m.lods.length - 1)], matrix: mat });
-          ch.far.push({ parts: m.lods[m.lods.length - 1], matrix: mat });
-          const bb = ch.bb; bb.x0 = Math.min(bb.x0, wx - 12); bb.x1 = Math.max(bb.x1, wx + 12); bb.z0 = Math.min(bb.z0, wz - 12); bb.z1 = Math.max(bb.z1, wz + 12); bb.y0 = Math.min(bb.y0, top); bb.y1 = Math.max(bb.y1, top + 12);
+          (pieces[it.id] || (pieces[it.id] = [])).push({ x: wx, z: wz, matrix: new THREE.Matrix4().compose(new THREE.Vector3(wx, top, wz), q, one) });
           RF.items++;
         }
       }
-      // merge one chunk per slice of time, so the world build does not hitch
-      const list = [...chunks.values()];
-      const step = () => {
-        const t0 = performance.now();
-        while (list.length && performance.now() - t0 < 8) {
-          const ch = list.shift();
-          const g = new THREE.Group(), near = new THREE.Group(), far = new THREE.Group();
-          instanceParts(ch.near).forEach(m => near.add(m));
-          instanceParts(ch.far).forEach(m => far.add(m));
-          g.add(near, far); near.visible = false;
-          g.userData.foundryRoofs = true;
-          parent.add(g);
-          const c = new THREE.Vector3((ch.bb.x0 + ch.bb.x1) / 2, (ch.bb.y0 + ch.bb.y1) / 2, (ch.bb.z0 + ch.bb.z1) / 2);
-          RF.chunks.push({ g, near, far, c, r: Math.hypot(ch.bb.x1 - ch.bb.x0, ch.bb.z1 - ch.bb.z0) / 2 });
-          if (typeof streamAdd === "function" && typeof STREAM === "object") streamAdd(g, ch.bb, STREAM.low);
-        }
-        if (list.length) setTimeout(step, 0);
-        else { RF.ready = true; console.log("[Foundry] rooftops: " + RF.items + " pieces on " + boxes.length + " roofs, " + RF.chunks.length + " chunks, " + Math.round(RF.tris / 1000) + "k triangles in all"); }
-      };
-      step();
+      const g = new THREE.Group(); g.name = "foundry rooftops"; g.userData.foundryRoofs = true;
+      RING.group = g; RING.models = []; RING.at = null;
+      Object.keys(pieces).forEach(id => RING.models.push(ringModel(id, byId[id], pieces[id], g)));
+      parent.add(g);
+      ringFill(true);
+      RF.ready = true;
+      console.log("[Foundry] rooftops: " + RF.items + " pieces on " + boxes.length + " roofs, " + RING.models.length + " models drawn in a ring round the camera (" + Math.round(RF.tris / 1000) + "k triangles if all were shown)");
     });
   }
 
-  function roofsTick() {
-    if (!RF.chunks.length || typeof camera === "undefined" || !camera) return;
-    const cp = camera.position;
-    for (const ch of RF.chunks) {
-      if (!ch.g.visible) continue;
-      const near = cp.distanceTo(ch.c) - ch.r < 260;
-      if (ch.near.visible !== near) { ch.near.visible = near; ch.far.visible = !near; }
-    }
-  }
+  function roofsTick() { ringFill(false); }
+  F.roofRing = () => ({ far: Math.round(RING.far), models: RING.models.map(m => ({ id: m.id, n: m.n, near: m.near.count, far: m.far.count })) });
 
   // ---- stations ------------------------------------------------------------------------------------------------------------------------
   // NHRail stations (Tools/foundry/gen/station.py): 12 m platform bays (plain, with seats, with vending machines) down both side
@@ -386,7 +388,7 @@
           parent.add(g);
           const c = new THREE.Vector3(k.x, k.y, k.z), r = k.PL / 2 + 25;
           ST.groups.push({ g, near: gn, far: gf, c, r });
-          if (typeof streamAdd === "function" && typeof STREAM === "object") streamAdd(g, { x0: k.x - r, x1: k.x + r, z0: k.z - r, z1: k.z + r, y0: k.y - 20, y1: k.y + 10 }, STREAM.low);
+          if (typeof streamAdd === "function" && typeof STREAM === "object") streamAdd(g, { x0: k.x - r, x1: k.x + r, z0: k.z - r, z1: k.z + r, y0: k.y - 20, y1: k.y + 10 }, Math.min(STREAM.low, 1500));   // a platform's benches and vending machines are lost in the haze past 1.5 km
         }
         if (list.length) setTimeout(step, 0);
         else { ST.ready = true; console.log("[Foundry] stations: " + ST.groups.length + " rebuilt from the Blender kit"); }
@@ -415,6 +417,8 @@
   if (typeof _buildScene === "function") {
     window.buildScene = function (w) {
       RF.chunks.forEach(ch => { if (ch.g.parent) ch.g.parent.remove(ch.g); });
+      if (RING.group && RING.group.parent) RING.group.parent.remove(RING.group);
+      RING.group = null; RING.models = []; RING.at = null;
       if (typeof STREAM === "object" && STREAM.reg) STREAM.reg = STREAM.reg.filter(e => !(e.o.userData && e.o.userData.foundryRoofs));
       RF.chunks = []; RF.boxes = []; RF.items = 0; RF.tris = 0; RF.ready = false;
       ST.groups.forEach(s => { if (s.g.parent) s.g.parent.remove(s.g); });
