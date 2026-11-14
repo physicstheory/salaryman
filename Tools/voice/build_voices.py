@@ -19,7 +19,7 @@ import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT = os.path.join(ROOT, "Web", "audio", "voice")
-SOURCES = ["Web/konto.html", "Web/game/career-office.js", "Web/game/afterhours.js", "Web/game/career.js", "Web/game/career-commute.js"]
+SOURCES = ["Web/konto.html", "Web/game/career-office.js", "Web/game/afterhours.js", "Web/game/career.js", "Web/game/career-commute.js", "Web/game/saga-content.js", "Web/game/saga-content2.js", "Web/game/yakuza-content.js"]
 
 # voice: a Kokoro voice name or a blend {name: weight}; speed; fx: optional ffmpeg filter; look: the cast file whose jaw moves
 CAST = {

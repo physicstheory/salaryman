@@ -104,6 +104,7 @@ def main():
         f.write(struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(jb) + 8 + len(bn)))
         f.write(struct.pack("<II", len(jb), 0x4E4F534A)); f.write(jb)
         f.write(struct.pack("<II", len(bn), 0x004E4942)); f.write(bn)
+    add_orm(out)
     ixp = os.path.join(REAL, "index.json"); ix = json.load(open(ixp))
     base = next(e for e in ix["people"] if e["file"] == SRC)
     ix["people"] = [e for e in ix["people"] if e["file"] != OUT]
@@ -111,6 +112,36 @@ def main():
     ix["people"].append(e)
     json.dump(ix, open(ixp, "w"), indent=1, ensure_ascii=False)
     print("boss: %d vertices moved, up axis %d, height pelvis-head %.3f -> %s (%d bytes)" % (moved, ax, height, OUT, os.path.getsize(out)))
+
+
+def add_orm(path):
+    """Any material of the boss that has a colour map but no ORM (the grafted head) gets one, the same way the rest of the cast does."""
+    sys.path.insert(0, HERE)
+    import build_real_people as rp
+    from PIL import Image
+    j, binb = rp.read_glb(open(path, "rb").read())
+    for m in j.get("materials", []):
+        pbr = m.setdefault("pbrMetallicRoughness", {})
+        if "baseColorTexture" not in pbr or "metallicRoughnessTexture" in pbr or m["name"].endswith(("_opacity", "_glasses")): continue
+        size = rp.ORM_SIZE
+        alb = np.asarray(rp.image_of(j, binb, pbr["baseColorTexture"]["index"]).convert("RGB").resize((size, size), Image.LANCZOS))
+        part = "head" if m["name"].endswith("_head") else "body"
+        skin = rp.skin_mask(alb)
+        spec = np.repeat((np.asarray(Image.fromarray(alb).convert("L")) * 0.12)[..., None], 3, 2).astype(np.uint8)
+        rough = rp.roughness(spec, skin, part, alb)
+        ao = rp.ao_from_normal(np.asarray(rp.image_of(j, binb, m["normalTexture"]["index"]).convert("RGB")), size) if "normalTexture" in m else np.ones_like(rough)
+        orm = np.stack([ao, rough, skin], -1)
+        blob = rp.enc(Image.fromarray((orm * 255 + 0.5).astype(np.uint8), "RGB"))
+        while len(binb) % 4: binb.append(0)
+        j["bufferViews"].append({"buffer": 0, "byteOffset": len(binb), "byteLength": len(blob)}); binb.extend(blob)
+        j["images"].append({"bufferView": len(j["bufferViews"]) - 1, "mimeType": "image/jpeg"})
+        j["textures"].append({"sampler": 0, "source": len(j["images"]) - 1})
+        ti = len(j["textures"]) - 1
+        pbr["metallicRoughnessTexture"] = {"index": ti}; pbr["metallicFactor"] = 0.0; pbr["roughnessFactor"] = 1.0
+        m["occlusionTexture"] = {"index": ti, "strength": 1.0}
+        m["extras"] = {"shigoto": {"kind": part if part == "head" else "skin-atlas", "orm": "R=occlusion G=roughness B=skinMask", "specular": None}}
+        print("boss: ORM added to", m["name"])
+    rp.write_glb(path, j, binb)
 
 
 if __name__ == "__main__":

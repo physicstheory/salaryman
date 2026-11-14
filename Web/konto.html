@@ -45973,7 +45973,7 @@ function storyInterview() {
     { dur: 1.4, from: { pos: L(1.6, 1.55, 2.2), look: L(0, 1.45, -2.6) }, overlay: "black lift", timeScale: 0, lines: [[0.3, "", "*ding*  58F"]],
       enter: () => { lob.group.visible = false; off.group.visible = true; seat(off.ox + 0, off.oz + 1.4, Math.PI); } },
     { dur: 3.8, from: { pos: O(2.2, 1.7, 4.2), look: O(0, 1.5, -2.9) }, to: { pos: O(1.9, 1.65, 3.4), look: O(0, 1.6, -2.9) }, near: 0.05, timeScale: 0,
-      lines: [[0.4, "", "Akio Sotiyama — grandson of the founder"]] },
+      lines: [[0.4, "", "Sotiyama Akio — president of SOTI, grandson of the founder"]] },
     { dur: 2.8, from: { pos: O(0.35, 1.72, -1.4), look: O(0, 1.62, -2.9) }, to: { pos: O(0.3, 1.7, -1.6), look: O(0, 1.64, -2.9) }, near: 0.05, timeScale: 0,
       lines: [[0.3, "Akio", late ? "You're late. Very late." : "You're late."]] },
     { dur: 2.8, from: { pos: O(2.6, 2.3, -3.6), look: O(4.6, 2.4, -5.1) }, to: { pos: O(3.4, 2.35, -4.3), look: O(4.6, 2.4, -5.1) }, near: 0.05, timeScale: 0,
@@ -45984,6 +45984,8 @@ function storyInterview() {
       enter: () => { player.forceClip = null; playSeikoClip("idle", 0.2); },
       lines: [[0.2, "Akio", "My grandfather built this company on one rule. Be where you said you would be."],
               [3.2, "Akio", "Your file says you can talk to anyone. We'll see."], [5.4, "Seiko", "Hai."]] },
+    { dur: 7.6, from: { pos: O(0.9, 1.5, -0.9), look: O(0, 1.5, -2.9) }, to: { pos: O(0.7, 1.55, -1.1), look: O(0, 1.55, -2.9) }, near: 0.05, timeScale: 0,
+      lines: [[0.2, "Akio", "In this building everybody bows to me, and everybody owes me. You will do both."], [4.2, "Akio", "Do it well and I feed you. Do it badly and I eat you."]] },
     { dur: 7.2, from: { pos: O(0.35, 1.72, -1.4), look: O(0, 1.62, -2.9) }, to: { pos: O(0.4, 1.7, -1.2), look: O(0, 1.62, -2.9) }, near: 0.05, timeScale: 0,
       lines: [[0.2, "Akio", "Customer service. Third floor. The calls nobody else wants."], [3.0, "Akio", "You start tomorrow. Do not be late again."]] },
     { dur: 3.4, from: { pos: O(-1.8, 1.4, 2.6), look: O(0, 1.0, 1.4) }, near: 0.05, timeScale: 0,
@@ -46321,6 +46323,12 @@ radioLoadMusic();
 <script src="game/career-commute.js"></script>
 <script src="game/karaoke.js"></script>
 <script src="game/afterhours.js"></script>
+<script src="game/quest.js"></script>
+<script src="game/saga.js"></script>
+<script src="game/saga-content.js"></script>
+<script src="game/saga-content2.js"></script>
+<script src="game/yakuza.js"></script>
+<script src="game/yakuza-content.js"></script>
 <script src="game/cinema-hook.js"></script>
 <script src="game/bike-hook.js"></script>
 <script src="game/ragdoll-hook.js"></script>
