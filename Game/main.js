@@ -467,7 +467,7 @@ function errMainReport(code, message, extra) {
 }
 function errRemember(rec) {           // for the page to show after it is restarted
   if (!ERR_PENDING) return;
-  try { let a = []; try { a = JSON.parse(fs.readFileSync(ERR_PENDING, "utf8")); } catch (e) { /* none */ } a.push(rec); fs.writeFileSync(ERR_PENDING, JSON.stringify(a.slice(-10))); } catch (e) { /* none */ }
+  try { let a = []; try { a = JSON.parse(fs.readFileSync(ERR_PENDING, "utf8")); } catch (e) { /* none */ } a.push(Object.assign({ build: buildInfo().build }, rec)); fs.writeFileSync(ERR_PENDING, JSON.stringify(a.slice(-10))); } catch (e) { /* none */ }
 }
 function errToPage(rec) { try { if (win && !win.isDestroyed() && !win.webContents.isCrashed()) win.webContents.send("err-main", rec); else errRemember(rec); } catch (e) { errRemember(rec); } }
 function errReportText(rec) {
@@ -536,7 +536,9 @@ app.whenReady().then(() => app.getGPUInfo("complete")).then(info => {
 ipcMain.on("err-info", e => { try { e.returnValue = errInfo(); } catch (x) { e.returnValue = {}; } });
 ipcMain.on("err-pending", e => {
   let a = []; try { a = JSON.parse(fs.readFileSync(ERR_PENDING, "utf8")); fs.rmSync(ERR_PENDING, { force: true }); } catch (x) { /* none */ }
-  e.returnValue = Array.isArray(a) ? a.filter(r => Date.now() - Date.parse(r.at) < 6 * 3600e3) : [];
+  // only this build's: a crash from before an update is not this build's problem (and its report would name the wrong build)
+  const b = buildInfo().build;
+  e.returnValue = Array.isArray(a) ? a.filter(r => Date.now() - Date.parse(r.at) < 6 * 3600e3 && (!b || r.build === b)) : [];
 });
 ipcMain.on("err-write", (_e, rec) => {
   if (!rec || typeof rec.text !== "string") return;

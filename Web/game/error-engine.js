@@ -184,6 +184,14 @@
   const records = [];          // this session's, newest last
   const byKey = new Map();
   const STORE = "konto.errors";
+  // Which build a report came from. Reports are kept between runs (a driver reset restarts the page), and the store outlives an update, so
+  // a report from an older build must never come back looking like a new one: only this build's reports are shown as "last time", and the
+  // list and every card name the build.
+  const thisBuild = () => { const i = safe(() => info()) || {}; return String(i.build || i.version || ""); };
+  const buildOf = r => String((r && r.info && (r.info.build || r.info.version)) || "");
+  const shortBuild = b => /^[0-9a-f]{7,}$/i.test(b) ? b.slice(0, 7) : b || "unknown build";
+  const sameBuild = r => { const b = thisBuild(); return !b || buildOf(r) === b; };
+  const whenText = at => safe(() => new Date(at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) || at;
   let saveQuotaHit = false;
   function persistStore() {
     if (saveQuotaHit) return;
@@ -478,6 +486,8 @@
     c.appendChild(el("div", "k", label || (r.sev === "warn" ? "Problem found" : "Something went wrong")));
     c.appendChild(el("div", "code", r.full));
     c.appendChild(el("div", "t", r.title + (r.count > 1 ? "  ×" + r.count : "")));
+    const rb = buildOf(r) || thisBuild();
+    c.appendChild(el("div", "h", "Build " + shortBuild(rb) + " · " + whenText(r.at) + (rb && thisBuild() && rb !== thisBuild() ? " · from an older build, not the one running now (" + shortBuild(thisBuild()) + ")" : "")));
     c.appendChild(el("div", "h", r.hint + " Copy the report and paste it to Claude, or open a GitHub issue."));
     const row = el("div", "row");
     const ok = el("span", "ok");
@@ -497,16 +507,17 @@
     if (ui.card) ui.card.remove();
     panelOpen = true;
     const all = records.slice().reverse();
-    const prev = (safe(() => JSON.parse(localStorage.getItem(STORE) || "[]")) || []).filter(o => o.session !== SESSION).reverse().slice(0, 8);
+    const prev = (safe(() => JSON.parse(localStorage.getItem(STORE) || "[]")) || []).filter(o => o.session !== SESSION).reverse().slice(0, 8)
+      .sort((a, b) => (sameBuild(a) ? 0 : 1) - (sameBuild(b) ? 0 : 1));
     const c = el("div", "card");
     const x = el("button", "x", "×"); x.onclick = closeCard; c.appendChild(x);
-    c.appendChild(el("div", "k", "Error engine"));
+    c.appendChild(el("div", "k", "Error engine · build " + shortBuild(thisBuild())));
     c.appendChild(el("div", "t", all.length ? all.length + " problem" + (all.length > 1 ? "s" : "") + " this session" : "No problems this session"));
     const list = el("div", "list");
     const line = (r, old) => {
       const li = el("div", "li");
       li.appendChild(el("span", "c", r.full));
-      li.appendChild(el("span", "d", (old ? "last time · " : "") + r.title + (r.count > 1 ? " ×" + r.count : "") + (r.message ? " · " + r.message : "")));
+      li.appendChild(el("span", "d", (old ? (sameBuild(r) ? "last time · " : "older build " + shortBuild(buildOf(r)) + " · ") : "") + r.title + (r.count > 1 ? " ×" + r.count : "") + (r.message ? " · " + r.message : "")));
       const b = el("button", "", "Copy"); b.onclick = () => copy(pasteText(r)).then(d => { b.textContent = d ? "Copied" : "Failed"; });
       li.appendChild(b);
       li.onclick = ev => { if (ev.target === li || ev.target.className === "d") cardFor(r, old ? "From last time" : undefined); };
@@ -536,6 +547,19 @@
     else if (shown && ui.card && !panelOpen) { const t = ui.card.querySelector(".t"); if (t) t.textContent = shown.title + (shown.count > 1 ? "  ×" + shown.count : ""); }
     updatePill();
   }
+  // the build that is running, in the corner of the title screen, so it is easy to tell an old install from a new one
+  safe(() => {
+    const put = () => {
+      if (document.getElementById("smbuild")) return;
+      const i = safe(() => info()) || {}, b = i.build || "";
+      const t = el("div"); t.id = "smbuild";
+      t.textContent = (i.version && i.version !== "web" ? "v" + i.version + " · " : "") + (b ? "build " + b : "browser build") + (i.update ? " + update " + i.update : "");
+      const st = document.createElement("style");
+      st.textContent = "#smbuild{position:fixed;right:10px;bottom:6px;z-index:40;font:500 11px var(--data,ui-monospace,monospace);color:rgba(255,255,255,.55);pointer-events:none;display:none}body.titleup #smbuild{display:block}";
+      document.head.appendChild(st); document.body.appendChild(t);
+    };
+    if (document.body) put(); else document.addEventListener("DOMContentLoaded", put, { once: true });
+  });
   document.addEventListener("keydown", e => { if (e.ctrlKey && e.shiftKey && (e.key === "E" || e.key === "e")) { e.preventDefault(); e.stopPropagation(); togglePanel(); } }, true);
 
   // ---- what happened last time (a report raised just before a restart, a crash the desktop app saw) ---------------------------------------
@@ -543,7 +567,7 @@
     const pending = [];
     if (desk) safe(() => (desk.pending() || []).forEach(p => pending.push(p)));
     // the page's own: errors from the previous session not yet looked at (a driver reset restarts the page within two seconds)
-    const old = (safe(() => JSON.parse(localStorage.getItem(STORE) || "[]")) || []).filter(o => o.session !== SESSION && !o.seen && o.sev === "error" && Date.now() - Date.parse(o.at) < 6 * 3600e3);
+    const old = (safe(() => JSON.parse(localStorage.getItem(STORE) || "[]")) || []).filter(o => o.session !== SESSION && !o.seen && o.sev === "error" && Date.now() - Date.parse(o.at) < 6 * 3600e3 && sameBuild(o));
     const lastSess = old.length ? old[old.length - 1].session : null;
     const mine = old.filter(o => o.session === lastSess);
     for (const p of pending) {                               // the desktop app's own records become full ones here
