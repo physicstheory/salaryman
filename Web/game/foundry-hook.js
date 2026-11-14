@@ -85,6 +85,11 @@
     if (m.normalMap) m.normalMap.anisotropy = 8;
     if (m.transparent) { m.depthWrite = false; m.envMapIntensity = 1.4; }
     if (m.emissive && (m.emissive.r + m.emissive.g + m.emissive.b) > 0.3) { m.toneMapped = true; m.userData.lamp = true; }
+    // Solid-colour library materials (paint, powder coat, rubber, vinyl, moquette) were packed with near-flat normal and
+    // roughness maps; the game's triplanar PBR kit (konto.html applyPbrKit) puts real orange peel, wear and grain on them.
+    const kit = /^(paint|powder)/.test(m.name) ? "paint" : /^rubber/.test(m.name) ? "rubber" : /^(platform|floor_vinyl)/.test(m.name) ? "concrete"
+      : /^(seat_moquette|fabric)/.test(m.name) ? "fabric" : /^leather/.test(m.name) ? "leather" : /^gangway/.test(m.name) ? "rubber" : null;
+    if (kit && typeof applyPbrKit === "function" && !m.transparent) applyPbrKit(m, kit, { detail: 0.7 });
     return m;
   }
 
