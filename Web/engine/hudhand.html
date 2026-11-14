@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HUD hand</title>
+<style>html,body{margin:0;background:transparent;overflow:hidden}</style>
+</head>
+<body>
+<script src="../../Game/vendor/three.min.js"></script>
+<script src="../../Game/vendor/GLTFLoader.js"></script>
+<script src="shigoto.js"></script>
+<script>
+// Renders Seiko's own right hand, from his realistic model, gripping a phone, as seen by him: the picture the game's HUD shows round
+// the phone (Web/art/hud/hand_<outfit>.png). The phone is a hold-out: it is drawn into the depth buffer only, so the PNG is clear
+// where the phone is and the game's phone shows through, with the thumb over its edge and the fingers round the other side.
+// Driven by Tools/hud/render_hand.mjs. ?model=seiko_suit_charcoal
+(async function () {
+  const Q = new URLSearchParams(location.search);
+  const W = +(Q.get("w") || 900), H = +(Q.get("h") || 1200);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
+  renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  // soft studio environment
+  { const s = new THREE.Scene(), box = new THREE.BoxGeometry(1, 1, 1);
+    const room = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: 0x3a3c40, side: THREE.BackSide })); room.scale.set(20, 10, 20); s.add(room);
+    const panel = (c, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); m.scale.set(sx, sy, sz); s.add(m); };
+    panel(0xffffff, 0, 4.9, 0, 12, 0.1, 12); panel(0xfff0e0, -9.9, 2, 3, 0.1, 5, 6); panel(0x667799, 9.9, 2, -3, 0.1, 4, 4);
+    const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(s, 0.04).texture; pm.dispose(); }
+  const key = new THREE.DirectionalLight(0xfff1e0, 2.6), fill = new THREE.DirectionalLight(0xbcd0ff, 0.9), hemi = new THREE.HemisphereLight(0xffffff, 0x404040, 0.35);
+  scene.add(key, fill, hemi, key.target, fill.target);
+  const chars = SHIGOTO.characters(THREE, { quality: "high" });
+  const loader = new THREE.GLTFLoader();
+  const g = await new Promise((res, rej) => loader.load("../people/real/" + (Q.get("model") || "seiko_suit_charcoal") + ".glb", res, null, rej));
+  const root = g.scene; scene.add(root);
+  root.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  if (!Q.has("raw")) chars.upgrade(root, { hero: true, quality: "high", model: "seiko" });
+  const box = new THREE.Box3().setFromObject(root), h = box.max.y - box.min.y; root.scale.setScalar(1.72 / h); root.updateMatrixWorld(true);
+  const B = {}; root.traverse(o => { if (o.isBone) B[o.name.replace(/^Bip01[_ ]/, "").replace(/ /g, "_")] = o; });
+  const rest = {}; Object.keys(B).forEach(k => rest[k] = B[k].quaternion.clone());
+  // the phone: a hold-out (depth only)
+  const phone = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ colorWrite: false }));
+  phone.renderOrder = -1; scene.add(phone);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 2);
+  const V = (a) => new THREE.Vector3().fromArray(a);
+  window.__bones = Object.keys(B);
+  window.__info = function () {
+    root.updateMatrixWorld(true);
+    const out = {}; ["R_Hand", "R_Forearm", "R_Finger0", "R_Finger01", "R_Finger02", "R_Finger1", "R_Finger11", "R_Finger12", "R_Finger2", "R_Finger4", "R_Finger42"].forEach(n => {
+      const b = B[n]; if (!b) return; const p = b.getWorldPosition(new THREE.Vector3()), q = b.getWorldQuaternion(new THREE.Quaternion());
+      out[n] = { p: p.toArray().map(v => +v.toFixed(3)), x: new THREE.Vector3(1, 0, 0).applyQuaternion(q).toArray().map(v => +v.toFixed(2)), y: new THREE.Vector3(0, 1, 0).applyQuaternion(q).toArray().map(v => +v.toFixed(2)), z: new THREE.Vector3(0, 0, 1).applyQuaternion(q).toArray().map(v => +v.toFixed(2)) };
+    });
+    return out;
+  };
+  // P: { fingers: [[a,b,c] x4], fingerAxis: 'x'|'y'|'z', thumb: [[ax,ay,az] x3], wrist:[ax,ay,az], cam:{...}, phone:{...} }
+  window.__pose = function (P) {
+    Object.keys(B).forEach(k => B[k].quaternion.copy(rest[k]));
+    const ax = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+    const rot = (b, e) => { if (!b || !e) return; b.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0], e[1], e[2], "XYZ"))); };
+    rot(B.R_Hand, P.wrist);
+    for (let f = 1; f <= 4; f++) {
+      const c = P.fingers[f - 1] || [0, 0, 0], spread = (P.spread || [0, 0, 0, 0])[f - 1] || 0;
+      const segs = [B["R_Finger" + f], B["R_Finger" + f + "1"], B["R_Finger" + f + "2"]];
+      segs.forEach((b, i) => { if (!b) return; b.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(ax[P.fingerAxis || "z"], c[i] * (P.fingerSign || 1))); });
+      if (segs[0] && spread) segs[0].quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(ax[P.spreadAxis || "y"], spread));
+    }
+    [B.R_Finger0, B.R_Finger01, B.R_Finger02].forEach((b, i) => rot(b, (P.thumb || [])[i]));
+    root.updateMatrixWorld(true);
+    // the frame: the hand's own axes
+    const hq = B.R_Hand.getWorldQuaternion(new THREE.Quaternion()), hp = B.R_Hand.getWorldPosition(new THREE.Vector3());
+    const toW = v => V(v).applyQuaternion(hq);
+    const C = P.cam, palm = toW(C.normal).normalize(), up = toW(C.up).normalize();
+    const centre = hp.clone().add(toW(C.offset || [0, 0, 0]));
+    camera.position.copy(centre).addScaledVector(palm, 0.5); camera.up.copy(up); camera.lookAt(centre);
+    const s = C.size || 0.14; camera.left = -s * W / H; camera.right = s * W / H; camera.top = s; camera.bottom = -s; camera.near = 0.05; camera.far = 0.5 + (C.depth || 0.12); camera.updateProjectionMatrix();
+    // the phone, flat to the camera, at the palm
+    const ph = P.phone; phone.quaternion.copy(camera.quaternion);
+    phone.position.copy(centre).add(new THREE.Vector3(ph.x, ph.y, 0).applyQuaternion(camera.quaternion)).addScaledVector(palm, ph.lift || 0.012);
+    phone.scale.set(ph.w, ph.h, ph.t || 0.009); phone.visible = !P.noPhone;
+    key.position.copy(camera.position).add(new THREE.Vector3(-0.6, 0.8, 0.2).applyQuaternion(camera.quaternion)); key.target.position.copy(centre);
+    fill.position.copy(camera.position).add(new THREE.Vector3(0.7, -0.3, 0.1).applyQuaternion(camera.quaternion)); fill.target.position.copy(centre);
+    renderer.render(scene, camera);
+    // where the phone lands in the picture, in pixels
+    const corners = [[-0.5, -0.5], [0.5, 0.5]].map(c => new THREE.Vector3(c[0], c[1], 0.5).applyMatrix4(phone.matrixWorld).project(camera));
+    return { url: renderer.domElement.toDataURL("image/png"), rect: [ (corners[0].x + 1) / 2 * W, (1 - corners[1].y) / 2 * H, (corners[1].x + 1) / 2 * W, (1 - corners[0].y) / 2 * H ] };
+  };
+  window.__ready = true;
+})().catch(e => { window.__err = String(e && e.stack || e); });
+</script>
+</body>
+</html>

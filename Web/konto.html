@@ -20858,7 +20858,7 @@ function buildStreetFurniture(w, city, root, boxes) {
     const conZ = concourseEnd(city, st, t), fz = conZ < 0 ? 1 : -1, face = fz > 0 ? "B" : "F";     // (its front always looks at the platform)
     // where the story finds it: the track frame (for a camera on the platform) and the street door of the concourse
     { const zs = conZ - fz * 15.5; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
-      st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw }; }
+      st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw, z: conZ, fz: fz, face: conZ + fz * 10, PL: PL, deckY: railY + 1.15 }; }
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
     if (FST) (window.__stationKits || (window.__stationKits = [])).push({ x: t.x, y: railY, z: t.z, yaw: t.yaw, PL, conZ, conY, fz });
     else {
@@ -20892,7 +20892,14 @@ function buildStreetFurniture(w, city, root, boxes) {
     [-1, 1].forEach(sideIdx => {
       const px = sideIdx * 6.7, cw = toWorld(px, 0);
       w.walk.push({ cx: cw[0], cz: cw[1], c: wc, s: ws, hw: 3.9, hl: PL / 2, ya: deckY, yb: deckY, r: PL / 2 + 6 });
-      [-1, 1].forEach(e => {
+      // The platforms are reached through the concourse and its ticket gates, never from the street, so there is no
+      // street stair; each end has a railing instead (the far end) or the concourse's own glass wall (the near end).
+      [fz].forEach(e => {
+        solid.colour(FURN.steel);
+        solid.box(px, 1.15 + 0.55, e * (PL / 2 - 0.1), 7.6, 1.1, 0.08);
+        solid.box(px, 1.15 + 1.08, e * (PL / 2 - 0.1), 7.8, 0.06, 0.12);
+      });
+      if (window.KONTO_STREET_STAIRS) [-1, 1].forEach(e => {
         const foot = toWorld(px, e * (PL / 2 + 8)), gy = groundAt(foot[0], foot[1]);
         const rise = Math.max(0.6, deckY - gy);
         const run = clamp(rise * 2.1, 5, 34);
@@ -31281,7 +31288,11 @@ function updateDoorways(dt) {
     enterThrough(() => enterHome());
     return;
   }
+  if (doorway.clear && Math.hypot(doorway.clear[0] - px, doorway.clear[1] - pz) < 2.3) return;
+  doorway.clear = null;
   const sh = shopNear(px, pz, 1.6, true);
+  // a room you walk into is entered at the threshold itself, not a stride short of it
+  if (sh && interiorSupports(sh) && window.seamless && Math.hypot(sh.door[0] - px, sh.door[1] - pz) > 1.25) return;
   if (sh) { if (interiorSupports(sh)) enterShop(sh); else enterThrough(() => enterShop(sh)); }
 }
 
@@ -42883,16 +42894,12 @@ function interiorShowRoom(room, at, face) {
 function interiorGoLevel(idx) {
   const b = interior.bld; if (!b || idx === b.idx) { interiorLiftClose(); return; }
   interiorLiftClose();
-  const fade = document.getElementById("fade");
-  if (fade) fade.style.opacity = "1";
-  setTimeout(() => {
-    const room = b.make(idx);
-    b.idx = idx;
-    interiorShowRoom(room, { x: (room.W||IN_W) / 2 - 2.4, z: -3.0 }, -Math.PI / 2);
-    const f = b.floors[idx];
-    say(f.label + "  " + f.name, 3.5);
-    if (fade) fade.style.opacity = "0";
-  }, 450);
+  // no fade: the lift doors close, and open on the other floor
+  const room = b.make(idx);
+  b.idx = idx;
+  interiorShowRoom(room, { x: (room.W||IN_W) / 2 - 2.4, z: -3.0 }, -Math.PI / 2);
+  const f = b.floors[idx];
+  say("Ding. " + f.label + "  " + f.name, 3.5);
 }
 function interiorLiftDraw() {
   const el = interior.cardEl, b = interior.bld, L = interior.lift; if (!L || !b) return;
@@ -43067,6 +43074,7 @@ function interiorSpotAct(sp) {
   if (sp.act === "police") { interior.modal = { kind: "desk", sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorModalDraw(); return; }
   if (sp.act === "lift") { interiorLiftOpen(); return; }
   if (sp.act === "platforms") { sp.cool = clock + 3; railTicketOpen(); return; }
+  if (sp.act === "toPlatform") { sp.cool = clock + 2; if (window.seamless && seamless.toPlatform(sp)) return; railTicketOpen(); return; }
   if (sp.act === "store") { interiorEnterStore(sp); return; }
   if (sp.act === "desk") { say("Irasshaimase. Capsule number 3 is yours: lower row, the one with the light on. Slippers by the door, please.", 6); return; }
   if (sp.act === "pod") { interior.pod = { sel: 0 }; player.speed = 0; interior.prompt.classList.remove("on"); interiorPodDraw(); }
@@ -43776,7 +43784,7 @@ function interiorRoomRaw(s, opts) {
   if(opts.noExit)inAdd(root,2.4,wallH,.22,0,wallH/2,IN_D/2,th.wall);
   else {
     inAdd(root, 0.12, 2.5, 0.12, -1.2, 1.25, IN_D / 2, "#2a2d33"); inAdd(root, 0.12, 2.5, 0.12, 1.2, 1.25, IN_D / 2, "#2a2d33");
-    inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2").material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false });
+    { const card = inAdd(root, 2.3, 2.4, 0.04, 0, 1.2, IN_D / 2 + 0.6, "#cfe6f2"); card.material = new THREE.MeshBasicMaterial({ color: 0xcfe6f2, fog: false }); card.userData.streetCard = true; }
   }
   // coloured band and ceiling lights
   inAdd(root, IN_W, 0.35, 0.22, 0, 2.95, -IN_D / 2 + 0.02, th.trim);
@@ -44420,7 +44428,7 @@ function interiorTryStep(dx, dz, radius) {
   const inGap = !R.noExit && Math.abs(lx) < (R.doorW ? R.doorW / 2 - 0.2 : 1.0);
   if (lx < -W / 2 + radius + 0.1 || lx > W / 2 - radius - 0.1) return false;
   if (lz < -D / 2 + radius + 0.1) return false;
-  if (lz > D / 2 - radius - (inGap ? -0.6 : 0.1)) return false;
+  if (lz > D / 2 - radius - (inGap ? -(interior.doorstep || 0.6) : 0.1)) return false;
   for (const c of R.colliders) if (nx > c.x0 + R.ox - radius && nx < c.x1 + R.ox + radius && nz > c.z0 + R.oz - radius && nz < c.z1 + R.oz + radius) return false;
   player.pos.x = nx; player.pos.z = nz;
   return true;
@@ -44502,7 +44510,7 @@ function interiorTick(dt) {
   padGlyphs();
   // out through the doorway
   const lz = player.pos.z - R.oz, lx = player.pos.x - R.ox;
-  if (!R.noExit && lz > (R.D || IN_D) / 2 - 0.55 && Math.abs(lx) < (R.doorW ? R.doorW / 2 : 1.2)) interiorLeave();
+  if (!R.noExit && lz > (R.D || IN_D) / 2 + (interior.doorstep ? interior.doorstep - 0.5 : -0.55) && Math.abs(lx) < (R.doorW ? R.doorW / 2 : 1.2)) interiorLeave();
 }
 
 // ---- the close look ---------------------------------------------------------------------------------------------------------------------
@@ -45015,9 +45023,30 @@ function stationExtra(def) {
     const W=room.W||IN_W,D=room.D||IN_D;
     base(room, root, th);
     if (def.id !== 1) return;
-    // the ticket gates along the left, the departure board over them, and a pillar clock
-    for (let i = 0; i < 6; i++) { const z = -2.6 + i * 0.95; inAdd(root, 1.1, 1.0, 0.18, -W / 2 + 2.4, 0.5, z, "#c9ced4"); inAdd(root, 0.5, 0.06, 0.2, -W / 2 + 2.4, 1.02, z, i % 2 ? "#2a9ad6" : "#15894f"); }
-    room.colliders.push({ x0: -W / 2 + 1.8, x1: -W / 2 + 3.0, z0: -2.8, z1: 2.3 });
+    // The ticket gates: a line of automatic gates across the back-left corner, with the paid side behind them and, in the back wall
+    // there, the passage up to the platforms (seamless-hook walks you through it onto the real platform). A fence closes the
+    // paid side off from the shops, so the gates are the only way through.
+    const n = def.stores.length, leftStore = n ? (0 - (n - 1) / 2) * 5.2 + (n === 1 ? -1.2 : 0) - 2.2 : W / 2;
+    const gx0 = -W / 2 + 0.25, gx1 = Math.max(gx0 + 4.6, Math.min(-W / 2 + 7.2, leftStore - 0.5)), gz = -D / 2 + 3.8;
+    const lanes = Math.max(3, Math.floor((gx1 - gx0) / 1.12)), pitchG = (gx1 - gx0) / lanes;
+    room.gates = { x0: gx0, x1: gx1, z: gz, paid: false };
+    for (let i = 0; i <= lanes; i++) {
+      const x = gx0 + i * pitchG;
+      inAdd(root, 0.22, 1.0, 1.25, x, 0.5, gz, "#c9ced4");
+      inAdd(root, 0.24, 0.05, 0.36, x, 1.02, gz + 0.38, i % 2 ? "#2a9ad6" : "#15894f");          // the IC reader
+      inAdd(root, 0.06, 0.32, 0.5, x + (i < lanes ? 0.14 : -0.14), 0.62, gz - 0.1, "#d9534f");  // the flap
+      room.colliders.push({ x0: x - 0.11, x1: x + 0.11, z0: gz - 0.62, z1: gz + 0.62 });
+    }
+    // the fence between the paid side and the shops, and its glass
+    inAdd(root, 0.12, 1.15, D / 2 - (-gz) + 0.1, gx1 + 0.1, 0.58, (gz + -D / 2) / 2, "#59606a");
+    room.colliders.push({ x0: gx1 - 0.05, x1: gx1 + 0.3, z0: -D / 2, z1: gz + 0.6 });
+    // the passage to the platforms, in the back wall of the paid side
+    const px = (gx0 + gx1) / 2, pw = Math.min(3.4, gx1 - gx0 - 1.0);
+    room.platformGate = { x: px, w: pw, z: -D / 2 };
+    const sg = inLabel("改札口  TICKET GATES  ↑ のりば Platforms 1・2", Math.min(6.4, gx1 - gx0 + 1.4), 0.42, "#15894f", "#ffffff"); sg.position.set(px, 2.55, gz + 0.66); sg.rotation.y = 0; root.add(sg);
+    const pf = inLabel("1・2番線  のりば  Platforms 1・2  ↑", pw + 0.6, 0.42, "#14171b", "#ffd21c"); pf.position.set(px, 3.05, -D / 2 + 0.14); root.add(pf);
+    const ex = inLabel("出口  EXIT  →  Street", 3.0, 0.38, "#ffd21c", "#14171b"); ex.position.set(0, 3.55, D / 2 - 0.14); ex.rotation.y = Math.PI; root.add(ex);
+    const ex2 = inLabel("出口  EXIT  ↓", 2.2, 0.36, "#ffd21c", "#14171b"); ex2.position.set(px, 3.05, gz - 0.66); ex2.rotation.y = Math.PI; root.add(ex2);
     const board=inCanvasTex('departures:'+room.key,1024,320,(g,w,h)=>{
       g.fillStyle='#11252d';g.fillRect(0,0,w,h);g.fillStyle='#f3f0de';g.font='600 30px '+UI;g.fillText((room.stationRef?.name||'NHRail')+' · DEPARTURES',24,42,w-48);
       const routes=railDestinations(room.stationRef).slice(0,5);
@@ -45026,11 +45055,15 @@ function stationExtra(def) {
     });
     let boardMinute=-1;const beforeTick=room.tick;room.tick=dt=>{if(beforeTick)beforeTick(dt);const minute=Math.floor(gameMinutes());if(minute!==boardMinute){boardMinute=minute;board._kon.redraw();board.needsUpdate=true;}};
     const bm = new THREE.Mesh(new THREE.PlaneGeometry(4.6, 1.44), new THREE.MeshBasicMaterial({ map: board, fog: false }));
-    bm.position.set(-W / 2 + 0.14, 2.6, -0.4); bm.rotation.y = Math.PI / 2; root.add(bm);
-    const sg = inLabel("改札口  TICKET GATES  ← Platforms", 4.6, 0.36, "#15894f", "#ffffff"); sg.position.set(-W / 2 + 0.14, 3.45, -0.4); sg.rotation.y = Math.PI / 2; root.add(sg);
+    bm.position.set(-W / 2 + 0.14, 2.6, (gz + D / 2) / 2 + 0.6); bm.rotation.y = Math.PI / 2; root.add(bm);
     propPut(root,"wall_clock",W/2-.2,Math.min(4.1,(room.H||IN_H)-.6),-D*.12,-Math.PI/2,{h:.7});
     room.bench = { x: 2.8, z: 1.2 };
-    room.spots = (room.spots || []).concat([{ x: -W / 2 + 3.7, z: -0.4, label: "go through the gates to the platforms", act: "platforms" }]);
+    room.spots = (room.spots || []).concat([
+      { x: gx1 + 1.6, z: gz + 1.6, label: "buy a ticket at the machine", act: "platforms" },
+      { x: px, z: -D / 2 + 0.75, label: "up to the platforms", act: "toPlatform", walk: true }]);
+    // the ticket machines beside the gates
+    for (let k = 0; k < 2; k++) { inAdd(root, 0.8, 1.7, 0.6, gx1 + 1.1 + k * 0.95, 0.85, gz + 0.7, "#dfe4e8"); inAdd(root, 0.6, 0.45, 0.04, gx1 + 1.1 + k * 0.95, 1.25, gz + 1.01, "#1b6fd0"); }
+    room.colliders.push({ x0: gx1 + 0.65, x1: gx1 + 2.5, z0: gz + 0.4, z1: gz + 1.0 });
   };
 }
 function interiorStationLevel(s,idx) {
@@ -46069,6 +46102,8 @@ radioLoadMusic();
 <script src="game/lib/meshopt_decoder.js"></script>
 <script src="game/foundry-hook.js"></script>
 <script src="game/interiors-hook.js"></script>
+<script src="game/seamless-hook.js"></script>
+<script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
 </body>
 </html>
