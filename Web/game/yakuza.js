@@ -184,13 +184,15 @@
     s.rank = r;
     setTimeout(() => { storyPassed(R.name, "Kurogane-kai" + (R.jp ? " · " + R.jp : "")); }, 400);
     C.emit("yakuza:rank", { rank: R.id, name: R.name, tier: r });
+    // the luxury layer gives the family's gifts in four tiers: associate, wakashu, shatei-gashira, honbuchō
+    const lux = [0, 1, 2, 2, 3, 4, 4, 4][r];
+    try { story.flags.yakuzaRank = lux; window.dispatchEvent(new CustomEvent("salaryman:rank", { detail: { track: "yakuza", index: lux, rank: R.id } })); } catch (e) { /* optional */ }
     try { if (window.standing) window.standing.earn(4 + r * 2, R.name + " of the Kurogane-kai"); } catch (e) { /* optional */ }
     if (R.kinds) setTimeout(() => {
       const d = { id: "kai:" + R.id, family: "kurogane", rank: R.id, rankName: R.name, tier: r, from: r >= 6 ? "Kurogane Jūzō" : "The Kurogane-kai", note: R.note, kinds: R.kinds.slice(), budget: R.budget };
       if (s.gifts.some(x => x.id === d.id)) return;
-      let got = null; try { if (window.luxury && typeof luxury.gift === "function") got = luxury.gift(d); } catch (e) { console.warn("[Yakuza] luxury.gift:", e); }
-      if (got && got.name) d.item = got.name;
       s.gifts.push(d); C.emit("yakuza:gift", d);
+      if (window.luxury && luxury.data) return;                                  // luxury.js delivers the box itself
       notify("Messages", d.from, (d.item ? d.item + ". " : "A small box, wrapped in black. ") + "“" + R.note + "”", 10);
     }, 6500);
     saveGame(null, true);
@@ -232,6 +234,7 @@
     const run = () => {
       const def = { id: "yk:" + j.id, title: j.title, people: j.people, talks: j.talks, steps: j.steps };
       Y.job = j;
+      try { if (window.luxury && luxury.setContext) luxury.setContext("yakuza"); } catch (e) { /* optional */ }
       const ctx = Q.run(def, c => jobDone(j, c));
       ctx.yk = true;
     };
@@ -248,6 +251,7 @@
   function jobDone(j, ctx) {
     const s = S();
     Y.job = null;
+    try { if (window.luxury && luxury.setContext) luxury.setContext(null); } catch (e) { /* optional */ }
     if (ctx.failed) { s.fails++; storyClearBlips(); say("The job went wrong. " + (Y.CONTACTS[j.from] ? Y.CONTACTS[j.from].name : "The office") + " will have it for you again.", 5); restoreDay(); return; }
     s.done[j.id] = true;
     const pay = Math.round(j.pay * (0.7 + 0.1 * ctx.rating) / 1000) * 1000;

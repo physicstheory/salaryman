@@ -18,8 +18,8 @@
 //
 // ---- gifts (for the luxury thread) ------------------------------------------------------------------------------------------------------
 //   career.on("rank:gift", fn)      fn({ rank, rankName, tier (1-6), from, note, kinds: ["watch","fragrance",...], budget, id })
-//   window event "salaryman:rank:gift" carries the same detail. If window.luxury.gift exists it is called with it and may return
-//   { name } (shown in the message from the giver). career.saga.gifts() lists every gift so far (saved), career.saga.rank() the rank now,
+//   window event "salaryman:rank:gift" carries the same detail. When luxury.js is in the build it hands over the actual watch or scent
+//   (its own gift table, keyed by the respect rank and by "salaryman:rank" { track: "yakuza", index 1-4 } from yakuza.js). career.saga.gifts() lists every gift so far (saved), career.saga.rank() the rank now,
 //   career.saga.tier() 0-7, and career.saga.ladder the table. The Kurogane-kai side fires "yakuza:gift" the same way (yakuza.js).
 (function () {
   "use strict";
@@ -108,11 +108,10 @@
   G.gift = function (r, extra) {
     const g = st(), d = Object.assign({ id: "soti:" + r.id, rank: r.id, rankName: r.name, tier: rankAt(r.id) + 1, from: r.from, note: r.note, kinds: r.kinds.slice(), budget: r.budget }, extra || {});
     if (g.gifts.some(x => x.id === d.id)) return;
-    let got = null;
-    try { if (window.luxury && typeof luxury.gift === "function") got = luxury.gift(d); } catch (e) { console.warn("[Saga] luxury.gift:", e); }
-    if (got && got.name) d.item = got.name;
     g.gifts.push(d);
     C.emit("rank:gift", d);
+    // the luxury layer (luxury.js) hands over the actual watch/scent for this rank itself, from the respect rank standing.promote set
+    if (window.luxury && luxury.data) { try { window.dispatchEvent(new CustomEvent("salaryman:rank", { detail: { track: "soti", rank: r.id } })); } catch (e) { /* optional */ } return; }
     notify("Messages", r.from, (d.item ? "A gift for the new " + r.name.toLowerCase() + ": " + d.item + ". " : "A box is waiting on your desk. ") + "“" + r.note + "”", 10);
   };
   // after a mission is passed: the tenth of a rank is the promotion; a good name brings it sooner
