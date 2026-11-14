@@ -71,7 +71,7 @@
     if (!def || (def.kind !== "field" && def.kind !== "meeting" && def.kind !== "finale")) return false;
     story.step = "c:field";
     if (def.kind === "finale") { G.finale(); return true; }
-    const brief = { office: def.brief, cast: def.cast, card: def.title + "  ·  " + G.rank().name, stay: def.kind === "meeting" };
+    const brief = { office: def.brief, cast: def.cast, card: def.title + "  ·  " + G.rank().name, stay: def.kind === "meeting", noAkio: !!def.noAkio };
     let steps;
     if (def.kind === "meeting") steps = [brief, { talk: "meeting", head: def.head || "Sotiyama Akio" }].concat(def.steps || []).concat([{ leave: true }]);
     else steps = [brief].concat(def.steps).concat(def.noReturn ? [] : [{ go: "soti", text: def.backText || "Report back to SOTI Tower", hint: "The boss does not like to wait." }]);
@@ -212,6 +212,8 @@
   }
   G.css = sagaCss;
 
+  // the things Akio asked of him that a clean man refused
+  G.DIRTY = ["did_favor", "hirata_signed", "shredded", "lied_press", "gave_bonuses", "sold_bad", "shimizu_fired", "took_bribe", "bribed_inspector", "stole_bribe", "perjured", "took_offer", "haggled_offer", "sold_list", "betrayed_nakano", "voted_layoffs"];
   // ---- the end ---------------------------------------------------------------------------------------------------------------------------
   // the friend he confided in (mission 46, "Old Friends"); Ishikawa if he never chose
   G.friend = () => { const f = st().flags; return f.friend_mori ? "Mori" : f.friend_nakano ? "Nakano" : "Ishikawa"; };
@@ -276,7 +278,7 @@
     if (how === "president") {
       G.promote("president");
       G.achieve("ending_top");
-      if (!g.flags.did_favor) G.achieve("clean_hands");
+      if (!G.DIRTY.some(k => g.flags[k])) G.achieve("clean_hands");
       purse.yen += 5000000;
     } else {
       G.achieve("ending_box");
