@@ -835,12 +835,13 @@ body.careerdesk #cdesk{display:block}
     const st = C.state();
     let ids = (def.incidents || []).slice();
     if (def.random) {
-      const pool = Object.keys(O.incidents).filter(k => O.incidents[k].pool);
+      // the day's own problems (if it has any), and whatever else the floor throws up
+      const pool = Object.keys(O.incidents).filter(k => O.incidents[k].pool && ids.indexOf(k) < 0);
       const last = st.lastIncidents || [];
       const fresh = pool.filter(k => last.indexOf(k) < 0);
-      ids = [];
-      while (ids.length < def.random && fresh.length) ids.push(fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0]);
-      st.lastIncidents = ids.slice();
+      const want = ids.length + def.random, drawn = [];
+      while (ids.length < want && fresh.length) { const k = fresh.splice(Math.floor(Math.random() * fresh.length), 1)[0]; ids.push(k); drawn.push(k); }
+      st.lastIncidents = drawn;
     }
     O.floor = { ids: ids, left: ids.slice(), done: [], good: 0, vipWaiting: false };
     O.floorPanel(true);

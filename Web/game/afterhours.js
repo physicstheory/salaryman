@@ -40,7 +40,7 @@
       hello: "Ah. Seiko. Hello. I booked us the room with the good microphone.", bye: "Thank you for coming. Really." },
     gondo: { name: "Gondō Tetsuo", short: "Gondō", look: "salaryman_07", phone: "090-4410-1919", role: "boss", likes: ["izakaya", "karaoke"], drinks: "sake",
       hello: "Seiko. Sit. A manager drinks with his people. That is the job too.", bye: "Nineteen years… Go home, Seiko. Don't be late." },
-    akio: { name: "Akio Sotiyama", short: "Akio", look: "salaryman_04", role: "exec", likes: ["karaoke"], drinks: "whisky" },
+    akio: { name: "Akio Sotiyama", short: "Akio", look: "boss_akio", role: "exec", likes: ["karaoke"], drinks: "whisky" },
     otsuka: { name: "Ōtsuka Masaru", short: "Ōtsuka", look: "salaryman_08", role: "client", likes: ["bar"], drinks: "whisky" }
   };
   const PARTNERS = ["ishikawa", "mori", "nakano", "fujita"];

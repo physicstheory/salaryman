@@ -467,6 +467,26 @@
     "roughness",
     "occlusion"
    ]
+  },
+  {
+   "file": "boss_akio.glb",
+   "name": "boss_akio",
+   "female": false,
+   "business": true,
+   "japanese": true,
+   "body": "Business_Male_04",
+   "head": "Business_Male_02",
+   "tris": 7462,
+   "bytes": 2073144,
+   "identity": "Akio Sotiyama, the boss of SOTI",
+   "pbr": [
+    "albedo",
+    "normal",
+    "roughness",
+    "occlusion"
+   ],
+   "story": true,
+   "build": "heavy"
   }
  ],
  "player": "seiko_player.glb",
@@ -528,57 +548,57 @@
   },
   {
    "id": "custom_village",
-   "name": "Custom \u00b7 Village overalls",
+   "name": "Custom · Village overalls",
    "file": "../seiko_village.glb"
   },
   {
    "id": "custom_village_denim",
-   "name": "Custom \u00b7 Work overalls",
+   "name": "Custom · Work overalls",
    "file": "../seiko_village_denim.glb"
   },
   {
    "id": "custom_office",
-   "name": "Custom \u00b7 Office suit",
+   "name": "Custom · Office suit",
    "file": "../seiko_office.glb"
   },
   {
    "id": "custom_suit_black",
-   "name": "Custom \u00b7 Classic black suit",
+   "name": "Custom · Classic black suit",
    "file": "../seiko_suit_black.glb"
   },
   {
    "id": "custom_suit_charcoal",
-   "name": "Custom \u00b7 Business suit",
+   "name": "Custom · Business suit",
    "file": "../seiko_suit_charcoal.glb"
   },
   {
    "id": "custom_waistcoat",
-   "name": "Custom \u00b7 Tailored suit",
+   "name": "Custom · Tailored suit",
    "file": "../seiko_waistcoat.glb"
   },
   {
    "id": "custom_suit_check",
-   "name": "Custom \u00b7 Formal suit",
+   "name": "Custom · Formal suit",
    "file": "../seiko_suit_check.glb"
   },
   {
    "id": "custom_polo",
-   "name": "Custom \u00b7 Casual T-shirt and jeans",
+   "name": "Custom · Casual T-shirt and jeans",
    "file": "../seiko_polo.glb"
   },
   {
    "id": "custom_blue_shirt",
-   "name": "Custom \u00b7 Striped shirt and jeans",
+   "name": "Custom · Striped shirt and jeans",
    "file": "../seiko_blue_shirt.glb"
   },
   {
    "id": "custom_tshirt",
-   "name": "Custom \u00b7 T-shirt and jeans",
+   "name": "Custom · T-shirt and jeans",
    "file": "../seiko_tshirt.glb"
   },
   {
    "id": "custom_track",
-   "name": "Custom \u00b7 Casual jacket and jeans",
+   "name": "Custom · Casual jacket and jeans",
    "file": "../seiko_track.glb"
   }
  ],

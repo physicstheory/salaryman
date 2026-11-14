@@ -41444,6 +41444,8 @@ function pplAdopt(e, gltf) {
   const tgt = pplTarget(root, bones);
   peds.anims.forEach(c => { e.clips[c.name.replace(/[^A-Za-z]/g, "").toLowerCase()] = pplRetarget(src, tgt, c); });
   Object.keys(peds.poses || {}).forEach(k => { e.clips[k] = pplRetarget(src, tgt, peds.poses[k]); });
+  // someone who is one person in the story (the boss of SOTI) is cast by name only, never met at random on the street
+  if (e.story) { (pplLib.cast = pplLib.cast || []).push(e); return; }
   pplLib.ready.push(e);
   if (pplLib.ready.length === 1) console.log("[Konto] real people on the street");
 }
@@ -44984,7 +44986,7 @@ function actorAdd(o) {
   const want = pplLib.ready.filter(e => (o.female === undefined || !!e.female === o.female) && (o.business === undefined || !!e.business === o.business));
   const pool = want.length ? want : pplLib.ready;
   // a part that is someone in particular (his mother, the receptionist) asks for them by name
-  const named = o.look && pplLib.ready.find(e => o.look.indexOf(e.name) >= 0);
+  const named = o.look && ((pplLib.cast || []).find(e => o.look.indexOf(e.name) >= 0) || pplLib.ready.find(e => o.look.indexOf(e.name) >= 0));
   const e = named || (pool.length ? pool[(o.pick || 0) % pool.length] : null);
   const f = e ? pplFigure(e, o.h || 1) : pedFigure(o.shirt || 0, o.h || 1);
   if (!f) return { holder: new THREE.Group(), mixer: new THREE.AnimationMixer(new THREE.Group()), acts: {}, x: o.x, y: o.y || 0, z: o.z, yaw: 0, pose: "idle", missing: true };
@@ -45958,7 +45960,7 @@ function storyInterview() {
   const L = (x, y, z) => [lob.ox + x, fy + y, lob.oz + z], O = (x, y, z) => [off.ox + x, fy + y, off.oz + z];
   const s = story.soti;
   const rec = actorAdd({ x: lob.ox + 0, y: fy, z: lob.oz - 2.6, yaw: 0, female: true, business: true, pick: 1, tag: "soti", pose: "idle", look: ["officelady_02"] });
-  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "idle", h: 1.04, look: ["salaryman_04"] });
+  const akio = actorAdd({ x: off.ox + 0, y: fy, z: off.oz - 2.9, yaw: 0, female: false, business: true, pick: 5, tag: "soti", pose: "idle", h: 1.04, look: ["boss_akio"] });
   const seat = (x, z, yw) => { player.pos.set(x, fy, z); player.yaw = player.targetYaw = yw; player.obj.position.copy(player.pos); player.obj.rotation.y = yw; };
   lob.group.visible = true; off.group.visible = false;
   cutPlay([

@@ -27,7 +27,7 @@ CAST = {
     "Mother":       {"voice": "af_heart", "speed": 0.98, "look": "woman_05"},
     "Father":       {"voice": {"bm_george": 0.7, "am_onyx": 0.3}, "speed": 0.88, "look": "salaryman_03"},
     "Sister":       {"voice": "af_bella", "speed": 1.1, "look": "woman_02"},
-    "Akio":         {"voice": {"am_fenrir": 0.75, "bm_george": 0.25}, "speed": 0.93, "look": "salaryman_04"},
+    "Akio":         {"voice": {"am_fenrir": 0.75, "bm_george": 0.25}, "speed": 0.93, "look": "boss_akio"},
     "Receptionist": {"voice": "af_aoede", "speed": 1.02, "look": "officelady_02"},
     "Driver":       {"voice": {"am_michael": 0.5, "bm_lewis": 0.5}, "speed": 1.04},
     "Gondō":        {"voice": {"am_michael": 0.6, "am_onyx": 0.4}, "speed": 0.97, "look": "salaryman_07"},

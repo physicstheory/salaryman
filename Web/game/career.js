@@ -74,9 +74,11 @@
     7: { kind: "floor", incidents: ["audit", "headset", "blame"], wage: WAGE_FLOOR },
     8: { kind: "floor", random: 3, wage: WAGE_FLOOR }
   };
-  C.mission = () => C.missions[Math.min(8, Math.max(2, story.m))];
+  // saga.js carries the story on from here: C.FINAL is the last mission that can be passed, C.LAST the life after it
+  C.FINAL = 7; C.LAST = 8;
+  C.mission = () => C.missions[Math.min(C.LAST, Math.max(2, story.m))] || C.missions[8];
   C.active = () => story.m >= 2 && typeof story.step === "string" && story.step.indexOf("c:") === 0;
-  const letterFor = m => "ABCDEFGH"[Math.max(0, m - 2)] || "A";
+  const letterFor = m => "ABCDEFGH"[Math.max(0, m - 2) % 8];
 
   // ---- the day ---------------------------------------------------------------------------------------------------------------------------
   const DAY_START = 9 * 60, DOORS_OPEN = 6 * 60, DOORS_SHUT = 17 * 60 + 30, CLOCK_OUT = 18 * 60 + 5;
@@ -94,8 +96,8 @@
     story.step = "c:toWork";
     s.shift = { day: s.day, start: null, late: false, done: false, passed: false, pay: 0, rating: 0, calm: 0 };
     storyClearBlips();
-    if (so) storyBlip(so.door[0], so.door[1], "SOTI Tower · " + (STORY_TITLES[story.m] || "Work"), { letter: story.m <= 7 ? letterFor(story.m) : "" });
-    storyObjective((story.m <= 7 ? STORY_TITLES[story.m] + ": g" : "G") + "et to SOTI Tower by 9:00", commuteHint());
+    if (so) storyBlip(so.door[0], so.door[1], "SOTI Tower · " + (STORY_TITLES[story.m] || "Work"), { letter: story.m <= C.FINAL ? letterFor(story.m) : "" });
+    storyObjective((story.m <= C.FINAL ? STORY_TITLES[story.m] + ": g" : "G") + "et to SOTI Tower by 9:00", commuteHint());
     C.emit("day:start", { flat: s.flat && s.flat.station, promoted: s.promoted });
     saveGame(null, true);
   };
@@ -115,6 +117,8 @@
     storyClearBlips();
     if (story.timer) { TIME.rate = story.timer.rateWas || 0.4; story.timer = null; }
     if (C.commute && C.commute.arrived) C.commute.arrived();
+    // a day out of the office (an errand for the boss, a meeting on 58F) is the saga's; everything else is the floor on 3F
+    if (C.saga && C.saga.arrive(C.mission())) return true;
     C.office.enter();
     return true;
   };
@@ -122,7 +126,7 @@
   C.shiftDone = function (result) {
     const s = S();
     s.shift.done = true;
-    s.shift.passed = story.m <= 7;
+    s.shift.passed = story.m <= C.FINAL && !(result && result.failed);
     s.shift.rating = result && result.rating || 0;
     s.shift.bonus = result && result.bonus || 0;
     s.shift.notes = result && result.notes || "";
@@ -139,21 +143,22 @@
     setTimeout(() => notify("Wallet", "SOTI Payroll", "Today: " + yenText(pay) + (docked ? " (−" + yenText(docked) + " late)" : "") + (bonus ? " (+" + yenText(bonus) + " bonus)" : ""), 7), 600);
     C.emit("shift:end", { pay: pay, docked: docked, bonus: bonus, rating: sh.rating || 0, late: !!sh.late });
     // a day's work wears on him (storyPassed counts it for mission days; every other day is counted here)
-    if (!(story.m <= 7 && sh.passed) && typeof stressWorked === "function") try { stressWorked(1); } catch (e) { /* older build */ }
+    if (!(story.m <= C.FINAL && sh.passed) && typeof stressWorked === "function") try { stressWorked(1); } catch (e) { /* older build */ }
     const m = story.m, title = STORY_TITLES[m];
     const next = () => {
-      if (m <= 7 && sh.passed) {
+      if (m <= C.FINAL && sh.passed) {
         story.m = m + 1;
         C.emit("mission:passed", { mission: m, title: title });
       }
       s.day++;
       C.goHome();
     };
-    if (m <= 7 && sh.passed) {
+    if (m <= C.FINAL && sh.passed) {
       storyPassed(title, sh.rating ? "Rating " + "★★★★★".slice(0, Math.round(sh.rating)) + "☆☆☆☆☆".slice(0, 5 - Math.round(sh.rating)) + " · paid " + yenText(pay) : "Paid " + yenText(pay));
       setTimeout(() => {
         if (m === 2) C.commute.assignFlat(next);
         else if (m === 4) C.commute.giveCar(next);
+        else if (C.saga && C.saga.afterPass(m, next)) { /* a promotion, or the end of the story */ }
         else next();
       }, 5600);
     } else next();
@@ -230,7 +235,7 @@
     const s = S(), step = story.step;
     if (C.commute && C.commute.restore) C.commute.restore();
     if (step === "c:toWork") C.startDay();
-    else if (step === "c:floor" || step === "c:desk") {
+    else if (step === "c:floor" || step === "c:desk" || step === "c:field") {
       // a day in progress goes back to the door: walk in again
       story.step = "c:floor"; storyClearBlips();
       const so = story.soti; if (so) storyBlip(so.door[0], so.door[1], "SOTI Tower · 3F");
@@ -410,11 +415,13 @@
   // ---- console ---------------------------------------------------------------------------------------------------------------------------
   // career.jump(m): skip to the start of mission m (2-8) the next morning, with what the missions before it would have given
   C.jump = function (m) {
-    m = Math.max(2, Math.min(8, m | 0));
+    m = Math.max(2, Math.min(C.LAST, m | 0));
     const s = S();
     story.m = m;
     if (m >= 3 && !s.flat) C.commute.assignFlat(null, true);
     if (m >= 5) { s.promoted = true; if (!s.car) C.commute.giveCar(null, true); }
+    if (C.saga && C.saga.jumped) C.saga.jumped(m);
+    if (window.quest && quest.active()) quest.abort();
     if (drive.train && typeof leaveTrain === "function") leaveTrain();
     if (railTrip) railTrip.on = false;
     if (interior.active) interiorLeave(true);
