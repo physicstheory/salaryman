@@ -161,6 +161,9 @@
         else if (C.saga && C.saga.afterPass(m, next)) { /* a promotion, or the end of the story */ }
         else next();
       }, 5600);
+    } else if (m <= C.FINAL && typeof storyFailed === "function") {
+      storyFailed(title, "The day didn't go well. Same mission tomorrow" + (sh.pay ? " · paid " + yenText(sh.pay) : "") + ".");
+      setTimeout(next, 5600);
     } else next();
   };
   C.goHome = function () {

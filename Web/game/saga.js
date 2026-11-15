@@ -83,7 +83,7 @@
     const s = C.state();
     if (!s.shift) s.shift = { day: s.day };
     const rating = ctx.rating;
-    C.shiftDone({ rating: rating, bonus: Math.round((rating - 3) * G.wage() * 0.12), notes: "" });
+    C.shiftDone(ctx.failed ? { rating: 1, bonus: 0, notes: "the job went wrong; it will be waiting tomorrow", failed: true } : { rating: rating, bonus: Math.round((rating - 3) * G.wage() * 0.12), notes: "" });
     if (gameMinutes() < 17 * 60) setGameTime(17 * 60 + 20);
     setTimeout(() => C.clockOut(), 700);
   };

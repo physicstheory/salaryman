@@ -8,6 +8,8 @@
 <title>Salary Man · A life in Tōkonto</title>
 <!-- the game's own typeface, Konto Sans (M PLUS 1, OFL), shipped with it so it is the same offline and in the desktop build -->
 <link rel="stylesheet" href="art/fonts/konto-sans.css">
+<!-- the game's two signature faces, drawn for it: Konto Kanban (titles, mission banners) and Konto Text (subtitles, menus, HUD) -->
+<link rel="stylesheet" href="art/fonts/konto-type.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
@@ -686,7 +688,9 @@
   #cutsub { position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%); z-index: 31; max-width: min(1100px, 86vw); text-align: center; pointer-events: none;
     font: 600 clamp(18px, 2.1vw, 30px)/1.35 var(--ui); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 2px #000; }
   #cutsub b { display: block; font-size: 0.62em; letter-spacing: 0.16em; text-transform: uppercase; color: #f2c230; margin-bottom: 4px; }
-  #cutskip { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 31; font: 600 14px var(--ui); color: rgba(255,255,255,0.7); pointer-events: none; display: none; --k: 0; }
+  #cutskip { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 31; font: 600 14px var(--ui); color: rgba(255,255,255,0.86); pointer-events: none; display: none; --k: 0; opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s; text-shadow: 0 1px 4px #000; }
+  #cutskip.show { opacity: 1; transform: none; }
+  #cutskip kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; margin-right: 6px; border: 1px solid rgba(255,255,255,.7); border-radius: 4px; font: 700 12px var(--ui); text-align: center; background: rgba(0,0,0,.35); }
   body.cutscene #cutskip { display: block; }
   #cutskip::after { content: ""; display: block; height: 3px; margin-top: 6px; width: calc(var(--k) * 100%); background: #f2c230; border-radius: 2px; }
   #cutover { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
@@ -8882,8 +8886,8 @@ function initThree() {
     if (paused) {
       if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
       if (e.code === "KeyE" || e.code === "BracketRight" || e.code === "PageDown") pauseMove(1, 0);
-      if (e.code === "ArrowLeft") pauseMove(-1, 0);
-      if (e.code === "ArrowRight") pauseMove(1, 0);
+      if (e.code === "ArrowLeft") pauseSide(-1);
+      if (e.code === "ArrowRight") pauseSide(1);
       if (e.code === "ArrowUp") pauseMove(0, -1);
       if (e.code === "ArrowDown") pauseMove(0, 1);
       if (e.code === "Enter" || e.code === "Space") { pauseAct(); e.preventDefault(); return; }
@@ -9222,7 +9226,7 @@ function pollPad(dt) {
   };
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
-  if (cut.active) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; cut.padHold = held(PAD.A) || held(PAD.START); return; }
+  if (cut.active && !paused) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; cut.padHold = held(PAD.A); if (pressed(PAD.START)) { cut.padHold = false; setPaused(true, "game"); } return; }
   if (ex.open || ife.open) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; if (ex.open) expedioPad(pressed); else ifePad(pressed); return; }
   // A trigger is analogue on an Xbox pad and reports through .value; some
   // drivers put it on an axis instead, so both are read and the larger wins.
@@ -9342,8 +9346,8 @@ function pollPad(dt) {
     // so does left and right on the stick or the pad.
     if (pressed(PAD.LB)) pauseMove(-1, 0);
     if (pressed(PAD.RB)) pauseMove(1, 0);
-    if (pressed(PAD.LEFT)) pauseMove(-1, 0);
-    if (pressed(PAD.RIGHT)) pauseMove(1, 0);
+    if (pressed(PAD.LEFT)) pauseSide(-1);
+    if (pressed(PAD.RIGHT)) pauseSide(1);
     if (pressed(PAD.UP)) pauseMove(0, -1);
     if (pressed(PAD.DOWN)) pauseMove(0, 1);
     if (pressed(PAD.A)) pauseAct();
@@ -9624,6 +9628,11 @@ function pauseMove(dx, dy) {
   if (!rows || !dy) return;
   pause.row = (pause.row + dy + rows.length) % rows.length;
   syncPauseRows();
+}
+// left and right: a value on the settings page (settings-menu.js), otherwise the next page
+function pauseSide(dx) {
+  try { if (window.settingsMenu && settingsMenu.side(dx)) return; } catch (e) { /* the plain menu */ }
+  pauseMove(dx, 0);
 }
 function pauseAct() {
   const rows = pauseRows();
@@ -16115,7 +16124,7 @@ function buildRoadSurfaces(w, city, root) {
 // of a bus and of a sign over a Tokyo street, so they get eight panels at 8:1.
 
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
-const UI = '"Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const UI = '"Konto Text","Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
 // the canvases (map, phone, HUD) draw text in Konto Sans, so it is asked for up front and everything drawn is redrawn once it is in
 if (document.fonts && document.fonts.load) Promise.all(["400", "600", "800"].map(w => document.fonts.load(w + " 16px 'Konto Sans'", "Konto 東京 あア"))).then(() => { try { if (typeof phone === "object") phone.dirty = true; if (typeof drawTitleLogo === "function" && title && title.on) drawTitleLogo(); } catch (e) { /* drawn next time round */ } }).catch(() => {});
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
@@ -21659,7 +21668,8 @@ function updateSound(dt) {
   if (!sound.ready || !sound.ctx) return;
   const ctx = sound.ctx;
   const driving = !!drive.car;
-  const target = driving ? 0.5 : 0.0;
+  // effects are heard on foot too (they were muted out of a car, which silenced guns, bells and footsteps); the volume is Settings'
+  const target = 0.5 * (window.soundscape ? soundscape.sfx() : 1);
   sound.master.gain.setTargetAtTime(target, ctx.currentTime, 0.12);
   if (!driving) {
     if (sound.engine) sound.engine.out.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
@@ -29101,9 +29111,9 @@ function cheatSpawn(kindName) {
   if (kindName === "exotic") { const ex = CAR_KINDS.filter(k => k.exotic); kindName = ex[(Math.random() * ex.length) | 0].name; }
   if (kindName === "plane") return cheatAircraft(false);
   if (kindName === "skydive") return cheatAircraft(true);
-  if (kindName === "heli") { say("You can't fly helicopters yet. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
+  if (kindName === "heli") { say("There are no helicopters for hire in Tōkonto. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
-  if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
+  if (ki < 0) { say("No such vehicle.", 3); return false; }
   const kind = CAR_KINDS[ki];
   if(!traffic.pool[ki]){
     if(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady){say("Loading the detailed vehicle…",2);(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady).then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
@@ -32659,7 +32669,7 @@ function radioInitAudio() {
   const an = ctx.createAnalyser(); an.fftSize = 512;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -18; comp.knee.value = 14; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
-  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.master);
+  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.radioOut || sound.master);
   radio.bus = bus; radio.an = an; radio.lp = lp;
   const len = ctx.sampleRate * 1;
   const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -45038,7 +45048,7 @@ function cutPlay(shots, onEnd) {
   if(!cut.video)cut.video=new SHIGOTO.CinematicVideo();
   cut.sceneId=story.step||'scene';
   cut.video.setPaused(false);
-  cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0;
+  cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0; cut.revealT = 0; cut.wasHold = !!(cut.keyHold || cut.padHold);
   if (phone.open) setPhone(false);
   if (nav.mapOpen && typeof setMap === "function") setMap(false);
   player.speed = 0;
@@ -45047,7 +45057,7 @@ function cutPlay(shots, onEnd) {
   sizeRenderer();
   document.body.classList.add("cutscene");
   cutEl("cutbars").innerHTML = "<i></i><i></i>";
-  cutEl("cutsub"); cutEl("cutskip").textContent = "Hold " + (pad.index >= 0 ? "A" : "Space") + " to skip";
+  cutEl("cutsub"); cutEl("cutskip").classList.remove("show");
   cutEl("cutover");
   cutNext();
 }
@@ -45094,9 +45104,19 @@ function cutFinish(skipped) {
   gfx.cinematic = false; sizeRenderer();
   player.forceClip = null;
   if (player.obj) player.obj.visible = true;
-  const f = document.getElementById("fade"); if (f) { f.style.transition = ""; f.style.opacity = "0"; }
+  const f = document.getElementById("fade");
+  if (f && skipped) { f.style.transition = "none"; f.style.opacity = "1"; void f.offsetWidth; f.style.transition = "opacity 0.7s ease"; f.style.opacity = "0"; }
+  else if (f) { f.style.transition = ""; f.style.opacity = "0"; }
+  const sk = document.getElementById("cutskip"); if (sk) sk.classList.remove("show");
   const done = cut.onEnd; cut.onEnd = null;
   try { if (done) done(skipped); } catch (e) { console.warn("[Konto] after the cutscene:", e); }
+}
+function cutReveal() {
+  cut.revealT = 4;
+  const sk = document.getElementById("cutskip"); if (!sk) return;
+  const k = pad.index >= 0 ? "A" : "Space";
+  sk.innerHTML = (typeof gameSet === "object" && gameSet.cutSkip === "hold") ? "Hold <kbd>" + k + "</kbd> to skip" : "<kbd>" + k + "</kbd> Skip cutscene";
+  sk.classList.add("show");
 }
 const _cutA = new THREE.Vector3(), _cutB = new THREE.Vector3(), _cutL = new THREE.Vector3(), _cutM = new THREE.Vector3();
 function cutTick(dt) {
@@ -45105,11 +45125,18 @@ function cutTick(dt) {
   if(cut.video)cut.video.tick(dt);
   // (a recording steps the scene to exact times; otherwise it runs on the clock)
   if (cut.manual !== undefined) cut.t = cut.manual; else if(cut.video?.active)cut.t=cut.video.element.currentTime;else cut.t += dt;
-  // skipping: held for most of a second, so a tap meant for something else does not throw the scene away
+  // skipping, from any point in the scene: the first press only brings the prompt up (so a tap meant for something else throws nothing
+  // away); a second press while it is up skips, and so does holding for most of a second. Settings > Gameplay can make it hold-only.
   const holding = cut.padHold || cut.keyHold;
+  if (holding && !cut.wasHold) {
+    if (cut.revealT > 0 && cut.revealT < 3.7 && (typeof gameSet !== "object" || gameSet.cutSkip !== "hold")) { cut.wasHold = false; cutFinish(true); return; }
+    cutReveal();
+  }
+  cut.wasHold = holding;
   cut.hold = holding ? cut.hold + dt : 0;
+  if (cut.revealT > 0) { cut.revealT -= dt; if (cut.revealT <= 0) { const sk0 = document.getElementById("cutskip"); if (sk0) sk0.classList.remove("show"); } }
   const sk = document.getElementById("cutskip"); if (sk) sk.style.setProperty("--k", Math.min(1, cut.hold / 0.8));
-  if (cut.hold > 0.8) { cutFinish(true); return; }
+  if (cut.hold > 0.8) { cut.wasHold = false; cutFinish(true); return; }
   const sd = cut.dur || s.dur;
   const u = clamp01(cut.t / sd), e = s.linear ? u : u*u*u*(u*(u*6-15)+10);
   const from = typeof s.from === "function" ? s.from() : s.from, to = typeof s.to === "function" ? s.to() : (s.to || from);
@@ -45120,7 +45147,7 @@ function cutTick(dt) {
     if (s.roll) camera.rotateZ(s.roll);
     // a camera operator's hands: a slow, small drift (layered sines at odd rates, so it never loops), never a mathematically still frame.
     // Tighter shots get less of it; a shot can set shake: 0 (locked off) or more (a run, a fight).
-    const hh = s.shake === undefined ? ((s.fov || 50) <= 42 ? 0.6 : 1) : s.shake;
+    const hh = (s.shake === undefined ? ((s.fov || 50) <= 42 ? 0.6 : 1) : s.shake) * (typeof gameSet === "object" && gameSet.camShake === false ? 0 : 1);
     if (hh > 0) {
       const T = cut.t + cut.i * 7.31, A = 0.0032 * hh;
       camera.rotateY(A * (Math.sin(T * 0.71) * 0.6 + Math.sin(T * 1.93 + 1.7) * 0.3 + Math.sin(T * 3.7 + 0.4) * 0.1));
@@ -46168,14 +46195,17 @@ function storyLoad(d) {
     if (story.flags.hired && !mynet.contacts.some(c => c.name === "Akio Sotiyama")) mynet.contacts.unshift({ name: "Akio Sotiyama", handle: "@sotiyama", phone: "090-0001-1958", line: "This is Sotiyama. Leave a message. Briefly.", boss: true });
   }, 1500);
 }
-// keys during a cutscene: everything is swallowed, and Space, Enter or Escape held skips
+// keys during a cutscene: everything is swallowed. Space or Enter brings up the skip prompt; pressed again (or held) it skips, from any
+// point in the scene. Escape pauses the scene with the menu over it, the way the open-world games do it; the menu can skip it too.
 (function cutKeys() {
   window.addEventListener("keydown", e => {
-    if (!cut.active) return;
-    if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = true;
+    if (!cut.active || paused) return;
+    if (e.code === "Escape" || e.code === "KeyP") { if (!e.repeat) { cut.keyHold = false; setPaused(true, "game"); } }
+    else if (e.code === "Space" || e.code === "Enter") cut.keyHold = true;
+    else if (!e.repeat) cutReveal();
     e.preventDefault(); e.stopImmediatePropagation();
   }, true);
-  window.addEventListener("keyup", e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = false; }, true);
+  window.addEventListener("keyup", e => { if (e.code === "Space" || e.code === "Enter") cut.keyHold = false; }, true);
 })();
 
 
@@ -46329,6 +46359,8 @@ radioLoadMusic();
 <script src="game/saga-content2.js"></script>
 <script src="game/yakuza.js"></script>
 <script src="game/yakuza-content.js"></script>
+<script src="game/action-steps.js"></script>
+<script src="game/story-action.js"></script>
 <script src="game/cinema-hook.js"></script>
 <script src="game/bike-hook.js"></script>
 <script src="game/ragdoll-hook.js"></script>
@@ -46338,6 +46370,9 @@ radioLoadMusic();
 <script src="game/luxury-watch.js"></script>
 <script src="game/luxury.js"></script>
 <script src="game/country-hook.js"></script>
+<script src="game/soundscape.js"></script>
+<script src="game/missionflow.js"></script>
+<script src="game/settings-menu.js"></script>
 <script src="game/perf-hook.js"></script>
 <script src="game/forge-hook.js"></script>
 <script src="game/lib/meshopt_decoder.js"></script>
@@ -46346,5 +46381,6 @@ radioLoadMusic();
 <script src="game/seamless-hook.js"></script>
 <script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
+<script src="game/type-hook.js"></script>
 </body>
 </html>
