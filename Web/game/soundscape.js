@@ -230,11 +230,11 @@
     const night = lit > 0.5;
     const town = !!st.town, dense = clamp01(st.cars / 14), crowd = clamp01(st.people / 10);
     const mute = !playing || (typeof paused !== "undefined" && paused);
-    const k = mute ? 0 : 1, carDamp = inCar ? 0.28 : 1, roomDamp = inside ? 0.18 : 1;
+    const k = (mute ? 0 : 1) * (typeof SS.duck === "number" ? SS.duck : 1), carDamp = inCar ? 0.28 : 1, roomDamp = inside ? 0.18 : 1;
     const set = (g, v, tc) => g.gain.setTargetAtTime(v, now, tc || 0.6);
     set(L.city, k * carDamp * roomDamp * (town ? 0.05 + 0.2 * dense : 0.02 + 0.14 * dense) * (cutting ? 0.6 : 1));
     L.cityLP.frequency.setTargetAtTime(inside ? 180 : 320 + dense * 180, now, 0.5);
-    set(L.crowd, k * carDamp * roomDamp * (0.02 + 0.15 * crowd) * (town ? 1 : 0.4) * (night ? 0.7 : 1));
+    set(L.crowd, (typeof SS.crowdSynth === "number" ? SS.crowdSynth : 1) * k * carDamp * roomDamp * (0.02 + 0.15 * crowd) * (town ? 1 : 0.4) * (night ? 0.7 : 1));
     const windy = clamp01((wc.wind || 2) / 10 + (town ? 0 : 0.25) + (at.y > 40 ? 0.3 : 0) + (wc.storm || 0) * 0.4);
     set(L.wind, k * roomDamp * (inCar ? 0 : 0.03 + 0.14 * windy), 1.2);
     L.windBP.frequency.setTargetAtTime(300 + 500 * windy + Math.sin(now * 0.3) * 120, now, 1.5);
