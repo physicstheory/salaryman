@@ -340,6 +340,8 @@
   function resourceFailed(el) {
     const u = el.currentSrc || el.src || el.href || "";
     if (/^(data|blob):/.test(u) || !u) return;
+    // another site's file (the web fonts) is expected to fail offline, and the game ships its own fallbacks: not an error card at boot
+    if (/^https?:/i.test(u) && !u.startsWith(location.origin)) return;
     assetFailed(u, el.tagName, "the " + el.tagName.toLowerCase() + " did not load");
   }
   // fetch(): the game's own files only (other sites fail offline and that is expected)

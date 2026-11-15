@@ -21659,7 +21659,8 @@ function updateSound(dt) {
   if (!sound.ready || !sound.ctx) return;
   const ctx = sound.ctx;
   const driving = !!drive.car;
-  const target = driving ? 0.5 : 0.0;
+  // effects are heard on foot too (they were muted out of a car, which silenced guns, bells and footsteps); the volume is Settings'
+  const target = 0.5 * (window.soundscape ? soundscape.sfx() : 1);
   sound.master.gain.setTargetAtTime(target, ctx.currentTime, 0.12);
   if (!driving) {
     if (sound.engine) sound.engine.out.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
@@ -29101,9 +29102,9 @@ function cheatSpawn(kindName) {
   if (kindName === "exotic") { const ex = CAR_KINDS.filter(k => k.exotic); kindName = ex[(Math.random() * ex.length) | 0].name; }
   if (kindName === "plane") return cheatAircraft(false);
   if (kindName === "skydive") return cheatAircraft(true);
-  if (kindName === "heli") { say("You can't fly helicopters yet. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
+  if (kindName === "heli") { say("There are no helicopters for hire in Tōkonto. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
-  if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
+  if (ki < 0) { say("No such vehicle.", 3); return false; }
   const kind = CAR_KINDS[ki];
   if(!traffic.pool[ki]){
     if(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady){say("Loading the detailed vehicle…",2);(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady).then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
@@ -32659,7 +32660,7 @@ function radioInitAudio() {
   const an = ctx.createAnalyser(); an.fftSize = 512;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -18; comp.knee.value = 14; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
-  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.master);
+  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.radioOut || sound.master);
   radio.bus = bus; radio.an = an; radio.lp = lp;
   const len = ctx.sampleRate * 1;
   const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -46329,6 +46330,8 @@ radioLoadMusic();
 <script src="game/saga-content2.js"></script>
 <script src="game/yakuza.js"></script>
 <script src="game/yakuza-content.js"></script>
+<script src="game/action-steps.js"></script>
+<script src="game/story-action.js"></script>
 <script src="game/cinema-hook.js"></script>
 <script src="game/bike-hook.js"></script>
 <script src="game/ragdoll-hook.js"></script>
@@ -46338,6 +46341,8 @@ radioLoadMusic();
 <script src="game/luxury-watch.js"></script>
 <script src="game/luxury.js"></script>
 <script src="game/country-hook.js"></script>
+<script src="game/soundscape.js"></script>
+<script src="game/missionflow.js"></script>
 <script src="game/perf-hook.js"></script>
 <script src="game/forge-hook.js"></script>
 <script src="game/lib/meshopt_decoder.js"></script>
