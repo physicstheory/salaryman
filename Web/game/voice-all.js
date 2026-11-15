@@ -73,6 +73,10 @@
     const sx = sexOf(k, sexHint);
     const pool = pieces.get(k) || (sx && pieces.get("?" + sx)) || null;
     if (!pool) return null;
+    // where each normalised character came from, so a gap can be said as written ("Bar Hoshi", not "barhoshi")
+    const raw = String(text), at = []; let nn = "";
+    for (let r = 0; r < raw.length; r++) { const ch = norm(raw[r]); if (ch) { for (let q = 0; q < ch.length; q++) at.push(r); nn += ch; } }
+    const orig = (a, b) => nn === n && a < at.length ? raw.slice(at[a], b - 1 < at.length ? at[b - 1] + 1 : raw.length) : n.slice(a, b);
     const out = []; let i = 0, got = 0;
     while (i < n.length) {
       const p = pool.find(q => q.n.length >= 3 && n.startsWith(q.n, i));
@@ -82,7 +86,7 @@
       for (; j <= n.length; j++) { const e = names.get(k + "|" + n.slice(i, j)) || names.get("?" + (sx || "m") + "|" + n.slice(i, j)); if (e) { nm = e; nmEnd = j; } }
       if (nm) { out.push(nm); i = nmEnd; continue; }
       let next = -1; for (const q of pool) { const at = n.indexOf(q.n, i + 1); if (at > 0 && (next < 0 || at < next)) next = at; }
-      out.push({ gap: n.slice(i, next < 0 ? n.length : next) });
+      out.push({ gap: orig(i, next < 0 ? n.length : next) });
       i = next < 0 ? n.length : next;
     }
     if (got < n.length * 0.5) return null;
@@ -176,7 +180,7 @@
     const next = () => {
       if (VO.cur !== q) return;
       const e = list.shift(); if (!e) { done(); return; }
-      if (e.gap) { if (/[a-z]{3}/.test(e.gap)) speakTTS(e.gap.replace(/([a-z])([0-9])/g, "$1 $2"), sx, next); else next(); return; }
+      if (e.gap) { if (/[a-z]{3}/i.test(e.gap)) speakTTS(e.gap, sx, next); else next(); return; }
       load(e.src).then(buf => {
         if (VO.cur !== q) return;
         if (!buf) { next(); return; }

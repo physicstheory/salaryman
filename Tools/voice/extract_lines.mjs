@@ -270,6 +270,11 @@ export function extract() {
       });
       // named tables, and lines handed straight to the street's own say (standing-hook's sayLine)
       walk(ast, [], (n) => {
+        // desk.say("Seiko", "…"), desk.say(caller, ["Hello?", …][i]): the Care Desk's own lines
+        if (n.type === "CallExpression" && n.callee.type === "MemberExpression" && n.callee.property && n.callee.property.name === "say" && n.arguments.length === 2) {
+          const a0 = n.arguments[0], spk = a0.type === "Literal" && typeof a0.value === "string" && SPEAKERISH.test(a0.value) ? a0.value : null;
+          values(n.arguments[1]).forEach(v => v.text && words(v.text) >= 1 && /[A-Za-z]{2}/.test(v.text) && add1(spk || "?", v.text.replace(/\s*\*click\*\s*$/, ""), "desk", rel, ch.line0 + n.loc.start.line));
+        }
         if (n.type === "CallExpression" && n.callee.type === "Identifier" && n.callee.name === "sayLine" && n.arguments[0])
           values(n.arguments[0]).forEach(v => v.text && words(v.text) >= 1 && /[A-Za-z]{2}/.test(v.text) && add1("?", v.text, "bark:standing", rel, ch.line0 + n.loc.start.line));
         if (n.type !== "VariableDeclarator" || !n.id || !n.init) return;
