@@ -252,7 +252,7 @@
     const s = S();
     Y.job = null;
     try { if (window.luxury && luxury.setContext) luxury.setContext(null); } catch (e) { /* optional */ }
-    if (ctx.failed) { s.fails++; storyClearBlips(); say("The job went wrong. " + (Y.CONTACTS[j.from] ? Y.CONTACTS[j.from].name : "The office") + " will have it for you again.", 5); restoreDay(); return; }
+    if (ctx.failed) { s.fails++; storyClearBlips(); const why = (Y.CONTACTS[j.from] ? Y.CONTACTS[j.from].name : "The office") + " will have it for you again."; if (typeof storyFailed === "function") storyFailed(j.title, why); else say("The job went wrong. " + why, 5); restoreDay(); return; }
     s.done[j.id] = true;
     const pay = Math.round(j.pay * (0.7 + 0.1 * ctx.rating) / 1000) * 1000;
     purse.yen += pay;
@@ -322,7 +322,7 @@
         { t: "Raise the gun.", honor: -12, flag: "cold", why: "Shot an unarmed old man", end: true, reply: "One shot. The city is very quiet afterwards." }] } }, head: "The back room" }
     ] }, c => {
       Y.job = null;
-      if (c.failed) { say("You didn't finish it. They know now. Finish it, or they will.", 6); s.choice = s.choice === "stay" ? "stay" : null; s.warned = true; restoreDay(); return; }
+      if (c.failed) { if (typeof storyFailed === "function") storyFailed("Kurogane Falls", "You didn't finish it. They know now. Finish it, or they will."); else say("You didn't finish it. They know now. Finish it, or they will.", 6); s.choice = s.choice === "stay" ? "stay" : null; s.warned = true; restoreDay(); return; }
       s.choice = "wipe"; s.rank = 7; s.hq = false;
       Object.keys(standers).forEach(k => person(k, null, "", false));
       storyPassed("Kurogane Falls", "The Kurogane-kai is finished. The empire is yours.");

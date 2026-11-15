@@ -8,6 +8,8 @@
 <title>Salary Man · A life in Tōkonto</title>
 <!-- the game's own typeface, Konto Sans (M PLUS 1, OFL), shipped with it so it is the same offline and in the desktop build -->
 <link rel="stylesheet" href="art/fonts/konto-sans.css">
+<!-- the game's two signature faces, drawn for it: Konto Kanban (titles, mission banners) and Konto Text (subtitles, menus, HUD) -->
+<link rel="stylesheet" href="art/fonts/konto-type.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=M+PLUS+1+Code:wght@400;500&family=Playfair+Display:wght@400;500;700&display=swap">
@@ -16115,7 +16117,7 @@ function buildRoadSurfaces(w, city, root) {
 // of a bus and of a sign over a Tokyo street, so they get eight panels at 8:1.
 
 const JP = '"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,"MS PGothic",sans-serif';
-const UI = '"Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
+const UI = '"Konto Text","Konto Sans","Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Helvetica Neue",Arial,"Liberation Sans",sans-serif';
 // the canvases (map, phone, HUD) draw text in Konto Sans, so it is asked for up front and everything drawn is redrawn once it is in
 if (document.fonts && document.fonts.load) Promise.all(["400", "600", "800"].map(w => document.fonts.load(w + " 16px 'Konto Sans'", "Konto 東京 あア"))).then(() => { try { if (typeof phone === "object") phone.dirty = true; if (typeof drawTitleLogo === "function" && title && title.on) drawTitleLogo(); } catch (e) { /* drawn next time round */ } }).catch(() => {});
 const SERIF = '"Playfair Display","Times New Roman",Georgia,serif';
@@ -46351,5 +46353,6 @@ radioLoadMusic();
 <script src="game/seamless-hook.js"></script>
 <script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
+<script src="game/type-hook.js"></script>
 </body>
 </html>

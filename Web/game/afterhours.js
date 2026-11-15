@@ -869,7 +869,7 @@
     C.emit("ah:mission", { id: id, passed: passed });
     clearPlanBlip(); storyClearBlipsOf("ah");
     if (passed) { storyPassed(MISSIONS[id], sub || "After hours"); }
-    else { const el = document.getElementById("mpassed"); say("Mission failed · " + MISSIONS[id] + (sub ? " · " + sub : ""), 6); }
+    else if (typeof storyFailed === "function") storyFailed(MISSIONS[id], sub || "After hours"); else say("Mission failed · " + MISSIONS[id] + (sub ? " · " + sub : ""), 6);
     setTimeout(backToDay, passed ? 5600 : 1500);
     saveGame(null, true);
   }
@@ -1004,7 +1004,7 @@
         else { like("gondo", -6); if (window.standing) try { standing.earn(-2, "Lost the Ōtsuka renewal"); } catch (e) { /* optional */ } setTimeout(() => notify("Messages", "Gondō Tetsuo", "He DIDN'T SIGN? Seiko. My office. 9:00.", 9), 3000); }
         S().missions.active = null; S().missions.done.client = true;
         C.emit("ah:mission", { id: "client", passed: win });
-        if (win) storyPassed(MISSIONS.client, "Bonus ¥30,000"); else say("Mission failed · " + MISSIONS.client, 5);
+        if (win) storyPassed(MISSIONS.client, "Bonus ¥30,000"); else if (typeof storyFailed === "function") storyFailed(MISSIONS.client, "The client walked"); else say("Mission failed · " + MISSIONS.client, 5);
         A.after = backToDay;
         setTimeout(() => interiorLeave(true), win ? 1200 : 300);
       });
