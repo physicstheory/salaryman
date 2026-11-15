@@ -315,9 +315,10 @@
   let actx = null;
   function beep() {
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = 0.05;
-      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
+      const shared = typeof sound === "object" && sound.ctx && sound.master;      // the game's own context, so the mixer hears it
+      actx = shared ? sound.ctx : actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = shared ? 0.12 : 0.05;
+      o.connect(g); g.connect(shared ? sound.master : actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
     } catch (e) { /* no audio */ }
   }
   const stationName = () => { const s = interior.shop || {}; return (s.stationRef && s.stationRef.name) || s.name || ""; };
