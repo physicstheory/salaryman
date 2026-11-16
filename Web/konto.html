@@ -20980,6 +20980,101 @@ function tutorialTick(dt) {
   else if(!seen.train&&drive.train)show('train','On the train','Look around with the mouse / right stick. Your SOTI ticket gets you off at the right platform.');
 }
 
+// ---- stations off the roads -------------------------------------------------------------------------------------------------------------
+// A station is planned at a point near its line, and the line crosses roads. A concourse (26 x 20 m, solid) that lands on a carriageway
+// walls the road off, so the station is slid along its own line to the nearest spot where the concourse at one end is clear of the roads
+// and streets, with its platforms no deeper into the roads or buildings than before; its centre moves with it, so the trains stop there.
+// A road that still runs across platforms on the ground keeps its level crossing straight through the station: the platforms (1.7 m of
+// concrete with a fence on top) stop either side of it, with a railing across each cut end (stationRoadGaps / stationPieces), so the
+// road and its footways stay open to cross. Central (the opening, the title, the atrium) is never slid. Off: window.KONTO_STATION_SLIDE = 0.
+// Report: window.stationSlides.
+const stationRoadCache = { key: null, grid: null };
+function stationRoadGrid(w) {
+  if (stationRoadCache.key === w && stationRoadCache.grid) return stationRoadCache.grid;
+  const G = new Map(), C = 64, add = (ax, az, bx, bz, hw) => {
+    const e = [ax, az, bx, bz, hw];
+    for (let gx = Math.floor((Math.min(ax, bx) - hw) / C); gx <= Math.floor((Math.max(ax, bx) + hw) / C); gx++)
+      for (let gz = Math.floor((Math.min(az, bz) - hw) / C); gz <= Math.floor((Math.max(az, bz) + hw) / C); gz++) { const k = gx + "," + gz; if (!G.has(k)) G.set(k, []); G.get(k).push(e); }
+  };
+  (w.cities || []).forEach(c => {
+    (c.roads || []).forEach(r => {
+      if (r.elevated || !r.pts || r.pts.length < 2) return;
+      const P = r.loop ? r.pts.concat([r.pts[0]]) : r.pts;
+      for (let i = 1; i < P.length; i++) add(P[i - 1][0], P[i - 1][2], P[i][0], P[i][2], r.halfWidth + (r.cls === "arterial" ? 4.4 : 1.5));
+    });
+    (c.streetPlan || []).forEach(L => (L.runs || []).forEach(run => {
+      for (let t0 = run[0]; t0 < run[1]; t0 += 20) { const a = L.pt(t0), b = L.pt(Math.min(run[1], t0 + 20)); add(a[0], a[1], b[0], b[1], (L.hw || 4) + 1.5); }
+    }));
+  });
+  stationRoadCache.key = w; stationRoadCache.grid = { G, C };
+  return stationRoadCache.grid;
+}
+function stationOnRoad(w, x, z) {
+  const R = stationRoadGrid(w), l = R.G.get(Math.floor(x / R.C) + "," + Math.floor(z / R.C));
+  if (!l) return false;
+  for (let i = 0; i < l.length; i++) { const e = l[i]; if (distToSeg(x, z, e[0], e[1], e[2], e[3]) < e[4]) return true; }
+  return false;
+}
+// the stretches (local z, along the platform) where a carriageway or its footway crosses a station's platforms, with a metre to spare
+function stationRoadGaps(w, t, PL) {
+  const c = Math.cos(t.yaw), sn = Math.sin(t.yaw), W = (lx, lz) => [t.x + lx * c + lz * sn, t.z - lx * sn + lz * c];
+  const out = []; let cur = null;
+  for (let lz = -PL / 2 - 2; lz <= PL / 2 + 2; lz += 1) {
+    let hit = false;
+    for (let lx = -10.7; lx <= 10.71 && !hit; lx += 1.78) { const p = W(lx, lz); hit = stationOnRoad(w, p[0], p[1]); }
+    if (hit) { if (cur && lz - cur[1] <= 1.01) cur[1] = lz; else out.push(cur = [lz, lz]); }
+  }
+  return out.map(g => [g[0] - 1.5, g[1] + 1.5]);
+}
+// [a, b] with the gaps taken out, keeping pieces at least `min` long
+function stationPieces(a, b, gaps, min) {
+  let parts = [[a, b]];
+  (gaps || []).forEach(g => { const nx = []; parts.forEach(p => { if (g[1] <= p[0] || g[0] >= p[1]) { nx.push(p); return; } if (g[0] > p[0]) nx.push([p[0], g[0]]); if (g[1] < p[1]) nx.push([g[1], p[1]]); }); parts = nx; });
+  return parts.filter(p => p[1] - p[0] >= (min || 0));
+}
+function stationKeepOffRoads(w, city, st, t, PL, groundAt) {
+  const S = window.stationSlides || (window.stationSlides = []);
+  if (window.KONTO_STATION_SLIDE === 0 || !t || !t.line || st.terminus) return null;
+  const line = t.line, P = line.loop ? line.pts.concat([line.pts[0]]) : line.pts;
+  if (!P || P.length < 2) return null;
+  const arc = [0];
+  for (let i = 1; i < P.length; i++) arc.push(arc[i - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][2] - P[i - 1][2]));
+  const total = arc[arc.length - 1];
+  const at = s => {
+    if (line.loop) s = ((s % total) + total) % total; else if (s < 0 || s > total) return null;
+    let i = 1; while (i < P.length - 1 && arc[i] < s) i++;
+    const a = P[i - 1], b = P[i], L = (arc[i] - arc[i - 1]) || 1, u = clamp((s - arc[i - 1]) / L, 0, 1);
+    const x = a[0] + (b[0] - a[0]) * u, z = a[2] + (b[2] - a[2]) * u;
+    return { x: x, z: z, y: line.elevated ? a[1] + (b[1] - a[1]) * u : groundAt(x, z) + 0.55, yaw: Math.atan2(b[0] - a[0], b[2] - a[2]), s: s, dist: 0, elevated: t.elevated, cls: t.cls, line: line };
+  };
+  // the platform's own end is where the concourse goes (concourseEnd), the default end first
+  const conZ0 = -PL * 0.5 - 11;
+  const look = q => {
+    const c = Math.cos(q.yaw), sn = Math.sin(q.yaw), W = (lx, lz) => [q.x + lx * c + lz * sn, q.z - lx * sn + lz * c];
+    let road = 0, bld = 0;
+    if (!q.elevated) for (let lz = -PL / 2 - 4; lz <= PL / 2 + 4; lz += 3) for (let lx = -10.7; lx <= 10.71; lx += 3.57) {
+      const p = W(lx, lz); if (stationOnRoad(w, p[0], p[1])) road++; if (Math.abs(lx) > 3 && insideBuilding(p[0], p[1], 0)) bld++;
+    }
+    const conc = z0 => { let r = 0, b = 0; for (let lz = z0 - 10; lz <= z0 + 10.01; lz += 4) for (let lx = -13; lx <= 13.01; lx += 4.33) { const p = W(lx, lz); if (stationOnRoad(w, p[0], p[1])) r++; else if (insideBuilding(p[0], p[1], 0)) b++; } return { r: r, b: b }; };
+    const a = conc(conZ0), b = conc(-conZ0), pick = (a.r < b.r || (a.r === b.r && a.b <= b.b)) ? a : b;
+    return { road: road, bld: bld, concR: pick.r, concB: pick.b, conZ: pick === a ? conZ0 : -conZ0 };
+  };
+  const s0 = t.s, here = look(t);
+  if (!here.concR) return null;          // the concourse is clear of the roads at one end or the other: the platforms are dealt with by gaps          // where it was planned is clear: nothing to do
+  let best = null;
+  search: for (let d = 4; d <= 180; d += 4) for (const sg of [1, -1]) {
+    const q = at(s0 + sg * d); if (!q) continue;
+    if (Math.hypot(q.x - t.x, q.z - t.z) < d * 0.5) continue;       // a loop folding back on itself
+    const v = look(q);
+    if (v.concR || v.road > here.road || v.bld > here.bld || v.concB > here.concB) continue;
+    best = { q: q, v: v, d: sg * d }; break search;
+  }
+  if (!best) { S.push({ name: st.name, city: city.name, moved: 0, road: here.road, conc: here.concR, note: "no clear spot within 180 m" }); return null; }
+  st.centre = [best.q.x, best.q.z]; st._conZ = best.v.conZ; st.slid = best.d;
+  S.push({ name: st.name, city: city.name, moved: best.d, road: here.road, conc: here.concR });
+  return best.q;
+}
+
 function buildStreetFurniture(w, city, root, boxes) {
   const solid = solidMesh(true);
   const badges = decoMesh();
@@ -21007,15 +21102,25 @@ function buildStreetFurniture(w, city, root, boxes) {
     city.rails.forEach((line,li)=>{
       if(station.forSoti && station.railLine!==li)return;
       const p=railProject(line.pts,cx,cz);if(!p||best&&p.dist>=best.dist)return;
-      best={...p,y:line.elevated?p.y:groundAt(p.x,p.z)+.55,elevated:!!line.elevated,cls:line.cls};
+      best={...p,y:line.elevated?p.y:groundAt(p.x,p.z)+.55,elevated:!!line.elevated,cls:line.cls,line:line};
     });
     return best&&best.dist<320?best:null;
   }
 
   city.stations.forEach((st, si) => {
-    const t = trackAt(st.centre[0], st.centre[1], st);
+    let t = trackAt(st.centre[0], st.centre[1], st);
     if (!t) return;
     const PL = clamp(st.size[0] * 0.62, 84, 158);        // platform length
+    // A platform never stands across a road: slide the station along its line to the nearest spot clear of every carriageway
+    // (and of the buildings), so the road keeps its level crossing and you can walk across it (stationKeepOffRoads).
+    { const moved = stationKeepOffRoads(w, city, st, t, PL, groundAt); if (moved) t = moved; }
+    // and where a road still runs across a platform on the ground (a level crossing in the middle of the station, which is common enough in
+    // Japan) the platforms stop either side of it, so the road and its footways stay open: `pieces` are the lengths of platform that stand
+    // (never at the concourse end, where you come through from the ticket gates onto the platform and walk back in: game/seamless-hook.js)
+    const conEnd = Math.sign(concourseEnd(city, st, t)) * PL / 2;
+    const gaps = t.elevated ? [] : stationRoadGaps(w, t, PL).filter(g => g[1] < conEnd - 10 || g[0] > conEnd + 10), inGap = (z, pad) => gaps.some(g => z > g[0] - (pad || 0) && z < g[1] + (pad || 0));
+    const pieces = stationPieces(-PL / 2, PL / 2, gaps, 6);
+    if (gaps.length) { st.roadGaps = gaps; (window.stationSlides || (window.stationSlides = [])).push({ name: st.name, city: city.name, gaps: gaps.map(g => g.map(Math.round)) }); }
     const row = signRow(st.name);
     const railY = t.y;
     // the Foundry's Blender station kit (game/foundry-hook.js) stands in for the platform, canopy, furniture and concourse boxes
@@ -21032,23 +21137,27 @@ function buildStreetFurniture(w, city, root, boxes) {
     [-1, 1].forEach(sideIdx => {
       const px = sideIdx * 6.7;
       if (!FST) {
-      solid.colour(FURN.concrete).box(px, 0.55, 0, 8.0, 1.10, PL);
-      solid.colour(FURN.tile).box(px, 1.12, 0, 7.6, 0.06, PL - 0.4);
-      solid.colour([0.88, 0.76, 0.18])
-        .box(px - sideIdx * 3.2, 1.16, 0, 0.55, 0.05, PL - 1.0);
+      pieces.forEach(pc => {
+        const zc = (pc[0] + pc[1]) / 2, len = pc[1] - pc[0];
+        solid.colour(FURN.concrete).box(px, 0.55, zc, 8.0, 1.10, len);
+        solid.colour(FURN.tile).box(px, 1.12, zc, 7.6, 0.06, len - 0.4);
+        solid.colour([0.88, 0.76, 0.18])
+          .box(px - sideIdx * 3.2, 1.16, zc, 0.55, 0.05, len - 1.0);
+      });
       // The canopy: a flat roof 3.5 m over the platform on posts every 12 m.
       solid.colour(FURN.steel);
       const posts = Math.max(3, Math.round(PL / 12));
       for (let k = 0; k < posts; k++) {
         const z = -PL * 0.42 + PL * 0.84 * k / (posts - 1);
-        solid.post(px + sideIdx * 2.6, 1.15, z, 0.10, 3.45);
+        if (!inGap(z, 1)) solid.post(px + sideIdx * 2.6, 1.15, z, 0.10, 3.45);
       }
-      solid.colour(FURN.white).box(px, 4.80, 0, 8.6, 0.22, PL * 0.90);
+      stationPieces(-PL * 0.45, PL * 0.45, gaps, 4).forEach(pc => solid.colour(FURN.white).box(px, 4.80, (pc[0] + pc[1]) / 2, 8.6, 0.22, pc[1] - pc[0]));
       }
       // Name boards hung from the canopy, which is where you read them from a
       // train window, and one at each end for the platform itself.
       const cell = signUV(row);
       [-PL * 0.26, PL * 0.26].forEach(z => {
+        if (inGap(z, 2)) return;
         solid.colour(FURN.steel).box(px - sideIdx * 0.1, 3.52, z, 0.10, 0.62, 3.40);
         if (FST) [-1.4, 1.4].forEach(dz => solid.box(px - sideIdx * 0.1, 4.2, z + dz, 0.04, 0.8, 0.04));
         signs.back(px - sideIdx * 0.1, 3.52, z, 3.36, 0.56, cell, false);
@@ -21056,8 +21165,9 @@ function buildStreetFurniture(w, city, root, boxes) {
       // Benches, a few vending machines and a bin: the furniture of a platform.
       if (FST) return;
       solid.colour(FURN.timber);
-      solid.box(px + sideIdx * 2.9, 1.42, PL * 0.10, 0.50, 0.50, 2.00);
-      solid.box(px + sideIdx * 2.9, 1.42, -PL * 0.14, 0.50, 0.50, 2.00);
+      if (!inGap(PL * 0.10, 2)) solid.box(px + sideIdx * 2.9, 1.42, PL * 0.10, 0.50, 0.50, 2.00);
+      if (!inGap(-PL * 0.14, 2)) solid.box(px + sideIdx * 2.9, 1.42, -PL * 0.14, 0.50, 0.50, 2.00);
+      if (inGap(PL * 0.30, 2)) return;
       solid.colour([0.72, 0.16, 0.14]);
       solid.box(px + sideIdx * 3.0, 2.08, PL * 0.30, 0.70, 1.85, 1.20);
       badges.panel(px + sideIdx * 2.63, 2.20, PL * 0.30, 1.05, 1.35,
@@ -21071,12 +21181,16 @@ function buildStreetFurniture(w, city, root, boxes) {
     // over a 300 m approach is 600,000 vertices for something you cannot
     // resolve from a platform, and the rails are what the eye is looking for.
     const track = PL * 1.04;
-    solid.colour([0.29, 0.27, 0.24]);
-    solid.box(0, -0.30, 0, 11.4, 0.62, track);
-    solid.colour([0.52, 0.50, 0.47]);
-    [-1, 1].forEach(side => [-0.717, 0.717].forEach(railOff => {
-      solid.box(side * 2.1 + railOff, 0.10, 0, 0.075, 0.16, track);
-    }));
+    // (not over a road that crosses the station: the level crossing lays its own deck there)
+    stationPieces(-track / 2, track / 2, gaps, 1).forEach(pc => {
+      const zc = (pc[0] + pc[1]) / 2, len = pc[1] - pc[0];
+      solid.colour([0.29, 0.27, 0.24]);
+      solid.box(0, -0.30, zc, 11.4, 0.62, len);
+      solid.colour([0.52, 0.50, 0.47]);
+      [-1, 1].forEach(side => [-0.717, 0.717].forEach(railOff => {
+        solid.box(side * 2.1 + railOff, 0.10, zc, 0.075, 0.16, len);
+      }));
+    });
 
     // A concourse at one end, with the company's mark over the door, and a
     // viaduct-height stair when the line is in the air.
@@ -21085,7 +21199,7 @@ function buildStreetFurniture(w, city, root, boxes) {
     { const zs = conZ - fz * 15.5; st.frame = { x: t.x, y: railY, z: t.z, yaw: t.yaw };
       st.conc = { door: [t.x + Math.sin(t.yaw) * zs, t.z + Math.cos(t.yaw) * zs], yaw: fz > 0 ? t.yaw + Math.PI : t.yaw, z: conZ, fz: fz, face: conZ + fz * 10, PL: PL, deckY: railY + 1.15 }; }
     const conY = t.elevated ? groundAt(t.x, t.z) - railY : 0;
-    if (FST) (window.__stationKits || (window.__stationKits = [])).push({ x: t.x, y: railY, z: t.z, yaw: t.yaw, PL, conZ, conY, fz });
+    if (FST) (window.__stationKits || (window.__stationKits = [])).push({ x: t.x, y: railY, z: t.z, yaw: t.yaw, PL, conZ, conY, fz, gaps });
     else {
     solid.colour(FURN.tile).box(0, conY + 3.3, conZ, 26, 6.6, 20, { tz: 0.94 });
     solid.colour(FURN.glass).box(0, conY + 2.4, conZ + 10.1 * fz, 20, 3.4, 0.30);
@@ -21115,8 +21229,19 @@ function buildStreetFurniture(w, city, root, boxes) {
     const toWorld = (lx, lz) => [t.x + lx * wc + lz * ws, t.z - lx * ws + lz * wc];
     const deckY = railY + 1.15;
     [-1, 1].forEach(sideIdx => {
-      const px = sideIdx * 6.7, cw = toWorld(px, 0);
-      w.walk.push({ cx: cw[0], cz: cw[1], c: wc, s: ws, hw: 3.9, hl: PL / 2, ya: deckY, yb: deckY, r: PL / 2 + 6 });
+      const px = sideIdx * 6.7;
+      pieces.forEach(pc => {
+        const cw = toWorld(px, (pc[0] + pc[1]) / 2), hl = (pc[1] - pc[0]) / 2;
+        w.walk.push({ cx: cw[0], cz: cw[1], c: wc, s: ws, hw: 3.9, hl: hl, ya: deckY, yb: deckY, r: hl + 6 });
+      });
+      // a railing across each end of a platform that stops at a road
+      solid.colour(FURN.steel);
+      pieces.forEach(pc => [pc[0], pc[1]].forEach(z => {
+        if (Math.abs(Math.abs(z) - PL / 2) < 0.5) return;
+        const e = z > (pc[0] + pc[1]) / 2 ? -1 : 1;
+        solid.box(px, 1.15 + 0.55, z + e * 0.1, 7.6, 1.1, 0.08);
+        solid.box(px, 1.15 + 1.08, z + e * 0.1, 7.8, 0.06, 0.12);
+      }));
       // The platforms are reached through the concourse and its ticket gates, never from the street, so there is no
       // street stair; each end has a railing instead (the far end) or the concourse's own glass wall (the near end).
       [fz].forEach(e => {

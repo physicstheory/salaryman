@@ -375,6 +375,8 @@
           [-1, 1].forEach(side => {
             for (let i = 0; i < n; i++) {
               const z = (i - (n - 1) / 2) * 12 * stretch;
+              // no bay over a road that crosses the station (konto.html leaves those stretches open, with the level crossing in them)
+              if (k.gaps && k.gaps.some(g => z + 6 * stretch > g[0] && z - 6 * stretch < g[1])) continue;
               const id = i % 3 === 1 ? "station_bay_bench" : i % 4 === 2 ? "station_bay_vend" : "station_bay";
               put(byId[id] ? id : "station_bay", side * 6.7, 0, z, side > 0 ? 0 : Math.PI, stretch);
             }
