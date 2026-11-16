@@ -175,6 +175,11 @@
   function roofPlan(b, sizes) {
     const r = mulberry((Math.round(b.c[0] * 7) * 73856093) ^ (Math.round(b.c[1] * 7) * 19349663));
     const W = b.size[0], D = b.size[1], H = b.h, area = W * D, out = [], taken = [];
+    // places the building keeps clear (SOTI: the mast in the middle and the lift lobby), as [lx, lz, half x, half z]
+    if (Array.isArray(b.keepOut)) for (const k of b.keepOut) taken.push(k.slice(0, 4));
+    // and pieces it wants in a given place (SOTI: the lift room where the lift comes up)
+    if (Array.isArray(b.fixed)) for (const f of b.fixed) if (sizes[f.id]) out.push({ id: f.id, lx: f.lx, lz: f.lz, yaw: f.yaw || 0 });
+    if (b.noKit) return out;
     const fits = (id, lx, lz, rot) => {
       const s = sizes[id]; if (!s) return false;
       const sx = (rot ? s[2] : s[0]) / 2 + 0.6, sz = (rot ? s[0] : s[2]) / 2 + 0.6;
@@ -194,7 +199,7 @@
       return false;
     };
     if (H >= 110 && W >= 24 && D >= 24 && r() < 0.8) put("roof_helipad", 6, "centre");
-    if (area > 90) put("roof_liftroom", 10);
+    if (area > 90 && !out.some(o => o.id === "roof_liftroom")) put("roof_liftroom", 10);
     if (H >= 40) {
       const n = area > 1200 ? 4 : area > 500 ? 3 : 2;
       for (let i = 0; i < n; i++) put(r() < 0.55 ? "roof_chiller" : "roof_coolingtower");
@@ -327,6 +332,8 @@
           const wx = b.c[0] + it.lx * cs + it.lz * sn, wz = b.c[1] - it.lx * sn + it.lz * cs;
           e.set(0, by + it.yaw, 0); q.setFromEuler(e);
           (pieces[it.id] || (pieces[it.id] = [])).push({ x: wx, z: wz, matrix: new THREE.Matrix4().compose(new THREE.Vector3(wx, top, wz), q, one) });
+          // a roof people walk on (skydive-hook's decks) needs to know where the plant stands
+          if (b.soti || b.walkable) { const sz = sizes[it.id]; if (sz) (b.blocks || (b.blocks = [])).push([wx, wz, sz[0] / 2, sz[2] / 2, by + it.yaw, top + sz[1]]); }
           RF.items++;
         }
       }

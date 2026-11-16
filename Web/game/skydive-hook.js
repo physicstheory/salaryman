@@ -108,16 +108,19 @@
 
   // ---- roofs you can jump from -------------------------------------------------------------------------------------------------------
   function onRoof(r, x, z, inset) { const q = toRectLocal(x, z, r.cx, r.cz, r.yawDeg); return Math.abs(q[0]) < r.hw - inset && Math.abs(q[1]) < r.hl - inset; }
-  function addRoof(b, base) {
+  function addRoof(b0, base) {
+    if (SK._roofs.some(r => r.b === b0)) return SK._roofs.find(r => r.b === b0);
+    // a block can carry the roof it really has (SOTI Tower: the block is the podium's footprint, the roof is the top floorplate)
+    const b = b0.roofBox || b0;
     const top = (b.y || 0) + b.h;
-    if (SK._roofs.some(r => r.b === b)) return SK._roofs.find(r => r.b === b);
     const a = b.yaw * Math.PI / 180, hw = b.size[0] / 2 - 0.6, hl = b.size[1] / 2 - 0.6;
     const deck = { cx: b.c[0], cz: b.c[1], c: Math.cos(a), s: Math.sin(a), hw: hw, hl: hl, ya: top, yb: top, r: Math.hypot(hw, hl) + 1, basejump: true };
     world.walk.push(deck);
-    const r = { b: b, cx: b.c[0], cz: b.c[1], yawDeg: b.yaw, hw: hw, hl: hl, top: top, base: b.y || 0, deck: deck, lift: null, rig: null, rigBack: 0, isBase: !!base };
+    const r = { b: b0, rb: b, cx: b.c[0], cz: b.c[1], yawDeg: b.yaw, hw: hw, hl: hl, top: top, base: b.y || 0, deck: deck, lift: null, rig: null, rigBack: 0, isBase: !!base,
+      fw: b0.size[0] / 2, fl: b0.size[1] / 2 };
     // the lift lobby comes out a few metres in from one side; the rig waits beside it
     const L = (lx, lz) => { const cs = Math.cos(a), sn = Math.sin(a); return [b.c[0] + lx * cs + lz * sn, b.c[1] - lx * sn + lz * cs]; };
-    r.lift = L(0, -hl + Math.min(4, hl * 0.4)); r.rigAt = L(Math.min(2.2, hw * 0.4), -hl + Math.min(5.5, hl * 0.6));
+    r.lift = b.liftAt ? L(b.liftAt[0], b.liftAt[1]) : L(0, -hl + Math.min(4, hl * 0.4)); r.rigAt = L(Math.min(2.2, hw * 0.4), -hl + Math.min(5.5, hl * 0.6));
     if (base) {
       const m = kit().makeContainer(); m.position.set(r.rigAt[0], top + 0.22, r.rigAt[1]); m.rotation.set(-1.25, -a, 0); m.scale.setScalar(1.15);
       scene.add(m); r.rig = m;
@@ -144,9 +147,41 @@
   SK.roofs = () => SK._roofs.filter(r => r.isBase).map(r => ({ x: Math.round(r.cx), z: Math.round(r.cz), top: Math.round(r.top) }));
   function roofUnder(x, z, y) { for (const r of SK._roofs) if (Math.abs(y - r.top) < 1.2 && onRoof(r, x, z, -0.5)) return r; return null; }
   function towerBeside(x, z, y) {
-    for (const r of SK._roofs) { if (!r.isBase || y > r.base + 6) continue; const q = toRectLocal(x, z, r.cx, r.cz, r.yawDeg); if (Math.abs(q[0]) < r.hw + 5.5 && Math.abs(q[1]) < r.hl + 5.5) return r; }
+    for (const r of SK._roofs) { if (!r.isBase || y > r.base + 6) continue; const q = toRectLocal(x, z, r.cx, r.cz, r.yawDeg); if (Math.abs(q[0]) < r.fw + 5.5 && Math.abs(q[1]) < r.fl + 5.5) return r; }
     return null;
   }
+  // A door, a mission marker or someone's errand at the foot of a tower comes first: the lift is only offered away from them. (At SOTI's
+  // front door Y took the lift to the roof instead of going in, so the story's door never opened and its marker did nothing.)
+  function doorBusy(x, z) {
+    try { if (typeof shopNear === "function" && shopNear(x, z, 6.5, true)) return true; } catch (e) { /* no shops */ }
+    try { if (typeof story === "object" && story.blips && story.blips.some(b => Math.hypot(b.x - x, b.z - z) < 8)) return true; } catch (e) { /* no story */ }
+    try { const q = window.quest && quest.cur && quest.cur.target; if (q && Math.hypot(q.x - x, q.z - z) < 10) return true; } catch (e) { /* no quest */ }
+    return false;
+  }
+  // what stands on a roof (plant, the lift room) is solid to walk into: rects [x, z, hx, hz, yawRad] in world space
+  function roofBlocked(r, x, z) {
+    const L = r.rb && r.rb.blocks; if (!L) return false;
+    for (const k of L) { const c = Math.cos(k[4]), s = Math.sin(k[4]), dx = x - k[0], dz = z - k[1]; const lx = dx * c - dz * s, lz = dx * s + dz * c; if (Math.abs(lx) < k[2] + 0.3 && Math.abs(lz) < k[3] + 0.3) return true; }
+    return false;
+  }
+
+  // the camera on a roof: the plant and the lift room are walls to it too (it used to swing into the lift room behind him)
+  const _camReach = window.cameraReach;
+  if (typeof _camReach === "function") window.cameraReach = function (head, dir, want) {
+    const d0 = _camReach.apply(this, arguments);
+    if (typeof interior !== "undefined" && interior.active) return d0;
+    const r = player.placed && roofUnder(player.pos.x, player.pos.z, player.pos.y), L = r && r.rb && r.rb.blocks;
+    if (!L) return d0;
+    for (let i = 1; i <= 12; i++) {
+      const d = d0 * i / 12, px = head.x - dir.x * d, py = head.y - dir.y * d, pz = head.z - dir.z * d;
+      for (const k of L) {
+        if (py > k[5] + 0.35) continue;
+        const c = Math.cos(k[4]), s = Math.sin(k[4]), dx = px - k[0], dz = pz - k[1];
+        if (Math.abs(dx * c - dz * s) < k[2] + 0.45 && Math.abs(dx * s + dz * c) < k[3] + 0.45) return Math.max(1.35, d0 * (i - 1) / 12 - 0.1);
+      }
+    }
+    return d0;
+  };
 
   // walking about on a roof: the building under him is not a wall; the edge is a drop
   const _tryStep = window.tryStep;
@@ -155,7 +190,7 @@
     const r = player.placed && roofUnder(player.pos.x, player.pos.z, player.pos.y);
     if (!r) return _tryStep.apply(this, arguments);
     const nx = player.pos.x + dx, nz = player.pos.z + dz;
-    if (onRoof(r, nx, nz, 0.25)) { player.pos.x = nx; player.pos.z = nz; return true; }
+    if (onRoof(r, nx, nz, 0.25)) { if (roofBlocked(r, nx, nz)) return false; player.pos.x = nx; player.pos.z = nz; return true; }
     // over the parapet
     if (SK.have || player.jump > 0) { baseJump(r, dx, dz); return false; }
     if (!SK.said.edge || SK.t - SK.said.edge > 6) { SK.said.edge = SK.t; say("A long way down. Pick up the parachute by the lift, or Space to jump without one.", 4); }
@@ -346,7 +381,7 @@
     const p = player.pos, r = roofUnder(p.x, p.z, p.y);
     if (r) return Math.hypot(p.x - r.lift[0], p.z - r.lift[1]) < 3.5 || !r.isBase ? { kind: "liftdown", roof: r, text: "Take the lift down" } : null;
     const t = towerBeside(p.x, p.z, p.y);
-    if (t) return { kind: "liftup", roof: t, text: "Take the lift to the roof (" + Math.round(t.top - world.surfaceY(p.x, p.z)) + " m)" };
+    if (t && !doorBusy(p.x, p.z)) return { kind: "liftup", roof: t, text: "Take the lift to the roof (" + Math.round(t.top - world.surfaceY(p.x, p.z)) + " m)" };
     return null;
   };
   window.airUse = function () {
@@ -366,7 +401,10 @@
     player.pos.set(r.lift[0], r.top, r.lift[1]); player.onWalk = true;
     const a = r.yawDeg * Math.PI / 180; player.yaw = player.targetYaw = Math.atan2(Math.sin(a) * 1, Math.cos(a) * 1);
     player.obj.position.copy(player.pos); player.obj.rotation.set(0, player.yaw, 0);
-    yaw = player.yaw + Math.PI; pitch = -0.2; camPos.set(player.pos.x, player.pos.y + 3, player.pos.z);
+    // the lift room is behind him as he steps out, so the camera starts in front and to one side of him, out over the roof, not inside it
+    const front = !!(r.rb && r.rb.liftAt);
+    yaw = player.yaw + (front ? 0.6 : Math.PI); pitch = -0.2;
+    const cy = yaw; camPos.set(player.pos.x + Math.sin(cy) * 4.6, player.pos.y + 2.6, player.pos.z + Math.cos(cy) * 4.6);
     if (withRig) { SK.have = true; SK.haveSpec = "base"; wearPack(true); }
     say(Math.round(r.top - world.surfaceY(r.cx, r.cz)) + " metres up." + (SK.have ? " Run off the edge to jump." : " The parachute is by the lift."), 4);
   }

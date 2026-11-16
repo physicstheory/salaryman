@@ -8213,13 +8213,8 @@ function buildSotiTower(plot) {
       [0, 2, 1, 0, 3, 2].forEach(k => { pos.push(P[k][0], P[k][1], P[k][2]); uv.push(T[k][0], T[k][1]); });
     }
   }
-  // the roof
+  // the roof is its own mesh (a roof deck, not glass): see "the roof deck" below
   const cap = rings[rings.length - 1], capSec = sotiSection(cap.a, cap.c);
-  for (let e = 1; e < 7; e++) {
-    [capSec[0], capSec[e], capSec[e + 1]].forEach(v => {
-      pos.push(v[0], cap.y, v[1]); uv.push(v[0] * 0.2, v[1] * 0.2);
-    });
-  }
   const shell = new THREE.BufferGeometry();
   shell.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   shell.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
@@ -8286,12 +8281,35 @@ function buildSotiTower(plot) {
   steps.forEach(st => plantBand(st.y, st.a, FLOOR * 1.4));
   plantBand(SOTI.height, cap.a, FLOOR * 1.6);
 
-  // ---- the parapet and the mast. 262 m to the tip, 14 m of it aerial.
-  const parapet = new THREE.Mesh(
-    new THREE.BoxGeometry(cap.a * 2 + 0.8, 1.4, cap.a * 2 + 0.8), steel);
-  parapet.position.y = SOTI.height + 0.7;
-  parapet.castShadow = true;
-  group.add(parapet);
+  // ---- the roof deck: concrete pavers on pedestals over the membrane, walked on (skydive-hook makes it a deck, with the lift
+  // lobby at one side), with a parapet wall round the edge and a steel coping. It used to be the curtain-wall glass drawn flat
+  // under a solid steel slab the size of the whole roof, which buried anyone standing up here to the knees.
+  const rpos = [];
+  for (let e = 1; e < 7; e++) [capSec[0], capSec[e], capSec[e + 1]].forEach(v => rpos.push(v[0], cap.y + 0.02, v[1]));
+  const roofGeo = new THREE.BufferGeometry();
+  roofGeo.setAttribute("position", new THREE.Float32BufferAttribute(rpos, 3));
+  roofGeo.computeVertexNormals();
+  const deckMat = pbrMat("concrete", 0x5b5c58, { roughness: 0.92, metalness: 0.0, side: THREE.DoubleSide });
+  const deckMesh = new THREE.Mesh(roofGeo, deckMat);
+  deckMesh.receiveShadow = true;
+  group.add(deckMesh);
+  // the parapet: one wall along each of the eight edges of the floorplate, 1.2 m high, with a metal coping on top
+  const wallMat = pbrMat("concrete", 0x8c8d88, { roughness: 0.88, metalness: 0.0 });
+  for (let e = 0; e < 8; e++) {
+    const p0 = capSec[e], p1 = capSec[(e + 1) % 8];
+    const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]), mx = (p0[0] + p1[0]) / 2, mz = (p0[1] + p1[1]) / 2;
+    const ang = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), n = Math.hypot(mx, mz) || 1;
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(len + 0.3, 1.2, 0.32), wallMat);
+    wall.position.set(mx - mx / n * 0.16, SOTI.height + 0.6, mz - mz / n * 0.16);
+    wall.rotation.y = -ang;
+    wall.castShadow = wall.receiveShadow = true;
+    group.add(wall);
+    const coping = new THREE.Mesh(new THREE.BoxGeometry(len + 0.42, 0.08, 0.46), steel);
+    coping.position.set(wall.position.x, SOTI.height + 1.24, wall.position.z);
+    coping.rotation.y = -ang;
+    group.add(coping);
+  }
+  // ---- the mast. 262 m to the tip, 14 m of it aerial.
   const mastH = SOTI.mastTop - SOTI.height;
   const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.70, mastH, 8, 1), steel);
   mast.position.y = SOTI.height + mastH * 0.5;
@@ -10444,7 +10462,14 @@ function buildScene(w) {
     if (sotiPlot) {
       root.add(buildSotiTower(sotiPlot));
       const w = SOTI.podiumHalf * 2;
-      solids.push({ c: sotiPlot.centre, size: [w, w], yaw: sotiPlot.yaw, y: sotiPlot.groundY, h: SOTI.height });
+      // The block is the podium's footprint all the way up, which is right for walking into it from the street but not for the roof:
+      // the roof is the top floorplate, a good deal smaller. roofBox is that roof (inside the parapet), for whatever stands on it or
+      // walks about up there (skydive-hook's roof deck and lift, the Foundry rooftop plant), with the mast and the lift lobby kept clear.
+      const ra = sotiProfile(SOTI.height).a - 1.1;
+      const roofBox = { c: sotiPlot.centre, size: [ra * 2, ra * 2], yaw: sotiPlot.yaw, y: sotiPlot.groundY, h: SOTI.height, style: "glass", soti: true,
+        keepOut: [[0, 0, 2.6, 2.6], [0, -ra + 3.6, 3.4, 3.4]], fixed: [{ id: "roof_liftroom", lx: 0, lz: -ra + 2.3, yaw: Math.PI }], liftAt: [0, -ra + 5.6] };
+      solids.push({ c: sotiPlot.centre, size: [w, w], yaw: sotiPlot.yaw, y: sotiPlot.groundY, h: SOTI.height, landmark: true, roofBox: roofBox });
+      try { if (window.foundry && foundry.roofs && Array.isArray(foundry.roofs.boxes)) foundry.roofs.boxes.push(roofBox); } catch (e) { /* the roof stays bare */ }
     }
 
     // Street trees and park planting.
@@ -11003,7 +11028,9 @@ function cameraReach(head, dir, want) {
     const d = want * (i / steps);
     const p = head.clone().sub(dir.clone().multiplyScalar(d));
     const ground = world.surfaceY(clamp(p.x, 0, WORLD_X), clamp(p.z, 0, WORLD_Z));
-    if (insideBuilding(p.x, p.z, margin) || p.y < ground + 0.6) {
+    // with its height: over a roof is clear of the building (on a tower top the whole footprint used to count as wall,
+    // which pulled the camera into his shoulder)
+    if (insideBuilding(p.x, p.z, margin, p.y) || p.y < ground + 0.6) {
       // Back off to the last clear step, and never closer than the shoulder.
       return Math.max(1.35, want * ((i - 1) / steps) - 0.1);
     }
