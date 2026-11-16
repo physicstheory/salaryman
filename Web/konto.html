@@ -1290,8 +1290,8 @@
         <p class="startup-reference">DHInc / SALARY MAN / SHIGOTO ENGINE</p>
       </div>
     </section>
-    <section class="intro-card intro-studio"><img src="art/dhinc.svg" alt="DHInc"><p class="startup-caption">A DHInc production</p></section>
-    <section class="intro-card intro-engine"><img src="art/shigoto-startup.svg" alt="Shigoto Engine"><p class="startup-caption">Three.js · Rapier</p></section>
+    <section class="intro-card intro-studio"><img src="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20260%2070%22%3E%3Ctitle%3EDHInc%20studio%20identity%3C/title%3E%3Cg%20fill=%22#f2eee1%22%3E%3Cpath%20fill-rule=%22evenodd%22%20d=%22M0%200H18C62%200%2062%2070%2018%2070H0ZM13%2013V57H20C42%2057%2042%2013%2020%2013Z%22/%3E%3Cpath%20d=%22M42%200H53V30H67V0H78V70H67V41H53V70H42Z%22/%3E%3Ctext%20x=%2294%22%20y=%2254%22%20font-family=%22Arial,Helvetica,sans-serif%22%20font-weight=%22700%22%20font-size=%2254%22%3EDHInc%3C/text%3E%3C/g%3E%3C/svg%3E" alt="DHInc"><p class="startup-caption">A DHInc production</p></section>
+    <section class="intro-card intro-engine"><img src="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22700%22%20height=%22220%22%20viewBox=%220%200%20700%20220%22%20role=%22img%22%20aria-label=%22Shigoto%20Engine%22%3E%3Cg%20transform=%22translate(16%2025)%22%20fill=%22none%22%20stroke-width=%227%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m76%200%2072%2042v84l-72%2042-72-42V42z%22%20stroke=%22#d2d2d2%22/%3E%3Cpath%20d=%22m4%2042%2072%2042%2072-42M76%2084v84M40%2021l72%2042v43l-36%2021-36-21V63l36-21%2036%2021%22%20stroke=%22#f5f3ee%22/%3E%3C/g%3E%3Ctext%20x=%22198%22%20y=%22114%22%20fill=%22#f5f3ee%22%20font-family=%22sans-serif%22%20font-size=%2266%22%20font-weight=%22700%22%20letter-spacing=%224%22%3ESHIGOTO%3C/text%3E%3Ctext%20x=%22201%22%20y=%22157%22%20fill=%22#d2d2d2%22%20font-family=%22sans-serif%22%20font-size=%2222%22%20letter-spacing=%2212%22%3EENGINE%3C/text%3E%3C/svg%3E" alt="Shigoto Engine"><p class="startup-caption">Three.js · Rapier</p></section>
     <section class="intro-card intro-save"><div class="startup-save-mark" aria-hidden="true"><i></i><i></i><i></i></div><h2>PROGRESS &amp; LOCAL STORAGE</h2><p>This game saves progress automatically.</p><p>Allow the save indicator to finish before closing the game.<br>Saved progress is stored on this device.</p><p class="startup-reference">Your commute begins in Mizuho.</p></section>
   </div>
   <button id="bootcredits" type="button" onclick="document.getElementById('assetcredits').showModal()">Credits &amp; licenses</button>
@@ -4280,7 +4280,11 @@ function buildLinkRoads(root) {
     if (!widths.nrm) g.computeVertexNormals();
     const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.frustumCulled = false; root.add(o); streamAdd(o, bk, STREAM.road);
   });
-  const gravelTex = surfTex("gravel").clone(); gravelTex.needsUpdate = true; gravelTex.encoding = THREE.sRGBEncoding; gravelTex.repeat.set(0.4, 0.25);
+  // (the clone is made before the photo has arrived: it takes the picture when it does. Cloned empty and marked for update, three warned
+  // "image is undefined" on every draw of every verge for the whole session, and the verges stayed plain.)
+  const gravelSrc = surfTex("gravel"), gravelTex = gravelSrc.clone(); gravelTex.encoding = THREE.sRGBEncoding; gravelTex.repeat.set(0.4, 0.25);
+  const gravelFill = () => { if (!gravelSrc.image) return false; gravelTex.image = gravelSrc.image; gravelTex.needsUpdate = true; return true; };
+  if (!gravelFill()) { const iv = setInterval(() => { if (gravelFill()) clearInterval(iv); }, 400); }
   const gravel = gfx.high ? new THREE.MeshStandardMaterial({ color: 0xc8c2b4, roughness: 1, map: gravelTex }) : new THREE.MeshLambertMaterial({ color: 0xc8c2b4, map: gravelTex });
   gravel.polygonOffset = true; gravel.polygonOffsetFactor = -1; gravel.polygonOffsetUnits = -1;
   const white = pbrMat("paint", 0xe8e8e0, { polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
@@ -8695,6 +8699,18 @@ const GFX_SAFE = (() => {
   let level = 0, raised = false;
   try { level = Math.max(0, Math.min(3, parseInt(localStorage.getItem("konto.gfxSafe") || "0", 10) || 0)); } catch (e) { /* none */ }
   if (/[?&]safe=([0-3])\b/.test(location.search)) level = +RegExp.$1;
+  // The ladder is not a life sentence (2026-11-15). A level set by an older build's crash comes down to 1 when a new release arrives (the
+  // crash it guarded against may be fixed: Iris Xe sat at level 3, half resolution and no warm-up, long after the cause was gone), and
+  // every session that plays eight minutes without a driver reset takes it down one more step for next time.
+  const EPOCH = "2026-11-15";
+  try {
+    if (level > 1 && localStorage.getItem("konto.gfxSafeEpoch") !== EPOCH) { level = 1; localStorage.setItem("konto.gfxSafe", "1"); }
+    localStorage.setItem("konto.gfxSafeEpoch", EPOCH);
+  } catch (e) { /* none */ }
+  if (level > 0) setTimeout(() => {
+    if (raised) return;
+    try { const now = Math.max(0, Math.min(3, parseInt(localStorage.getItem("konto.gfxSafe") || "0", 10) || 0)); if (now > 0) localStorage.setItem("konto.gfxSafe", String(now - 1)); } catch (e) { /* none */ }
+  }, 8 * 60 * 1000);
   let gpu = "";
   try { const c = document.createElement("canvas"), gl = c.getContext("webgl"); const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
     gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : ""; const lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext(); } catch (e) { /* none */ }
@@ -19917,25 +19933,41 @@ function pedNetTick() {
 }
 function pedNetEdgeX(a, b) { const e = pedNet.adj[a].find(t => t[0] === b); return e && e[1] >= 0 ? xing.list[e[1]] : null; }
 // A* over the footways, from the node nearest one point to the node nearest another
+// A* over the footways. Typed arrays stamped per search (no Map/Set per route): commuters set off in bursts after the start of play, and
+// the old Map-based search churned ~50 MB and 250-300 ms of "untimed code" every couple of seconds on a laptop (Iris Xe report, 2026-11-15).
+const PNR = { compN: -1, comp: null, n: 0, stamp: 0, seen: null, g: null, from: null, closed: null, hk: null, hv: null };
 function pedNetRoute(fx, fz, tx, tz) {
   if (!pedNet.ready) return null;
   const s0 = pedNetNear(fx, fz, 40)[0], s1 = pedNetNear(tx, tz, 60)[0]; if (!s0 || !s1) return null;
-  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z;
-  const g = new Map([[S, 0]]), from = new Map(), open = [[Math.hypot(X[S] - X[T], Z[S] - Z[T]), S]], done = new Set();
+  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z, N = X.length;
+  // islands of footway (a pier, a park path, a cut-off platform): no search at all between two of them. Most failed routes ran the full
+  // 25,000 steps before giving up. Union-find over the edges, both ways, so it can only ever say "maybe" where the search must decide.
+  if (PNR.compN !== N) {
+    const up = new Int32Array(N); for (let i = 0; i < N; i++) up[i] = i;
+    const root = i => { while (up[i] !== i) { up[i] = up[up[i]]; i = up[i]; } return i; };
+    for (let u = 0; u < N; u++) for (const e of pedNet.adj[u] || []) { const a = root(u), b = root(e[0]); if (a !== b) up[a] = b; }
+    for (let i = 0; i < N; i++) up[i] = root(i);
+    PNR.comp = up; PNR.compN = N;
+  }
+  if (PNR.comp[S] !== PNR.comp[T]) return null;
+  if (PNR.n < N) { PNR.n = N; PNR.seen = new Uint32Array(N); PNR.closed = new Uint32Array(N); PNR.g = new Float64Array(N); PNR.from = new Int32Array(N); PNR.hk = new Float64Array(1024); PNR.hv = new Int32Array(1024); PNR.stamp = 0; }
+  const st = ++PNR.stamp, seen = PNR.seen, closed = PNR.closed, g = PNR.g, from = PNR.from;
+  let hk = PNR.hk, hv = PNR.hv, hn = 0;
+  const push = (k, v) => {
+    if (hn >= hk.length) { const k2 = new Float64Array(hk.length * 2), v2 = new Int32Array(hk.length * 2); k2.set(hk); v2.set(hv); PNR.hk = hk = k2; PNR.hv = hv = v2; }
+    let i = hn++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v;
+  };
+  seen[S] = st; g[S] = 0; from[S] = -1; push(Math.hypot(X[S] - X[T], Z[S] - Z[T]), S);
   let it = 0;
-  while (open.length && it++ < 25000) {
-    // a small binary heap
-    let top = open[0]; const last = open.pop();
-    if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; const t = open[i]; open[i] = open[m]; open[m] = t; i = m; } }
-    const u = top[1]; if (done.has(u)) continue; done.add(u);
-    if (u === T) { const path = [T]; let c = T; while (from.has(c)) { c = from.get(c); path.push(c); } return path.reverse(); }
+  while (hn && it++ < 25000) {
+    const u = hv[0]; hn--;
+    if (hn) { const k = hk[hn], v = hv[hn]; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = -1, mk = k; if (l < hn && hk[l] < mk) { m = l; mk = hk[l]; } if (r < hn && hk[r] < mk) { m = r; mk = hk[r]; } if (m < 0) break; hk[i] = hk[m]; hv[i] = hv[m]; i = m; } hk[i] = k; hv[i] = v; }
+    if (closed[u] === st) continue; closed[u] = st;
+    if (u === T) { const path = [T]; let c = T; while (from[c] >= 0) { c = from[c]; path.push(c); } return path.reverse(); }
+    const gu = g[u];
     for (const e of pedNet.adj[u]) {
-      const v = e[0], w = Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0), ng = g.get(u) + w;
-      if (ng < (g.has(v) ? g.get(v) : Infinity)) {
-        g.set(v, ng); from.set(v, u);
-        open.push([ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v]);
-        let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; const t = open[i]; open[i] = open[p]; open[p] = t; i = p; }
-      }
+      const v = e[0], ng = gu + Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0);
+      if (seen[v] !== st || ng < g[v]) { seen[v] = st; g[v] = ng; from[v] = u; push(ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v); }
     }
   }
   return null;
@@ -42530,7 +42562,7 @@ function inCrowdTick(R, dt) {
       const fig = pplFigure(biz[(Math.random() * biz.length) | 0] || any[0], 1.0); fig.holder.position.set(p.x, 0, p.z); fig.holder.rotation.y = p.ry; root.add(fig.holder); pedPlay(fig, "idle", 0);
       R.crowd.push({ f: fig, staff: true });
     });
-    const n=R.station?(gfx.tier==='low'?(R.glassRoof?6:3):(R.glassRoof?18:7)):R.brand==='airport'?(gfx.tier==='low'?8:gfx.tier==='medium'?14:22):R.brand==='home'||R.brand==='police'?0:gfx.tier==='low'?2:4;
+    const n=R.station?(gfx.tier==='low'?(R.glassRoof?20:4):(R.glassRoof?32:8)):R.brand==='airport'?(gfx.tier==='low'?8:gfx.tier==='medium'?14:22):R.brand==='home'||R.brand==='police'?0:gfx.tier==='low'?2:4;
     (R.seats || []).forEach(st => { st.taken = null; });
     for (let i = 0; i < n; i++) {
       const fig = pplFigure(any[(Math.random() * any.length) | 0], 0.95 + Math.random() * 0.08);
@@ -46507,6 +46539,7 @@ radioLoadMusic();
 <script src="game/foundry-hook.js"></script>
 <script src="game/interiors-hook.js"></script>
 <script src="game/seamless-hook.js"></script>
+<script src="game/station-aaa.js"></script>
 <script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
 <script src="game/type-hook.js"></script>
