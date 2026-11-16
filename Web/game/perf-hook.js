@@ -95,6 +95,7 @@
       };
     }
     installDrawCull(r);
+    try { installIndoorCull(r); } catch (e) { console.warn("[Konto] indoor cull", e); }
     G.lever({ name: "fewer far details", kind: "cpu", available: () => !!(K.cull && K.cull.on),
       apply: on => { K.cull.boost = on ? 1.8 : 1; } });
     if (r.domElement) r.domElement.addEventListener("webglcontextrestored", () => { P.pacer.reset(); G.hold(3); });
@@ -137,6 +138,70 @@
       return orig.call(this, cam, sc, geo, mat, obj, grp);
     };
     (window.shigoto || (window.shigoto = {})).cull = () => ({ on: C.on, k: C.k, boost: C.boost, emptySkipped: C.empty, specksSkipped: C.small });
+  }
+  // ---- indoors, the city is not drawn (2026-11-15) ---------------------------------------------------------------------------------------
+  // Rooms live at interior.floorY (400 m up) and the street outside is a photograph (seamless-hook's cube maps), but the whole city stayed in
+  // the scene underneath: everything three.js can't frustum-cull (whole-map instanced trees, roads, kits: frustumCulled = false) went to the
+  // driver anyway. The title and the opening (both inside Tōkonto Central) were drawing ~3,400 calls and ~20M triangles of a city nobody can
+  // see. Now, while the eye's camera is up at room height: the world root is not even walked (it holds only street things), and any other
+  // draw whose bounds lie wholly below the rooms is skipped at the last moment. Cube-map photographs of the street are taken from street
+  // level, so they still see everything. Off: ?indoorcull=0. Console: shigoto.indoor().
+  function installIndoorCull(r) {
+    if (/[?&]indoorcull=0\b/.test(location.search) || store("konto.indoorcull") === "0" || typeof THREE !== "object") return;
+    const I = K.indoor = { on: true, skipped: 0, rootHidden: 0, rootLow: null };
+    const floorY = () => (typeof interior === "object" && interior && interior.floorY) || 400;
+    const mainScene = () => (typeof scene !== "undefined" ? scene : null);
+    // inside a room (or the title's concourse) and the camera up at room height: a mountain road at 380 m is not a room
+    const indoors = () => (typeof interior === "object" && interior && interior.active) || !!(window.seamless && seamless.inside);
+    const up = cam => { if (!cam || !cam.isPerspectiveCamera || !indoors()) return false; const y = cam.matrixWorld.elements[13]; return y > floorY() - 40 && y < floorY() + 60; };
+    const setTop = new WeakMap();
+    // the top of an instanced set (its own bounds are one instance's): cached by the instance buffer's version
+    function setTopY(obj, geo) {
+      const im = obj.instanceMatrix, c = setTop.get(obj);
+      if (c && c.v === im.version && c.n === obj.count) return c.y;
+      const a = im.array, rad = geo.boundingSphere ? geo.boundingSphere.radius + Math.abs(geo.boundingSphere.center.y) : 1;
+      let top = -1e9;
+      for (let i = 0, n = Math.min(obj.count, a.length / 16); i < n; i++) {
+        const o = i * 16, s = Math.max(Math.hypot(a[o], a[o + 1], a[o + 2]), Math.hypot(a[o + 4], a[o + 5], a[o + 6]), Math.hypot(a[o + 8], a[o + 9], a[o + 10]));
+        const y = a[o + 13] + rad * s; if (y > top) top = y;
+      }
+      const e = obj.matrixWorld.elements, y = top + e[13] + 2;
+      setTop.set(obj, { v: im.version, n: obj.count, y });
+      return y;
+    }
+    const box = new THREE.Box3();
+    // the highest point of a mesh's box (spheres round a terrain tile are ~900 m: far too loose for "is it below the rooms")
+    function topY(obj, geo) {
+      if (obj.isInstancedMesh) { if (!geo.boundingSphere) geo.computeBoundingSphere(); return geo.boundingSphere ? setTopY(obj, geo) : 1e9; }
+      if (obj.isSkinnedMesh) return obj.matrixWorld.elements[13] + 3;     // a person: bones move the skin a metre or two at most
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      if (!geo.boundingBox || geo.boundingBox.isEmpty()) return 1e9;
+      return box.copy(geo.boundingBox).applyMatrix4(obj.matrixWorld).max.y;
+    }
+    const low = (obj, geo, cut) => topY(obj, geo) < cut;
+    const prev = r.renderBufferDirect;
+    r.renderBufferDirect = function (cam, sc, geo, mat, obj, grp) {
+      if (I.on && obj && geo && sc === mainScene() && up(cam) && (obj.isMesh || obj.isPoints || obj.isLine) && low(obj, geo, floorY() - 30)) { I.skipped++; return; }
+      return prev.call(this, cam, sc, geo, mat, obj, grp);
+    };
+    // the world root holds only street things (the rooms are added to the scene itself): skip walking it at all while indoors, unless
+    // the room on show turns out to be inside it
+    function rootIsLow() {
+      const W = typeof worldRoot !== "undefined" ? worldRoot : null; if (!W) return false;
+      const R = (typeof interior === "object" && interior && interior.active && interior.room) || (window.seamless && seamless.title && seamless.title.on && seamless.title.room) || null;
+      let o = R && R.group; while (o) { if (o === W) return (I.rootLow = false); o = o.parent; }
+      return (I.rootLow = true);
+    }
+    const render = r.render;
+    r.render = function (sc, cam) {
+      const W = typeof worldRoot !== "undefined" ? worldRoot : null;
+      if (I.on && W && W.visible && sc === mainScene() && cam && (cam.updateMatrixWorld(), up(cam)) && rootIsLow()) {
+        W.visible = false; I.rootHidden++;
+        try { return render.apply(this, arguments); } finally { W.visible = true; }
+      }
+      return render.apply(this, arguments);
+    };
+    (window.shigoto || (window.shigoto = {})).indoor = () => ({ on: I.on, skipped: I.skipped, rootHidden: I.rootHidden, rootLow: I.rootLow });
   }
   function cullTier() {
     if (!K.cull) return;

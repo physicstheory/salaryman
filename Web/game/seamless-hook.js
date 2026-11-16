@@ -42,10 +42,11 @@
   function cubeFor(s, make) {
     let c = S.cubes.get(s);
     if (!c && make) {
-      const n = cubeSize();
+      // a station's windows are big and close (the central concourse is also the title): a sharper photograph there
+      const n = s && s.station ? Math.max(cubeSize(), s.central ? 512 : 256) : cubeSize();
       // sRGB, like the screen: the programs the city already compiled are reused as they are (no shader rebuild on the first photo)
       const rt = new THREE.WebGLCubeRenderTarget(n, { format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, encoding: renderer.outputEncoding });
-      const cam = new THREE.CubeCamera(0.4, 30000, rt);
+      const cam = new THREE.CubeCamera(0.4, 2500, rt);   // past 2.5 km the fog has it, and the far city is most of a face's draw calls
       c = { rt: rt, cam: cam, face: 0, done: false, at: 0, used: performance.now(), p: capPoint(s) };
       S.cubes.set(s, c);
       if (S.cubes.size > MAX_CUBES) {
@@ -64,7 +65,8 @@
     if (player && player.obj) hide(player.obj);
     if (S.backdrop) hide(S.backdrop);
     Object.keys(interior.rooms || {}).forEach(k => { const R = interior.rooms[k]; if (R && R.group) hide(R.group); });
-    if (typeof skyDome !== "undefined" && skyDome) skyDome.position.set(c.p.x, c.p.y, c.p.z);
+    const sky = typeof skyDome !== "undefined" && skyDome ? skyDome : null, skyScale = sky ? sky.scale.x : 1;
+    if (sky) { sky.position.set(c.p.x, c.p.y, c.p.z); sky.scale.setScalar(Math.min(skyScale, 2300)); sky.updateMatrixWorld(true); }   // inside the photo camera's 2.5 km
     c.cam.position.set(c.p.x, c.p.y, c.p.z); c.cam.updateMatrixWorld(true);
     if (r.xr) r.xr.enabled = false;
     r.shadowMap.autoUpdate = false;              // the shadow map from the last frame is the right one, and redrawing it six times is not free
@@ -72,6 +74,7 @@
     finally {
       r.setRenderTarget(prev); if (r.xr) r.xr.enabled = xr; r.shadowMap.autoUpdate = auto;
       hidden.forEach(o => { o.visible = true; });
+      if (sky) { sky.scale.setScalar(skyScale); sky.updateMatrixWorld(true); }
       if (typeof skyDome !== "undefined" && skyDome && camera) skyDome.position.copy(camera.position);
     }
     S.stats.faces++;
@@ -315,9 +318,10 @@
   let actx = null;
   function beep() {
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = 0.05;
-      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
+      const shared = typeof sound === "object" && sound.ctx && sound.master;      // the game's own context, so the mixer hears it
+      actx = shared ? sound.ctx : actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = shared ? 0.12 : 0.05;
+      o.connect(g); g.connect(shared ? sound.master : actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
     } catch (e) { /* no audio */ }
   }
   const stationName = () => { const s = interior.shop || {}; return (s.stationRef && s.stationRef.name) || s.name || ""; };
@@ -470,7 +474,11 @@
           const c = cubeFor(target, true);
           // retake it when the light has changed (half an hour of game time) or after two minutes
           if (c.done && (now - c.at > 120000 || Math.abs(gameMin() - (c.mins || 0)) > 30)) { c.done = false; c.face = 0; }
-          if (!c.done && (frame++ & 1) === 0) step(c);
+          // one face at a time, and only from a frame with room to spare: each face is a whole render of the street, and on integrated
+          // graphics a face every other frame doubled the draw calls of walking down any street of shops (2026-11-15)
+          const slow = lowTier() || IGPU, P = window.KONTO_PERF && KONTO_PERF.engine && KONTO_PERF.engine.budgets;
+          const room = !P || !P.playing || P.factor >= (slow ? 0.8 : 0.5);
+          if (!c.done && room && (frame++ % (slow ? 6 : 2)) === 0) step(c);
         }
       } else if (!S.inside) show(interior.room, interior.shop);
     } catch (e) { if (!S.err) { S.err = e; console.warn("[seamless]", e); } }
