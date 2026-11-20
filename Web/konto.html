@@ -10985,7 +10985,8 @@ function updateWalk(dt) {
     // Slide along a wall rather than sticking to it.
     if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
   }
-  player.pos.y = interior.active ? interior.floorY : world.walkY(player.pos.x, player.pos.z, player.pos.y);
+  // (a room with floors - a station building - keeps the height of the floor, stair or escalator you are on: game/station-mall.js)
+  player.pos.y = interior.active ? interior.floorY + ((interior.room && interior.room.curY) || 0) : world.walkY(player.pos.x, player.pos.z, player.pos.y);
   player.onWalk = interior.active ? false : world.walkOn;
 
   // Turn toward where he is going, by the shorter way round.
@@ -11032,7 +11033,7 @@ function updateWalk(dt) {
   const want = head.clone().sub(dir.clone().multiplyScalar(free));
   const ground = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
   want.y = Math.max(want.y, ground + 1.3);
-  if (interior.active) { want.y = Math.min(head.y + 0.9, interior.floorY + 3.1); interiorClampCam(want); }
+  if (interior.active) { want.y = Math.min(head.y + 0.9, interior.floorY + ((interior.room && interior.room.curY) || 0) + 3.1); interiorClampCam(want); }
   // Coming in off a wall has to be immediate or the camera is inside the wall
   // for the moment it takes to ease; going back out can take its time.
   const closing = free < (player.camFree === undefined ? free : player.camFree) - 0.05;
@@ -46683,6 +46684,7 @@ radioLoadMusic();
 <script src="game/lib/meshopt_decoder.js"></script>
 <script src="game/foundry-hook.js"></script>
 <script src="game/interiors-hook.js"></script>
+<script src="game/station-mall.js"></script>
 <script src="game/seamless-hook.js"></script>
 <script src="game/station-aaa.js"></script>
 <script src="game/phone-hand.js"></script>
