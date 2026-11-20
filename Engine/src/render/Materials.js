@@ -74,7 +74,20 @@ export class Materials {
     const tex = (suffix, srgb) => {
       let done; this.pending.push(new Promise(r => { done = r; setTimeout(r, 15000); }));
       const v = this.engine.opts && this.engine.opts.texVersion ? "?v=" + this.engine.opts.texVersion : "";
-      const t = loader.load(this.texBase + name + suffix + ".jpg" + v, () => done(), undefined,
+      // options.propTexMax: on integrated graphics the host asks for smaller prop maps (a 1024 px set is ~16 MB of video memory
+      // with mips; at 512 it is 4). Shrunk on a canvas when the image arrives, before it is ever uploaded.
+      // The normal and roughness maps carry less than the colour: half the colour's size (512 px at most), which nobody can tell
+      // apart on a bollard and halves what the street props hold in video memory.
+      const cmax = (this.engine.opts && this.engine.opts.propTexMax) || 0, max = suffix ? (cmax ? Math.max(128, cmax / 2) : 512) : cmax;
+      const shrink = tx => {
+        const im = tx.image;
+        if (!max || !im || !im.width || im.width <= max || typeof document === "undefined") return;
+        const c = document.createElement("canvas"), k = max / Math.max(im.width, im.height);
+        c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+        c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+        tx.image = c; tx.needsUpdate = true;
+      };
+      const t = loader.load(this.texBase + name + suffix + ".jpg" + v, tx => { shrink(tx); done(); }, undefined,
         () => { done(); console.warn("[Shigoto] prop texture missing: " + name + suffix + ".jpg"); });
       t.wrapS = def.uv === "face" ? T.ClampToEdgeWrapping : T.RepeatWrapping;
       t.wrapT = def.uv === "tile" ? T.RepeatWrapping : T.ClampToEdgeWrapping;

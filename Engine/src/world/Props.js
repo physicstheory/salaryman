@@ -26,7 +26,13 @@ export const PROP_DEFS = {
   planter:   { dynamic: false, shape: "box", size: [1.6, 0.6, 0.6] },
   signpost:  { dynamic: false, shape: "cylinder", size: [0.05, 3, 0.05] },
   ac:        { dynamic: false, shape: null, size: [0.8, 0.6, 0.3] },
-  ball:      { dynamic: true, shape: "sphere", size: [0.11, 0.22, 0.11], mass: 0.43, restitution: 0.7, buoyancy: 4 }
+  ball:      { dynamic: true, shape: "sphere", size: [0.11, 0.22, 0.11], mass: 0.43, restitution: 0.7, buoyancy: 4 },
+  // the small furniture of a Japanese street (2026-11-20 density pass): drawn with the existing PBR slots, recoloured by vertex colour
+  bikerack:  { dynamic: false, shape: "box", size: [3.2, 0.7, 0.4] },
+  utilitybox:{ dynamic: false, shape: "box", size: [1.1, 1.35, 0.55] },
+  postbox:   { dynamic: false, shape: "box", size: [0.5, 1.3, 0.45] },
+  curvemirror:{ dynamic: false, shape: "cylinder", size: [0.05, 3.4, 0.05] },
+  pots:      { dynamic: false, shape: null, size: [1.2, 0.7, 0.45] }
 };
 
 // ---- geometry helpers: every piece gets UVs that suit its slot ------------------------------------------------------
@@ -294,6 +300,63 @@ export function drawProp(T, type, add, rng, opts) {
       P.box("ac_body", 0.18, 0.12, 0.05, 0.27, 0.16, 0.15, [0.85, 0.85, 0.82]);                  // the valve cover
       P.tube("ac_fins", [[0.3, 0.12, 0.1], [0.42, 0.06, 0.1], [0.5, 0.0, 0.1]], 0.012, [0.9, 0.9, 0.85]);
       for (const x of [-0.32, 0.32]) P.box("ac_body", 0.06, 0.03, 0.32, x, 0.0, 0, [0.6, 0.6, 0.6]);
+      break;
+    }
+    case "bikerack": {
+      // a municipal cycle rack: two rails on low feet and a row of wheel slots (the bikes are placed separately)
+      for (const z of [-0.12, 0.12]) P.cyl("bicycle_steel", 0.022, 0.022, 3.2, 10, 0, 0.28, z, W, 0, Math.PI / 2);
+      for (let i = 0; i < 6; i++) {
+        const x = -1.35 + i * 0.54;
+        P.tube("bicycle_steel", [[x, 0.0, -0.18], [x, 0.42, -0.14], [x, 0.5, 0], [x, 0.42, 0.14], [x, 0.0, 0.18]], 0.014, W);
+      }
+      for (const x of [-1.55, 1.55]) P.box("barrier_foot", 0.12, 0.05, 0.42, x, 0.025, 0, [0.5, 0.5, 0.52]);
+      break;
+    }
+    case "utilitybox": {
+      // the grey-green ground transformer cabinet (地上機器) every pavement in the city has, with louvres and a warning plate
+      const g = [0.62, 0.7, 0.62];
+      P.rbox("ac_body", 1.06, 1.25, 0.5, 0.02, 0, 0.7, 0, g);
+      P.box("ac_body", 1.12, 0.05, 0.56, 0, 1.35, 0, [0.55, 0.62, 0.55]);                        // the drip cap
+      P.box("planter_box", 1.14, 0.1, 0.58, 0, 0.05, 0, [0.8, 0.8, 0.78]);                         // the concrete plinth
+      P.face("ac_fins", 0.7, 0.22, 0, 1.05, 0.252, W);
+      P.face("ac_fins", 0.7, 0.22, 0, 0.32, 0.252, W);
+      P.face("bin_label", 0.16, 0.2, 0.32, 0.72, 0.252, W);                                         // the warning sticker
+      P.box("vending_trim", 0.02, 0.9, 0.02, 0, 0.7, 0.255, W);                                      // the door seam
+      P.cyl("vending_trim", 0.012, 0.012, 0.06, 8, -0.1, 0.72, 0.27, W, Math.PI / 2);                // the handle
+      break;
+    }
+    case "postbox": {
+      // the red post box (郵便ポスト): a rounded drum on a short pedestal, two slots, the collection-time plate
+      const red = [0.86, 0.12, 0.1];
+      P.rbox("ac_body", 0.42, 0.9, 0.36, 0.06, 0, 0.82, 0, red);
+      P.rbox("ac_body", 0.46, 0.06, 0.4, 0.03, 0, 1.3, 0, red);
+      P.cyl("ac_body", 0.07, 0.09, 0.38, 12, 0, 0.19, 0, [0.5, 0.08, 0.07]);
+      for (const x of [-0.1, 0.1]) P.box("vending_trim", 0.16, 0.025, 0.02, x, 1.12, 0.185, [0.15, 0.15, 0.16]);
+      P.face("bin_label", 0.22, 0.26, 0, 0.82, 0.182, W);
+      break;
+    }
+    case "curvemirror": {
+      // the orange-posted convex mirror at a blind corner (カーブミラー)
+      const org = [1.0, 0.48, 0.14];
+      P.cyl("ac_body", 0.038, 0.038, 3.4, 10, 0, 1.7, 0, org);
+      P.cyl("ac_body", 0.04, 0.04, 0.02, 10, 0, 3.4, 0, org);
+      P.tube("ac_body", [[0, 3.05, 0], [0, 3.1, 0.12], [0, 3.1, 0.2]], 0.02, org);
+      P.cyl("ac_body", 0.42, 0.42, 0.06, 28, 0, 3.1, 0.26, org, Math.PI / 2);                      // the rim
+      P.disc("sign_back", 0.4, 0, 3.1, 0.295, [0.92, 0.95, 0.98], 0, 32);                             // the mirror
+      P.disc("sign_back", 0.42, 0, 3.1, 0.225, [0.5, 0.5, 0.5], Math.PI, 32);                          // its back
+      P.face("pole_guard", 0.08, 0.6, 0, 0.9, 0.04, W);
+      break;
+    }
+    case "pots": {
+      // a doorstep garden: terracotta and glazed pots of different sizes, each with its plant
+      const cols = [[0.72, 0.38, 0.24], [0.3, 0.36, 0.46], [0.66, 0.6, 0.52], [0.7, 0.36, 0.22]];
+      const n = 3 + ((rng() * 3) | 0);
+      for (let i = 0; i < n; i++) {
+        const r = 0.12 + rng() * 0.1, h = r * (1.1 + rng() * 0.5), x = -0.5 + i * 1.0 / Math.max(1, n - 1) + (rng() - 0.5) * 0.08, z = (rng() - 0.5) * 0.25;
+        P.lathe("planter_box", [[r * 0.7, 0], [r, h * 0.9], [r * 1.08, h], [r * 0.95, h], [0, h * 0.85]], 14, x, 0, z, cols[(rng() * cols.length) | 0]);
+        const k = 1 + ((rng() * 2) | 0);
+        for (let j = 0; j < k; j++) P.blob("planter_shrub", r * (0.8 + rng() * 0.5), x + (rng() - 0.5) * r * 0.6, h + r * (0.5 + j * 0.45), z + (rng() - 0.5) * r * 0.6, W, 1, 0.3, rng() * 10);
+      }
       break;
     }
     case "ball":
