@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- the error engine goes first, so it sees everything after it (codes: docs/ERROR_CODES.md) -->
+<!-- which build this is (polished / prototype / dev) and the prototype switch; before anything reads a save -->
+<script src="game/channel.js"></script>
+<!-- the error engine goes next, so it sees everything after it (codes: docs/ERROR_CODES.md) -->
 <script src="game/error-engine.js"></script>
 <title>Salary Man · A life in Tōkonto</title>
 <!-- the game's own typeface, Konto Sans (M PLUS 1, OFL), shipped with it so it is the same offline and in the desktop build -->

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Man prototype</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0d0f12; color: #e8e6e1; font: 15px/1.5 system-ui, sans-serif; }
+  main { height: 100%; display: grid; place-items: center; text-align: center; padding: 0 16px; }
+  b { color: #ffd166; letter-spacing: .12em; }
+  p { opacity: .75; }
+</style>
+</head>
+<body>
+<main><div><b>PROTOTYPE</b><p id="msg">Starting the prototype build...</p></div></main>
+<script>
+// The prototype shares most of its files with the polished build (see sw.js). The service worker has to be in charge
+// before the game asks for them, so this page installs it and then opens the game.
+(function () {
+  var msg = document.getElementById("msg");
+  var gone = false, go = function () { if (gone) return; gone = true; location.replace("game.html" + location.search); };
+  if (!("serviceWorker" in navigator)) { msg.textContent = "This browser cannot run the prototype build (no service workers). Try Chrome, Edge or Firefox."; return; }
+  navigator.serviceWorker.register("sw.js", { scope: "./" }).then(function (reg) {
+    // a newer prototype may have been deployed since the last visit: let its worker take over first
+    var settle = function () {
+      var w = reg.installing || reg.waiting;
+      if (!w) { if (navigator.serviceWorker.controller) go(); return; }
+      w.addEventListener("statechange", function () { if (w.state === "activated" || w.state === "redundant") settle(); });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", function () { if (!(reg.installing || reg.waiting)) go(); });
+    if (navigator.serviceWorker.controller) reg.update().then(settle, settle); else settle();
+    setTimeout(function () { if (navigator.serviceWorker.controller) go(); else location.reload(); }, 4000);
+  }).catch(function (e) { msg.textContent = "Could not start the prototype build: " + e; });
+})();
+</script>
+</body>
+</html>

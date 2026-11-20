@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Man</title>
+<link rel="stylesheet" href="play/art/fonts/konto-sans.css">
+<style>
+  :root { --bg: #0d0f12; --card: #171a1f; --line: #2a2f37; --ink: #ece9e2; --soft: #a9a59c; --pol: #7fd1ae; --pro: #ffd166; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 "Konto Sans", system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 48px 16px 64px; }
+  h1 { font-size: 40px; letter-spacing: .04em; margin: 0 0 4px; }
+  .sub { color: var(--soft); margin: 0 0 32px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+  .card[hidden] { display: none; }
+  .tag { font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+  .pol .tag { color: var(--pol); } .pro .tag { color: var(--pro); }
+  .card h2 { margin: 0; font-size: 22px; }
+  .card p { margin: 0; color: var(--soft); font-size: 14px; }
+  .play { margin-top: auto; display: block; text-align: center; padding: 12px; border-radius: 6px; font-weight: 700; text-decoration: none; color: #0d0f12; }
+  .pol .play { background: var(--pol); } .pro .play { background: var(--pro); }
+  .meta { font-size: 13px; color: var(--soft); } .meta a { color: inherit; }
+  .foot { margin-top: 32px; font-size: 14px; color: var(--soft); } .foot a { color: var(--ink); }
+  code { background: #22262d; padding: 1px 5px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Salary Man</h1>
+  <p class="sub">A life in Tōkonto. Plays in Chrome, Edge or Firefox, nothing to install.</p>
+  <div class="grid">
+    <section class="card pol">
+      <span class="tag">LATEST BUILD</span>
+      <h2>Polished</h2>
+      <p>The reviewed build, the same one as the desktop download. Passed the AAA gate.</p>
+      <span class="meta">commit <a href="{{POL_LINK}}">{{POL_COMMIT}}</a></span>
+      <a class="play" href="play/">Play</a>
+    </section>
+    <section class="card pro" {{PRO_HIDDEN}}>
+      <span class="tag">PROTOTYPE</span>
+      <h2>Experimental</h2>
+      <p>Unpolished work in progress and prototype-only features. Its saves are kept apart from the polished build's.</p>
+      <span class="meta">commit <a href="{{PRO_LINK}}">{{PRO_COMMIT}}</a> from <code>{{PRO_REF}}</code></span>
+      <a class="play" href="prototype/">Play the prototype</a>
+    </section>
+  </div>
+  <p class="foot">Desktop app (Windows / Linux): <a href="{{RELEASE}}">latest-build release</a>. Site built {{BUILT}}.</p>
+</main>
+</body>
+</html>
