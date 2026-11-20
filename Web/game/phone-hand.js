@@ -22,43 +22,96 @@
   let off = /[?&]phonehand=0\b/.test(location.search);
   try { off = off || localStorage.getItem("konto.phonehand") === "0"; } catch (e) { /* private window */ }
   if (off || typeof THREE === "undefined") return;
-  const H = window.phoneHand = { version: "2.0.0", w: 0, ear: 0, light: 0, hands: null, mode: "none" };
-  const HUD_HAND = /[?&]hudhand=1\b/.test(location.search);
+  const H = window.phoneHand = { version: "2.1.0", w: 0, ear: 0, light: 0, hands: null, mode: "none" };
+  const HUD_HAND = !/[?&]hudhand=0\b/.test(location.search);
 
-  // ---- the HUD hand (opt-in) ------------------------------------------------------------------------------------------------------
-  let img = null, outfitFiles = {};
-  if (HUD_HAND) {
-    fetch("art/hud/hands.json").then(r => r.json()).then(j => { H.hands = j; }).catch(() => { H.hands = {}; });
-    fetch("people/real/index.json").then(r => r.json()).then(j => { (j.outfits || []).forEach(o => { if (o.id && o.file && !outfitFiles[o.id]) outfitFiles[o.id] = o.file.replace(/^\.\.\//, ""); }); H.player = j.player; }).catch(() => {});
-  }
-  function handFor() {
+  // ---- his own arm, first person ------------------------------------------------------------------------------------------------
+  // Rendered from his realistic model in each outfit (Tools/hud/render_fparm.mjs + pack_fparm.py -> Web/art/hud/fparm/): skin with
+  // subsurface shading, grown arm hair, the outfit's own sleeve and shirt cuff. Two views:
+  //   phone: his right hand round the HUD phone, drawn UNDER the phone, so the apps are never covered: the fingertips show round its
+  //          left edge, the thumb up its right edge, the heel of the hand, the cuff and the sleeve going off the bottom of the screen.
+  //   wrist: his left forearm raised for the watch (LuxWatch.wrist): the picture, and the game's own watch drawn on at his wrist.
+  let img = null, outfitFiles = {}, playerFile = "seiko_player.glb";
+  const pics = {};
+  fetch("art/hud/fparm/index.json").then(r => r.json()).then(j => { H.hands = j; try { fit(); } catch (e) { /* later */ } }).catch(() => { H.hands = {}; });
+  fetch("people/real/index.json").then(r => r.json()).then(j => { (j.outfits || []).forEach(o => { if (o.id && o.file && !outfitFiles[o.id]) outfitFiles[o.id] = o.file.replace(/^\.\.\//, ""); }); if (j.player) playerFile = j.player; }).catch(() => {});
+  function armFor(view) {
     if (!H.hands) return null;
-    let f = (typeof player === "object" && player.outfit && outfitFiles[player.outfit]) || H.player || "seiko_suit_charcoal.glb";
-    if (/^seiko_village/.test(f)) f = "seiko_player.glb";
-    return H.hands[f] || H.hands["seiko_suit_charcoal.glb"] || null;
+    const f = (typeof player === "object" && player && player.outfit && outfitFiles[player.outfit]) || playerFile;
+    const e = H.hands[f] || H.hands[playerFile] || H.hands["seiko_suit_charcoal.glb"];
+    return e && e[view] || null;
   }
+  function pic(src) {
+    let p = pics[src]; if (p) return p;
+    p = pics[src] = new Image(); p.decoding = "async"; p.src = src; return p;
+  }
+  H.armFor = armFor; H.outfitFiles = outfitFiles;
   function fit() {
-    const old = document.getElementById("phonehand");
-    if (!HUD_HAND) { if (old) old.remove(); return; }
+    let el = document.getElementById("phonehand");
+    if (!HUD_HAND) { if (el) el.remove(); return; }
     const ph = document.getElementById("phone"), body = document.getElementById("phonebody");
     if (!ph || !body) return;
-    const h = handFor();
+    const h = armFor("phone");
     if (!img) {
-      img = old || document.createElement("img"); img.id = "phonehand"; img.alt = "";
-      img.style.cssText = "position:absolute;pointer-events:none;z-index:5;max-width:none;filter:drop-shadow(0 10px 18px rgba(0,0,0,.45));";
-      ph.appendChild(img);
+      img = el || document.createElement("img"); img.id = "phonehand"; img.alt = "";
+      // under the phone: the phone's body sits on top, so the hand only shows round its edges
+      img.style.cssText = "position:absolute;pointer-events:none;z-index:0;max-width:none;filter:drop-shadow(0 12px 22px rgba(0,0,0,.42));";
+      body.style.zIndex = "1";
+      ph.insertBefore(img, ph.firstChild);
     }
+    // the heel of his hand, his thumb and his cuff are to the right of the phone: give them room before the edge of the screen
+    ph.style.right = h ? "calc(26px + 7.5vw + env(safe-area-inset-right, 0px))" : "";
     if (!h) { img.style.display = "none"; return; }
     if (img.dataset.src !== h.img) { img.src = h.img; img.dataset.src = h.img; }
     const pr = ph.getBoundingClientRect(), br = body.getBoundingClientRect();
     if (!br.width) return;
+    // scale the picture so its phone is the game's phone, and lay it under it
     const k = br.width / (h.phone[2] - h.phone[0]);
     img.style.width = (h.size[0] * k) + "px"; img.style.height = (h.size[1] * k) + "px";
     img.style.left = (br.left - pr.left - h.phone[0] * k) + "px";
-    img.style.top = (br.bottom - pr.top - h.phone[3] * k) + "px";
+    img.style.top = (br.top - pr.top - h.phone[1] * k) + "px";
     img.style.display = "";
   }
   H.fit = fit;
+  // the outfit can change while the phone is up
+  let fitOutfit = null;
+  setInterval(() => { const o = typeof player === "object" && player ? player.outfit : null; if (o !== fitOutfit) { fitOutfit = o; try { fit(); } catch (e) { /* later */ } } }, 1000);
+
+  // the wrist: his left forearm raised into the picture, the watch drawn on where his wrist is
+  (function hookWrist() {
+    const LW = window.LuxWatch; if (!LW || typeof LW.wrist !== "function" || LW.wrist.fp) return;
+    const drawn = LW.wrist;
+    LW.wrist = function (g, W, H2, k, w, t, opts) {
+      const e = armFor("wrist"), im = e && pic(e.img);
+      if (!e || !im.complete || !im.naturalWidth) return drawn.apply(this, arguments);
+      const ease = 1 - Math.pow(1 - Math.max(0, Math.min(1, k)), 3);
+      // the render's frame, cover-fitted to the screen; it rises from below as he lifts his arm
+      const s = Math.max(W / e.frame[0], H2 / e.frame[1]), ox = (W - e.frame[0] * s) / 2, oy = (H2 - e.frame[1] * s) / 2 + (1 - ease) * H2 * 0.75;
+      g.save(); g.globalAlpha = Math.min(1, ease * 1.6);
+      g.drawImage(im, ox + e.at[0] * s, oy + e.at[1] * s, e.size[0] * s, e.size[1] * s);
+      const P = e.watch, cx = ox + (e.at[0] + P.x) * s, cy = oy + (e.at[1] + P.y) * s, R = 0.0195 * P.pxPerM * s, hw = 0.029 * P.across * s;
+      if (w) {
+        g.translate(cx, cy); g.rotate(P.ang);
+        // its shadow on the skin, then the watch, its strap clipped to the width of his wrist and darkening as it turns away round it
+        g.save(); g.fillStyle = "rgba(40,18,8,0.38)"; g.filter = "blur(" + (R * 0.14) + "px)"; g.beginPath(); g.ellipse(R * 0.1, R * 0.12, R * 1.15, R * 1.22, 0, 0, Math.PI * 2); g.fill(); g.filter = "none"; g.restore();
+        g.save(); g.beginPath(); g.rect(-R * 1.7, -hw, R * 3.4, hw * 2); g.clip();
+        LW.draw(g, w, 0, 0, R, t, { strap: 1.5 });
+        const cv = g.createLinearGradient(0, -hw, 0, hw); cv.addColorStop(0, "rgba(0,0,0,0.66)"); cv.addColorStop(0.2, "rgba(0,0,0,0)"); cv.addColorStop(0.8, "rgba(0,0,0,0)"); cv.addColorStop(1, "rgba(0,0,0,0.66)");
+        const sw = R * (((w.look || {}).strap || {}).type === "integrated" ? 0.66 : 0.56);
+        g.fillStyle = cv; g.fillRect(-sw, -hw, sw * 2, hw * 0.32); g.fillRect(-sw, hw * 0.68, sw * 2, hw * 0.32);
+        g.restore();
+        // his cuff goes over the back of the watch: redraw the sleeve, up to its edge, on top
+        if (P.cuff != null) {
+          const ce = Math.min(P.cuff * P.pxPerM * s, -R * 0.82);   // over the back of the case and the strap, never the dial
+          g.save(); g.beginPath(); g.rect(-W * 2, -H2 * 2, W * 2 + ce, H2 * 4); g.clip(); g.rotate(-P.ang); g.translate(-cx, -cy);
+          g.drawImage(im, ox + e.at[0] * s, oy + e.at[1] * s, e.size[0] * s, e.size[1] * s); g.restore();
+        }
+      }
+      g.restore();
+      return { cx: cx, cy: cy, R: R };
+    };
+    LW.wrist.fp = true; H.wristDrawn = drawn;
+  })();
 
   // ---- the handset ----------------------------------------------------------------------------------------------------------------
   const PW = 0.071, PH = 0.150, PT = 0.0082;           // a 6.1-inch phone, in metres
@@ -309,7 +362,7 @@
   const originals = {};
   function wrap(name, f) { const o = window[name]; if (typeof o !== "function") return false; originals[name] = o; window[name] = f(o); return true; }
   // for probes that load a newer copy of this file into a running game
-  H.unhook = () => { Object.keys(originals).forEach(k => { window[k] = originals[k]; }); H.dead = true; if (mesh && mesh.parent) mesh.parent.remove(mesh); };
+  H.unhook = () => { Object.keys(originals).forEach(k => { window[k] = originals[k]; }); if (H.wristDrawn && window.LuxWatch) LuxWatch.wrist = H.wristDrawn; H.dead = true; if (mesh && mesh.parent) mesh.parent.remove(mesh); };
   // after his animation is applied for the frame, before it is drawn
   wrap("updateSeikoClip", orig => function (dt) {
     const r = orig.apply(this, arguments);
