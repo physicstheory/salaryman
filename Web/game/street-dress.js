@@ -70,7 +70,15 @@
     const ground = (x, z) => {
       if (x < 40 || z < 40 || x > WORLD_X - 40 || z > WORLD_Z - 40) return null;
       if (world.sampleLand(x, z) < 0.9 || world.bridgeY(x, z) !== null) return null;
-      const y = world.surfaceY(x, z); return y < 1.2 ? null : y;
+      const y = world.surfaceY(x, z); if (y < 1.2) return null;
+      // the drawn footway stands on the ground: 0.20 m on the side streets, a kerb step (~0.14-0.2) on the avenues; world.surfaceY is
+      // the ground under it, so without this the bikes' wheels and the pole bases sank into the paving
+      return y + footLift(x, z);
+    };
+    const footLift = (x, z) => {
+      if (typeof xingRoadAt !== "function") return 0.2;
+      if (xingRoadAt(x, z, 0.05)) return 0;                 // on a carriageway (a lane's own surface)
+      return xingRoadAt(x, z, 4.6) ? 0.2 : 0.06;            // beside one: the footway; in a lane or a yard: the thin paving
     };
     // can a thing of radius r stand here: on land, off every carriageway, out of every building, clear of the kept spots and of what is already placed
     const ok = (x, z, r, wallOk) => {
