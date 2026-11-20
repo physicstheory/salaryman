@@ -1,4 +1,4 @@
-// Renders Seiko's HUD hand from his realistic model: node Tools/hud/render_hand.mjs [pose.json] [out.png] [model]
+// (Superseded by Tools/hud/render_fparm.mjs + pack_fparm.py.) Renders Seiko's HUD hand from his realistic model: node Tools/hud/render_hand.mjs [pose.json] [out.png] [model]
 // Serves the repo over http, opens Web/engine/hudhand.html in headless Chromium, poses the hand and saves the PNG with the
 // phone rectangle written next to it (out.json), which Web/game/phone-hand.js uses to fit the picture round the game's phone.
 import http from "http"; import fs from "fs"; import path from "path"; import { createRequire } from "module";

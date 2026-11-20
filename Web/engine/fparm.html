@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>First-person arm</title>
+<style>html,body{margin:0;background:transparent;overflow:hidden}</style>
+</head>
+<body>
+<script src="../../Game/vendor/three.min.js"></script>
+<script src="../../Game/vendor/GLTFLoader.js"></script>
+<script src="shigoto.js"></script>
+<script>
+// Seiko's own arm, seen through his own eyes: the pictures the game shows when he looks at his phone (his right hand round it, under
+// the HUD phone) and at his watch (his left forearm raised, the watch drawn on at the wrist by the game).
+//
+// Built from his realistic model in the outfit he is wearing, upgraded by the Shigoto character shader (subdivided, skin with
+// subsurface, cloth sheen), posed in world space (two-bone IK on the arm, the hand turned from where its knuckles are, every finger
+// curled joint by joint), and given arm hair: thousands of fine fibres grown on the skin of the forearm, the back of the hand and
+// the fingers (the skin is found from the model's own skin mask, the blue channel of its ORM map), lying along the arm towards the
+// hand. Driven by Tools/hud/render_fparm.mjs, which saves the PNGs and where the phone and the watch land in them.
+//   ?model=seiko_suit_charcoal  &w= &h=
+(async function () {
+  const Q = new URLSearchParams(location.search);
+  const W = +(Q.get("w") || 1200), H = +(Q.get("h") || 1500);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
+  renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
+  renderer.physicallyCorrectLights = false;
+  document.body.appendChild(renderer.domElement);
+  const scene = new THREE.Scene();
+  // a soft daylight environment: bright overhead, warm on one side, cool sky on the other, dark ground
+  { const s = new THREE.Scene(), box = new THREE.BoxGeometry(1, 1, 1);
+    const room = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: 0x4a4c50, side: THREE.BackSide })); room.scale.set(20, 10, 20); s.add(room);
+    const panel = (c, x, y, z, sx, sy, sz) => { const m = new THREE.Mesh(box, new THREE.MeshBasicMaterial({ color: c })); m.position.set(x, y, z); m.scale.set(sx, sy, sz); s.add(m); };
+    panel(0xfffaf2, 0, 4.9, 0, 14, 0.1, 14); panel(0xffe6cc, -9.9, 2, 3, 0.1, 5, 7); panel(0x8fa6d0, 9.9, 2, -3, 0.1, 5, 6); panel(0x2a2826, 0, -4.9, 0, 20, 0.1, 20);
+    const pm = new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(s, 0.04).texture; pm.dispose(); }
+  const key = new THREE.DirectionalLight(0xfff0e0, 2.3), fill = new THREE.DirectionalLight(0xc4d4ff, 0.7), rim = new THREE.DirectionalLight(0xffffff, 0.9), hemi = new THREE.HemisphereLight(0xf4f6ff, 0x3a332c, 0.35);
+  scene.add(key, fill, rim, hemi, key.target, fill.target, rim.target);
+  const chars = SHIGOTO.characters(THREE, { quality: "ultra" });
+  const loader = new THREE.GLTFLoader();
+  const model = Q.get("model") || "seiko_suit_charcoal";
+  const g = await new Promise((res, rej) => loader.load("../people/real/" + model + ".glb", res, null, rej));
+  const root = g.scene; scene.add(root);
+  root.traverse(o => { if (o.isMesh) { o.frustumCulled = false; } });
+  // the ORM maps, read back before the shader takes them over: B is the skin mask
+  const skinMask = new Map();
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    [].concat(o.material).forEach(m => {
+      const t = m && (m.roughnessMap || m.metalnessMap || m.aoMap); if (!t || !t.image || skinMask.has(m.name)) return;
+      try { const c = document.createElement("canvas"); c.width = t.image.width; c.height = t.image.height; const x = c.getContext("2d"); x.drawImage(t.image, 0, 0); skinMask.set(m.name, { w: c.width, h: c.height, d: x.getImageData(0, 0, c.width, c.height).data, flipY: t.flipY }); } catch (e) { /* no pixels */ }
+    });
+  });
+  const box = new THREE.Box3().setFromObject(root), hgt = box.max.y - box.min.y; root.scale.setScalar(1.72 / hgt); root.updateMatrixWorld(true);
+  if (!Q.has("raw")) chars.upgrade(root, { hero: true, quality: "ultra", model: "seiko" });
+  const B = {}; root.traverse(o => { if (o.isBone) B[o.name.replace(/^Bip01[_ ]/, "").replace(/ /g, "_")] = o; });
+  const rest = {}; Object.keys(B).forEach(k => rest[k] = B[k].quaternion.clone());
+  const meshes = []; root.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
+
+  // ---- posing (world space) --------------------------------------------------------------------------------------------------------------
+  const wp = (o) => o.getWorldPosition(new THREE.Vector3());
+  const _q1 = new THREE.Quaternion(), _q2 = new THREE.Quaternion();
+  function worldRot(bone, q) { bone.getWorldQuaternion(_q1); bone.parent.getWorldQuaternion(_q2); _q1.premultiply(q); bone.quaternion.copy(_q2.invert().multiply(_q1)); bone.updateMatrixWorld(true); }
+  function aim(bone, from, to, w) { const q = new THREE.Quaternion().setFromUnitVectors(from.clone().normalize(), to.clone().normalize()); if (w != null && w < 1) q.slerp(new THREE.Quaternion(), 1 - w); worldRot(bone, q); }
+  const basisQ = (x, y, z) => new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  function side(s) {
+    const n = k => B[s + "_" + k];
+    return { ua: n("UpperArm"), fa: n("Forearm"), hand: n("Hand"), fing: [0, 1, 2, 3, 4].map(f => [n("Finger" + f), n("Finger" + f + "1"), n("Finger" + f + "2")]), left: s === "L" };
+  }
+  // the hand's frame: f along the middle finger, a across the knuckles (little finger to index), p out of the palm, as a right-handed (f, p, a)
+  function handFrame(A) {
+    const h = wp(A.hand), m = wp(A.fing[2][0]), i = wp(A.fing[1][0]), k = wp(A.fing[4][0]);
+    const f = m.sub(h).normalize(), a = i.sub(k); a.addScaledVector(f, -a.dot(f)).normalize();
+    // out of the palm: whichever side of the knuckle plane his thumb tip is on (works for either hand, whatever the bone axes)
+    const p = new THREE.Vector3().crossVectors(a, f).normalize();
+    const tt = A.fing[0][2] || A.fing[0][1]; if (tt && wp(tt).sub(h).dot(p) < 0) p.negate();
+    return { f, a, p, s: new THREE.Vector3().crossVectors(f, p) };   // (f, p, s) is right-handed
+  }
+  function ik(A, T, pole) {
+    const S = wp(A.ua), E = wp(A.fa), Wr = wp(A.hand), a = E.distanceTo(S), b = Wr.distanceTo(E);
+    const d = Math.min(a + b - 1e-3, Math.max(Math.abs(a - b) + 1e-3, T.distanceTo(S))), dir = T.clone().sub(S).normalize();
+    const pl = pole.clone(); pl.addScaledVector(dir, -pl.dot(dir)).normalize();
+    const x = (a * a - b * b + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, a * a - x * x));
+    aim(A.ua, E.clone().sub(S), S.clone().addScaledVector(dir, x).addScaledVector(pl, hh).sub(S));
+    const E3 = wp(A.fa); aim(A.fa, wp(A.hand).sub(E3), T.clone().sub(E3));
+  }
+  const frameQ = (f, p) => { const p2 = p.clone().addScaledVector(f, -p.dot(f)).normalize(); return basisQ(f, p2, new THREE.Vector3().crossVectors(f, p2)); };
+  function orientHand(A, fD, pD, twistFA) {
+    const want = frameQ(fD.clone().addScaledVector(pD, -fD.dot(pD)).normalize(), pD);
+    const C = handFrame(A), dq = want.clone().multiply(frameQ(C.f, C.p).invert());
+    if (twistFA) {
+      // share the turn of the wrist with the forearm (a wrist can't twist; the forearm does), so the skin round the wrist isn't wrung
+      const axis = wp(A.hand).sub(wp(A.fa)).normalize(), tw = twistPart(dq, axis);
+      worldRot(A.fa, new THREE.Quaternion().slerp(tw, 0.65));
+    }
+    const C2 = handFrame(A); worldRot(A.hand, want.clone().multiply(frameQ(C2.f, C2.p).invert()));
+  }
+  function twistPart(q, axis) { const r = new THREE.Vector3(q.x, q.y, q.z), p = axis.clone().multiplyScalar(r.dot(axis)); return new THREE.Quaternion(p.x, p.y, p.z, q.w).normalize(); }
+  // a turn about f x p moves a finger's direction towards the palm
+  function curl(A, deg, thumb) {
+    const C = handFrame(A), ax = C.s.clone();
+    for (let f = 1; f <= 4; f++) A.fing[f].forEach((b, j) => { if (b) worldRot(b, new THREE.Quaternion().setFromAxisAngle(ax, THREE.MathUtils.degToRad(deg[f][j]))); });
+    if (thumb) thumb(C);
+  }
+  function resetPose() { Object.keys(B).forEach(k => B[k].quaternion.copy(rest[k])); root.updateMatrixWorld(true); }
+
+  // ---- arm hair ---------------------------------------------------------------------------------------------------------------------------
+  let hair = null;
+  const hairMat = new THREE.MeshStandardMaterial({ color: 0x1b1410, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide });
+  function rnd(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+  function maskAt(m, u, v) {
+    const S = skinMask.get(m.name) || skinMask.get(String(m.name).replace(/_(sh|shigoto|char).*$/i, "")); if (!S) return 0;
+    u = u - Math.floor(u); v = v - Math.floor(v); const y = S.flipY === false ? v : 1 - v;
+    const i = ((Math.min(S.h - 1, (y * S.h) | 0)) * S.w + Math.min(S.w - 1, (u * S.w) | 0)) * 4;
+    return S.d[i + 2] / 255;
+  }
+  // grow fibres on the skin that belongs to these bones (by skin weight), in the pose the arm is in now
+  function growHair(boneSet, opts) {
+    if (hair) { scene.remove(hair); hair.geometry.dispose(); hair = null; }
+    const R = rnd(opts.seed || 7), pos = [], nor = [];
+    const vA = new THREE.Vector3(), vB = new THREE.Vector3(), vC = new THREE.Vector3(), tmp = new THREE.Vector3();
+    meshes.forEach(mesh => {
+      const G = mesh.geometry, P = G.attributes.position, UV = G.attributes.uv, SI = G.attributes.skinIndex, SW = G.attributes.skinWeight;
+      if (!P || !UV || !SI) return;
+      const mats = [].concat(mesh.material), idx = G.index ? G.index.array : null, n = idx ? idx.length : P.count;
+      const boneIds = new Set(); mesh.skeleton.bones.forEach((b, i) => { if (boneSet.has(b)) boneIds.add(i); });
+      const gx = ['getX', 'getY', 'getZ', 'getW'], owned = v => { let w = 0; for (let j = 0; j < 4; j++) if (boneIds.has(SI[gx[j]](v))) w += SW[gx[j]](v); return w; };
+      const groups = G.groups.length ? G.groups : [{ start: 0, count: n, materialIndex: 0 }];
+      const skinned = new Map(); const at = v => { let r = skinned.get(v); if (!r) { r = new THREE.Vector3(); mesh.boneTransform(v, r); r.applyMatrix4(mesh.matrixWorld); skinned.set(v, r); } return r; };
+      groups.forEach(gr => {
+        const m = mats[gr.materialIndex] || mats[0];
+        for (let t = gr.start; t + 2 < gr.start + gr.count; t += 3) {
+          const ia = idx ? idx[t] : t, ib = idx ? idx[t + 1] : t + 1, ic = idx ? idx[t + 2] : t + 2;
+          const own = (owned(ia) + owned(ib) + owned(ic)) / 3; if (own < 0.5) continue;
+          const a = at(ia), b = at(ib), c = at(ic);
+          const area = tmp.subVectors(b, a).cross(vC.subVectors(c, a)).length() / 2;
+          let count = area * opts.density; count = Math.floor(count) + (R() < count % 1 ? 1 : 0);
+          for (let k = 0; k < count; k++) {
+            let r1 = R(), r2 = R(); if (r1 + r2 > 1) { r1 = 1 - r1; r2 = 1 - r2; }
+            const u = UV.getX(ia) * (1 - r1 - r2) + UV.getX(ib) * r1 + UV.getX(ic) * r2, v = UV.getY(ia) * (1 - r1 - r2) + UV.getY(ib) * r1 + UV.getY(ic) * r2;
+            if (maskAt(m, u, v) < 0.5) continue;
+            const p = vA.copy(a).multiplyScalar(1 - r1 - r2).addScaledVector(b, r1).addScaledVector(c, r2);
+            const nn = new THREE.Vector3().subVectors(b, a).cross(new THREE.Vector3().subVectors(c, a)).normalize();
+            const region = opts.region(p); if (!region) continue;
+            if (R() > region.keep) continue;
+            // along the arm towards the hand, lying almost flat, a little scatter
+            const dir = region.dir.clone().addScaledVector(nn, -region.dir.dot(nn)).normalize();
+            const sideV = new THREE.Vector3().crossVectors(nn, dir).normalize();
+            dir.addScaledVector(sideV, (R() - 0.5) * 0.7).normalize();
+            const len = region.len * (0.6 + R() * 0.8), lift = 0.12 + R() * 0.22, wdt = region.w * (0.7 + R() * 0.6);
+            const p0 = p.clone().addScaledVector(nn, -0.0002), mid = p.clone().addScaledVector(dir, len * 0.5).addScaledVector(nn, len * lift * 0.6), p1 = p.clone().addScaledVector(dir, len).addScaledVector(nn, len * lift * 0.5 + 0.0002).addScaledVector(sideV, (R() - 0.5) * len * 0.3);
+            // a thin ribbon, two segments, tapering to a point
+            const s0 = sideV.clone().multiplyScalar(wdt), s1 = sideV.clone().multiplyScalar(wdt * 0.6);
+            const q = [p0.clone().sub(s0), p0.clone().add(s0), mid.clone().sub(s1), mid.clone().add(s1), p1];
+            [[0, 1, 2], [1, 3, 2], [2, 3, 4]].forEach(tri => tri.forEach(i => { pos.push(q[i].x, q[i].y, q[i].z); nor.push(nn.x, nn.y, nn.z); }));
+          }
+        }
+      });
+    });
+    const geo = new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+    hair = new THREE.Mesh(geo, hairMat); hair.frustumCulled = false; hair.renderOrder = 2; scene.add(hair);
+    return pos.length / 45;
+  }
+  // the furthest a cloth vertex (not skin, by the skin mask) of his forearm reaches towards the hand, posed
+  function cuffAlong(A, fa, dir) {
+    const lim = wp(A.hand).distanceTo(fa) + 0.012;      // nothing past the wrist: a fingernail or a crease in the palm is not a cuff
+    const all = []; const v = new THREE.Vector3(), gx = ['getX', 'getY', 'getZ', 'getW'];
+    meshes.forEach(mesh => {
+      const G = mesh.geometry, P = G.attributes.position, UV = G.attributes.uv, SI = G.attributes.skinIndex, SW = G.attributes.skinWeight; if (!UV || !SI) return;
+      const m = [].concat(mesh.material)[0], ids = new Set(); mesh.skeleton.bones.forEach((b, i) => { if (b === A.fa || b === A.hand) ids.add(i); });
+      for (let i = 0; i < P.count; i++) {
+        let w = 0; for (let j = 0; j < 4; j++) if (ids.has(SI[gx[j]](i))) w += SW[gx[j]](i);
+        if (w < 0.6 || maskAt(m, UV.getX(i), UV.getY(i)) > 0.5) continue;
+        mesh.boneTransform(i, v); v.applyMatrix4(mesh.matrixWorld);
+        const al = v.clone().sub(fa).dot(dir); if (al < lim) all.push(al);
+      }
+    });
+    if (!all.length) return -1;
+    all.sort((x, y) => x - y); return all[Math.floor(all.length * 0.985)];   // the edge, not the odd stray vertex
+  }
+  const bonesOf = (A) => new Set([A.fa, A.hand].concat(...A.fing).filter(Boolean));
+
+  // ---- the views --------------------------------------------------------------------------------------------------------------------------
+  const camera = new THREE.PerspectiveCamera(40, W / H, 0.01, 5);
+  const up = new THREE.Vector3(0, 1, 0);
+  function bodyFrame() {
+    const right = wp(B.R_UpperArm).sub(wp(B.L_UpperArm)); right.y = 0; right.normalize();
+    const fwd = up.clone().cross(right).normalize(), head = wp(B.Head), eye = head.clone().addScaledVector(fwd, 0.09).add(new THREE.Vector3(0, 0.035, 0));
+    return { right, fwd, head, eye };
+  }
+  function lights(target, camPos) {
+    const q = camera.quaternion;
+    key.position.copy(target).add(new THREE.Vector3(-0.7, 1.2, 0.5).applyQuaternion(q)); key.target.position.copy(target);
+    fill.position.copy(target).add(new THREE.Vector3(0.9, -0.2, 0.6).applyQuaternion(q)); fill.target.position.copy(target);
+    rim.position.copy(target).add(new THREE.Vector3(0.3, 0.6, -1.2).applyQuaternion(q)); rim.target.position.copy(target);
+  }
+  const project = (v) => { const p = v.clone().project(camera); return [(p.x + 1) / 2 * W, (1 - p.y) / 2 * H]; };
+  const V = a => new THREE.Vector3().fromArray(a);
+  const P0 = {
+    // the phone in his right hand, seen from his eyes; the phone is not drawn (the game's HUD phone goes over the hand)
+    phone: { at: [0.30, -0.27, 0.05], fingers: [null, [8, 70, 45], [6, 74, 48], [8, 78, 50], [12, 80, 52]], grip: [0.085, 0.020, 0.024], fdir: [-0.86, 0.5], size: [0.071, 0.150], eyeBack: 0.0, hair: 160000 },
+    // his left forearm raised across his chest, the back of the wrist to his eyes
+    wrist: { at: [0.32, -0.29, -0.03], fingers: [null, [12, 22, 12], [14, 26, 14], [18, 30, 16], [22, 34, 18]], fov: 34, hair: 160000 }
+  };
+  window.__pose = function (view, over) {
+    const P = Object.assign({}, P0[view], over || {});
+    resetPose();
+    const F = bodyFrame();
+    let target, out = {};
+    if (view === "phone") {
+      const A = side("R");
+      const Pp = F.head.clone().addScaledVector(F.fwd, P.at[0]).addScaledVector(up, P.at[1]).addScaledVector(F.right, P.at[2]);
+      const n = F.eye.clone().sub(Pp).normalize(), pr = F.right.clone(); pr.addScaledVector(n, -pr.dot(n)).normalize(); const pu = new THREE.Vector3().crossVectors(n, pr);
+      const fD = pr.clone().multiplyScalar(P.fdir[0]).addScaledVector(pu, P.fdir[1]).normalize();
+      const T = Pp.clone().addScaledVector(fD, -P.grip[0]).addScaledVector(pu, -P.grip[1]).addScaledVector(n, -P.grip[2]);
+      ik(A, T, new THREE.Vector3(0, -1, 0).addScaledVector(F.right, 0.55).addScaledVector(F.fwd, -0.2));
+      orientHand(A, fD, n, true);
+      curl(A, P.fingers, C => {
+        const th = A.fing[0]; if (!th[0] || !th[1]) return;
+        aim(th[0], wp(th[1]).sub(wp(th[0])), pu.clone().multiplyScalar(0.85).addScaledVector(fD, 0.15).addScaledVector(n, 0.25), 0.8);
+        [th[1], th[2]].forEach(b => b && worldRot(b, new THREE.Quaternion().setFromAxisAngle(C.s, THREE.MathUtils.degToRad(12))));
+      });
+      root.updateMatrixWorld(true);
+      // where the phone sits, from the hand as posed
+      const C = handFrame(A), h = wp(A.hand);
+      const at = h.addScaledVector(C.f, P.grip[0]).addScaledVector(pu, P.grip[1]).addScaledVector(C.p, P.grip[2]);
+      camera.fov = P.fov || 40; camera.aspect = W / H;
+      camera.position.copy(at).addScaledVector(n, F.eye.distanceTo(at) + P.eyeBack); camera.up.copy(pu); camera.lookAt(at);
+      // frame the phone low and to the left, so the hand and the cuff have room to the right and below
+      camera.setViewOffset(W, H, (P.shift || [0.10, 0.18])[0] * W, (P.shift || [0.10, 0.18])[1] * H, W, H);
+      camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+      const hw = P.size[0] / 2, hh = P.size[1] / 2;
+      const c0 = project(at.clone().addScaledVector(pr, -hw).addScaledVector(pu, hh)), c1 = project(at.clone().addScaledVector(pr, hw).addScaledVector(pu, -hh));
+      out.phone = [c0[0], c0[1], c1[0], c1[1]];
+      target = at;
+      out.hairs = growHair(bonesOf(A), { density: P.hair, seed: 11, region: (p) => {
+        const hd = wp(A.hand), fa = wp(A.fa); const d = hd.clone().sub(fa).normalize(); const along = p.clone().sub(fa).dot(d) / hd.distanceTo(fa);
+        if (along < 1.0) return { dir: d, len: 0.0075, w: 0.000045, keep: 1 };                       // forearm
+        const C2 = handFrame(A); const ff = p.clone().sub(hd).dot(C2.f);
+        if (ff < 0.07) return { dir: C2.f, len: 0.005, w: 0.00004, keep: 0.45 };                       // back of the hand
+        return { dir: C2.f, len: 0.0035, w: 0.000035, keep: 0.12 };                                    // the fingers
+      } });
+    } else {
+      const A = side("L");
+      const Wt = F.head.clone().addScaledVector(F.fwd, P.at[0]).addScaledVector(up, P.at[1]).addScaledVector(F.right, P.at[2]);
+      // the forearm lies across, the hand towards his right and a little up; palm down, turned a touch towards him
+      const fD = F.right.clone().multiplyScalar(0.92).addScaledVector(F.fwd, 0.18).addScaledVector(up, 0.12).normalize();
+      ik(A, Wt, new THREE.Vector3(0, -0.6, 0).addScaledVector(F.right, -0.9).addScaledVector(F.fwd, 0.1));
+      const pD = up.clone().multiplyScalar(-0.86).addScaledVector(F.fwd, 0.5).normalize();
+      orientHand(A, fD, pD, true);
+      curl(A, P.fingers, C => { const th = A.fing[0]; if (th[1]) worldRot(th[1], new THREE.Quaternion().setFromAxisAngle(C.f, THREE.MathUtils.degToRad(-8))); });
+      root.updateMatrixWorld(true);
+      const fa = wp(A.fa), hd = wp(A.hand), dir = hd.clone().sub(fa).normalize();
+      // the watch: just past the end of his cuff, tucked a little under it (or a finger's width up from the wrist bone on a bare arm)
+      const C = handFrame(A), backN = C.p.clone().negate(), L = hd.distanceTo(fa);
+      const cuff = cuffAlong(A, fa, dir);                                  // how far down the forearm his sleeve reaches, in metres from the elbow
+      const sleeved = cuff > L - 0.06;
+      const along = sleeved ? Math.min(L + 0.006, cuff + (P.underCuff != null ? P.underCuff : 0.013)) : L - (P.watchBack || 0.024);
+      const frameAt = hd.clone().addScaledVector(dir, -0.022).addScaledVector(backN, 0.027);
+      const watch = fa.clone().addScaledVector(dir, along).addScaledVector(backN, P.watchLift || 0.027);
+      camera.fov = P.fov; camera.aspect = W / H; camera.position.copy(F.eye); camera.up.copy(up);
+      camera.lookAt(frameAt.clone().addScaledVector(F.right, -0.02)); camera.clearViewOffset(); camera.updateProjectionMatrix(); camera.updateMatrixWorld(true);
+      // the cuff's edge, as an offset along the arm from the watch's middle (negative: towards the elbow); the game redraws the sleeve over the watch up to it
+      out.cuff = sleeved ? Math.min(cuff - along, -0.009) : null;   // the cuff over no more than the back quarter of the watch
+      const pw = project(watch), pa = project(watch.clone().addScaledVector(dir, 0.02)), pb = project(watch.clone().addScaledVector(backN.clone().cross(dir).normalize(), 0.02));
+      out.hand = project(hd); out.watch = { cuff: out.cuff, x: pw[0], y: pw[1], ang: Math.atan2(pa[1] - pw[1], pa[0] - pw[0]), pxPerM: Math.hypot(pa[0] - pw[0], pa[1] - pw[1]) / 0.02, across: Math.hypot(pb[0] - pw[0], pb[1] - pw[1]) / 0.02 };
+      target = watch;
+      out.hairs = growHair(bonesOf(A), { density: P.hair, seed: 5, region: (p) => {
+        const along = p.clone().sub(fa).dot(dir) / hd.distanceTo(fa);
+        if (along < 1.0) return { dir: dir, len: 0.0075, w: 0.000045, keep: 1 };
+        const C2 = handFrame(A); const ff = p.clone().sub(hd).dot(C2.f);
+        if (ff < 0.07) return { dir: C2.f, len: 0.005, w: 0.00004, keep: 0.45 };
+        return { dir: C2.f, len: 0.0035, w: 0.000035, keep: 0.12 };
+      } });
+    }
+    lights(target);
+    // don't draw what is behind his eyes (his own head and collar)
+    camera.near = 0.06; camera.updateProjectionMatrix();
+    B.Head && (B.Head.scale.setScalar(1e-4));
+    root.updateMatrixWorld(true);
+    renderer.render(scene, camera);
+    B.Head && B.Head.scale.setScalar(1);
+    out.url = renderer.domElement.toDataURL("image/png");
+    return out;
+  };
+  window.__ready = true;
+})().catch(e => { window.__err = String(e && e.stack || e); });
+</script>
+</body>
+</html>

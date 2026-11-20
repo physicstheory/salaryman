@@ -1,0 +1,508 @@
+{
+ "seiko_blue_shirt.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_blue_shirt.webp",
+   "size": [
+    953,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    247,
+    230
+   ],
+   "phone": [
+    37.2,
+    -163.6,
+    428.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_blue_shirt.webp",
+   "size": [
+    1758,
+    729
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    351
+   ],
+   "watch": {
+    "x": 1041.8,
+    "y": 216.5,
+    "ang": -0.2905,
+    "pxPerM": 4742.8,
+    "across": 4719.5,
+    "cuff": null
+   }
+  }
+ },
+ "seiko_player.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_player.webp",
+   "size": [
+    952,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    248,
+    230
+   ],
+   "phone": [
+    36.2,
+    -163.6,
+    427.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_player.webp",
+   "size": [
+    1762,
+    729
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    351
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 175.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_polo.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_polo.webp",
+   "size": [
+    950,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    230
+   ],
+   "phone": [
+    34.2,
+    -163.6,
+    425.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_polo.webp",
+   "size": [
+    1765,
+    729
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    351
+   ],
+   "watch": {
+    "x": 1041.8,
+    "y": 216.5,
+    "ang": -0.2905,
+    "pxPerM": 4742.8,
+    "across": 4719.5,
+    "cuff": null
+   }
+  }
+ },
+ "seiko_suit_black.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_suit_black.webp",
+   "size": [
+    949,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    251,
+    230
+   ],
+   "phone": [
+    33.2,
+    -163.6,
+    424.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_suit_black.webp",
+   "size": [
+    1761,
+    735
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    345
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 181.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_suit_charcoal.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_suit_charcoal.webp",
+   "size": [
+    950,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    230
+   ],
+   "phone": [
+    34.2,
+    -163.6,
+    425.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_suit_charcoal.webp",
+   "size": [
+    1761,
+    768
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    312
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 214.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_suit_check.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_suit_check.webp",
+   "size": [
+    951,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    249,
+    230
+   ],
+   "phone": [
+    35.2,
+    -163.6,
+    426.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_suit_check.webp",
+   "size": [
+    1761,
+    735
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    345
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 181.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_track.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_track.webp",
+   "size": [
+    950,
+    1269
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    231
+   ],
+   "phone": [
+    34.2,
+    -164.6,
+    425.8,
+    662.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_track.webp",
+   "size": [
+    1758,
+    738
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    342
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 184.8,
+    "ang": -0.2908,
+    "pxPerM": 4679.7,
+    "across": 4690.3,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_tshirt.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_tshirt.webp",
+   "size": [
+    950,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    230
+   ],
+   "phone": [
+    34.2,
+    -163.6,
+    425.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_tshirt.webp",
+   "size": [
+    1764,
+    731
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    349
+   ],
+   "watch": {
+    "x": 1041.8,
+    "y": 218.5,
+    "ang": -0.2904,
+    "pxPerM": 4742.9,
+    "across": 4719.5,
+    "cuff": null
+   }
+  }
+ },
+ "seiko_village.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_village.webp",
+   "size": [
+    950,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    230
+   ],
+   "phone": [
+    34.2,
+    -163.6,
+    425.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_village.webp",
+   "size": [
+    1758,
+    729
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    351
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 175.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_village_denim.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_village_denim.webp",
+   "size": [
+    954,
+    1272
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    246,
+    228
+   ],
+   "phone": [
+    38.2,
+    -161.6,
+    429.8,
+    665.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_village_denim.webp",
+   "size": [
+    1769,
+    731
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    349
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 177.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ },
+ "seiko_waistcoat.glb": {
+  "phone": {
+   "img": "art/hud/fparm/phone_waistcoat.webp",
+   "size": [
+    950,
+    1270
+   ],
+   "frame": [
+    1200,
+    1500
+   ],
+   "at": [
+    250,
+    230
+   ],
+   "phone": [
+    34.2,
+    -163.6,
+    425.8,
+    663.6
+   ]
+  },
+  "wrist": {
+   "img": "art/hud/fparm/wrist_waistcoat.webp",
+   "size": [
+    1761,
+    731
+   ],
+   "frame": [
+    1920,
+    1080
+   ],
+   "at": [
+    0,
+    349
+   ],
+   "watch": {
+    "x": 1177.8,
+    "y": 177.8,
+    "ang": -0.2905,
+    "pxPerM": 4681.4,
+    "across": 4690.4,
+    "cuff": -0.009
+   }
+  }
+ }
+}
