@@ -8,10 +8,23 @@ function motion(){try{boot.classList.toggle('reduce-motion',!!JSON.parse(localSt
 function sync(){motion();state.active=!boot.hidden&&!document.hidden;box.classList.toggle('still',!state.active);}
 function decode(file){return new Promise(function(resolve){var im=new Image(),done=false,timer=setTimeout(function(){finish(false);},5000);function finish(ok){if(done)return;done=true;clearTimeout(timer);im.onload=im.onerror=null;resolve(ok?file:null);}im.onload=function(){if(im.decode)im.decode().then(function(){finish(true);},function(){finish(true);});else finish(true);};im.onerror=function(){finish(false);};im.src='loading/'+file;});}
 var manifest=Promise.race([fetch('loading/index.json').then(function(r){if(!r.ok)throw Error('manifest');return r.json();}),new Promise(function(resolve){setTimeout(function(){resolve({});},2000);})]).catch(function(){return {};}).then(function(j){return j&&typeof j==='object'?j:{};});
-var ready=manifest.then(function(j){var files=Array.isArray(j.slides)?j.slides.filter(function(f){return typeof f==='string'&&/^[\w-]+\.(?:jpe?g|png|webp)$/i.test(f);}):[];if(!files.length)files=fallback;return Promise.all(files.map(decode)).then(function(valid){return {files:valid.filter(Boolean),focus:j.focus||{}};});}).then(function(j){
- var files=j.files,n=files.length;if(!n){state.ready=true;return;}var offset=Math.floor(Math.random()*n),period=n*dwell;
+// The title reel (in-game footage recorded in Ultra Max, Web/art/titles) plays between the pictures. It is one looping file, so it keeps
+// playing while the main thread is busy building the island: no script has to run for it to move on.
+var reel=Promise.race([fetch('art/titles/reel.json').then(function(r){return r.ok?r.json():null;}),new Promise(function(resolve){setTimeout(function(){resolve(null);},2000);})]).catch(function(){return null;}).then(function(m){
+ if(!m||typeof m.video!=='string'||!/^art\/titles\/[\w-]+\.(?:webm|mp4)$/.test(m.video))return null;
+ var wrap=document.createElement('div');wrap.className='reel';wrap.setAttribute('aria-hidden','true');
+ var v=document.createElement('video');v.muted=true;v.loop=true;v.autoplay=true;v.playsInline=true;v.preload='auto';if(typeof m.poster==='string')v.poster=m.poster;v.src=m.video;
+ var tag=document.createElement('div');tag.className='reeltag';tag.innerHTML='<i></i><b>In-game recording &middot; Ultra Max</b><span>Captured in the Shigoto engine. Not live gameplay.</span>';
+ wrap.appendChild(v);wrap.appendChild(tag);state.reel=true;
+ v.addEventListener('error',function(){state.reel=false;wrap.remove();});
+ var p=v.play();if(p&&p.catch)p.catch(function(){});
+ return wrap;
+});
+var lines={};
+var ready=Promise.all([manifest,reel]).then(function(a){var j=a[0];state.reelEl=a[1];lines=j.lines&&typeof j.lines==='object'?j.lines:{};return j;}).then(function(j){var files=Array.isArray(j.slides)?j.slides.filter(function(f){return typeof f==='string'&&/^[\w-]+\.(?:jpe?g|png|webp)$/i.test(f);}):[];if(!files.length)files=fallback;return Promise.all(files.map(decode)).then(function(valid){return {files:valid.filter(Boolean),focus:j.focus||{}};});}).then(function(j){
+ var files=j.files,n=files.length;if(!n){state.ready=true;return;}var offset=Math.floor(Math.random()*n),gap=state.reelEl?9000:0,step=dwell+gap,period=n*step;
  var style=document.createElement('style');style.id='salary-loading-timeline';style.textContent='@keyframes salary-load-cycle{0%{opacity:0}'+(fade/period*100)+'%{opacity:1}'+(dwell/period*100)+'%{opacity:1}'+((dwell+fade)/period*100)+'%{opacity:0}100%{opacity:0}}';document.head.appendChild(style);
- box.replaceChildren();box.classList.add('compositor');
+ box.replaceChildren();box.classList.add('compositor');if(state.reelEl)box.appendChild(state.reelEl);
  for(var i=0;i<n;i++){var file=files[(offset+i)%n],slide=document.createElement('div');slide.className='slide';slide.dataset.artwork=file;slide.setAttribute('aria-hidden','true');slide.style.backgroundImage='url("loading/'+file+'")';slide.style.backgroundPosition=/^\d{1,3}% \d{1,3}%$/.test(j.focus[file]||'')?j.focus[file]:'50% 45%';
   var move=['salary-load-pan','salary-load-pan-reverse','salary-load-dolly','salary-load-rise'][i%4],duration=14000+(i%3)*2000;
   // The crossfade lives on the slide and the camera move on the picture inside it, so a machine with Windows'
@@ -20,7 +33,9 @@ var ready=manifest.then(function(j){var files=Array.isArray(j.slides)?j.slides.f
   var art=document.createElement('div');art.className='art';art.style.backgroundImage=slide.style.backgroundImage;art.style.backgroundPosition=slide.style.backgroundPosition;slide.style.backgroundImage='none';
   slide.dataset.motion=move;art.style.transformOrigin=art.style.backgroundPosition;
   art.style.animation=move+' '+duration+'ms linear infinite alternate';
-  if(n>1){slide.style.animation='salary-load-cycle '+period+'ms linear infinite';slide.style.setProperty('--cycle',period+'ms');slide.style.animationDelay=(-fade-((n-i)%n)*dwell)+'ms';}
+  if(n>1){slide.style.animation='salary-load-cycle '+period+'ms linear infinite';slide.style.setProperty('--cycle',period+'ms');slide.style.animationDelay=(-fade-((n-i)%n)*step)+'ms';}
+  // a line under each picture, set big, so a long load reads as a trailer rather than a wait
+  if(typeof lines[file]==='string'){var cap=document.createElement('div');cap.className='line';cap.textContent=lines[file];slide.appendChild(cap);}
   slide.appendChild(art);box.appendChild(slide);
  }
  state.ready=true;state.slides=n;sync();
