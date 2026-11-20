@@ -126,7 +126,7 @@
         look: [V(k[0], ty - 6, k[1]), V(k[0], ty - 4, k[1]), V(k[0], ty, k[1])],
         fov: 46, um: { shafts: 0, exposure: 1.08 },
         // the keep is floodlit after dark, as every castle in Japan is: warm uplights from the moat on two sides
-        setup: S => { const g = new THREE.Group(); [[1, 0.6], [-0.8, 1]].forEach(([a, b]) => { const l = new THREE.SpotLight(0xffd2a0, 0.9, 220, 0.32, 0.7, 1);
+        setup: S => { const g = new THREE.Group(); [[1, 0.6], [-0.8, 1]].forEach(([a, b]) => { const l = new THREE.SpotLight(0xffd2a0, 0.3, 220, 0.32, 0.7, 1);
             l.position.set(k[0] + a * 60, gy + 1, k[1] + b * 60); l.target.position.set(k[0], ty - 12, k[1]); g.add(l, l.target); });
           g.userData.reelLights = true; scene.children.filter(o => o.userData && o.userData.reelLights).forEach(o => scene.remove(o)); scene.add(g); S._lights = g; },
         teardown: S => { if (S._lights) { scene.remove(S._lights); S._lights = null; } } });
@@ -226,7 +226,9 @@
     renderer.setPixelRatio(1); renderer.setSize(w || 1920, h || 1080, false);
     camera.aspect = (w || 1920) / (h || 1080); camera.updateProjectionMatrix();
     // out of the station the title stands in (seamless-hook puts the room away and gives the camera its distance back), but still on the title
-    if (!R.rec.left) { try { setTitle(false); } catch (e) { /* */ } title.on = true; R.rec.left = true; }
+    // (every shot: between two shots the title may have stepped back into its station)
+    try { setTitle(false); } catch (e) { /* */ } title.on = true; R.rec.left = true;
+    try { if (interior.active) { interior.stack = null; interiorLeave(true); } } catch (e) { /* */ }
     player.placed = true; if (player.obj) player.obj.visible = false;
     begin(S);
     camera.far = Math.max(camera.far, 6000); camera.updateProjectionMatrix();
@@ -246,14 +248,14 @@
   // a look at one moment of the shot without running the world to it (for framing)
   R.rec.peek = function (t) { const S = R.rec.S; place(S, t); present(); return renderer.domElement.toDataURL("image/jpeg", 0.9); };
   R.rec.sim = function (sec) { const S = R.rec.S; for (let i = 0; i < sec * 10; i++) { simStep(S, 0.1); S.t += 0.1; place(S, S.t / S.dur); } return S.t; };
-  R.rec.end = function () { const S = R.rec.S; if (S && S.teardown) try { S.teardown(S); } catch (e) { /* */ } R.rec.active = false; R.cur = null; };
+  R.rec.end = function () { const S = R.rec.S; if (S && S.teardown) try { S.teardown(S); } catch (e) { /* */ } R.rec.active = false; R.rec.hold = true; R.cur = null; };
 
   // the title's frame: the director's when a reel is being recorded or previewed, the menu's own otherwise
   function hookTitle() {
     if (typeof window.updateTitle !== "function" || typeof window.tick !== "function") { setTimeout(hookTitle, 300); return; }
     const inner = window.updateTitle;
     window.updateTitle = function (dt) {
-      if (R.rec.active) return;                        // the recorder steps the world itself
+      if (R.rec.active || R.rec.hold) return;          // the recorder steps the world itself, and holds it between shots
       if (R.live) { if (liveTick(dt)) return; }
       if (R.player.on && R.player.playing) {
         // the reel covers the screen: draw the world behind it about once a second, so it stays warm and costs next to nothing
