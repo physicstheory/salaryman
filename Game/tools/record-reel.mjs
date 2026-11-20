@@ -27,7 +27,7 @@ const log = (...a) => console.log("[reel]", ...a);
 async function boot() {
   let chromium;
   try { ({ chromium } = await import("playwright")); } catch (e) { const m = await import(process.env.PLAYWRIGHT || "playwright"); chromium = m.chromium || (m.default && m.default.chromium); }
-  const mime = { ".ogg": "audio/ogg", ".html": "text/html", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".js": "text/javascript", ".json": "application/json", ".wasm": "application/wasm", ".webm": "video/webm" };
+  const mime = { ".ogg": "audio/ogg", ".html": "text/html", ".css": "text/css", ".woff2": "font/woff2", ".glb": "model/gltf-binary", ".jpg": "image/jpeg", ".png": "image/png", ".js": "text/javascript", ".json": "application/json", ".wasm": "application/wasm", ".webm": "video/webm" };
   const srv = http.createServer((q, r) => {
     let f = path.join(WEB, decodeURIComponent(q.url.split("?")[0]));
     if (f.endsWith(path.sep) || f === WEB) f = path.join(WEB, "konto.html");
@@ -98,11 +98,13 @@ function encode() {
   shots.forEach(s => {
     const o = path.join(tmp, s.id + ".mp4");
     ff("-framerate", String(info.fps || FPS), "-i", path.join(FRAMES, s.id, "%05d.jpg"),
-       "-vf", `minterpolate=fps=${OUTFPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,format=yuv420p`, "-c:v", "libx264", "-crf", "12", "-preset", "medium", o);
+       "-vf", `scale=${W}:${H}:flags=lanczos,minterpolate=fps=${OUTFPS}:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1,format=yuv420p`, "-c:v", "libx264", "-crf", "12", "-preset", "medium", o);
     const n = fs.readdirSync(path.join(FRAMES, s.id)).filter(f => f.endsWith(".jpg")).length;
-    parts.push({ s, o, dur: n / (info.fps || FPS) });
+    // the interpolated clip is a frame or three shorter than frames / rate: the dissolves are placed on its real length
+    const real = +execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", o]).toString().trim();
+    parts.push({ s, o, dur: real > 0 ? real : n / (info.fps || FPS) });
     // a still of each shot, for the thread and for the poster
-    ff("-ss", String((n / (info.fps || FPS)) * 0.6), "-i", o, "-frames:v", "1", "-q:v", "3", path.join(OUT, s.id + ".jpg"));
+    ff("-ss", String(parts[parts.length - 1].dur * 0.6), "-i", o, "-frames:v", "1", "-q:v", "3", path.join(OUT, s.id + ".jpg"));
   });
   // join with dissolves
   const inputs = parts.flatMap(p => ["-i", p.o]);

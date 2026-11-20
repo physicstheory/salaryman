@@ -189,6 +189,8 @@
     const pre = S.prewarm || 6, dt = 1 / 10;
     const min = S.min;
     for (let i = 0; i < pre * 10; i++) { simStep(S, dt); if (S.lookAt) place(S, 0); }
+    // a crowd shot waits for its crowd: the morning's commuters are let walk in until the street is full (two minutes at most)
+    if (S.peds) for (let i = 0; i < 1200 && (peds.list || []).filter(p => p.commuter).length < 70; i++) simStep(S, dt);
     try { setGameTime(min); } catch (e) { /* the clock ran on in the warm-up: put it back */ }
     if (S.after) try { S.after(S); } catch (e) { console.warn("[reel]", e); }
     place(S, 0);
@@ -278,13 +280,13 @@
   #treel { position: absolute; inset: 0; overflow: hidden; background: #050607; opacity: 0; transition: opacity 1.2s ease; pointer-events: none; }
   #treel.on { opacity: 1; }
   #treel video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-  #treel-badge { position: absolute; right: clamp(18px, 3vw, 44px); bottom: clamp(16px, 3.2vh, 36px); display: flex; align-items: center; gap: 10px;
+  #treel-badge { position: absolute; right: clamp(18px, 3vw, 44px); bottom: clamp(52px, 7vh, 72px); display: flex; align-items: center; gap: 10px;
     padding: 7px 12px 7px 10px; background: rgba(6,7,9,.62); border: 1px solid rgba(255,255,255,.14); border-radius: 3px;
     font: 600 11px/1.25 var(--data, ui-monospace, monospace); letter-spacing: .14em; text-transform: uppercase; color: #d9dde2; backdrop-filter: blur(6px); }
   #treel-badge i { width: 9px; height: 9px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 10px #ff3b30; animation: treelrec 1.6s steps(1) infinite; flex: none; }
   #treel-badge small { display: block; font-size: 9.5px; letter-spacing: .12em; color: #8d959e; }
   @keyframes treelrec { 50% { opacity: .2; } }
-  #treel-cap { position: absolute; right: clamp(18px, 3vw, 44px); bottom: calc(clamp(16px, 3.2vh, 36px) + 62px); text-align: right; color: #fff;
+  #treel-cap { position: absolute; right: clamp(18px, 3vw, 44px); bottom: calc(clamp(52px, 7vh, 72px) + 62px); text-align: right; color: #fff;
     text-shadow: 0 2px 18px rgba(0,0,0,.65); opacity: 0; transform: translateY(10px); transition: opacity .7s ease, transform .9s cubic-bezier(.2,.7,.2,1); }
   #treel-cap.on { opacity: 1; transform: none; }
   #treel-cap .k { font: 700 11px/1 var(--data, ui-monospace, monospace); letter-spacing: .3em; text-transform: uppercase; color: #ffb21c; }
