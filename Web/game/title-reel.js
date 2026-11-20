@@ -307,7 +307,7 @@
     const badge = document.createElement("div"); badge.id = "treel-badge";
     badge.innerHTML = "<i></i><div>In-game recording · Ultra Max<small>Captured in the Shigoto engine. Not live gameplay.</small></div>";
     const cap = document.createElement("div"); cap.id = "treel-cap"; cap.innerHTML = '<div class="k"></div><div class="t"></div><div class="s"></div>';
-    box.append(v, cap, badge);
+    box.append(v, badge);                                // no place names on the footage (Duncan): only the recording badge
     host.insertBefore(box, host.firstChild);                     // under the veil and the menu
     const P = R.player; P.el = box; P.video = v; P.cap = cap; P.manifest = m;
     const show = i => {
@@ -315,7 +315,7 @@
       P.chapter = i; cap.classList.remove("on");
       setTimeout(() => { cap.querySelector(".k").textContent = c.kicker || ""; cap.querySelector(".t").textContent = c.title || ""; cap.querySelector(".s").textContent = c.sub || ""; cap.classList.add("on"); }, 380);
     };
-    v.addEventListener("timeupdate", () => { const i = chapterAt(m, v.currentTime + 0.4); if (i !== P.chapter) show(i); });
+    void show;
     v.addEventListener("playing", () => { P.playing = true; box.classList.add("on"); });
     v.addEventListener("pause", () => { P.playing = false; });
     // a reel that cannot play leaves the live title exactly as it was
