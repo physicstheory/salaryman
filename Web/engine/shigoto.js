@@ -7451,7 +7451,13 @@ void shSurface(vec3 wp, vec3 wn) {
     planter: { dynamic: false, shape: "box", size: [1.6, 0.6, 0.6] },
     signpost: { dynamic: false, shape: "cylinder", size: [0.05, 3, 0.05] },
     ac: { dynamic: false, shape: null, size: [0.8, 0.6, 0.3] },
-    ball: { dynamic: true, shape: "sphere", size: [0.11, 0.22, 0.11], mass: 0.43, restitution: 0.7, buoyancy: 4 }
+    ball: { dynamic: true, shape: "sphere", size: [0.11, 0.22, 0.11], mass: 0.43, restitution: 0.7, buoyancy: 4 },
+    // the small furniture of a Japanese street (2026-11-20 density pass): drawn with the existing PBR slots, recoloured by vertex colour
+    bikerack: { dynamic: false, shape: "box", size: [3.2, 0.7, 0.4] },
+    utilitybox: { dynamic: false, shape: "box", size: [1.1, 1.35, 0.55] },
+    postbox: { dynamic: false, shape: "box", size: [0.5, 1.3, 0.45] },
+    curvemirror: { dynamic: false, shape: "cylinder", size: [0.05, 3.4, 0.05] },
+    pots: { dynamic: false, shape: null, size: [1.2, 0.7, 0.45] }
   };
   function scaleUV(geo, from, to, su, sv) {
     const uv = geo.attributes.uv;
@@ -7769,6 +7775,58 @@ void shSurface(vec3 wp, vec3 wn) {
         P3.box("ac_body", 0.18, 0.12, 0.05, 0.27, 0.16, 0.15, [0.85, 0.85, 0.82]);
         P3.tube("ac_fins", [[0.3, 0.12, 0.1], [0.42, 0.06, 0.1], [0.5, 0, 0.1]], 0.012, [0.9, 0.9, 0.85]);
         for (const x2 of [-0.32, 0.32]) P3.box("ac_body", 0.06, 0.03, 0.32, x2, 0, 0, [0.6, 0.6, 0.6]);
+        break;
+      }
+      case "bikerack": {
+        for (const z2 of [-0.12, 0.12]) P3.cyl("bicycle_steel", 0.022, 0.022, 3.2, 10, 0, 0.28, z2, W2, 0, Math.PI / 2);
+        for (let i2 = 0; i2 < 6; i2++) {
+          const x2 = -1.35 + i2 * 0.54;
+          P3.tube("bicycle_steel", [[x2, 0, -0.18], [x2, 0.42, -0.14], [x2, 0.5, 0], [x2, 0.42, 0.14], [x2, 0, 0.18]], 0.014, W2);
+        }
+        for (const x2 of [-1.55, 1.55]) P3.box("barrier_foot", 0.12, 0.05, 0.42, x2, 0.025, 0, [0.5, 0.5, 0.52]);
+        break;
+      }
+      case "utilitybox": {
+        const g2 = [0.62, 0.7, 0.62];
+        P3.rbox("ac_body", 1.06, 1.25, 0.5, 0.02, 0, 0.7, 0, g2);
+        P3.box("ac_body", 1.12, 0.05, 0.56, 0, 1.35, 0, [0.55, 0.62, 0.55]);
+        P3.box("planter_box", 1.14, 0.1, 0.58, 0, 0.05, 0, [0.8, 0.8, 0.78]);
+        P3.face("ac_fins", 0.7, 0.22, 0, 1.05, 0.252, W2);
+        P3.face("ac_fins", 0.7, 0.22, 0, 0.32, 0.252, W2);
+        P3.face("bin_label", 0.16, 0.2, 0.32, 0.72, 0.252, W2);
+        P3.box("vending_trim", 0.02, 0.9, 0.02, 0, 0.7, 0.255, W2);
+        P3.cyl("vending_trim", 0.012, 0.012, 0.06, 8, -0.1, 0.72, 0.27, W2, Math.PI / 2);
+        break;
+      }
+      case "postbox": {
+        const red = [0.86, 0.12, 0.1];
+        P3.rbox("ac_body", 0.42, 0.9, 0.36, 0.06, 0, 0.82, 0, red);
+        P3.rbox("ac_body", 0.46, 0.06, 0.4, 0.03, 0, 1.3, 0, red);
+        P3.cyl("ac_body", 0.07, 0.09, 0.38, 12, 0, 0.19, 0, [0.5, 0.08, 0.07]);
+        for (const x2 of [-0.1, 0.1]) P3.box("vending_trim", 0.16, 0.025, 0.02, x2, 1.12, 0.185, [0.15, 0.15, 0.16]);
+        P3.face("bin_label", 0.22, 0.26, 0, 0.82, 0.182, W2);
+        break;
+      }
+      case "curvemirror": {
+        const org = [1, 0.48, 0.14];
+        P3.cyl("ac_body", 0.038, 0.038, 3.4, 10, 0, 1.7, 0, org);
+        P3.cyl("ac_body", 0.04, 0.04, 0.02, 10, 0, 3.4, 0, org);
+        P3.tube("ac_body", [[0, 3.05, 0], [0, 3.1, 0.12], [0, 3.1, 0.2]], 0.02, org);
+        P3.cyl("ac_body", 0.42, 0.42, 0.06, 28, 0, 3.1, 0.26, org, Math.PI / 2);
+        P3.disc("sign_back", 0.4, 0, 3.1, 0.295, [0.92, 0.95, 0.98], 0, 32);
+        P3.disc("sign_back", 0.42, 0, 3.1, 0.225, [0.5, 0.5, 0.5], Math.PI, 32);
+        P3.face("pole_guard", 0.08, 0.6, 0, 0.9, 0.04, W2);
+        break;
+      }
+      case "pots": {
+        const cols = [[0.72, 0.38, 0.24], [0.3, 0.36, 0.46], [0.66, 0.6, 0.52], [0.7, 0.36, 0.22]];
+        const n2 = 3 + (rng2() * 3 | 0);
+        for (let i2 = 0; i2 < n2; i2++) {
+          const r2 = 0.12 + rng2() * 0.1, h2 = r2 * (1.1 + rng2() * 0.5), x2 = -0.5 + i2 * 1 / Math.max(1, n2 - 1) + (rng2() - 0.5) * 0.08, z2 = (rng2() - 0.5) * 0.25;
+          P3.lathe("planter_box", [[r2 * 0.7, 0], [r2, h2 * 0.9], [r2 * 1.08, h2], [r2 * 0.95, h2], [0, h2 * 0.85]], 14, x2, 0, z2, cols[rng2() * cols.length | 0]);
+          const k2 = 1 + (rng2() * 2 | 0);
+          for (let j2 = 0; j2 < k2; j2++) P3.blob("planter_shrub", r2 * (0.8 + rng2() * 0.5), x2 + (rng2() - 0.5) * r2 * 0.6, h2 + r2 * (0.5 + j2 * 0.45), z2 + (rng2() - 0.5) * r2 * 0.6, W2, 1, 0.3, rng2() * 10);
+        }
         break;
       }
       case "ball":
@@ -8428,9 +8486,23 @@ vec3 fRoom(vec2 lp, vec3 vd, float depth, float h, float lit, float warm, out fl
           setTimeout(r2, 15e3);
         }));
         const v2 = this.engine.opts && this.engine.opts.texVersion ? "?v=" + this.engine.opts.texVersion : "";
+        const cmax = this.engine.opts && this.engine.opts.propTexMax || 0, max = suffix ? cmax ? Math.max(128, cmax / 2) : 512 : cmax;
+        const shrink = (tx) => {
+          const im = tx.image;
+          if (!max || !im || !im.width || im.width <= max || typeof document === "undefined") return;
+          const c2 = document.createElement("canvas"), k2 = max / Math.max(im.width, im.height);
+          c2.width = Math.max(1, Math.round(im.width * k2));
+          c2.height = Math.max(1, Math.round(im.height * k2));
+          c2.getContext("2d").drawImage(im, 0, 0, c2.width, c2.height);
+          tx.image = c2;
+          tx.needsUpdate = true;
+        };
         const t2 = loader.load(
           this.texBase + name + suffix + ".jpg" + v2,
-          () => done(),
+          (tx) => {
+            shrink(tx);
+            done();
+          },
           void 0,
           () => {
             done();

@@ -21,7 +21,9 @@
     S.scene = scene;
     try {
       if (S.engine) { S.engine.dispose(); S.engine = null; }
-      const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: false, water: false } });
+      const engine = await SHIGOTO.createEngine({ THREE, renderer, scene, camera, options: { ownsSky: false, water: false,
+        // integrated graphics (GPU guard on): street prop maps at 512 px, weak chips 256, so the denser streets stay inside the video-memory budget
+        propTexMax: window.GPU_GUARD && GPU_GUARD.on ? (GPU_GUARD.kind === "weak" ? 256 : 512) : 0 } });
       const bridge = new SHIGOTO.HostBridge(engine, { tile: 60, radius: 120, maxProps: 60 });
       engine.systems.push(bridge);
       bridge.solids(solids);

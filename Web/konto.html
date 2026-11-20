@@ -41817,7 +41817,8 @@ function pedPathPos(p, out) {
   out.yaw = Math.atan2(ux * p.dir, uz * p.dir); out.len = len;
   return out;
 }
-function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+// a city street is busy: more walkers at every tier (2026-11-20 density pass; the realism engine still scales this by street life)
+function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 9 : gfx.tier === "medium" ? 19 : gfx.tier === "high" ? 30 : 36; }
 // People appear on the footway network (pedNet), which keeps them on the pavements and takes them over a road only at a crossing.
 function pedSpawn() {
   if (!pedNet.ready) return false;
@@ -46574,5 +46575,6 @@ radioLoadMusic();
 <script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
 <script src="game/type-hook.js"></script>
+<script src="game/street-dress.js"></script>
 </body>
 </html>
