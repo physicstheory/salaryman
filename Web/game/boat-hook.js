@@ -950,7 +950,7 @@
       if (!o) { if (ride.snd) ride.snd.gain.gain.setTargetAtTime(0, ctx.currentTime, 0.2); return; }
       if (!ride.snd) {
         const e = buildEngine(), g = ctx.createGain(); g.gain.value = 0;
-        e.out.disconnect(); e.out.connect(g); g.connect(ctx.destination);
+        e.out.disconnect(); e.out.connect(g); g.connect(sound.master || ctx.destination);   // through the mixer (Effects, Master)
         ride.snd = { e: e, gain: g };
       }
       const P = o.phys, r = P.rpm / 6600, now = ctx.currentTime, E = ride.snd.e;

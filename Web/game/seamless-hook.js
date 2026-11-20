@@ -42,10 +42,11 @@
   function cubeFor(s, make) {
     let c = S.cubes.get(s);
     if (!c && make) {
-      const n = cubeSize();
+      // a station's windows are big and close (the central concourse is also the title): a sharper photograph there
+      const n = s && s.station ? Math.max(cubeSize(), s.central ? 512 : 256) : cubeSize();
       // sRGB, like the screen: the programs the city already compiled are reused as they are (no shader rebuild on the first photo)
       const rt = new THREE.WebGLCubeRenderTarget(n, { format: THREE.RGBAFormat, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, encoding: renderer.outputEncoding });
-      const cam = new THREE.CubeCamera(0.4, 30000, rt);
+      const cam = new THREE.CubeCamera(0.4, 2500, rt);   // past 2.5 km the fog has it, and the far city is most of a face's draw calls
       c = { rt: rt, cam: cam, face: 0, done: false, at: 0, used: performance.now(), p: capPoint(s) };
       S.cubes.set(s, c);
       if (S.cubes.size > MAX_CUBES) {
@@ -64,7 +65,8 @@
     if (player && player.obj) hide(player.obj);
     if (S.backdrop) hide(S.backdrop);
     Object.keys(interior.rooms || {}).forEach(k => { const R = interior.rooms[k]; if (R && R.group) hide(R.group); });
-    if (typeof skyDome !== "undefined" && skyDome) skyDome.position.set(c.p.x, c.p.y, c.p.z);
+    const sky = typeof skyDome !== "undefined" && skyDome ? skyDome : null, skyScale = sky ? sky.scale.x : 1;
+    if (sky) { sky.position.set(c.p.x, c.p.y, c.p.z); sky.scale.setScalar(Math.min(skyScale, 2300)); sky.updateMatrixWorld(true); }   // inside the photo camera's 2.5 km
     c.cam.position.set(c.p.x, c.p.y, c.p.z); c.cam.updateMatrixWorld(true);
     if (r.xr) r.xr.enabled = false;
     r.shadowMap.autoUpdate = false;              // the shadow map from the last frame is the right one, and redrawing it six times is not free
@@ -72,6 +74,7 @@
     finally {
       r.setRenderTarget(prev); if (r.xr) r.xr.enabled = xr; r.shadowMap.autoUpdate = auto;
       hidden.forEach(o => { o.visible = true; });
+      if (sky) { sky.scale.setScalar(skyScale); sky.updateMatrixWorld(true); }
       if (typeof skyDome !== "undefined" && skyDome && camera) skyDome.position.copy(camera.position);
     }
     S.stats.faces++;
@@ -112,6 +115,7 @@
   function pane(root, w, h, x, y, z, ry) {
     const m = new THREE.Mesh(paneGeo, glassMat); m.scale.set(w, h, 1); m.position.set(x, y, z); m.rotation.y = ry; m.userData.seamlessView = true; m.userData.pbrDone = true; root.add(m); return m;
   }
+  S.pane = pane; S.glassMat = glassMat;
   function frameBox(root, w, h, d, x, y, z) { return typeof inAdd === "function" ? inAdd(root, w, h, d, x, y, z, "#4b5058") : null; }
   // a band of glass along a wall: wall = "back" (-z), "front" (+z), "left" (-x), "right" (+x); from/to along the wall; y0..y1
   function band(R, wall, from, to, y0, y1, skip) {
@@ -287,7 +291,8 @@
   const BASE_FARE = 160;
   wrap("interiorTryStep", orig => function (dx, dz, radius) {
     const R = interior.room, G = R && R.gates;
-    if (G) {
+    // (a station building with floors has its gates on one of them: game/station-mall.js)
+    if (G && !(G.y !== undefined && Math.abs(((R && R.curY) || 0) - G.y) > 1.5)) {
       const z0 = player.pos.z - R.oz, z1 = z0 + dz, x1 = player.pos.x + dx - R.ox;
       if (x1 > G.x0 && x1 < G.x1 && ((z0 >= G.z && z1 < G.z) || (z0 <= G.z && z1 > G.z))) {
         const inbound = z1 < G.z;
@@ -315,9 +320,10 @@
   let actx = null;
   function beep() {
     try {
-      actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = 0.05;
-      o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
+      const shared = typeof sound === "object" && sound.ctx && sound.master;      // the game's own context, so the mixer hears it
+      actx = shared ? sound.ctx : actx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = actx.createOscillator(), g = actx.createGain(); o.type = "sine"; o.frequency.value = 2600; g.gain.value = shared ? 0.12 : 0.05;
+      o.connect(g); g.connect(shared ? sound.master : actx.destination); o.start(); o.stop(actx.currentTime + 0.09);
     } catch (e) { /* no audio */ }
   }
   const stationName = () => { const s = interior.shop || {}; return (s.stationRef && s.stationRef.name) || s.name || ""; };
@@ -433,9 +439,10 @@
     // in through the passage, on the paid side of the gates, walking into the concourse
     const G = R.platformGate, gates = R.gates;
     if (!G || !gates) return;
-    player.pos.set(R.ox + G.x, interior.floorY, R.oz - (R.D || 17) / 2 + 1.3); player.obj.position.copy(player.pos);
+    const gy = G.y || 0; R.curY = gy; R.onRamp = null;
+    player.pos.set(R.ox + G.x, interior.floorY + gy, R.oz - (R.D || 17) / 2 + 1.3); player.obj.position.copy(player.pos);
     player.yaw = player.targetYaw = 0; yaw = Math.PI; pitch = -0.2;
-    camPos.set(player.pos.x, interior.floorY + 2.2, player.pos.z - 2.6); interiorClampCam(camPos); camera.position.copy(camPos);
+    camPos.set(player.pos.x, interior.floorY + gy + 2.2, player.pos.z - 2.6); interiorClampCam(camPos); camera.position.copy(camPos);
     gates.paid = true; gates.ic = !!(wallet.ic);
     say("出口  Exit  ·  through the gates to the street.", 3.5);
   }
@@ -470,7 +477,11 @@
           const c = cubeFor(target, true);
           // retake it when the light has changed (half an hour of game time) or after two minutes
           if (c.done && (now - c.at > 120000 || Math.abs(gameMin() - (c.mins || 0)) > 30)) { c.done = false; c.face = 0; }
-          if (!c.done && (frame++ & 1) === 0) step(c);
+          // one face at a time, and only from a frame with room to spare: each face is a whole render of the street, and on integrated
+          // graphics a face every other frame doubled the draw calls of walking down any street of shops (2026-11-15)
+          const slow = lowTier() || IGPU, P = window.KONTO_PERF && KONTO_PERF.engine && KONTO_PERF.engine.budgets;
+          const room = !P || !P.playing || P.factor >= (slow ? 0.8 : 0.5);
+          if (!c.done && room && (frame++ % (slow ? 6 : 2)) === 0) step(c);
         }
       } else if (!S.inside) show(interior.room, interior.shop);
     } catch (e) { if (!S.err) { S.err = e; console.warn("[seamless]", e); } }
@@ -512,7 +523,7 @@
     if (!R) return orig.apply(this, arguments);
     if (!T.on) titleOn(R);
     title.t += dt; T.t += dt;
-    const W = R.W || 24, D = R.D || 17, fy = interior.floorY, k = T.t * 0.035;
+    const W = R.W || 24, D = R.D || 17, fy = interior.floorY + ((R.gates && R.gates.y) || 0), k = T.t * 0.035;
     // from the street end of the concourse, looking over the crowd at the gates and the passage to the platforms
     const x = R.ox + W * (0.18 + 0.1 * Math.sin(k)), z = R.oz + D * (0.32 - 0.05 * Math.cos(k * 0.8)), y = fy + 2.3 + 0.25 * Math.sin(k * 1.3);
     camPos.set(x, y, z); camera.position.copy(camPos);

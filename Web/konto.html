@@ -688,7 +688,9 @@
   #cutsub { position: fixed; left: 50%; bottom: 13vh; transform: translateX(-50%); z-index: 31; max-width: min(1100px, 86vw); text-align: center; pointer-events: none;
     font: 600 clamp(18px, 2.1vw, 30px)/1.35 var(--ui); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,0.9), 0 0 2px #000; }
   #cutsub b { display: block; font-size: 0.62em; letter-spacing: 0.16em; text-transform: uppercase; color: #f2c230; margin-bottom: 4px; }
-  #cutskip { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 31; font: 600 14px var(--ui); color: rgba(255,255,255,0.7); pointer-events: none; display: none; --k: 0; }
+  #cutskip { position: fixed; right: 3vw; bottom: 3.2vh; z-index: 31; font: 600 14px var(--ui); color: rgba(255,255,255,0.86); pointer-events: none; display: none; --k: 0; opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s; text-shadow: 0 1px 4px #000; }
+  #cutskip.show { opacity: 1; transform: none; }
+  #cutskip kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; margin-right: 6px; border: 1px solid rgba(255,255,255,.7); border-radius: 4px; font: 700 12px var(--ui); text-align: center; background: rgba(0,0,0,.35); }
   body.cutscene #cutskip { display: block; }
   #cutskip::after { content: ""; display: block; height: 3px; margin-top: 6px; width: calc(var(--k) * 100%); background: #f2c230; border-radius: 2px; }
   #cutover { position: fixed; inset: 0; z-index: 20; pointer-events: none; }
@@ -1288,8 +1290,8 @@
         <p class="startup-reference">DHInc / SALARY MAN / SHIGOTO ENGINE</p>
       </div>
     </section>
-    <section class="intro-card intro-studio"><img src="art/dhinc.svg" alt="DHInc"><p class="startup-caption">A DHInc production</p></section>
-    <section class="intro-card intro-engine"><img src="art/shigoto-startup.svg" alt="Shigoto Engine"><p class="startup-caption">Three.js · Rapier</p></section>
+    <section class="intro-card intro-studio"><img src="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20260%2070%22%3E%3Ctitle%3EDHInc%20studio%20identity%3C/title%3E%3Cg%20fill=%22#f2eee1%22%3E%3Cpath%20fill-rule=%22evenodd%22%20d=%22M0%200H18C62%200%2062%2070%2018%2070H0ZM13%2013V57H20C42%2057%2042%2013%2020%2013Z%22/%3E%3Cpath%20d=%22M42%200H53V30H67V0H78V70H67V41H53V70H42Z%22/%3E%3Ctext%20x=%2294%22%20y=%2254%22%20font-family=%22Arial,Helvetica,sans-serif%22%20font-weight=%22700%22%20font-size=%2254%22%3EDHInc%3C/text%3E%3C/g%3E%3C/svg%3E" alt="DHInc"><p class="startup-caption">A DHInc production</p></section>
+    <section class="intro-card intro-engine"><img src="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22700%22%20height=%22220%22%20viewBox=%220%200%20700%20220%22%20role=%22img%22%20aria-label=%22Shigoto%20Engine%22%3E%3Cg%20transform=%22translate(16%2025)%22%20fill=%22none%22%20stroke-width=%227%22%20stroke-linejoin=%22round%22%3E%3Cpath%20d=%22m76%200%2072%2042v84l-72%2042-72-42V42z%22%20stroke=%22#d2d2d2%22/%3E%3Cpath%20d=%22m4%2042%2072%2042%2072-42M76%2084v84M40%2021l72%2042v43l-36%2021-36-21V63l36-21%2036%2021%22%20stroke=%22#f5f3ee%22/%3E%3C/g%3E%3Ctext%20x=%22198%22%20y=%22114%22%20fill=%22#f5f3ee%22%20font-family=%22sans-serif%22%20font-size=%2266%22%20font-weight=%22700%22%20letter-spacing=%224%22%3ESHIGOTO%3C/text%3E%3Ctext%20x=%22201%22%20y=%22157%22%20fill=%22#d2d2d2%22%20font-family=%22sans-serif%22%20font-size=%2222%22%20letter-spacing=%2212%22%3EENGINE%3C/text%3E%3C/svg%3E" alt="Shigoto Engine"><p class="startup-caption">Three.js · Rapier</p></section>
     <section class="intro-card intro-save"><div class="startup-save-mark" aria-hidden="true"><i></i><i></i><i></i></div><h2>PROGRESS &amp; LOCAL STORAGE</h2><p>This game saves progress automatically.</p><p>Allow the save indicator to finish before closing the game.<br>Saved progress is stored on this device.</p><p class="startup-reference">Your commute begins in Mizuho.</p></section>
   </div>
   <button id="bootcredits" type="button" onclick="document.getElementById('assetcredits').showModal()">Credits &amp; licenses</button>
@@ -1305,6 +1307,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script src="game/gpu-guard.js"></script>
 <script src="art/interface.js"></script>
 <script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
@@ -4278,7 +4281,11 @@ function buildLinkRoads(root) {
     if (!widths.nrm) g.computeVertexNormals();
     const o = new THREE.Mesh(g, m); o.receiveShadow = true; o.frustumCulled = false; root.add(o); streamAdd(o, bk, STREAM.road);
   });
-  const gravelTex = surfTex("gravel").clone(); gravelTex.needsUpdate = true; gravelTex.encoding = THREE.sRGBEncoding; gravelTex.repeat.set(0.4, 0.25);
+  // (the clone is made before the photo has arrived: it takes the picture when it does. Cloned empty and marked for update, three warned
+  // "image is undefined" on every draw of every verge for the whole session, and the verges stayed plain.)
+  const gravelSrc = surfTex("gravel"), gravelTex = gravelSrc.clone(); gravelTex.encoding = THREE.sRGBEncoding; gravelTex.repeat.set(0.4, 0.25);
+  const gravelFill = () => { if (!gravelSrc.image) return false; gravelTex.image = gravelSrc.image; gravelTex.needsUpdate = true; return true; };
+  if (!gravelFill()) { const iv = setInterval(() => { if (gravelFill()) clearInterval(iv); }, 400); }
   const gravel = gfx.high ? new THREE.MeshStandardMaterial({ color: 0xc8c2b4, roughness: 1, map: gravelTex }) : new THREE.MeshLambertMaterial({ color: 0xc8c2b4, map: gravelTex });
   gravel.polygonOffset = true; gravel.polygonOffsetFactor = -1; gravel.polygonOffsetUnits = -1;
   const white = pbrMat("paint", 0xe8e8e0, { polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
@@ -8711,6 +8718,18 @@ const GFX_SAFE = (() => {
   let level = 0, raised = false;
   try { level = Math.max(0, Math.min(3, parseInt(localStorage.getItem("konto.gfxSafe") || "0", 10) || 0)); } catch (e) { /* none */ }
   if (/[?&]safe=([0-3])\b/.test(location.search)) level = +RegExp.$1;
+  // The ladder is not a life sentence (2026-11-15). A level set by an older build's crash comes down to 1 when a new release arrives (the
+  // crash it guarded against may be fixed: Iris Xe sat at level 3, half resolution and no warm-up, long after the cause was gone), and
+  // every session that plays eight minutes without a driver reset takes it down one more step for next time.
+  const EPOCH = "2026-11-15";
+  try {
+    if (level > 1 && localStorage.getItem("konto.gfxSafeEpoch") !== EPOCH) { level = 1; localStorage.setItem("konto.gfxSafe", "1"); }
+    localStorage.setItem("konto.gfxSafeEpoch", EPOCH);
+  } catch (e) { /* none */ }
+  if (level > 0) setTimeout(() => {
+    if (raised) return;
+    try { const now = Math.max(0, Math.min(3, parseInt(localStorage.getItem("konto.gfxSafe") || "0", 10) || 0)); if (now > 0) localStorage.setItem("konto.gfxSafe", String(now - 1)); } catch (e) { /* none */ }
+  }, 8 * 60 * 1000);
   let gpu = "";
   try { const c = document.createElement("canvas"), gl = c.getContext("webgl"); const ext = gl && gl.getExtension("WEBGL_debug_renderer_info");
     gpu = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : ""; const lose = gl && gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext(); } catch (e) { /* none */ }
@@ -8733,7 +8752,9 @@ function initThree() {
   const stage = document.getElementById("stage");
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
-  let startTier = savedTier() || guessTier();
+  // integrated graphics (Iris Xe, UHD, AMD APUs): the tiers are capped and the textures kept to a budget (game/gpu-guard.js)
+  if (window.GPU_GUARD) GPU_GUARD.capTiers(TIERS);
+  let startTier = savedTier() || (window.GPU_GUARD ? GPU_GUARD.startTier(guessTier()) : guessTier());
   if (GFX_SAFE.level >= 1) { startTier = "low"; gfx.lean = true; post.forced = false; gfx.scale = GFX_SAFE.level >= 3 ? 0.5 : GFX_SAFE.level >= 2 ? 0.6 : 0.8; }
   // back from a graphics reset the quality stays what it was (stepping it down each time left a good laptop looking like a bad one);
   // only the picture's memory is held in for this session: the resolution at the window's own and the shadow map at 2048
@@ -8742,6 +8763,7 @@ function initThree() {
   renderer = new THREE.WebGLRenderer({
     antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
   });
+  if (window.GPU_GUARD) GPU_GUARD.attach(renderer);   // before the first texture goes up
   gfx.tier = startTier;
   gfx.high = startTier !== "low";
   renderer.outputEncoding = THREE.sRGBEncoding;
@@ -8902,8 +8924,8 @@ function initThree() {
     if (paused) {
       if (e.code === "KeyQ" || e.code === "BracketLeft" || e.code === "PageUp") pauseMove(-1, 0);
       if (e.code === "KeyE" || e.code === "BracketRight" || e.code === "PageDown") pauseMove(1, 0);
-      if (e.code === "ArrowLeft") pauseMove(-1, 0);
-      if (e.code === "ArrowRight") pauseMove(1, 0);
+      if (e.code === "ArrowLeft") pauseSide(-1);
+      if (e.code === "ArrowRight") pauseSide(1);
       if (e.code === "ArrowUp") pauseMove(0, -1);
       if (e.code === "ArrowDown") pauseMove(0, 1);
       if (e.code === "Enter" || e.code === "Space") { pauseAct(); e.preventDefault(); return; }
@@ -9242,7 +9264,7 @@ function pollPad(dt) {
   };
   const value = i => (gp.buttons[i] ? gp.buttons[i].value : 0);
   const pressed = i => { const now = held(i); const edge = now && !pad.was[i]; pad.was[i] = now; return edge; };
-  if (cut.active) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; cut.padHold = held(PAD.A) || held(PAD.START); return; }
+  if (cut.active && !paused) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; cut.padHold = held(PAD.A); if (pressed(PAD.START)) { cut.padHold = false; setPaused(true, "game"); } return; }
   if (ex.open || ife.open) { pad.x = pad.y = pad.up = 0; pad.run = pad.handbrake = false; pad.throttle = pad.brake = 0; look.x = look.y = 0; if (ex.open) expedioPad(pressed); else ifePad(pressed); return; }
   // A trigger is analogue on an Xbox pad and reports through .value; some
   // drivers put it on an axis instead, so both are read and the larger wins.
@@ -9362,8 +9384,8 @@ function pollPad(dt) {
     // so does left and right on the stick or the pad.
     if (pressed(PAD.LB)) pauseMove(-1, 0);
     if (pressed(PAD.RB)) pauseMove(1, 0);
-    if (pressed(PAD.LEFT)) pauseMove(-1, 0);
-    if (pressed(PAD.RIGHT)) pauseMove(1, 0);
+    if (pressed(PAD.LEFT)) pauseSide(-1);
+    if (pressed(PAD.RIGHT)) pauseSide(1);
     if (pressed(PAD.UP)) pauseMove(0, -1);
     if (pressed(PAD.DOWN)) pauseMove(0, 1);
     if (pressed(PAD.A)) pauseAct();
@@ -9644,6 +9666,11 @@ function pauseMove(dx, dy) {
   if (!rows || !dy) return;
   pause.row = (pause.row + dy + rows.length) % rows.length;
   syncPauseRows();
+}
+// left and right: a value on the settings page (settings-menu.js), otherwise the next page
+function pauseSide(dx) {
+  try { if (window.settingsMenu && settingsMenu.side(dx)) return; } catch (e) { /* the plain menu */ }
+  pauseMove(dx, 0);
 }
 function pauseAct() {
   const rows = pauseRows();
@@ -10958,7 +10985,8 @@ function updateWalk(dt) {
     // Slide along a wall rather than sticking to it.
     if (!tryStep(dx, dz, 0.45)) { if (!tryStep(dx, 0, 0.45)) tryStep(0, dz, 0.45); }
   }
-  player.pos.y = interior.active ? interior.floorY : world.walkY(player.pos.x, player.pos.z, player.pos.y);
+  // (a room with floors - a station building - keeps the height of the floor, stair or escalator you are on: game/station-mall.js)
+  player.pos.y = interior.active ? interior.floorY + ((interior.room && interior.room.curY) || 0) : world.walkY(player.pos.x, player.pos.z, player.pos.y);
   player.onWalk = interior.active ? false : world.walkOn;
 
   // Turn toward where he is going, by the shorter way round.
@@ -11005,7 +11033,7 @@ function updateWalk(dt) {
   const want = head.clone().sub(dir.clone().multiplyScalar(free));
   const ground = world.surfaceY(clamp(want.x, 0, WORLD_X), clamp(want.z, 0, WORLD_Z));
   want.y = Math.max(want.y, ground + 1.3);
-  if (interior.active) { want.y = Math.min(head.y + 0.9, interior.floorY + 3.1); interiorClampCam(want); }
+  if (interior.active) { want.y = Math.min(head.y + 0.9, interior.floorY + ((interior.room && interior.room.curY) || 0) + 3.1); interiorClampCam(want); }
   // Coming in off a wall has to be immediate or the camera is inside the wall
   // for the moment it takes to ease; going back out can take its time.
   const closing = free < (player.camFree === undefined ? free : player.camFree) - 0.05;
@@ -12376,8 +12404,9 @@ function buildStreetLife(root, w) {
   const place = (x, z, yaw, h) => {
     if (x < 40 || z < 40 || x > WORLD_X - 40 || z > WORLD_Z - 40) return false;
     if (world.sampleLand(x, z) < 0.9 || world.bridgeY(x, z) !== null) return false;
-    const y = world.surfaceY(x, z); if (y < 1.2) return false;
+    let y = world.surfaceY(x, z); if (y < 1.2) return false;
     if (insideBuilding(x, z, 0.5) || !free(x, z)) return false;
+    if (typeof xingRoadAt === "function" && xing.ready && !xingRoadAt(x, z, 0.05) && xingRoadAt(x, z, 4.6)) y += 0.2;   // on the footway, which stands 20 cm proud of the ground
     const o = { x: x, z: z, y: y, yaw: yaw, c: BODY[Math.floor(h * BODY.length) % BODY.length] };
     const fx = Math.sin(yaw), fz = Math.cos(yaw);
     vending.list.push({ brand: "vending", vend: true, name: "Vending machine", at: [x, z], yaw: yaw, groundY: y, size: [1, 1],
@@ -19937,25 +19966,41 @@ function pedNetTick() {
 }
 function pedNetEdgeX(a, b) { const e = pedNet.adj[a].find(t => t[0] === b); return e && e[1] >= 0 ? xing.list[e[1]] : null; }
 // A* over the footways, from the node nearest one point to the node nearest another
+// A* over the footways. Typed arrays stamped per search (no Map/Set per route): commuters set off in bursts after the start of play, and
+// the old Map-based search churned ~50 MB and 250-300 ms of "untimed code" every couple of seconds on a laptop (Iris Xe report, 2026-11-15).
+const PNR = { compN: -1, comp: null, n: 0, stamp: 0, seen: null, g: null, from: null, closed: null, hk: null, hv: null };
 function pedNetRoute(fx, fz, tx, tz) {
   if (!pedNet.ready) return null;
   const s0 = pedNetNear(fx, fz, 40)[0], s1 = pedNetNear(tx, tz, 60)[0]; if (!s0 || !s1) return null;
-  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z;
-  const g = new Map([[S, 0]]), from = new Map(), open = [[Math.hypot(X[S] - X[T], Z[S] - Z[T]), S]], done = new Set();
+  const S = s0[1], T = s1[1], X = pedNet.x, Z = pedNet.z, N = X.length;
+  // islands of footway (a pier, a park path, a cut-off platform): no search at all between two of them. Most failed routes ran the full
+  // 25,000 steps before giving up. Union-find over the edges, both ways, so it can only ever say "maybe" where the search must decide.
+  if (PNR.compN !== N) {
+    const up = new Int32Array(N); for (let i = 0; i < N; i++) up[i] = i;
+    const root = i => { while (up[i] !== i) { up[i] = up[up[i]]; i = up[i]; } return i; };
+    for (let u = 0; u < N; u++) for (const e of pedNet.adj[u] || []) { const a = root(u), b = root(e[0]); if (a !== b) up[a] = b; }
+    for (let i = 0; i < N; i++) up[i] = root(i);
+    PNR.comp = up; PNR.compN = N;
+  }
+  if (PNR.comp[S] !== PNR.comp[T]) return null;
+  if (PNR.n < N) { PNR.n = N; PNR.seen = new Uint32Array(N); PNR.closed = new Uint32Array(N); PNR.g = new Float64Array(N); PNR.from = new Int32Array(N); PNR.hk = new Float64Array(1024); PNR.hv = new Int32Array(1024); PNR.stamp = 0; }
+  const st = ++PNR.stamp, seen = PNR.seen, closed = PNR.closed, g = PNR.g, from = PNR.from;
+  let hk = PNR.hk, hv = PNR.hv, hn = 0;
+  const push = (k, v) => {
+    if (hn >= hk.length) { const k2 = new Float64Array(hk.length * 2), v2 = new Int32Array(hk.length * 2); k2.set(hk); v2.set(hv); PNR.hk = hk = k2; PNR.hv = hv = v2; }
+    let i = hn++; while (i > 0) { const p = (i - 1) >> 1; if (hk[p] <= k) break; hk[i] = hk[p]; hv[i] = hv[p]; i = p; } hk[i] = k; hv[i] = v;
+  };
+  seen[S] = st; g[S] = 0; from[S] = -1; push(Math.hypot(X[S] - X[T], Z[S] - Z[T]), S);
   let it = 0;
-  while (open.length && it++ < 25000) {
-    // a small binary heap
-    let top = open[0]; const last = open.pop();
-    if (open.length) { open[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < open.length && open[l][0] < open[m][0]) m = l; if (r < open.length && open[r][0] < open[m][0]) m = r; if (m === i) break; const t = open[i]; open[i] = open[m]; open[m] = t; i = m; } }
-    const u = top[1]; if (done.has(u)) continue; done.add(u);
-    if (u === T) { const path = [T]; let c = T; while (from.has(c)) { c = from.get(c); path.push(c); } return path.reverse(); }
+  while (hn && it++ < 25000) {
+    const u = hv[0]; hn--;
+    if (hn) { const k = hk[hn], v = hv[hn]; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = -1, mk = k; if (l < hn && hk[l] < mk) { m = l; mk = hk[l]; } if (r < hn && hk[r] < mk) { m = r; mk = hk[r]; } if (m < 0) break; hk[i] = hk[m]; hv[i] = hv[m]; i = m; } hk[i] = k; hv[i] = v; }
+    if (closed[u] === st) continue; closed[u] = st;
+    if (u === T) { const path = [T]; let c = T; while (from[c] >= 0) { c = from[c]; path.push(c); } return path.reverse(); }
+    const gu = g[u];
     for (const e of pedNet.adj[u]) {
-      const v = e[0], w = Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0), ng = g.get(u) + w;
-      if (ng < (g.has(v) ? g.get(v) : Infinity)) {
-        g.set(v, ng); from.set(v, u);
-        open.push([ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v]);
-        let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p][0] <= open[i][0]) break; const t = open[i]; open[i] = open[p]; open[p] = t; i = p; }
-      }
+      const v = e[0], ng = gu + Math.hypot(X[v] - X[u], Z[v] - Z[u]) + (e[1] >= 0 ? 12 : 0);
+      if (seen[v] !== st || ng < g[v]) { seen[v] = st; g[v] = ng; from[v] = u; push(ng + Math.hypot(X[v] - X[T], Z[v] - Z[T]), v); }
     }
   }
   return null;
@@ -21813,7 +21858,8 @@ function updateSound(dt) {
   if (!sound.ready || !sound.ctx) return;
   const ctx = sound.ctx;
   const driving = !!drive.car;
-  const target = driving ? 0.5 : 0.0;
+  // effects are heard on foot too (they were muted out of a car, which silenced guns, bells and footsteps); the volume is Settings'
+  const target = 0.5 * (window.soundscape ? soundscape.sfx() : 1);
   sound.master.gain.setTargetAtTime(target, ctx.currentTime, 0.12);
   if (!driving) {
     if (sound.engine) sound.engine.out.gain.setTargetAtTime(0, ctx.currentTime, 0.1);
@@ -29255,9 +29301,9 @@ function cheatSpawn(kindName) {
   if (kindName === "exotic") { const ex = CAR_KINDS.filter(k => k.exotic); kindName = ex[(Math.random() * ex.length) | 0].name; }
   if (kindName === "plane") return cheatAircraft(false);
   if (kindName === "skydive") return cheatAircraft(true);
-  if (kindName === "heli") { say("You can't fly helicopters yet. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
+  if (kindName === "heli") { say("There are no helicopters for hire in Tōkonto. AIRPLANE (5550120) gives you a plane, SKYDIVE (5550122) puts you 1,200 m up.", 5); return false; }
   const ki = CAR_KINDS.findIndex(k => k.name === kindName);
-  if (ki < 0) { say("There are no aircraft in Konto yet.", 3); return false; }
+  if (ki < 0) { say("No such vehicle.", 3); return false; }
   const kind = CAR_KINDS[ki];
   if(!traffic.pool[ki]){
     if(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady){say("Loading the detailed vehicle…",2);(traffic.modelJobs&&traffic.modelJobs[kindName]||traffic.modelsReady).then(()=>{if(traffic.pool[ki])cheatSpawn(kindName);else say("That vehicle model could not load. Try again after restarting.",4);});}
@@ -30359,42 +30405,154 @@ function buildShopLivery(root) {
   });
 }
 
+// Every shop gets its own sign, painted for that branch and cut to the exact size of the box it sits in (2026-11-20).
+// The old sign stretched one 8:1 brand picture over every face of a 1 x 1 box, so narrow shops had squashed lettering
+// and the sides and top of the box showed smeared copies. Now:
+//   - a fascia lightbox: a painted metal frame (one InstancedMesh for every shop) with the face set 2 cm proud of it,
+//     painted at the face's own aspect so the lettering is never stretched, with the chain's logo mark and wordmark,
+//     its Japanese name, this branch's name and its hours;
+//   - a projecting blade sign (袖看板) at one end where the building is tall enough, lettered top to bottom on both faces;
+//   - every face in one shared atlas, so all the shops of the city are a handful of draw calls.
+function shopBranchName(s) {
+  let best = null, bd = 1e12;
+  (world.cities || []).forEach(c => (c.wards || []).forEach(w => { const d = Math.hypot(w.centre[0] - s.at[0], w.centre[1] - s.at[1]); if (d < bd) { bd = d; best = w; } }));
+  const n = 1 + Math.floor(rnd(Math.round(s.at[0]), Math.round(s.at[1]), 30411) * 4);
+  return (best ? best.name : "Ekimae") + " " + n + "-ch\u014dme";
+}
+function shopHours(s, b) {
+  const t = b.tag || "";
+  if (/24/.test(t)) return "OPEN 24 HOURS";
+  const k = rnd(Math.round(s.at[1]), Math.round(s.at[0]), 30413);
+  const late = /ramen|izakaya|late|bar/i.test(t + " " + s.brand);
+  const open = late ? (k < 0.5 ? "11:00" : "17:00") : (k < 0.5 ? "10:00" : "9:00"), close = late ? (k < 0.5 ? "2:00" : "24:00") : (k < 0.3 ? "20:00" : k < 0.7 ? "21:00" : "22:00");
+  return "OPEN " + open + "\u2013" + close;
+}
 function buildShopSigns(root) {
-  const byBrand = {};
-  shops.list.filter(s => !s.mall && !s.safe && !(s.plaza && s.built) && !(LIVERY_BRANDS[s.brand] && s.built)).forEach(s => (byBrand[s.brand] || (byBrand[s.brand] = [])).push(s));
-  Object.keys(byBrand).forEach(brand => {
-    const list = byBrand[brand];
-    const b = SHOP_BRANDS[brand];
-    const geo = new THREE.BoxGeometry(1, 1, 0.5);
-    // every chain's sign has its name on it; the armourer's has nothing
-    const plain = brand === "arms";
-    const mat = new THREE.MeshStandardMaterial(plain
-      ? { color: new THREE.Color(0x1a1c20), emissive: new THREE.Color(0x14110a), emissiveIntensity: 0.5, roughness: 0.6 }
-      : { color: new THREE.Color(0xffffff), map: brandSignTex(brand), emissive: new THREE.Color(0xffffff), emissiveMap: brandSignTex(brand), emissiveIntensity: 0.7, roughness: 0.55, metalness: 0.0 });
-    const band = new THREE.InstancedMesh(geo, mat, list.length);
-    const sc = new THREE.Color(b.stripes[0]);
-    const stripeMat = new THREE.MeshStandardMaterial({ color: sc, emissive: sc.clone().multiplyScalar(0.5), emissiveIntensity: 0.6, roughness: 0.6 });
-    const stripe = new THREE.InstancedMesh(geo, stripeMat, list.length);
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
-    const pos = new THREE.Vector3(), scl = new THREE.Vector3();
-    list.forEach((s, i) => {
-      const big = !!s.plaza;
-      const w = Math.min(big ? 26 : 14, s.size[0] * 0.82);
-      e.set(0, s.yaw, 0); q.setFromEuler(e);
-      const sg = s.sign || s.door;
-      pos.set(sg[0], s.groundY + (big ? 6.6 : 4.3), sg[1]);
-      scl.set(w, big ? 3.0 : 1.5, 0.5);
-      m.compose(pos, q, scl); band.setMatrixAt(i, m);
-      pos.set(sg[0], s.groundY + (big ? 4.8 : 3.42), sg[1]);
-      scl.set(w, big ? 0.4 : 0.26, 0.52);
-      m.compose(pos, q, scl); stripe.setMatrixAt(i, m);
-      s.signY = s.groundY + (big ? 6.6 : 4.3);
-    });
-    band.instanceMatrix.needsUpdate = true;
-    stripe.instanceMatrix.needsUpdate = true;
-    band.castShadow = false; stripe.castShadow = false;
-    root.add(band); root.add(stripe);
+  const list = shops.list.filter(s => !s.mall && !s.safe && !(s.plaza && s.built) && !(LIVERY_BRANDS[s.brand] && s.built) && SHOP_BRANDS[s.brand]);
+  if (!list.length) return;
+  const small = !!(window.GPU_GUARD && GPU_GUARD.on), PPM = small ? 44 : 88, AT = small ? 2048 : 4096;
+  // ---- the layout: where each shop's faces go, and the shelf-packed atlas
+  const signs = [];
+  list.forEach(s => {
+    const big = !!s.plaza, b = SHOP_BRANDS[s.brand];
+    const w = Math.max(2.4, Math.min(big ? 26 : 14, s.size[0] * 0.82)), h = big ? 3.0 : 1.5;
+    const blade = !big && s.brand !== "arms" && (s.height || 0) > 8 && rnd(Math.round(s.at[0]), Math.round(s.at[1]), 30417) < 0.8;
+    signs.push({ s, b, big, w, h, blade, fw: Math.round(w * PPM), fh: Math.round(h * PPM), bw: Math.round(0.62 * PPM), bh: Math.round(2.3 * PPM) });
   });
+  const rects = [];
+  signs.forEach((g, i) => { rects.push({ i, k: "face", w: g.fw, h: g.fh }); if (g.blade) { rects.push({ i, k: "bladeA", w: g.bw, h: g.bh }); rects.push({ i, k: "bladeB", w: g.bw, h: g.bh }); } });
+  rects.sort((p, q) => q.h - p.h);
+  let x = 0, y = 0, rowH = 0, scale = 1;
+  const pack = sc => {
+    x = 0; y = 0; rowH = 0;
+    for (const r of rects) {
+      const rw = Math.min(AT - 4, Math.ceil(r.w * sc)), rh = Math.ceil(r.h * sc);
+      if (x + rw + 2 > AT) { x = 0; y += rowH + 2; rowH = 0; }
+      r.x = x; r.y = y; r.pw = rw; r.ph = rh; x += rw + 2; rowH = Math.max(rowH, rh);
+    }
+    return y + rowH <= AT;
+  };
+  while (!pack(scale) && scale > 0.2) scale *= 0.85;
+  const cv = document.createElement("canvas"); cv.width = AT; cv.height = AT;
+  const G = cv.getContext("2d");
+  G.fillStyle = "#202226"; G.fillRect(0, 0, AT, AT);
+  const SF = window.SignFonts;
+  const shade = (hex, k) => { const c = new THREE.Color(hex); if (k < 0) c.multiplyScalar(1 + k); else c.lerp(new THREE.Color(1, 1, 1), k); return "#" + c.getHexString(); };
+  const paintFace = (g, r) => {
+    const s = g.s, b = g.b, W = r.pw, H = r.ph;
+    G.save(); G.translate(r.x, r.y); G.beginPath(); G.rect(0, 0, W, H); G.clip();
+    // the armourer's shutter has no sign worth the name: a dark, dusty plate
+    if (s.brand === "arms") { G.fillStyle = "#1a1c20"; G.fillRect(0, 0, W, H); G.fillStyle = "rgba(185,130,58,0.18)"; G.fillRect(0, H * 0.45, W, H * 0.08); G.restore(); return; }
+    // the lightbox: the house colour, brighter in the middle where the tubes are behind the acrylic
+    const gr = G.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, shade(b.band, -0.1)); gr.addColorStop(0.45, shade(b.band, 0.08)); gr.addColorStop(1, shade(b.band, -0.14));
+    G.fillStyle = gr; G.fillRect(0, 0, W, H);
+    G.fillStyle = b.stripes[0]; G.fillRect(0, H * 0.86, W, H * 0.14);
+    if (b.stripes[1]) { G.fillStyle = b.stripes[1]; G.fillRect(0, H * 0.82, W, H * 0.04); }
+    // the logo mark: a roundel in the second colour with the first letter
+    const m = H * 0.62, mx = H * 0.12, my = H * 0.1;
+    G.fillStyle = b.stripes[1] || b.ink; G.beginPath(); G.arc(mx + m / 2, my + m / 2, m / 2, 0, Math.PI * 2); G.fill();
+    G.fillStyle = b.stripes[0]; G.beginPath(); G.arc(mx + m / 2, my + m / 2, m * 0.4, 0, Math.PI * 2); G.fill();
+    const st = SF ? SF.style("brand|" + s.brand, { text: b.name, stable: true, avoid: ["hand", "cute"] }) : null;
+    G.textBaseline = "middle";
+    if (SF) { G.textAlign = "center"; const inner = new THREE.Color(b.stripes[0]).getHSL({}).l > 0.6, band = new THREE.Color(b.band).getHSL({}).l > 0.6;
+      SF.text(G, (b.name.match(/[A-Za-z0-9]/) || ["S"])[0], mx + m / 2, my + m / 2, st, inner ? (band ? (b.stripes[1] || "#14171b") : b.band) : "#ffffff", b.stripes[0], m * 0.62, m * 0.8); }
+    const x0 = mx + m + H * 0.14, jpW = b.jp ? Math.min(W * 0.3, H * 0.42 * [...b.jp].length) : 0, room = W - x0 - jpW - H * 0.2;
+    G.textAlign = "left";
+    if (SF) SF.text(G, b.name, x0, H * 0.34, st, b.ink, b.band, H * 0.42, room);
+    else { G.fillStyle = b.ink; G.font = "900 " + Math.round(H * 0.4) + "px " + UI; G.fillText(b.name, x0, H * 0.34, room); }
+    // this branch and its hours, small, under the name
+    G.globalAlpha = 0.88; G.fillStyle = b.ink; G.font = "600 " + Math.round(H * 0.13) + "px " + UI;
+    G.fillText((shopBranchName(s) + " store  \u00b7  " + shopHours(s, b)).toUpperCase(), x0, H * 0.67, room + jpW * 0.6);
+    G.globalAlpha = 1;
+    if (b.jp && SF) { G.textAlign = "right"; const sj = SF.style("brandjp|" + s.brand, { text: b.jp, script: "jp", stable: true, treatment: "flat" }); SF.text(G, b.jp, W - H * 0.16, H * 0.38, sj, b.ink, b.band, H * 0.4, jpW); }
+    // the acrylic: a faint sheen across the top and the frame's shadow at the edges
+    const sh = G.createLinearGradient(0, 0, 0, H * 0.3); sh.addColorStop(0, "rgba(255,255,255,0.10)"); sh.addColorStop(1, "rgba(255,255,255,0)"); G.fillStyle = sh; G.fillRect(0, 0, W, H * 0.3);
+    G.strokeStyle = "rgba(0,0,0,0.35)"; G.lineWidth = Math.max(2, H * 0.03); G.strokeRect(0, 0, W, H);
+    G.restore();
+  };
+  const paintBlade = (g, r) => {
+    const s = g.s, b = g.b, W = r.pw, H = r.ph;
+    G.save(); G.translate(r.x, r.y); G.beginPath(); G.rect(0, 0, W, H); G.clip();
+    const light = rnd(Math.round(s.at[0]), Math.round(s.at[1]), 30419) < 0.5;
+    const bg = light ? "#f6f4ee" : b.band, ink = light ? (new THREE.Color(b.band).getHSL({}).l > 0.8 ? b.ink : b.band) : b.ink;
+    G.fillStyle = bg; G.fillRect(0, 0, W, H);
+    G.fillStyle = b.stripes[0]; G.fillRect(0, 0, W, W * 0.18); G.fillRect(0, H - W * 0.18, W, W * 0.18);
+    const txt = b.jp || b.name;
+    if (SF && b.jp) { const sj = SF.style("blade|" + s.brand, { text: b.jp, script: "jp", stable: true }); SF.vertical(G, b.jp, W / 2, W * 0.3, H - W * 0.3, sj, ink, bg, W * 0.7); }
+    else { G.translate(W / 2, H / 2); G.rotate(Math.PI / 2); G.fillStyle = ink; G.textAlign = "center"; G.textBaseline = "middle"; G.font = "900 " + Math.round(W * 0.55) + "px " + UI; G.fillText(txt.toUpperCase(), 0, 0, H - W * 0.7); }
+    G.restore();
+  };
+  rects.forEach(r => { const g = signs[r.i]; if (r.k === "face") paintFace(g, r); else paintBlade(g, r); g[r.k] = r; });
+  const tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = small ? 4 : 8;
+  // ---- the faces: one merged mesh, each quad's UVs on its rectangle of the atlas
+  const pos = [], uv = [], nor = [];
+  const quad = (cx, cy, cz, yaw, w, h, r, flip) => {
+    const rx = Math.cos(yaw), rz = -Math.sin(yaw), fx = Math.sin(yaw), fz = Math.cos(yaw);
+    const u0 = (r.x + 0.5) / AT, u1 = (r.x + r.pw - 0.5) / AT, v0 = 1 - (r.y + r.ph - 0.5) / AT, v1 = 1 - (r.y + 0.5) / AT;
+    const P = (a, b2) => [cx + rx * a, cy + b2, cz + rz * a];
+    const A = P(-w / 2, -h / 2), B = P(w / 2, -h / 2), C = P(w / 2, h / 2), D = P(-w / 2, h / 2);
+    const ua = flip ? u1 : u0, ub = flip ? u0 : u1;
+    [[A, ua, v0], [B, ub, v0], [C, ub, v1], [A, ua, v0], [C, ub, v1], [D, ua, v1]].forEach(q => { pos.push(...q[0]); uv.push(q[1], q[2]); nor.push(fx, 0, fz); });
+  };
+  const frames = [];
+  signs.forEach(g => {
+    const s = g.s, fx = Math.sin(s.yaw), fz = Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
+    const sg = s.sign || s.door, cy = s.groundY + (g.big ? 6.6 : 4.3);
+    // the frame stands 0.3 deep on the wall; the face is 2 cm in front of it
+    frames.push({ x: sg[0], y: cy, z: sg[1], yaw: s.yaw, sx: g.w + 0.14, sy: g.h + 0.14, sz: 0.3, c: g.b.band });
+    quad(sg[0] + fx * 0.172, cy, sg[1] + fz * 0.172, s.yaw, g.w, g.h, g.face);
+    s.signY = cy;
+    if (g.blade) {
+      // at one end of the frontage, standing out from the wall, above the fascia
+      const end = rnd(Math.round(s.at[1]), Math.round(s.at[0]), 30421) < 0.5 ? 1 : -1, lat = end * (g.w / 2 - 0.3), out = 0.62;
+      const bx = sg[0] + rx * lat + fx * out, bz = sg[1] + rz * lat + fz * out, by = cy + g.h / 2 + 0.25 + 1.15;
+      frames.push({ x: bx, y: by, z: bz, yaw: s.yaw + Math.PI / 2, sx: 0.74, sy: 2.42, sz: 0.2, c: "#2a2c30" });
+      quad(bx + rx * 0.105, by, bz + rz * 0.105, s.yaw + Math.PI / 2, 0.62, 2.3, g.bladeA);
+      quad(bx - rx * 0.105, by, bz - rz * 0.105, s.yaw - Math.PI / 2, 0.62, 2.3, g.bladeB);
+      // the bracket back to the wall
+      frames.push({ x: sg[0] + rx * lat + fx * 0.15, y: by + 1.0, z: sg[1] + rz * lat + fz * 0.15, yaw: s.yaw, sx: 0.06, sy: 0.06, sz: 0.5, c: "#3a3c40" });
+      frames.push({ x: sg[0] + rx * lat + fx * 0.15, y: by - 1.0, z: sg[1] + rz * lat + fz * 0.15, yaw: s.yaw, sx: 0.06, sy: 0.06, sz: 0.5, c: "#3a3c40" });
+    }
+  });
+  const fg = new THREE.BufferGeometry();
+  fg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+  fg.setAttribute("normal", new THREE.Float32BufferAttribute(nor, 3));
+  fg.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  fg.computeBoundingSphere();
+  const faceM = new THREE.MeshStandardMaterial({ map: tex, emissive: new THREE.Color(0xffffff), emissiveMap: tex, emissiveIntensity: 0.55, roughness: 0.32, metalness: 0.0 });
+  nightMats.push({ m: faceM, gain: 1.15, floor: 0.4 });
+  const faces = new THREE.Mesh(fg, faceM); faces.name = "shop sign faces"; faces.castShadow = false; faces.receiveShadow = false;
+  root.add(faces);
+  // ---- the frames: painted metal, one instanced box, tinted per shop
+  const box = new THREE.BoxGeometry(1, 1, 1), frameM = pbrMat("metal", 0xffffff, { roughness: 0.45 });
+  const fr = new THREE.InstancedMesh(box, frameM, frames.length);
+  const m4 = new THREE.Matrix4(), q4 = new THREE.Quaternion(), e4 = new THREE.Euler(), p4 = new THREE.Vector3(), s4 = new THREE.Vector3(), c4 = new THREE.Color();
+  frames.forEach((f, i) => { e4.set(0, f.yaw, 0); q4.setFromEuler(e4); p4.set(f.x, f.y, f.z); s4.set(f.sx, f.sy, f.sz); m4.compose(p4, q4, s4); fr.setMatrixAt(i, m4); c4.set(f.c).lerp(new THREE.Color(0x2a2c30), 0.55); fr.setColorAt(i, c4); });
+  fr.instanceMatrix.needsUpdate = true; if (fr.instanceColor) fr.instanceColor.needsUpdate = true;
+  fr.castShadow = true; fr.receiveShadow = true; fr.name = "shop sign frames";
+  root.add(fr);
+  window.SHOP_SIGNS = { count: signs.length, blades: signs.filter(g => g.blade).length, atlas: AT, ppm: PPM, scale: +scale.toFixed(2), canvas: cv };
+  console.log("[Konto] shop signs: " + signs.length + " fascias, " + window.SHOP_SIGNS.blades + " blade signs, atlas " + AT + " px at " + Math.round(PPM * scale) + " px/m");
 }
 
 function shopNear(x, z, radius, noVend) {
@@ -32813,7 +32971,7 @@ function radioInitAudio() {
   const an = ctx.createAnalyser(); an.fftSize = 512;
   const comp = ctx.createDynamicsCompressor();
   comp.threshold.value = -18; comp.knee.value = 14; comp.ratio.value = 5; comp.attack.value = 0.004; comp.release.value = 0.2;
-  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.master);
+  bus.connect(hp); hp.connect(lp); lp.connect(comp); comp.connect(an); comp.connect(sound.radioOut || sound.master);
   radio.bus = bus; radio.an = an; radio.lp = lp;
   const len = ctx.sampleRate * 1;
   const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -41773,7 +41931,8 @@ function pedPathPos(p, out) {
   out.yaw = Math.atan2(ux * p.dir, uz * p.dir); out.len = len;
   return out;
 }
-function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 7 : gfx.tier === "medium" ? 14 : 22; }
+// a city street is busy: more walkers at every tier (2026-11-20 density pass; the realism engine still scales this by street life)
+function pedWanted() { const M = typeof pcMode === "function" && pcMode(); if (M) return M.people; return gfx.tier === "low" ? 9 : gfx.tier === "medium" ? 19 : gfx.tier === "high" ? 30 : 36; }
 // People appear on the footway network (pedNet), which keeps them on the pavements and takes them over a road only at a crossing.
 function pedSpawn() {
   if (!pedNet.ready) return false;
@@ -42549,7 +42708,7 @@ function inCrowdTick(R, dt) {
       const fig = pplFigure(biz[(Math.random() * biz.length) | 0] || any[0], 1.0); fig.holder.position.set(p.x, 0, p.z); fig.holder.rotation.y = p.ry; root.add(fig.holder); pedPlay(fig, "idle", 0);
       R.crowd.push({ f: fig, staff: true });
     });
-    const n=R.station?(gfx.tier==='low'?(R.glassRoof?6:3):(R.glassRoof?18:7)):R.brand==='airport'?(gfx.tier==='low'?8:gfx.tier==='medium'?14:22):R.brand==='home'||R.brand==='police'?0:gfx.tier==='low'?2:4;
+    const n=R.station?(gfx.tier==='low'?(R.glassRoof?20:4):(R.glassRoof?32:8)):R.brand==='airport'?(gfx.tier==='low'?8:gfx.tier==='medium'?14:22):R.brand==='home'||R.brand==='police'?0:gfx.tier==='low'?2:4;
     (R.seats || []).forEach(st => { st.taken = null; });
     for (let i = 0; i < n; i++) {
       const fig = pplFigure(any[(Math.random() * any.length) | 0], 0.95 + Math.random() * 0.08);
@@ -45192,7 +45351,7 @@ function cutPlay(shots, onEnd) {
   if(!cut.video)cut.video=new SHIGOTO.CinematicVideo();
   cut.sceneId=story.step||'scene';
   cut.video.setPaused(false);
-  cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0;
+  cut.active = true; cut.shots = shots; cut.i = -1; cut.t = 0; cut.onEnd = onEnd || null; cut.hold = 0; cut.revealT = 0; cut.wasHold = !!(cut.keyHold || cut.padHold);
   if (phone.open) setPhone(false);
   if (nav.mapOpen && typeof setMap === "function") setMap(false);
   player.speed = 0;
@@ -45201,7 +45360,7 @@ function cutPlay(shots, onEnd) {
   sizeRenderer();
   document.body.classList.add("cutscene");
   cutEl("cutbars").innerHTML = "<i></i><i></i>";
-  cutEl("cutsub"); cutEl("cutskip").textContent = "Hold " + (pad.index >= 0 ? "A" : "Space") + " to skip";
+  cutEl("cutsub"); cutEl("cutskip").classList.remove("show");
   cutEl("cutover");
   cutNext();
 }
@@ -45248,9 +45407,19 @@ function cutFinish(skipped) {
   gfx.cinematic = false; sizeRenderer();
   player.forceClip = null;
   if (player.obj) player.obj.visible = true;
-  const f = document.getElementById("fade"); if (f) { f.style.transition = ""; f.style.opacity = "0"; }
+  const f = document.getElementById("fade");
+  if (f && skipped) { f.style.transition = "none"; f.style.opacity = "1"; void f.offsetWidth; f.style.transition = "opacity 0.7s ease"; f.style.opacity = "0"; }
+  else if (f) { f.style.transition = ""; f.style.opacity = "0"; }
+  const sk = document.getElementById("cutskip"); if (sk) sk.classList.remove("show");
   const done = cut.onEnd; cut.onEnd = null;
   try { if (done) done(skipped); } catch (e) { console.warn("[Konto] after the cutscene:", e); }
+}
+function cutReveal() {
+  cut.revealT = 4;
+  const sk = document.getElementById("cutskip"); if (!sk) return;
+  const k = pad.index >= 0 ? "A" : "Space";
+  sk.innerHTML = (typeof gameSet === "object" && gameSet.cutSkip === "hold") ? "Hold <kbd>" + k + "</kbd> to skip" : "<kbd>" + k + "</kbd> Skip cutscene";
+  sk.classList.add("show");
 }
 const _cutA = new THREE.Vector3(), _cutB = new THREE.Vector3(), _cutL = new THREE.Vector3(), _cutM = new THREE.Vector3();
 function cutTick(dt) {
@@ -45259,11 +45428,18 @@ function cutTick(dt) {
   if(cut.video)cut.video.tick(dt);
   // (a recording steps the scene to exact times; otherwise it runs on the clock)
   if (cut.manual !== undefined) cut.t = cut.manual; else if(cut.video?.active)cut.t=cut.video.element.currentTime;else cut.t += dt;
-  // skipping: held for most of a second, so a tap meant for something else does not throw the scene away
+  // skipping, from any point in the scene: the first press only brings the prompt up (so a tap meant for something else throws nothing
+  // away); a second press while it is up skips, and so does holding for most of a second. Settings > Gameplay can make it hold-only.
   const holding = cut.padHold || cut.keyHold;
+  if (holding && !cut.wasHold) {
+    if (cut.revealT > 0 && cut.revealT < 3.7 && (typeof gameSet !== "object" || gameSet.cutSkip !== "hold")) { cut.wasHold = false; cutFinish(true); return; }
+    cutReveal();
+  }
+  cut.wasHold = holding;
   cut.hold = holding ? cut.hold + dt : 0;
+  if (cut.revealT > 0) { cut.revealT -= dt; if (cut.revealT <= 0) { const sk0 = document.getElementById("cutskip"); if (sk0) sk0.classList.remove("show"); } }
   const sk = document.getElementById("cutskip"); if (sk) sk.style.setProperty("--k", Math.min(1, cut.hold / 0.8));
-  if (cut.hold > 0.8) { cutFinish(true); return; }
+  if (cut.hold > 0.8) { cut.wasHold = false; cutFinish(true); return; }
   const sd = cut.dur || s.dur;
   const u = clamp01(cut.t / sd), e = s.linear ? u : u*u*u*(u*(u*6-15)+10);
   const from = typeof s.from === "function" ? s.from() : s.from, to = typeof s.to === "function" ? s.to() : (s.to || from);
@@ -45274,7 +45450,7 @@ function cutTick(dt) {
     if (s.roll) camera.rotateZ(s.roll);
     // a camera operator's hands: a slow, small drift (layered sines at odd rates, so it never loops), never a mathematically still frame.
     // Tighter shots get less of it; a shot can set shake: 0 (locked off) or more (a run, a fight).
-    const hh = s.shake === undefined ? ((s.fov || 50) <= 42 ? 0.6 : 1) : s.shake;
+    const hh = (s.shake === undefined ? ((s.fov || 50) <= 42 ? 0.6 : 1) : s.shake) * (typeof gameSet === "object" && gameSet.camShake === false ? 0 : 1);
     if (hh > 0) {
       const T = cut.t + cut.i * 7.31, A = 0.0032 * hh;
       camera.rotateY(A * (Math.sin(T * 0.71) * 0.6 + Math.sin(T * 1.93 + 1.7) * 0.3 + Math.sin(T * 3.7 + 0.4) * 0.1));
@@ -46322,14 +46498,17 @@ function storyLoad(d) {
     if (story.flags.hired && !mynet.contacts.some(c => c.name === "Akio Sotiyama")) mynet.contacts.unshift({ name: "Akio Sotiyama", handle: "@sotiyama", phone: "090-0001-1958", line: "This is Sotiyama. Leave a message. Briefly.", boss: true });
   }, 1500);
 }
-// keys during a cutscene: everything is swallowed, and Space, Enter or Escape held skips
+// keys during a cutscene: everything is swallowed. Space or Enter brings up the skip prompt; pressed again (or held) it skips, from any
+// point in the scene. Escape pauses the scene with the menu over it, the way the open-world games do it; the menu can skip it too.
 (function cutKeys() {
   window.addEventListener("keydown", e => {
-    if (!cut.active) return;
-    if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = true;
+    if (!cut.active || paused) return;
+    if (e.code === "Escape" || e.code === "KeyP") { if (!e.repeat) { cut.keyHold = false; setPaused(true, "game"); } }
+    else if (e.code === "Space" || e.code === "Enter") cut.keyHold = true;
+    else if (!e.repeat) cutReveal();
     e.preventDefault(); e.stopImmediatePropagation();
   }, true);
-  window.addEventListener("keyup", e => { if (e.code === "Space" || e.code === "Enter" || e.code === "Escape") cut.keyHold = false; }, true);
+  window.addEventListener("keyup", e => { if (e.code === "Space" || e.code === "Enter") cut.keyHold = false; }, true);
 })();
 
 
@@ -46483,6 +46662,8 @@ radioLoadMusic();
 <script src="game/saga-content2.js"></script>
 <script src="game/yakuza.js"></script>
 <script src="game/yakuza-content.js"></script>
+<script src="game/action-steps.js"></script>
+<script src="game/story-action.js"></script>
 <script src="game/cinema-hook.js"></script>
 <script src="game/bike-hook.js"></script>
 <script src="game/ragdoll-hook.js"></script>
@@ -46492,14 +46673,26 @@ radioLoadMusic();
 <script src="game/luxury-watch.js"></script>
 <script src="game/luxury.js"></script>
 <script src="game/country-hook.js"></script>
+<script src="game/soundscape.js"></script>
+<script src="game/barks.js"></script>
+<script src="game/voice-all.js"></script>
+<script src="game/cityaudio.js"></script>
+<script src="game/missionflow.js"></script>
+<script src="game/settings-menu.js"></script>
 <script src="game/perf-hook.js"></script>
 <script src="game/forge-hook.js"></script>
 <script src="game/lib/meshopt_decoder.js"></script>
 <script src="game/foundry-hook.js"></script>
 <script src="game/interiors-hook.js"></script>
+<script src="game/station-mall.js"></script>
 <script src="game/seamless-hook.js"></script>
+<script src="game/station-aaa.js"></script>
 <script src="game/phone-hand.js"></script>
 <script src="game/title-board.js"></script>
 <script src="game/type-hook.js"></script>
+<script src="game/street-dress.js"></script>
+<script src="game/facade-weather.js"></script>
+<script src="game/ultramax.js"></script>
+<script src="game/title-reel.js"></script>
 </body>
 </html>

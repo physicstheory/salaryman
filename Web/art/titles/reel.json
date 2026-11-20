@@ -1,0 +1,52 @@
+{
+  "note": "In-game footage recorded in the Shigoto engine in Ultra Max cinematic mode by Game/tools/record-reel.mjs. Not live gameplay.",
+  "video": "art/titles/reel.webm",
+  "poster": "art/titles/reel.jpg",
+  "duration": 37.25,
+  "recorded": "2026-11-20",
+  "mode": "Ultra Max",
+  "chapters": [
+    {
+      "t": 0,
+      "id": "sunrise",
+      "kicker": "Mountains of Konto",
+      "title": "Shirotake",
+      "sub": "Sunrise · 06:12"
+    },
+    {
+      "t": 6.08,
+      "id": "mizuho",
+      "kicker": "Mizuho",
+      "title": "Where it starts",
+      "sub": "Countryside · 16:40"
+    },
+    {
+      "t": 11.15,
+      "id": "airport",
+      "kicker": "Tōkonto International",
+      "title": "Flight 017 departs",
+      "sub": "Runway 34L · 07:12"
+    },
+    {
+      "t": 18.23,
+      "id": "rush",
+      "kicker": "Tōkonto Central",
+      "title": "The 08:14 rush",
+      "sub": "Every weekday · every platform"
+    },
+    {
+      "t": 24.3,
+      "id": "bay",
+      "kicker": "Tōkonto Bay",
+      "title": "Nine million careers",
+      "sub": "Sunset · 17:52"
+    },
+    {
+      "t": 30.38,
+      "id": "castle",
+      "kicker": "Tōkonto Castle",
+      "title": "The city never clocks off",
+      "sub": "Blue hour · 18:48"
+    }
+  ]
+}
