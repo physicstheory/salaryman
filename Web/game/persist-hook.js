@@ -43,6 +43,7 @@
   // the heap still free when the load starts, whatever the tier. Integrated graphics (Intel Iris/UHD, AMD APUs) share the machine's memory
   // with the card, and a driver reset or a crashed page there was the result of asking for too much, so they get the small budget.
   function integratedGPU() {
+    if (window.GPU_GUARD) return GPU_GUARD.on || GPU_GUARD.kind === "software";
     try {
       const gl = renderer.getContext(), ext = gl.getExtension("WEBGL_debug_renderer_info");
       const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
@@ -64,7 +65,7 @@
   const heapHigh = () => { try { const m = performance.memory; return !!(m && m.jsHeapSizeLimit && m.usedJSHeapSize > m.jsHeapSizeLimit * HEAP_HIGH); } catch (e) { return false; } };
   window.persistHeapHigh = heapHigh;
   // how far from the camera kept detail stays on the graphics card: smaller on weak or integrated graphics
-  FRONT.gpu = gfx && (gfx.lean || gfx.tier === "low") ? 650 : gfx && gfx.tier === "medium" ? 800 : 1000;
+  FRONT.gpu = gfx && (gfx.lean || gfx.tier === "low" || (window.GPU_GUARD && GPU_GUARD.on)) ? 650 : gfx && gfx.tier === "medium" ? 800 : 1000;
 
   // The places the story sends Seiko, nearest-first targets for the buildings' close-up detail and the grass.
   function anchors() {
@@ -128,7 +129,7 @@
         const VRAM = { low: 450e6, medium: 800e6, high: 1300e6, ultra: 2000e6 };
         const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
         // integrated graphics: its video memory is the machine's own, shared with the page, so the warm-up asks for little
-        const texBudget = opts.texBudget || (safe ? 160e6 : Math.min(igpu ? 300e6 : Infinity, (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1)));
+        const texBudget = opts.texBudget || (safe ? 160e6 : Math.min(igpu ? Math.min(300e6, window.GPU_GUARD ? GPU_GUARD.room() : Infinity) : Infinity, (VRAM[gfx.tier] || VRAM.medium) * (gfx.lean ? 0.5 : 1)));
         const A = [[camera.position.x, camera.position.z]].concat(anchors()), _w = new THREE.Vector3();   // what the camera sees first (the title's view of the capital)
         const priority = o => { if (!o.parent || o.parent === scene && !o.geometry) return 0; o.getWorldPosition(_w); if (_w.y > 300) return 1; /* the shop rooms, the concourse, the office: small, and the story needs them early */ return Math.min(5000, nearest(A, _w.x, _w.z)) / 200 | 0; };
         // kept buildings far from every place the story starts stay off the card until you get near them (persistFront below)
@@ -591,7 +592,7 @@
       // In play every batch waits for the performance engine (perf-hook.js): it runs straight after a frame that had room to spare and no
       // hitch for the last 45 frames, and is small (one new shader at most, 4 MB of texture), so the upload never becomes the stutter.
       const KP = window.KONTO_PERF && KONTO_PERF.on ? KONTO_PERF : null;
-      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : integratedGPU() ? 700e6 : Infinity,
+      window.gpuWarm({ background: true, texBudget: safe ? 900e6 : integratedGPU() ? Math.min(700e6, window.GPU_GUARD ? GPU_GUARD.room() : Infinity) : Infinity,
         limits: KP ? { programs: 1, texBytes: safe ? 3e6 : 4e6, tris: 30e3, items: 24, targetMs: 6, maxMs: 24 } : { programs: 1, texBytes: safe ? 6e6 : 12e6, tris: 60e3, items: 80, targetMs: 30, maxMs: 120 },
         between: KP ? () => KP.idle({ headroom: 0.35, quiet: 45 }) : null })
         .then(r => { if (r && !r.stopped) { bgResume = null; console.log("[Konto] background upload done:", r.objects, "meshes,", r.texMb, "MB"); } }, () => {});

@@ -165,7 +165,8 @@
       screen: safe(() => innerWidth + "x" + innerHeight + " @" + (devicePixelRatio || 1)) || "",
       heap: mem ? Math.round(mem.usedJSHeapSize / 1048576) + "/" + Math.round(mem.jsHeapSizeLimit / 1048576) + " MB" : "",
       device: (navigator.deviceMemory ? navigator.deviceMemory + " GB, " : "") + (navigator.hardwareConcurrency || "?") + " threads",
-      log: d.logPath || ""
+      log: d.logPath || "",
+      guard: safe(() => window.GPU_GUARD && GPU_GUARD.line()) || ""
     };
   }
   function where() {
@@ -238,6 +239,7 @@
     L.push("Version: " + i.version + (i.build ? " (build " + i.build + ")" : "") + (i.update ? " + update " + i.update : "") + (i.electron ? " · Electron " + i.electron : "") + (i.chrome ? " · Chrome " + i.chrome : "") + " · " + i.os);
     L.push("GPU: " + (i.glRenderer || i.gpu || "unknown") + (i.driver ? " · driver " + i.driver : "") + (i.glVersion ? " · " + i.glVersion : ""));
     L.push("Graphics: tier " + (i.tier || "?") + " · safe level " + (i.safeLevel === "" ? "?" : i.safeLevel) + (i.scale ? " · scale " + i.scale : "") + " · " + i.screen);
+    if (i.guard) L.push("Video memory: " + i.guard);
     L.push("Memory: JS heap " + (i.heap || "?") + " · " + i.device);
     L.push("Game: " + r.where);
     if (r.message) L.push("Message: " + r.message);
