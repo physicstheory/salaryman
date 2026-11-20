@@ -115,6 +115,7 @@
   function pane(root, w, h, x, y, z, ry) {
     const m = new THREE.Mesh(paneGeo, glassMat); m.scale.set(w, h, 1); m.position.set(x, y, z); m.rotation.y = ry; m.userData.seamlessView = true; m.userData.pbrDone = true; root.add(m); return m;
   }
+  S.pane = pane; S.glassMat = glassMat;
   function frameBox(root, w, h, d, x, y, z) { return typeof inAdd === "function" ? inAdd(root, w, h, d, x, y, z, "#4b5058") : null; }
   // a band of glass along a wall: wall = "back" (-z), "front" (+z), "left" (-x), "right" (+x); from/to along the wall; y0..y1
   function band(R, wall, from, to, y0, y1, skip) {
@@ -290,7 +291,8 @@
   const BASE_FARE = 160;
   wrap("interiorTryStep", orig => function (dx, dz, radius) {
     const R = interior.room, G = R && R.gates;
-    if (G) {
+    // (a station building with floors has its gates on one of them: game/station-mall.js)
+    if (G && !(G.y !== undefined && Math.abs(((R && R.curY) || 0) - G.y) > 1.5)) {
       const z0 = player.pos.z - R.oz, z1 = z0 + dz, x1 = player.pos.x + dx - R.ox;
       if (x1 > G.x0 && x1 < G.x1 && ((z0 >= G.z && z1 < G.z) || (z0 <= G.z && z1 > G.z))) {
         const inbound = z1 < G.z;
@@ -437,9 +439,10 @@
     // in through the passage, on the paid side of the gates, walking into the concourse
     const G = R.platformGate, gates = R.gates;
     if (!G || !gates) return;
-    player.pos.set(R.ox + G.x, interior.floorY, R.oz - (R.D || 17) / 2 + 1.3); player.obj.position.copy(player.pos);
+    const gy = G.y || 0; R.curY = gy; R.onRamp = null;
+    player.pos.set(R.ox + G.x, interior.floorY + gy, R.oz - (R.D || 17) / 2 + 1.3); player.obj.position.copy(player.pos);
     player.yaw = player.targetYaw = 0; yaw = Math.PI; pitch = -0.2;
-    camPos.set(player.pos.x, interior.floorY + 2.2, player.pos.z - 2.6); interiorClampCam(camPos); camera.position.copy(camPos);
+    camPos.set(player.pos.x, interior.floorY + gy + 2.2, player.pos.z - 2.6); interiorClampCam(camPos); camera.position.copy(camPos);
     gates.paid = true; gates.ic = !!(wallet.ic);
     say("出口  Exit  ·  through the gates to the street.", 3.5);
   }
@@ -520,7 +523,7 @@
     if (!R) return orig.apply(this, arguments);
     if (!T.on) titleOn(R);
     title.t += dt; T.t += dt;
-    const W = R.W || 24, D = R.D || 17, fy = interior.floorY, k = T.t * 0.035;
+    const W = R.W || 24, D = R.D || 17, fy = interior.floorY + ((R.gates && R.gates.y) || 0), k = T.t * 0.035;
     // from the street end of the concourse, looking over the crowd at the gates and the passage to the platforms
     const x = R.ox + W * (0.18 + 0.1 * Math.sin(k)), z = R.oz + D * (0.32 - 0.05 * Math.cos(k * 0.8)), y = fy + 2.3 + 0.25 * Math.sin(k * 1.3);
     camPos.set(x, y, z); camera.position.copy(camPos);
