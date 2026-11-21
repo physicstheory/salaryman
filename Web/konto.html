@@ -1307,6 +1307,7 @@
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+<script src="game/gpu-guard.js"></script>
 <script src="art/interface.js"></script>
 <script src="art/product-art.js"></script>
 <script src="art/retail.js"></script>
@@ -8735,7 +8736,9 @@ function initThree() {
   const stage = document.getElementById("stage");
   // A tier chosen on a previous evening is honoured before the first frame, so
   // a slow machine never has to sit through one at full resolution to find out.
-  let startTier = savedTier() || guessTier();
+  // integrated graphics (Iris Xe, UHD, AMD APUs): the tiers are capped and the textures kept to a budget (game/gpu-guard.js)
+  if (window.GPU_GUARD) GPU_GUARD.capTiers(TIERS);
+  let startTier = savedTier() || (window.GPU_GUARD ? GPU_GUARD.startTier(guessTier()) : guessTier());
   if (GFX_SAFE.level >= 1) { startTier = "low"; gfx.lean = true; post.forced = false; gfx.scale = GFX_SAFE.level >= 3 ? 0.5 : GFX_SAFE.level >= 2 ? 0.6 : 0.8; }
   // back from a graphics reset the quality stays what it was (stepping it down each time left a good laptop looking like a bad one);
   // only the picture's memory is held in for this session: the resolution at the window's own and the shadow map at 2048
@@ -8744,6 +8747,7 @@ function initThree() {
   renderer = new THREE.WebGLRenderer({
     antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
   });
+  if (window.GPU_GUARD) GPU_GUARD.attach(renderer);   // before the first texture goes up
   gfx.tier = startTier;
   gfx.high = startTier !== "low";
   renderer.outputEncoding = THREE.sRGBEncoding;

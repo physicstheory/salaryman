@@ -48,14 +48,14 @@ if (up) {
   const rep = await page.evaluate(() => {
     const P = PERSIST.engine, r = P && P.report;
     return { report: r ? { ms: r.ms, residentMb: r.residentMb, budgetMb: r.budgetMb, stages: r.stages.map(s => ({ name: s.name, ok: s.ok, ms: s.ms, error: s.error, result: JSON.stringify(s.result || "").slice(0, 300) })), checks: r.checks.map(c => ({ c: c.framework + " / " + c.name, ok: c.ok, detail: String(c.detail || "").slice(0, 300) })) } : null,
-      front: window.shigoto && shigoto.front ? shigoto.front() : null, gpu: renderer.info.memory, programs: (renderer.info.programs || []).length };
+      front: window.shigoto && shigoto.front ? shigoto.front() : null, gpu: renderer.info.memory, programs: (renderer.info.programs || []).length, guard: window.GPU_GUARD ? GPU_GUARD.report() : null };
   });
   fs.writeFileSync(path.join(OUT, "report.json"), JSON.stringify(rep, null, 1));
   if (!rep.report) { say("no persistence report: the load did not run"); fail = true; }
   else {
     for (const s of rep.report.stages) say((s.ok ? "  ok   " : "  FAIL ") + s.name.padEnd(12) + String(s.ms).padStart(7) + " ms  " + (s.error || s.result));
     for (const c of rep.report.checks) say((c.ok ? "  ok   " : "  FAIL ") + c.c + ": " + c.detail);
-    say("front " + JSON.stringify(rep.front) + " gpu " + JSON.stringify(rep.gpu) + " programs " + rep.programs);
+    say("guard " + JSON.stringify(rep.guard)); say("front " + JSON.stringify(rep.front) + " gpu " + JSON.stringify(rep.gpu) + " programs " + rep.programs);
     if (rep.report.stages.some(s => !s.ok) || rep.report.checks.some(c => !c.ok)) fail = true;
   }
   try { await page.screenshot({ path: path.join(OUT, "title.png") }); } catch (e) {}
