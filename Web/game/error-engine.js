@@ -42,8 +42,8 @@
       look: "Game/main.js child-process-gone (type GPU). Reason/exit code in Message; also <userData>/gpu-log.txt. Often a driver TDR or out of video memory." },
     "SM-GPU-003": { sev: "error", title: "Graphics driver keeps resetting", hint: "The driver reset even on the safest graphics. Updating the graphics driver usually fixes this.",
       look: "GFX_SAFE reached level 3. Driver/GPU problem or a draw that is too heavy even at low: check the GPU line and the log before the loss." },
-    "SM-GPU-004": { sev: "error", title: "WebGL could not start", hint: "The game could not get 3D graphics from this computer.",
-      look: "WebGLRenderer creation failed: GPU blocklisted, driver missing, remote desktop, or GPU process down. See GPU line and featureStatus." },
+    "SM-GPU-004": { sev: "error", title: "WebGL could not start", hint: "The game could not get 3D graphics from this computer. In a browser: quit it completely and open it again (after a graphics crash Chrome blocks 3D for the site until it restarts), and check that Settings > System > Use graphics acceleration is on.",
+      look: "WebGLRenderer creation failed on every step of makeRenderer (konto.html): WebGL2 high-performance/default/low-power, WebGL1, experimental-webgl. The message lists each step's webglcontextcreationerror. Causes: GPU blocklisted, hardware acceleration off, Chrome blocking WebGL for the origin after a GPU crash, remote desktop, GPU process down. See GPU line and featureStatus." },
     "SM-GPU-005": { sev: "warn", title: "Shader failed to compile", hint: "Some surfaces may draw black or not at all.",
       look: "THREE.WebGLProgram shader error: the log lines carry the GLSL error. Custom ShaderMaterials / onBeforeCompile patches in konto.html." },
     "SM-GPU-006": { sev: "error", title: "Graphics did not come back", hint: "The graphics card did not return the game's picture after a reset.",
@@ -165,7 +165,8 @@
       screen: safe(() => innerWidth + "x" + innerHeight + " @" + (devicePixelRatio || 1)) || "",
       heap: mem ? Math.round(mem.usedJSHeapSize / 1048576) + "/" + Math.round(mem.jsHeapSizeLimit / 1048576) + " MB" : "",
       device: (navigator.deviceMemory ? navigator.deviceMemory + " GB, " : "") + (navigator.hardwareConcurrency || "?") + " threads",
-      log: d.logPath || ""
+      log: d.logPath || "",
+      guard: safe(() => window.GPU_GUARD && GPU_GUARD.line()) || ""
     };
   }
   function where() {
@@ -238,6 +239,7 @@
     L.push("Version: " + i.version + (i.build ? " (build " + i.build + ")" : "") + (i.update ? " + update " + i.update : "") + (i.electron ? " · Electron " + i.electron : "") + (i.chrome ? " · Chrome " + i.chrome : "") + " · " + i.os);
     L.push("GPU: " + (i.glRenderer || i.gpu || "unknown") + (i.driver ? " · driver " + i.driver : "") + (i.glVersion ? " · " + i.glVersion : ""));
     L.push("Graphics: tier " + (i.tier || "?") + " · safe level " + (i.safeLevel === "" ? "?" : i.safeLevel) + (i.scale ? " · scale " + i.scale : "") + " · " + i.screen);
+    if (i.guard) L.push("Video memory: " + i.guard);
     L.push("Memory: JS heap " + (i.heap || "?") + " · " + i.device);
     L.push("Game: " + r.where);
     if (r.message) L.push("Message: " + r.message);

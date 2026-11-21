@@ -47,3 +47,18 @@ node Tools/web/build-site.js --polished . --polished-sha $(git rev-parse HEAD) \
      --proto . --proto-sha $(git rev-parse HEAD) --proto-ref local --out /tmp/site/salaryman
 cd /tmp/site && python3 -m http.server 8765   # open http://localhost:8765/salaryman/
 ```
+
+## Older computers (a 2015 MacBook Pro in Chrome)
+
+`Web/game/gpu-guard.js` recognises older graphics from the WebGL renderer name (`GPU_GUARD.legacy`, kind `legacy`): pre-Xe Intel
+(HD 4000-6000, UHD 6x0, Iris 5100/6100, Iris Pro 5200/6200, Iris Plus 6x0), any Intel Mac's graphics, and the old mobile cards in
+2012-2016 MacBook Pros (GeForce GT 650M/750M, Radeon R9 M3x0). On those, in every channel:
+
+- the game starts in the Low-end PC mode, renamed "Older computer" and tuned to aim for 30 fps at 50-85% of the window, never at the
+  Retina scale, with 5 pedestrians and 12 commuters around you (unless a PC mode or a quality was ever picked);
+- every tier is cut: no anti-aliasing or post chain, 1024 shadow maps (none on low), 256 px normal maps, a 1000 m (low 800 m) view,
+  30 (low 22) cars, small drawn textures;
+- model textures go up at 512 px at most within a 400 MB (8 GB RAM) / 600 MB (16 GB) budget;
+- the persistence engine is skipped: the world streams around you instead of being built and kept whole behind the loading screen.
+
+`?legacy=1` forces it on anywhere, `?legacy=0` turns it off. Test: `node Game/tools/gpu-guard-test.mjs` (section 6).
