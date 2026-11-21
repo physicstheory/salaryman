@@ -61,10 +61,15 @@ function main() {
   page = page.replace(/<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^>]*>\s*/g,
     "<!-- web fonts dropped for the desktop build; system faces stand in -->\n");
 
-  fs.writeFileSync(path.join(OUT, "index.html"), page);
   // which commit this build is, for the error engine's reports (Game/main.js buildInfo)
   let commit = process.env.GITHUB_SHA || "";
   if (!commit) try { commit = require("child_process").execSync("git rev-parse HEAD", { cwd: REPO, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch (e) { /* not a checkout */ }
+  // The desktop app is the polished channel: prototype-only code stays off (Web/game/channel.js). KONTO_CHANNEL=prototype stages a prototype.
+  const channel = process.env.KONTO_CHANNEL === "prototype" ? "prototype" : "polished";
+  const stamp = "<script>window.KONTO_CHANNEL=" + JSON.stringify({ name: channel, commit, built: new Date().toISOString() }) + ";</script>\n";
+  const tag = '<script src="game/channel.js"></script>';
+  if (page.indexOf(tag) >= 0) page = page.replace(tag, stamp + tag);
+  fs.writeFileSync(path.join(OUT, "index.html"), page);
   fs.writeFileSync(path.join(OUT, "build.json"), JSON.stringify({ commit, staged: new Date().toISOString() }));
 
   const glb = path.join(SRC, "seiko.glb");

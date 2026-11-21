@@ -21,6 +21,10 @@ Hyper-realistic world and hyper-realistic characters. No anime or toon assets. E
 
 The game's error engine (`Web/game/error-engine.js`, plus the "error engine" section of `Game/main.js`) shows codes like `SM-GPU-001-3FA2` with a Copy report button. When Duncan pastes one, look it up in `docs/ERROR_CODES.md` (where to look for each kind) and use the pasted report. Adding a code: add it to the `CODES` table in error-engine.js, then run `node Tools/qa/error-codes.mjs` to regenerate the doc (`--check` verifies it). Test: `node Game/tools/error-engine-test.cjs`.
 
+## Web builds and prototype mode
+
+Every build is also playable as a website (GitHub Pages, `.github/workflows/web.yml`): `/play/` is the polished latest-build, `/prototype/` is unpolished experiments. Put experiments behind `KONTO_PROTO.feature("name", fn)` / `KONTO_PROTO.on` (`Web/game/channel.js`) so they stay out of the polished build, push them to a `prototype/<name>` branch, or run `gh workflow run web.yml -f prototype_ref=<branch>`. Full notes: `docs/WEB_BUILDS.md`.
+
 ## Where things are
 
 - Game: `Web/konto.html` (Three.js r128), run in Electron from `Game/`.

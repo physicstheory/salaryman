@@ -1,0 +1,151 @@
+# Put the game on the web: the polished build and the prototype build, playable in a browser with no install.
+#
+#   https://<owner>.github.io/<repo>/            landing page
+#   https://<owner>.github.io/<repo>/play/       polished: the latest-build release's commit (AAA gated by game.yml)
+#   https://<owner>.github.io/<repo>/prototype/  prototype: the newest push to a prototype branch, or any ref you pick
+#
+# When it runs:
+#   - after every successful "Build the game" run (the latest-build release moved): the polished build is refreshed
+#   - on a push to `prototype` or `prototype/**`: that branch becomes the prototype build
+#   - by hand (Actions -> Web builds -> Run workflow, or `gh workflow run web.yml -f prototype_ref=<branch>`)
+# Each deploy rebuilds both channels, keeping whichever one it was not asked to change (read back from status.json).
+# One-time setup: Settings -> Pages -> Build and deployment -> Source: GitHub Actions. Details: docs/WEB_BUILDS.md.
+name: Web builds
+
+on:
+  workflow_run:
+    workflows: ["Build the game"]
+    types: [completed]
+  push:
+    branches: ["prototype", "prototype/**"]
+  workflow_dispatch:
+    inputs:
+      prototype_ref:
+        description: 'Branch, tag or commit to put on /prototype/ (empty keeps the current prototype)'
+        required: false
+        default: ''
+        type: string
+      polished_sha:
+        description: 'Commit for /play/ (empty = the latest-build release)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write
+
+concurrency:
+  group: web-pages
+  cancel-in-progress: false
+
+jobs:
+  # The github-pages environment only accepts deploys from the default branch, so a push to a prototype branch hands
+  # the job over to a run on the default branch (a dispatch made with the workflow token is allowed to start a run).
+  relay:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy this branch as the prototype
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run web.yml --repo "${{ github.repository }}" --ref "${{ github.event.repository.default_branch }}" -f prototype_ref="${{ github.ref_name }}"
+
+  site:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Work out which commits go where
+        id: pick
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          IN_PROTO: ${{ inputs.prototype_ref }}
+          IN_POL: ${{ inputs.polished_sha }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          sha_of() { gh api "repos/$REPO/commits/$1" --jq .sha 2>/dev/null || true; }
+          # polished: the commit the latest-build release was built from (game.yml writes it into the release text)
+          pol="$IN_POL"
+          if [ -z "$pol" ]; then
+            body=$(gh api "repos/$REPO/releases/tags/latest-build" --jq '.body + " " + .target_commitish' 2>/dev/null || true)
+            pol=$(printf '%s' "$body" | grep -oE '[0-9a-f]{40}' | head -n1 || true)
+          fi
+          [ -n "$pol" ] || pol=$(sha_of "$DEFAULT")
+          pol=$(sha_of "$pol")
+          # prototype: what was asked for, else what is live now, else the prototype branch, else the default branch
+          proto=""; ref="$IN_PROTO"
+          if [ -n "$ref" ]; then proto=$(sha_of "$ref"); [ -n "$proto" ] || { echo "::error::no such ref: $ref"; exit 1; }; fi
+          if [ -z "$proto" ]; then
+            live=$(gh api "repos/$REPO/pages" --jq .html_url 2>/dev/null || true)
+            [ -n "$live" ] || live="https://${REPO%%/*}.github.io/${REPO#*/}/"
+            if [ -n "$live" ]; then
+              st=$(curl -fsSL "${live%/}/status.json?$(date +%s)" 2>/dev/null || true)
+              proto=$(printf '%s' "$st" | jq -r '.prototype.commit // ""' 2>/dev/null || true)
+              ref=$(printf '%s' "$st" | jq -r '.prototype.ref // ""' 2>/dev/null || true)
+              [ -z "$proto" ] || proto=$(sha_of "$proto")
+            fi
+          fi
+          if [ -z "$proto" ]; then proto=$(sha_of prototype); ref=prototype; fi
+          if [ -z "$proto" ]; then proto=$(sha_of "$DEFAULT"); ref="$DEFAULT"; fi
+          [ -n "$ref" ] || ref="${proto:0:7}"
+          echo "polished=$pol" >> "$GITHUB_OUTPUT"
+          echo "proto=$proto" >> "$GITHUB_OUTPUT"
+          echo "proto_ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "### Web builds" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /play/ (polished): \`$pol\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- /prototype/: \`$proto\` from \`$ref\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Site tools
+        uses: actions/checkout@v4
+        with:
+          path: tools
+          sparse-checkout: Tools/web
+
+      - name: Polished checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pick.outputs.polished }}
+          path: polished
+          sparse-checkout: |
+            Web
+            Game/vendor
+
+      - name: Prototype checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pick.outputs.proto }}
+          path: proto
+          sparse-checkout: |
+            Web
+            Game/vendor
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build the site
+        run: >
+          node tools/Tools/web/build-site.js
+          --polished polished --polished-sha "${{ steps.pick.outputs.polished }}"
+          --proto proto --proto-sha "${{ steps.pick.outputs.proto }}" --proto-ref "${{ steps.pick.outputs.proto_ref }}"
+          --repo "${{ github.repository }}" --out site
+
+      # Turns Pages on by itself where the token is allowed to; otherwise the error says what to click.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy
+        id: deploy
+        uses: actions/deploy-pages@v4
