@@ -8732,6 +8732,51 @@ function boot(stageText, t) {
   if (label) label.textContent = t >= 1 ? "Loading" : "Loading Tōkonto";
 }
 
+// The WebGL context, asked for step by step. Chrome on an older Mac (a 2015 MacBook Pro's Iris 6100 or R9 M370X) can refuse the first
+// thing three.js asks for - WebGL2 on the discrete card with anti-aliasing - and then the game never started ("WebGL could not start",
+// SM-GPU-004). Each step asks for less: WebGL2 as before, WebGL2 without anti-aliasing on either GPU, WebGL2 on the low-power GPU, then WebGL1
+// (three.js r128 draws with it), then the old prefixed name. Why each step failed (the browser's webglcontextcreationerror message) goes into
+// the error report if none works. ?webgl=1 starts straight at WebGL1, to test that path.
+function makeRenderer(antialias) {
+  const tries = [
+    { name: "webgl2", attrs: { antialias, powerPreference: "high-performance" } },
+    { name: "webgl2", attrs: { antialias: false, powerPreference: "default" } },
+    { name: "webgl2", attrs: { antialias: false, powerPreference: "low-power" } },
+    { name: "webgl", attrs: { antialias: false, powerPreference: "default" } },
+    { name: "webgl", attrs: { antialias: false, powerPreference: "low-power" } },
+    { name: "experimental-webgl", attrs: { antialias: false } }
+  ].filter(t => !/[?&]webgl=1\b/.test(location.search) || t.name !== "webgl2");
+  const why = [];
+  for (const t of tries) {
+    const canvas = document.createElement("canvas");
+    let msg = "";
+    const onErr = e => { msg = (e && e.statusMessage) || msg; };
+    canvas.addEventListener("webglcontextcreationerror", onErr, false);
+    let ctx = null;
+    try {
+      ctx = canvas.getContext(t.name, Object.assign({ alpha: false, depth: true, stencil: true, premultipliedAlpha: true, preserveDrawingBuffer: false, failIfMajorPerformanceCaveat: false }, t.attrs));
+    } catch (e) { msg = msg || String(e && e.message || e); }
+    canvas.removeEventListener("webglcontextcreationerror", onErr, false);
+    if (!ctx) { why.push(t.name + "/" + (t.attrs.powerPreference || "-") + (t.attrs.antialias ? "/aa" : "") + ": " + (msg || "refused")); continue; }
+    // WebGL1: the game's own shaders use dFdx/fwidth without asking for the derivatives extension (WebGL2 has them built in); add the line
+    if (typeof WebGL2RenderingContext === "undefined" || !(ctx instanceof WebGL2RenderingContext)) {
+      const hasDeriv = !!ctx.getExtension("OES_standard_derivatives"), src = ctx.shaderSource;
+      if (hasDeriv) ctx.shaderSource = function (sh, code) {
+        if (typeof code === "string" && !/#version/.test(code) && /\b(dFdx|dFdy|fwidth)\s*\(/.test(code) && !/GL_OES_standard_derivatives/.test(code)) code = "#extension GL_OES_standard_derivatives : enable\n" + code;
+        return src.call(ctx, sh, code);
+      };
+    }
+    try {
+      const r = new THREE.WebGLRenderer({ canvas, context: ctx, antialias: !!t.attrs.antialias, powerPreference: t.attrs.powerPreference, alpha: false });
+      if (why.length) console.warn("[Konto] WebGL started on " + t.name + " (" + (t.attrs.powerPreference || "default") + ") after: " + why.join("; "));
+      window.KONTO_WEBGL = { context: t.name, attrs: t.attrs, refused: why.slice() };
+      return r;
+    } catch (e) { why.push(t.name + " renderer: " + String(e && e.message || e)); }
+  }
+  window.KONTO_WEBGL = { context: null, refused: why };
+  throw new Error("Error creating WebGL context. Tried: " + why.join("; "));
+}
+
 function initThree() {
   const stage = document.getElementById("stage");
   // A tier chosen on a previous evening is honoured before the first frame, so
@@ -8744,9 +8789,7 @@ function initThree() {
   // only the picture's memory is held in for this session: the resolution at the window's own and the shadow map at 2048
   try { if (sessionStorage.getItem("konto.glLost")) { sessionStorage.removeItem("konto.glLost"); gfx.lean = true;
     setTimeout(() => { try { say("The graphics driver reset. Your game was saved \u2014 press Continue.", 8); } catch (x) {} }, 4000); } } catch (e) { /* none */ }
-  renderer = new THREE.WebGLRenderer({
-    antialias: (TIERS[startTier] || TIERS.high).antialias, powerPreference: "high-performance"
-  });
+  renderer = makeRenderer((TIERS[startTier] || TIERS.high).antialias);
   if (window.GPU_GUARD) GPU_GUARD.attach(renderer);   // before the first texture goes up
   gfx.tier = startTier;
   gfx.high = startTier !== "low";
