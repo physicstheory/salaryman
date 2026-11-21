@@ -20,6 +20,8 @@
   if (off) { console.log("[Konto] persistence turned off; streaming as before"); return; }
   // on the second step of the safe-graphics ladder (after graphics driver resets) nothing is kept resident: the world streams as it used to
   if (window.GFX_SAFE && GFX_SAFE.level >= 2) { console.log("[Konto] safe graphics " + GFX_SAFE.level + ": persistence off, streaming as before"); return; }
+  // older computers (a 2015 MacBook Pro, HD/Iris graphics of that age): the whole world kept resident does not fit, so it streams
+  if (window.GPU_GUARD && GPU_GUARD.legacy) { console.log("[Konto] older computer (" + (GPU_GUARD.gpu || "unknown graphics") + "): persistence off, streaming as before"); return; }
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
   let last = null;

@@ -8798,9 +8798,17 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(58, stage.clientWidth / stage.clientHeight, 2, 30000);
   sizeRenderer();
   applyTier(startTier, { quiet: true });
+  // older computers (game/gpu-guard.js): the Low-end PC mode, tuned down further (30 fps target, 50-85% resolution, fewer people), unless
+  // the player has ever picked a PC mode or a quality (gameSet.pcMode stays undefined until a choice is saved; "off" saves null)
+  if (window.GPU_GUARD && GPU_GUARD.legacy && typeof PC_MODES !== "undefined") {
+    Object.assign(PC_MODES.low, { label: "Older computer", fps: 30, scale: 0.75, min: 0.5, max: 0.85, people: 5, commute: 12 });
+    if (gameSet.pcMode === undefined && !savedTier() && !GFX_SAFE.level) { gameSet.pcMode = "low"; gameSet.adapt = false; }
+  }
+  // older computers (game/gpu-guard.js): say once why the picture is softer, and how to change it
+  if (window.GPU_GUARD && GPU_GUARD.legacy && !GFX_SAFE.level && !savedTier()) setTimeout(() => { try { say("Older-computer graphics are on for this machine. You can raise the quality in Settings.", 8); } catch (x) { /* none */ } }, 6000);
   if (GFX_SAFE.level >= 1) { setTimeout(() => { try { say("Safe graphics are on after a graphics driver reset" + (GFX_SAFE.gpu ? " (" + GFX_SAFE.gpu.replace(/^ANGLE \(|\)$/g, "").slice(0, 70) + ")" : "") + ". Raise the quality in Settings when you want to.", 9); } catch (x) { /* none */ } }, 5000);
     if (GFX_SAFE.level >= 3) { TIERS.low.far = 700; } }
-  else if (gameSet.pcMode && typeof PC_MODES !== "undefined" && PC_MODES[gameSet.pcMode]) { const M = PC_MODES[gameSet.pcMode]; applyTier(M.tier, { quiet: true }); if (gameSet.pcMode === "low") TEXQ.scale = 2; gfx.scale = M.scale; }
+  else if (gameSet.pcMode && typeof PC_MODES !== "undefined" && PC_MODES[gameSet.pcMode]) { const M = PC_MODES[gameSet.pcMode]; applyTier(M.tier, { quiet: true }); if (gameSet.pcMode === "low" && !(window.GPU_GUARD && GPU_GUARD.legacy)) TEXQ.scale = 2; gfx.scale = M.scale; }
   window.addEventListener("resize", sizeRenderer);
 
   initTouch();
@@ -9750,7 +9758,7 @@ function initPause() {
     applyInterfaceSettings();
     if (g("muidensity")) g("muidensity").textContent = "Interface layout: " + (gameSet.uiDensity === "compact" ? "compact" : "comfortable");
     if (g("muimotion")) g("muimotion").textContent = "Interface motion: " + (gameSet.reduceMotion ? "reduced" : "system");
-    if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? "Low-end PC (aims for 40 fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
+    if (g("mpcmode")) g("mpcmode").textContent = "PC mode: " + (gameSet.pcMode === "low" ? PC_MODES.low.label + " (aims for " + PC_MODES.low.fps + " fps)" : gameSet.pcMode === "high" ? "High-end PC (aims for 60 fps)" : "off (use the graphics setting)");
     if (g("madapt")) g("madapt").textContent = "Adaptive graphics: " + (gameSet.adapt ? "on (eases the resolution a little if the game is slow; never the quality)" : "off (never changes by itself)");
     if (g("mundo")) g("mundo").style.display = perf.undo ? "" : "none";
     if (g("mrumble")) g("mrumble").textContent = "Controller vibration: " + (gameSet.rumble ? "on" : "off");
@@ -42746,7 +42754,7 @@ function pcModeApply(id, quiet) {
   const M = PC_MODES[id];
   gameSet.adapt = false;                          // the mode does its own adapting
   applyTier(M.tier, { quiet: true });
-  if (id === "low") TEXQ.scale = 2;              // drawn textures at the medium size: they are made once and cost nothing to draw
+  if (id === "low" && !(window.GPU_GUARD && GPU_GUARD.legacy)) TEXQ.scale = 2;   // drawn textures at the medium size (older computers keep the small ones): they are made once and cost nothing to draw
   gfx.scale = M.scale; perf.mult = 1; pcDrs.hold = 2; sizeRenderer();
   try { syncQualityLabels(); } catch (e) {}
   if (!quiet) say(M.label + " mode: aiming for " + M.fps + " fps. Building textures change the next time the game starts.", 6);

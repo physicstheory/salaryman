@@ -122,6 +122,34 @@ try {
   await page.goto(`http://127.0.0.1:${port}/test.html?igpu=1`);
   const fresh = await page.evaluate(() => ({ safe: localStorage.getItem("konto.gfxSafe"), budget: GPU_GUARD.budgetMb, ver: localStorage.getItem("konto.gpuGuard") }));
   check(fresh.safe === null && fresh.budget >= 500 && fresh.ver === (await page.evaluate(() => GPU_GUARD.VERSION)), "a new version starts integrated graphics from the top", fresh);
+
+  // ---- 6  older computers (a 2015 MacBook Pro in Chrome): detection, the older-computer tiers, the 512 px cap ----
+  const leg = await page.evaluate(() => {
+    const L = GPU_GUARD.isLegacy;
+    const yes = ["ANGLE (Intel Inc., Intel(R) Iris(TM) Graphics 6100, OpenGL 4.1)", "ANGLE (Intel Inc., ANGLE Metal Renderer: Intel(R) Iris(TM) Graphics 6100, Unspecified Version)",
+      "ANGLE (Intel Inc., Intel Iris Pro OpenGL Engine, OpenGL 4.1)", "ANGLE (Intel, Intel(R) HD Graphics 520 Direct3D11 vs_5_0 ps_5_0, D3D11)", "ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "ANGLE (ATI Technologies Inc., AMD Radeon R9 M370X OpenGL Engine, OpenGL 4.1)", "ANGLE (NVIDIA Corporation, NVIDIA GeForce GT 750M OpenGL Engine, OpenGL 4.1)", "Intel(R) Iris(TM) Plus Graphics 640", "ANGLE (Intel, Intel(R) Iris(R) Pro Graphics 6200 Direct3D11 vs_5_0 ps_5_0, D3D11)"];
+    const no = ["ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)", "ANGLE (Intel, Intel(R) Arc(TM) A770 Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)",
+      "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Laptop GPU Direct3D11 vs_5_0 ps_5_0, D3D11)", "ANGLE (Apple, ANGLE Metal Renderer: Apple M1, Unspecified Version)",
+      "ANGLE (AMD, AMD Radeon(TM) Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)", "ANGLE (AMD, AMD Radeon RX 6700 XT Direct3D11 vs_5_0 ps_5_0, D3D11)", "ANGLE (ATI Technologies Inc., AMD Radeon Pro 5700 XT OpenGL Engine, OpenGL 4.1)"];
+    return { missed: yes.filter(n => !L(n)), wrong: no.filter(n => L(n)) };
+  });
+  check(!leg.missed.length && !leg.wrong.length, "older graphics recognised (2015 MacBook Pro Iris 6100 / R9 M370X), modern ones left alone", leg);
+  await page.goto(`http://127.0.0.1:${port}/test.html?legacy=1`);
+  const lt = await page.evaluate(() => {
+    const T = { low: { renderScale: 0.8, maxPixelRatio: 1, shadows: false, shadowMap: 1024, tex: 1, far: 1100, cars: 45, antialias: false, post: false, normals: false },
+      medium: { renderScale: 1, maxPixelRatio: 1.5, shadows: true, shadowMap: 2048, tex: 2, normalMax: 512, far: 1800, cars: 90, antialias: true, post: false, normals: true },
+      ultra: { renderScale: 1.35, maxPixelRatio: 2, shadows: true, shadowMap: 4096, tex: 6, normalMax: 2048, far: 3400, cars: 160, antialias: true, post: true, normals: true } };
+    GPU_GUARD.capTiers(T);
+    const r = GPU_GUARD.report();
+    return { T, start: GPU_GUARD.startTier("ultra"), legacy: GPU_GUARD.legacy, on: GPU_GUARD.on, cap: r.capPx, budget: r.budgetMb };
+  });
+  check(lt.legacy && lt.on && lt.start === "low", "?legacy=1: older-computer preset on, starts on low", { legacy: lt.legacy, start: lt.start });
+  check(Object.values(lt.T).every(t => t.maxPixelRatio === 1 && t.renderScale <= 0.75 && t.shadowMap <= 1024 && t.tex === 1 && !t.antialias && !t.post && t.far <= 1000 && t.cars <= 30), "every tier cut for older computers", lt.T.ultra);
+  check(lt.T.low.renderScale === 0.7 && lt.T.low.far <= 800 && !lt.T.low.shadows, "low is lighter still", lt.T.low);
+  check(lt.cap === 512 && lt.budget <= 600, "textures capped at 512 px, budget at most 600 MB", { cap: lt.cap, budget: lt.budget });
+  await page.goto(`http://127.0.0.1:${port}/test.html?igpu=1&legacy=0`);
+  check(await page.evaluate(() => !GPU_GUARD.legacy && GPU_GUARD.kind !== "legacy"), "?legacy=0 turns the older-computer preset off");
 } finally {
   await browser.close(); srv.close();
 }

@@ -14,10 +14,17 @@
 //      room, 512 px past 75% of the budget, 256 px past it. Shrinking is by halves, so a power-of-two texture stays one;
 //   4  learns: when the context is lost anyway, the budget for the next start is cut by a third (remembered, localStorage
 //      konto.igpuBudget), on top of the safe-graphics ladder in konto.html (GFX_SAFE).
-// It never touches a discrete card. ?igpu=0 turns it off, ?igpu=1 forces it on (to test on any machine). Console: GPU_GUARD.report().
+// It never touches a modern discrete card. ?igpu=0 turns it off, ?igpu=1 forces it on (to test on any machine). Console: GPU_GUARD.report().
+//
+// Older computers (GPU_GUARD.legacy, kind "legacy"): pre-Xe Intel graphics (HD 4000-6000, Iris 5100/6100, Iris Pro 5200/6200, Iris Plus
+// 6x0, UHD 6x0), every Intel Mac's graphics, and the old mobile cards in 2012-2016 MacBook Pros (GeForce GT 650M/750M, Radeon R9 M3x0).
+// A 2015 MacBook Pro in Chrome is the reference machine. They start on low with a smaller picture (75% of the window, never HiDPI),
+// textures at 512 px at most, a 400-600 MB texture budget, no shadows on low and 1024 shadow maps above it, a shorter draw distance and
+// less traffic, and the world streamed around you instead of built and kept whole behind the loading screen (persist-hook.js skips the
+// persistence engine). ?legacy=1 forces it on, ?legacy=0 off (the plain integrated preset then applies).
 (function () {
   "use strict";
-  const VERSION = "2026-11-20";
+  const VERSION = "2026-11-21";
   const Q = location.search;
   const forcedOff = /[?&]igpu=0\b/.test(Q), forcedOn = /[?&]igpu=1\b/.test(Q);
   const store = {
@@ -44,9 +51,21 @@
     if (/mali|adreno|powervr|apple gpu/i.test(name)) return "integrated";
     return "discrete";
   }
-  const kind = classify(gpu);
+  // Older graphics: what a 2012-2017 laptop has. Chrome on an Intel Mac names them "ANGLE (Intel Inc., Intel(R) Iris(TM) Graphics 6100,
+  // OpenGL 4.1)", "ANGLE (Intel Inc., ANGLE Metal Renderer: Intel(R) Iris(TM) Graphics 6100, Unspecified Version)" or "Intel Iris Pro
+  // OpenGL Engine"; Windows names the same chips "Intel(R) HD Graphics 520".
+  function isLegacy(name) {
+    if (!name || /\barc\b|xe\b/i.test(name)) return false;
+    if (/intel/i.test(name) && /opengl engine|intel inc\./i.test(name)) return true;                          // any Intel Mac
+    if (/(?:\bu?hd|iris(?:\((?:tm|r)\))?(?: pro| plus)?)(?:\((?:tm|r)\))?(?: graphics)?(?:\((?:tm|r)\))? \d{3,4}\b/i.test(name)) return true;  // HD 4000, Iris 6100, UHD 620
+    if (/radeon (?:r[579] )?m\d{3}x?\b|radeon hd \d{4}m\b|radeon pro 4\d{2}\b|geforce (?:gtx? )?[3-9]\d{2}m\b|geforce \d{3}m\b/i.test(name)) return true;  // old mobile cards
+    return false;
+  }
+  const forcedLegacy = /[?&]legacy=1\b/.test(Q), noLegacy = /[?&]legacy=0\b/.test(Q);
+  const legacy = !forcedOff && !noLegacy && (forcedLegacy || isLegacy(gpu));
+  const kind = legacy ? "legacy" : classify(gpu);
   const irisXe = /iris.{0,4}xe/i.test(gpu);
-  const on = !forcedOff && (forcedOn || kind === "integrated" || kind === "weak");
+  const on = !forcedOff && (forcedOn || legacy || kind === "integrated" || kind === "weak");
 
   // The machine's RAM, from the desktop build (navigator.deviceMemory stops at 8). The driver lends an integrated GPU up to half of it.
   let ramGB = 0;
@@ -56,7 +75,7 @@
   // ---- the budget for textures and render targets ----------------------------------------------------------------------------------------
   // 1.2 GB on a 16 GB machine, 0.8 GB on 8 GB, 0.5 GB below that: far under what the driver lends, because the page's own heap (up to
   // 4 GB), the browser and Windows share the same RAM. A start after a loss on this version gets two thirds of the last budget.
-  const BASE = ramGB >= 16 ? 1200 : ramGB >= 8 ? 800 : 500;
+  const BASE = legacy ? (ramGB >= 16 ? 600 : 400) : ramGB >= 16 ? 1200 : ramGB >= 8 ? 800 : 500;
   let budgetMb = BASE;
   const learned = parseInt(store.get("konto.igpuBudget") || "", 10);
   if (store.get("konto.gpuGuard") !== VERSION) {
@@ -82,16 +101,25 @@
     }
     if (TIERS.medium) Object.assign(TIERS.medium, { renderScale: 0.9, cars: Math.min(TIERS.medium.cars, 70), far: Math.min(TIERS.medium.far, 1600) });
     if (kind === "weak" && TIERS.medium) TIERS.medium.shadowMap = 1024;
+    if (legacy) {
+      // older computers: a smaller picture, small textures, no anti-aliasing or post chain, shorter view and lighter streets on every tier
+      for (const k in TIERS) {
+        const t = TIERS[k];
+        Object.assign(t, { maxPixelRatio: 1, renderScale: Math.min(t.renderScale, 0.75), shadowMap: 1024, normalMax: 256, tex: 1,
+          antialias: false, post: false, far: Math.min(t.far, 1000), cars: Math.min(t.cars || 45, 30) });
+      }
+      if (TIERS.low) Object.assign(TIERS.low, { renderScale: 0.7, far: Math.min(TIERS.low.far, 800), cars: Math.min(TIERS.low.cars, 22), shadows: false, normals: false });
+    }
   }
   // the tier a first start on this chip gets (a tier the player picked always wins)
-  function startTier(guess) { if (!on) return guess; return kind === "weak" || ramGB < 8 ? "low" : guess === "low" ? "low" : "medium"; }
+  function startTier(guess) { if (!on) return guess; return legacy || kind === "weak" || ramGB < 8 ? "low" : guess === "low" ? "low" : "medium"; }
 
   // ---- 3  the ledger, and the texture cap ----------------------------------------------------------------------------------------------
   const L = { bytes: 0, peak: 0, textures: 0, shrunk: 0, savedBytes: 0, losses: 0, attached: false };
   const capPx = () => {
     const safe = window.GFX_SAFE ? GFX_SAFE.level : 0;
     const mb = L.bytes / 1048576;
-    let cap = mb > budgetMb ? 256 : mb > budgetMb * 0.75 ? 512 : 1024;
+    let cap = mb > budgetMb ? 256 : mb > budgetMb * 0.75 || legacy ? 512 : 1024;
     if (safe >= 2) cap = Math.min(cap, 512);
     return cap;
   };
@@ -214,7 +242,7 @@
 
   function report() {
     return {
-      gpu, kind, irisXe, on, ramGB, budgetMb, version: VERSION,
+      gpu, kind, irisXe, legacy, on, ramGB, budgetMb, version: VERSION,
       textureMb: Math.round(L.bytes / 1048576), peakMb: Math.round(L.peak / 1048576), textures: L.textures,
       capPx: on ? capPx() : null, shrunk: L.shrunk, savedMb: Math.round(L.savedBytes / 1048576), losses: L.losses,
       lastLoss: L.lastLoss || (() => { try { return JSON.parse(sessionStorage.getItem("konto.igpuLoss") || "null"); } catch (e) { return null; } })()
@@ -228,6 +256,6 @@
       (r.lastLoss ? " · last loss at " + r.lastLoss.mb + " MB" : "");
   }
 
-  window.GPU_GUARD = { get on() { return on; }, kind, gpu, irisXe, ramGB, get budgetMb() { return budgetMb; }, classify, capTiers, startTier, attach, room, report, line, VERSION };
-  if (on) console.log("[GPU guard] " + kind + " graphics (" + (gpu || "unknown") + "), " + ramGB + " GB RAM: integrated preset on, texture budget " + budgetMb + " MB");
+  window.GPU_GUARD = { get on() { return on; }, kind, gpu, irisXe, legacy, isLegacy, ramGB, get budgetMb() { return budgetMb; }, classify, capTiers, startTier, attach, room, report, line, VERSION };
+  if (on) console.log("[GPU guard] " + kind + " graphics (" + (gpu || "unknown") + "), " + ramGB + " GB RAM: " + (legacy ? "older-computer" : "integrated") + " preset on, texture budget " + budgetMb + " MB");
 })();
