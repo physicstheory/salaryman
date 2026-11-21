@@ -70,7 +70,8 @@ jobs:
           DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
-          sha_of() { gh api "repos/$REPO/commits/$1" --jq .sha 2>/dev/null || true; }
+          # a commit's full sha, or nothing (gh prints the error body on stdout, so keep only a real sha)
+          sha_of() { [ -n "$1" ] || return 0; gh api "repos/$REPO/commits/$1" --jq .sha 2>/dev/null | grep -oE '^[0-9a-f]{40}$' || true; }
           # polished: the commit the latest-build release was built from (game.yml writes it into the release text)
           pol="$IN_POL"
           if [ -z "$pol" ]; then
