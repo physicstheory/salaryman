@@ -137,7 +137,10 @@ jobs:
           --proto proto --proto-sha "${{ steps.pick.outputs.proto }}" --proto-ref "${{ steps.pick.outputs.proto_ref }}"
           --repo "${{ github.repository }}" --out site
 
+      # Turns Pages on by itself where the token is allowed to; otherwise the error says what to click.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
