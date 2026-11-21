@@ -102,6 +102,7 @@ if (args.proto) {
     own.push(r);
     proBytes += fs.statSync(src).size;
   }
+  fs.mkdirSync(path.join(OUT, "prototype"), { recursive: true });   // the prototype may be the polished commit itself: no own files, still a folder
   const stamp = { name: "prototype", commit: args["proto-sha"] || "", ref: args["proto-ref"] || "", built };
   const guard = "<script>if(!(navigator.serviceWorker&&navigator.serviceWorker.controller)){location.replace('./'+location.search);window.stop&&window.stop();}</script>\n";
   fs.writeFileSync(path.join(OUT, "prototype", "game.html"), gamePage(proWeb, stamp, guard));
